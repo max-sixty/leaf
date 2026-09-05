@@ -6,12 +6,16 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    />
     <title>leaf · generative UI for your agent</title>
     <meta
       name="description"
       content="Generative UI for agents: the agent builds the page your task needs, writes new widgets when the project calls for them, and answers your comments and edits over a messaging and collaboration bus. A plugin for Claude Code and Codex."
     />
-    <link rel="icon" href="../skills/leaf/assets/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="leaf · generative UI for your agent" />
     <meta
@@ -19,19 +23,40 @@
       content="Generative UI for agents: the agent builds the page your task needs and answers your comments and edits over a messaging and collaboration bus."
     />
     <meta property="og:url" content="https://leaf.page/" />
-    <meta property="og:image" content="https://leaf.page/session-light.png" />
+    <meta property="og:image" content="https://leaf.page/media/b570d38114308294.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="../skills/leaf/assets/theme.css" />
-    <link rel="stylesheet" href="../skills/leaf/packages/default/theme.css" />
-    <link rel="stylesheet" href="site.css" />
+    <link rel="stylesheet" href="/theme.css" />
+    <style>
+      .hosts {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--sp-3);
+        margin: 18px 0;
+      }
+      .hosts h3 {
+        margin: 0 0 6px;
+        color: var(--muted);
+        font-size: var(--t-5);
+      }
+      .hosts pre {
+        margin: 0;
+      }
+      figure.shot img {
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        box-shadow: 0 12px 32px rgb(0 0 0 / 8%);
+      }
+    </style>
+    <script type="module" src="/leaf.js"></script>
   </head>
-  <body>
+  <body class="site-page">
     <main>
       <nav class="sitenav" aria-label="Site">
         <span class="brand">leaf</span>
-        <a href="examples.html">Examples</a>
-        <a href="how-it-works.html">How it works</a>
-        <a href="packages.html">Packages</a>
+        <a href="/examples/">Examples</a>
+        <a href="/how-it-works/">How it works</a>
+        <a href="/packages/">Packages</a>
+        <a href="/registry/">Registry</a>
         <a href="https://github.com/max-sixty/leaf">GitHub</a>
       </nav>
 
@@ -54,13 +79,18 @@
         </p>
       </header>
 
+      <aside class="sidebar" id="tour-route">
+        <lf-toc id="tour-contents"></lf-toc>
+      </aside>
+
       <figure class="shot" id="session-shot">
         <picture>
-          <source media="(prefers-color-scheme: dark)" srcset="session-dark.png" />
+          <source
+            media="(prefers-color-scheme: dark)"
+            srcset="/media/d660042b68f89f15.png"
+          />
           <img
-            src="session-light.png"
-            width="1280"
-            height="953"
+            src="/media/b570d38114308294.png"
             alt="A live leaf in the browser: a migration plan with a comment anchored
 to a highlighted passage, Claude's reply in the thread, a version picker reading
 v2 (latest), and a banner reading 'Claude awaits'."
@@ -116,11 +146,11 @@ v2 (latest), and a banner reading 'Claude awaits'."
           </li>
         </ul>
         <p id="more">
-          The <a href="examples.html">examples</a> are complete pages, one per kind of
+          The <a href="/examples/">examples</a> are complete pages, one per kind of
           work, published here as the browser draws them.
-          <a href="how-it-works.html">How it works</a> shows the widget system rendering
-          live, and <a href="packages.html">Packages</a> covers how new widgets and
-          themes are delivered, whether the agent wrote them or you did.
+          <a href="/how-it-works/">How it works</a> shows the widget system rendering
+          live, and <a href="/packages/">Packages</a> covers how new widgets and themes
+          are delivered, whether the agent wrote them or you did.
         </p>
       </section>
 
@@ -175,9 +205,7 @@ v2 (latest), and a banner reading 'Claude awaits'."
 
       <figure class="shot" id="loop-demo">
         <img
-          src="demo.gif"
-          width="1120"
-          height="700"
+          src="/media/aabf25d4a3b8cbb6.gif"
           alt="A live leaf page. The user selects Backfill history and writes a
 comment while the passage stays highlighted. The agent replies, saves a new revision
 whose rehearsal count advances, and the user drags an on-call task to During."
@@ -191,13 +219,13 @@ whose rehearsal count advances, and the user drags an on-call task to During."
       <section id="interact-example">
         <h2>Example: Re-prioritize a queue</h2>
         <p id="interact-setup">
-          The <a href="../examples/triage-board.html">release-triage example</a> hands
-          the ordering to the user: drag “CSV export quotes numerics” from “Fix in
-          2.4.1” to “Blocking release”, and the page keeps it there. Nothing reads the
-          move on that page. Run it from a checkout and an agent does:
+          The <a href="/examples/triage-board/">release-triage example</a> hands the
+          ordering to the user: drag “CSV export quotes numerics” from “Fix in 2.4.1” to
+          “Blocking release”, and the page keeps it there. Nothing reads the move on
+          that page. Run it from a checkout and an agent does:
         </p>
-        <pre><code>scripts/preview.py triage-board</code></pre>
-        <figure>
+        <pre id="triage-command"><code>scripts/preview.py triage-board</code></pre>
+        <figure id="triage-specimen">
           <lf-specimen id="tour-board-specimen" label="release triage">
             <lf-board id="tour-board">
               <lf-column id="tour-col-blocking" label="Blocking release">
@@ -232,26 +260,26 @@ whose rehearsal count advances, and the user drags an on-call task to During."
       <section id="track-example">
         <h2>Example: Watch work finish</h2>
         <p id="track-setup">
-          The <a href="../examples/live-progress.html">cutover-rehearsal example</a> is
-          a page the agent keeps current while it works. It names what is running now,
-          marks the one blocked check and what it waits on, and records what has already
+          The <a href="/examples/live-progress/">cutover-rehearsal example</a> is a page
+          the agent keeps current while it works. It names what is running now, marks
+          the one blocked check and what it waits on, and records what has already
           finished. Run it like any other example:
         </p>
-        <pre><code>scripts/preview.py live-progress</code></pre>
-        <ol class="steps" id="track-versions">
-          <li>
-            <strong>v4:</strong> 11 of 18 checks are done; traffic has just moved to the
-            new checkout service.
-          </li>
-          <li>
-            <strong>v5:</strong> 14 are done; rollback is running, so that milestone
+        <pre id="progress-command"><code>scripts/preview.py live-progress</code></pre>
+        <lf-timeline id="track-versions">
+          <lf-event id="track-v4" at="v4" kind="info">
+            <strong>11 of 18 checks are done.</strong> Traffic has just moved to the new
+            checkout service.
+          </lf-event>
+          <lf-event id="track-v5" at="v5" kind="action">
+            <strong>14 checks are done.</strong> Rollback is running, so that milestone
             becomes active and the event timeline gains the cutover result.
-          </li>
-          <li>
-            <strong>v6:</strong> rollback is done; the report becomes active and the
-            browser follows the version without a reload.
-          </li>
-        </ol>
+          </lf-event>
+          <lf-event id="track-v6" at="v6" kind="info">
+            <strong>Rollback is done.</strong> The report becomes active and the browser
+            follows the version without a reload.
+          </lf-event>
+        </lf-timeline>
         <p id="track-source">
           The published example is the middle state, with metrics, milestones, a
           blocker, and an event log for the next version to update in place.
@@ -263,12 +291,16 @@ whose rehearsal count advances, and the user drags an on-call task to During."
         <div class="hosts">
           <div>
             <h3>Claude Code</h3>
-            <pre><code>/plugin marketplace add max-sixty/leaf
+            <pre
+              id="claude-install"
+            ><code class="language-bash">/plugin marketplace add max-sixty/leaf
 /plugin install leaf@leaf</code></pre>
           </div>
           <div>
             <h3>Codex</h3>
-            <pre><code>codex plugin marketplace add max-sixty/leaf
+            <pre
+              id="codex-install"
+            ><code class="language-bash">codex plugin marketplace add max-sixty/leaf
 codex plugin add leaf@leaf</code></pre>
           </div>
         </div>
@@ -280,17 +312,17 @@ codex plugin add leaf@leaf</code></pre>
         </p>
       </section>
 
-      <footer id="colophon">
+      <footer class="site-footer" id="colophon">
         <p id="links">
-          <a href="index.html">Tour</a> · <a href="examples.html">Examples</a> ·
-          <a href="how-it-works.html">How it works</a> ·
-          <a href="packages.html">Packages</a> ·
+          <a href="/">Tour</a> · <a href="/examples/">Examples</a> ·
+          <a href="/how-it-works/">How it works</a> ·
+          <a href="/packages/">Packages</a> ·
           <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
           <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>
         <p>
-          This page is a static render of leaf's own theme; the comment layer joins in
-          when a live session serves a page.
+          This page is a leaf. Its public-site session keeps interactions in this
+          browser; installed pages carry them back to the agent that made them.
         </p>
       </footer>
     </main>

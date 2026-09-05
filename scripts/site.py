@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Assemble the published site (https://leaf.page/) into .tmp/site.
 
-The site is the pages the repo already holds. `docs/` is written to be opened from
-a checkout — the worn assets (`WORN`) arrive by relative paths into the plugin
-payload, and payload and example links point into the checkout — so publishing is
-those substitutions plus the files the paths then name. An example keeps its authored
-document unchanged, so the files in the tree remain the specimens of the theme.
+Every product document under `docs/` is a Leaf source: it carries the exact scaffold
+the version checker accepts, uses root-absolute public routes, and is published without
+rewriting. The five sources become live-root directory routes, so the same runtime
+addressing used by a served Leaf applies without a site-only exception.
 
 The examples are the files in the tree too, and they are live. A static build
 materializes the version addresses that Leaf's live server resolves from revision
@@ -16,12 +15,14 @@ own examples/<name>/versions/, which is where the runtime reads a version number
 An example that ships a prior version publishes every one of them, so the chooser on
 the published page travels and marks the same way the served page's does. The
 Authored HTML paints before this site's JavaScript arrives, as it does on a served Leaf
-page. What answers the three paths is `docs/session.js`, loaded in front of
+page. What answers the five paths is `docs/session.js`, loaded in front of
 the runtime by `docs/leaf.js`: the log lives in the reader's own tab. Every control on
 the page is then the shipped one, working — the banner, the thread panel, a board that
 takes a drag and holds it. The half no host can supply is the agent at the other end:
 the page reports itself unattended and the banner says so in the runtime's own words,
-and `docs/sitenote.js` says the whole of it in the site's own label above the document.
+and `docs/sitenote.js` says the whole of it in the site's own label above an example.
+The product routes use that same session and runtime directly, without the example
+label.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
@@ -32,7 +33,6 @@ Usage: uv run scripts/site.py [--serve]
 
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -56,9 +56,7 @@ OUT = (
     ROOT / ".tmp" / "site"
 )  # gitignored; the workflow uploads it as the Pages artifact
 
-REPO = "https://github.com/max-sixty/leaf"
-
-# The one name the site changes on the way past. /leaf.js is the door a page and every
+# The one layer name the site changes on the way past. /leaf.js is the door a page and every
 # widget module import comes through, and on this site that door is `docs/leaf.js` — the
 # runtime with a session in front of it — so the vendored runtime is published beside it
 # under the name that file imports. Everything else in the page directory keeps its name,
@@ -66,49 +64,15 @@ REPO = "https://github.com/max-sixty/leaf"
 # it gains is a file the site serves rather than one it silently leaves behind.
 RUNTIME = "runtime.js"
 
-# The payload files a docs page is *wearing* rather than pointing at: the stylesheet it
-# is styled by and the icon its tab shows. Every other path into the payload is source to
-# read and becomes a GitHub link (PAYLOAD_SOURCE); these have to resolve on the host, so
-# link is rewritten to name the site's own copy — which is the vendored layer's, so the
-# site is styled by the file its examples are styled by rather than by a second copy of
-# the same rules. Rewritten first and on their own, and the rule has to say *the link
-# element's* href — `packages.html` also links the stylesheet as source to read, and a
-# match on the path alone would send a reader after the token block to the copy the site
-# serves instead of to the source.
-#
-# A pattern rather than a literal, because the literal is the same rule with a
-# formatter's opinion baked into it. It read as the whole <link> tag until prettier
-# started writing the void element `<link … />` and splitting this one over four lines;
-# the literal quietly stopped matching, the generic ../skills/ rule below took the href
-# instead, and every page shipped with its stylesheet pointing at a GitHub blob view —
-# a link that resolves, so the dead-link check has nothing to say, over a page with no
-# theme on it.
-PAYLOAD = "../skills/leaf"
-WORN = {
-    f"{PAYLOAD}/assets/theme.css": "theme.css",
-    f"{PAYLOAD}/assets/icon.svg": "icon.svg",
+PRODUCT_ROUTES = {
+    "index.html": "/",
+    "examples.html": "/examples/",
+    "how-it-works.html": "/how-it-works/",
+    "packages.html": "/packages/",
+    "registry.html": "/registry/",
 }
-WORN_LINKS = {
-    name: re.compile(rf'(<link\b[^>]*?)"{re.escape(source)}"')
-    for source, name in WORN.items()
-}
-# The one link a page loses here. A checkout has no merged stylesheet to link, so a docs
-# page names both halves of the theme; the site serves the merged file a page directory
-# vendors, which already holds this one — linked again it would restate the default half
-# over the top of itself.
-DEFAULT_THEME = re.compile(
-    rf'\s*<link\b[^>]*?"{re.escape(f"{PAYLOAD}/packages/default/theme.css")}"[^>]*>'
-)
-
-# Everything else a page reaches into the payload for is source to read, and becomes the
-# link that reads it. Both sides are literal, so a page naming something else keeps what
-# it named and the link check below is what notices.
-PAYLOAD_SOURCE = ("../skills/", f"{REPO}/blob/main/skills/")
-# An example is a page directory here, so its link is the directory rather than a file:
-# examples/triage-board/ , where the index below sends a reader on to the version file.
-# A live server can keep the root address because it injects the exact projected-version
-# marker into that response; this static host has no changing root response to mark.
-EXAMPLE_LINK = re.compile(r"\.\./examples/([a-z0-9-]+)\.html")
+SITE_SUPPORT = ("leaf.js", "session.js", "sitenote.js")
+SITE_PACKAGE = "./docs/package"
 
 # A static showcase has no server response that can stamp a live root with the version
 # it projected, so the directory's index forwards to the newest immutable file — every
@@ -230,21 +194,65 @@ def example_sources() -> list[Path]:
     return sources
 
 
+def product_sources() -> list[Path]:
+    """The complete product-page set, held to the public route map."""
+    sources = sorted(DOCS.glob("*.html"))
+    found = {source.name for source in sources}
+    expected = set(PRODUCT_ROUTES)
+    if found != expected:
+        missing = sorted(expected - found)
+        extra = sorted(found - expected)
+        sys.exit(
+            f"product pages disagree with their routes: missing={missing}, extra={extra}"
+        )
+    return sources
+
+
+def product_target(out: Path, route: str) -> Path:
+    """The index file a canonical trailing-slash route serves."""
+    return out / "index.html" if route == "/" else out / route.strip("/") / "index.html"
+
+
+def publish_product_pages(page: Path, out: Path, env: dict) -> None:
+    """Check each product document as a Leaf, then publish its exact source bytes."""
+    empty_data = json.dumps({"revision": 0, "sources": {}}) + "\n"
+    for source in product_sources():
+        markup = source.read_text(encoding="utf-8")
+        (page / "index.html").write_text(markup, encoding="utf-8")
+        leaf(env, "version", "check", str(page))
+        target = product_target(out, PRODUCT_ROUTES[source.name])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(markup, encoding="utf-8")
+        (target.parent / "data.json").write_text(empty_data, encoding="utf-8")
+        (target.parent / "events.jsonl").write_text("", encoding="utf-8")
+
+
 def publish_pages(out: Path, env: dict) -> None:
-    """The corpus's vendored layer and every authored example at the site root."""
+    """The site's vendored layer, product documents, and authored examples."""
     with tempfile.TemporaryDirectory() as tmp:
         page = Path(tmp) / "page"
         packages = json.loads((EXAMPLES / "layer.json").read_text(encoding="utf-8"))
         selection_args = [arg for name in packages for arg in ("--package", name)]
+        selection_args.extend(("--package", SITE_PACKAGE))
         leaf(env, "page", "init", *selection_args, str(page))
         # The page's content, named by the hash of its bytes and served from the root the
         # markup names it at (/media/…). It goes in the page directory rather than
         # straight to the site, because `version check` refuses a reference the directory
         # can't answer — and from there it is published with everything else below.
         shutil.copytree(EXAMPLES / "media", page / "media", dirs_exist_ok=True)
+        product_media = sorted(
+            path
+            for pattern in ("*.gif", "*.jpg", "*.png")
+            for path in DOCS.glob(pattern)
+        )
+        leaf(env, "page", "media", str(page), *(str(path) for path in product_media))
         for item in sorted(page.iterdir()):
             target = out / (RUNTIME if item.name == "leaf.js" else item.name)
             (shutil.copytree if item.is_dir() else shutil.copy2)(item, target)
+
+        for name in SITE_SUPPORT:
+            shutil.copy2(DOCS / name, out / name)
+        publish_product_pages(page, out, env)
 
         for source in example_sources():
             # The temporary page is reused only for its vendored layer. Reset its
@@ -348,19 +356,6 @@ def build(out: Path, *, verify_links: bool = True) -> None:
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
 
-    for source in sorted(DOCS.iterdir()):
-        target = out / source.name
-        if source.suffix == ".html":
-            text = source.read_text(encoding="utf-8")
-            for name, pattern in WORN_LINKS.items():
-                text = pattern.sub(rf'\1"{name}"', text)
-            text = DEFAULT_THEME.sub("", text)
-            text = EXAMPLE_LINK.sub(r"examples/\1/", text)
-            text = text.replace(*PAYLOAD_SOURCE)
-            target.write_text(text, encoding="utf-8")
-        else:
-            shutil.copy2(source, target)
-
     # The layer a visitor gets is the shipped one, plus this project's: a page dir
     # vendors the user's ~/.config/leaf overlay too, and that one belongs to
     # whoever is running the build. An empty config home is what withholds it —
@@ -389,7 +384,7 @@ def main() -> None:
     if sys.argv[1:] == ["--serve"]:
         handler = partial(QuietPreview, directory=str(OUT))
         server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-        print(f"Preview: http://127.0.0.1:{server.server_address[1]}/examples.html")
+        print(f"Preview: http://127.0.0.1:{server.server_address[1]}/examples/")
         try:
             server.serve_forever()
         except KeyboardInterrupt:

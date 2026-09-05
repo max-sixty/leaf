@@ -9,11 +9,11 @@ file, that an example served here is a working page rather than a picture of one
 and that a site claiming to ride the theme's tokens actually changes colour when
 the theme's palette does.
 
-A page under /examples has to be reached over HTTP: its markup names /theme.css and
-/leaf.js at a server root, and Chrome refuses an ES module from a file:// origin
-besides. The docs pages are read as files, which is how a checkout reads them.
+Every page is reached over HTTP: product sources now name the same root layer and
+module as the examples, so file:// is no longer a second supported document mode.
 """
 
+import hashlib
 import importlib.util
 import json
 import re
@@ -109,6 +109,17 @@ def example_url(hosted, name):
     return f"{hosted}/examples/{name}/versions/{newest}"
 
 
+def product_url(hosted, name):
+    """The canonical live-root route for one product source."""
+    return hosted + site_build.PRODUCT_ROUTES[name]
+
+
+def media_url(source: Path) -> str:
+    """The content address `leaf page media` gives an authored image."""
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()[:16]
+    return f"/media/{digest}{source.suffix.lower()}"
+
+
 def opened(page, errors, url):
     """A navigation this module makes for itself, waiting on what `open_page` waits
     on — the document's stamp and the log's — since a page at the first alone has a
@@ -117,21 +128,20 @@ def opened(page, errors, url):
 
 
 def test_the_pages_link_the_theme_the_site_serves(site):
-    """One stylesheet on the site, and it is the one a page directory vendors: a docs
-    page names both halves in a checkout because there is no merged file there to name,
-    and linking both here would restate the default package over the top of itself."""
+    """Every product document asks for the one composed root stylesheet."""
     for page in pages_under(DOCS):
-        published = (site / page.name).read_text()
-        assert published.count('href="theme.css"') == 1, page.name
-        assert "packages/default/theme.css" not in published, (
-            f"{page.name} still links the default theme beside the merged one"
-        )
+        target = site_build.product_target(site, site_build.PRODUCT_ROUTES[page.name])
+        published = target.read_text()
+        assert published.count('href="/theme.css"') == 1, page.name
         for attribute in ('href="../', 'src="../'):
             assert attribute not in published, f"{page.name} kept a checkout path"
     served = (site / "theme.css").read_text()
     # Every half the site's own layer composes, read off examples/layer.json rather
     # than listed, so a package added there is covered without a second edit here.
-    halves = [root / "theme.css" for root in SHIPPED_PACKAGES]
+    halves = [
+        *(root / "theme.css" for root in SHIPPED_PACKAGES),
+        DOCS / "package" / "theme.css",
+    ]
     missing = [source.parent.name for source in halves if not source.is_file()]
     assert missing == [], f"shipped roots without a theme half: {missing}"
     for source in halves:
@@ -140,15 +150,12 @@ def test_the_pages_link_the_theme_the_site_serves(site):
         )
 
 
-def test_only_the_stylesheet_link_becomes_the_served_copy(site):
-    """packages.html links the theme twice — once as the page's stylesheet, once as
-    source to read — and the two have to land in different places. Rewriting on the path
-    alone sends a reader after the token block to the CSS the site serves, which is a
-    resolving link the dead-link check has nothing to say about and the wrong file."""
-    published = (site / "packages.html").read_text()
-    source = f"{site_build.REPO}/blob/main/skills/leaf/assets/theme.css"
-    assert f'href="{source}"' in published
-    assert published.count('href="theme.css"') == 1
+def test_product_pages_are_published_without_a_rewrite_dialect(site):
+    sources = pages_under(DOCS)
+    assert {source.name for source in sources} == set(site_build.PRODUCT_ROUTES)
+    for source in sources:
+        target = site_build.product_target(site, site_build.PRODUCT_ROUTES[source.name])
+        assert target.read_bytes() == source.read_bytes(), source.name
 
 
 def test_the_site_serves_the_whole_layer_a_page_decisions_for(site):
@@ -167,6 +174,11 @@ def test_the_site_serves_the_whole_layer_a_page_decisions_for(site):
     ), "the runtime the site serves is not the shipped file"
     for sub in ("runtime", "widgets", "vendor", "media"):
         assert list((site / sub).iterdir()), f"{sub}/ is empty at the site root"
+    site_idioms = json.loads((DOCS / "package" / "registry.json").read_text())[
+        "$idioms"
+    ]
+    registry = json.loads((site / "registry.json").read_text())["$idioms"]
+    assert set(site_idioms) <= set(registry)
     for source in authored_examples():
         # Every authored version is published, so the chooser on the static page has
         # somewhere to travel; the index forwards to the newest of them.
@@ -178,6 +190,49 @@ def test_the_site_serves_the_whole_layer_a_page_decisions_for(site):
         newest = site_build.newest_version(source)
         index = site / "examples" / source.stem / "index.html"
         assert f"versions/{newest}" in index.read_text()
+
+
+def test_every_product_route_is_a_live_leaf(site, hosted, browser):
+    """Each authored product page reaches the real runtime as an independent draft."""
+    names = list(site_build.PRODUCT_ROUTES)
+    page, errors = open_page(browser, product_url(hosted, names[0]))
+    try:
+        for name in names:
+            opened(page, errors, product_url(hosted, name))
+            expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+            expect(page.locator(".lf-banner .lf-version")).to_have_text("Draft ▾")
+            expect(page.locator(".lf-status-text")).to_contain_text(
+                "Nobody is behind this page"
+            )
+            expect(page.locator("main > .sitenote")).to_have_count(0)
+            state = page.evaluate("() => fetch('/api/state').then(r => r.json())")
+            assert state["active"] == {
+                "revision": 1,
+                "version": None,
+                "url": site_build.PRODUCT_ROUTES[name],
+                "label": "Draft",
+                "activated_at": None,
+            }
+            assert state["versions"] == []
+            assert not errors, f"{name}: {errors[:3]}"
+    finally:
+        page.close()
+
+
+def test_the_product_diagram_fits_without_its_own_scroll(hosted, browser):
+    """The architecture is one sequence, so the diagram must fit its content box."""
+    page, errors = open_page(browser, product_url(hosted, "how-it-works.html"))
+    try:
+        page.set_viewport_size({"width": 1200, "height": 900})
+        diagram = page.locator("#arch")
+        expect(diagram).to_be_visible()
+        width = diagram.evaluate(
+            "element => ({client: element.clientWidth, scroll: element.scrollWidth})"
+        )
+        assert width["scroll"] == width["client"]
+        assert not errors, errors[:3]
+    finally:
+        page.close()
 
 
 def test_a_link_that_reaches_nothing_stops_the_build(site, tmp_path):
@@ -202,6 +257,23 @@ def test_a_directory_link_with_no_index_stops_the_build(site, tmp_path):
     assert "triage-board" in str(stopped.value)
 
 
+def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
+    """The builder crosses Leaf's gate rather than copying a plausible HTML shell."""
+    staged_docs = tmp_path / "docs"
+    shutil.copytree(DOCS, staged_docs)
+    tour = staged_docs / "index.html"
+    tour.write_text(
+        tour.read_text().replace('<script type="module" src="/leaf.js"></script>', "")
+    )
+    monkeypatch.setattr(site_build, "DOCS", staged_docs)
+
+    with pytest.raises(SystemExit) as stopped:
+        site_build.build(tmp_path / "invalid-site", verify_links=False)
+    assert "expected exactly one external <script src> tag, found 0" in str(
+        stopped.value
+    )
+
+
 def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     site, hosted, browser
 ):
@@ -220,7 +292,8 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     try:
-        page.goto(f"{hosted}/examples.html", wait_until="load")
+        page.goto(f"{hosted}/examples/", wait_until="load")
+        page.wait_for_function(BOTH_STAMPS)
         entries = page.locator(".example-catalog > li .example-link")
         assert entries.count() == len(expected)
         pairs = entries.evaluate_all(
@@ -231,10 +304,10 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
         )
         reached = set()
         for pair in pairs:
-            match = re.fullmatch(r"examples/([a-z0-9-]+)/", pair["href"])
+            match = re.fullmatch(r"/examples/([a-z0-9-]+)/", pair["href"])
             assert match, pair
             stem = match.group(1)
-            assert pair["image"] == f"example-{stem}.jpg"
+            assert pair["image"] == media_url(DOCS / f"example-{stem}.jpg")
             reached.add(stem)
         assert reached == expected
 
@@ -559,6 +632,33 @@ def test_a_shipped_data_snapshot_opens_in_its_package_projection(site, hosted, b
         page.close()
 
 
+def test_the_product_site_accepts_a_leaf_comment(site, hosted, browser):
+    """The tour completes the same comment/projection loop as a published example."""
+    page, errors = open_page(browser, product_url(hosted, "index.html"))
+    try:
+        box = page.locator("#lede").bounding_box()
+        select(
+            page,
+            (box["x"] + 4, box["y"] + 8),
+            (box["x"] + box["width"] - 40, box["y"] + box["height"] - 8),
+        )
+        expect(page.locator(".lf-fab-input")).to_be_visible()
+        page.locator(".lf-composer textarea").fill("Can the page itself carry this?")
+        page.keyboard.press("ControlOrMeta+Enter")
+
+        thread = page.locator(
+            ".lf-panel .lf-thread", has_text="Can the page itself carry this?"
+        )
+        expect(thread).to_contain_text("Can the page itself carry this?")
+        expect(thread.locator("blockquote")).to_contain_text(
+            "Your agent builds you the page"
+        )
+        expect(thread.locator('a[href="/#install"]')).to_have_count(1)
+        assert not errors, errors[:3]
+    finally:
+        page.close()
+
+
 def test_a_comment_lands_in_the_thread_with_its_quote(site, hosted, browser):
     """The whole loop a static host could not hold before: the reader selects a passage,
     the comment goes into a log, the page renders it back with the passage quoted, and
@@ -597,7 +697,7 @@ def test_a_comment_lands_in_the_thread_with_its_quote(site, hosted, browser):
         # The automated reply identifies itself and links to the real loop.
         reply = thread.locator(".lf-msg.claude")
         expect(reply.locator(".lf-msg-head b")).to_have_text("The demo")
-        expect(reply.locator('a[href="/index.html#install"]')).to_have_count(1)
+        expect(reply.locator('a[href="/#install"]')).to_have_count(1)
         assert not errors, errors[:3]
     finally:
         page.close()
@@ -695,21 +795,43 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(site, hosted, browser):
         page.close()
 
 
-@pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_the_site_takes_its_palette_from_the_theme(site, browser, scheme):
-    page = browser.new_page(color_scheme=scheme)
+def test_product_routes_do_not_share_page_state(site, hosted, browser):
+    page, errors = open_page(browser, product_url(hosted, "index.html"))
     try:
-        for name in (p.name for p in pages_under(DOCS)):
-            page.goto((site / name).as_uri())
-            assert (
-                page.evaluate("getComputedStyle(document.body).backgroundColor")
-                == (PAPER[scheme])
-            ), name
+        page.locator(".lf-threads-toggle").click()
+        page.locator(".lf-general textarea").fill("This belongs to the tour.")
+        page.locator(".lf-general .lf-btn.primary").click()
+        expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+        page.evaluate(
+            "() => document.scrollingElement.scrollTo({top: 1500, behavior: 'instant'})"
+        )
+        assert page.evaluate("() => document.scrollingElement.scrollTop") > 0
+
+        opened(page, errors, product_url(hosted, "how-it-works.html"))
+        expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
+        assert page.evaluate("() => document.scrollingElement.scrollTop") == 0
+        assert not errors, errors[:3]
     finally:
         page.close()
 
 
-def test_the_pages_fit_a_phone(site, browser):
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_the_site_takes_its_palette_from_the_theme(site, hosted, browser, scheme):
+    page = browser.new_page(color_scheme=scheme)
+    errors = watched(page)
+    try:
+        for name in site_build.PRODUCT_ROUTES:
+            opened(page, errors, product_url(hosted, name))
+            assert (
+                page.evaluate("getComputedStyle(document.body).backgroundColor")
+                == (PAPER[scheme])
+            ), name
+            assert not errors, f"{name}: {errors[:3]}"
+    finally:
+        page.close()
+
+
+def test_the_pages_fit_a_phone(site, hosted, browser):
     """Nothing scrolls sideways at 390px — the nav wraps, the screenshots scale,
     and a command too long for the column scrolls inside its own block.
 
@@ -718,13 +840,15 @@ def test_the_pages_fit_a_phone(site, browser):
     there is no margin to hang them in. That is the live page's question rather
     than the site's, and it is not answered here."""
     page = browser.new_page(viewport=PHONE)
+    errors = watched(page)
     try:
-        for name in (p.name for p in pages_under(DOCS)):
-            page.goto((site / name).as_uri())
+        for name in site_build.PRODUCT_ROUTES:
+            opened(page, errors, product_url(hosted, name))
             overflow = page.evaluate(
                 "() => { const b = document.body;"
                 " return b.scrollWidth - b.clientWidth; }"
             )
             assert overflow <= 0, f"{name} scrolls {overflow}px sideways on a phone"
+            assert not errors, f"{name}: {errors[:3]}"
     finally:
         page.close()

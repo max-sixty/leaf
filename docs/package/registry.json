@@ -1,0 +1,16 @@
+{
+  "$idioms": {
+    "nav.sitenav": {
+      "description": "The product site's compact route bar, written as the first child of main.",
+      "example": "<nav class=\"sitenav\" aria-label=\"Site\"><a class=\"brand\" href=\"/\">leaf</a><a href=\"/examples/\">Examples</a></nav>"
+    },
+    "header.hero": {
+      "description": "A product-page opening with extra room and one larger headline.",
+      "example": "<header class=\"hero\" id=\"top\"><h1>Generative UI for your agent.</h1><p class=\"lede\">The agent builds the page your task needs.</p></header>"
+    },
+    "footer.site-footer": {
+      "description": "The product site's quiet route and license colophon.",
+      "example": "<footer class=\"site-footer\" id=\"colophon\"><p><a href=\"/\">Tour</a> · <a href=\"/examples/\">Examples</a></p></footer>"
+    }
+  }
+}

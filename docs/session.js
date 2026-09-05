@@ -16,14 +16,13 @@
  * difference. What it can't have is the other half of the loop: no agent reads this log,
  * so a comment is recorded and answered by nobody.
  *
- * Three seats say so, because a reader meets the page at three moments and only one of
- * them is reading a line at the top. The banner says it in the runtime's own words, which
- * is what `unattended` below is for: this page reports that nobody is behind it and the
- * chrome states the consequence, where a page that wrote itself a claim could only then
- * talk the reader out of it. The label above the document says what the whole thing is,
- * on arrival, with room for it (`docs/sitenote.js`). And the demo replies once, in the
- * panel, because a reader who has just typed into a box deserves the answer where they
- * typed rather than where they stopped reading ten minutes ago.
+ * The banner says so in the runtime's own words, which is what `unattended` below is for:
+ * this page reports that nobody is behind it and the chrome states the consequence,
+ * where a page that wrote itself a claim could only then talk the reader out of it. A
+ * published example also wears that boundary in a label above the document
+ * (`docs/sitenote.js`). And the demo replies once, in the panel, because a reader who has
+ * just typed into a box deserves the answer where they typed rather than where they
+ * stopped reading ten minutes ago.
  *
  * Nothing here validates what the runtime posts. The server's door is strict because it
  * guards a record an agent will act on and a machine anything on the network can reach;
@@ -31,8 +30,14 @@
  * second copy of that door would be a second thing to keep in step with the first.
  */
 
-// Which version this document is, read the way the runtime reads it.
-const VERSION = Number(location.pathname.match(/\/versions\/v([1-9]\d*)\.html$/)?.[1]);
+// Which document this is, read from the same public path shape as the runtime. A
+// published example is one immutable version; a product route ending in `/` is its
+// live root and therefore has no public version number.
+const versionMatch = location.pathname.match(/\/versions\/v([1-9]\d*)\.html$/);
+const VERSION = versionMatch ? Number(versionMatch[1]) : null;
+const PAGE_ROOT = versionMatch
+  ? location.pathname.slice(0, versionMatch.index + 1)
+  : location.pathname;
 const REVISION = 1;
 const revisionMarker = document.createElement("meta");
 revisionMarker.name = "lf-revision";
@@ -50,10 +55,10 @@ let DATA;
 let events;
 const sessionReady = Promise.all([
   realFetch("/registry.json").then((response) => response.json()),
-  realFetch("../data.json")
+  realFetch(`${PAGE_ROOT}data.json`)
     .then((response) => (response.ok ? response.json() : { revision: 0, sources: {} }))
     .catch(() => ({ revision: 0, sources: {} })),
-  realFetch("../events.jsonl")
+  realFetch(`${PAGE_ROOT}events.jsonl`)
     .then((response) => (response.ok ? response.text() : ""))
     .catch(() => "")
     .then((text) =>
@@ -90,7 +95,7 @@ let answered = false;
 
 const ANSWER = `This demo has no agent, so nobody will read your comment.
 
-[Install Leaf](/index.html#install) to get replies from your agent.`;
+[Install Leaf](/#install) to get replies from your agent.`;
 
 // What the page opens on, for an example that ships a thread beside it: the log the
 // build laid in the page directory, which a served page would hand over on the first
@@ -371,23 +376,20 @@ function demoBrowser() {
 // goes blank the day it starts reading one.
 const state = () => ({
   layer: REGISTRY.$layer,
-  // The versions this page has, which here is the one being read: the site publishes a
-  // single version of each example. A second would want the list handed to this file
-  // rather than guessed from a path, since a reader on v1 has to be offered v2.
+  // A product route is a live draft. An example route is one immutable public version;
+  // a second would want the list handed to this file rather than guessed from a path,
+  // since a reader on v1 has to be offered v2.
   active: {
     revision: REVISION,
     version: VERSION,
-    url: `/versions/v${VERSION}.html`,
-    label: `v${VERSION}`,
+    url: location.pathname,
+    label: VERSION === null ? "Draft" : `v${VERSION}`,
     activated_at: null,
   },
-  versions: [
-    {
-      version: VERSION,
-      revision: REVISION,
-      url: `/versions/v${VERSION}.html`,
-    },
-  ],
+  versions:
+    VERSION === null
+      ? []
+      : [{ version: VERSION, revision: REVISION, url: location.pathname }],
   source_error: null,
   // Nobody is behind this page and nobody is coming, which the runtime has a word for
   // and reads before it weighs anything else. Everything below it is then the honest

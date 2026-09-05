@@ -1,4 +1,4 @@
-"""The product pages use the shipped theme and widget vocabulary directly."""
+"""The product pages are Leaf documents using the site's composed vocabulary."""
 
 import html
 import json
@@ -20,33 +20,38 @@ DEFAULT_PACKAGE = ROOT / "skills" / "leaf" / "packages" / "default"
 DOCS = ROOT / "docs"
 
 
-def test_docs_pages_link_the_shipped_theme():
-    # Kernel and default package, in cascade order: a docs page renders the whole
-    # vocabulary script-free, and the default widgets' rules are the second file.
-    targets = (
-        "../skills/leaf/assets/theme.css",
-        "../skills/leaf/packages/default/theme.css",
-    )
-    for layer in (ASSETS, DEFAULT_PACKAGE):
-        assert (layer / "theme.css").is_file()
-    # The <link> around the href, not the whole tag spelled out: packages.html also
-    # links that same file as source to read, so the path alone would pass on a page
-    # that had dropped its stylesheet. Attributes in any order and on any number of
-    # lines, because a formatter decides that — prettier puts this one on four.
+def test_docs_pages_use_the_leaf_document_scaffold():
     pages = sorted(DOCS.glob("*.html"))
-    # A glob that found nothing walks nothing and passes: this whole check is the loop.
-    assert pages, f"no pages under {DOCS}"
+    assert {page.name for page in pages} == {
+        "index.html",
+        "examples.html",
+        "how-it-works.html",
+        "packages.html",
+        "registry.html",
+    }
     for page in pages:
         text = page.read_text()
-        for target in targets:
-            link = re.compile(rf'<link\b[^>]*?"{re.escape(target)}"')
-            assert link.search(text), (page.name, target)
+        assert text.count('<link rel="stylesheet" href="/theme.css"') == 1, page.name
+        assert text.count('<script type="module" src="/leaf.js"') == 1, page.name
+        assert text.count("Content-Security-Policy") == 1, page.name
+        assert '<body class="site-page' in text, page.name
 
 
 def test_docs_pages_use_only_registered_widgets():
-    registry = json.loads((ASSETS / "registry.json").read_text()) | json.loads(
-        (DEFAULT_PACKAGE / "registry.json").read_text()
-    )
+    package_names = json.loads((ROOT / "examples" / "layer.json").read_text())
+    registries = [
+        ASSETS / "registry.json",
+        DEFAULT_PACKAGE / "registry.json",
+        *(
+            ROOT / "skills" / "leaf" / "packages" / name / "registry.json"
+            for name in package_names
+        ),
+        DOCS / "package" / "registry.json",
+    ]
+    registry = {}
+    for source in registries:
+        if source.exists():
+            registry.update(json.loads(source.read_text()))
     used = {
         tag
         for page in DOCS.glob("*.html")
@@ -57,21 +62,21 @@ def test_docs_pages_use_only_registered_widgets():
 
 def test_package_guide_sits_beside_how_it_works():
     packages = (DOCS / "packages.html").read_text()
-    assert 'href="how-it-works.html"' in packages
-    assert 'href="registry.html"' in packages
-    assert 'href="packages.html"' in (DOCS / "registry.html").read_text()
+    assert 'href="/how-it-works/"' in packages
+    assert 'href="/registry/"' in packages
+    assert 'href="/packages/"' in (DOCS / "registry.html").read_text()
     for source in ("index.html", "how-it-works.html"):
-        assert 'href="packages.html"' in (DOCS / source).read_text()
+        assert 'href="/packages/"' in (DOCS / source).read_text()
 
 
 def test_package_tutorial_registry_entry_is_valid(page_dir):
     blocks = re.findall(
-        r"<pre><code[^>]*>(.*?)</code></pre>",
+        r"<pre[^>]*><code[^>]*>(.*?)</code></pre>",
         (DOCS / "packages.html").read_text(),
         re.DOTALL,
     )
     entry = json.loads(
-        html.unescape(next(block for block in blocks if block[0] == "{"))
+        html.unescape(next(block for block in blocks if block.lstrip().startswith("{")))
     )
     registry = json.loads((page_dir / "registry.json").read_text()) | entry
 

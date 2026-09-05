@@ -1,0 +1,103 @@
+/* Shared product-site furniture. Product rules require the authored site-page class,
+ * so composing this package into the public examples cannot restyle their documents. */
+
+body.site-page nav.sitenav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2) var(--sp-3);
+  margin: 0 0 40px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--t-5);
+}
+
+body.site-page nav.sitenav .brand {
+  margin-right: auto;
+  color: var(--ink);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+body.site-page nav.sitenav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+body.site-page nav.sitenav a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+body.site-page nav.sitenav [aria-current="page"] {
+  color: var(--ink);
+}
+
+body.site-page header.hero {
+  margin-bottom: 40px;
+}
+
+body.site-page header.hero h1 {
+  font-size: 40px;
+  letter-spacing: -0.018em;
+}
+
+body.site-page footer.site-footer {
+  margin-top: 56px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+  color: var(--muted);
+  font-size: var(--t-5);
+  --lf-frame: 1;
+}
+
+body.site-page footer.site-footer p {
+  margin: 0;
+}
+
+body.site-page footer.site-footer p + p {
+  margin-top: 6px;
+}
+
+/* This label is injected only on published example versions. It is site chrome rather
+ * than authored page content, so it deliberately has no $idioms entry. */
+body:has(> main > .sitenote) > main {
+  padding-top: 32px;
+}
+
+.sitenote {
+  margin: 0 0 36px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.sitenote p {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.sitenote strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.sitenote p.sitenote-nav {
+  margin-top: 4px;
+  color: var(--muted-2);
+}
+
+.sitenote a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.sitenote a:hover {
+  text-decoration: underline;
+}
+
+@media print {
+  .sitenote {
+    display: none;
+  }
+}

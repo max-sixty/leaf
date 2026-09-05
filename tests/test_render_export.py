@@ -36,6 +36,7 @@ from render_support import (
     primed,
     refuse,
     resized,
+    restarting,
     sending,
     serious_axe_violations,
     watched,
@@ -44,80 +45,6 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 ROOT = Path(__file__).parent.parent
-
-_PREVIEW_RESTART_ERRORS = {
-    "Failed to load resource: net::ERR_CONNECTION_REFUSED",
-    "Failed to load resource: net::ERR_CONNECTION_RESET",
-    "Failed to load resource: net::ERR_EMPTY_RESPONSE",
-    "Failed to load resource: net::ERR_CONTENT_LENGTH_MISMATCH",
-    "leaf: page failed to start: Failed to fetch",
-    "leaf: read failed: Failed to fetch",
-}
-_PREVIEW_RESTART_ICON_ERROR = re.compile(
-    r"TypeError: Failed to fetch\n"
-    r"    at loadIcon \(http://127\.0\.0\.1:(?P<port>\d+)"
-    r"/runtime/banner\.js:\d+:\d+\)\n"
-    r"    at startPage \(http://127\.0\.0\.1:(?P=port)/leaf\.js:\d+:\d+\)\n"
-    r"    at http://127\.0\.0\.1:(?P=port)/leaf\.js:\d+:\d+"
-)
-# Which of the start's own fetches loses the server decides the words it fails in. A
-# plain fetch says only `Failed to fetch`, above; a dynamic import names the module it
-# could not reach. One condition, answered the same way, so the reading knows both.
-_PREVIEW_RESTART_IMPORT_ERROR = re.compile(
-    r"leaf: page failed to start: Failed to fetch dynamically imported module: "
-    r"http://127\.0\.0\.1:\d+/\S+"
-)
-
-
-def assert_only_preview_restart_errors(errors):
-    """A preview restart may interrupt only its page, log, module and icon fetches."""
-    unexpected = [
-        error
-        for error in errors
-        if error not in _PREVIEW_RESTART_ERRORS
-        and _PREVIEW_RESTART_ICON_ERROR.fullmatch(error) is None
-        and _PREVIEW_RESTART_IMPORT_ERROR.fullmatch(error) is None
-    ]
-    assert unexpected == [], unexpected
-
-
-def test_the_restart_reading_accepts_only_observed_restart_diagnostics():
-    """The restart tolerance stays bounded to diagnostics this test can produce."""
-    assert_only_preview_restart_errors(
-        [
-            "Failed to load resource: net::ERR_CONNECTION_REFUSED",
-            "Failed to load resource: net::ERR_CONTENT_LENGTH_MISMATCH",
-            "leaf: page failed to start: Failed to fetch",
-            "leaf: read failed: Failed to fetch",
-            (
-                "leaf: page failed to start: Failed to fetch dynamically imported "
-                "module: http://127.0.0.1:43925/widgets/lf-swipe-deck.js"
-            ),
-            (
-                "TypeError: Failed to fetch\n"
-                "    at loadIcon (http://127.0.0.1:43925/runtime/banner.js:71:22)\n"
-                "    at startPage (http://127.0.0.1:43925/leaf.js:3880:5)\n"
-                "    at http://127.0.0.1:43925/leaf.js:3899:1"
-            ),
-        ]
-    )
-    for refused in (
-        "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID",
-        "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
-        "Failed to load resource: the server responded with a status of 404 ()",
-        "Failed to load resource: the server responded with a status of 500 ()",
-        "leaf: registry failed to load (500)",
-        "leaf: page failed to start: SyntaxError: Unexpected token '<'",
-        "TypeError: page.querySelector(...) is null",
-        (
-            "TypeError: Failed to fetch\n"
-            "    at loadIcon (http://127.0.0.1:43925/runtime/banner.js:71:22)\n"
-            "    at startPage (http://127.0.0.1:43926/leaf.js:3880:5)\n"
-            "    at http://127.0.0.1:43926/leaf.js:3899:1"
-        ),
-    ):
-        with pytest.raises(AssertionError):
-            assert_only_preview_restart_errors([refused])
 
 
 @pytest.fixture
@@ -363,21 +290,22 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     feedback = (page_dir / "events.jsonl").read_bytes()
     inode = (page_dir / "events.jsonl").stat().st_ino
 
-    source.write_text(
-        source.read_text(encoding="utf-8").replace(
-            "Where sessions live", "Automation follows source edits", 1
-        ),
-        encoding="utf-8",
-    )
-    expect(
-        automation.get_by_role("heading", name="Automation follows source edits")
-    ).to_be_visible(timeout=30000)
+    with restarting(automation, automation_errors):
+        source.write_text(
+            source.read_text(encoding="utf-8").replace(
+                "Where sessions live", "Automation follows source edits", 1
+            ),
+            encoding="utf-8",
+        )
+        expect(
+            automation.get_by_role("heading", name="Automation follows source edits")
+        ).to_be_visible(timeout=30000)
     expect(automation.locator("#opt-redis")).to_have_attribute("chosen", "")
     assert (page_dir / "events.jsonl").read_bytes().startswith(feedback)
     assert (page_dir / "events.jsonl").stat().st_ino == inode
     assert service_model.page_claim(page_dir) is None
     assert not (page_dir / "service.json").exists()
-    assert_only_preview_restart_errors(automation_errors)
+    assert automation_errors == []
     automation.close()
 
     automation_process.send_signal(signal.SIGINT)
@@ -597,9 +525,12 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     generation = registry["$layer"]["generation"]
 
     theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
-    with theme.open("a", encoding="utf-8") as stream:
-        stream.write("\nh1 { color: rgb(17, 83, 129); }\n")
-    expect(page.locator("h1")).to_have_css("color", "rgb(17, 83, 129)", timeout=30000)
+    with restarting(page, errors):
+        with theme.open("a", encoding="utf-8") as stream:
+            stream.write("\nh1 { color: rgb(17, 83, 129); }\n")
+        expect(page.locator("h1")).to_have_css(
+            "color", "rgb(17, 83, 129)", timeout=30000
+        )
     assert (
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
         != generation
@@ -609,55 +540,50 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     assert (directory / "events.jsonl").stat().st_ino == inode
 
     revised = original.replace("Where sessions live", "A watched source revision", 1)
-    source.write_text(revised, encoding="utf-8")
-    expect(page.get_by_role("heading", name="A watched source revision")).to_be_visible(
-        timeout=30000
-    )
+    with restarting(page, errors):
+        source.write_text(revised, encoding="utf-8")
+        expect(
+            page.get_by_role("heading", name="A watched source revision")
+        ).to_be_visible(timeout=30000)
     expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
 
-    source.write_text("<p>invalid source</p>", encoding="utf-8")
-    log_path = directory.with_name(f"{directory.name}.preview.log")
-    deadline = time.monotonic() + 30
-    while "Preview update refused" not in log_path.read_text():
-        assert time.monotonic() < deadline, log_path.read_text()
-        page.wait_for_timeout(50)
+    with restarting(page, errors):
+        source.write_text("<p>invalid source</p>", encoding="utf-8")
+        log_path = directory.with_name(f"{directory.name}.preview.log")
+        deadline = time.monotonic() + 30
+        while "Preview update refused" not in log_path.read_text():
+            assert time.monotonic() < deadline, log_path.read_text()
+            page.wait_for_timeout(50)
+        refused_generation = json.loads((directory / "registry.json").read_text())[
+            "$layer"
+        ]["generation"]
+        expect(page.locator("script[data-lf-runtime]")).to_have_attribute(
+            "data-lf-layer", refused_generation, timeout=30000
+        )
     expect(
         page.get_by_role("heading", name="A watched source revision")
     ).to_be_visible()
     assert (directory / "index.html").read_text() == revised
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
-    refused_generation = json.loads((directory / "registry.json").read_text())[
-        "$layer"
-    ]["generation"]
-    expect(page.locator("script[data-lf-runtime]")).to_have_attribute(
-        "data-lf-layer", refused_generation, timeout=30000
-    )
 
-    source.write_text(
-        revised.replace("A watched source revision", "Recovered watched source"),
-        encoding="utf-8",
-    )
-    expect(page.get_by_role("heading", name="Recovered watched source")).to_be_visible(
-        timeout=30000
-    )
+    with restarting(page, errors):
+        source.write_text(
+            revised.replace("A watched source revision", "Recovered watched source"),
+            encoding="utf-8",
+        )
+        expect(
+            page.get_by_role("heading", name="Recovered watched source")
+        ).to_be_visible(timeout=30000)
+        repeated = subprocess.run(
+            command, cwd=ROOT, capture_output=True, text=True, check=False, timeout=30
+        )
+        assert repeated.returncode == 0, repeated.stdout + repeated.stderr
+        assert repeated.stdout.splitlines()[-1] == url
     expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
-    repeated = subprocess.run(
-        command, cwd=ROOT, capture_output=True, text=True, check=False, timeout=30
-    )
-    assert repeated.returncode == 0, repeated.stdout + repeated.stderr
-    assert repeated.stdout.splitlines()[-1] == url
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
-    # The restart above is the one no revision stands after, so what it left is read
-    # here: the tab comes back presented and still holding the pick. That is what makes
-    # the errors below the noise of a restart rather than a page left stranded by one.
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=30000
-    )
-    expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
-    # A stopped/restarted service briefly refuses the browser's reconnect.
-    assert_only_preview_restart_errors(errors)
+    assert errors == []
     page.close()
 
 
@@ -740,18 +666,13 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
 def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
     browser, watched_preview, interrupted
 ):
-    """A start the restart interrupts reports the vanished server and nothing else.
+    """A start the restart interrupts reports the vanished server and comes back.
 
-    The tolerance above is stated over the words a restart happens to produce, and the two
-    tests carrying it reach this condition only when the machine is loaded enough to lose
-    the race — which is how the fetch pair reached CI before the reading knew it. So the
-    ordering is arranged here rather than waited for: a reading blind to the condition it
-    excuses returns the same clean result as one that met it.
-
-    Both of the start's own fetches, because the words are the fetch's rather than the
-    condition's: the registry is a plain `fetch` and a widget is a dynamic import, and
-    only the second names the module. Whichever one the loaded machine loses is which
-    wording arrives, so a reading that knows one of them is red on the other day.
+    The other tests here reach this condition only when the machine is loaded enough to
+    lose the race, so the ordering is arranged here rather than waited for. Both of the
+    start's own fetches, because the words are the fetch's rather than the condition's:
+    the registry is a plain `fetch` and a widget is a dynamic import, and only the second
+    names the module. Whichever one the loaded machine loses is which wording arrives.
     """
     _, _, _, command, url = watched_preview
     page = browser.new_page()
@@ -777,31 +698,30 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
         route.continue_()
 
     page.route(f"**/{interrupted}", stop_the_service)
-    page.goto(url, wait_until="load")
-    # `load` is not the boundary: a widget is imported after it, so the stop is waited
-    # for through the answer the page gives it rather than read straight after the goto.
-    expect(
-        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
-    ).to_be_visible()
-    [halted] = stopped
-    assert halted.returncode == 0, halted.stdout + halted.stderr
-    restarted = subprocess.run(
-        command, cwd=ROOT, capture_output=True, text=True, check=False, timeout=90
-    )
-    assert restarted.returncode == 0, restarted.stdout + restarted.stderr
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=30000
-    )
-    # The reach, asserted the way the population is: an interrupted start is a fetch the
-    # runtime made itself, which no transport error names — and the words are the
-    # interrupted fetch's own, so neither leg can go green on the other's.
-    if interrupted == "widgets/lf-options.js":
-        assert [
-            error for error in errors if _PREVIEW_RESTART_IMPORT_ERROR.fullmatch(error)
-        ]
-    else:
-        assert "leaf: page failed to start: Failed to fetch" in errors
-    assert_only_preview_restart_errors(errors)
+    with restarting(page, errors):
+        page.goto(url, wait_until="load")
+        # `load` is not the boundary: a widget is imported after it, so the stop is
+        # waited for through the answer the page gives it rather than read straight
+        # after the goto.
+        expect(
+            page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+        ).to_be_visible()
+        # The reach: an interrupted start is a fetch the runtime made itself, which no
+        # transport error names, and the words are the interrupted fetch's own, so
+        # neither leg can go green on the other's.
+        vanished = (
+            "Failed to fetch dynamically imported module"
+            if interrupted == "widgets/lf-options.js"
+            else "leaf: page failed to start: Failed to fetch"
+        )
+        assert [error for error in errors if vanished in error], errors
+        [halted] = stopped
+        assert halted.returncode == 0, halted.stdout + halted.stderr
+        restarted = subprocess.run(
+            command, cwd=ROOT, capture_output=True, text=True, check=False, timeout=90
+        )
+        assert restarted.returncode == 0, restarted.stdout + restarted.stderr
+    assert errors == []
     page.close()
 
 

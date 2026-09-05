@@ -508,6 +508,16 @@ reports a default aborted request as a console load failure, which is why
 produces an HTTP error, assert the enriched status-and-URL entry collected by
 `open_page` instead of filtering it out globally.
 
+A test that stops the page's own server has no way to keep the browser quiet
+about it. Bracket the span that makes the noise instead of listing what it says.
+`restarting` drops what the page said inside the block, so the reading everywhere
+else is `errors == []`, and a diagnostic the test means to produce is asserted
+inside the block that produces it. A filter stated over a whole test's output
+takes a new member every time a fetch moves, and it ends up describing the test's
+own noise. `test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back`
+pins both halves, arranging the interruption rather than waiting for a loaded
+machine to produce it.
+
 ### A repeated gesture has to let the repaint it causes land
 
 Pressing the same key twice inside one round-trip is not a reader pressing it

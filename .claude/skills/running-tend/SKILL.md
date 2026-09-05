@@ -63,6 +63,13 @@ you have. Sort on what the failure is.
   not probabilities** and **A state the page passes through is not a state to
   poll for**: state the ordering, do not repeat the gesture until it happens to
   hold.
+- **A reading that has been widened before.** The failure is a case some
+  accepted set, allowlist, or tolerance does not cover, and the fix that presents
+  itself is one more member. Read the line's history first (`git log -L`). A set
+  that has already grown is describing the noise the suite makes rather than the
+  behaviour the test names, so the next wording reddens main again.
+  `tests/CLAUDE.md` owns the fix under **A test cannot assert over noise it makes
+  itself**. The PR is against the test.
 - **A real regression.** Deterministic, repeats at the same assertion across
   runs, and usually clusters on one widget or one behaviour. This is worth a fix
   PR.

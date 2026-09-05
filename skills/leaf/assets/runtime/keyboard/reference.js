@@ -259,6 +259,11 @@ export function createReference({
         return spoken;
       };
       const commandButtons = [];
+      // A command id is one capability even when several scopes project it. Ask actions
+      // are the sharp case: the package declaration supplies the control and the page's
+      // Ask row supplies a contextual binding. The page row is visited first while it is
+      // live, so keep that complete route and omit the package's second telling of it.
+      const presentedCommands = new Set();
       const availableWhere = (row, scopeTitle, scopeReach) => {
         const place = word(row.reach) ?? word(scopeReach) ?? scopeTitle;
         return `Available ${place.charAt(0).toLocaleLowerCase()}${place.slice(1)}`;
@@ -270,6 +275,8 @@ export function createReference({
         for (const row of rows) {
           for (const presentation of commandPresentations(row)) {
             const { id, route } = presentation;
+            if (presentedCommands.has(id)) continue;
+            presentedCommands.add(id);
             const does = route?.does ?? word(row.does);
             const tr = document.createElement("tr");
             tr.dataset.lfCommand = id;

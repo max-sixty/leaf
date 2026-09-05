@@ -205,7 +205,9 @@ Non-widget facets contain `units`, keyed by unit id, and position facets also co
 `value`, a map from container id to the complete ordered ids it holds. Missing
 recordless units are undecided. Render the final composition and keep independent
 nested widgets mounted; never recreate the owner to restore an initial state.
-Return false only while a live edit prevents rendering. Optional recorded scalar
+Return false only while a live edit prevents rendering. When the edit closes,
+dispatch `lf-projection` on `document` so Leaf retries deferred state after the
+gesture has finished staging its local action. Optional recorded scalar
 attributes have a null initial value and must be removed when that value returns.
 
 The widget still owns its implementation: supporting modules can sit beside its entry
@@ -525,12 +527,23 @@ clone of `{source, contract, revision, updated, value, origin}`. `revision` iden
 of that source value, so a renderer can distinguish two writes even when their wall
 clock timestamps coincide. A selected capture additionally carries
 `snapshot`, `label`, and optional `lines`; a captured current value may carry its label
-and line range. It runs immediately and again when Leaf asks subscribers to restate its
-view. Return the cleanup function from the element's disconnect path. The callback must
+and line range. It runs immediately and again when that source revision changes.
+Return the cleanup function from the element's disconnect path. The callback must
 state the whole rendering and remain idempotent.
 
+Time readings made synchronously in `watchData`, `watchActions`, `watchUpdates`, and
+`watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`
+and `quietSince` refresh the callback only when their result changes. For another
+rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the
+calibrated server-now value in milliseconds. For a paint outside these
+subscriptions, wrap it with `clocked(element, paint)` and call the returned function
+where state changes; call its `.stop()` on disconnect. Time reads after an `await`
+belong in a separate synchronous `clocked` paint. The timer does not reapply state or
+redeliver unchanged data to keep a timestamp current.
+
 `origin` identifies the declared `input`, concrete `source`, `contract`, selected source
-`revision`, and accepted store `data_revision`, plus `snapshot` when pinned. Passing
+`revision`, and the accepted store's `data_revision` at delivery, plus `snapshot` when
+pinned. An unchanged source keeps that origin when another source changes. Passing
 `{snapshot}` to `projectData` supplies this default origin. When the emitter knows the
 exact JSON coordinate within the source value, its `originOf(record, index)` returns
 `{...snapshot.origin, path: [...]}`;

@@ -304,7 +304,10 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
             if event in quoted:
                 continue
             section = event["anchor"]["section"]
-            expect(page.locator(f"#{section}.lf-mark-el")).to_have_count(1)
+            target = page.locator(f"#{section}")
+            if datum := event["anchor"].get("datum"):
+                target = target.locator(f"[data-lf-datum={json.dumps(datum)}]")
+            expect(target).to_have_class(re.compile(r"\blf-mark-el\b"))
         # The exchange is both voices, and the mark is on the words the log named.
         for event in quoted:
             quote = event["anchor"]["quote"]

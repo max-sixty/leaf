@@ -226,8 +226,7 @@ export function createAnchors(dependencies) {
   // A section the page no longer has filters nothing, so the quote is still looked for
   // everywhere, which is all a stale section ever meant.
   // Which element an anchor names, asked in one place: the element it resolves to when it
-  // carries no quote, the subtree a candidate has to sit inside when it does, and the holder
-  // of the line saying a passage carries a comment are all this question.
+  // carries no quote and the subtree a candidate has to sit inside when it does.
   const sectionOf = (anchor) => (anchor.section ? elementById(anchor.section) : null);
 
   function currentDatums(source, key) {
@@ -533,6 +532,9 @@ export function createAnchors(dependencies) {
       if (isItem(at)) return at;
     return null;
   }
+  // Notes and reaction controls belong beside authored content, never inside the
+  // generated text container a widget reads back into an editor.
+  const annotationAt = (node) => blockAt(node) ?? itemAt(node);
   // What to call an item, in a word the user reads beside a thread's § label. A widget
   // names itself: its tag minus the prefix is already the word the vocabulary chose
   // ("card", "option", "column"), so the twelfth widget gets a name here without core
@@ -1032,7 +1034,7 @@ export function createAnchors(dependencies) {
           const ranges = segments.map((seg) => rangeOf([seg]));
           reacted.set(t.root.id, ranges);
           reactions.push(...ranges);
-          const block = blockAt(segments[0].node) ?? found.place;
+          const block = annotationAt(segments[0].node);
           const root = block?.getRootNode();
           [at, before] =
             root instanceof ShadowRoot ? [root.host, true] : [block, false];
@@ -1061,22 +1063,18 @@ export function createAnchors(dependencies) {
         marked.set(t.root.id, ranges);
         posted.push(...ranges);
       }
-      // Where the line goes: every block the passage crosses, so the reader of any of them
-      // hears it — or, for a passage that sits in no block of its own, the element the
-      // anchor names, which is where the runtime already puts chrome a widget has to live
-      // with (a card's drag grip). Never the inline run or the body div in between, because
-      // a widget reads those back as its own: lf-draft seeds the editor a user types
-      // into from its body div, and a line inside it is chrome in the text they send back.
+      // Annotate every block or authored item the resolved passage crosses. A widget's
+      // generated body is excluded: its editor reads that container back as user text.
       const blocks = targetElement(found)
         ? [found.place]
-        : [...new Set(targetSegments(found).map((seg) => blockAt(seg.node)))].filter(
-            Boolean,
-          );
+        : [
+            ...new Set(targetSegments(found).map((seg) => annotationAt(seg.node))),
+          ].filter(Boolean);
       // Not inside the chrome: the line is the runtime's word inside the page's own
       // blocks, and a design comment on a runtime part is on chrome the panel already
       // reads out — an aria-hidden injected note button would be focusable content nobody
       // is told about.
-      for (const holder of blocks.length ? blocks : [found.place])
+      for (const holder of blocks.length ? blocks : [sectionOf(t.root.anchor)])
         if (holder && !inChrome(holder))
           noted.set(holder, [...(noted.get(holder) ?? []), t.root.id]);
     }

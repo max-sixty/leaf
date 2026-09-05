@@ -2344,11 +2344,15 @@ def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
     )
     result = check(page)
     assert result.exit_code == 0, result.output
-    rendered = runner.invoke(
-        cli_model.cli,
-        ["version", "check", str(page), "--render"],
+    # Rendering owns a Playwright loop; a session browser may already own this
+    # process's loop when the full suite reaches this CLI integration.
+    rendered = subprocess.run(
+        [*LEAF_COMMAND, "version", "check", str(page), "--render"],
+        capture_output=True,
+        text=True,
+        check=False,
     )
-    assert rendered.exit_code == 0, rendered.output
+    assert rendered.returncode == 0, rendered.stdout + rendered.stderr
 
 
 def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):

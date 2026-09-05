@@ -469,8 +469,11 @@ export function createTargetSelection({
       // Keep the established top-left/nesting placement unless it puts the face back
       // over a band already subtracted from its target. A surviving rectangle on the
       // line's right has a direct horizontal seat; a piece too narrow for the face is
-      // moved above the band in the pass below.
-      const rightSeat = Math.max(target.left, line.right);
+      // moved above the band in the pass below. The seat clears the line's edge by the
+      // same gap a face keeps from another face, which is also what keeps it clear at
+      // all: a left written back in CSS pixels lands on the layout engine's 1/64px
+      // grid, so a face seated flush on the edge can round a step back under the line.
+      const rightSeat = Math.max(target.left, line.right + gap);
       const canSitRight = rightSeat + start.width <= target.right;
       const left =
         line.height && overlaps(start, lineBand) && canSitRight
@@ -519,6 +522,7 @@ export function createTargetSelection({
       if (selectionLayer.childElementCount) selectionLayer.replaceChildren();
       return;
     }
+    const wasActive = hintActive >= 0;
     const refreshed = !searching && !prefix && !scrolling;
     const heard = hinted()[hintActive];
     if (refreshed) {
@@ -567,6 +571,8 @@ export function createTargetSelection({
         }
     }
     if (!refreshed && heard && !drawnTargets.has(heard)) hintActive = -1;
+    // The key line was painted before geometry retired the browsed hint.
+    if (wasActive && hintActive < 0) paintHere();
     selectionLayer.replaceChildren(...drawn);
     if (!searching) spreadHints(hints);
   }

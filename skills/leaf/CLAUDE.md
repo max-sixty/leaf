@@ -76,7 +76,7 @@ subscriptions;
 `runtime/arrangements.js` owns the browser-state arrangements the arrival gate exercises;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
 `runtime/presence.js` owns claim freshness and attendance judgment;
-`runtime/state-feed.js` owns state reads, offline handling, heartbeat replay,
+`runtime/state-feed.js` owns state reads, offline handling, the shared clock and deferred retries,
 event-stream wakeups, and first-read presentation scheduling and retry;
 `runtime/state-application.js` owns stale-answer ordering, application serialization,
 state commit, projection, notification, outbox accounting, and rollback;

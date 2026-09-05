@@ -2,22 +2,51 @@
 
 import hashlib
 import json
+import threading
+import time
 from pathlib import Path
 
 from .event_log import read_cursor, read_events
-from .files import latest_revision, list_revisions, read_json
+from .files import file_stamp, latest_revision, list_revisions, read_json
 from .host import state_home
 from .leases import wait_is_live
 from .schema import VIEWED_FILE
 from .server import running_server
 from .service import (
     claim_is_active,
+    claim_path,
     claim_records,
     claim_update_sources,
     page_claim,
     unacknowledged,
 )
 from .structure import parse_revision
+
+# Presence is deliberately a short-lived reading: process and lock leases can change
+# without touching a page file. The news stream already allowed this much staleness,
+# so sharing one observation across streams does not change what a reader can learn.
+PRESENCE_CACHE_S = 2.0
+_CACHE_LIMIT = 256
+_presence_cache = {}  # page -> (page-file stamp, expiry, reading)
+_neighbor_cache = {}  # page -> (input key, presence entry or None)
+_presence_cache_lock = threading.RLock()
+
+
+def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
+    """The mutable files whose changes can alter a page presence reading."""
+    entries = tuple(
+        sorted((entry.name, file_stamp(entry)) for entry in page_dir.iterdir())
+    )
+    claim_stamp = file_stamp(claim_path(page_dir))
+    if claim and claim.get("id"):
+        # A host wait lease is outside the page, and its lock state has no file
+        # stamp of its own. Its boolean is checked below on every cache refresh;
+        # including the file here still invalidates a page when the lease is first
+        # created or removed.
+        lease_stamp = file_stamp(state_home() / "sessions" / f"{claim['id']}.wait")
+    else:
+        lease_stamp = file_stamp(page_dir / "waiter.lock")
+    return entries + (("$claim", claim_stamp), ("$wait", lease_stamp))
 
 
 def other_leaves(page_dir: Path) -> list:
@@ -55,23 +84,50 @@ def other_leaves(page_dir: Path) -> list:
         # every open page's state read on the machine, blaming the page that asked.
         try:
             info = running_server(candidate)
-            if not info:
+            claim = page_claim(candidate)
+            active = claim if claim_is_active(claim) else None
+            listening = wait_is_live(candidate, active)
+            key = (
+                _page_stamp(candidate, claim),
+                info["url"] if info else None,
+                active is not None if claim else None,
+                listening,
+            )
+            with _presence_cache_lock:
+                held = _neighbor_cache.get(candidate)
+                if held and held[0] == key:
+                    present = held[1]
+                else:
+                    present = None
+                    try:
+                        if info:
+                            events = read_events(candidate)
+                            if list_revisions(candidate):
+                                revision = latest_revision(candidate)
+                                parser = parse_revision(candidate, revision)
+                                present = {
+                                    "title": parser.title.strip() or candidate.name,
+                                    "url": info["url"],
+                                    **presence(candidate, events),
+                                }
+                    except Exception:  # noqa: BLE001 - cache this page's fault
+                        present = None
+                    # Cache failures and non-running pages as well. Their input key
+                    # changes when a repair or a new server gives them something to
+                    # say, while repeated quiet scans do no log parse at all.
+                    _neighbor_cache[candidate] = (key, present)
+            if present is None:
                 continue
-            events = read_events(candidate)
-            if not list_revisions(candidate):
-                continue
-            revision = latest_revision(candidate)
-            parser = parse_revision(candidate, revision)
-            present = presence(candidate, events)
         except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
             continue
-        others.append(
-            {
-                "title": parser.title.strip() or candidate.name,
-                "url": info["url"],
-                **present,
-            }
-        )
+        others.append(dict(present))
+    with _presence_cache_lock:
+        # A long-lived process may see pages that are later deleted. Keep the
+        # reading cache bounded and discard entries no current scan can reach.
+        for candidate in set(_neighbor_cache) - seen:
+            _neighbor_cache.pop(candidate, None)
+        while len(_neighbor_cache) > _CACHE_LIMIT:
+            _neighbor_cache.pop(next(iter(_neighbor_cache)))
     return sorted(others, key=lambda entry: entry["title"].lower())
 
 
@@ -156,13 +212,31 @@ def presence_fingerprint(listening: bool, session_alive, others: list) -> str:
 
 
 def presence_reading(page_dir: Path) -> str:
-    """`presence_fingerprint` read fresh, for a stream between states. The three facts
-    are read the way `presence` and `full_state` read them, so the stream and the
-    state it prompts name the same reading."""
+    """The presence token shared by streams for one bounded freshness interval.
+
+    Page-file stamps invalidate it immediately; process and lock leases are refreshed
+    when the interval expires. The three facts are read the way `presence` and
+    `full_state` read them, so the stream and the state it prompts name the same
+    reading once the stream's existing interval has elapsed.
+    """
     claim = page_claim(page_dir)
-    active = claim if claim_is_active(claim) else None
-    return presence_fingerprint(
-        wait_is_live(page_dir, active),
-        active is not None if claim else None,
-        other_leaves(page_dir),
-    )
+    stamp = _page_stamp(page_dir, claim)
+    now = time.monotonic()
+    with _presence_cache_lock:
+        held = _presence_cache.get(page_dir)
+        if held and held[0] == stamp and now < held[1]:
+            return held[2]
+
+        # Keep the lock while observing the neighbours. Concurrent news streams
+        # then share one complete reading instead of racing into one parse per
+        # stream; the lock and pid checks remain part of this fresh observation.
+        active = claim if claim_is_active(claim) else None
+        reading = presence_fingerprint(
+            wait_is_live(page_dir, active),
+            active is not None if claim else None,
+            other_leaves(page_dir),
+        )
+        _presence_cache[page_dir] = (stamp, now + PRESENCE_CACHE_S, reading)
+        while len(_presence_cache) > _CACHE_LIMIT:
+            _presence_cache.pop(next(iter(_presence_cache)))
+        return reading

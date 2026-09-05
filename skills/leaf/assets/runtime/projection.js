@@ -60,8 +60,10 @@ export const undoableAction = (...args) => publishedProjection.undoableAction(..
    Render every declared facet, including null/empty values, while retaining the widget
    and independent child widgets. Repeating a complete state must change nothing. Return
    `false` only while a live gesture prevents safe rendering; the coordinate and outbox
-   hold stay uncommitted until a later wakeup. Throwing reports a page error and fails
-   soft; the layer still renders declared settlement marks.
+   hold stay uncommitted until a later wakeup. A widget ending that gesture dispatches
+   `lf-projection` on `document`; the state feed coalesces retries into a microtask so
+   the gesture stages its local action before correction runs. Throwing reports a page
+   error and fails soft; the layer still renders declared settlement marks.
 
    `watchProjectionDrag` waits for the last `.lf-dragging` marker to clear, then
    reconciles, releases eligible outbox entries, repaints keys, and dispatches
@@ -531,8 +533,13 @@ export function createProjection(runtime, dependencies) {
 
   // Each owner sees one complete desired composition. Baselines and winners are
   // folded before this boundary; renderers never reset, replay or replace widgets.
+  let deferredProjection = false;
+  const projectionDeferred = () => deferredProjection;
+
   function reconcileState() {
+    deferredProjection = false;
     if (document.querySelector(".lf-dragging")) {
+      deferredProjection = true;
       watchProjectionDrag();
       return;
     }
@@ -560,7 +567,10 @@ export function createProjection(runtime, dependencies) {
         );
         if (commit?.widget !== widget || commit.key !== key || unitsChanged) {
           try {
-            if (widget.renderState?.(state) === false) continue;
+            if (widget.renderState?.(state) === false) {
+              deferredProjection = true;
+              continue;
+            }
             renderSettlement(widget, state);
           } catch (error) {
             reportPageError(
@@ -665,6 +675,7 @@ export function createProjection(runtime, dependencies) {
     paintStateOrigins,
     projectedFacet,
     projectionFromView,
+    projectionDeferred,
     projectionCommitted,
     reconcileKnownState,
     reconcileState,

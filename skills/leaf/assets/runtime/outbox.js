@@ -10,7 +10,13 @@
  * answered: delivery can be certain while applying the response's state failed locally.
  * A second pending map used to mirror part of the same lifecycle and then needed a
  * protocol of its own to agree with the send queue and the reads. */
+import { pendingTraffic } from "./traffic.js";
+
 export const outbox = [];
+
+// The delivery ledger's reading of this list: every attempt still without an outcome.
+const unresolved = () =>
+  outbox.filter((entry) => !entry.answered).map((entry) => entry.event.attempt);
 
 let publishedOutbox;
 export const actionAvailable = (...args) => publishedOutbox.actionAvailable(...args);
@@ -223,6 +229,7 @@ export function createOutbox(runtime, dependencies) {
         if (!entry) break;
         const { answer, settled } = await deliver(entry);
         entry.answered = true;
+        pendingTraffic(unresolved());
         entry.rejected = !answer && entry.event.kind === "action";
         if (entry.event.kind !== "action" && (!answer || entry.readEvent))
           removeOutbox(entry);
@@ -285,6 +292,7 @@ export function createOutbox(runtime, dependencies) {
         projection: null,
       };
       outbox.push(entry);
+      pendingTraffic(unresolved());
       stageOutboxAction(entry);
     });
     paintKeys();

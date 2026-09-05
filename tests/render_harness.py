@@ -615,232 +615,90 @@ def post_event(page, url, **kwargs):
 # already reaches for their other half wherever it needs a request stopped (`page.route`),
 # so the wrapper was a hand-rolled second copy of a primitive already in use here.
 class Traffic:
-    """One page's trips to the server, counted as the browser reports them.
+    """One page's trips to the server, as the runtime counts them.
 
-    `pending` is keyed by the attempt the runtime sends, not by physical requests. A
-    failed request therefore stays pending while the outbox retries it; a definitive
-    refusal or a response naming the accepted attempt clears it. This tracks delivery,
-    observed outside the page. Whether the page then applied the returned state is a
-    separate product fact asserted on the surface that needs it.
+    The runtime keeps the ledger (runtime/traffic.js) and paints it on the body as
+    `data-lf-traffic`; this reads it. `pending` is the outbox's own list of attempts with
+    no delivery outcome yet, so a failed request stays pending while the outbox retries
+    it, and a definitive refusal or a response naming the accepted attempt clears it.
+    That is delivery. Whether the page then applied the returned state is a separate
+    product fact asserted on the surface that needs it.
 
-    The count is the page's whole life, reloads included, where the init script started
-    over at each navigation. Navigation clears unresolved attempts because it destroys
-    that page's outbox; later sends still advance the lifetime counters."""
+    The count is the document's: a navigation starts it over with the page that carries
+    it, and a page that has not booted reads as nothing sent."""
+
+    KEYS = ("sends", "acked", "asked", "heard", "pending")
 
     def __init__(self, page):
-        self.sends = 0  # events posted
-        self.acked = 0  # posts the server has answered
-        self.asked = 0  # state the page has gone out for
-        self.heard = 0  # ... and been given
-        self.pending = set()  # browser attempt ids with no known delivery outcome
-        self._token = {}  # outbox request -> its browser attempt
-        self._flying = (
-            set()
-        )  # event posts in the air, each counted once whichever way it ends
-        self._answered = set()  # requests whose one response has entered the counters
-        self._complete = set()  # requests the browser has finished delivering
-        self._responses = []  # bodies are read outside Playwright's response callback
-        page.on("request", self._out)
-        page.on("response", self._responded)
-        page.on("requestfinished", self._delivered)
-        page.on("requestfailed", self._back)
-        # A navigation is the third way a trip ends, and the one the browser reports
-        # for neither kind: a post the reload kills mid-flight gets no `response` and
-        # no `requestfailed`. Left uncounted it holds `acked` under `sends` for the
-        # rest of the page's life — the counters are the whole life on purpose — so
-        # every later `round_trip` waits its timeout out on a trip that ended at the
-        # reload. Accept-all is where this bit: it answers its asks one awaited trip
-        # at a time, so a sweep's reload lands mid-cascade about as often as not.
-        page.on("framenavigated", self._navigated)
+        self.page = page
 
-    def _out(self, request):
-        if "/api/event" in request.url:
-            self.sends += 1
-            self._flying.add(request)
-            event = request.post_data_json
-            token = event.get("attempt") if isinstance(event, dict) else None
-            if token:
-                self._token[request] = token
-                self.pending.add(token)
-        elif "/api/state" in request.url:
-            self.asked += 1
+    def _raw(self):
+        return self.page.evaluate("() => document.body?.dataset.lfTraffic ?? null")
 
-    def _back(self, request):
-        # Counted only while in the air, so a straggling report of a post the
-        # navigation already settled can't count it twice.
-        if "/api/event" in request.url:
-            if request in self._flying:
-                self._flying.discard(request)
-                self.acked += 1
-        elif "/api/state" in request.url:
-            self.heard += 1
+    def read(self):
+        """The ledger as one reading, every field taken from the same paint."""
+        raw = self._raw()
+        counts = json.loads(raw) if raw else {"pending": []}
+        return SimpleNamespace(**{key: counts.get(key, 0) for key in self.KEYS})
 
-    def _responded(self, response):
-        request = response.request
-        if request in self._answered:
-            return
-        self._answered.add(request)
-        self._back(request)
-        self._responses.append(response)
-
-    def _delivered(self, request):
-        """The browser has the whole body, so reading it cannot block."""
-        self._complete.add(request)
-
-    def settle_finished(self, request):
-        """Account for the exact trip a causal wait just consumed.
-
-        Playwright resolves `wait_for_event("requestfinished")` independently of
-        ordinary listeners. Under load the waiter can resume first; explicitly entering
-        that trip here closes the ordering without polling or sleeping. `_responded`
-        and `_delivered` deduplicate the later listeners whichever one wins.
-        """
-        self._delivered(request)
-        response = request.response()
-        if response is not None:
-            self._responded(response)
-        self.settle()
-
-    def settle(self):
-        """Read queued bodies from ordinary test control flow, never an event callback.
-
-        Playwright may yield while `response.json()` asks its driver for the body. Doing
-        that inside `_responded` let the test re-enter between `acked` and `pending`,
-        after the response event that could wake it had already fired.
-
-        A body is read only once `requestfinished` says the browser holds all of it. The
-        `response` event fires on the headers, and `Response.json` then waits on the
-        finished fact with no deadline of its own — the one wait in this harness that
-        cannot run out. A page that abandons an answer it no longer wants leaves a
-        request the browser never finishes, and reading that body stopped a worker
-        dead: a locally reproduced wedge was traced with both workers inside
-        `Response.json`, and the runs on main that spend their whole 45-minute bound
-        name no test and leave no traceback. A run reaches that bound only with both
-        workers stopped, and on the CI runs parsed for it the second one was past this
-        site, in teardown. Queued and unread, such a response instead lets `_until`
-        reach its own deadline and print the counters."""
-        while True:
-            ready = [r for r in self._responses if r.request in self._complete]
-            if not ready:
-                return
-            self._responses = [
-                r for r in self._responses if r.request not in self._complete
-            ]
-            for response in ready:
-                self._settle(response)
-
-    def _settle(self, response):
-        request = response.request
-        if "/api/event" in request.url:
-            try:
-                answer = response.json()
-            except Exception:  # noqa: BLE001 - malformed answers are retryable evidence
-                return
-            token = self._token.get(request)
-            state = answer.get("state")
-            state_events = state.get("events") if isinstance(state, dict) else None
-            state_attempts = (
-                {
-                    event.get("attempt")
-                    for event in state_events
-                    if isinstance(event, dict) and event.get("attempt")
-                }
-                if isinstance(state_events, list)
-                else set()
-            )
-            accepted = answer.get("ok") is True and token in state_attempts
-            refused = (
-                answer.get("ok") is False
-                and answer.get("final") is True
-                and ("attempt" not in answer or answer.get("attempt") == token)
-            )
-            if accepted or refused:
-                self.pending.discard(token)
-        elif "/api/state" in request.url and response.ok:
-            try:
-                state = response.json()
-            except Exception:  # noqa: BLE001 - it accounted for nothing the page can read
-                return
-            state_events = state.get("events") if isinstance(state, dict) else None
-            if not isinstance(state_events, list):
-                return
-            attempts = {
-                event.get("attempt")
-                for event in state_events
-                if isinstance(event, dict) and event.get("attempt")
-            }
-            self.pending.difference_update(attempts)
-
-    def _navigated(self, frame):
-        if frame.parent_frame is not None:
-            return
-        self.acked += len(self._flying)
-        self._flying.clear()
-        self.pending.clear()
-        self._token.clear()
-        self._responses.clear()
+    def __getattr__(self, name):
+        if name in self.KEYS:
+            return getattr(self.read(), name)
+        raise AttributeError(name)
 
     def __str__(self):
+        reading = self.read()
         return (
-            f"sends={self.sends} acked={self.acked} pending={len(self.pending)} "
-            f"asked={self.asked} heard={self.heard}"
+            f"sends={reading.sends} acked={reading.acked} "
+            f"pending={len(reading.pending)} asked={reading.asked} heard={reading.heard}"
         )
 
 
 def _traffic(page):
-    """The watcher `open_page` hung on this page when it made it."""
-    page.lf_traffic.settle()
+    """The ledger reader `open_page` hung on this page when it made it."""
     return page.lf_traffic
 
 
 def _until(page, fact, wanted):
     """Block until `fact` holds of the page's traffic.
 
-    The events the counters are built from arrive while the client is blocked inside a
-    Playwright call, so this blocks on each next finished trip and asks again — no
-    polling interval to pick, and nothing added to the page. The request returned by that
-    wait is entered into Traffic directly because Playwright does not order the waiter
-    after ordinary listeners; the delivery fact therefore changes before this caller asks
-    again.
+    The runtime repaints the ledger at each edge it counts, so this waits on the paint
+    changing and asks the fact of each new reading — no polling interval to pick beyond
+    the frame the browser paints on, and nothing added to the page for it.
 
-    It wakes on finished trips rather than on arriving headers, because a body is what
-    the counters are read from and `requestfinished` is the browser saying it has one.
-    The counters answer to failures too, so a fact that came true through a failed
-    request waits for the next trip that finishes to be noticed. A page with every poll
-    routed to `abort` has no such next, and a wait on one runs its timeout out and says
-    so rather than passing.
-
-    A wait that runs out names the caller's wanted fact and prints its starting and final
-    counters. The final reading comes after the timeout because the page's own
-    `requestfinished` listener may settle the fact as the timeout is delivered. No
-    finished trip preserves Playwright's timeout as the cause; a busy stream reaches the
-    same explicit deadline instead of waking this loop forever."""
-    if fact(_traffic(page)):
-        return
-    began = str(_traffic(page))
+    A wait that runs out names the caller's wanted fact and prints its starting and
+    final readings. The deadline is fixed when the wait begins, so a busy page cannot
+    keep a false fact alive by repainting forever."""
+    traffic = _traffic(page)
+    began = str(traffic)
     deadline = time.monotonic() + 30
-    try:
-        while not fact(_traffic(page)):
-            remaining = int((deadline - time.monotonic()) * 1000)
-            if remaining <= 0:
-                raise PlaywrightTimeout("responses outlived the wait deadline")
-            request = page.wait_for_event("requestfinished", timeout=remaining)
-            page.lf_traffic.settle_finished(request)
-    except PlaywrightTimeout as ran_out:
-        ended = _traffic(page)
-        if fact(ended):
+    while True:
+        raw = traffic._raw()
+        reading = traffic.read()
+        if fact(reading):
             return
-        raise AssertionError(
-            f"the page never {wanted}: the wait began on {began} and gave up on {ended}"
-        ) from ran_out
+        remaining = int((deadline - time.monotonic()) * 1000)
+        if remaining <= 0:
+            raise AssertionError(
+                f"the page never {wanted}: the wait began on {began} and gave up on "
+                f"{traffic}"
+            )
+        try:
+            page.wait_for_function(
+                "was => (document.body?.dataset.lfTraffic ?? null) !== was",
+                arg=raw,
+                timeout=remaining,
+            )
+        except PlaywrightTimeout:
+            continue
 
 
 # A browser trip is over when the response names the accepted attempt, definitively
-# refuses it, or a periodic poll observes it after the response was lost. Traffic records
-# those delivery outcomes as one fact. It deliberately says nothing about whether the
-# runtime then applied the response state; tests assert that on the affected page surface.
-# A request failure does not finish delivery, because the outbox keeps the same attempt
-# and retries; waiting merely for `acked` would return on that ambiguous edge.
+# refuses it, or a later read finds it after the response was lost. The outbox holds the
+# attempt until then and the ledger says so. It deliberately says nothing about whether
+# the runtime then applied the response state; tests assert that on the affected page
+# surface. A request failure does not finish delivery, because the outbox keeps the same
+# attempt and retries; waiting merely for `acked` would return on that ambiguous edge.
 def round_trip(page):
     """Wait for what this page has sent to have come back to it."""
     _until(page, lambda t: not t.pending, "heard back what it sent")
@@ -1302,7 +1160,6 @@ def open_page(
             viewport={"width": 1200, "height": 900}, color_scheme=color_scheme
         )
     )
-    # Before the first navigation, so the count is of everything this page ever asked for.
     page.lf_traffic = Traffic(page)
     arm_interception(page)
     errors = watched(page)

@@ -1,3 +1,5 @@
+import { countTraffic } from "./traffic.js";
+
 export function createLayerClient({ currentRevision, layerGeneration, sayLine }) {
   let layerReloading = false;
   function sameLayer(generation) {
@@ -23,17 +25,23 @@ export function createLayerClient({ currentRevision, layerGeneration, sayLine })
   // for both. Whether a send waits on the one before it belongs to the caller.
   const postEvent = async (event) => {
     await layerReady;
-    const response = await fetch("/api/event", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Leaf-Layer": layerGeneration,
-        ...(currentRevision() && {
-          "Leaf-View-Revision": String(currentRevision()),
-        }),
-      },
-      body: JSON.stringify(event),
-    });
+    countTraffic("sends");
+    let response;
+    try {
+      response = await fetch("/api/event", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Leaf-Layer": layerGeneration,
+          ...(currentRevision() && {
+            "Leaf-View-Revision": String(currentRevision()),
+          }),
+        },
+        body: JSON.stringify(event),
+      });
+    } finally {
+      countTraffic("acked");
+    }
     const responseGeneration = response.headers.get("Leaf-Layer");
     if (response.ok && responseGeneration && !sameLayer(responseGeneration))
       return null;

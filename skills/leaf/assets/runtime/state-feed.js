@@ -1,3 +1,5 @@
+import { countTraffic } from "./traffic.js";
+
 export function createStateFeed({
   RETRY_MS,
   SILENCE_MS,
@@ -24,27 +26,34 @@ export function createStateFeed({
   // for that would stop hearing. The page would then go silent for a reason none of its
   // news is about, which is a wedge rather than a delay: nothing else would ever ask.
   async function readState() {
-    let res;
+    countTraffic("asked");
     try {
-      const revision = runtime.currentRevision;
-      res = await fetch("/api/state", {
-        headers: Number.isInteger(revision)
-          ? { "Leaf-View-Revision": String(revision) }
-          : {},
-      });
-    } catch {
-      // Network absence is a completed answer: there is no log to replay, so the offline
-      // authored page is honest. A successful but malformed response is different — let
-      // JSON or processing errors escape so the caller retains the recovery boundary.
-      return null;
+      let res;
+      try {
+        const revision = runtime.currentRevision;
+        res = await fetch("/api/state", {
+          headers: Number.isInteger(revision)
+            ? { "Leaf-View-Revision": String(revision) }
+            : {},
+        });
+      } catch {
+        // Network absence is a completed answer: there is no log to replay, so the
+        // offline authored page is honest. A successful but malformed response is
+        // different — let JSON or processing errors escape so the caller retains the
+        // recovery boundary.
+        return null;
+      }
+      const responseGeneration = res?.ok && res.headers.get("Leaf-Layer");
+      if (responseGeneration && !sameLayer(responseGeneration)) return null;
+      // A refusal is not state: the server answers a missing key with error-shaped JSON
+      // at 403. A live server refusing the key and a dead one both leave the page
+      // unreachable from here, and the terminal link is the recourse for both.
+      if (!res?.ok) return null;
+      return await res.json();
+    } finally {
+      // Heard once the read has ended whichever way: the body in hand, or nothing.
+      countTraffic("heard");
     }
-    const responseGeneration = res?.ok && res.headers.get("Leaf-Layer");
-    if (responseGeneration && !sameLayer(responseGeneration)) return null;
-    // A refusal is not state: the server answers a missing key with error-shaped JSON at
-    // 403. A live server refusing the key and a dead one both leave the page unreachable
-    // from here, and the terminal link is the recourse for both.
-    if (!res?.ok) return null;
-    return res.json();
   }
 
   // Start a read without leaving a rejection unobserved while widget startup continues.

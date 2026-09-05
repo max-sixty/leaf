@@ -19,6 +19,11 @@ import { notice } from "../notifications.js";
 const SEND = "Mod+Enter";
 let uploadMedia;
 export const configureInput = (uploader) => (uploadMedia = uploader);
+const inputDrafts = new WeakMap();
+// A wired textarea's visible value omits generated image Markdown. Readers outside
+// this module ask through this seam for the complete draft; an unwired textarea keeps
+// the platform's ordinary value.
+export const draftOf = (ta) => inputDrafts.get(ta)?.value() ?? ta?.value ?? "";
 // Focus-derived hints join the runtime's one standing paint. Only the input losing the
 // standing and the one gaining it can change for that reason.
 const inputPaints = new WeakMap();
@@ -136,6 +141,7 @@ export function wireInput(
   };
   sync.value = draftValue;
   sync.hasMedia = () => pastedMedia.length > 0;
+  inputDrafts.set(ta, sync);
   // A runtime-built box is normally wired before it can receive focus. Preserve the
   // bookkeeping too if a caller wires one that is already standing.
   repaint();

@@ -1598,7 +1598,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-composer { display: none; }
   .lf-fab-bar .lf-composer > :not(.lf-fab-input, .lf-composer-media) {
     display: none !important; }
-  .lf-fab-bar .lf-composer-media { flex: none; max-width: 148px; padding: 0; }
+  .lf-fab-bar .lf-composer-media { display: flex; gap: 6px; flex: none;
+    max-width: 148px; padding: 0; overflow-x: auto; }
   .lf-fab-bar .lf-composer-media-open { width: 42px; height: 34px; }
   .lf-suggest-label { font-size: var(--t-6); letter-spacing: .05em; text-transform: uppercase; color: var(--ok-ink); margin: 4px 0 2px; }
   /* A suggestion renders verbatim — its characters are what the next version

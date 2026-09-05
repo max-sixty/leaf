@@ -144,8 +144,8 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
             "revision": 2,
             "text": (
                 "The same comparison in a frozen message.\n\n"
-                "[![Pasted image](/media/051bee487bfb5d13.png)]"
-                "(/media/051bee487bfb5d13.png)"
+                "![Pasted image](/media/051bee487bfb5d13.png)\n\n"
+                "[Open the original](/media/051bee487bfb5d13.png)"
             ),
             "markup": (
                 '<lf-shot id="message-shot" alt="message before > after" '
@@ -197,6 +197,18 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         expect(draft_image).to_have_attribute(
             "src", f"{root}/media/051bee487bfb5d13.png"
         )
+        complete = general.evaluate(
+            """async textarea => {
+              const entry = document.querySelector('script[type="module"][src$="leaf.js"]');
+              const input = await import(new URL('runtime/composing/input.js', entry.src));
+              const keyboard = await import(new URL('runtime/keyboard/page.js', entry.src));
+              return {draft: input.draftOf(textarea), composing: keyboard.midComposition()};
+            }"""
+        )
+        assert complete == {
+            "draft": "![Pasted image](/media/051bee487bfb5d13.png)",
+            "composing": True,
+        }
         page.locator(".lf-general").get_by_role(
             "button", name="Remove pasted image 1"
         ).click()
@@ -222,6 +234,9 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         assert media_open.get_attribute("data-lf-media-url") == (
             f"{root}/media/051bee487bfb5d13.png"
         )
+        original = page.locator(".lf-msg.claude .lf-msg-text a")
+        expect(original).to_have_text("Open the original")
+        expect(original).to_have_attribute("href", f"{root}/media/051bee487bfb5d13.png")
         url_before = page.url
         media_open.click()
         viewer = page.get_by_role("dialog", name="Image preview")

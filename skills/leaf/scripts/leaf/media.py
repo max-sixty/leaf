@@ -35,7 +35,6 @@ _UPLOAD_TYPES = {
 
 
 def _store_media(page_dir: Path, data: bytes, suffix: str) -> str:
-    suffix = ".jpg" if suffix == ".jpeg" else suffix
     name = hashlib.sha256(data).hexdigest()[:16] + suffix
     media_dir = page_dir / MEDIA_DIR
     target = media_dir / name

@@ -35,9 +35,12 @@ export function loadMarkdown(onError = null) {
         link(token) {
           if (!safeUrl(token.href)) return this.parser.parseInline(token.tokens);
           if (!isCanonicalMediaUrl(token.href)) return false;
-          // Earlier pasted drafts wrapped their image in a link to the same media path.
-          // The image renderer now owns inspection, so discard only that redundant link.
-          return this.parser.parseInline(token.tokens);
+          // Marked can preserve an ordinary page-media link on a normal page, but its
+          // root would escape an MCP capability route. Scope only this href and retain
+          // the link's authored meaning; image inspection has its own button renderer.
+          let link = `<a href="${escapeAttribute(scopedMediaUrl(token.href))}"`;
+          if (token.title) link += ` title="${escapeAttribute(token.title)}"`;
+          return link + `>${this.parser.parseInline(token.tokens)}</a>`;
         },
         image(token) {
           if (!safeUrl(token.href)) return escapeHtml(token.text);

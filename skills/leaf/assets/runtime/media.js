@@ -7,14 +7,15 @@
    derived from this module's served route, so a normal page and an MCP capability page
    resolve the same canonical `/media/…` text without rewriting durable content. */
 
+// Joined rather than written whole: the MCP boundary's route scoper rewrites a quoted
+// media root in served JS (http.py's _ROOTED_PAGE_ROUTE), and this constant has to keep
+// speaking the canonical text that drafts and events carry. MEDIA_PATH's escaped form
+// below dodges the same rewrite; neither may be spelled the obvious way.
 const CANONICAL_MEDIA_ROOT = "/" + "media/";
 const MODULE_PAGE_ROOT = new URL("../", import.meta.url);
 const MEDIA_NAME = /^[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)$/;
 const MEDIA_PATH = String.raw`\/media\/[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)`;
-const PASTED_MEDIA = new RegExp(
-  String.raw`\[!\[Pasted image\]\((${MEDIA_PATH})\)\]\(\1\)|!\[Pasted image\]\((${MEDIA_PATH})\)`,
-  "g",
-);
+const PASTED_MEDIA = new RegExp(String.raw`!\[Pasted image\]\((${MEDIA_PATH})\)`, "g");
 
 export const isCanonicalMediaUrl = (href) => {
   if (!href.startsWith(CANONICAL_MEDIA_ROOT)) return false;
@@ -28,8 +29,8 @@ export const scopedMediaUrl = (href) =>
 export function readPastedMedia(value) {
   const paths = [];
   const text = value
-    .replace(PASTED_MEDIA, (_match, linked, plain) => {
-      paths.push(linked ?? plain);
+    .replace(PASTED_MEDIA, (_match, path) => {
+      paths.push(path);
       return "";
     })
     .replace(/\n{3,}/g, "\n\n")

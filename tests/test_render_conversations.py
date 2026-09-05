@@ -468,6 +468,56 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     page.close()
 
 
+def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, serve):
+    """The compact composer reads the complete draft hidden behind its textarea.
+
+    Several images make its shelf overflow, proving the anchored box gets the same
+    horizontal thumbnail projection as the larger thread text boxes.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.locator("#p1").click(click_count=3)
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
+
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        field.evaluate(
+            """(textarea, encoded) => {
+              const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+              const transfer = new DataTransfer();
+              for (let index = 0; index < 4; index += 1) {
+                transfer.items.add(new File(
+                  [bytes], `rendering-${index}.png`, {type: 'image/png'}
+                ));
+              }
+              textarea.dispatchEvent(new ClipboardEvent('paste', {
+                bubbles: true,
+                cancelable: true,
+                clipboardData: transfer,
+              }));
+            }""",
+            base64.b64encode(pixels).decode(),
+        )
+
+    expect(field).to_have_value("")
+    shelf = page.locator(".lf-fab-bar .lf-composer-media")
+    expect(shelf.locator("img")).to_have_count(4)
+    expect(page.locator(".lf-keyline")).to_contain_text("close — draft kept")
+    layout = shelf.evaluate(
+        """element => ({
+          display: getComputedStyle(element).display,
+          overflowX: getComputedStyle(element).overflowX,
+          scrolls: element.scrollWidth > element.clientWidth,
+        })"""
+    )
+    assert layout == {"display": "flex", "overflowX": "auto", "scrolls": True}
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
 def test_an_arriving_reply_leaves_the_list_where_the_reader_put_it(browser, serve):
     """News has no gesture behind it, so it may move nothing the reader is looking at.
     The hard case is a reply landing in a thread above the fold: the list grows over

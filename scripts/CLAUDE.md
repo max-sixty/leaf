@@ -13,6 +13,10 @@ authored version oldest first, copies the example's companion log in after the f
 of them, then sets the event cursor past seeded history. `--source`
 accepts any authored HTML file, while `--runtime` chooses the checkout that vendors
 it. Named `--slot` pages coexist; `--background` starts one and returns its URL.
+`--automation` runs the browser harness's temporary server in the foreground. Real
+browser gestures cross the HTTP and event-log boundaries, while the page creates no
+claim or durable service. Stop that command, then recreate the slot without the flag
+before handing its URL to a reader.
 A live preview shows that runtime's safe checkout provenance in a banner badge;
 pressing it copies the source, commit, layer identity, revision, event sequence, and
 a URL with its access token removed. `--export` writes the prepared page as one

@@ -155,7 +155,9 @@ page path cannot revive old transport work or block receipts still due on anothe
 page. A reinitialized page whose events no longer match terminally retires its old
 batch, so it cannot starve receipts for the task's other pages. An uncertain queue
 command retries the same file pointer. Delivery is therefore at least once; a repeated
-turn recognizes the id in the filename and applies the page-and-sequence retry rule.
+turn recognizes the id in the filename and treats a page-and-event-id already handled
+as a retry. Sequence remains the acknowledgement boundary within one incarnation of a
+page log; it is not an event identity and restarts when a page path is reinitialized.
 Once a file is closed and every batch has a receipt, it moves under `history/`: the
 record remains durable while the adapter's one-second live scan reads only actionable
 epochs.

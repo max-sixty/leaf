@@ -618,7 +618,7 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
 
 
 def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
-    """The page and each event's sequence identify retries for any consumer."""
+    """The page and each event's id identify retries for any consumer."""
     serving(page_dir, 1)
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
@@ -638,7 +638,7 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
     assert len(pickups) == 1 and pickups[0]["events"] == ["c1"]
 
     # If wait output was lost or truncated, retrieving it again before ack can
-    # include a newer event. The old event keeps the same page-and-seq identity
+    # include a newer event. The old event keeps the same page-and-id identity
     # for the receiving task to skip.
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "later"}
@@ -2219,6 +2219,109 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
         if event["kind"] == "pickup"
     ]
     assert [pickup["events"] for pickup in pickups] == [["standing"]]
+
+
+def test_codex_delivery_keys_retries_by_stable_event_id(tmp_path):
+    """A page path and sequence can be reused while an event id can move.
+
+    Reinitializing the path supplies both contrasts. A new event at the old sequence
+    must join the epoch, while the old event copied to a later sequence remains the
+    same delivery and must not join it again.
+    """
+    page = tmp_path / "reused-page"
+
+    def initialize():
+        shutil.rmtree(page, ignore_errors=True)
+        vendoring_model.cmd_init(page)
+
+    def append_and_capture(event_id):
+        events_model.append_event(
+            page,
+            {
+                "kind": "comment",
+                "id": event_id,
+                "author": "user",
+                "text": event_id,
+            },
+        )
+        delivered = events_model.read_events(page)[-1]
+        with service_model.PageTransaction(page) as transaction:
+            reading = session_model.PageTick(
+                page,
+                transaction.status,
+                [delivered],
+                True,
+                "watching",
+                False,
+                None,
+                transaction,
+            )
+            return delivered, codex_model.capture_batch("codex-thread", reading)
+
+    initialize()
+    first, first_captured = append_and_capture("stable")
+    initialize()
+    replacement, replacement_captured = append_and_capture("replacement")
+    initialize()
+    events_model.append_event(
+        page,
+        {
+            "kind": "comment",
+            "id": "padding",
+            "author": "claude",
+            "text": "moves the stable event to the next sequence",
+        },
+    )
+    moved, moved_captured = append_and_capture("stable")
+
+    _, epoch = current_codex_delivery("codex-thread")
+    delivered = [event for batch in epoch["batches"] for event in batch["events"]]
+    assert first_captured and replacement_captured and not moved_captured
+    assert first["seq"] == replacement["seq"]
+    assert moved["seq"] != first["seq"]
+    assert [(event["id"], event["seq"]) for event in delivered] == [
+        ("stable", first["seq"]),
+        ("replacement", replacement["seq"]),
+    ]
+
+
+def test_a_replacement_cursor_cannot_receipt_events_from_the_previous_page(
+    tmp_path, monkeypatch
+):
+    """Receipt recovery cannot combine two incarnations observed across one race."""
+    page = tmp_path / "replaced-during-receipt"
+    vendoring_model.cmd_init(page)
+    events_model.append_event(
+        page,
+        {"kind": "comment", "id": "old", "author": "user", "text": "old page"},
+    )
+    old = events_model.read_events(page)[-1]
+    batch = {
+        "page": str(page),
+        "url": None,
+        "threads": [],
+        "events": [old],
+        "receipted": False,
+    }
+
+    def replace_page(_page):
+        shutil.rmtree(page)
+        vendoring_model.cmd_init(page)
+        events_model.append_event(
+            page,
+            {
+                "kind": "comment",
+                "id": "replacement",
+                "author": "user",
+                "text": "new page",
+            },
+        )
+        files_model.write_json(page / "cursor.json", {"seq": 1})
+        return 1
+
+    monkeypatch.setattr(codex_model, "read_cursor", replace_page)
+
+    assert not codex_model._page_acknowledged(batch)
 
 
 def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
@@ -4003,6 +4106,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_reader(claimed, capsys)
             "kind": "example",
             "example": "design-decision",
             "checkout": "leaf",
+            "interaction": "reader",
             "started": "2026-09-01T10:00:00+00:00",
         },
     )
@@ -5044,6 +5148,34 @@ def test_server_run_standing_declines_the_claim_a_host_session_offers(page_dir, 
     assert process.stderr.readline().strip() == "server   standing"
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "standing"
     assert service_model.page_claim(page_dir) is None
+
+
+def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn):
+    """A temporary serve is real HTTP with process-owned lifetime and access.
+
+    It writes neither half of durable delivery: no service for a later wait to revive,
+    and no claim for this test's host session to watch.
+    """
+    process = spawn(
+        [*LEAF_COMMAND, "server", "run", "--temporary", str(page_dir)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    url = process.stdout.readline().strip()
+    assert url.startswith("http://127.0.0.1:")
+    assert process.stderr.readline().strip() == (
+        "server   temporary (stops with this command)"
+    )
+    state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
+    assert urllib.request.urlopen(state).status == 200
+    assert not (page_dir / "service.json").exists()
+    assert service_model.page_claim(page_dir) is None
+
+    process.send_signal(signal.SIGINT)
+    _, error = process.communicate(timeout=5)
+    assert process.returncode == 1, error
+    assert error.endswith("Aborted!\n")
 
 
 def test_server_run_standing_refuses_to_adopt_a_session_server(page_dir):

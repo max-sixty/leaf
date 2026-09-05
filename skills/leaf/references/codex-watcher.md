@@ -20,8 +20,8 @@ page path, and resolved Leaf launcher. Its job is:
    ```text
    This Leaf batch was forwarded by a watcher task. Handle every event, but do not run
    `leaf wait` or `leaf ack`: the watcher owns both and acknowledges only after this
-   follow-up is accepted. A page and event seq already handled is a retry, even when a
-   later delivery also contains newer events.
+   follow-up is accepted. An event id already handled for this page is a retry, even
+   when a later delivery also contains newer events.
    ```
 
    Append the complete wait output verbatim. If the send fails or its outcome is
@@ -56,5 +56,5 @@ hook stands down. Status updates, replies, and versions do not reclaim the page.
 the page idle ends the watcher's next wait.
 
 When a forwarded batch reaches the page task, follow its instruction. Handle every
-event without waiting or acknowledging, and skip any page-and-seq pair already handled
-in that task.
+event without waiting or acknowledging, and skip any page-and-event-id pair already
+handled in that task.

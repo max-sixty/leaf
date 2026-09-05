@@ -11,9 +11,10 @@ browser-drawn result as one standalone HTML file instead.
 
 The live result is a page, not a picture of one: it takes comments. Served from
 an agent session, `leaf wait` on the same directory carries them to the agent and
-the example gets revised like any other page; run from a bare shell, they queue
-in the log until an agent next reads it. Which of those happens follows from the
-host identity the launcher puts in the environment.
+the example gets revised like any other page. Outside an agent host, gestures remain
+in the log until an agent claims the page. `--automation` uses the same temporary
+page server as the browser harness: gestures traverse the real HTTP and event-log
+boundary, but the server creates no claim or durable service.
 
 An example can also ship companion `.jsonl` events and `.data.json` source
 values. The first lets a page arrive mid-conversation; the second supplies the
@@ -178,6 +179,11 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
+        "--automation",
+        action="store_true",
+        help="serve through the process-owned browser harness",
+    )
+    mode.add_argument(
         "--background",
         action="store_true",
         help="start the page service and return its URL",
@@ -296,7 +302,7 @@ def preparation_note(source: Path, data_sources: int, versions: int) -> str:
     return f"prepared {source.stem} ({', '.join(details)})"
 
 
-def mark_preview(source: Path, page: Path, runtime: Path) -> None:
+def mark_preview(source: Path, page: Path, runtime: Path, *, automation: bool) -> None:
     """Identify the live runtime without exposing its absolute path to the browser."""
     layer = json.loads((page / "registry.json").read_text(encoding="utf-8"))["$layer"]
     producer = layer.get("producer", {})
@@ -304,6 +310,7 @@ def mark_preview(source: Path, page: Path, runtime: Path) -> None:
         "kind": "example",
         "example": source.stem,
         "checkout": runtime.name,
+        "interaction": "automation" if automation else "reader",
         "started": datetime.now(timezone.utc).isoformat(),
         **({"commit": producer["commit"]} if "commit" in producer else {}),
         **({"dirty": producer["dirty"]} if "dirty" in producer else {}),
@@ -337,13 +344,24 @@ def main() -> None:
         leaf(launcher, runtime, "server", "stop", str(page), check=False)
         shutil.rmtree(page)
     data_sources, versions = prepare(source, page, launcher, runtime)
-    mark_preview(source, page, runtime)
+    mark_preview(source, page, runtime, automation=args.automation)
     print(preparation_note(source, data_sources, versions), end="\n\n", flush=True)
     if args.background:
-        leaf(launcher, runtime, "server", "start", str(page), show_output=True)
+        leaf(
+            launcher,
+            runtime,
+            "server",
+            "start",
+            str(page),
+            show_output=True,
+        )
         return
+    lifetime = ["--temporary"] if args.automation else []
     os.chdir(runtime)
-    os.execv(str(launcher), [str(launcher), "server", "run", str(page)])
+    os.execv(
+        str(launcher),
+        [str(launcher), "server", "run", str(page), *lifetime],
+    )
 
 
 if __name__ == "__main__":

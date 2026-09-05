@@ -31,6 +31,11 @@ a source line.
 
 ## Preview a shipped example
 
+Browser automation runs `scripts/preview.py <example> --automation` in a long-running
+process. The command uses the browser suite's temporary server: the real HTTP and event
+log, with no task claim or durable service. Stop it and recreate the slot without
+`--automation` before presenting the URL for reader feedback.
+
 1. From the repository root, start `scripts/preview.py <example>` in a
    long-running command or terminal session. Keep it alive and retain the exact
    served URL. The script replaces `.tmp/preview`, so one checkout has one active

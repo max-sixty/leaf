@@ -2,7 +2,6 @@
 
 import json
 import re
-import threading
 
 import pytest
 from click.testing import CliRunner
@@ -10,7 +9,6 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
-from leaf import http as http_model
 from leaf import schema as schema_model
 from leaf.registry import storage as registry_storage
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -1692,12 +1690,11 @@ def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, 
     assert initialized.exit_code == 0, initialized.output
     new_layer = registry_storage.layer_generation(serve.page_dir)
     assert new_layer != old_layer
-    replacement = hosting_model.LeafHTTPServer(
-        address, http_model.handler_for(serve.page_dir, TOKEN)
-    )
-    threading.Thread(target=replacement.serve_forever, daemon=True).start()
+    replacement = hosting_model.TemporaryPageServer(
+        serve.page_dir, token=TOKEN, port=address[1]
+    ).start()
     serve.servers.append(replacement)
-    serve.httpd = replacement
+    serve.httpd = replacement.httpd
 
     with page.expect_navigation(wait_until="load"):
         page.locator("#opt-stage").click()
@@ -1854,12 +1851,11 @@ def test_a_runtime_cannot_adopt_a_new_registry_while_it_is_loading(browser, serv
     )
     assert initialized.exit_code == 0, initialized.output
     assert registry_storage.layer_generation(serve.page_dir) != old_layer
-    replacement = hosting_model.LeafHTTPServer(
-        address, http_model.handler_for(serve.page_dir, TOKEN)
-    )
-    threading.Thread(target=replacement.serve_forever, daemon=True).start()
+    replacement = hosting_model.TemporaryPageServer(
+        serve.page_dir, token=TOKEN, port=address[1]
+    ).start()
     serve.servers.append(replacement)
-    serve.httpd = replacement
+    serve.httpd = replacement.httpd
 
     with page.expect_navigation(wait_until="load"):
         page.evaluate("() => window.lfReleaseRegistry()")
@@ -4774,6 +4770,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
             "kind": "example",
             "example": "corpus",
             "checkout": "fb77",
+            "interaction": "reader",
             "started": "2026-08-31T12:00:00+00:00",
         },
     )

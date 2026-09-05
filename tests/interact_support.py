@@ -913,13 +913,9 @@ TOKEN = "test-page-key"
 @pytest.fixture
 def server(page_dir):
     """A real HTTP server over the page directory, on an ephemeral port."""
-    httpd = hosting_model.LeafHTTPServer(
-        ("127.0.0.1", 0), http_model.handler_for(page_dir, TOKEN)
-    )
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-    thread.start()
-    yield f"http://127.0.0.1:{httpd.server_address[1]}"
-    httpd.shutdown()
+    temporary = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
+    yield temporary.origin
+    temporary.close()
 
 
 def fetch(url, data=None, token=TOKEN, layer=None):

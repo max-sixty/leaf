@@ -104,5 +104,5 @@ From a checkout, `uv run scripts/site.py --serve` previews that catalog and all 
 `scripts/preview.py triage-board` serves one page with the real agent loop behind it.
 Synthetic feature specimens live together in
 [`examples/developer/feature-gallery.html`](examples/developer/feature-gallery.html);
-`scripts/preview.py feature-gallery` serves that developer playground without adding
-it to the public catalog.
+`scripts/preview.py feature-gallery --automation` serves that developer playground
+through the browser harness's process-owned server.

@@ -4,7 +4,6 @@ import itertools
 import json
 import os
 import re
-import threading
 import time
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
@@ -80,6 +79,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         "checkout": "fb77",
         "commit": "26499ea1abcd",
         "dirty": True,
+        "interaction": "reader",
         "started": "2026-08-31T12:00:00+00:00",
     }
     context = browser.new_context(
@@ -103,6 +103,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         diagnostics = page.evaluate("() => navigator.clipboard.readText()")
         assert "example: postmortem" in diagnostics
         assert "checkout: fb77" in diagnostics
+        assert "interaction: reader" in diagnostics
         assert "commit: 26499ea1abcd" in diagnostics
         assert "dirty: true" in diagnostics
         assert "layer generation:" in diagnostics
@@ -1869,11 +1870,10 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
         "Server offline — reconnecting. Keep this page open so pending changes can send."
     )
 
-    httpd = hosting_model.LeafHTTPServer(
-        ("127.0.0.1", port), http_model.handler_for(serve.page_dir, TOKEN)
-    )
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    serve.servers.append(httpd)
+    server = hosting_model.TemporaryPageServer(
+        serve.page_dir, token=TOKEN, port=port
+    ).start()
+    serve.servers.append(server)
     events_model.append_event(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Back."},

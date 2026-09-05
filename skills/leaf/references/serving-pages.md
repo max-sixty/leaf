@@ -90,6 +90,11 @@ sessions. Tell the user when starting one because they inherit a process only
 `server stop` ends. A wait watching any enabled page revives its server under the
 recorded lifetime if the process dies.
 
+`server run --temporary` is the browser-harness boundary. It serves on loopback
+until that foreground command exits, with a per-server access key and no claim or
+`service.json`. The serve cannot be revived and does not enroll its browser events
+in agent-task delivery.
+
 ## Resuming a standing or foreign page
 
 The host selects exactly one successor session; neither `page state` nor a bare

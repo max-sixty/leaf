@@ -35,7 +35,7 @@ receipt. The task reads every entry in `batches`, each containing `page`, `url`,
 resolves by the same filename under the sibling `history/` directory. If a queue command has an
 uncertain outcome, the adapter retries the same pointer with the same Leaf delivery
 id. This is at-least-once delivery and may create a retry turn; the task applies
-the page-and-sequence retry rule below. Before each queue or hook offer, every batch
+the page-and-event-id retry rule below. Before each queue or hook offer, every batch
 for a page is updated to that page server's one current URL. If an active turn
 produces no later hook for fifteen minutes, the adapter queues the same epoch pointer
 so its stored input cannot remain hidden. A long-running turn can therefore produce
@@ -55,8 +55,9 @@ event posted between wait and ack has a higher sequence and stays pending. Ack
 then waits in the same process. Until ack, wait repeats the batch. `leaf events`
 reads the full log without acking it.
 
-Treat a page-and-sequence pair already handled in this task as a retry, even if a
-later delivery also includes newer events.
+Treat an event id already handled for the same page in this task as a retry, even if a
+later delivery also includes newer events. Sequence is only that event's position in
+one incarnation of the page log; recreating a page path starts its sequence again.
 
 ## Process every event
 

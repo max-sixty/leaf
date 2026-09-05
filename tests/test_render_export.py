@@ -20,6 +20,7 @@ from leaf import exporting as exporting_model
 from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import server as server_model
+from leaf import service as service_model
 from leaf.render_gate import browser as browser_model
 from playwright.sync_api import expect
 from render_support import (
@@ -32,6 +33,7 @@ from render_support import (
     primed,
     refuse,
     resized,
+    sending,
     serious_axe_violations,
     watched,
 )
@@ -206,6 +208,106 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
                 text=True,
             )
             shutil.rmtree(page, ignore_errors=True)
+
+
+def test_automation_preview_records_real_gestures_outside_the_task(
+    browser, preview_slot, spawn
+):
+    """Automation and reader previews use the same event door but different lifetimes.
+
+    The temporary server is the browser harness's production helper, held by the
+    foreground process rather than a service record. Recreating the exact slot as a
+    reader preview is the control: its click occupies the same local sequence, has a
+    distinct durable identity, and the page joins the current task's delivery set.
+    """
+    slot, page_dir = preview_slot
+    automation_process = spawn(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "preview.py"),
+            "design-decision",
+            "--slot",
+            slot,
+            "--automation",
+        ],
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert automation_process.stdout.readline() == (
+        "prepared design-decision (1 version)\n"
+    )
+    assert automation_process.stdout.readline() == "\n"
+    automation_url = automation_process.stdout.readline().strip()
+    assert automation_url.startswith("http://127.0.0.1:")
+    assert (
+        automation_process.stderr.readline().strip()
+        == "server   temporary (stops with this command)"
+    )
+    assert service_model.page_claim(page_dir) is None
+    assert not (page_dir / "service.json").exists()
+    assert page_dir not in service_model.owned_pages(
+        os.environ["CLAUDE_CODE_SESSION_ID"]
+    )
+    automation, automation_errors = open_page(browser, automation_url)
+    expect(automation.locator(".lf-preview")).to_contain_text(
+        f"Automation · {ROOT.name}"
+    )
+    with sending(automation, "the automation option pick"):
+        automation.locator("#opt-redis .lf-pick").click()
+    expect(automation.locator("#opt-redis")).to_have_attribute("chosen", "")
+    [automated_event] = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "action" and event["author"] == "user"
+    ]
+    assert automation_errors == []
+    automation.close()
+
+    automation_process.send_signal(signal.SIGINT)
+    _, automation_stderr = automation_process.communicate(timeout=10)
+    assert automation_process.returncode == 1, automation_stderr
+    assert automation_stderr.endswith("Aborted!\n")
+
+    reader_result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "preview.py"),
+            "design-decision",
+            "--slot",
+            slot,
+            "--background",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+    assert reader_result.returncode == 0, (
+        f"stdout:\n{reader_result.stdout}\nstderr:\n{reader_result.stderr}"
+    )
+    reader_url = reader_result.stdout.splitlines()[-1]
+    claim = service_model.page_claim(page_dir)
+    assert claim is not None and claim["id"] == os.environ["CLAUDE_CODE_SESSION_ID"]
+    reader, reader_errors = open_page(browser, reader_url)
+    expect(reader.locator(".lf-preview")).to_contain_text(f"Preview · {ROOT.name}")
+    with sending(reader, "the reader option pick"):
+        reader.locator("#opt-jwt .lf-pick").click()
+    expect(reader.locator("#opt-jwt")).to_have_attribute("chosen", "")
+    [reader_event] = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "action" and event["author"] == "user"
+    ]
+    assert reader_event["seq"] == automated_event["seq"]
+    assert reader_event["id"] != automated_event["id"]
+    assert reader_event in service_model.unacknowledged(
+        events_model.read_events(page_dir), 0
+    )
+    assert reader_errors == []
+    reader.close()
 
 
 # ---------- export: the page as one file ----------

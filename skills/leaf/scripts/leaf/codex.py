@@ -13,7 +13,7 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from xml.etree import ElementTree
 
-from .event_log import flocked, read_cursor
+from .event_log import flocked, read_cursor, read_events
 from .files import read_json, write_json
 from .host import host_identity, state_home
 from .leases import adapter_is_live, adapter_lease_path, take_waiter_lease
@@ -188,15 +188,11 @@ def _append_batch(
             epoch["phase"] = "entered"
 
     delivered = {
-        (entry["page"], event["seq"], event["id"])
+        (entry["page"], event["id"])
         for entry in epoch["batches"]
         for event in entry["events"]
     }
-    fresh = [
-        event
-        for event in batch
-        if (str(page_dir), event["seq"], event["id"]) not in delivered
-    ]
+    fresh = [event for event in batch if (str(page_dir), event["id"]) not in delivered]
     if not fresh:
         return None
 
@@ -236,33 +232,44 @@ def capture_batch(session_id: str, reading) -> bool:
     return captured is not None
 
 
+def _matching_batch_events(batch: dict, events: list[dict]) -> list[dict] | None:
+    """Resolve a persisted batch by its durable event identities."""
+    by_id = {event["id"]: event for event in events}
+    if not all(event["id"] in by_id for event in batch["events"]):
+        return None
+    return [by_id[event["id"]] for event in batch["events"]]
+
+
 def _finish_batch(batch: dict) -> None:
     """Take receipt for one persisted batch, preserving a successor's claim."""
     page_dir = Path(batch["page"])
-    expected = {event["seq"]: event["id"] for event in batch["events"]}
     try:
         with PageTransaction(page_dir) as page:
-            delivered = {
-                event["seq"]: event
-                for event in page.events
-                if min(expected) <= event["seq"] <= max(expected)
-            }
-            if not all(
-                delivered.get(seq, {}).get("id") == event_id
-                for seq, event_id in expected.items()
-            ):
+            delivered = _matching_batch_events(batch, page.events)
+            if delivered is None:
                 return
-            record_pickup(page, [delivered[seq] for seq in expected])
-            acknowledge(page, max(expected))
+            record_pickup(page, delivered)
+            acknowledge(page, max(event["seq"] for event in delivered))
     except FileNotFoundError:
         pass
 
 
 def _page_acknowledged(batch: dict) -> bool:
+    """Whether this page incarnation's cursor covers the batch's exact events."""
     page_dir = Path(batch["page"])
     if not (page_dir / EVENTS_FILE).is_file():
         return True
-    return read_cursor(page_dir) >= max(event["seq"] for event in batch["events"])
+    try:
+        # Read the replaceable cursor first. If the page is reinitialized between
+        # these reads, the following event-id match refuses the mixed incarnation;
+        # the reverse order could let a replacement cursor receipt the old events.
+        cursor = read_cursor(page_dir)
+        delivered = _matching_batch_events(batch, read_events(page_dir))
+    except FileNotFoundError:
+        return True
+    if delivered is None:
+        return False
+    return cursor >= max(event["seq"] for event in delivered)
 
 
 def _sync_receipts(epoch_path: Path, epoch: dict) -> None:
@@ -391,10 +398,10 @@ def _capture_pages(session_id: str, pages: list[PageTransaction]) -> None:
         epoch_path, batch_index, entry = captured
         # The epoch must survive before the page cursor advances.
         # A hook process may fail open after either write.
-        events = {event["seq"]: event for event in page.events}
-        delivered = [events[event["seq"]] for event in entry["events"]]
+        events = {event["id"]: event for event in page.events}
+        delivered = [events[event["id"]] for event in entry["events"]]
         record_pickup(page, delivered)
-        acknowledge(page, max(event["seq"] for event in entry["events"]))
+        acknowledge(page, max(event["seq"] for event in delivered))
         _record_receipt(epoch_path, batch_index)
 
 

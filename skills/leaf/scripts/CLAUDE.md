@@ -32,7 +32,8 @@ The main owners are:
 - `host`: local paths, process readings, host identity, and session lifetime;
 - `leases`: process-backed page, transition, and waiter leases;
 - `service`: page claims, serialized transactions, and status;
-- `server` and `hosting`: server address and lifetime state, and the HTTP process;
+- `server` and `hosting`: server address and lifetime state, plus durable and
+  process-owned HTTP servers;
 - `session` and `hooks`: direct wait delivery and host lifecycle;
 - `codex`: detached Codex queue delivery and recovery;
 - `mcp_server` and `mcp_app`: the bundled MCP transport and comments-only

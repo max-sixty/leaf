@@ -20,7 +20,7 @@ from leaf.data import cmd_data_capture, cmd_data_clear, cmd_data_set
 from leaf.exporting import cmd_export
 from leaf.hooks import cmd_hook, unanswered_decisions
 from leaf.host import host_identity
-from leaf.hosting import cmd_serve, cmd_stop, start_server
+from leaf.hosting import cmd_serve, cmd_serve_temporary, cmd_stop, start_server
 from leaf.media import cmd_media
 from leaf.packages import cmd_package_check, cmd_package_init
 from leaf.page import cmd_guidance
@@ -430,14 +430,26 @@ def start(dir: str, host: str | None, standing: bool) -> None:
 @server.command(short_help="Serve a page in the foreground until stopped.")
 @click.argument("dir", metavar="PAGE")
 @serve_flags
-def run(dir: str, host: str | None, standing: bool) -> None:
+@click.option(
+    "--temporary",
+    is_flag=True,
+    help="serve on loopback for this command only, without claiming the page",
+)
+def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
     """Serve a page in the foreground, printing its URL and running until stopped.
 
     Run this in a terminal of your own to hold a page up where you can watch it.
-    From an agent session use `server start`. A page already served prints that
-    server's URL and exits.
+    Browser harnesses use `--temporary`; a reader page in an agent session uses
+    `server start`. A page already served prints that server's URL and exits.
     """
     page_dir = resolve_dir(dir)
+    if temporary:
+        if standing:
+            raise click.UsageError("choose --temporary or --standing")
+        if host:
+            raise click.UsageError("--temporary is loopback-only; omit --host")
+        cmd_serve_temporary(page_dir)
+        return
     claim_transition = None if standing else take_page_claim(page_dir)
     try:
         cmd_serve(page_dir, host, standing)

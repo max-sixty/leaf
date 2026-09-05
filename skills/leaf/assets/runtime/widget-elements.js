@@ -216,7 +216,9 @@ export function worksInside(node, container) {
 // and one of them going missing is invisible until something breaks.
 //
 // Native controls are the ordinary case. A widget gets their activation, disabled state,
-// focus behavior, and platform accessibility contract without Leaf recreating any of it.
+// focus behavior, and platform accessibility contract without Leaf recreating any of it:
+// ordinary buttons and links need no Leaf activation binding, and a `selectableOffer`
+// registers its widget-specific keys.
 export function offer(tag, cls, label) {
   const node = document.createElement(tag);
   if (node instanceof HTMLButtonElement) node.type = "button";

@@ -1,3 +1,73 @@
+/* The go-to chord: `g` opens one destination mode, and this owner holds its vocabulary.
+   For mnemonic letters, case determines the production:
+
+   - `g` + uppercase mnemonic: the mnemonic completes a direct destination — `g T`
+     Threads, `g A` Asks, `g L` All leaves, `g M` complete Page map, `g V` Versions.
+   - `g` + lowercase mnemonic + digit: the mnemonic selects a numbered list and the digit
+     one of up to nine members — `g m 1` Page-map location, `g t 1` tab, `g h 1`
+     hyperlink, `g f 1` fold.
+
+   Uppercase and lowercase mnemonics are parallel namespaces. A mnemonic may occupy both:
+   `g m` starts the numbered Page-map location list, while `g M` completes a direct trip
+   to the searchable Page map sheet. Each form contributes its own command row; its
+   capability and landing behavior remain independent.
+
+   `g g` and `g G` complete the chord themselves, gliding to the top and bottom of the
+   visible scroller. When a thread holds focus, `g k` and `g j` place that card at the top
+   or bottom of its list without moving the page. From a beside-panel, `g p` returns focus
+   to the page while keeping the panel and its narrowing. An edge is one place, so the
+   second key completes the route; because every page has a top, the mode never arms empty
+   and the page-level `g` row needs no capability gate. Completing a direct destination
+   exchanges the transient chord for one return frame; Escape restores the exact standing
+   and workspace captured before `g` armed. `BUILTIN_DIRECT_DESTINATIONS` declares the
+   uppercase destinations the address owner itself implements. Another owner contributes a
+   complete row through `directDestinations`, as version travel does for `g V`; both enter
+   the same `GO` scope. Each destination declares its mnemonic, words, capability,
+   landing, and return. `ADDRESSES` is the lowercase numbered page-list vocabulary. Each
+   entry declares:
+
+   - its letter and user-facing name;
+   - the sentence shown in help;
+   - its ordered members and whether the numbered window follows the viewport;
+   - how to arrive at one member.
+
+   A list's capability is not declared: it is whether the list is non-empty, read where
+   the row asks. Consumers do not branch on which address list is active. Adding a direct
+   destination or a numbered list adds one entry to its vocabulary. The page-level `g` row
+   promises only the mode; destinations and ranges belong to the rows inside it.
+   Completing an address runs that list's destination: a tab selects and takes focus, a
+   same-document hyperlink follows and leaves focus on its fragment target, an external
+   hyperlink names the browser tab it opens, a fold opens and takes focus, and a Page-map
+   location presses its first available Button. The complete Page map remains a direct
+   destination beside that numbered prefix.
+
+   Arming the mode shows the available direct destinations and numbered lists in the key
+   line and paints `data-lf-goto` on the body, so the contents map can reveal its labels
+   as it does on hover. Each row shows its complete chord. Each visible numbered member
+   shows its complete address, such as `g h 1`. A direct mnemonic completes the travel and
+   moves focus inside its destination. A numbered-list mnemonic narrows the inline hints
+   to that list's current numbered window without changing their labels or geometry. The
+   following digit selects immediately. Escape backs out to the list menu before it closes
+   the mode.
+
+   Every sequential step has its own fixed keycap. A compact choice label such as `g / G`
+   remains one decision point and is spoken as “g or G”; a sequence's accessible label
+   says “then” between adjacent keycaps. In a live chord, pressed keys take the accent
+   ground and pending keys remain neutral, matching ordinary bindings. The complete
+   reference shows every route with all steps neutral because it describes rather than
+   enacts them.
+
+   `chordPrefix` is the stable start of every route. Control titles and the reference
+   combine it with the destination row; the reference uses `completeChordSteps` where a
+   row has more than one remaining step. `chordKeys` adds the named list to that prefix as
+   the structured reading of current progress, which the key line and page chips apply to
+   each complete route.
+
+   A press may deliberately leave layers standing while moving focus outside them. That is
+   not an Escape rung, because it gives no layer back. The address chord states what
+   remains open: beside the document, `g p` returns from the thread panel to the document
+   and keeps both the panel and its narrowing. A panel covering the document cannot make
+   that promise, so its ordinary Escape rung remains the route back. */
 import { labelOf, live, spell } from "./bindings.js";
 import { createAddressPlacement, MAX_NUMBERED_ADDRESSES } from "./address-placement.js";
 import { keySequence, progressStates } from "./presentation.js";
@@ -50,20 +120,15 @@ export function createAddress({
   threadsBox,
 }) {
   // ---------- the g chord: the page's destinations ----------
-  // g names one-off travel. An uppercase mnemonic completes a direct destination (`g T`
-  // Threads, `g A` Asks, `g L` All leaves, `g M` Page map, `g V` Versions), while a
-  // lowercase list mnemonic takes a following digit (`g m 2` presses the first Button at the second
-  // Page-map location, `g t 2` selects the second tab, `g h 3` follows the third hyperlink,
-  // and `g f 2` opens the second fold).
-  // Repeated movement through threads and asks belongs to their single-key category walks,
-  // t/T and a/A, so those categories do not also carry numbered addresses.
+  // The vocabulary the header above describes. Repeated movement through threads and asks
+  // belongs to their single-key category walks, t/T and a/A, so those categories do not
+  // also carry numbered addresses.
   //
   // Which numbered lists there are is this table and nothing else. The complete Page map
-  // remains a direct destination because this one-digit list stops at nine. The chord's scope, the chips, the
-  // line's words and the reference are all readings of it, so a fourth list is an entry here
-  // rather than an edit to four consumers, and nothing that reads the table asks which list
-  // it is holding. An entry says its letter, the word every surface calls the list by, the
-  // sentence the reference reads, its members in address order, and how to arrive at one.
+  // remains a direct destination because this one-digit list stops at nine. The chord's
+  // scope, the chips, the line's words and the reference are all readings of it, so a
+  // fourth list is an entry here rather than an edit to four consumers, and nothing that
+  // reads the table asks which list it is holding.
   // What the document holds, in reading order, as against what the chrome holds: the banner,
   // the versions and the panels are direct destinations, while a comment's message is the
   // Threads panel's rather than the page's. The addresses read the document through here, where

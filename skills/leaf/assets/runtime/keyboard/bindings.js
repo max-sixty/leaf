@@ -1,3 +1,77 @@
+/* One reading of every binding and row in the register: how a binding is spelled and
+   parsed, what a row's fields mean, and the checks a declaration passes on its way in.
+
+   Binding spelling is canonical: modifiers are ordered `Mod`, `Alt`, `Shift`, and
+   single-letter keys are lowercase. A produced punctuation glyph carries no Shift prefix
+   because the keyboard layout owns that modifier. Validate that form when a scope enters
+   the register and compare canonical identities when checking ownership; modifier order
+   and letter case do not make distinct presses in the dispatcher.
+
+   A row has these meanings:
+
+   - `keys` is a binding or computed list of bindings.
+   - `label` optionally overrides the compact keycap in the command's own scope. A keyless
+     Decision command falls back to its `decision` action name in the complete reference.
+     An Ask instead shows the resolved binding beside that separate action name, so an
+     inline hint always says what the reader actually presses.
+   - `control` is the visible element that activates the capability. `decision` is a
+     non-empty action-name string or a function returning one; it includes that command in
+     its containing Ask. The row may carry an existing `address` and has zero or one live
+     binding. A keyless decision command receives its contextual number from the Ask
+     projection. Routes may carry the same fields when one row describes a parameterized
+     family of controls.
+   - `does` is the sentence for the press, or a function when the current state changes
+     the sentence.
+   - `when` says whether the capability exists. When a destination surface is available
+     independently of its members, its row stays live and opens the surface even when the
+     collection is empty. Member-dependent rows use the collection as their capability.
+   - `at`, expressed by the current `readerIn` predicate, says whether this press can act
+     at the reader's current position.
+   - `run` performs one result. A run-less row names a press it does not make: the
+     platform's own on a link, or one another scope's row already runs.
+   - `returnFrame`, when the result enters a temporary layer, returns its `active`,
+     `close`, `does`, and `line` contract. The dispatcher captures the origin before
+     `run`, validates the descriptor, and pushes it only if the layer is active
+     afterwards. Do not call the return stack from a command or restore focus in the
+     command's close path; declaring the frame is what makes keyboard invocation and
+     reference invocation obey the same stack. A command surface that already displaced
+     the reader, such as the modal reference, passes its saved origin into dispatcher
+     invocation instead of letting a closing implementation control become the origin.
+   - `native: true` performs `run` without preventing the platform default. Use it when
+     Leaf must change state before the browser completes the same press, not to leave an
+     otherwise owned press half-handled. It still follows the ordinary `repeat` policy;
+     declare `repeat: true` when repeated keydowns must also run.
+
+   `live` answers the declared liveness once for every projection. Do not repeat a guard
+   inside `run` if the guard changes whether the key should be shown. When the reference
+   needs to describe a page capability while the key line needs to promise an immediate
+   press, keep `pageHas` and `readerIn` separate.
+
+   `checked` validates declarations when they enter the register. `activeRows` also
+   refuses two live meanings for one binding in the same scope; rows may reuse a binding
+   only when their `when` predicates make the states exclusive. `parsed` and `answers`
+   share the supported modifiers `Mod`, `Alt`, and `Shift`. Unknown modifier names are
+   errors rather than bindings that accidentally fire on a bare key. `spell` is the one
+   platform-aware display of a binding. `PRESS` states the native key behavior of
+   controls, and `DISCLOSE` reads the whole set a disclosure answers off the element it is
+   asked about; links retain their platform distinction from buttons.
+
+   A label names this press, not the broad feature. Prefer "Comment on selection" or "Hide
+   comments" to "Comment" or "Toggle". Compute the word through `word` when visible state
+   chooses the sentence. Repaint through `paintHere` when any fact used by a word or
+   liveness predicate changes.
+
+   A run-less row may still project a native press when that meaning is worth naming in
+   help, but it never reimplements the press.
+
+   `aria-keyshortcuts` is another projection of the register. Element scopes expose their
+   currently available rows, including the scope's capability gate, and a row's `control`
+   exposes the key that duplicates it. `Mod` expands to both Meta and Control because the
+   dispatcher accepts both. The attribute cannot express a sequential chord: spaces
+   separate alternatives. An associated `control` in a chord scope therefore omits
+   `aria-keyshortcuts` and exposes the complete route through its title and the keyboard
+   reference. Call `paintKeys` when a state change moves row liveness so this projection
+   and the visible surfaces change together. */
 // Which platform's spelling, and which modifier is the chord's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);

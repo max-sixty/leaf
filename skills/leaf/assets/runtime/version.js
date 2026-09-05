@@ -74,6 +74,16 @@
  * stands there. A live activation is the other case: the reader's own standing carries
  * across it (see "Startup and presentation"), so the next press means what it meant
  * before the swap.
+ *
+ * A layer also owes a way out at all, over the same page the way in is live on.
+ * `versionsOffered` (there is a menu) answers for the destination, the mode standing over
+ * the page, and the button; `versionsToWalk` (there is somewhere to step) answers for the
+ * menu's own scope. One predicate for both left `g V` opening a menu on a page whose way
+ * out no scope was live over. Where the platform owns the dismissal the mode's own rows
+ * still have to be live over the same page, since a mode with no live row is a claim the
+ * surfaces never hear. A section merges the rows of every scope sharing its title, so a
+ * contributor the page hasn't got must bring none — `merge` drops it — or the two
+ * capabilities cannot differ in liveness under one heading.
  */
 import { runtime } from "./context.js";
 import { designOn } from "./design.js";

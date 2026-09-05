@@ -17,11 +17,12 @@ import {
   generalInput,
   generalRow,
   needsBtn,
+  pageComposerDrawing,
   panel,
   threadsBox,
 } from "../conversation/panel.js";
 import { inPanel, panelIsOpen, setPanel } from "../chrome-layout.js";
-import { composerOpen, fabInput } from "../composing/selection.js";
+import { composerOpen, fabInput, pendingDrawing } from "../composing/selection.js";
 import { draftOf } from "../composing/input.js";
 import {
   dismissFab,
@@ -88,6 +89,7 @@ import { openAsks } from "../asks/model.js";
 import { undoable, undoLast } from "../projection.js";
 import { GO, GOTO } from "./address.js";
 import { AIM } from "../composing/aim.js";
+import { isDrawing, setDrawing } from "../composing/drawing.js";
 import { CHOOSER, latestChip, NEWEST, VERSIONS } from "../version.js";
 import { outbox } from "../outbox.js";
 import { narrowed, needsYou, widen } from "../conversation/narrowing.js";
@@ -699,10 +701,11 @@ const COMPOSER = {
       id: "composer.close",
       keys: ["Escape"],
       does: () =>
-        draftOf(fabInput).trim()
+        draftOf(fabInput).trim() || pendingDrawing
           ? "Close the composer, keeping the draft"
           : "Close the composer",
-      line: () => (draftOf(fabInput).trim() ? "close — draft kept" : "close"),
+      line: () =>
+        draftOf(fabInput).trim() || pendingDrawing ? "close — draft kept" : "close",
       promoteEscape: false,
       run: () => dismissFab(),
     },
@@ -1006,6 +1009,29 @@ const DESIGN = {
   ],
 };
 
+// Draw mode claims one pointer stroke before handing its mark to an ordinary comment.
+// Its own scope keeps the toggle and Escape as the two ways out while the page underneath
+// remains the drawing surface rather than receiving the drag.
+const DRAW = {
+  title: "In draw mode",
+  at: isDrawing,
+  rows: [
+    {
+      id: "drawing.stroke",
+      keys: [],
+      label: "drag",
+      does: "Draw anywhere on the page, then send or add words",
+    },
+    {
+      id: "drawing.leave",
+      keys: ["Escape", "w"],
+      does: "Leave draw mode",
+      line: "leave draw",
+      run: () => setDrawing(false),
+    },
+  ],
+};
+
 // The page itself. Table order is the line's priority order — a total order every row has
 // already, rather than a field one can forget — so the first live rows are the short hints.
 // Escape is the default promotion over this order, because the way out of a current scene
@@ -1294,6 +1320,14 @@ export function pageScopes() {
       // from where a press had just put the reader.
       GOTO,
       {
+        id: "drawing.enter",
+        keys: ["w"],
+        does: "Draw on the page and attach the mark to a comment",
+        line: "draw",
+        when: () => anchoringIsReady(),
+        run: () => setDrawing(true),
+      },
+      {
         // The way in; the mode's own scope takes the letter back out (DESIGN), nearer
         // than this row, so while it stands this one is shadowed off the line.
         id: "design.enter",
@@ -1330,6 +1364,7 @@ export function pageScopes() {
     PANEL,
     LINK,
     DISCLOSURE,
+    DRAW,
     DESIGN,
     PAGE,
   ];
@@ -1426,6 +1461,7 @@ export function midComposition() {
   const replyDraft = replyBoxHasDraft(active) ?? null;
   return (
     composerOpen ||
+    Boolean(pageComposerDrawing()) ||
     isSelecting() ||
     Boolean(fabAnchorAt()) ||
     unaccountedGesture() ||

@@ -15,6 +15,7 @@ import { addressLayer } from "./keyboard/address.js";
 import { askActionLayer } from "./asks/view.js";
 import { selectionLayer, selectionSearch } from "./composing/targets.js";
 import { mountTargetPaint, visualMarkLayer } from "./target-paint.js";
+import { drawingLayer } from "./composing/drawing.js";
 import { marginTraceBox, mountMargin } from "./living-margin.js";
 import { aimBox } from "./composing/aim.js";
 import { liveEl } from "./notifications.js";
@@ -110,6 +111,7 @@ export function mountChrome() {
     selectionLayer,
     selectionSearch,
     visualMarkLayer,
+    drawingLayer,
     marginTraceBox,
     aimBox,
     fabBar,

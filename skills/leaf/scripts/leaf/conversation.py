@@ -101,6 +101,39 @@ def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bo
     return current_answer == original_answer
 
 
+def _current_anchor(
+    page_dir: Path,
+    events: list,
+    quote: str,
+    section: str,
+    part: str,
+) -> tuple[int, dict | None]:
+    """Capture one optional target against the page's active reading."""
+    activate_source(page_dir, events)
+    revision = latest_revision(page_dir)
+    if not (quote or section or part):
+        return revision, None
+    html = revision_path(page_dir, revision).read_text(encoding="utf-8")
+    registry = require_registry(page_dir)
+    projection, parser, _ = page_projection(html, events, registry, revision)
+    decided = retirement_outcomes(projection.actions, registry)
+    edited = rewritten_bodies(projection.actions)
+    try:
+        anchor = capture_anchor(
+            html,
+            registry,
+            quote,
+            section,
+            decided,
+            edited,
+            part,
+            additions=generated_children(projection.desired, parser.ids),
+        )
+    except ValueError as err:
+        sys.exit(f"can't anchor in revision r{revision}: {err}")
+    return revision, anchor
+
+
 @contract_writer
 def cmd_comment(
     page_dir: Path, quote: str, section: str, part: str, text, markup: str
@@ -116,28 +149,7 @@ def cmd_comment(
     body = read_text_arg(text)
     with PageTransaction(page_dir) as page:
         events = page.events
-        activate_source(page_dir, events)
-        revision = latest_revision(page_dir)
-        anchor = None
-        if quote or section or part:
-            html = revision_path(page_dir, revision).read_text(encoding="utf-8")
-            registry = require_registry(page_dir)
-            projection, parser, _ = page_projection(html, events, registry, revision)
-            decided = retirement_outcomes(projection.actions, registry)
-            edited = rewritten_bodies(projection.actions)
-            try:
-                anchor = capture_anchor(
-                    html,
-                    registry,
-                    quote,
-                    section,
-                    decided,
-                    edited,
-                    part,
-                    additions=generated_children(projection.desired, parser.ids),
-                )
-            except ValueError as err:
-                sys.exit(f"can't anchor in revision r{revision}: {err}")
+        revision, anchor = _current_anchor(page_dir, events, quote, section, part)
         if markup:
             check_markup(page_dir, "comment", markup, events)
         event = {
@@ -156,8 +168,18 @@ def cmd_comment(
 
 
 @contract_writer
-def cmd_reply(page_dir: Path, to: str, text, markup: str, awaits: bool = False) -> dict:
-    """Post one complete threaded reply."""
+def cmd_reply(
+    page_dir: Path,
+    to: str,
+    text,
+    markup: str,
+    awaits: bool = False,
+    *,
+    quote: str = "",
+    section: str = "",
+    part: str = "",
+) -> dict:
+    """Post one complete threaded reply, optionally moving the thread's anchor."""
     body = read_text_arg(text)
     with PageTransaction(page_dir) as page:
         events = page.events
@@ -169,6 +191,22 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str, awaits: bool = False) 
                 "thread on the same Ask with `leaf comment --section <ask-id>` if "
                 "you need an answer first"
             )
+        moving = bool(quote or section or part)
+        if moving and root is None:
+            sys.exit(
+                f"thread {root_id!r} has no surviving opening comment, so its "
+                "anchor cannot be moved"
+            )
+        if moving and root.get("holds"):
+            sys.exit(
+                f"thread {root_id!r} holds the command goal named by its opening "
+                "comment, so its anchor cannot be moved"
+            )
+        revision, anchor = (
+            _current_anchor(page_dir, events, quote, section, part)
+            if moving
+            else (None, None)
+        )
         fragment = check_markup(page_dir, "reply", markup, events) if markup else None
         if awaits and fragment:
             registry = require_registry(page_dir)
@@ -196,6 +234,9 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str, awaits: bool = False) 
             event["awaits"] = True
         if markup:
             event["markup"] = markup
+        if moving:
+            event["revision"] = revision
+            event["anchor"] = anchor
         return page.append_event(event)
 
 

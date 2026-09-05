@@ -129,7 +129,7 @@
  * are one entry: page `c` enters the page-comment box, while `g T` enters the Threads list.
  * A later `c` from that list is a second entry, so two Escapes unwind both in reverse.
  *
- * Two page modes make a destination explicit before acting on it. `s` draws short,
+ * Three page modes make a destination explicit before acting on it. `s` draws short,
  * viewport-local hints on stable items and declared visual parts. `/` searches all page
  * text directly or from those hints, Tab walks repeated matches, and Enter turns the
  * current result into an ordinary native selection. Both routes end at the same passage
@@ -137,7 +137,9 @@
  * vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
  * document list. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves;
  * `g M` opens the complete Page map, and `g V` opens Versions, each through the same
- * door as its banner control.
+ * door as its banner control. `w` claims one freehand drag on the page, attaching its
+ * vector mark to the semantic item under or beside the first point, or to the page whole
+ * where none shares that line.
  * A lowercase mnemonic starts a numbered document list, so `g m 3` is the third
  * Page-map location and `g h 3` is the third hyperlink; `g g` and `g G` are the page's
  * top and bottom edges.
@@ -279,6 +281,7 @@ function presentPage() {
     openComposer(savedComposer.anchor, savedComposer.text, {
       suggest: Boolean(savedComposer.suggest),
       about: savedComposer.about ?? null,
+      drawing: savedComposer.drawing ?? null,
     });
   // Repaint the remaining state-dependent chrome and controls in this same task. Replay
   // is already complete, so the presented attribute opens interaction on the state it names.

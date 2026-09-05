@@ -15,6 +15,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import install_payload
 from leaf import cli as cli_model
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import hosting as hosting_model
@@ -434,6 +435,81 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     expect(page.locator("#rollout-card")).not_to_contain_text("checking the shard")
     assert errors == []
     page.close()
+
+
+@pytest.mark.parametrize("resolved", [False, True], ids=["open", "resolved"])
+def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
+    browser, serve, tmp_path, resolved
+):
+    """Copies keep native thread disclosure; paper shows even a closed thread."""
+    url = serve(
+        leaf_page(
+            "thread export",
+            '<h1>Review</h1><lf-diff id="patch" source="review-patch">'
+            "<pre></pre></lf-diff>",
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        '@@ -1 +1 @@\n-return "old"\n+return "new"\n',
+    )
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this check beside the changed line.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "data_revision": 1,
+            },
+        },
+    )
+    if resolved:
+        events_model.append_event(
+            serve.page_dir,
+            {"kind": "resolve", "author": "user", "parent": root["id"]},
+        )
+    selector = f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
+    live, live_errors = open_page(browser, url)
+    thread = live.locator(selector)
+    expect(thread).to_have_count(1)
+    expect(thread.locator("button")).not_to_have_count(0)
+    live.emulate_media(media="print")
+    expect(thread.locator(".lf-conversation-body")).to_be_visible()
+    assert (
+        thread.locator("button:visible, textarea:visible, .lf-receipt:visible").count()
+        == 0
+    )
+    assert live_errors == []
+    live.close()
+
+    out = tmp_path / "thread-copy.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    copy = browser.new_page()
+    errors = watched(copy)
+    copy.goto(out.as_uri(), wait_until="load")
+    thread = copy.locator(selector)
+    expect(thread).to_have_count(1)
+    expect(thread.locator("button, textarea, .lf-receipt")).to_have_count(0)
+    expect(copy.locator("script, .lf-chrome, .lf-mark-note")).to_have_count(0)
+    if resolved:
+        expect(thread.locator(".lf-conversation-body")).to_be_hidden()
+        thread.locator("summary").click()
+    expect(thread.locator(".lf-conversation-body")).to_be_visible()
+    expect(thread).to_contain_text("Keep this check beside the changed line.")
+    if resolved:
+        thread.locator("summary").click()
+        expect(thread.locator(".lf-conversation-body")).to_be_hidden()
+    copy.emulate_media(media="print")
+    expect(thread.locator(".lf-conversation-body")).to_be_visible()
+    assert errors == []
+    copy.close()
 
 
 RECEIPT_DRAFT = leaf_page(

@@ -263,7 +263,7 @@ customElements.define(
               `Call-diff data is invalid: ${record.invalid}.`,
               "lf-call-invalid",
             ),
-          { labelOf, originOf: () => snapshot?.origin },
+          { labelOf, snapshot },
         );
         return;
       }
@@ -274,7 +274,7 @@ customElements.define(
           [{ key: "unavailable", missing: true }],
           ({ key }) => key,
           (record, prior) => renderMessage(prior, "Waiting for call-diff data."),
-          { labelOf, originOf: () => snapshot?.origin },
+          { labelOf, snapshot },
         );
         return;
       }
@@ -331,7 +331,7 @@ customElements.define(
           if (!record.root && !rendered.isConnected) group.body.append(rendered);
           return rendered;
         },
-        { nested: true, labelOf, originOf: () => snapshot.origin },
+        { nested: true, labelOf, snapshot },
       );
       const nodesByKey = new Map(
         records.map((record, index) => [record.key, nodes[index]]),

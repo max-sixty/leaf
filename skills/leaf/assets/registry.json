@@ -92,6 +92,8 @@
                 "section": {"type": ["string", "null"]},
                 "quote": {"type": "string"},
                 "datum": {"type": "string", "minLength": 1},
+                "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+                "data_revision": {"type": "integer", "minimum": 1},
                 "visual": {"type": "string", "minLength": 1},
                 "prefix": {"type": "string"},
                 "suffix": {"type": "string"},
@@ -104,6 +106,8 @@
               ],
               "dependentRequired": {
                 "datum": ["section"],
+                "source": ["datum", "data_revision"],
+                "data_revision": ["datum", "source"],
                 "part": ["section"],
                 "visual": ["section"]
               },
@@ -437,6 +441,7 @@
     "x-says": "Attributes whose values the reader sees as words, and where each renders. `after` goes inside the element's own content, ahead of the apparatus that ends it, so a word does not land on the far side of a control that closes the row. `before` goes at the element's start, ahead of chrome as well: leading chrome is not something the words stand beside, it is a module speaking for the whole element, so an element's opening words go above it; where an entry declares two at that edge they render in the order the entry lists them. The runtime writes them as selectable text the user can quote and comment on, where `content: attr()` would paint glyphs into no text node.",
     "x-shadow": "The module renders the page's words into an open shadow tree, which the passage walk, the selection capture and every question asked by id cross; a shadow root on a host whose entry lacks it is a render-gate finding.",
     "x-state": "What x-state declares, once per widget with an action channel: each verb's detail schema (the payload half of the log's forever-contract), its semantic facet, fold unit, optional current-state `requires`, optional generated-child `creates`, and the record form its state takes in markup. The owning widget instance, unit, and facet together name one independently standing fact: verbs on the same tag and facet share their unit and record form, competing verbs there supersede one another, and distinct facets coexist. Every applyAction is absolute, so the user's standing state is the last surviving action per coordinate, and one declaration drives the POST and re-vendor contract gates, `version check`'s state gate (a version whose markup actively contradicts the fold without `restated` is refused; writing the folded state is honoring; re-emitting the previous version's state is blessed silence), construction-linked inspection, the runtime's reader-origin mark, and the version diff's state half. The browser uses `requires` for its controls and common send door; POST interprets the same prerequisite against the authoritative fold under the append lock. One detail field name is reserved across every verb: `resolves` means the comment thread this action answers, thread settlement reads it on any action, and the lint holds a verb declaring the name to a plain string on a widget-absolute unit — a thread is answered by the decision, and a decision is a widget instance ($awaits). Because thread history can outlive its markup, every action verb on a resolves-bearing tag shares one answer facet. A report verb spelling the name is refused outright: settlement reads actions, so the field there would declare an answer nothing gives. What settles the thread is the widget's standing answer rather than the fact an answer was once given, so an answer that a later action at that coordinate supersedes, or that a `restated` takes back, leaves the thread open again. The facet, unit, requires, creates, and record forms are $state's.",
+    "x-thread-surface": "The upgraded widget can seat canonical Thread views beside exact projected datums. Its module registers one adapter through registerThreadSurface; the adapter owns only outlet geometry and visibility, while Leaf owns Thread rendering, reply and reaction state, settlement, focus, receipts, and living-margin fallback. Returning an outlet claims that thread locally for the current reconciliation; unloaded, filtered, collapsed, outdated, or otherwise undisplayable datums return no outlet and remain in the global Threads index plus the ordinary fallback.",
     "x-tone": "The attribute that names one of the layer's semantic tints, held to `$tones.names`, which the theme has a rule for.",
     "x-upgrade": "A module at widgets/<tag>.js enhances the element in the browser, imported where a page's markup carries the tag rather than for the whole layer. `page init` refuses a layer declaring it with no module beside it, and the render gate a module that defines no element for a widget the page contains. Required.",
     "x-verbatim": "An upgraded element whose body reaches the reader as its own words — the module leaves it in place — which is what makes it quotable; a body without it is source the widget renders (a diagram's notation). The render gate refuses an x-verbatim whose rendered words differ from the file's.",

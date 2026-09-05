@@ -6,6 +6,7 @@
       "lines": "1:4"
     }
   },
+  "gallery-patch": "diff --git a/gallery/review.py b/gallery/review.py\n--- a/gallery/review.py\n+++ b/gallery/review.py\n@@ -1,2 +1,2 @@\n def route():\n-    return \"courtyard\"\n+    return \"covered terrace\"\n",
   "gallery-worktrees": {
     "bg-request-live-tree": {
       "branch": "gallery/ready",

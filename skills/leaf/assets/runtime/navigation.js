@@ -1,3 +1,4 @@
+/* This module owns reader travel and scroller selection. */
 import { clampedRow } from "./keyboard/bindings.js";
 
 let publishedNavigation;

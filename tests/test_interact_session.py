@@ -504,6 +504,51 @@ def test_a_thread_claim_is_settled_by_log_order_not_a_second_precision_clock(pag
     assert renewed["disposition"] == "effective"
 
 
+def test_a_batch_says_what_each_kind_present_asks_of_the_agent(page_dir, capsys):
+    """The first line's `handling` is the vendored layer's `$events.handling` for
+    exactly the kinds in the batch, so the rule reaches the agent beside the event
+    it applies to rather than in a reference the loop never opens."""
+    serving(page_dir, 1)
+    session_model.cmd_status(page_dir, "waiting", "")
+    events_model.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
+    )
+    events_model.append_event(
+        page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
+    )
+
+    assert session_model.cmd_wait(page_dir) == 0
+    header, *shown = [
+        json.loads(line) for line in capsys.readouterr().out.strip().splitlines()
+    ]
+    declared = registry_storage.load_registry(page_dir)["$events"]["handling"]
+    assert set(header["handling"]) == {event["kind"] for event in shown}
+    assert header["handling"] == {
+        "comment": declared["comment"],
+        "resolve": declared["resolve"],
+    }
+
+
+def test_a_page_vendored_before_handling_gets_the_kernel_s_sentences(page_dir, capsys):
+    """The vendored layer states nothing about handling, so the batch falls back
+    to the installed kernel's sentences rather than delivering an empty map."""
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    del registry["$events"]["handling"]
+    registry_path.write_text(json.dumps(registry))
+
+    serving(page_dir, 1)
+    session_model.cmd_status(page_dir, "waiting", "")
+    events_model.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
+    )
+
+    assert session_model.cmd_wait(page_dir) == 0
+    header = json.loads(capsys.readouterr().out.splitlines()[0])
+    kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
+    assert header["handling"] == {"comment": kernel["$events"]["handling"]["comment"]}
+
+
 def test_reopening_a_thread_reveals_its_unanswered_claim(page_dir):
     """Resolution hides thread work while reopening restores an unanswered claim."""
     comment = events_model.append_event(
@@ -557,7 +602,7 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
     header, *shown = [
         json.loads(line) for line in capsys.readouterr().out.strip().splitlines()
     ]
-    assert header == {"page": str(page_dir), "threads": []}
+    assert (header["page"], header["threads"]) == (str(page_dir), [])
     assert [e["kind"] for e in shown] == ["comment", "action"]
     assert shown[1]["detail"]["to"] == "y"
     # Printing is not acknowledgement: a detached Codex command can finish without
@@ -638,7 +683,7 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
     first = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert first.exit_code == 0, first.output
     header, event = [json.loads(line) for line in first.output.strip().splitlines()]
-    assert header == {"page": str(page_dir), "threads": []}
+    assert (header["page"], header["threads"]) == (str(page_dir), [])
     assert (event["id"], event["seq"], event["text"]) == ("c1", 1, "hi")
     assert files_model.read_json(page_dir / "cursor.json") is None
 
@@ -1446,7 +1491,7 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
 
     assert acknowledging.returncode == 0, f"{out}{err}"
     header, event = [json.loads(line) for line in out.strip().splitlines()]
-    assert header == {"page": str(page_dir), "threads": []}
+    assert (header["page"], header["threads"]) == (str(page_dir), [])
     assert (event["id"], event["seq"], event["text"]) == ("c2", 2, "two")
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     assert (page_dir / "status.json").read_bytes() == status_before_delivery
@@ -1541,7 +1586,7 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     out, err = acknowledging.communicate(timeout=10)
     assert acknowledging.returncode == 0, f"{out}{err}"
     header, event = [json.loads(line) for line in out.splitlines()]
-    assert header == {"page": str(other), "threads": []}
+    assert (header["page"], header["threads"]) == (str(other), [])
     assert (event["id"], event["text"]) == ("second", "two")
     assert files_model.read_json(other / "cursor.json") is None
     assert service_model.page_claim(page_dir)["id"] == "successor"
@@ -1907,7 +1952,7 @@ def test_one_wait_watches_every_page_the_session_holds(
 
     assert session_model.cmd_wait() == 0
     lines = capsys.readouterr().out.strip().splitlines()
-    assert json.loads(lines[0]) == {"page": str(second), "threads": []}
+    assert [json.loads(lines[0])[k] for k in ("page", "threads")] == [str(second), []]
     assert [json.loads(line)["text"] for line in lines[1:]] == ["hi"]
     # The page that spoke records exact pickup; neither page's status is rewritten.
     assert files_model.read_json(second / "status.json")["state"] == "waiting"
@@ -1945,10 +1990,8 @@ def test_a_page_served_mid_wait_joins_the_running_watch(
 
     threading.Timer(0.2, join).start()
     assert session_model.cmd_wait() == 0
-    assert json.loads(capsys.readouterr().out.splitlines()[0]) == {
-        "page": str(joined),
-        "threads": [],
-    }
+    first = json.loads(capsys.readouterr().out.splitlines()[0])
+    assert (first["page"], first["threads"]) == (str(joined), [])
 
 
 def test_a_wait_holding_events_delivers_them_whatever_became_of_the_page(
@@ -1963,10 +2006,8 @@ def test_a_wait_holding_events_delivers_them_whatever_became_of_the_page(
     )
     session_model.cmd_status(page_dir, "idle", "the page is done")
     assert session_model.cmd_wait(page_dir) == 0
-    assert json.loads(capsys.readouterr().out.splitlines()[0]) == {
-        "page": str(page_dir),
-        "threads": [],
-    }
+    first = json.loads(capsys.readouterr().out.splitlines()[0])
+    assert (first["page"], first["threads"]) == (str(page_dir), [])
 
 
 def test_wait_with_nothing_to_watch_says_so(monkeypatch, capsys):
@@ -1994,10 +2035,8 @@ def test_wait_holds_a_page_nobody_has_opened(page_dir, capsys):
 
     assert session_model.cmd_wait(page_dir) == 0
     printed = capsys.readouterr()
-    assert json.loads(printed.out.splitlines()[0]) == {
-        "page": str(page_dir),
-        "threads": [],
-    }
+    first = json.loads(printed.out.splitlines()[0])
+    assert (first["page"], first["threads"]) == (str(page_dir), [])
     assert [json.loads(line)["id"] for line in printed.out.splitlines()[1:]] == ["c1"]
     assert printed.err == ""
 
@@ -2013,7 +2052,7 @@ def test_a_named_bare_shell_wait_keeps_its_directory_without_a_claim(
 
     assert session_model.cmd_wait(page_dir) == 0
     header = json.loads(capsys.readouterr().out.splitlines()[0])
-    assert header == {"page": str(page_dir), "threads": []}
+    assert (header["page"], header["threads"]) == (str(page_dir), [])
     assert service_model.page_claim(page_dir) is None
 
 
@@ -3539,7 +3578,7 @@ def test_a_codex_watcher_task_takes_the_parent_watch_obligation(
     out, err = watcher.communicate(timeout=60)
     assert watcher.returncode == 0, f"{out}{err}"
     header, event = [json.loads(line) for line in out.splitlines()]
-    assert header == {"page": str(page), "threads": []}
+    assert (header["page"], header["threads"]) == (str(page), [])
     assert event["text"] == "hi"
     assert files_model.read_json(page / "cursor.json") is None
 
@@ -3599,7 +3638,7 @@ def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(
 
     assert second.returncode == 0, f"{second_out}{second_err}"
     header, event = [json.loads(line) for line in second_out.splitlines()]
-    assert header == {"page": str(page), "threads": []}
+    assert (header["page"], header["threads"]) == (str(page), [])
     assert event["seq"] == 1
 
 

@@ -796,9 +796,10 @@ export function createDecisionView({
     // compareDocumentPosition against a detached node answers about no document.
     return (landed?.isConnected ? landed : null) ?? readingBlock();
   }
-  // The decision `dir` steps to from there. Document position rather than an index into the
-  // list, because the reader's place is a place and not a row: a decision holding it is the one
-  // they are standing on, so it is what they step off rather than what they step to.
+  // The decision `dir` steps to from there, clamped at the first and last open decisions.
+  // Document position rather than an index into the list, because the reader's place is a
+  // place and not a row: a decision holding it is the one they are standing on, so it is
+  // what they step off rather than what they step to.
   function decisionStep(decisions, dir) {
     const here = decisionPosition();
     if (!here) return dir > 0 ? decisions[0] : decisions.at(-1);
@@ -808,7 +809,7 @@ export function createDecisionView({
       const rel = here.compareDocumentPosition(decision);
       return !(rel & Node.DOCUMENT_POSITION_CONTAINS) && rel & side;
     });
-    return dir > 0 ? (reach[0] ?? decisions[0]) : (reach.at(-1) ?? decisions.at(-1));
+    return dir > 0 ? (reach[0] ?? decisions.at(-1)) : (reach.at(-1) ?? decisions[0]);
   }
   // Putting the reader back on the control they were working when a widget rebuilt itself
   // underneath them (rebuild): the control that works this decision — one inside it, or

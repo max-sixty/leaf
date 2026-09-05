@@ -1,3 +1,5 @@
+/* This module owns page-seated first-message boxes: the conversation a widget declares
+ * through `x-conversation`, built by `conversationBox`. */
 import { runtime } from "../context.js";
 import { loadDraft, saveDraft, sendDraft, watchDraft } from "../drafts.js";
 import { inChrome } from "../passages.js";

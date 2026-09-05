@@ -13,7 +13,7 @@ from .hosting import start_server
 from .leases import take_waiter_lease, waiter_lease_path
 from .locations import path_location, paths_same
 from .passages import active_enclosing
-from .registry.contract import RegistryError
+from .registry.contract import RegistryError, handling
 from .registry.reactions import described
 from .registry.storage import load_registry
 from .revisioning import activate_source
@@ -221,14 +221,12 @@ class _WatchPass(NamedTuple):
     outcome: int | None
 
 
-def _batch_registry(page_dir: Path, batch: list[dict]):
-    """Read reaction vocabulary only for a batch that needs it."""
-    if not any(event.get("token") for event in batch):
-        return None
+def _batch_registry(page_dir: Path):
+    """The vendored registry, for a batch's `means` and `handling` readings."""
     try:
         return load_registry(page_dir)
     except RegistryError:
-        return None  # the token still reaches the agent
+        return None  # the batch still reaches the agent, unexplained
 
 
 def batch_data(
@@ -237,10 +235,11 @@ def batch_data(
     batch: list[dict],
 ) -> dict:
     """Build one complete delivery batch without taking receipt for it."""
-    # A reaction's word is explained beside it (`means`), off the page's own
-    # vendored vocabulary, so a project token reaches the agent already saying
-    # what it asks for. A stale registry must not block the remaining batch.
-    registry = _batch_registry(page_dir, batch)
+    # The batch explains itself off the page's own vendored vocabulary: a
+    # reaction's word beside it (`means`), and under `handling` what the layer
+    # asks of the agent for each kind present, so the rule reaches the agent at
+    # the moment it applies. A stale registry must not block the batch.
+    registry = _batch_registry(page_dir)
     return {
         "page": str(page_dir),
         "threads": batch_threads(
@@ -248,6 +247,7 @@ def batch_data(
             batch,
             active_enclosing(page_dir),
         ),
+        "handling": handling(batch, registry),
         "events": [described(event, registry) for event in batch],
     }
 
@@ -263,7 +263,15 @@ def serialize_batch(
     # with them, because a delivered reply names only the message it answers and
     # the session that knew what that was may since have compacted.
     data = batch_data(page_dir, transaction, batch)
-    lines = [jsonl_line({"page": data["page"], "threads": data["threads"]})]
+    lines = [
+        jsonl_line(
+            {
+                "page": data["page"],
+                "threads": data["threads"],
+                "handling": data["handling"],
+            }
+        )
+    ]
     lines.extend(jsonl_line(event) for event in data["events"])
     return "\n".join(lines)
 

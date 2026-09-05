@@ -30,20 +30,31 @@
  * second copy of that door would be a second thing to keep in step with the first.
  */
 
-// Which document this is, read from the same public path shape as the runtime. A
-// published example is one immutable version; a product route ending in `/` is its
-// live root and therefore has no public version number.
-const versionMatch = location.pathname.match(/\/versions\/v([1-9]\d*)\.html$/);
-const VERSION = versionMatch ? Number(versionMatch[1]) : null;
-const PAGE_ROOT = versionMatch
-  ? location.pathname.slice(0, versionMatch.index + 1)
-  : location.pathname;
-const REVISION = 1;
-const revisionMarker = document.createElement("meta");
-revisionMarker.name = "lf-revision";
-revisionMarker.content = String(REVISION);
-revisionMarker.dataset.lfRuntime = "";
-document.head.append(revisionMarker);
+// The builder injects the same identity markers as Leaf's HTTP server. That lets the
+// current example keep its page-root URL while immutable historical versions retain
+// their versions/vN.html addresses. Product documents are live drafts, so the static
+// session supplies their revision marker and leaves their version unset.
+const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
+const PAGE_ROOT = new URL(
+  VERSION_PATH.test(location.pathname) ? "../" : "./",
+  location.href,
+).pathname;
+const DOCUMENT_URL = location.pathname;
+const revisionMarker =
+  document.querySelector('meta[name="lf-revision"][data-lf-runtime]') ??
+  Object.assign(document.createElement("meta"), {
+    name: "lf-revision",
+    content: "1",
+  });
+if (!revisionMarker.isConnected) {
+  revisionMarker.dataset.lfRuntime = "";
+  document.head.append(revisionMarker);
+}
+const REVISION = Number(revisionMarker.content);
+const versionMarker = document.querySelector(
+  'meta[name="lf-version"][data-lf-runtime]',
+);
+const VERSION = versionMarker ? Number(versionMarker.content) : null;
 const realFetch = window.fetch.bind(window);
 
 // Begin every file read before installing the runtime. The local API below awaits this
@@ -267,6 +278,12 @@ const matchesWhen = (element, when = {}) =>
     );
   });
 
+const quoted = (element) => {
+  for (let parent = element.parentElement; parent; parent = parent.parentElement)
+    if (REGISTRY[parent.localName]?.["x-exhibit"]) return true;
+  return false;
+};
+
 function demoDecisions(projection, threads) {
   const standing = new Set(projection.actions);
   const withAgent = new Set(
@@ -275,26 +292,36 @@ function demoDecisions(projection, threads) {
       .map((thread) => thread.seat)
       .filter(Boolean),
   );
-  const values = {};
-  const descriptors = [];
+  const decisions = { all: [], reader: [], unanswered: [] };
+  const awaiting = {};
+  const unansweredAwaiting = {};
   for (const [tag, entry] of Object.entries(REGISTRY)) {
-    if (tag.startsWith("$") || !entry?.["x-awaits"]) continue;
+    const decision = entry?.["x-awaits"];
+    const request = entry?.["x-request"]?.decision;
+    if (tag.startsWith("$") || (!request && (!decision || decision.rollup))) continue;
     for (const element of document.querySelectorAll(tag)) {
-      if (!element.id || !matchesWhen(element, entry["x-awaits"].when)) continue;
-      const answered = (entry["x-awaits"].answers ?? []).some((verb) => {
-        const spec = entry["x-state"]?.[verb];
-        const coordinate = spec && [element.id, element.id, spec.facet];
-        return projection.entries.some(
-          (candidate) =>
-            candidate.event.widget === element.id &&
-            candidate.event.action === verb &&
-            standing.has(candidate.event.id) &&
-            JSON.stringify(candidate.coordinate) === JSON.stringify(coordinate),
-        );
-      });
-      const awaiting = !answered;
-      values[element.id] = awaiting;
-      if (!awaiting || withAgent.has(element.id)) continue;
+      if (
+        !element.id ||
+        (!request && !matchesWhen(element, decision.when)) ||
+        quoted(element)
+      )
+        continue;
+      const answered = request
+        ? events.some(
+            (event) => event.kind === "request" && event.widget === element.id,
+          )
+        : (decision.answers ?? []).some((verb) =>
+            projection.entries.some(
+              (candidate) =>
+                candidate.event.widget === element.id &&
+                candidate.event.action === verb &&
+                standing.has(candidate.event.id),
+            ),
+          );
+      const stillUnanswered = !answered;
+      const waitsOnReader = stillUnanswered && !withAgent.has(element.id);
+      awaiting[element.id] = waitsOnReader;
+      unansweredAwaiting[element.id] = stillUnanswered;
       let surface = element;
       for (let parent = element.parentElement; parent; parent = parent.parentElement) {
         if (REGISTRY[parent.localName]?.["x-decision"]) {
@@ -302,10 +329,13 @@ function demoDecisions(projection, threads) {
           break;
         }
       }
-      descriptors.push({ id: surface.id, tag: surface.localName, thread: null });
+      const description = { id: surface.id, tag: surface.localName, thread: null };
+      decisions.all.push(description);
+      if (waitsOnReader) decisions.reader.push(description);
+      if (stillUnanswered) decisions.unanswered.push(description);
     }
   }
-  return { descriptors, values };
+  return { ...decisions, awaiting, unansweredAwaiting };
 }
 
 function demoBrowser() {
@@ -343,10 +373,11 @@ function demoBrowser() {
           revision: REVISION,
           projection,
           decisions: {
-            reader: decisions.descriptors,
-            unanswered: decisions.descriptors,
-            awaiting: decisions.values,
-            unanswered_awaiting: decisions.values,
+            all: decisions.all,
+            reader: decisions.reader,
+            unanswered: decisions.unanswered,
+            awaiting: decisions.awaiting,
+            unanswered_awaiting: decisions.unansweredAwaiting,
           },
         },
         updates: [],
@@ -357,7 +388,7 @@ function demoBrowser() {
     },
     conversation: {
       projection: { entries: [], actions: [], reports: [], desired: [] },
-      decisions: { reader: [], unanswered: [], awaiting: {} },
+      decisions: { all: [], reader: [], unanswered: [], awaiting: {} },
       threads,
       done: events.filter((event) => event.kind === "done"),
     },
@@ -376,20 +407,20 @@ function demoBrowser() {
 // goes blank the day it starts reading one.
 const state = () => ({
   layer: REGISTRY.$layer,
-  // A product route is a live draft. An example route is one immutable public version;
-  // a second would want the list handed to this file rather than guessed from a path,
-  // since a reader on v1 has to be offered v2.
+  // A product route is a live draft. Built examples carry their version identity;
+  // historical documents retain their own addresses and the current document stands at
+  // the page root.
   active: {
     revision: REVISION,
     version: VERSION,
-    url: location.pathname,
+    url: DOCUMENT_URL,
     label: VERSION === null ? "Draft" : `v${VERSION}`,
     activated_at: null,
   },
   versions:
     VERSION === null
       ? []
-      : [{ version: VERSION, revision: REVISION, url: location.pathname }],
+      : [{ version: VERSION, revision: REVISION, url: DOCUMENT_URL }],
   source_error: null,
   // Nobody is behind this page and nobody is coming, which the runtime has a word for
   // and reads before it weighs anything else. Everything below it is then the honest

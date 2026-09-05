@@ -1,3 +1,6 @@
+/* This module owns how a binding is drawn: the steps a row's chord or label breaks
+ * into, their pressed states, and the key-sequence element every surface renders them
+ * as. */
 import { labelOf, spell, word } from "./bindings.js";
 
 const STATES = new Set(["neutral", "pressed"]);

@@ -1,3 +1,4 @@
+/* This module owns layer-review (design) mode, its targets, and legend geometry. */
 import { documentPoint } from "./geometry.js";
 
 /* The reader commenting on the layer rather than the page: what a widget looks like or

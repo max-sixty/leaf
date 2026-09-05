@@ -5,8 +5,8 @@
    cluster's room and dock with it when necessary; they do not claim permanent rail
    width. A thread-local `r` opens the conversation-owned row on the latest agent
    message. With none of those targets, it shows “Select something to react to” and
-   opens nothing. Page-wide reactions remain an explicit ellipsis above the panel's
-   general comment box. `REACT` claims the keyboard while a list is open. Arrow keys
+   opens nothing. Page-wide reactions remain an explicit `React…` trigger above the
+   panel's general comment box. `REACT` claims the keyboard while a list is open. Arrow keys
    wrap through every visible Button in the target's shared cluster, including its
    primary actions and Page-map overflow; floating and message-local rows walk their own
    choices. Tab and Shift-Tab follow that same order. The Page-map dialog remains part
@@ -183,7 +183,10 @@ export function createReactions({
     const trigger = offer(
       "button",
       floatingResponses ? "lf-react-trigger" : "lf-pill lf-react-trigger",
-      floatingResponses ? "" : "…",
+      // The strip's trigger is a disclosure and wears the register's verb with the
+      // margin's own "…" suffix (visibleButtonLabel): a bare "…" under a reply was a
+      // control nobody could name without hovering it.
+      floatingResponses ? "" : "React…",
     );
     if (floatingResponses)
       responseAction(trigger, {
@@ -193,9 +196,14 @@ export function createReactions({
         collapse: true,
       });
     trigger.setAttribute("aria-expanded", "false");
-    const showLabel = triggerLabel ?? "Show reactions";
-    trigger.setAttribute("aria-label", showLabel);
-    trigger.title = showLabel;
+    // The strip's trigger says its own word; only the icon-only floating trigger needs a
+    // name written on it, and a label that differed from the visible "React…" would fail
+    // a reader who works the page by saying what they see.
+    if (floatingResponses) {
+      const showLabel = triggerLabel ?? "Show reactions";
+      trigger.setAttribute("aria-label", showLabel);
+      trigger.title = showLabel;
+    }
     const palette = el("span", "lf-react-palette");
     palette.id = `lf-reactions-${++surfaceOrdinal}`;
     palette.setAttribute("role", "group");

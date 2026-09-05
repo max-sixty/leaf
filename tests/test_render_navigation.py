@@ -2798,9 +2798,15 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("?")
     commands = help_el.locator(".lf-help-command:visible")
     assert commands.count() > 1, "the command grid has no pair of rows to walk"
+    # The head's hint and the rows share their verbs: "choose" and "run" here, and on
+    # the expanded key line as "choose next" and "run", one register for one press.
+    expect(help_el.locator(".lf-help-meta")).to_have_text(
+        re.compile(r"^\d+ commands · ↑↓ choose · ⏎ run$")
+    )
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
     expect(commands.first).to_have_attribute("data-lf-selected", "true")
+    expect(help_el.locator(".lf-help-meta")).to_have_text(re.compile(r" · ⏎ run$"))
     first_row = commands.first.locator("xpath=ancestor::tr")
     expect(search).to_have_attribute(
         "aria-activedescendant", first_row.get_attribute("id")
@@ -5493,9 +5499,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("On a focused thread")
     expect(help_el).not_to_contain_text("waiting on you for")
     # A first version has a useful chooser but no neighbouring version to walk. Escape is
-    # the popover's native dismissal and therefore is not a Leaf shortcut row.
+    # the popover's native dismissal, and the menu's row names it so the line can print
+    # the way out of a pointer-opened menu (a keyboard entry's return frame names it
+    # "back" first).
     expect(help_el).to_contain_text("The versions, and what each one changed")
-    expect(help_el).not_to_contain_text("Close the versions menu")
+    expect(help_el).to_contain_text("Close the versions menu")
     expect(help_el).not_to_contain_text("Previous version")
     expect(help_el).not_to_contain_text("Next version")
     page.keyboard.press("Escape")
@@ -5541,8 +5549,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         help_el.locator("tr", has_text="Previous open thread").locator("kbd")
     ).to_have_text("T")
     expect(help_el).to_contain_text("On a focused thread")
-    # Still one version, so there is no version walk to advertise.
-    expect(help_el).not_to_contain_text("Close the versions menu")
+    # Still one version, so there is no version walk to advertise; the menu's own
+    # Escape row stands whatever the count.
+    expect(help_el).to_contain_text("Close the versions menu")
     expect(help_el).not_to_contain_text("Previous version")
     expect(help_el).not_to_contain_text("Next version")
     page.keyboard.press("Escape")

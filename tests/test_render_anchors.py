@@ -2139,6 +2139,15 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     stranded = page.locator(".lf-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
+    # The mark on a box is the text mark's wash under the hairline, not the hairline
+    # alone: a thin dark rectangle around a paragraph is also what a focus ring is, and a
+    # keyboard reader who had just left the thread could not tell "has a thread" from
+    # "still standing here".
+    figure = page.locator("#fig")
+    expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
+    assert "linear-gradient" in figure.evaluate(
+        "node => getComputedStyle(node).backgroundImage"
+    )
     assert errors == []
     page.close()
 
@@ -2681,6 +2690,15 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
         "main .lf-ins-block", "els => els.map(e => e.id).sort()"
     )
     assert marked == ["ret-cost-body", "ret-cost-keep", "ret-steps-carve"], marked
+    # A Change Button's press says what it reached, in the notice slot: its target is
+    # usually on screen already, so the scroll moves nothing and a press that only spoke
+    # to the live region was, to a sighted reader, a press that did nothing.
+    page.locator(
+        '.lf-margin-button:has(svg[data-lf-icon="change"]):visible'
+    ).first.click()
+    expect(page.locator(".lf-notice")).to_have_text(
+        re.compile(r"^[a-z ]+ changed since v1$")
+    )
 
     # The threads the log opened, both still on their passages: one on a block the
     # revision rewrote, one on a block it never touched.
@@ -2867,17 +2885,23 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     page.keyboard.press("Escape")
     expect(origin).to_be_focused()
 
-    # The pointer's door reaches the same layer, and the same key ends it.
+    # The pointer's door reaches the same layer, and the same key ends it — and the line
+    # says so. A keyboard entry leaves a return frame, whose "back" takes the key; the
+    # pointer leaves none, and the platform's own dismissal used to be nobody's row to
+    # print, so the menu advertised no way out at all.
     page.locator(".lf-version").click()
     expect(menu).to_be_visible()
+    expect(page.locator(".lf-keyline")).to_contain_text("close")
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
+    open_versions(page)
+    expect(page.locator(".lf-keyline")).not_to_contain_text("close")
+    page.keyboard.press("Escape")
 
     # The line is the menu's while the reader is in it: its own way out is named, the
     # page's keys are gone with the presses the mode took, and the walk — which has
     # nowhere to step — is not offered beside them. Escape is the popover's own
-    # dismissal and so is nobody's row to print; what the two presses above assert is
-    # that it lands.
+    # dismissal, named by the menu's row where no return frame names it first.
     open_versions(page)
     # Both ways out, each saying which way it goes: on a one-version menu the reader is
     # at both boundaries at once and the line prints the pair.
@@ -3958,6 +3982,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         f'.lf-conversation-msg[data-event="{reply["id"]}"] .lf-react-strip'
     )
     expect(strip.locator(".lf-react-trigger")).to_be_visible()
+    # The trigger wears the register's verb and the disclosure suffix: a bare "…" under a
+    # reply was a control nobody could name without hovering it.
+    expect(strip.locator(".lf-react-trigger")).to_have_text("React…")
     strip.locator(".lf-react-trigger").click()
     expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
     expect(strip.locator('.lf-react[data-token="no"]')).to_be_visible()

@@ -10,16 +10,11 @@ Resolve the repository root three directories above this `SKILL.md`, then resolv
 continue only when it prints the same repository root. Use the absolute launcher
 throughout; a bare `leaf` command may resolve to the installed plugin instead.
 
-Leaf supports many kinds of work. Guidance about how agents write to users
-should set goals for tone and reading experience, and explain the surface where
-the user reads it. Preserve the agent's judgment about format and phrasing.
-
-Use the visible-change handoff in `<root>/CLAUDE.md` to choose a workflow.
-When a visual or content artifact would help the developer judge the work,
-generally put a draft in front of them during exploration or at handoff rather
-than relying on a description alone.
-Preview a shipped example when the request names one or that handoff requires
-interactive proof. Otherwise author or revise a page.
+Use the visible-change handoff in `<root>/CLAUDE.md` to choose a workflow. When a
+visual or content artifact would help the developer judge the work, put a draft
+in front of them during exploration or at handoff rather than relying on a
+description alone. Preview a shipped example when the request names one or that
+handoff requires interactive proof. Otherwise author or revise a page.
 
 Before presenting a served page or visible runtime change as finished, inspect
 the exact served URL. When the subject is Leaf's own interface, the demonstrated
@@ -30,36 +25,40 @@ review the changed surface at a representative viewport, and check the browser
 console. Navigate to the heading that owns the changed surface and hand off the
 exact URL including its fragment. Use a stable authored heading id; if the heading
 has none, add one to the source rather than relying on `lf-toc`'s position-derived
-target. Keep the process alive. Use the Codex review pane when feedback belongs to
-a source line.
+target. Keep the process alive.
 
 ## Preview a shipped example
 
-Browser automation runs `scripts/preview.py <example> --automation` in a long-running
-process. The command uses the browser suite's temporary server: the real HTTP and event
-log, with no task claim or durable service. Its default page is
-`.tmp/previews/<example>-automation`; use the reader preview's distinct page when
-presenting a URL for feedback. An explicit slot cannot change interaction mode.
+From the repository root, start `scripts/preview.py <example>` in a long-running
+command or terminal session. Keep it alive and retain the exact served URL. The
+script watches source and runtime edits and preserves feedback at
+`.tmp/previews/<example>`. Repeating the command reuses that preview; use
+`--slot <name>` for another copy. A refused update appears in the terminal or the
+background log named at startup. Fix the input and the watcher retries.
 
-1. From the repository root, start `scripts/preview.py <example>` in a
-   long-running command or terminal session. Keep it alive and retain the exact
-   served URL. The script watches source and runtime edits and preserves feedback
-   at `.tmp/previews/<example>`. Repeating the command reuses that preview; use
-   `--slot <name>` for another copy. A refused update appears in the terminal or
-   the background log named at startup. Fix the input and the watcher retries.
-2. In Codex, call `mcp__codex_app__open_in_codex` with that heading's fragment
-   URL as a browser target and `placement: "right"`.
-3. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>` so Leaf comments return
-   to the current task.
-4. Tell the user to select page text or use Leaf's comment affordance for a Leaf
-   thread. Codex Annotation mode creates visual comments that the user sends with
-   their next chat message.
+Browser automation runs `scripts/preview.py <example> --automation` in a
+long-running process. The command uses the browser suite's temporary server: the
+real HTTP and event log, with no task claim or durable service. Its default page
+is `.tmp/previews/<example>-automation`; use the reader preview's distinct page
+when presenting a URL for feedback. An explicit slot cannot change interaction
+mode.
 
 When finished with a preview, run the matching preview command with `--stop` (and
 `--automation` for its automation slot); it waits for the watcher and server to
-stop. Ctrl-C stops a foreground preview.
-Changing an occupied slot to a different source or seeded history requires a new
-slot; the existing page and feedback are retained.
+stop. Ctrl-C stops a foreground preview. Changing an occupied slot to a different
+source or seeded history requires a new slot; the existing page and feedback are
+retained.
+
+### In Codex
+
+1. Call `mcp__codex_app__open_in_codex` with the heading's fragment URL as a
+   browser target and `placement: "right"`.
+2. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>` so Leaf
+   comments return to the current task.
+3. Tell the user to select page text or use Leaf's comment affordance for a Leaf
+   thread. Codex Annotation mode creates visual comments that the user sends with
+   their next chat message. Use the Codex review pane when feedback belongs to a
+   source line.
 
 ## Compare runtime versions
 
@@ -73,10 +72,11 @@ scripts/preview.py --source <source.html> --runtime <candidate-root> \
 ```
 
 Each command verifies the checkout launcher, prepares or resumes its independent
-page, watches that runtime and source, and prints its exact URL. Exercise the same journey and viewport at
-both URLs, check both browser consoles, then navigate both to the same authored
-heading id and open those exact fragment URLs as Codex browser targets. Hand off
-the labeled URL pair and the action that reveals the difference.
+page, watches that runtime and source, and prints its exact URL. Exercise the
+same journey and viewport at both URLs, check both browser consoles, then
+navigate both to the same authored heading id. Hand off the labeled URL pair and
+the action that reveals the difference; in Codex, open those exact fragment URLs
+as browser targets.
 
 ## Author or revise a page
 

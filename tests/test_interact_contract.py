@@ -3022,6 +3022,56 @@ def test_init_inherits_contract_members_a_layer_does_not_state(
     assert merged == shipped
 
 
+def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tmp_path):
+    """`$events.handling` merges by kind like `$reactions.tokens`: a project layer
+    replaces one sentence, deletes one with null, and inherits every other."""
+    overlay = tmp_path / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text(
+        json.dumps(
+            {"$events": {"handling": {"comment": "Reply in French.", "reply": None}}}
+        )
+    )
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert result.exit_code == 0, result.output
+    merged = json.loads((page_dir / "registry.json").read_text())["$events"]["handling"]
+    shipped = json.loads((schema_model.ASSETS / "registry.json").read_text())[
+        "$events"
+    ]["handling"]
+    assert merged["comment"] == "Reply in French."
+    assert "reply" not in merged
+    assert merged["resolve"] == shipped["resolve"]
+
+
+@pytest.mark.parametrize(
+    "handling",
+    [
+        {"bogus-kind": "A sentence for no kind."},
+        {"comment": ""},
+        {"comment": 5},
+        "Reply in French.",
+    ],
+)
+def test_init_refuses_handling_that_a_batch_could_not_carry(
+    page_dir, tmp_path, handling
+):
+    """Every batch reads `$events.handling` directly, so the door holds a layer to a
+    declared kind and one non-empty sentence rather than passing junk to the agent."""
+    overlay = tmp_path / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text(
+        json.dumps({"$events": {"handling": handling}})
+    )
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert result.exit_code != 0
+    assert (
+        "$events.handling must map declared kinds to one non-empty sentence"
+        in result.output
+    )
+
+
 @pytest.mark.parametrize("names", ["ok", ["ok", "ok"], ["ok", 1]])
 def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
     page_dir, tmp_path, names

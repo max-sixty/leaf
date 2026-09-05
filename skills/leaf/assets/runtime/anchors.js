@@ -1,3 +1,6 @@
+/* This module owns anchor resolution, anchor paint, anchor-specific travel, and
+ * cross-widget projected-datum travel. `sameAnchor` is the one shared reading of
+ * whether two anchors name the same place. */
 import {
   clippedRect,
   documentPoint,
@@ -101,8 +104,9 @@ import {
    refresh the reading when content moves under a stationary pointer.
 
    `paintHover` paints both kinds of anchor, as `paintStanding` does. `::highlight`
-   paints glyphs, so a box takes no wash; the element mark says the same rank in the
-   property it has, one weight up from the posted hairline (`.lf-mark-el.lf-mark-hover`).
+   paints glyphs, so a box wears the posted wash as a background image instead
+   (`.lf-mark-el`) and says the hover rank in the property it has, one weight up from
+   the posted hairline (`.lf-mark-el.lf-mark-hover`).
    Without that, an element-anchored comment answered the pointer with nothing at all —
    which from the panel, where there is no page cursor to change, reads as a broken
    hover rather than as a passage with no words.

@@ -62,7 +62,7 @@
 ::highlight(lf-mark-here) {
   background-color: var(--mark-strong);
   text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
-::highlight(lf-pending) { background-color: color-mix(in srgb, var(--accent) 20%, transparent);
+::highlight(lf-pending) { background-color: var(--mark-pending);
   text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
 ::highlight(lf-react) { background-color: var(--react);
   text-decoration: underline 2px dashed var(--mark-ink); text-underline-offset: 3px; }

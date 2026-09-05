@@ -8,10 +8,10 @@
  * /session.js starts reading the page's seed files and installs its in-tab /api/state
  * responder before the runtime asks. The responder waits for those files when asked,
  * so their reads overlap the runtime graph and widget modules. Published example
- * versions also get /sitenote.js last; product pages are Leaf documents in their own
+ * documents also get /sitenote.js last; product pages are Leaf documents in their own
  * right and do not need the example label.
  */
 await import("/session.js");
 await import("/runtime.js");
-if (/^\/examples\/[a-z0-9-]+\/versions\/v[1-9]\d*\.html$/.test(location.pathname))
+if (/^\/examples\/[a-z0-9-]+\/(?:versions\/v[1-9]\d*\.html)?$/.test(location.pathname))
   await import("/sitenote.js");

@@ -235,6 +235,9 @@
      semantic status colors. One hue at three strengths says posted, hovered, and
      active without changing meaning between page and code surfaces. */
   --mark: #dfd1ed66; --mark-hover: #dfd1edb3; --mark-strong: #dfd1ed; --mark-ink: #4a3b7d;
+  /* The draft's wash, relative to the accent so one definition serves both schemes; the
+     passage highlight (marks.css) and a draft's element mark (chrome.css) read it. */
+  --mark-pending: color-mix(in srgb, var(--accent) 20%, transparent);
   /* A reaction's wash: the same hue one step under the resting mark, so a passage
      someone reacted to reads as touched and a passage someone commented on reads as
      annotated, and the two never look alike side by side. */

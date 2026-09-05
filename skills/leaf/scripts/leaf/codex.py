@@ -213,6 +213,7 @@ def _append_batch(
         "page": data["page"],
         "url": url,
         "threads": data["threads"],
+        "handling": data["handling"],
         "events": data["events"],
         "receipted": False,
     }

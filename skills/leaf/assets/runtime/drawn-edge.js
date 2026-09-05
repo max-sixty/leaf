@@ -1,3 +1,5 @@
+/* This module owns the shared resizable boundary the thread panel and tray panels are
+ * drawn by: its width, its keys and handle, and the reader's remembered answer. */
 export function createDrawnEdge({ el, keys, moveShell, readerStore, syncLayout }) {
   // The step an arrow takes, in the column's own gutter: the smallest move that shows in a
   // page of prose.

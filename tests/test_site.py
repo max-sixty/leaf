@@ -104,9 +104,8 @@ def hosted(site):
 
 
 def example_url(hosted, name):
-    """The route a reader lands on: the example's newest published version."""
-    newest = site_build.newest_version(EXAMPLES / f"{name}.html")
-    return f"{hosted}/examples/{name}/versions/{newest}"
+    """The stable route a reader lands on: the example's current document."""
+    return f"{hosted}/examples/{name}/"
 
 
 def product_url(hosted, name):
@@ -180,16 +179,22 @@ def test_the_site_serves_the_whole_layer_a_page_decisions_for(site):
     registry = json.loads((site / "registry.json").read_text())["$idioms"]
     assert set(site_idioms) <= set(registry)
     for source in authored_examples():
-        # Every authored version is published, so the chooser on the static page has
-        # somewhere to travel; the index forwards to the newest of them.
-        for number, authored in enumerate(example_versions(source), start=1):
+        # Earlier versions retain their immutable addresses. The current document has
+        # one public route: the page root.
+        versions = example_versions(source)
+        for number, authored in enumerate(versions[:-1], start=1):
             version = site / "examples" / source.stem / "versions" / f"v{number}.html"
-            assert version.read_text() == authored.read_text(), (
-                f"{authored.name} changed while it was published"
-            )
-        newest = site_build.newest_version(source)
+            assert version.read_bytes() == site_build.runtime_document(
+                authored.read_text(), number, number
+            ), f"{authored.name} changed while it was published"
         index = site / "examples" / source.stem / "index.html"
-        assert f"versions/{newest}" in index.read_text()
+        newest = len(versions)
+        assert index.read_bytes() == site_build.runtime_document(
+            versions[-1].read_text(), newest, newest
+        )
+        assert not (
+            site / "examples" / source.stem / "versions" / f"v{newest}.html"
+        ).exists()
 
 
 def test_every_product_route_is_a_live_leaf(site, hosted, browser):
@@ -337,9 +342,8 @@ def test_every_example_stands_as_a_live_page(site, hosted, browser):
 
     The banner is the proof: the runtime builds it after reading /api/state, so a page
     wearing one has the whole layer up and something answering the two paths behind it.
-    The version it names is the second half — the runtime reads that number off the
-    document's own path, so a page published anywhere else would say nothing there while
-    looking otherwise perfect."""
+    The version it names is the second half: the build injects the same document identity
+    the live server would, so the page root stays stable without losing its version."""
     examples = authored_examples()
     page, errors = open_page(browser, example_url(hosted, examples[0].stem))
     try:
@@ -347,10 +351,12 @@ def test_every_example_stands_as_a_live_page(site, hosted, browser):
             opened(page, errors, example_url(hosted, source.stem))
             newest = len(example_versions(source))
             expect(page.locator(".lf-banner .lf-version")).to_have_text(f"v{newest} ▾")
+            expect(page).to_have_url(example_url(hosted, source.stem))
             expect(page.locator(".lf-status-text")).to_contain_text(
                 "Nobody is behind this page"
             )
             assert not errors, f"{source.name}: {errors[:3]}"
+
     finally:
         page.close()
 
@@ -490,13 +496,7 @@ def test_every_example_says_what_it_is_and_links_back(site, hosted, browser):
             label = page.locator("main > .sitenote")
             expect(label).to_contain_text("An example of a leaf page.")
             expect(label).to_contain_text("nothing you do here leaves your own browser")
-            published = (
-                site
-                / "examples"
-                / source.stem
-                / "versions"
-                / site_build.newest_version(source)
-            )
+            published = site / "examples" / source.stem / "index.html"
             targets = label.locator("a").evaluate_all(
                 "links => links.map(a => a.getAttribute('href'))"
             )
@@ -703,6 +703,18 @@ def test_a_comment_lands_in_the_thread_with_its_quote(site, hosted, browser):
         page.close()
 
 
+def test_the_static_demo_counts_every_declared_ask(site, hosted, browser):
+    """The inventory includes request Decisions and excludes aggregate roll-ups."""
+    page, errors = open_page(browser, example_url(hosted, "command-hub"))
+    try:
+        decisions = page.locator(".lf-decisions")
+        expect(decisions).to_be_visible()
+        expect(decisions).to_have_text("Asks 0/5")
+        assert not errors, errors[:3]
+    finally:
+        page.close()
+
+
 def test_a_static_demo_decision_resets_on_reload(site, hosted, browser):
     """The static site offers a live tab, not a second durable Leaf implementation.
 
@@ -711,6 +723,9 @@ def test_a_static_demo_decision_resets_on_reload(site, hosted, browser):
     """
     page, errors = open_page(browser, example_url(hosted, "design-decision"))
     try:
+        decisions = page.locator(".lf-decisions")
+        expect(decisions).to_be_visible()
+        expect(decisions).to_have_text("Asks 0/2")
         chosen = (
             "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
         )
@@ -719,9 +734,11 @@ def test_a_static_demo_decision_resets_on_reload(site, hosted, browser):
             "data-lf-reader-override", "1"
         )
         assert "opt-jwt" in page.evaluate(chosen)
+        expect(decisions).to_have_text("Asks 1/2")
 
         page.reload(wait_until="load")
         page.wait_for_function(BOTH_STAMPS)
+        expect(decisions).to_have_text("Asks 0/2")
         expect(page.locator("#session-options[data-lf-reader-override]")).to_have_count(
             0
         )

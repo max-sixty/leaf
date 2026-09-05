@@ -1,3 +1,4 @@
+/* This module owns code tokenization and highlighting. */
 import { runtime } from "./context.js";
 
 const registry = runtime.registry;

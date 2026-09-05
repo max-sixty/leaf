@@ -1,3 +1,5 @@
+/* This module owns modifier aim and captured presses: the Alt chord's state, the target
+ * it promises under the pointer, and the click it claims. */
 export function createAim({
   commentOnTarget,
   aimTargetAt,

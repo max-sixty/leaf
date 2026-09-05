@@ -17,7 +17,8 @@ key, the address it binds, and a URL the reader cannot reach.
 ## Wait loop
 
 One unnamed `leaf wait` watches every page the host session owns. A batch begins
-with `{"page": …, "threads": […]}` and continues with that page's events. Name a
+with `{"page": …, "threads": […], "handling": {…}}` and continues with that
+page's events. Name a
 page only to pick up a page this session did not serve; `leaf wait <page>` claims
 it.
 

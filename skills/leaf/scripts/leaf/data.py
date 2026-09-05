@@ -604,8 +604,9 @@ def read_data_fragment(
 
 def _write_source(
     page_dir: Path, source: str, value, capture: dict | None = None
-) -> int:
-    """Validate and atomically write one current value and optional capture."""
+) -> tuple[int, str]:
+    """Validate and atomically write one current value and optional capture,
+    returning the data revision and the `updated` instant it stamped."""
     try:
         # Validate the value the store and browser will actually receive. Python's
         # encoder accepts values JSON itself cannot express directly — tuples become
@@ -666,7 +667,7 @@ def _write_source(
             page_dir / DATA_FILE,
             {"revision": revision, "sources": sources},
         )
-    return revision
+    return revision, current["updated"]
 
 
 def cmd_data_set(
@@ -676,9 +677,11 @@ def cmd_data_set(
     if capture_label is not None and not capture_label:
         raise DataError("capture label must be a non-empty string")
     capture = {"label": capture_label} if capture_label is not None else None
-    revision = _write_source(page_dir, source, value, capture)
+    revision, updated = _write_source(page_dir, source, value, capture)
     verb = "captured" if capture is not None else "set"
-    click.echo(f"{verb} data source {source!r} at revision {revision}")
+    click.echo(
+        f"{verb} data source {source!r} at revision {revision}, updated {updated}"
+    )
 
 
 def cmd_data_capture(
@@ -720,8 +723,10 @@ def cmd_data_capture(
     capture = {"label": capture_label}
     if lines is not None:
         capture["lines"] = lines
-    revision = _write_source(page_dir, source, value, capture)
-    click.echo(f"captured data source {source!r} as snapshot {revision}")
+    revision, updated = _write_source(page_dir, source, value, capture)
+    click.echo(
+        f"captured data source {source!r} as snapshot {revision}, updated {updated}"
+    )
 
 
 def cmd_data_clear(page_dir: Path, source: str) -> None:

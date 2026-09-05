@@ -553,13 +553,25 @@ body:is(.lf-aiming, .lf-design).lf-over-item { cursor: pointer; }
    paper where the burnt orange it replaced cleared 3.4, so this reads as an annotation
    where a saturated 2px rectangle read as a validation error. It takes the element's own
    corner radius rather than restating one, which is what the radius here used to
-   override. */
-.lf-mark-el { outline: 1px solid var(--mark-ink); outline-offset: -1px; cursor: pointer; }
-/* A standing reaction on an element: the same hairline, dashed — a mark fainter than a
-   comment's, as the wash on a reacted passage is fainter than a comment's (--react in
-   theme.css, ::highlight below). No hand, since nothing opens on a press here: the
-   glyph in the margin is the control. */
-.lf-react-el { outline: 1px dashed var(--mark-ink); outline-offset: -1px; }
+   override.
+   The wash is the text mark's (::highlight(lf-mark) in marks.css), laid as a gradient
+   image so it tints whatever paper the box already has — an aside's grey, a card's
+   white — rather than replacing it. The hairline alone was a thin dark rectangle
+   around a paragraph, which is also what a focus ring is, and a keyboard reader who
+   had just left the thread could not tell "has a thread" from "still standing here".
+   A comment's mark is a wash wherever it lands, on glyphs or on a box; the line is the
+   part that says which. The tint holds only where nothing more specific writes the
+   `background` shorthand, which resets the image: a widget's own cell paint should say
+   `background-color` where colour is all it means (lf-options' cells do), and a box a
+   shorthand does reach keeps the hairline alone. */
+.lf-mark-el { outline: 1px solid var(--mark-ink); outline-offset: -1px; cursor: pointer;
+  background-image: linear-gradient(var(--mark), var(--mark)); }
+/* A standing reaction on an element: the same hairline, dashed, over the reacted
+   passage's own wash — a mark fainter than a comment's on both channels (--react in
+   theme.css, ::highlight(lf-react) in marks.css). No hand, since nothing opens on a
+   press here: the glyph in the margin is the control. */
+.lf-react-el { outline: 1px dashed var(--mark-ink); outline-offset: -1px;
+  background-image: linear-gradient(var(--react), var(--react)); }
 /* A copy carries the wash as a <mark> the export wrote into the words, the highlight
    registry being script state no file can hold (BAKE). It carries the line with it: the
    wash alone is 1.08:1 over the light paper, and a copy is the one place the reader
@@ -579,8 +591,10 @@ html.lf-copy mark.lf-react { background: var(--react); color: inherit;
    24, both now at a hairline. What keeps the two apart is no longer the paint alone —
    an open composer is on screen whenever this one is, and an element a thread already
    marks keeps the posted colour rather than taking this (paintAnchors), so the pair
-   never contend on one element. */
-.lf-mark-el.lf-pending { outline-color: var(--accent); cursor: auto; }
+   never contend on one element. The wash follows the line: the draft's, which is the
+   passage highlight's (--mark-pending), not the posted mark's. */
+.lf-mark-el.lf-pending { outline-color: var(--accent); cursor: auto;
+  background-image: linear-gradient(var(--mark-pending), var(--mark-pending)); }
 /* The element anchor of the comment the pointer is indicating (paintHover), which is
    the same middle step the text mark takes in its wash. A box has no glyphs, so
    ::highlight paints nothing on one and the pointer used to leave an element-anchored
@@ -627,7 +641,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
    while the chrome layer draws its registered surface contour or rectangular fallback
    above the package's own paint. Suppress only that duplicate representation;
    ordinary anchors stay on the outline path. */
-:is(.lf-mark-el, .lf-react-el, .lf-action-target).lf-shaped-mark { outline: none; }
+:is(.lf-mark-el, .lf-react-el, .lf-action-target).lf-shaped-mark { outline: none;
+  background-image: none; }
 /* Keyboard access to a picture is runtime chrome beside the provider's drawing rather
    than a role written onto that drawing. Resting it is a conventional clipped control;
    focus gives it a skip-link-style face under the banner. */
@@ -1442,7 +1457,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-fab-bar.lf-react-open { flex-wrap: wrap; }
   .lf-fab-bar.lf-react-open > .lf-composer { display: none !important; }
   .lf-fab-bar.lf-react-open > .lf-react-palette { display: contents; }
-  /* A reaction surface offers one quiet ellipsis. It disappears when its list opens;
+  /* A reaction surface offers one quiet trigger. It disappears when its list opens;
      a standing token remains visible in a closed message or page strip as the reader's
      receipt and eraser. */
   .lf-react-trigger { color: var(--muted); }
@@ -1467,8 +1482,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
     margin-top: 6px; }
   .lf-page-strip { padding: 8px 14px 0; }
-  /* The latest agent reply keeps one ellipsis visible. Older replies expose theirs
-     while the reader is in the thread; a standing mark remains visible at rest. */
+  /* The latest agent reply keeps its React… trigger visible. Older replies expose
+     theirs while the reader is in the thread; a standing mark remains visible at rest. */
   .lf-thread:not(:hover, :focus-within, .lf-focus-within)
     .lf-react-strip:not(.lf-open, .lf-react-open) > .lf-react-trigger { display: none; }
   .lf-thread:not(:hover, :focus-within, .lf-focus-within)

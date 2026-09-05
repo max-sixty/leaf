@@ -73,7 +73,7 @@
  * activation, and a selection may refer to words the new version replaced. The saved
  * decision landmark preserves directional continuity without claiming the reader still
  * stands there. A live activation is the other case: the reader's own standing carries
- * across it (the startup order in skills/leaf/CLAUDE.md), so the next press means what
+ * across it (the startup order in skills/leaf/assets/CLAUDE.md), so the next press means what
  * it meant
  * before the swap.
  *
@@ -399,8 +399,9 @@ export function createVersion({
   );
   // The mode represents the menu standing, not whether it has multiple versions to walk.
   // It suspends page shortcuts and owns only the Tab-boundary handoff that a popover does
-  // not provide. A keyboard-opened menu has CHOOSER's exact return frame; Escape and light
-  // dismissal remain native for pointer-opened menus.
+  // not provide. A keyboard-opened menu has CHOOSER's exact return frame; light dismissal
+  // stays native for pointer-opened menus, and their Escape is named by the menu's own
+  // row (`version.close`), which runs the same close.
   const VERSIONS = {
     title: "In the versions menu",
     when: versionsOffered,
@@ -442,6 +443,19 @@ export function createVersion({
         native: true,
         repeat: true,
         when: () => atVersionBoundary(0),
+        run: closeVersionMenu,
+      },
+      // A pointer-opened menu closes on the platform's own Escape, and the line said
+      // nothing about it: the page's Escape rung stands down under an open popover
+      // (browserDismissesTopLayer) and the return frame only exists for a keyboard entry.
+      // The row names the press; RETURN stands nearer in the scope order and takes the key
+      // whenever a frame is live, so "back" and "close" never print together.
+      {
+        id: "version.close",
+        keys: ["Escape"],
+        does: "Close the versions menu",
+        line: "close",
+        native: true,
         run: closeVersionMenu,
       },
     ],

@@ -396,6 +396,7 @@ def read_data_store(page_dir: Path) -> dict:
             or not set(source_store)
             <= {
                 "contract",
+                "revisions",
                 "revision",
                 "updated",
                 "value",
@@ -409,6 +410,22 @@ def read_data_store(page_dir: Path) -> dict:
             raise DataError(
                 f"{path}: source {source!r} must contain a contract and only current "
                 "value or snapshot fields"
+            )
+        revisions = source_store.get("revisions")
+        if (
+            not isinstance(revisions, list)
+            or not revisions
+            or any(
+                isinstance(item, bool)
+                or not isinstance(item, int)
+                or not 1 <= item <= revision
+                for item in revisions
+            )
+            or revisions != sorted(set(revisions))
+        ):
+            raise DataError(
+                f"{path}: source {source!r} revisions must be sorted unique positive "
+                f"integers no greater than data revision {revision}"
             )
         has_current = bool({"revision", "updated", "value"} & set(source_store))
         if has_current and not {"revision", "updated", "value"} <= set(source_store):
@@ -426,6 +443,7 @@ def read_data_store(page_dir: Path) -> dict:
                 isinstance(source_revision, bool)
                 or not isinstance(source_revision, int)
                 or not 1 <= source_revision <= revision
+                or source_revision not in revisions
             ):
                 raise DataError(
                     f"{path}: source {source!r} revision must be a positive integer "
@@ -443,6 +461,7 @@ def read_data_store(page_dir: Path) -> dict:
             if (
                 re.fullmatch(r"[1-9][0-9]*", snapshot_id) is None
                 or int(snapshot_id) > revision
+                or int(snapshot_id) not in revisions
             ):
                 raise DataError(
                     f"{path}: source {source!r} has invalid snapshot id {snapshot_id!r}"
@@ -524,6 +543,7 @@ def browser_data(page_dir: Path, registry: dict | None) -> dict:
     if registry is None:
         return stored
     for source_store in stored["sources"].values():
+        source_store.pop("revisions", None)
         for snapshot in [source_store, *source_store.get("snapshots", {}).values()]:
             if "value" in snapshot:
                 snapshot["value"] = data_manifest(
@@ -631,7 +651,8 @@ def _write_source(
             "value": value,
             **(capture or {}),
         }
-        source_store = {"contract": contract, **current}
+        revisions = [*(standing or {}).get("revisions", []), revision]
+        source_store = {"contract": contract, "revisions": revisions, **current}
         snapshots = (standing or {}).get("snapshots", {})
         if capture is not None:
             captured = {
@@ -721,7 +742,10 @@ def cmd_data_clear(page_dir: Path, source: str) -> None:
             if snapshot_id in referenced.get(source, set())
         }
         sources = dict(stored["sources"])
-        sources[source] = {"contract": standing["contract"]}
+        sources[source] = {
+            "contract": standing["contract"],
+            "revisions": standing["revisions"],
+        }
         if retained:
             sources[source]["snapshots"] = retained
         if sources == stored["sources"]:

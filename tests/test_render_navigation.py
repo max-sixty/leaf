@@ -3760,6 +3760,23 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             button.remove();
             return {declared, framed};
           };
+          // Declared twice before any paint: the first declaration ambiguous, the second
+          // sound. Only the frame reads the superseded one, so this is the case a paintKeys
+          // call cannot reach.
+          const redeclaredAtTheFrame = async (id, first, second) => {
+            const button = document.createElement('button');
+            button.id = id;
+            document.querySelector('main').append(button);
+            commands(button, id, first);
+            commands(button, id, second);
+            await new Promise((settle) =>
+              requestAnimationFrame(() => requestAnimationFrame(settle)));
+            const framed = button.getAttribute('aria-keyshortcuts');
+            const standing = Boolean(
+              (await import('/runtime/keyboard/scopes.js')).elementScopes.get(button));
+            button.remove();
+            return {framed, standing};
+          };
           const malformedFrame = () => {
             try {
               invoke(
@@ -3865,6 +3882,15 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               {id: 'test.frame-painted', keys: ['F7'], does: 'Painted at the frame',
                line: 'frame', run: () => {}},
             ]),
+            redeclared: await redeclaredAtTheFrame('redeclared', [
+              {id: 'test.stale-first', keys: ['F9'], does: 'First stale meaning',
+               line: 'first', run: () => {}},
+              {id: 'test.stale-second', keys: ['F9'], does: 'Second stale meaning',
+               line: 'second', run: () => {}},
+            ], [
+              {id: 'test.replacing', keys: ['F9'], does: 'The declaration that stands',
+               line: 'stands', run: () => {}},
+            ]),
           };
         }"""
     )
@@ -3916,6 +3942,9 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     # Nobody repaints the register for this one. The repaint frame the declaration itself
     # asks for is the first paint, so the projection lands there without a state change.
     assert answers["atFrame"] == {"declared": None, "framed": "F7"}, answers
+    # The superseded declaration is owed no reading: read at the frame, its refusal
+    # would have retracted the one that replaced it.
+    assert answers["redeclared"] == {"framed": "F9", "standing": True}, answers
 
     # Help merges instances with the same title for presentation. Repeated keys there
     # belong to separate focus locations, so they are not a conflict in either scope.

@@ -197,6 +197,10 @@ export function keys(where, title, rows, options) {
     answer,
     validated: false,
   };
+  // A declaration this one replaces before its first paint is owed nothing: read at
+  // the frame, a stale scope that refused would retract the element's standing
+  // declaration along with itself.
+  unpainted.delete(elementScopes.get(where));
   elementScopes.set(where, scope);
   rememberScopedElement(where);
   // Published unread, and read at the frame below. The element keeps whatever

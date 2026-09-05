@@ -10,6 +10,9 @@ Present the session's subject as a live HTML page. The user comments on exact
 passages, acts through the page's widgets, and follows revisions in place. With
 no subject in `$ARGUMENTS`, use the work already under discussion.
 
+Leaf's writing guidance supplies defaults only; any user-specific guidance on
+tone, structure, depth, or format takes precedence.
+
 $ARGUMENTS
 
 ## Return to the user

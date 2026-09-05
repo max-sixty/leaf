@@ -60,12 +60,20 @@ export function createSelectionCapture({
     // Identity is the context for projected data. Neighbouring display values may reorder
     // or repeat, so storing their words as prefix/suffix would make incidental layout a
     // second, conflicting answer to which datum the reader selected.
-    if (datum)
+    if (datum) {
+      const dataRevision = Number(datum.dataset.lfSourceRevision);
       return {
         section,
         datum: datum.dataset.lfDatum,
         quote,
+        ...(datum.dataset.lfSource && Number.isInteger(dataRevision)
+          ? {
+              source: datum.dataset.lfSource,
+              data_revision: dataRevision,
+            }
+          : {}),
       };
+    }
     const reading = pageText();
     const [start, stop] = spanIn(reading, segments);
     const prefix = cut(

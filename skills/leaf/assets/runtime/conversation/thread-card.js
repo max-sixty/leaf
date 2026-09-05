@@ -3,6 +3,7 @@ export function createThreadCards(dependencies) {
   const {
     anchorLabel,
     el,
+    focusThreadSurface,
     isMarked,
     keys,
     msgNode,
@@ -61,7 +62,8 @@ export function createThreadCards(dependencies) {
     if (grow) div.classList.add("grow");
     const label = anchorLabel(t.root.anchor, t.root.about);
     if (label) {
-      const quote = el("blockquote", "lf-quote", label);
+      const quote = el("blockquote", "lf-quote");
+      quote.append(el("span", "lf-quote-label", label));
       quote.tabIndex = 0;
       quote.setAttribute("role", "button");
       // The quote is words and a press at once: it says which passage the comment is
@@ -75,7 +77,9 @@ export function createThreadCards(dependencies) {
         // can still travel to. Read the anchor pass's two destination records instead.
         if (!hasDestination(t.root.id)) return;
         if (panelCovers()) setPanel(false);
-        scrollToThread(t.root.id);
+        scrollToThread(t.root.id, {
+          land: () => focusThreadSurface(t.root.id),
+        });
       };
       keys(quote, "On a comment's quoted passage", [
         {
@@ -163,7 +167,14 @@ export function createThreadCards(dependencies) {
       // for the life of the tab.
       const thread = threads.get(div.dataset.id);
       const said = thread && anchorLabel(thread.root.anchor, thread.root.about);
-      if (said && quote.textContent !== said) quote.textContent = said;
+      const label = quote.querySelector(":scope > .lf-quote-label");
+      if (said && label.textContent !== said) label.textContent = said;
+      const outdated = placedAt(div.dataset.id)?.status === "outdated";
+      let status = quote.querySelector(":scope > .lf-anchor-status");
+      if (outdated && !status) {
+        status = el("span", "lf-anchor-status", "Outdated");
+        quote.append(status);
+      } else if (!outdated) status?.remove();
       // Resolved threads deliberately carry no mark, but retain the placement their
       // folded quote can return to. One reading owns visual, assistive, keyboard, and
       // pointer availability so the same quote never becomes a pointer-only action.
@@ -171,7 +182,9 @@ export function createThreadCards(dependencies) {
       quote.classList.toggle("detached", !found);
       quote.setAttribute("aria-disabled", String(!found));
       quote.title = found
-        ? "Jump to this passage"
+        ? outdated
+          ? "This comment refers to an earlier data revision"
+          : "Jump to this passage"
         : "This passage can't be identified in the version you're viewing";
     }
     paintKeys();

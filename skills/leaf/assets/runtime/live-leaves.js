@@ -124,8 +124,6 @@ export function createLiveLeaves({
     // the status the server ships. This page's own row is not in the list and so is
     // never dropped: a reader looking at a closed page is still looking at it.
     others = (state.others ?? []).filter((entry) => presented(entry).kind !== "closed");
-    // While the panel stands its button stands too, whatever the count just did.
-    showNews(othersBtn, leavesOffered());
     const wanted = [
       { key: "self", title: document.title, entry: state },
       ...others.map((entry) => ({ key: entry.url, title: entry.title, entry })),
@@ -134,7 +132,10 @@ export function createLiveLeaves({
     // press will show, headed by this page's own row — and never arithmetic beside
     // them. "Other leaves" counted the neighbours alone, one off the list it
     // promised: a machine with one neighbour said (1) over a tray of two.
-    othersBtn.textContent = `All leaves (${wanted.length})`;
+    const said = `All leaves (${wanted.length})`;
+    if (othersBtn.textContent !== said) othersBtn.textContent = said;
+    // While the panel stands its button stands too, whatever the count just did.
+    showNews(othersBtn, leavesOffered());
     let anchor = null; // the row before this one, so order holds without rebuilding
     for (const { key, title, entry } of wanted) {
       let row = othersRows.get(key);

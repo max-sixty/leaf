@@ -127,7 +127,7 @@ export const MARK_RULES = `
 let publishedShadowStage;
 export const shadowStage = (...args) => publishedShadowStage(...args);
 
-export function createShadowStage(watchDisclosures, watchExternalLinks) {
+export function createShadowStage(watchDisclosures, watchExternalLinks, setChildren) {
   let markSheet;
   publishedShadowStage = function stageShadow(host, nodes) {
     if (!markSheet) {
@@ -148,7 +148,9 @@ export function createShadowStage(watchDisclosures, watchExternalLinks) {
     watchDisclosures(root);
     const style = document.createElement("style");
     style.textContent = SHADOW_STARTUP_CSS + shadowRules;
-    root.replaceChildren(style, ...nodes);
+    // Fragment hydration can add a sheet while the reader uses an existing control.
+    // Keep retained nodes connected, preserving their focus and widget lifecycle.
+    setChildren(root, [style, ...nodes]);
     watchExternalLinks(root);
     return root;
   };

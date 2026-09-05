@@ -67,6 +67,15 @@ export function createBannerShelf({ el, paintHere }) {
   // address with nothing to say is simply not in the menu. That is not a second rule: it
   // is the same rule asked of a place where taking room costs nothing to give back.
   const newsControls = new Set();
+  let newsFoldQueued = false;
+  function queueNewsFold() {
+    if (newsFoldQueued) return;
+    newsFoldQueued = true;
+    queueMicrotask(() => {
+      newsFoldQueued = false;
+      foldShelf();
+    });
+  }
   // The presence those two facts state, read as a value rather than written straight
   // out, so the same rule answers what the control should look like and whether it
   // already looks like that.
@@ -94,6 +103,7 @@ export function createBannerShelf({ el, paintHere }) {
   }
 
   function showNews(control, on) {
+    on = Boolean(on);
     // Most calls are a poll restating the news the row already carries — a page whose
     // asks are all answered says so on every refresh, once per widget that repaints in
     // it. Folding on that reading measures the row against a set of addresses nothing
@@ -132,7 +142,10 @@ export function createBannerShelf({ el, paintHere }) {
     if (on) reserveNewsSlot(control);
     control.classList.toggle("lf-news-shown", on);
     paintPresence(control);
-    foldShelf();
+    // One state application can refresh Decisions, blanket answers, Requests, and live
+    // leaves in succession. They all change the same row; fold it once after that write
+    // batch, against the final words and presence of every address.
+    queueNewsFold();
     if (focusTransfer) focusTransfer.focus({ preventScroll: true });
   }
 

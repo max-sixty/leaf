@@ -450,8 +450,9 @@ A source id keeps one contract for the lifetime of the page. Documents without a
 snapshot selection share the page's current value; stamped versions and widgets
 frozen into threads may instead select a retained capture. `data clear` removes the
 current value and unreferenced captures, but keeps captures selected by those durable
-documents and a contract-only tombstone that never releases the source id for a new
-meaning. Use a new source id for a new contract. Re-vendoring preserves this mapping and
+documents and a tombstone with the contract and prior revision ids. The ids validate
+comments that raced a replacement without retaining the replaced values, and the
+tombstone never releases the source id for a new meaning. Use a new source id for a new contract. Re-vendoring preserves this mapping and
 each standing widget selection while validating current values and captures against the
 incoming schemas.
 `leaf page state PAGE` exposes the complete `data_bindings` inventory so a producer can
@@ -463,8 +464,8 @@ A contract whose values contain large independently useful payloads may declare 
 `fragments` coordinate: the top-level array field, each item's unique key field, and the
 payload field. `data.json` still keeps and validates the complete value. `/api/state`
 sends the array as a lightweight manifest with that payload field omitted; a widget uses
-`loadDataFragment(element, input, key)` to fetch one payload from the exact data revision
-and optional snapshot it already accepted. A stale revision is refused instead of
+`loadDataFragment(snapshot, key)` to fetch one payload using the snapshot delivered by
+`watchData`. A stale current-source revision is refused instead of
 combining a new payload with an old manifest. This is how a collapsed `lf-diff` can show
 thousands of files without transferring or rendering every patch first.
 
@@ -494,14 +495,12 @@ thousands of files without transferring or rendering every patch first.
 A module subscribes through its own input declaration:
 
 ```js
-this.stopWatching = watchData(this, "builds", (snapshot) => {
-  render(snapshot?.value ?? {});
-});
+this.stopWatching = watchData(this, "builds", (snapshot) => render(snapshot));
 ```
 
 The callback receives `null` before the host has supplied a current value, otherwise a
-clone of `{contract, revision, updated, value, origin}`. `revision` is the data revision
-that wrote that source value, so a renderer can distinguish two writes even when their wall
+clone of `{source, contract, revision, updated, value, origin}`. `revision` identifies the write
+of that source value, so a renderer can distinguish two writes even when their wall
 clock timestamps coincide. A selected capture additionally carries
 `snapshot`, `label`, and optional `lines`; a captured current value may carry its label
 and line range. It runs immediately and again when that source revision changes.
@@ -520,13 +519,14 @@ redeliver unchanged data to keep a timestamp current.
 
 `origin` identifies the declared `input`, concrete `source`, `contract`, selected source
 `revision`, and the accepted store's `data_revision` at delivery, plus `snapshot` when
-pinned. An unchanged source keeps that origin when another source changes. Pass it to
-`projectData` with `originOf: () => snapshot?.origin`. When the emitter knows the exact
-JSON coordinate within the source value, return `{...snapshot.origin, path: [...]}`;
+pinned. An unchanged source keeps that origin when another source changes. Passing
+`{snapshot}` to `projectData` supplies this default origin. When the emitter knows the
+exact JSON coordinate within the source value, its `originOf(record, index)` returns
+`{...snapshot.origin, path: [...]}`;
 path segments are object keys or array indices. A formatted or parsed record may only
 name its whole input. This identifies construction inputs, not an inverse edit mapping.
 
-Render the value with `projectData(root, records, keyOf, render)`. The root is an
+Render the value with `projectData(root, records, keyOf, render, options)`. The root is an
 id-bearing authored seat and owns the projection's children. `keyOf` returns a stable
 non-empty string for the logical datum; `render` receives
 `(record, priorNode, index)` and returns its element, reusing `priorNode` where that
@@ -537,15 +537,21 @@ rendering as a labelled snapshot and drops the code that could refresh it. A ren
 that owns a nested layout passes `{nested: true}` and returns its existing descendants;
 Leaf labels those nodes without moving them. Add `labelOf(record, index)` when a thread
 should name a projected datum with a human coordinate; the stable key remains opaque to
-the runtime. If a `watchData` callback renders asynchronously, return that promise so
-Leaf does not publish the source revision as ready before the projection settles. A
-rejection is reported as that subscriber's page error; it does not make later state
+the runtime. A widget declaring `x-data` passes `{snapshot}` with the delivery from
+`watchData`, including `null` when no current value exists. Leaf stamps the projection
+with that snapshot's source and revision. A comment remains exact only within that
+source revision. Replacing a current value leaves the thread in its section and marks
+it outdated. An authored snapshot remains exact. Derived projections
+omit `snapshot` and retain their section/key identity. If a `watchData` callback renders
+asynchronously, it returns that promise so Leaf publishes the source revision as ready
+only after the projection settles. A rejection is reported as that subscriber's page
+error; it does not make later state
 reads repeat the same page-wide failure. A rejection from the callback's first run is
 stronger: Leaf drops that subscription, so the callback is not asked to restate again
 until the element is reconnected.
 
-`originOf(record, index)` records those inputs as JSON in `data-lf-origin` on each
-datum; a null origin removes any previous provenance. Derived records outside the data
+Leaf records the default origin or `originOf(record, index)` result as JSON in
+`data-lf-origin` on each datum; a null origin removes any previous provenance. Derived records outside the data
 store can instead name their contributing widget seats as `{derived: [{widget: id}]}`.
 Export retains these origins with the rendering. Leaf never infers them from displayed
 text or datum keys.
@@ -556,6 +562,36 @@ trees, asks the target to hydrate lazy data, opens its containing disclosure, fo
 that disclosure, updates the fragment, and announces the supplied `success` or `missing`
 message. A lazy target may implement `lfRevealDatum(key)` to return its hydration promise
 and `lfDataDatum(key)` to map a semantic key to the rendered projected element.
+
+## Widget-local Thread surfaces
+
+An upgraded widget declares `"x-thread-surface": true` when it can place complete
+Threads beside its own projected data. Its module registers one adapter:
+
+```js
+this.threadSurface = registerThreadSurface(this, {
+  begin: () => beginThreadRows(),
+  outletFor: ({ anchor, placement, thread }) => threadOutlet(anchor.datum),
+  end: () => finishThreadRows(),
+});
+```
+
+Core calls `begin`, asks `outletFor` about each exact datum thread owned by that widget,
+then calls `end`. The adapter returns an element inside the widget or `null`. It owns
+only outlet creation, removal, and layout. Core renders the retained messages, replies,
+reactions, settlement controls, and receipts into each outlet. A claimed thread does not
+also appear in the living margin; the Threads panel remains the complete index.
+
+The adapter returns `null` for data that is filtered, collapsed, or not yet hydrated.
+That keeps lazy widgets lazy and restores the living-margin fallback. Deliberate thread
+travel may reveal the datum through `lfRevealDatum`; the ordinary reconciliation pass
+then asks the adapter again. The registration handle's `update()` invalidates layout-only
+visibility changes, and `unregister()` removes the surface when the widget disconnects.
+If an adapter throws, Leaf reports a page error, clears that registration's core-owned
+views, and returns its threads to the margin. Other registrations continue, and the
+next ordinary reconciliation retries the adapter. Outlets must remain inside their
+widget after `end`; disconnected outlets claim no threads. Core message-rendering
+errors still fail the state application rather than accepting a partial conversation.
 
 ## Seeing it
 

@@ -7,6 +7,7 @@ from pathlib import Path
 from .anchor_capture import capture_anchor
 from .event_contracts import (
     action_contract_error,
+    datum_anchor_error,
     event_record_error,
     held_comment_error,
     version_response_comment_error,
@@ -188,11 +189,15 @@ class _TransactionValidation:
         recapture = bool(self.capture_anchors and anchor) and not (
             anchor.get("datum") or anchor.get("visual") or anchor.get("part")
         )
-        if self.event["kind"] != "comment" or not (
+        if self.event["kind"] != "comment":
+            return None
+        validates_datum = bool(anchor.get("source"))
+        if not (
             recapture
             or self.event.get("holds")
             or self.event.get("response")
             or anchor.get("visual")
+            or validates_datum
         ):
             return None
         registry, rejection = self.registry_or_rejection()
@@ -200,6 +205,7 @@ class _TransactionValidation:
             return rejection
         page_by_id = parse_revision(self.page_dir, self.event["revision"]).by_id
         for error in (
+            datum_anchor_error(self.page_dir, self.event, page_by_id, registry),
             held_comment_error(self.event, page_by_id, registry),
             version_response_comment_error(self.event, page_by_id, registry),
             visual_anchor_error(self.event, page_by_id, registry),

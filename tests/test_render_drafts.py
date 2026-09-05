@@ -211,6 +211,31 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(browser, s
     page.close()
 
 
+def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve):
+    """A passage's generated body is not the owner of the reaction's margin control."""
+    url = serve(JOURNEY_V1)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "ok",
+            "anchor": {
+                "section": "draft-ops",
+                "quote": "Run the migration before deploying.",
+            },
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-react')?.size ?? 0) > 0")
+    expect(page.locator('.lf-reacts[data-lf-for="draft-ops"]')).to_have_count(1)
+    page.locator("#draft-ops .lf-draft-body").dblclick()
+    assert page.locator("#draft-ops textarea").input_value() == DRAFT_TEXT
+    assert errors == []
+    page.close()
+
+
 def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     """Two halves of one gesture, both of them invisible to a static lint.
 

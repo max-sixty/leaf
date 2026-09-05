@@ -21,6 +21,8 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   applied: "data-lf-applied",
   reading: "data-lf-reading",
   dataRevision: "data-lf-data-revision",
+  source: "data-lf-source",
+  sourceRevision: "data-lf-source-revision",
   readerOverride: "data-lf-reader-override",
   presented: "data-lf-presented",
   reported: "data-lf-reported",

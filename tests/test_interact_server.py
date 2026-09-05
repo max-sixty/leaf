@@ -108,6 +108,104 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
     assert b"known: ['node:A', 'node:B']" in body
 
 
+def test_a_datum_comment_must_name_the_data_revision_its_section_displayed(
+    server, page_dir
+):
+    """The browser's source provenance is admitted at the same transaction boundary
+    as the comment. A replacement racing the POST makes the comment outdated, not
+    invalid; a future revision or a source the section never bound is forged."""
+    version = page_dir / ".fixture-versions" / "v1.html"
+    first_version = PAGE.replace(
+        "</section>",
+        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
+        '<lf-diff id="other" source="other-patch"><pre></pre></lf-diff>'
+        "</section>",
+    )
+    version.write_text(first_version)
+    publish(page_dir)
+    data_model.cmd_data_set(
+        page_dir, "review-patch", "first patch", capture_label="first patch"
+    )
+    second_version = first_version.replace(
+        "</section>",
+        '<lf-diff id="frozen" source="review-patch" snapshot="1">'
+        "<pre></pre></lf-diff></section>",
+    )
+    (page_dir / ".fixture-versions" / "v2.html").write_text(second_version)
+    publish(page_dir, 2)
+    event = {
+        "kind": "comment",
+        "revision": 1,
+        "text": "This line needs a guard.",
+        "anchor": {
+            "section": "patch",
+            "datum": '["app.py","new",2]',
+            "source": "review-patch",
+            "data_revision": 1,
+        },
+        "attempt": "datum_revision_exact_1",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
+    assert status == 200, body
+
+    data_model.cmd_data_set(page_dir, "other-patch", "unrelated patch")
+    data_model.cmd_data_set(page_dir, "review-patch", "replacement patch")
+    stale = {
+        **event,
+        "text": "This raced the replacement.",
+        "attempt": "datum_revision_stale_1",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(stale).encode())
+    assert status == 200, body
+
+    skipped = {
+        **event,
+        "anchor": {**event["anchor"], "data_revision": 2},
+        "attempt": "datum_revision_skipped_1",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(skipped).encode())
+    assert status == 400
+    assert "was never displayed from source 'review-patch'" in json.loads(body)["error"]
+
+    future = {
+        **event,
+        "anchor": {**event["anchor"], "data_revision": 4},
+        "attempt": "datum_revision_future_1",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(future).encode())
+    assert status == 400
+    assert "newer than page data revision 3" in json.loads(body)["error"]
+
+    wrong_source = {
+        **event,
+        "anchor": {**event["anchor"], "source": "other-patch"},
+        "attempt": "datum_revision_source_1",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(wrong_source).encode())
+    assert status == 400
+    assert "is not bound by section 'patch'" in json.loads(body)["error"]
+
+    frozen = {
+        **event,
+        "revision": 2,
+        "anchor": {**event["anchor"], "section": "frozen"},
+        "attempt": "datum_revision_snapshot_1",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(frozen).encode())
+    assert status == 200, body
+
+    wrong_snapshot = {
+        **frozen,
+        "anchor": {**frozen["anchor"], "data_revision": 3},
+        "attempt": "datum_revision_snapshot_wrong_1",
+    }
+    status, body = fetch(
+        f"{server}/api/event", data=json.dumps(wrong_snapshot).encode()
+    )
+    assert status == 400
+    assert "was never displayed from source 'review-patch'" in json.loads(body)["error"]
+
+
 def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, page_dir):
     """The browser resolves its own anchor against the rendered page before it posts,
     and the page holds words this side cannot produce — a widget's label, whatever a

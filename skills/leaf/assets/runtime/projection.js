@@ -32,15 +32,14 @@ export function createProjection(runtime, dependencies) {
     pagePresented,
     pageQueryAll,
     pageShifted,
-    paintAnchors,
     paintKeys,
-    paintAcknowledgments,
     post,
     projectedParent,
     quoteFrom,
     reachScrollers,
     rememberPassageParts,
     removeOutbox,
+    reconcileThreads,
     renderQuiet,
     renderRetired,
     reportPageError,
@@ -781,7 +780,7 @@ export function createProjection(runtime, dependencies) {
       }
 
       if (painted) {
-        paintAnchors();
+        reconcileThreads();
         Promise.allSettled(started.map((animation) => animation.finished)).then(() =>
           pageShifted(),
         );
@@ -807,7 +806,7 @@ export function createProjection(runtime, dependencies) {
     const authoredOnly = runtime.lastEventSeq < 0 && eventSeq === 0;
     if (!complete && !authoredOnly) return false;
     reconcileState();
-    paintAcknowledgments();
+    reconcileThreads();
     return true;
   }
 

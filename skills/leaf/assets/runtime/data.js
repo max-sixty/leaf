@@ -136,6 +136,7 @@ export function watchData(element, input, callback) {
         );
       return deliver(
         {
+          source,
           contract: sourceStore.contract,
           revision: Number(selected),
           snapshot: selected,
@@ -148,6 +149,7 @@ export function watchData(element, input, callback) {
       return deliver(null, event);
     }
     const snapshot = {
+      source,
       contract: sourceStore.contract,
       revision: sourceStore.revision,
       updated: sourceStore.updated,
@@ -175,36 +177,30 @@ export function watchData(element, input, callback) {
   };
 }
 
-// A fragmented contract keeps its complete value in data.json while page state carries
-// only the surrounding manifest. The widget asks for one omitted value by the same
-// declared input it watches; source, contract, optional snapshot, and accepted data
-// revision therefore come from the binding rather than from module-authored URLs.
-export async function loadDataFragment(element, input, key) {
-  if (!(element instanceof Element))
-    throw new TypeError("loadDataFragment element must be a widget element");
-  if (typeof input !== "string" || !input)
-    throw new TypeError("loadDataFragment input must be a non-empty string");
+// Fragment identity belongs to the delivered manifest. A replacement can be accepted
+// before its subscriber renders; loading through that older manifest must not fetch a
+// same-key fragment from the replacement.
+export async function loadDataFragment(manifest, key) {
+  if (
+    !manifest ||
+    typeof manifest.source !== "string" ||
+    !manifest.source ||
+    !Number.isInteger(manifest.revision) ||
+    manifest.revision < 1
+  )
+    throw new TypeError("loadDataFragment needs a source snapshot");
   if (typeof key !== "string" || !key)
     throw new TypeError("loadDataFragment key must be a non-empty string");
-  const declaration = registry[element.localName]?.["x-data"]?.[input];
-  if (!declaration)
-    throw new Error(
-      `loadDataFragment(${element.localName}, ${input}) input is not declared by this widget`,
-    );
-  const contract = registry.$data?.contracts?.[declaration.contract];
+  const contract = registry.$data?.contracts?.[manifest.contract];
   if (!contract?.fragments)
     throw new Error(
-      `loadDataFragment(${element.localName}, ${input}) contract ${declaration.contract} ` +
-        "does not declare fragments",
+      `loadDataFragment contract ${manifest.contract} does not declare fragments`,
     );
-  const source = element.getAttribute(declaration.source);
-  if (!source)
+  const { source, snapshot } = manifest;
+  if (!snapshot && runtime.data.sources[source]?.revision !== manifest.revision)
     throw new Error(
-      `loadDataFragment(${element.localName}, ${input}) has no bound source`,
+      `source ${source} revision ${manifest.revision} changed before loading fragment ${key}`,
     );
-  const snapshot = declaration.snapshot
-    ? element.getAttribute(declaration.snapshot)
-    : null;
   const revision = runtime.data.revision;
   const params = new URLSearchParams({
     data_revision: String(revision),
@@ -226,7 +222,7 @@ export async function loadDataFragment(element, input, key) {
   if (
     answer.revision !== revision ||
     answer.source !== source ||
-    answer.contract !== declaration.contract ||
+    answer.contract !== manifest.contract ||
     answer.key !== key ||
     (snapshot ? answer.snapshot !== snapshot : Object.hasOwn(answer, "snapshot"))
   )

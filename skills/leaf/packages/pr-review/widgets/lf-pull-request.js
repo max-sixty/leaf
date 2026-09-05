@@ -194,7 +194,7 @@ customElements.define(
             next.missing
               ? renderMissing(prior)
               : renderCard(next, prior, snapshot, descriptionChanged),
-          { originOf: () => snapshot?.origin },
+          { snapshot },
         );
         return descriptionChanged.value;
       });

@@ -114,6 +114,7 @@
       "diff": "diff --git a/atlas/api.py b/atlas/api.py\n--- a/atlas/api.py\n+++ b/atlas/api.py\n@@ -7,3 +7,3 @@ class ImportResult:\n-    errors: list[str]\n+    failures: tuple[ImportFailure, ...]\n     rows: int"
     }
   },
+  "gallery-patch": "diff --git a/gallery/review.py b/gallery/review.py\n--- a/gallery/review.py\n+++ b/gallery/review.py\n@@ -1,2 +1,2 @@\n def route():\n-    return \"courtyard\"\n+    return \"covered terrace\"\n",
   "gallery-worktrees": {
     "bg-request-live-tree": {
       "branch": "gallery/ready",

@@ -3,8 +3,9 @@
 Event kinds: comment (optional anchor {section, quote, and the neighbouring
 text as prefix/suffix where there is any, which is what tells two identical
 passages apart; a browser selection on projected data carries datum,
-the stable key local to section, instead of treating neighbouring values as
-identity; `response: {kind: version, verb}` when the originating widget requires
+the stable key local to section, and source plus data_revision when the projection
+names an external input, instead of treating neighbouring values as identity;
+`response: {kind: version, verb}` when the originating widget requires
 the agent to revise its declared answer state rather than reply), reply (parent=id),
 edit (agent; message=id, replacing only that message's visible text),
 resolve (parent=id), unresolve (the reader reopening a resolved thread by parent=id),
@@ -107,9 +108,12 @@ whole difference between them. The user selects a passage and the browser writes
 the anchor from the selection; `leaf comment` writes its file-confirmable form
 from a quote by reading authored HTML through `leaf.passages`. The
 browser's anchor pass applies the matching rules to the DOM. Projected data has
-no file-side value to quote: its browser anchor
-adds the projection's section and datum key, and a CLI comment can still name the
-authored projection seat as an element. Everything downstream already turns on
+no file-side value to quote: its browser anchor adds the projection's section and datum
+key. When `projectData` names an `x-data` input, the anchor also carries that source id
+and `data_revision`. The append door checks that the section displayed that source
+revision. A racing current-value replacement is admitted as an outdated comment; a
+future revision, another source, or the wrong immutable snapshot is refused. A CLI
+comment can still name the authored projection seat as an element. Everything downstream already turns on
 `author`: `leaf wait`
 prints user events and the banner counts them, so Claude's own comment neither
 wakes its own watcher nor reads as unanswered. Closing runs the other way round,

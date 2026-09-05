@@ -147,16 +147,16 @@ export function createDecisionView({
     );
     // While the tray stands its button stands too, whatever the count just did — the
     // press that opened it has to be able to close it.
-    showNews(decisionsBtn, decisionsOffered());
     sayAsks(completed, all.length);
+    showNews(decisionsBtn, decisionsOffered());
     // Only while the tray is up: the count above is what a closed tray says, and these
     // rows are what an open one says. A closed tray reconciling a list on every poll is
     // work for a reader who cannot see it, and rows in a document nothing can press.
     if (openTray("decisions")) renderDecisions(all, unanswered);
     for (const { btn, label, n } of blanketAnswers(decisions)) {
-      showNews(btn, Boolean(n));
       const said = `${label} all (${n})`;
       if (btn.textContent !== said) btn.textContent = said;
+      showNews(btn, Boolean(n));
     }
     // The a/A row stands on this list, so the surfaces reading it are repainted
     // where it changes — the rule showFab and showTray already keep for the words

@@ -167,6 +167,7 @@ export function createSelectionSurface({
   // A visual's durable anchor is also the geometry authority. Resolve it again after a
   // reflow instead of remembering where inside the target the pointer happened to land.
   function anchorBox(anchor) {
+    let found;
     if (anchor?.quote) {
       const selection = pageSelection();
       const current = selection ? selectionAnchor(selection) : null;
@@ -181,15 +182,18 @@ export function createSelectionSurface({
       // captured passage still belongs to the response transaction; native selection is
       // no longer available once the textarea took focus.
       if (!composerIsOpen() && !fabHoldsCapturedPassage()) return null;
-      const found = resolveAnchor(anchor, pageText());
+      found = resolveAnchor(anchor, pageText());
       const segments = targetSegments(found);
-      if (!segments.length) return null;
-      const range = document.createRange();
-      range.setStart(segments[0].node, segments[0].start);
-      range.setEnd(segments.at(-1).node, segments.at(-1).end);
-      return range.getBoundingClientRect();
-    }
-    const found = anchor ? resolveAnchor(anchor, pageText()) : null;
+      if (segments.length) {
+        const range = document.createRange();
+        range.setStart(segments[0].node, segments[0].start);
+        range.setEnd(segments.at(-1).node, segments.at(-1).end);
+        return range.getBoundingClientRect();
+      }
+      // Replacing source data must not close a draft about its prior revision. The
+      // contextual placement keeps the field reachable beside its original section.
+      if (found?.status !== "outdated") return null;
+    } else found = anchor ? resolveAnchor(anchor, pageText()) : null;
     if (!targetElement(found)) return null;
     const clips = new Map();
     return union(
@@ -457,6 +461,10 @@ export function createSelectionSurface({
   let selectionDragged = false;
   let selectionRangeDuringPress = null;
   let selectionPressPoint = null;
+  // A widget may turn a press over page words into a different gesture after pointerdown.
+  // `preventDefault` on its bubbling pointermove is the shared claim boundary: the
+  // selection surface must not restore the range it captured before that claim.
+  let selectionGestureClaimed = false;
   let actionPress = false;
   let targetActivation = false;
   let fabInputTakingFocus = false;
@@ -503,6 +511,7 @@ export function createSelectionSurface({
       pointerSelecting = primaryPointerPressed && pageWords(ev.target);
       selectionDragged = false;
       selectionRangeDuringPress = null;
+      selectionGestureClaimed = false;
       selectionPressPoint = pointerSelecting ? { x: ev.clientX, y: ev.clientY } : null;
       // Read here, ahead of the browser's own collapse, so the first crossing this press
       // makes is measured against what the line already says rather than against nothing.
@@ -516,6 +525,10 @@ export function createSelectionSurface({
   );
   document.addEventListener("pointermove", (ev) => {
     if (!pointerSelecting || !selectionPressPoint) return;
+    if (ev.defaultPrevented) {
+      selectionGestureClaimed = true;
+      return;
+    }
     selectionDragged ||=
       Math.hypot(
         ev.clientX - selectionPressPoint.x,
@@ -542,6 +555,7 @@ export function createSelectionSurface({
     if (primaryPointerPressed) scheduleSelectionUpdate();
     primaryPointerPressed = false;
     pointerSelecting = false;
+    selectionGestureClaimed = false;
     setTimeout(() => {
       actionPress = false;
     });
@@ -573,6 +587,13 @@ export function createSelectionSurface({
   document.addEventListener("mouseup", (ev) => {
     primaryPointerPressed = false;
     pointerSelecting = false;
+    const gestureClaimed = selectionGestureClaimed;
+    selectionGestureClaimed = false;
+    if (gestureClaimed) {
+      selectionRangeDuringPress = null;
+      scheduleSelectionUpdate();
+      return;
+    }
     if (actionPress) return;
     if (!pageWords(ev.target) && !pageSelection()) return;
     const selection = pageSelection();
@@ -636,7 +657,10 @@ export function createSelectionSurface({
     if (versionMenuIsOpen() && !target.closest?.(".lf-version-menu, .lf-version"))
       closeVersionMenu();
   }
-  document.addEventListener("mousedown", (ev) => standDown(ev.target));
+  // Document listeners see a shadow-tree press retargeted to its host. Read the
+  // composed origin so core controls seated in a widget surface remain inside their
+  // own composer/reaction layer instead of being dismissed before `click` can fire.
+  document.addEventListener("mousedown", (ev) => standDown(ev.composedPath()[0]));
 
   // What a plain click on the page means, decided once. Design mode explicitly changes the
   // grammar, and a visible mark opens its thread. Unadorned authored content keeps the

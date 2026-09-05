@@ -1,4 +1,6 @@
 /* Canonical action and update feeds exposed to widgets and chrome. */
+import { watchProjection } from "./projection-watch.js";
+
 let publishedActionSequence;
 let publishedPublishedAt;
 let publishedSaidAt;
@@ -103,30 +105,19 @@ export function createUpdates(runtime, dependencies) {
     closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head > time")
       ?.dateTime || publishedAt();
 
-  const watch = (owner, callback) => {
-    const update = () => {
-      if (!owner.isConnected) {
-        document.removeEventListener("lf-actions", update);
-        return;
-      }
-      callback();
-    };
-    document.addEventListener("lf-actions", update);
-    update();
-    return () => document.removeEventListener("lf-actions", update);
-  };
-
   const watchActions = (widget, action, callback) =>
-    watch(widget, () => callback(actionSequence(widget, action)));
+    watchProjection(widget, () => callback(actionSequence(widget, action)));
   const watchUpdates = (target, callback) =>
-    watch(target instanceof Element ? target : document.body, () => {
+    watchProjection(target instanceof Element ? target : document.body, () => {
       const projection = stateProjection();
       if (reportsCommitted(projection, target)) callback(updateSequence(target));
     });
   // Full history is intentionally raw: it is the one public escape hatch whose contract
   // is the append-only log itself rather than a semantic reading of that log.
   const watchHistory = (owner, callback) =>
-    watch(owner, () => callback(runtime.events.map((event) => structuredClone(event))));
+    watchProjection(owner, () =>
+      callback(runtime.events.map((event) => structuredClone(event))),
+    );
 
   publishedActionSequence = actionSequence;
   publishedPublishedAt = publishedAt;

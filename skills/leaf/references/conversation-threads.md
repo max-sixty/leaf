@@ -23,22 +23,16 @@ its `lf-options` group. Thread markup is frozen in the log; versions neither
 carry nor revise it. Use a page widget instead when the question and its answer
 belong in the final record.
 
-Answer in as few words as the question takes; one sentence is a complete reply.
-An answer the size of a page section goes into the page instead, and the reply
-is a line pointing at it. The panel is a narrow column, so an answer past a few
-sentences goes in as separate Markdown paragraphs or a list with one point each.
-`--text` takes a one-line answer; longer text comes in on stdin:
+The thread panel is a narrow column beside the page. Replies should feel light
+and conversational, answer the local thread, and keep the page as the main
+surface for evidence, comparisons, and detailed reasoning. Give the reader
+enough context to know what changed or where to look without retelling the page.
+
+`--text` takes inline text; stdin accepts Markdown:
 
 ```bash
-leaf reply <page> --to <thread-id> --text "Yes, and the page already has it."
-
-leaf reply <page> --to <thread-id> <<'EOF'
-Three things put the retry on the client:
-
-- only the client can tell a dropped connection from a slow one
-- the client already holds the request body
-- retrying on the server would double the write
-EOF
+leaf reply <page> --to <thread-id> --text "…"
+leaf reply <page> --to <thread-id> < reply.md
 ```
 
 Fragment links such as `[the decision](#decision)` take the reader to page

@@ -50,9 +50,9 @@ export function createSelectionComposer(runtime, dependencies) {
   const composerCtx = (anchor) =>
     COMPOSER_KEY +
     JSON.stringify(
-      ["section", "quote", "prefix", "suffix", "part"].map(
-        (key) => anchor?.[key] ?? "",
-      ),
+      Object.entries(anchor ?? {})
+        .filter(([, value]) => ["string", "number", "boolean"].includes(typeof value))
+        .sort(([left], [right]) => left.localeCompare(right)),
     );
   const saveComposerDraft = () =>
     saveDraft(

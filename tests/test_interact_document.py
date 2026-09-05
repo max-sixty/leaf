@@ -857,6 +857,35 @@ def test_check_rejects_loose_content_in_items_container(page_dir):
     assert "loose text" in result.output
 
 
+def test_check_requires_one_child_for_each_declared_role(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-milestones"]["x-children"] = {"lf-milestone": {"one-each": "status"}}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    version = page_dir / ".fixture-versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "<lf-options>",
+            """<lf-milestones>
+  <lf-milestone id="role-planned" status="planned">Planned</lf-milestone>
+  <lf-milestone id="role-active" status="active">Active</lf-milestone>
+  <lf-milestone id="role-done" status="done">Done</lf-milestone>
+  <lf-milestone id="role-blocked" status="blocked">Blocked</lf-milestone>
+</lf-milestones>
+<lf-options>""",
+        )
+    )
+    assert check(page_dir).exit_code == 0, check(page_dir).output
+
+    version.write_text(
+        version.read_text().replace('status="blocked"', 'status="planned"')
+    )
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "exactly one direct <lf-milestone> for each `status` value" in result.output
+    assert "missing ['blocked'], repeated ['planned']" in result.output
+
+
 def test_flag_attribute_accepts_both_html_spellings(page_dir):
     (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace('id="backfill-first">', 'id="backfill-first" chosen="">')
@@ -2735,7 +2764,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     assert state_json(page_dir)["data"] == {"file": "data.json", "revision": 2}
     assert data_model.read_data(page_dir) == {
         "revision": 2,
-        "sources": {"deployments": {"contract": "deployment-rows"}},
+        "sources": {"deployments": {"contract": "deployment-rows", "revisions": [1]}},
     }
 
     unbound = runner.invoke(
@@ -2842,6 +2871,7 @@ def test_text_capture_keeps_selected_snapshots_when_the_current_value_is_cleared
         "sources": {
             "leaf-skill": {
                 "contract": "text-document",
+                "revisions": [1, 2, 3],
                 "snapshots": source["snapshots"],
             }
         },
@@ -3231,7 +3261,8 @@ def test_clear_keeps_source_identity_without_an_immutable_document(page_dir):
     with pytest.raises(data_contracts_model.DataError, match="standing snapshot uses"):
         data_model.cmd_data_set(page_dir, "project-feed", [])
     assert data_model.read_data(page_dir)["sources"]["project-feed"] == {
-        "contract": "rows"
+        "contract": "rows",
+        "revisions": [1],
     }
 
 
@@ -3427,7 +3458,8 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
         (
             (
                 '{"revision":1,"sources":{"builds":{"contract":"build-map",'
-                '"revision":1,"updated":"2026-08-25T12:00:00-07:00",'
+                '"revisions":[1],"revision":1,'
+                '"updated":"2026-08-25T12:00:00-07:00",'
                 '"value":NaN}}}'
             ),
             "value is not JSON",
@@ -3443,6 +3475,7 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
         (
             (
                 '{"revision":1,"sources":{"leaf-skill":{"contract":"text-document",'
+                '"revisions":[1],'
                 '"snapshots":{"2":{"updated":"2026-08-25T12:00:00-07:00",'
                 '"value":"text","label":"SKILL.md"}}}}}'
             ),

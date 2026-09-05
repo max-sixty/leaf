@@ -382,7 +382,7 @@ export function createVersion({
     keys: ["Shift+v"],
     does: "The versions, and what each one changed",
     line: "versions",
-    also: versionBtn,
+    control: versionBtn,
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,
@@ -556,9 +556,9 @@ export function createVersion({
       ? state.source_error
       : "Open the current page";
     latestChip.title = latestChip.dataset.lfKeyTitle;
-    showNews(latestChip, sourceFailed || behind);
     if (sourceFailed) latestChip.textContent = "Latest edit couldn't be shown";
     else if (behind) latestChip.textContent = arriving(runtime.active.label);
+    showNews(latestChip, sourceFailed || behind);
   }
 
   // ---------- version diff ----------

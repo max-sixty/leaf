@@ -216,7 +216,10 @@ def constructed_content(
                     continue
                 if (record["attr"] in node["attrs"]) == (identity in value):
                     continue
-                node.setdefault("authored", {}).setdefault("attrs", dict(node["attrs"]))
+                if not generated:
+                    node.setdefault("authored", {}).setdefault(
+                        "attrs", dict(node["attrs"])
+                    )
                 if identity in value:
                     node["attrs"][record["attr"]] = None
                 else:

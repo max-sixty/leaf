@@ -118,6 +118,7 @@ def test_page_inspection_preserves_exact_reader_state_and_its_edit_routes(page_d
     assert nodes["o-reader"]["source"]["kind"] == "action"
     assert nodes["o-reader"]["edit"]["owner"] == "g1"
     assert "line" not in nodes["o-reader"]["source"]
+    assert "authored" not in nodes["o-reader"]
     assert "chosen" in nodes["o-shim"]["authored"]["attrs"]
     assert "chosen" not in nodes["o-shim"]["attrs"]
     assert nodes["o-shim"]["authority"] == nodes["o-reader"]["authority"]

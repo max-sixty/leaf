@@ -2640,6 +2640,205 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
     page.close()
 
 
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "begin",
+        "outletFor",
+        "end",
+        "unregister",
+        "end-unregister",
+        "disconnect",
+        "moved",
+        "detached",
+        "hidden",
+    ],
+)
+def test_a_failed_thread_surface_returns_its_threads_to_core_fallback(
+    browser, serve, failure
+):
+    """An adapter failure cannot keep stale local views or stop the next widget.
+
+    Two previously seated threads expose partial claims when outletFor fails on
+    the second one. The healthy surface stands later in registration order, so
+    its updated reply proves reconciliation continued beyond the broken adapter.
+    """
+    entry = {
+        "description": "A project-supplied thread surface.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "none",
+        "x-upgrade": True,
+        "x-thread-surface": True,
+        "x-example": '<lf-test-surface id="surface-example"></lf-test-surface>',
+    }
+    module = """
+import {projectData, registerThreadSurface} from '/runtime/widget-api.js';
+customElements.define('lf-test-surface', class extends HTMLElement {
+  connectedCallback() {
+    projectData(this, ['first', 'second'], key => key, key => {
+      const row = document.createElement('section');
+      const words = document.createElement('p');
+      words.textContent = `${this.id} ${key} datum`;
+      const outlet = document.createElement('div');
+      outlet.className = 'test-outlet';
+      row.outlet = outlet;
+      row.append(words, outlet);
+      return row;
+    });
+    this.surface = registerThreadSurface(this, {
+      begin: () => this.check('begin'),
+      outletFor: ({anchor, placement}) => {
+        if (anchor.datum === 'second') this.check('outletFor');
+        return this.failure === 'hidden' ? null : placement.datumElement.outlet;
+      },
+      end: () => {
+        if (this.failure === 'end-unregister') {
+          this.failure = null;
+          this.surface.unregister();
+        }
+        this.check('end');
+        for (const row of this.children) {
+          if (this.failure === 'moved') document.querySelector('main').append(row.outlet);
+          if (this.failure === 'detached') row.outlet.remove();
+        }
+      },
+    });
+  }
+  check(phase) {
+    if (this.failure === phase) throw new Error(`surface fixture: ${phase}`);
+  }
+  fail(phase) {
+    this.failure = ['unregister', 'disconnect'].includes(phase) ? 'end' : phase;
+    if (phase === 'unregister') this.surface.unregister();
+    else if (phase === 'disconnect') {
+      this.remove();
+      document.querySelector('#healthy').surface.update();
+    }
+    else this.surface.update();
+  }
+});
+"""
+    roots = [f"{index:032x}" for index in range(1, 4)]
+    page, errors = open_page(
+        browser,
+        live_url(
+            serve(
+                leaf_page(
+                    "Adapter isolation",
+                    "<h1>Adapter isolation</h1>"
+                    '<lf-test-surface id="broken"></lf-test-surface>'
+                    '<lf-test-surface id="healthy"></lf-test-surface>',
+                ),
+                layer_registry={"lf-test-surface": entry},
+                layer_widgets={"lf-test-surface.js": module},
+                events=[
+                    {
+                        "id": root,
+                        "kind": "comment",
+                        "author": "user",
+                        "revision": 1,
+                        "text": f"Discuss {section} {datum}",
+                        "anchor": {"section": section, "datum": datum},
+                    }
+                    for root, section, datum in zip(
+                        roots,
+                        ["broken", "broken", "healthy"],
+                        ["first", "second", "first"],
+                        strict=True,
+                    )
+                ],
+            )
+        ),
+    )
+    broken = page.locator("#broken")
+    broken_element = broken.element_handle()
+    prior_outlets = broken.locator(".test-outlet").element_handles()
+    healthy = page.locator("#healthy .lf-conversation-thread")
+    expect(broken.locator(".lf-conversation-thread")).to_have_count(2)
+    expect(healthy).to_contain_text("Discuss healthy first")
+    markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
+    expect(markers).to_have_count(0)
+    broken.locator(".lf-conversation-thread textarea").first.fill(
+        "Keep this unsent reply."
+    )
+    assert errors == []
+
+    broken.evaluate("(widget, phase) => widget.fail(phase)", failure)
+    if failure != "disconnect":
+        expect(broken.locator(".lf-conversation-thread")).to_have_count(0)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": roots[2],
+            "revision": 1,
+            "text": "The healthy conversation still updates.",
+        },
+    )
+    told(page)
+    expect(healthy).to_contain_text("The healthy conversation still updates.")
+    assert (
+        broken_element.evaluate(
+            "widget => widget.querySelectorAll('.lf-conversation-thread').length"
+        )
+        == 0
+    ), "core views survived in a failed or disconnected widget"
+    assert [
+        outlet.evaluate("node => node.childElementCount") for outlet in prior_outlets
+    ] == [
+        0,
+        0,
+    ], "old core views survived in moved, detached, or retired outlets"
+    if failure == "disconnect":
+        expect(markers).to_have_count(0)
+        page.get_by_role("button", name=re.compile(r"^Threads")).click()
+    else:
+        expect(markers).to_have_count(1)
+        markers.first.click()
+    fallback = page.locator(f'.lf-thread[data-id="{roots[0]}"]')
+    expect(fallback).to_be_visible()
+    expect(fallback).to_contain_text("Discuss broken")
+    expect(fallback.locator("textarea")).to_have_value("Keep this unsent reply.")
+    if failure not in {"unregister", "end-unregister", "disconnect"}:
+        page.keyboard.press("Escape")
+        broken.evaluate("""widget => {
+            widget.failure = null;
+            for (const row of widget.children) row.append(row.outlet);
+        }""")
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "parent": roots[2],
+                "revision": 1,
+                "text": "A later reading retries the repaired adapter.",
+            },
+        )
+        told(page)
+        expect(healthy).to_contain_text("A later reading retries the repaired adapter.")
+        expect(broken.locator(".lf-conversation-thread")).to_have_count(2)
+        expect(broken.locator(".lf-conversation-thread textarea").first).to_have_value(
+            "Keep this unsent reply."
+        )
+        expect(markers).to_have_count(0)
+    if failure in {"detached", "hidden", "end-unregister"}:
+        assert errors == []
+    else:
+        expected_phase = "end" if failure in {"unregister", "disconnect"} else failure
+        expected = (
+            "returned an outlet outside its widget"
+            if failure == "moved"
+            else f"surface fixture: {expected_phase}"
+        )
+        assert errors and all(expected in error for error in errors), errors
+    page.close()
+
+
 def test_a_declared_external_projection_must_receive_its_snapshot(browser, serve):
     """Omitting provenance is an invalid projection, not an unversioned fallback."""
     page, errors = open_page(browser, data_projection_page(serve))

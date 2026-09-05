@@ -533,6 +533,11 @@ That keeps lazy widgets lazy and restores the living-margin fallback. Deliberate
 travel may reveal the datum through `lfRevealDatum`; the ordinary reconciliation pass
 then asks the adapter again. The registration handle's `update()` invalidates layout-only
 visibility changes, and `unregister()` removes the surface when the widget disconnects.
+If an adapter throws, Leaf reports a page error, clears that registration's core-owned
+views, and returns its threads to the margin. Other registrations continue, and the
+next ordinary reconciliation retries the adapter. Outlets must remain inside their
+widget after `end`; disconnected outlets claim no threads. Core message-rendering
+errors still fail the state application rather than accepting a partial conversation.
 
 ## Seeing it
 

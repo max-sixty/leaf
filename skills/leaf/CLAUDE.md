@@ -893,8 +893,10 @@ minimum obligations:
   `begin`, `outletFor`, and `end`. The adapter owns local layout and returns an outlet
   only when the exact datum is currently visible. Core renders the complete Thread,
   suppresses the living-margin copy while the outlet stands, and restores the fallback
-  when it does not. Call the handle's `update` after a layout-only visibility change and
-  `unregister` on disconnect.
+  when it does not. An adapter failure reports a page error and releases that widget's
+  core views to the fallback without interrupting other conversations; core rendering
+  errors still fail state application. Call the handle's `update` after a layout-only
+  visibility change and `unregister` on disconnect.
 - Cross-widget datum travel goes through `navigateToDatum(widget, attribute, key,
   messages)`, where `attribute` is declared by the caller's `x-refers`. Core resolves
   the target across declared shadow roots and owns lazy reveal, disclosure focus,

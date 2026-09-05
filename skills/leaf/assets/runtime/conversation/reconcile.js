@@ -311,6 +311,7 @@ export function createConversation(dependencies) {
     containsAcross,
     registry,
     renderThreadSurface,
+    reportPageError,
     requestReconcile: renderPanel,
   });
   threadListRuntime = createConversationThreadList({

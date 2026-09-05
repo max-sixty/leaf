@@ -2,7 +2,9 @@
 
    A surface owns only the DOM geometry that seats a thread. Core owns which
    threads qualify, their retained rendering, and whether a local view suppresses
-   the living-margin fallback. */
+   the living-margin fallback. Adapter faults release that widget's core views
+   and report through the page-error channel; they cannot stop other threads
+   reconciling. Core rendering faults still fail the complete state application. */
 let publishedRegister;
 
 export const registerThreadSurface = (...args) => {
@@ -15,6 +17,7 @@ export function createThreadSurfaces({
   containsAcross,
   registry,
   renderThreadSurface,
+  reportPageError,
   requestReconcile,
 }) {
   const registrations = new Map();
@@ -30,9 +33,28 @@ export function createThreadSurfaces({
     });
   }
 
+  function clearOutlets(outlets) {
+    for (const outlet of outlets) {
+      outlet.replaceChildren();
+      delete outlet.dataset.lfThreadSurface;
+    }
+  }
+
+  function reportFailure({ owner }, error) {
+    reportPageError(
+      `thread surface ${owner.localName}#${owner.id} failed: ${error?.message ?? error}`,
+    );
+  }
+
   function clearRegistration(registration) {
-    registration.adapter.begin();
-    registration.adapter.end();
+    try {
+      registration.adapter.begin();
+      registration.adapter.end();
+    } catch (error) {
+      reportFailure(registration, error);
+    }
+    clearOutlets(registration.outlets);
+    registration.outlets.clear();
   }
 
   publishedRegister = (owner, adapter) => {
@@ -55,7 +77,7 @@ export function createThreadSurfaces({
     if (registrations.has(owner))
       throw new Error(`registerThreadSurface(${owner.localName}) registered twice`);
 
-    const registration = { adapter, owner };
+    const registration = { adapter, owner, outlets: new Set() };
     registrations.set(owner, registration);
     update();
     let active = true;
@@ -75,42 +97,58 @@ export function createThreadSurfaces({
     const nextClaimed = new Set();
     for (const registration of [...registrations.values()]) {
       const { adapter, owner } = registration;
+      if (registrations.get(owner) !== registration) continue;
       if (!owner.isConnected) {
         registrations.delete(owner);
         clearRegistration(registration);
         continue;
       }
-      adapter.begin();
       const byOutlet = new Map();
-      for (const thread of threads) {
-        const anchor = thread.root.anchor;
-        const placement = placedAt(thread.root.id);
-        if (
-          !anchor?.datum ||
-          anchor.section !== owner.id ||
-          placement?.status !== "exact" ||
-          !(placement.datumElement instanceof Element) ||
-          !containsAcross(owner, placement.datumElement)
-        )
-          continue;
-        const outlet = adapter.outletFor({ anchor, placement, thread });
-        if (!(outlet instanceof Element)) continue;
-        if (!containsAcross(owner, outlet))
-          throw new Error(
-            `registerThreadSurface(${owner.localName}) returned an outlet outside its widget`,
-          );
+      try {
+        adapter.begin();
+        for (const thread of threads) {
+          const anchor = thread.root.anchor;
+          const placement = placedAt(thread.root.id);
+          if (
+            !anchor?.datum ||
+            anchor.section !== owner.id ||
+            placement?.status !== "exact" ||
+            !(placement.datumElement instanceof Element) ||
+            !containsAcross(owner, placement.datumElement)
+          )
+            continue;
+          const outlet = adapter.outletFor({ anchor, placement, thread });
+          if (!(outlet instanceof Element)) continue;
+          const held = byOutlet.get(outlet) ?? [];
+          held.push(thread);
+          byOutlet.set(outlet, held);
+        }
+        adapter.end();
+        if (registrations.get(owner) !== registration) continue;
+        // end may move or detach an outlet. Claim only the finished layout.
+        for (const outlet of byOutlet.keys()) {
+          if (!outlet.isConnected) byOutlet.delete(outlet);
+          else if (!containsAcross(owner, outlet))
+            throw new Error(
+              `registerThreadSurface(${owner.localName}) returned an outlet outside its widget`,
+            );
+        }
+      } catch (error) {
+        clearOutlets(registration.outlets);
+        registration.outlets.clear();
+        reportFailure(registration, error);
+        continue;
+      }
+      clearOutlets([...registration.outlets].filter((outlet) => !byOutlet.has(outlet)));
+      registration.outlets = new Set(byOutlet.keys());
+      for (const [outlet, localThreads] of byOutlet) {
         // Core controls seated inside a widget are a nested interaction scope, not part
         // of that widget's shortcut surface. The keyboard register stops its ancestor
         // walk here while retaining scopes declared on the Thread controls themselves.
         outlet.dataset.lfThreadSurface = "";
-        const held = byOutlet.get(outlet) ?? [];
-        held.push(thread);
-        byOutlet.set(outlet, held);
-        nextClaimed.add(thread.root.id);
+        renderThreadSurface(outlet, localThreads);
+        for (const thread of localThreads) nextClaimed.add(thread.root.id);
       }
-      adapter.end();
-      for (const [outlet, localThreads] of byOutlet)
-        if (outlet.isConnected) renderThreadSurface(outlet, localThreads);
     }
     claimed = nextClaimed;
     return claimed;

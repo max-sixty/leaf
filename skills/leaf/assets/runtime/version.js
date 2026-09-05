@@ -219,6 +219,7 @@ export function createVersion({
     // reference's restore puts them when it hands the menu back, and moving them off it
     // would undo the whole point of the exemption.
     if (open && !versionMenu.contains(document.activeElement)) focusVersionRow();
+    if (!open) renderVersions(runtime.state);
     paintHere();
   });
   // The press is the popover's declared invoker rather than a click handler that toggles by
@@ -537,7 +538,7 @@ export function createVersion({
     // and skipping the build inside would mark the change handled and leave that
     // version out of the menu until some later one happened along. A version arriving
     // under an open menu is the new-version chip's news; the list catches up on the
-    // next poll after it closes.
+    // toggle that closes it, using the last accepted state.
     if (key !== lastVersionsKey && !versionMenuIsOpen()) {
       lastVersionsKey = key;
       versionMenu.replaceChildren(...(state === null ? [] : menuRows(state, notes)));

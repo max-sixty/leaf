@@ -3232,12 +3232,9 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
 
 def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     """The list is rebuilt rather than reconciled, and an open menu defers the
-    rebuild so a version landing mid-walk can't take the focused row away. What
-    that defers has to survive the deferral: the key saying the list is current
-    was consumed before the deferral was checked, so a version published while
-    the menu stood marked the change handled and never wrote the row. The menu
-    then sat one version short for as long as nothing else was published — and
-    the poll it needed had already been and gone, so nothing was coming."""
+    rebuild so a version landing mid-walk can't take the focused row away.
+    Dismissal must apply the deferred update: unchanged state no longer repaints
+    the page, so no later state response can be relied on to rebuild the list."""
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, INLINE_PAGE, "two")
     page, errors = open_page(browser, url, pin=True)
@@ -3253,7 +3250,7 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
 
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    # And it arrives on the next poll rather than waiting on a fourth version.
+    # Dismissal applies the deferred update without another publication.
     expect(page.locator(".lf-version-row")).to_have_count(3)
     expect(page.locator(".lf-version-row").last).to_contain_text("v3 (latest version)")
     assert errors == []

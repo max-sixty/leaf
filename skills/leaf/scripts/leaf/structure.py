@@ -319,6 +319,8 @@ class _StructParser(HTMLParser):
                     "equiv": attrs_d["http-equiv"],
                     "content": attrs_d.get("content"),
                     "line": self.getpos()[0],
+                    "position": self.getpos(),
+                    "raw": self.get_starttag_text(),
                 }
             )
         if attrs_d.get("style"):

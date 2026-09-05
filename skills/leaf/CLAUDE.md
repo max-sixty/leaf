@@ -20,7 +20,10 @@ record the sequence of implementations that led to the current one.
 ## Runtime ownership
 
 `leaf.js` is the boot-only browser entry module: it composes the runtime owners and
-starts the page, but exports no capability. `runtime/widget-api.js` is the one public
+starts the page, but exports no capability. The HTTP boundary places the vendored
+`runtime/bootstrap.js` before loadable resources, with an exact CSP hash; it can
+show startup failure and hear a replacement server even if the module graph or
+stylesheet never loads. `runtime/widget-api.js` is the one public
 helper surface for behavior modules and reexports capabilities directly from their
 runtime owners. An owner may publish a factory-built capability after boot wires its
 dependencies; it never reaches back through the entry module or public facade.

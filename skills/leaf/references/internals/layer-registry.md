@@ -32,6 +32,13 @@ successful init records two deliberately different identities under `$layer`:
   guidance bytes have the same fingerprint across repeated vendoring. `producer`
   records the Git commit and dirty bit when the payload came from a checkout.
 
+HTTP responses also identify the serving incarnation in `Leaf-Server`. A served
+page's inline, CSP-hashed bootstrap supervises startup before the module graph
+or stylesheet can fail. After a startup failure it reloads only when the server
+incarnation or layer generation changes. This includes a rejected re-vendor:
+its layer stays frozen, but the restarted server can finish a formerly interrupted
+load. Source files and standalone exports carry no startup supervisor.
+
 `registry.json` remains the source of truth for the current custom vocabulary and
 its explanations; this contract does not mirror that inventory.
 

@@ -6,17 +6,28 @@ runtime. They use the environment pinned by the root `pyproject.toml` and `uv.lo
 
 ## Examples and previews
 
-`preview.py [page]` freshly vendors and serves one public example or the developer
-feature gallery. It copies
-media, applies current values and file captures from its data manifest, stamps every
-authored version oldest first, copies the example's companion log in after the first
-of them, then sets the event cursor past seeded history. `--source`
-accepts any authored HTML file, while `--runtime` chooses the checkout that vendors
-it. Named `--slot` pages coexist; `--background` starts one and returns its URL.
-A live preview shows that runtime's safe checkout provenance in a banner badge;
-pressing it copies the source, commit, layer identity, revision, event sequence, and
-a URL with its access token removed. `--export` writes the prepared page as one
-standalone HTML file for handoff and carries no preview badge.
+`preview.py [page]` prepares and watches one public example or developer fixture
+at `.tmp/previews/<source-stem>`. It seeds authored versions, companion events,
+media and data once; subsequent runs reuse that page and preserve feedback.
+`--source` accepts an authored HTML file, `--runtime` selects its Leaf checkout,
+and `--slot` names another independent copy. `--background` detaches the watcher;
+its startup output names the update log. The matching command with `--stop`
+waits for the watcher and service to stop, including an in-flight update. Ctrl-C
+stops a foreground watcher the same way.
+
+Source, runtime, theme, registry, media and selected package edits trigger the normal
+stop, init, stamp and start lifecycle. The generation handshake reloads open
+tabs at the same URL. Incompatible source/layer edits leave feedback intact and
+report a refusal; the next edit retries. Changing the source identity or seeded
+history/data requires a new slot. Runtime updates preserve direct edits to the
+live page; editing both that page and its source fixture requires reconciling them.
+Media refreshes add immutable files before stamping source changes. Removed source
+assets remain available to historical revisions; changed bytes require a new filename.
+
+The preview banner shows safe checkout provenance; pressing it copies the source,
+commit, layer identity, revision, event sequence, and a URL with its access token
+removed. `--export` independently prepares a frozen standalone file without a
+preview badge or watcher.
 `examples/CLAUDE.md` owns those fixture rules.
 
 `corpus.py` generates the internal `examples/corpus.html` stress fixture and its

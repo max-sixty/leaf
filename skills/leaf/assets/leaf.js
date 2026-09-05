@@ -3866,6 +3866,7 @@ async function startPage() {
 startPage().catch((error) => {
   // The boundary itself must fail visibly. Authored HTML remains readable, while the
   // status names the fault and the absent presented stamp keeps durable controls closed.
+  window.dispatchEvent(new Event("lf-startup-failed"));
   reportPageError(`page failed to start: ${error?.message ?? error}`);
   renderStatus(error);
 });

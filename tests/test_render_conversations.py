@@ -3810,10 +3810,10 @@ def test_a_narrowing_that_hides_the_card_the_reader_stands_in_lands_them_on_the_
 def test_a_growing_reply_keeps_its_send_in_the_list(browser, serve):
     """A reply box grows under the reader; its Send and Resolve go with it.
 
-    Landing in a reply reveals the composer with its actions. Typing eight lines then
-    grew the box past the list's foot and left the blue Send a sliver at the
-    scrollport's edge — reachable by the send key the placeholder happened to name,
-    and by nothing a pointer could find. Growth is the landing's claim made again.
+    Landing in a reply reveals the composer with its actions. Growing the box past the
+    list's foot then left the blue Send a sliver at the scrollport's edge — reachable by
+    the send key the placeholder happened to name, and by nothing a pointer could find.
+    Growth is the landing's claim made again.
 
     On a card taller than the list — the shipped example's second thread, two long
     turns and the reply — because a short card's Send never leaves the scrollport
@@ -3827,14 +3827,21 @@ def test_a_growing_reply_keeps_its_send_in_the_list(browser, serve):
     thread = card.get_attribute("data-id")
     reply = card.locator("textarea")
     reply.click()
-    for line in range(8):
+    # The card has to overrun the list, or Send never left the scrollport and the claim
+    # below is proved by nothing. How many lines that takes is a function of everything
+    # else the card is carrying — eight was enough until a strip left the card and took
+    # eleven pixels with it — so the typing asks the page rather than naming a count.
+    room = page.evaluate("() => document.querySelector('.lf-threads').clientHeight")
+    overran = False
+    for line in range(24):
         page.keyboard.type(f"line {line} of a reply that keeps growing the box")
         page.keyboard.press("Enter")
-    # Grown, the card has to overrun the list, or Send never left the scrollport and
-    # the claim below is proved by nothing.
-    room = page.evaluate("() => document.querySelector('.lf-threads').clientHeight")
-    assert card.bounding_box()["height"] > room, (
-        "a card the list can show whole never pushes its Send out; this proves nothing"
+        overran = card.bounding_box()["height"] > room
+        if overran:
+            break
+    assert overran, (
+        f"{line + 1} lines left the card at {card.bounding_box()['height']:.0f} in a "
+        f"list {room} tall, so it never pushed its Send out; this proves nothing"
     )
     in_threads_scrollport(page, f'.lf-thread[data-id="{thread}"] .lf-thread-send')
     assert errors == []

@@ -48,6 +48,12 @@ let VERSION;
 let VERSIONS;
 const realFetch = window.fetch.bind(window);
 
+async function requireFile(path) {
+  const response = await realFetch(path);
+  if (!response.ok) throw new Error(`${path} returned HTTP ${response.status}`);
+  return response;
+}
+
 function installIdentity(name, value) {
   const selector = `meta[name="${name}"][data-lf-runtime]`;
   let marker = document.querySelector(selector);
@@ -72,13 +78,10 @@ let LAYER;
 let DATA;
 let events;
 const sessionReady = Promise.all([
-  realFetch("/registry.json").then((response) => response.json()),
-  realFetch(`${PAGE_ROOT}data.json`)
-    .then((response) => (response.ok ? response.json() : { revision: 0, sources: {} }))
-    .catch(() => ({ revision: 0, sources: {} })),
-  realFetch(`${PAGE_ROOT}events.jsonl`)
-    .then((response) => (response.ok ? response.text() : ""))
-    .catch(() => "")
+  requireFile("/registry.json").then((response) => response.json()),
+  requireFile(`${PAGE_ROOT}data.json`).then((response) => response.json()),
+  requireFile(`${PAGE_ROOT}events.jsonl`)
+    .then((response) => response.text())
     .then((text) =>
       text
         .split("\n")

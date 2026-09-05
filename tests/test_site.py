@@ -337,6 +337,21 @@ def test_every_product_route_is_a_live_leaf(site, hosted, browser):
         page.close()
 
 
+def test_a_product_route_refuses_a_missing_session_file(hosted, browser):
+    """Every static route has complete session inputs or fails before Leaf loads."""
+    for name in ("registry.json", "data.json", "events.jsonl"):
+        page = browser.new_page()
+        page.route(f"**/{name}", lambda route: route.fulfill(status=404, body=""))
+        try:
+            with page.expect_event("pageerror") as raised:
+                page.goto(product_url(hosted, "index.html"), wait_until="load")
+            assert f"/{name} returned HTTP 404" in str(raised.value)
+            assert page.locator("body").get_attribute("data-lf-presented") is None
+        finally:
+            page.unroute_all(behavior="wait")
+            page.close()
+
+
 def test_the_product_diagram_fits_without_its_own_scroll(hosted, browser):
     """The architecture is one sequence, so the diagram must fit its content box."""
     page, errors = open_page(browser, product_url(hosted, "how-it-works.html"))

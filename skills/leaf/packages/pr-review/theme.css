@@ -273,24 +273,7 @@ lf-call-diff {
   font-size: var(--t-6);
 }
 
-/* Doubled with .lf-ui, which `offer` writes on every control a widget injects: the
- * runtime's chrome face and ink are stated at one class, so a package rule that names
- * only its own class loses the face it asked for. */
-.lf-call-toggle.lf-ui {
-  flex: none;
-  padding: 3px 9px;
-  border: 1px solid var(--code-border);
-  border-radius: 999px;
-  background: var(--pre-bg);
-  color: var(--code-ink);
-  font: inherit;
-  cursor: pointer;
-}
-
-.lf-call-toggle:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
+.lf-call-toggle { flex: none; }
 
 .lf-call-group {
   border-top: 1px solid var(--code-border);

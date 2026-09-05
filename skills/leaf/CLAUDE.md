@@ -612,11 +612,12 @@ the generic retired-slot hiding. A module may paint the same
 `data-lf-state` optimistically as choreography, but authoritative replay writes
 it and clears it when another outcome on the settlement facet wins.
 
-`paintPending` compares each desired record with `authoredFacets`. It paints
-`data-lf-pending` for reader actions and `data-lf-reported` for reports only
+`paintStateOrigins` compares each desired record with `authoredFacets`. It paints
+`data-lf-reader-override` for reader actions and `data-lf-reported` for reports only
 while the log differs from this version's authored state. Recordless decisions
-remain pending while their holder remains in the document. These marks are
-renderings of the projection, never inputs to it.
+retain the reader-origin mark while their holder remains in the document. These
+marks describe origin, not unfinished work; receipts own processing and completion.
+They are renderings of the projection, never inputs to it.
 
 ### Version and conversation windows
 
@@ -861,13 +862,17 @@ minimum obligations:
 - Register keys with `keys(el, title, rows)` during upgrade, not at module load.
 - Call `quoted(el)` before wiring module-specific gestures. `sendAction` also
   refuses actions on an exhibited widget at the layer door.
-- A visual declaring `{parts: ATTR}` must implement `lfVisualPartAt(target)` to
-  return one token from ATTR and `lfVisualPart(part)` to return its current
-  `{element, label}`. The authored widget remains the comment seat, the token is
-  recorded as `anchor.visual`, and the returned element is the semantic target for marks,
-  travel, and aim. Marks and aim follow a returned SVG element's painted
-  primitives; other elements use the shown box. The render gate refuses either missing
-  method.
+- A visual declaring `{parts: ATTR}` calls `registerVisualParts(source, read)` once.
+  `read` returns its complete current `{id, element, label, surface?}` inventory; core
+  admits only tokens authored in ATTR and derives both token lookup and the deepest hit.
+  `surface` defaults to `element` and may name one descendant whose native paint excludes
+  decoration from the target contour. It changes paint only: the returned element remains
+  the hit and travel target. The authored widget remains the comment seat, and `id` is
+  recorded as `anchor.visual`. Marks and aim follow an SVG surface's painted geometry
+  primitives; a surface with none, and every other element, uses the shown box. Call the
+  registration's `update()` after any rendering or geometry change, including an in-place
+  attribute or style change. The render gate validates the inventory and requires every
+  authored token to resolve.
 - Render externally supplied or derived records through `projectData`. Its root is an
   authored, id-bearing seat; record keys are stable within that seat, and its renderer
   receives the prior node so unchanged controls and selections can remain in place. A
@@ -1001,10 +1006,17 @@ and every standing selection. `page state` exposes those bindings and consumers 
 producers. The browser keeps the accepted data revision independently from
 `lastEventSeq`, because overlapping poll and POST responses can order the authorities
 differently. `watchData(widget, input, callback)` delivers a clone of
-`{contract, updated, value}` for current, a clone with `snapshot`, `label`, and optional
-`lines` for a selected capture, or `null` before a bound current value exists. Modules
+`{contract, revision, updated, value, origin}` for current, a clone with `snapshot`,
+`label`, and optional `lines` for a selected capture, or `null` before a bound current
+value exists. Modules
 project the result into the authored seat; they do not fetch it, mutate the accepted
 copy, or keep a hidden current-value map of their own.
+
+The watcher constructs `origin` from the accepted source binding. Emitters pass it to
+`projectData`'s `originOf`, adding a source-value path only where construction knows that
+coordinate. The helper writes `data-lf-origin` beside each datum and clears it when an
+origin or nested datum retires. The package reference owns the origin fields; no reading
+infers them from a datum key or rendered text.
 
 Keys identify facts, not renderings or display strings. They are non-empty strings,
 unique within one projection, and must remain with the same logical datum across
@@ -1019,11 +1031,16 @@ quote in the thread; it never follows the old string to an equal value elsewhere
 missing or duplicate key detaches rather than guessing. Selections crossing datum
 boundaries remain ordinary quote anchors because they name a passage, not one fact.
 
-`data-lf-projection`, `data-lf-datum`, and `data-lf-gen` are written by `projectData`,
-never authored in a version. A custom widget joins through the helper alone; no
+`data-lf-projection`, `data-lf-datum`, `data-lf-origin`, and `data-lf-gen` are written by
+`projectData`, never authored in a version. A custom widget joins through the helper alone; no
 consumer names its tag. Export preserves the rendered elements and their labels as a
 snapshot, while dropping the scripts that could refresh them. Print preserves the same
 readable words. Neither medium claims that the snapshot remains live.
+
+Ordinary action controls use `.lf-btn`, whose shared theme rules also enter
+declared shadow trees. Packages may set placement and density, but keep its
+shape, border, hover, and disabled treatment. Margin Buttons, reaction chips,
+and status labels retain their own forms.
 
 The three visual voices are prose, apparatus, and evidence. Body prose uses the
 serif; labels, controls, and annotations embedded in evidence use the sans; and

@@ -22,6 +22,9 @@ from render_support import (
     EDGES,
     EXAMPLES,
     FOCUS_IN_PAGE,
+    GENERIC_VISUAL_LAYER,
+    GENERIC_VISUAL_PAGE,
+    GENERIC_VISUAL_WIDGETS,
     HOLD_MOTION,
     LEGEND_TRUE,
     LONG_PAGE,
@@ -32,6 +35,9 @@ from render_support import (
     PICTURE_PAGE,
     RENDERED,
     REPLAYED_PAGE,
+    SHADOW_VISUAL_LAYER,
+    SHADOW_VISUAL_PAGE,
+    SHADOW_VISUAL_WIDGETS,
     SHIPPED_PACKAGES,
     SPECIMEN_PAGE,
     SUGGESTION_PAGE,
@@ -1625,6 +1631,268 @@ def test_a_visual_part_aim_follows_its_drawn_svg_shape(browser, serve):
     corners = ratio(lambda x, y: abs(x - 0.5) + abs(y - 0.5) > 0.75)
     assert middle > 0.5, f"the diamond's middle changed by only {middle:.0%}"
     assert corners < 0.05, f"the empty corners changed by {corners:.0%}"
+    page.keyboard.up("Alt")
+    assert errors == []
+    page.close()
+
+
+def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
+    browser, serve
+):
+    """Core derives hit lookup from one package inventory.
+
+    The inner part wins even though the containing part appears first. The outer part's
+    explicit surface excludes its decorative line, while the inner part's default surface
+    follows all painted geometry it contains.
+    """
+    page, errors = open_page(
+        browser,
+        serve(
+            GENERIC_VISUAL_PAGE,
+            layer_registry=GENERIC_VISUAL_LAYER,
+            layer_widgets=GENERIC_VISUAL_WIDGETS,
+        ),
+    )
+
+    page.locator("#outer-surface").hover(position={"x": 20, "y": 20})
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "outer")
+    assert page.eval_on_selector_all(
+        ".lf-aim-shape > g > *", "nodes => nodes.map(node => node.localName)"
+    ) == ["rect"]
+    page.keyboard.up("Alt")
+
+    page.locator("#inner path").hover()
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "inner")
+    assert page.eval_on_selector_all(
+        ".lf-aim-shape > g > *", "nodes => nodes.map(node => node.localName)"
+    ) == ["path", "line"]
+    page.keyboard.up("Alt")
+    assert errors == []
+    page.close()
+
+
+def test_an_undeclared_nested_part_does_not_shadow_its_declared_parent(browser, serve):
+    """Authored tokens bound hit-testing, not only the event after it has chosen a hit.
+
+    The package may register more parts than this instance exposes. A hit inside one of
+    those parts still belongs to the nearest declared ancestor rather than widening to
+    the visual as a whole.
+    """
+    page, errors = open_page(
+        browser,
+        serve(
+            GENERIC_VISUAL_PAGE.replace(
+                'parts="outer inner html"', 'parts="outer html"'
+            ),
+            layer_registry=GENERIC_VISUAL_LAYER,
+            layer_widgets=GENERIC_VISUAL_WIDGETS,
+        ),
+    )
+
+    page.locator("#inner path").hover()
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "outer")
+    assert page.eval_on_selector_all(
+        ".lf-aim-shape > g > *", "nodes => nodes.map(node => node.localName)"
+    ) == ["rect"]
+    page.keyboard.up("Alt")
+    assert errors == []
+    page.close()
+
+
+def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, serve):
+    """The package's update signal rebuilds a contour even when its box does not move."""
+    url = serve(
+        GENERIC_VISUAL_PAGE,
+        layer_registry=GENERIC_VISUAL_LAYER,
+        layer_widgets=GENERIC_VISUAL_WIDGETS,
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "outer-comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep the boundary visible.",
+            "anchor": {"section": "visual", "visual": "outer"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    contour = page.locator(".lf-visual-mark-shape > g > rect")
+    expect(contour).to_have_attribute("rx", "8")
+    before = page.evaluate(
+        """() => {
+          const contour = document.querySelector('.lf-visual-mark-shape > g > rect');
+          window.lfOldContour = contour;
+          return contour.getBoundingClientRect();
+        }"""
+    )
+
+    page.locator("#visual").evaluate("visual => visual.redraw()")
+    expect(contour).to_have_attribute("rx", "28")
+    after = contour.evaluate("contour => contour.getBoundingClientRect()")
+    assert before == after
+    assert page.evaluate(
+        "() => window.lfOldContour !== document.querySelector('.lf-visual-mark-shape > g > rect')"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
+    browser, serve
+):
+    """Decoration omitted from a contour still belongs to its semantic part.
+
+    The posted comment opens from the line inside the registered element, while the
+    package-selected rectangle remains the only cloned paint. A second draft on the same
+    part keeps the posted comment's contour instead of claiming it as pending paint.
+    """
+    url = serve(
+        GENERIC_VISUAL_PAGE,
+        layer_registry=GENERIC_VISUAL_LAYER,
+        layer_widgets=GENERIC_VISUAL_WIDGETS,
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "outer-comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep the boundary visible.",
+            "anchor": {"section": "visual", "visual": "outer"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    outer = page.locator("#outer")
+    decoration = page.locator("#outer-decoration")
+    mark = page.locator(".lf-visual-mark")
+
+    expect(outer).to_have_class(re.compile(r"\blf-shaped-mark\b"))
+    assert page.eval_on_selector_all(
+        ".lf-visual-mark-shape > g > *", "nodes => nodes.map(node => node.localName)"
+    ) == ["rect"]
+
+    def midpoint(line):
+        return line.evaluate(
+            """line => {
+          const matrix = line.getScreenCTM();
+          const point = new DOMPoint(
+            (line.x1.baseVal.value + line.x2.baseVal.value) / 2,
+            (line.y1.baseVal.value + line.y2.baseVal.value) / 2,
+          ).matrixTransform(matrix);
+          return {x: point.x, y: point.y};
+        }"""
+        )
+
+    point = midpoint(decoration)
+    page.mouse.move(point["x"], point["y"])
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
+    page.mouse.click(point["x"], point["y"])
+    expect(page.locator('.lf-thread[data-id="outer-comment"]')).to_be_visible()
+    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+
+    point = midpoint(decoration)
+    page.keyboard.down("Alt")
+    page.mouse.move(point["x"], point["y"])
+    page.mouse.click(point["x"], point["y"])
+    page.keyboard.up("Alt")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(mark).to_have_class(re.compile(r"\blf-visual-mark-comment\b"))
+    expect(mark).not_to_have_class(re.compile(r"\blf-visual-mark-pending\b"))
+    assert errors == []
+    page.close()
+
+
+def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, serve):
+    """The painter owns the rectangular fallback as well as SVG contours."""
+    url = serve(
+        GENERIC_VISUAL_PAGE,
+        layer_registry=GENERIC_VISUAL_LAYER,
+        layer_widgets=GENERIC_VISUAL_WIDGETS,
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "html-comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep the small surface.",
+            "anchor": {"section": "visual", "visual": "html"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    semantic = page.locator("#html")
+    surface = page.locator("#html-surface")
+    mark = page.locator(".lf-visual-mark")
+
+    expect(semantic).to_have_class(re.compile(r"\blf-shaped-mark\b"))
+    expect(mark).to_be_visible()
+    expect(mark).not_to_have_class(re.compile(r"\blf-shaped\b"))
+    expect(mark).to_have_css("border-radius", "12px")
+    assert mark.locator(".lf-visual-mark-shape > *").count() == 0
+    marked = mark.bounding_box()
+    painted = surface.bounding_box()
+    assert all(
+        abs(marked[key] - painted[key]) <= 1 for key in ("x", "y", "width", "height")
+    ), (marked, painted)
+
+    surface.hover()
+    page.keyboard.down("Alt")
+    aim = page.locator(".lf-aim")
+    expect(aim).not_to_have_class(re.compile(r"\blf-shaped\b"))
+    expect(aim).to_have_css("border-radius", "12px")
+    aimed = aim.bounding_box()
+    assert all(
+        abs(aimed[key] - painted[key]) <= 1 for key in ("x", "y", "width", "height")
+    ), (aimed, painted)
+    page.keyboard.up("Alt")
+    assert errors == []
+    page.close()
+
+
+def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
+    """Core follows package geometry through its host into the page's clip chain."""
+    url = serve(
+        SHADOW_VISUAL_PAGE,
+        layer_registry=SHADOW_VISUAL_LAYER,
+        layer_widgets=SHADOW_VISUAL_WIDGETS,
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "shadow-comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep the clipped edge.",
+            "anchor": {"section": "shadow-visual", "visual": "wide"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    host = page.locator("#shadow-visual")
+    surface = host.locator("#wide-surface")
+    mark = page.locator(".lf-visual-mark")
+
+    expect(mark).to_be_visible()
+    host_box = host.bounding_box()
+    mark_box = mark.bounding_box()
+    assert mark_box["x"] >= host_box["x"]
+    assert mark_box["x"] + mark_box["width"] <= host_box["x"] + host_box["width"]
+
+    surface.hover(position={"x": 20, "y": 20})
+    page.keyboard.down("Alt")
+    aim = page.locator(".lf-aim")
+    expect(aim).to_have_attribute("data-for", "wide-surface")
+    aim_box = aim.bounding_box()
+    assert aim_box["x"] >= host_box["x"]
+    assert aim_box["x"] + aim_box["width"] <= host_box["x"] + host_box["width"]
     page.keyboard.up("Alt")
     assert errors == []
     page.close()

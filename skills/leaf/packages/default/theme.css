@@ -378,27 +378,54 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
   }
  }
 }
-/* The mark the upgrade injects: the keyboard path and the state in one element. It is
- * silent until there is a pick to state, so its box is not the same in both states — the
- * room is what stays the same, held on every card whether or not one is picked, and the
- * word grows into space already reserved. Where it hangs, and what holds that room, are
- * each form's own business.
+/* The mark the upgrade injects is both the keyboard path and the state. Each form gives
+ * that element one place of its own.
  *
- * On a card, a caption on its own left edge rather than a control pinned to a corner,
- * standing in the strip below the content. On a live page every card in a choose group
- * reserves that strip, because the pick can land on any of them; on paper, in a copy
- * whose scripts are gone, and in an exhibit, it can land nowhere, so the room is
- * reserved where the mark shows — the chosen card's, whose mark is the document's
- * state and stands in every medium. */
+ * A live titled card is already the whole pointer target, so an empty radio in a footer
+ * only restates the offer after the argument has ended. Its open single-pick state draws
+ * no mark; the joined frame, card divisions, pointer, and aim wash carry the offer. Once
+ * picked, the same control becomes a compact status chip at the card's opening edge.
+ * Multiple-choice cards keep their empty squares there too: unlike a radio, those boxes
+ * say that more than one answer may stand and let the reader count the choices left.
+ *
+ * The Ask's action address temporarily takes that same opening-edge slot in either arity.
+ * The slot is reserved beside the author's chip band and title on every card, so neither
+ * a pick nor an address moves or covers the words. A document-only chosen card keeps the
+ * compact caption below: it has no live header state or action address. */
 lf-options:has(> lf-option > strong) > lf-option[chosen] { padding-bottom: 32px; }
-@media screen {
- :where(html:not(.lf-copy)) {
-  lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong)
-                   > lf-option { padding-bottom: 32px; }
- }
-}
 lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
                      position: absolute; left: var(--sp-3); bottom: 9px; }
+@media screen {
+ html:not(.lf-copy)
+ lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
+   --lf-card-state-room: 80px;
+   & > :is(lf-option, .lf-another) { padding-inline-start: var(--sp-3); }
+   & > lf-option { padding-bottom: var(--sp-3); }
+   /* A float is the exclusion, rather than margin on one authored child: every chip and
+    * title line that reaches the status band wraps around the same reserved rectangle. */
+   & > lf-option::before { content: ""; float: inline-end;
+                     width: var(--lf-card-state-room); height: 22px;
+                     pointer-events: none; }
+   & > lf-option > .lf-pick {
+                     left: auto; inset-inline-end: var(--sp-2);
+                     top: var(--sp-2); bottom: auto; z-index: 1; }
+   &:not([multiple]) > lf-option:not([chosen]) > .lf-pick::before {
+                     visibility: hidden; }
+   & > lf-option[chosen] > .lf-pick {
+                     padding: 2px 8px; border-radius: 999px;
+                     background: var(--ok); color: var(--card);
+                     font-size: var(--t-6); line-height: 1.5;
+                     gap: 4px; }
+   & > lf-option[chosen] > .lf-pick::before {
+                     width: auto; height: auto; border: 0; background: transparent;
+                     color: inherit; }
+   & > lf-option > .lf-address {
+                     inset-inline-start: auto; inset-inline-end: var(--sp-2);
+                     top: var(--sp-2); }
+   &:has(> lf-option > .lf-address[data-lf-ask-address])
+                     > lf-option > .lf-pick { opacity: 0; }
+ }
+}
 /* The face is stated here, not left to a class: the mark has two shapes — a press
  * wearing .lf-ui where the group takes picks, a bare span where it doesn't — and only
  * one of them has the class to answer for it, so the one rule both shapes share names
@@ -447,16 +474,11 @@ lf-options[multiple] > lf-option > .lf-pick::before { border-radius: 3px; }
  * export` taking it off a control whose handler has gone. So this needs no guard of its
  * own: the hand is on the mark exactly while the mark can take a selection. */
 lf-option .lf-pick[role="checkbox"] { cursor: pointer; }
-/* An offer says nothing on screen, so it is not drawn — in either form. A picked mark's
- * word is the page's only statement of where the pick sits, which paper keeps and a user
- * can quote; "choose one" states nothing a reader could disagree with, and a card carrying
- * it on every member says the same nothing two to five times. The card form used to argue
- * it needed the word precisely because it had no column of dots to say it, and a choose
- * group has one — a weak one, spread down a tall card. Strengthen the column; don't
- * caption it. The silence is the screen's alone: the mark announces that word either way
- * (lf-options.js), because the corner saying arity is paint and reaches no screen reader.
- * The room the word will need is held either way (each form's own rules below), so the
- * mark grows into space already reserved and a pick moves nothing. */
+/* An offer says nothing on screen, so its word is not drawn. "Choose one" or "choose any"
+ * remains the mark's accessible name because shape reaches no screen reader. A picked
+ * row and an inert document mark stay just as terse: their check and tint state the fact.
+ * A live titled card is the exception declared in its own layout above, where the picked
+ * word becomes a compact header status in room the open state already reserved. */
 lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
 /* Warming the ring under the aim, wherever the ring is drawn — a row, a card under
  * `multiple`, and a card in a settled group. A live single-pick card group draws none, so
@@ -577,7 +599,7 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
     /* Pending is still durable state in the projection, but its generic green outline
      * would be a second exterior border around this already-framed control. The selected
      * row itself shows the standing choice; keep the frame visually stable. */
-    &[data-lf-pending] { outline: none; }
+    &[data-lf-reader-override] { outline: none; }
     /* The joined group draws a frame, so it says so, like every box that draws one
      * (--lf-frame, theme.css). Its cells declare their own; this covers what stands
      * beside them. */
@@ -612,9 +634,9 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * one line, every interior line painted twice, and the edges leaning on the
      * group's clip to take the overhang. */
     & > :not(:last-child) { border-bottom: 1px solid var(--rule); }
-    /* A cell has no border of its own. Selection gets one quiet ground here; the check
-     * in the mark is its compact second channel. The vertical status bar that used to
-     * sit beside both only repeated the same fact and made green read like focus. */
+    /* A cell has no border of its own. Selection gets one quiet ground here; the mark's
+     * check is its compact second channel. The vertical status bar that used to sit
+     * beside both only repeated the same fact and made green read like focus. */
     & > lf-option { --fill: var(--card); background: var(--fill); }
     /* The aim wash. The cell under the pointer and the cell under the keyboard are the
      * same fact to the reader — this one is being weighed — so both wear one paint. It
@@ -650,25 +672,6 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * that floor. Both said apparatus, of the one cell in the group that takes an answer
      * the author didn't think of — sunk into a band below the answers, held 18px short of
      * the column every word around it opens at, dressed as the machinery a reader skips. */
-    /* The single-pick card used to give its mark up: the room stayed reserved, the ring
-     * stopped drawing, and the argument was that the group's shape already said a pick
-     * was on offer, so the weaker of two ways to say one thing could go.
-     *
-     * It was the wrong one of the two to weigh. A group's shape says the group takes an
-     * answer; a mark says *this* is one of the places the answer can go, and it says it
-     * where the reader is looking rather than at the frame around everything. Measured on
-     * the shipped pages, that left a card group standing as blank paper at rest — an 11px
-     * box with no border and no fill against the option's own ground — while the row form
-     * beside it drew a column of rings for the same question. Two forms of one widget,
-     * two answers to "can I press this", and the reader who guessed wrong found out by
-     * pressing.
-     *
-     * So the mark draws in every form and either arity, and the ring's own resting edge
-     * (--border-2, the base rule above) is what it draws. The room was always reserved,
-     * so nothing moves; what changes is that the reservation now has the mark in it.
-     * `multiple` keeps the second job it always had here — three unticked boxes beside a
-     * ticked one are what say how many are still yours to take — and single-pick keeps
-     * the first, which is simply that there is something here to take. */
     /* The joined control owns focus at row scale. The mark's generic ring stays off and
      * the exact option row draws one inset keyboard ring below; pointer focus draws none.
      * This leaves the permanent group frame as a frame rather than surrounding it with a
@@ -704,17 +707,15 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
    * real button with a compact visible word and the full accessible name. Positioned
    * over room the input reserves, it does not make a compact row taller than its neighbours. */
   .lf-another input { flex: 1; min-width: 0; padding: 0;
-                     padding-inline-end: calc(var(--aim-floor) + var(--sp-1));
+                     padding-inline-end: calc(var(--aim-floor) + var(--sp-4));
                      border: 0; outline: none; background: transparent; color: inherit;
                      font: var(--t-4)/1.6 var(--serif); }
   .lf-another > .lf-btn { position: absolute; inset-inline-end: var(--sp-1);
                      top: 50%; transform: translateY(-50%);
                      display: flex; align-items: center; justify-content: center;
-                     width: var(--aim-floor); height: var(--aim-floor); padding: 0;
-                     border: 0; border-radius: 4px; background: transparent;
-                     color: var(--muted); font: 600 var(--t-6)/1 var(--sans); }
-  .lf-another > .lf-btn[aria-disabled="false"] { color: var(--ink); cursor: pointer; }
-  .lf-another > .lf-btn[aria-disabled="false"]:hover { background: var(--chip); }
+                     min-width: var(--aim-floor); height: var(--aim-floor);
+                     padding: 0 var(--sp-1);
+                     font: 600 var(--t-6)/1 var(--sans); }
   /* The leading column holds the keyboard address and the gap before the option's
    * words. The address starts at the ordinary 8px inset and takes
    * --lf-key-box, so changing the utility type grows the
@@ -1678,8 +1679,8 @@ lf-source pre:is(:focus-visible, .lf-focus-visible) {
 /* lf-draft rendered form: a block of text the user owns. The dashed border says
    "editable" and sharpens under the pointer, because the box is the door a press opens
    (lf-draft.js); the ✎ button is the door the keyboard uses. Newlines in a draft are
-   content, so the body preserves them. An edited-but-unhonored draft wears the runtime's data-lf-pending mark,
-   the same green every decided-and-unhonored widget wears. Unupgraded, the same
+   content, so the body preserves them. A reader-edited body differing from authored
+   text wears the runtime's green data-lf-reader-override mark. Unupgraded, the same
    box shows raw text.
 
    Reading and editing are one box, not a box inside a box. The two views state their

@@ -5,6 +5,7 @@ import {
   quoted,
   textNodesUnder,
 } from "/runtime/widget-api.js";
+import { visualPartProblems } from "/runtime/visual-parts.js";
 import { openRoots } from "./open-roots.js";
 
 export const failSoftErrors = () =>
@@ -94,19 +95,21 @@ export const missingUpgrades = (widgets) =>
         entry["x-upgrade"] && document.querySelector(tag) && !customElements.get(tag),
     )
     .map(([tag]) => tag);
-export const missingVisualProviders = (widgets) =>
+export const invalidVisualProviders = (widgets) =>
   Object.entries(widgets)
     .filter(([, entry]) => entry["x-visual"] && typeof entry["x-visual"] === "object")
-    .flatMap(([tag]) =>
-      [...document.querySelectorAll(tag)].map((el) => ({
-        tag,
-        id: el.id,
-        missing: ["lfVisualPart", "lfVisualPartAt"].filter(
-          (name) => typeof el[name] !== "function",
-        ),
-      })),
+    .flatMap(([tag, entry]) =>
+      [...document.querySelectorAll(tag)].map((el) => {
+        const attribute = entry["x-visual"].parts;
+        const declared = (el.getAttribute(attribute) ?? "")
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean);
+        const problems = visualPartProblems(el, declared);
+        return { tag, id: el.id, problems };
+      }),
     )
-    .filter((instance) => instance.missing.length);
+    .filter((instance) => instance.problems.length);
 export const undeclaredShadowRoots = (registry) => [
   ...new Set(
     [...document.querySelectorAll("*")]
@@ -141,7 +144,7 @@ export const missingConversations = (widgets) =>
 // other writer: a module, which upgrades the element and may leave anything it likes on
 // it. So a module writes in that namespace only where the registry declares the
 // attribute as a verb's record form (`chosen`, `status`), which is what makes the write
-// a statement the log's fold, the state gate and the record-lag report can all read.
+// a statement the log's fold, the state gate and construction-linked inspection can all read.
 // Everything else it needs to mark goes where the module's own words go — the chrome it
 // built, in the platform's vocabulary (aria-*, role, hidden, tabindex) or under data-*,
 // which is the layer's and a widget's alike.

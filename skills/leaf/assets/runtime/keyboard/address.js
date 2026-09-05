@@ -2,6 +2,7 @@ import { labelOf, live, spell } from "./bindings.js";
 import { createAddressPlacement, MAX_NUMBERED_ADDRESSES } from "./address-placement.js";
 import { keySequence, progressStates } from "./presentation.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
+import { targetElement } from "../resolved-target.js";
 import { focusDestination } from "../widget-elements.js";
 
 export function createAddress({
@@ -128,7 +129,7 @@ export function createAddress({
     });
     link.click();
     if (!activation || activation.defaultPrevented) return;
-    const destination = section && resolveAnchor({ section })?.element;
+    const destination = section && targetElement(resolveAnchor({ section }));
     if (destination) return focusDestination(destination);
     if (isExternalPageLink(link) && link.target === "_blank") {
       const name = link.getAttribute("aria-label")?.trim() || itemSays(link) || "Link";

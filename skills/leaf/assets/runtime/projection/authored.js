@@ -4,11 +4,10 @@ import { recordedWidgetSelector, stateSpecs } from "../registry.js";
 export function createAuthoredProjection(dependencies) {
   const { quoteFrom, textNodesUnder } = dependencies;
 
-  // ---------- decided, awaiting the honoring version ----------
+  // ---------- authored inputs before reader and worker overlays ----------
   // The registry's x-state names each verb's fold unit and record form, so one
-  // pass renders "the user decided this and no version has carried it yet"
-  // for every widget alike — choose had its mark, edit its tint, move nothing,
-  // and the asymmetry was each widget remembering (or not) on its own. The
+  // pass identifies effective state that differs from authored inputs for every
+  // widget. The
   // authored facets are captured once per page load, after upgrades and before
   // the first replay: the markup's initial condition, which replay then
   // overwrites in the DOM.

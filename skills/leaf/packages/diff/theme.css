@@ -68,11 +68,7 @@ lf-diff:not(.lf-rendered) > pre {
 .lf-diff-wrap-label { display: inline-flex; align-items: center; gap: 6px; flex: none;
                       white-space: nowrap; cursor: pointer; }
 .lf-diff-wrap { margin: 0; flex: none; cursor: pointer; }
-.lf-diff-next, .lf-diff-review { min-height: 30px; padding: 4px 9px;
-                                border: 1px solid var(--code-border);
-                                border-radius: 999px; background: var(--pre-bg);
-                                color: var(--code-ink); font: inherit; cursor: pointer; }
-.lf-diff-next:disabled { opacity: .55; cursor: default; }
+.lf-diff-next, .lf-diff-review { min-height: 30px; font: inherit; }
 /* The file's row is a disclosure, and a disclosure is a control, so the review press
    cannot be a descendant of it (lf-diff.js). It is a sibling drawn over the summary
    line instead: a block in the flow ahead of the row, pushed to the right by its auto
@@ -106,7 +102,7 @@ lf-diff:not(.lf-rendered) > pre {
                                      font-family: var(--sans); }
 .lf-diff-review { box-sizing: border-box; width: var(--lf-diff-press);
                   min-height: 26px; padding: 2px 8px;
-                  color: var(--code-muted); font-size: var(--t-6); }
+                  font-size: var(--t-6); }
 .lf-diff-reviewed { font-size: var(--t-5); line-height: 26px; }
 .lf-diff-review[aria-pressed="true"], .lf-diff-reviewed { color: var(--ok);
                                                          font-weight: 650; }

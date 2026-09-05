@@ -1141,7 +1141,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
    clears the moment a version carries the decision or a retraction hands the
    state back. Green, the user's color: their decision stands here in
    replay, not yet in the page's own words. */
-[data-lf-pending] { outline: 2px solid color-mix(in srgb, var(--ok) 82%, transparent);
+[data-lf-reader-override] { outline: 2px solid color-mix(in srgb, var(--ok) 82%, transparent);
                     outline-offset: 3px; border-radius: 2px; }
 
 /* A worker's standing report: this element's state arrived through the log
@@ -1627,3 +1627,18 @@ html.lf-versioning::view-transition-new(root) {
     transition: none !important;
   }
 }
+
+/* Ordinary action buttons share their face across document and shadow trees.
+ * Packages may adjust placement and density; margin Buttons and reaction chips
+ * retain their separate forms. */
+/* lf-shadow:start */
+.lf-btn { padding: 4px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
+.lf-btn:hover { background: var(--chip); }
+.lf-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+.lf-btn.primary:hover { filter: brightness(.92); }
+/* Two selectors, two mechanisms, one look: the platform's own on the banner's real
+   buttons, and the attribute wireInput sets, which is the only one a span press can
+   wear. */
+.lf-btn:disabled, .lf-btn[aria-disabled="true"] { opacity: .55; cursor: default; }
+.lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
+/* lf-shadow:end */

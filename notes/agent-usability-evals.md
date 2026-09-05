@@ -13,15 +13,13 @@ registry reading and phase-specific references, an agent also read the roughly
 reference. That made the required path about 30,800 tokens before the user's
 material or the page itself.
 
-The current cold path reads the skill, the core authoring reference, the handoff
-reference, and exactly one host contract. In Codex that is 390 lines and 2,934
-words; in Claude Code it is 398 lines and 2,991 words, before the selected
-registry entries. Decision authoring adds 48 lines when the page authors a new,
-unanswered ask or sign-off. Live revision rules add 57 lines only after a page
-has been handed over, or when a page proposes wording or carries reader state. Evidence
-authoring adds 75 lines only when the page uses measured, visual, source, or
-media evidence. Event, thread, and ending contracts load only after those phases
-begin. These counts measure context shape rather than broad success rates.
+At the initial phase split, the cold path read the skill, the core authoring
+reference, the handoff reference, and exactly one host contract. In Codex that
+was 390 lines and 2,934 words; in Claude Code it was 398 lines and 2,991 words,
+before the selected registry entries. Decision authoring added 48 lines, live
+revision rules 57, and evidence authoring 75, each loaded only in its relevant
+phase. These historical counts measure context shape rather than success rates;
+the construction-linked inspection guidance has since changed the references.
 
 Three context-blind, paired walkthroughs exercised a quick informational page, a
 finished decision record, and a mixed-event continuation against the former and
@@ -45,14 +43,24 @@ Only the first belongs in every page-authoring turn. Loading the whole file may
 be truncated before the agent reaches the entry it needs. Even when it fits,
 unrelated declarations compete with the page's subject for attention.
 
-Understanding an existing page also requires a join. Authored words live in the
-active HTML revision, standing decisions live in the event projection, and
-replaceable inputs live in `data.json`. `leaf page state` exposes the semantic
-projection and points at the exact active revision and data-file revision, but it
-does not present the page's current words with those facts applied. A successor
-has to discover and perform that join correctly. Invalid mutable source adds
-another distinction: the live page remains on the last valid revision while
-`index.html` contains the rejected candidate.
+Existing-page inspection now joins authored content, standing decisions, and
+declared data inputs in `leaf page state`'s `content` tree. Its construction origins
+identify how to change each part. Reader decisions survive without being copied
+into source. Invalid mutable source remains distinct from the live revision, and
+large fragmented inputs expose a manifest with an exact payload location. The
+owning contract is `skills/leaf/references/internals/page-storage.md`.
+
+These changes have boundary tests, but their effect on agent comprehension and
+editing still needs the paired reading and resume evaluations below. Opaque
+renderers expose authored inputs; inspection does not claim to describe every
+pixel or interpretation a browser supplies.
+
+A context-blind continuation check changed one sentence in a copied feature
+gallery using the public CLI and authoring references. It correctly reported the
+selected Trail map, exact two-line draft, and card's first position in Tried.
+The resulting source diff contained only the requested sentence replacement;
+standing reader state and raw data were unchanged. This checks one successful
+edit route, not a paired comparison or a general comprehension score.
 
 Long conversations add a smaller version of the same problem. A delivered batch
 may elide the middle of a thread. The agent has to notice the marker, use the
@@ -63,9 +71,11 @@ answering a question that depends on the missing records.
 
 Keep Leaf's agent-facing surface small and semantic:
 
-- `leaf page state PAGE` computes the current semantic index: active source and
-  data revisions, standing actions and reports, decisions, requests, reactions,
-  current thread state, and the event-log watermark folded into the snapshot;
+- `leaf page state PAGE` reads the effective document with construction origins,
+  source and data revisions, standing actions and reports, decisions, requests,
+  reactions, compact thread state, and an event-log watermark;
+- `leaf page state PAGE --thread THREAD` selects one conversation's current
+  messages and effective frozen markup; its edits continue that conversation;
 - `leaf page guidance PAGE [AUDIENCE]` composes explicit operating guidance;
 - `leaf events PAGE [--after SEQ] [--thread THREAD]` prints the append-only JSONL
   history admitted at validated write boundaries; `--after` is a sequence cursor
@@ -135,7 +145,8 @@ solved the agent experience.
 | Unfamiliar package | A fixture adds a widget whose name and contract are absent from the base package | The agent discovers it in the page's registry, retrieves its entry, and authors valid markup without reading package source. |
 | Reading parity | Facts are distributed across prose, a disclosure, an inactive tab, a chart, projected data, and a reader-selected option | The agent answers a fixed question set from the current reading with no omissions or stale values. |
 | Competing authorities | `index.html` conflicts with the last valid revision; a standing action also overrides authored state | The agent identifies what the person currently sees and does not report the rejected source or superseded authored state as current. |
-| Resume a foreign page | Several versions, open and resolved threads, record lag, and updated external data | The agent gives the current conclusion, open work, and next required action without treating the event log as a transcript to retell. |
+| Resume a foreign page | Several versions, open and resolved threads, reader overrides, and updated external data | The agent gives the current conclusion, open work, and next required action without treating the event log as a transcript to retell. |
+| Read then revise | Plain prose, a reader-owned draft, live data, and a pinned capture | The agent changes the correct construction input, preserves reader authority, and rebinds a fresh capture when changing pinned data. |
 | Revise after feedback | A comment changes prose beside an already chosen option | The comment is answered; the prose changes; surviving ids and the choice remain; `restated` appears only if the agent deliberately replaces the decision. |
 | Elided conversation | The decisive premise is in the elided middle of a long thread | The agent uses the thread id to select its raw events before replying and answers from the missing premise. |
 | Mixed event batch | A comment, action, reaction, undo, and page error arrive together | Each event receives its defined treatment; the withdrawn gesture is not carried; acknowledgement advances only after the complete batch is available. |
@@ -155,9 +166,9 @@ Start with three fixture families:
    score each answer against a checked answer file. Keep single-surface versions
    of the fixture so a failure in the combined page can be isolated.
 3. **Resume.** Give the agent only a page directory containing version history,
-   one invalid source candidate, two threads, and one unrecorded standing choice.
-   Ask for the current truth and the next action. Score the answer and the files
-   it reads.
+   one invalid source candidate, two threads, and a standing choice absent from
+   authored markup. Ask for the current truth and the next action, then one
+   revision. Score the answer, mutation target, and preservation of reader state.
 
 `ask-placement-eval/` is one authoring case already runnable: it pastes two
 wordings of the ask guidance into a prompt with three subjects and scores where
@@ -182,19 +193,78 @@ contents while leaving an author free to omit it when the outline is already
 visible. Keep the advice structural and deterministic rather than attempting to
 judge prose quality.
 
-## Possible supporting interface after the baseline
+## Evaluate the integrated inspection path
 
-Selective registry access addresses creation. Existing-page comprehension may
-need a separate derived reading, for example `leaf page read PAGE`: a compact,
-hierarchical text projection of the reader-accessible words, widget meanings,
-standing decisions, external values, threads, open decisions, version identity, and
-source diagnostics. It would be emitted on demand from the same document, log,
-data, and registry authorities, not stored as another current-state file. It
-would include collapsed and inactive content with labels rather than hiding it,
-and it would state when invalid source is not live.
+Compare the former HTML-plus-state path with the current construction-linked
+inspection using the same reading and revision tasks. Score correct mutations as
+well as answers: a reader who understands a value but edits a derived display has
+not recovered its construction. Measure context cost with large data manifests and
+long conversations, including exact thread selection.
 
-Do not build that command until the reading-parity and resume baselines establish
-that agents fail with today's HTML-plus-state path. Those failures would show
-which joins a deterministic view should own. A browser or accessibility snapshot
-can help check the eval oracle, but it omits some inactive content and includes
-generated presentation, so it should not become another page authority.
+A browser or accessibility snapshot can check the oracle for rendered semantics.
+It omits some inactive content and includes generated presentation, so keep it as
+evaluation evidence rather than another page authority. Extend shared construction
+semantics only where failures identify a missing fact; custom-renderer limits
+should remain explicit.
+
+### Measured reading gaps
+
+The feature-gallery reading inspected on 2026-09-04 contained 6,703 lines:
+184,247 bytes formatted, 79,290 bytes compact, against 26,732 bytes of source
+HTML. Its 314 content nodes held 13,925 bytes of text. Bound input values were
+only 2,258 bytes; repeated structure and edit metadata dominated this example.
+An in-memory variant inheriting ordinary source-edit defaults, including the id
+already present in attributes, reduced compact output to 60,816 bytes without
+removing content. Apply this inheritance before adding a summary interface, and
+retain exceptional event, data, and conversation authorities explicitly.
+
+A separate browser context established a visibility gap:
+
+| Selected tab | Visible sentence | Construction content | Event sequence |
+| --- | --- | --- | --- |
+| Current | The current sample route is under review. | Identical | 23 |
+| Context | The earlier route crossed the courtyard. | Identical | 23 |
+
+The tabs keep their selection locally; source and the event log cannot supply
+that observation. Closed disclosures and responsive visibility make the same
+distinction relevant elsewhere. The complete document reading should remain
+available, while questions about the current screen need browser observation.
+That observation must come from the reader's actual browser state or an explicit
+capture of it: opening another preview can select a different tab and cannot
+establish what the reader sees.
+Keep the observed element ids, projected-record labels, and `data-lf-origin`
+addresses beside rendered content so that seeing a value also identifies its
+construction. Reuse those existing declarations instead of adding a separate
+widget-summary implementation.
+
+A shared-source discriminator used two `lf-worktree` widgets and an unrelated
+third record, listed first and resembling one widget's record. The browser
+rendered the correct records and stamped their exact paths. The file reading
+repeated all three records under each widget with `path: []`, but its linked
+registry contract explicitly states that records are selected by authored widget
+id. The correct edit target is therefore recoverable without reading widget
+source. This demonstrates an indirect join and duplicated input, not missing
+semantics or a wrong-target ambiguity. Test whether cold agents follow that join
+before adding another abstraction; do not duplicate the renderer in Python.
+
+### Next paired check
+
+Use isolated copies of the same page and fixed tasks under three conditions:
+active HTML plus the compact state indexes; construction plus HTML; construction
+plus HTML and browser observation. Keep model settings and tool access equal
+apart from the information being compared.
+
+Cover a reader-owned draft overriding source, live versus pinned data, the
+shared-source record case, a chart or diagram referent, and locally selected
+versus hidden content. State the expected answer and mutation target before
+running each case. Check factual answers, the chosen edit owner, preservation of
+reader state, and actual context usage. Do not score visual resemblance or the
+number of JSON lines as comprehension.
+
+First classify each failure: missing information, inaccessible information, or
+information the agent misread. Missing view state calls for browser observation;
+an incorrect record selection calls for a construction link; repeated metadata
+calls for a smaller reading. A concise prose rendering is warranted only when
+the remaining failures show a benefit over these simpler changes. If HTML plus
+compact state performs as well as the expanded tree at lower context cost,
+remove the redundant tree output rather than preserving it as another default.

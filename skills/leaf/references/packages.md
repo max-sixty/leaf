@@ -172,13 +172,6 @@ module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
 
-`x-visual` makes a rendered picture one stable Comment target. The value `whole` uses
-the widget's authored id. `{parts: ATTR}` also lets the module map tokens from the named
-attribute to current rendered boxes through `lfVisualPartAt(target)` and
-`lfVisualPart(part)`. The returned element supplies mark, travel, and aim geometry: SVG
-parts lend their painted primitives, while other elements use their shown box. The package
-owns the stable mapping; core owns the Comment gestures, keyboard proxies, and paint.
-
 A widget that can be an Ask calls `registerDecisionActions(source, read, answer)` once
 at upgrade. `read` returns its current ordered `{control, label, address?}` actions;
 `answer` returns the concise current answer the Asks tray shows after the Decision is
@@ -191,6 +184,20 @@ that actually answer,
 advance, or revise the Ask rather than scanning all offered descendants: evidence inside
 an option is not an answer, and shared-margin Buttons may sit outside the source. The
 control's own click remains the one activation path.
+
+`x-visual` exposes stable Comment targets on a rendered picture. The value `whole` uses
+the widget's authored id. A widget declaring `{parts: ATTR}` calls
+`registerVisualParts(source, read)` once at upgrade. `read` returns the complete current
+inventory as `{id, element, label, surface?}` records. Leaf admits the ids authored in
+ATTR, derives token lookup and deepest-part hit testing from that one inventory, and
+keeps the authored widget as the durable comment seat. `surface` defaults to `element`;
+use a descendant only when decoration inside a compound part should not contribute to
+its contour. It changes paint only: `element` remains the semantic hit and travel target.
+SVG surfaces follow their painted geometry primitives; a surface with none, and every
+other element, uses the shown box. Call the returned `update()` after any rendering or
+geometry change, including in-place attribute or style changes. The render gate validates
+every record and requires each authored token to resolve. The package owns the stable
+mapping; core owns the explicit Comment gestures, keyboard proxies, and paint.
 
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical
@@ -450,13 +457,20 @@ this.stopWatching = watchData(this, "builds", (snapshot) => {
 ```
 
 The callback receives `null` before the host has supplied a current value, otherwise a
-clone of `{contract, revision, updated, value}`. `revision` is the data revision that
-wrote that source value, so a renderer can distinguish two writes even when their wall
+clone of `{contract, revision, updated, value, origin}`. `revision` is the data revision
+that wrote that source value, so a renderer can distinguish two writes even when their wall
 clock timestamps coincide. A selected capture additionally carries
 `snapshot`, `label`, and optional `lines`; a captured current value may carry its label
 and line range. It runs immediately and again when Leaf asks subscribers to restate its
 view. Return the cleanup function from the element's disconnect path. The callback must
 state the whole rendering and remain idempotent.
+
+`origin` identifies the declared `input`, concrete `source`, `contract`, selected source
+`revision`, and accepted store `data_revision`, plus `snapshot` when pinned. Pass it to
+`projectData` with `originOf: () => snapshot?.origin`. When the emitter knows the exact
+JSON coordinate within the source value, return `{...snapshot.origin, path: [...]}`;
+path segments are object keys or array indices. A formatted or parsed record may only
+name its whole input. This identifies construction inputs, not an inverse edit mapping.
 
 Render the value with `projectData(root, records, keyOf, render)`. The root is an
 id-bearing authored seat and owns the projection's children. `keyOf` returns a stable
@@ -475,6 +489,12 @@ rejection is reported as that subscriber's page error; it does not make later st
 reads repeat the same page-wide failure. A rejection from the callback's first run is
 stronger: Leaf drops that subscription, so the callback is not asked to restate again
 until the element is reconnected.
+
+`originOf(record, index)` records those inputs as JSON in `data-lf-origin` on each
+datum; a null origin removes any previous provenance. Derived records outside the data
+store can instead name their contributing widget seats as `{derived: [{widget: id}]}`.
+Export retains these origins with the rendering. Leaf never infers them from displayed
+text or datum keys.
 
 `navigateToDatum(widget, attribute, key, messages)` follows an `x-refers` attribute to
 another projection and travels to its opaque datum key. Leaf resolves declared shadow

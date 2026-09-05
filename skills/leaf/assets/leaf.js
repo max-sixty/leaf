@@ -978,14 +978,13 @@ const fab = responseAction(el("button", "lf-ui lf-fab"), {
 fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";
 fabBar.append(fab);
-// Persistent paint for semantic visual parts. The provider supplies one current
-// element; anchors.js derives that element's SVG paint for every anchored state and
-// keeps these pointer-inert projections above the provider's drawing.
+// Persistent paint for semantic visual parts. target-paint.js owns these pointer-inert
+// projections and keeps every anchored state above the package drawing.
 const visualMarkLayer = el("div", "lf-ui lf-visual-marks");
 visualMarkLayer.setAttribute("aria-hidden", "true");
 // A status remains flat and inert while its hover trace identifies the target it reports
-// on. Anchors owns the shared rectangular and shaped target paint; the living margin
-// owns when this instance is shown.
+// on. Target paint owns its rectangular or shaped geometry; the living margin owns when
+// this instance is shown.
 const marginTraceBox = el("div", "lf-ui lf-margin-status-trace lf-target-paint");
 marginTraceBox.setAttribute("aria-hidden", "true");
 // The aim's paint host (see its rule above). Pointer-inert and carrying only aria-hidden
@@ -3444,7 +3443,7 @@ const {
   domFacet,
   markSettled,
   matchesProjectedWhen,
-  paintPending,
+  paintStateOrigins,
   projectedFacet,
   projectionFromView,
   projectionCommitted,

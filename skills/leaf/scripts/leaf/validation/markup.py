@@ -59,7 +59,7 @@ def at(rec: dict, named: str = "") -> str:
 
 def unpointable_blocks(parser: _StructParser) -> list:
     """Blocks a user will aim at whole that no anchor can name. Advice, never a
-    gate, in the same register as record_lag:
+    gate:
     references/page-authoring.md's "Stable anchors" states the id rule, and this
     is its feedback loop. The page that introduced item anchoring hit this
     failure itself — its code blocks carried no ids, so a comment aimed at one fell

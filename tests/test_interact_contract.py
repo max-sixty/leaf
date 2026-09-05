@@ -3252,6 +3252,31 @@ def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):
     assert check(page_dir).exit_code == 0
 
 
+def test_source_reading_preserves_foreign_graphics_as_exact_markup():
+    graphic = (
+        '<svg id="plot" viewBox="0 0 10 10">\n'
+        '<circle cx="5" cy="5" r="4"/>\n'
+        '<svg><text x="0">A &amp; B</text></svg>'
+        "<foreignObject><p>HTML <strong>inside</strong></p></foreignObject>\n"
+        "</svg >"
+    )
+    html = "<main>\n" + graphic + '<p id="after">After</p></main>'
+    parser = structure_model._StructParser()
+    # The HTML parser also accepts chunked input; source positions refer to the
+    # whole document even when an SVG closing tag crosses a feed boundary.
+    split = html.index("</svg >") + 4
+    parser.feed(html[:split])
+    parser.feed(html[split:])
+    parser.close()
+    [main] = parser.content
+    _, image, after = main["content"]
+    assert image["markup"] == graphic
+    assert image["content"] == []
+    assert image["line"] == 2
+    assert after["attrs"]["id"] == "after"
+    assert after["content"] == ["After"]
+
+
 def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):
     """A version's CSS is what its <style> blocks hold. Reading the whole file as one
     made a megabyte of base64 (one screenshot as a data: URI) into a stylesheet to

@@ -967,19 +967,22 @@ customElements.define('lf-feed', class extends HTMLElement {
       this.stopWatching = watchData(
         this,
         'rows',
-        snapshot => this.show(snapshot?.value ?? [], snapshot?.origin),
+        snapshot => this.show(snapshot),
       );
   }
   disconnectedCallback() {
     this.stopWatching?.();
     this.stopWatching = null;
   }
-  show(rows, origin) {
-    projectData(this, rows, row => row.key, ({value}) => {
+  show(snapshot) {
+    projectData(this, snapshot?.value ?? [], row => row.key, ({value}) => {
       const row = document.createElement('p');
       row.append(value, offer('button', 'inspect', 'Inspect'));
       return row;
-    }, {originOf: (_row, index) => ({...origin, path: [index, 'value']})});
+    }, {
+      snapshot,
+      originOf: (_row, index) => ({...snapshot.origin, path: [index, 'value']}),
+    });
   }
 });
 """

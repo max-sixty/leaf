@@ -25,13 +25,12 @@ export function createProjection(runtime, dependencies) {
     pagePresented,
     pageQueryAll,
     pageShifted,
-    paintAnchors,
     paintKeys,
-    paintAcknowledgments,
     post,
     projectedParent,
     quoteFrom,
     removeOutbox,
+    reconcileThreads,
     renderQuiet,
     renderRetired,
     reportPageError,
@@ -499,7 +498,7 @@ export function createProjection(runtime, dependencies) {
       for (const [coordinate, commit] of committedProjection)
         if (!elementById(commit.widgetId)) committedProjection.delete(coordinate);
       if (painted) {
-        paintAnchors();
+        reconcileThreads();
         Promise.allSettled(
           document
             .getAnimations()
@@ -528,7 +527,7 @@ export function createProjection(runtime, dependencies) {
     const authoredOnly = runtime.lastEventSeq < 0 && eventSeq === 0;
     if (!complete && !authoredOnly) return false;
     reconcileState();
-    paintAcknowledgments();
+    reconcileThreads();
     return true;
   }
 

@@ -96,17 +96,30 @@ export function createAcknowledgments(dependencies) {
       if (kind === "thread") {
         const thread = threads().find((candidate) => candidate.root.id === id);
         if (!thread || thread.resolved) continue;
-        const complete = threadsBox.querySelector(`.lf-thread[data-id="${id}"]`);
-        const completeSource = receipt.event
-          ? complete?.querySelector(`:scope > .lf-msg[data-mid="${receipt.event}"]`)
-          : null;
-        paintReceipt(
-          complete,
-          receipt,
-          completeSource?.nextSibling ??
-            complete?.querySelector(":scope > .lf-compose"),
-          wanted,
+        const complete = threadsBox.querySelector(
+          `.lf-thread[data-id="${CSS.escape(id)}"]`,
         );
+        const views = [
+          complete,
+          ...pageQueryAll(`.lf-conversation-thread[data-thread="${CSS.escape(id)}"]`),
+        ].filter(Boolean);
+        for (const view of views) {
+          const source = receipt.event
+            ? view.querySelector(
+                `:scope > :is(.lf-msg[data-mid="${CSS.escape(receipt.event)}"], ` +
+                  `.lf-conversation-msg[data-event="${CSS.escape(receipt.event)}"])`,
+              )
+            : null;
+          paintReceipt(
+            view,
+            receipt,
+            source?.nextSibling ??
+              view.querySelector(
+                ":scope > :is(.lf-compose, .lf-say, .lf-thread-actions, .lf-conversation-actions)",
+              ),
+            wanted,
+          );
+        }
         continue;
       }
       if (kind !== "widget") continue;

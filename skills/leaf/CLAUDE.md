@@ -137,6 +137,8 @@ filter state;
 `runtime/conversation/placement.js` owns document-order grouping;
 `runtime/conversation/reaction-strips.js` owns the panel's message and page reaction
 surfaces;
+`runtime/conversation/surfaces.js` owns registry-declared widget outlets and the set of
+threads they claim from the living-margin fallback;
 `runtime/conversation/thread-card.js` owns retained panel thread cards, their quote
 state, and their reply, resolve, and reopen controls;
 `runtime/conversation/thread-list.js` owns retained panel list reconciliation;
@@ -171,7 +173,8 @@ Each mutable fact has one writer:
 | rendered semantic state | authored state, log projection, then outbox overlay | `reconcileState` |
 | proof of what the DOM currently represents | `committedProjection` | `stageOutboxAction` and `reconcileState` |
 | anchor paint | thread and composer anchor records | `paintAnchors` |
-| where each thread's passage lands | this version's resolution of its anchor | `paintAnchors` writes `placed` |
+| where each thread's passage lands | this version's resolution of its anchor | `paintAnchors` writes a rich `placed` record with its element, exact datum, and exact/fallback/outdated status |
+| widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the living margin reconciles |
 | reader acknowledgment and local agent work | the canonical acknowledgment projection plus typed claims in `status.work` | `paintAcknowledgments` paints conversation-local fallbacks; the living margin maps page subjects onto their existing Target Button without becoming another store |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | panel visibility | `panelOpen` | `setPanel` |
@@ -639,8 +642,12 @@ not a page version, owns it.
 The server projects threads from the whole log, so a conversation stays current
 on a pinned page even when the document projection remains historical.
 Registry-declared `x-conversation` seats show an exact-section
-textual view while the owner exists in the current document. The living margin and
-Threads panel keep complete threads with mirrored interactive replies. A root
+textual view while the owner exists in the current document. A declared
+`x-thread-surface` may instead seat the complete shared Thread view beside an exact
+projected datum. The widget owns only the outlet's layout and visibility; core owns the
+messages, replies, reactions, settlement, receipts, focus, and fallback. The living
+margin carries a thread while no widget claims it, and the Threads panel remains the
+complete index. A root
 declared with `response: {kind: version, verb: <answer>}` keeps that exact-section
 view text-only and refuses an agent reply because the next authored version is its
 response. Dropping the owner drops only the inline seat.
@@ -763,6 +770,7 @@ The extension keys describe general behavior:
 | `x-decision` | the complete reading and arrival region around one nested decision source |
 | `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for a decision |
 | `x-conversation` | the condition under which the widget owns a conversation seat, and whether its root requires a version response |
+| `x-thread-surface` | the upgraded widget may provide local outlets for complete Threads anchored to its exact projected data |
 | `x-work` | admits local agent work without a pending reader move, through a content or conversation seat and optional condition; an admitted page-widget claim then appears at the page edge through its Target Button |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
 | `x-wide` | whether width follows a box or a drawing |
@@ -897,7 +905,16 @@ minimum obligations:
   renderer that owns a nested layout passes `{nested: true}` and returns each existing
   descendant; `projectData` then owns the labels without moving those nodes. Pass
   `labelOf` when generic chrome should name a datum in human terms instead of exposing
-  its stable key.
+  its stable key. When the records came from `watchData`, pass the delivered `snapshot`;
+  comments then retain the exact source revision the widget displayed.
+- A widget declaring `x-thread-surface: true` may call `registerThreadSurface` with
+  `begin`, `outletFor`, and `end`. The adapter owns local layout and returns an outlet
+  only when the exact datum is currently visible. Core renders the complete Thread,
+  suppresses the living-margin copy while the outlet stands, and restores the fallback
+  when it does not. An adapter failure reports a page error and releases that widget's
+  core views to the fallback without interrupting other conversations; core rendering
+  errors still fail state application. Call the handle's `update` after a layout-only
+  visibility change and `unregister` on disconnect.
 - Cross-widget datum travel goes through `navigateToDatum(widget, attribute, key,
   messages)`, where `attribute` is declared by the caller's `x-refers`. Core resolves
   the target across declared shadow roots and owns lazy reveal, disclosure focus,
@@ -993,13 +1010,15 @@ The page has three kinds of visible words:
 - projected external or derived data is in `says` and not in `wrote`.
 
 The last kind is a projection, not another source of truth. An id-bearing element in
-the version is its seat. `projectData(seat, records, keyOf, render)` owns that seat's
+the version is its seat. `projectData(seat, records, keyOf, render, options)` owns that seat's
 children, labels each rendered element with the seat id (`data-lf-projection`) and its
 record's stable key (`data-lf-datum`), and marks it generated. With `{nested: true}` it
 labels descendants a renderer already placed without reconciling their layout. An
 optional `labelOf(record, index)` supplies the human coordinate thread chrome reads;
-core never interprets the opaque key. Records remain the caller's input; the DOM never
-becomes another record store.
+core never interprets the opaque key. When records came from `watchData`, the `snapshot`
+option carries that delivery's source id and revision, including across asynchronous
+rendering. Leaf stamps the seat and each datum with that provenance. Records remain the
+caller's input; the DOM never becomes another record store.
 
 Where records come from outside the document, their authority is `data.json`: one
 page-owned store with a replaceable current value and retained immutable captures.
@@ -1022,15 +1041,15 @@ and every standing selection. `page state` exposes those bindings and consumers 
 producers. The browser keeps the accepted data revision independently from
 `lastEventSeq`, because overlapping poll and POST responses can order the authorities
 differently. `watchData(widget, input, callback)` delivers a clone of
-`{contract, revision, updated, value, origin}` for current, a clone with `snapshot`,
+`{source, contract, revision, updated, value, origin}` for current, a clone with `snapshot`,
 `label`, and optional `lines` for a selected capture, or `null` before a bound current
 value exists. Modules
 project the result into the authored seat; they do not fetch it, mutate the accepted
 copy, or keep a hidden current-value map of their own.
 
-The watcher constructs `origin` from the accepted source binding. Emitters pass it to
-`projectData`'s `originOf`, adding a source-value path only where construction knows that
-coordinate. The helper writes `data-lf-origin` beside each datum and clears it when an
+The watcher constructs `origin` from the accepted source binding. `projectData` reads
+it from the supplied snapshot; emitters override `originOf` only to add a source-value
+path where construction knows that coordinate. The helper writes `data-lf-origin` beside each datum and clears it when an
 origin or nested datum retires. The package reference owns the origin fields; no reading
 infers them from a datum key or rendered text.
 
@@ -1040,14 +1059,18 @@ refreshes. `render` receives the prior element for the key and may update it in 
 returning a replacement is also valid. Reconciliation retains nodes already in their
 place and schedules the shared anchor pass after synchronous projection work.
 
-A selection wholly inside one datum captures `{section, datum, quote}`. Resolution
-looks only for that key under that section. If the original words still stand, Leaf
-marks them. If their display changes, Leaf outlines the same datum and keeps the old
-quote in the thread; it never follows the old string to an equal value elsewhere. A
-missing or duplicate key detaches rather than guessing. Selections crossing datum
+A selection wholly inside a derived datum captures `{section, datum, quote}`. A datum
+projected from `watchData` also captures `{source, data_revision}`. Within that source
+revision, resolution looks only for the key under its section. If the original words
+still stand, Leaf marks them. If their display changes, Leaf outlines the same datum and
+keeps the old quote in the thread. A current-source replacement makes the placement
+outdated: the thread keeps its section context and remains in the panel, but it does not
+mark or attach to a datum from the new revision. An authored snapshot remains exact.
+A missing or duplicate key detaches rather than guessing. Selections crossing datum
 boundaries remain ordinary quote anchors because they name a passage, not one fact.
 
-`data-lf-projection`, `data-lf-datum`, `data-lf-origin`, and `data-lf-gen` are written by
+`data-lf-projection`, `data-lf-datum`, `data-lf-origin`, `data-lf-source`,
+`data-lf-source-revision`, and `data-lf-gen` are written by
 `projectData`, never authored in a version. A custom widget joins through the helper alone; no
 consumer names its tag. Export preserves the rendered elements and their labels as a
 snapshot, while dropping the scripts that could refresh them. Print preserves the same
@@ -1158,8 +1181,9 @@ The anchor runtime exposes only the questions other features ask — `isMarked` 
 `placedAt` — so the pass-owned maps and arrays cannot acquire a second writer through
 the entrypoint.
 
-The same pass answers a second question and records it apart. `placed` is where
-each thread's passage lands in this version; `marked` is what was drawn for it.
+The same pass answers a second question and records it apart. `placed` records at least
+`{element, datumElement, exact, status}` for each thread; `status` is `exact`, `fallback`,
+or `outdated`. `marked` is what was drawn for it.
 They differ for a resolved thread, which has a place and no paint, and for an
 element anchor, whose paint is the boxes its contents show through rather than
 the element the anchor named. The panel's order reads `placed`, so the list and
@@ -3045,9 +3069,14 @@ option decides focus independently. Outside clicks and Escape hide without disca
 words. A successful send or an explicit draft close discards the local record.
 
 An accepted anchored comment continues in the open Threads panel, widening a filter
-that would hide it. With the panel closed, it opens the inline thread beside its
-passage. A page marker uses an already-open panel; with the panel closed, it opens
-inline where the layout has room and uses the panel at narrower widths.
+that would hide it. With the panel closed, an exact projected-datum comment opens in a
+declared widget Thread surface when that widget supplies a visible outlet. A local
+surface uses the canonical Thread fold and core-owned controls; only its container and
+layout belong to the widget. Closing, filtering, or lazily withholding
+the datum removes the claim and restores the living-margin fallback. Deliberate travel
+may reveal or hydrate the datum, then runs the same reconciliation path to claim it.
+A page marker uses an already-open panel; with the panel closed, other comments open
+inline where the layout has room and use the panel at narrower widths.
 The send focuses the reply box only when no later selection, edit, or typing gesture
 stands. Live pages reserve conversation room at the wide layout's existing floors,
 so the first comment and the last resolution leave the document column in place.

@@ -138,13 +138,12 @@ export function bake() {
   for (const root of roots)
     for (const element of root.querySelectorAll("*"))
       if (element.shadowRoot) roots.push(element.shadowRoot);
-  for (const root of roots)
-    root
-      .querySelectorAll(
-        '.lf-receipt, [data-lf-behavior="status"]:not([data-lf-standing])',
-      )
-      .forEach((el) => el.remove());
-  document.querySelectorAll("script, .lf-chrome").forEach((el) => el.remove());
+  const all = (selector) =>
+    roots.flatMap((root) => [...root.querySelectorAll(selector)]);
+  all(
+    "script, .lf-chrome, .lf-receipt, .lf-say, .lf-mark-note, " +
+      '[data-lf-behavior="status"]:not([data-lf-standing])',
+  ).forEach((el) => el.remove());
   // A measurement of this window is not a fact about the reader's. The live page states
   // each drawn edge's width inline on the root, and an inline value outranks every rule
   // a stylesheet could write, so a
@@ -190,9 +189,7 @@ export function bake() {
   // the theme zeroes a hidden card's padding, which is the room its chips are
   // positioned into. Dropping it opens the element on the terms it was authored
   // with, which is the layout the theme's live-page guard was withholding anyway.
-  document
-    .querySelectorAll('[hidden="until-found"]')
-    .forEach((el) => el.removeAttribute("hidden"));
+  all('[hidden="until-found"]').forEach((el) => el.removeAttribute("hidden"));
   // A press a widget injected is the runtime's own element — a <button> `offer` built, or
   // a span `selectableOffer` gave a role and a tab stop — and either was a promise a
   // handler kept. The handlers left with the scripts above, so a copy that carried them
@@ -241,7 +238,7 @@ export function bake() {
   // it). Each painted range lies within one text node
   // (anchors.js paints a range per segment), which is what lets surroundContents
   // wrap it; the ranges are live, so an earlier wrap moves a later one's offsets.
-  for (const offeredMark of document.querySelectorAll(".lf-react-mark")) {
+  for (const offeredMark of all(".lf-react-mark")) {
     let mark = offeredMark;
     if (mark.matches("button")) {
       const staticMark = document.createElement("span");
@@ -283,11 +280,9 @@ export function bake() {
   const browserControl =
     "input:not([data-lf-offer]), select:not([data-lf-offer]), textarea:not([data-lf-offer]), " +
     "a[href]:not([data-lf-offer]), button:not([data-lf-offer]), summary:not([data-lf-offer])";
-  for (const control of [
-    ...document.querySelectorAll(
-      "[data-lf-offer]:not([data-lf-offer='']):not([data-lf-said])",
-    ),
-  ].reverse()) {
+  for (const control of all(
+    "[data-lf-offer]:not([data-lf-offer='']):not([data-lf-said])",
+  ).reverse()) {
     if (
       control.querySelector(browserControl) ||
       [...control.querySelectorAll("label")].some(
@@ -304,7 +299,7 @@ export function bake() {
       dead.remove();
     }
   }
-  document.querySelectorAll("[data-lf-offer][data-lf-said]").forEach((offered) => {
+  all("[data-lf-offer][data-lf-said]").forEach((offered) => {
     let el = offered;
     if (el.matches("button, input, select, textarea, a[href], summary")) {
       const staticWord = document.createElement("span");
@@ -428,17 +423,16 @@ export function bake() {
   // ring and a pointer hand, and the panel that hand promised left with the chrome —
   // while a text-anchored mark, painted through the highlight registry by script, is
   // already gone. One fact — a comment is anchored here — leaves the copy whole.
-  document
-    .querySelectorAll(".lf-mark-el")
-    .forEach((el) => el.classList.remove("lf-mark-el"));
+  all(".lf-mark-el").forEach((el) => el.classList.remove("lf-mark-el"));
   // A tab stop still standing on a widget element is module paint — the registry's
   // schemas admit no authored tabindex on one — promising focus to chrome whose
   // handler left with the scripts: a tabs panel's roving stop, a decision-lend. Asked
   // of the tag's dash, the platform's own mark of a custom element, so no widget
   // is named and the author's own elements are untouched. Scroll stops go with
   // the rest and come back below, where every scrollable box is answered at once.
-  document.querySelectorAll("[tabindex]").forEach((el) => {
-    if (el.tagName.includes("-")) el.removeAttribute("tabindex");
+  all("[tabindex]").forEach((el) => {
+    if (el.tagName.includes("-") || el.matches(".lf-conversation-thread"))
+      el.removeAttribute("tabindex");
   });
   // Then what the removals uncovered: a box that scrolls whose way in was the
   // chrome just taken out — a board whose grips were its only focusable content,

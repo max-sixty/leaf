@@ -26,9 +26,7 @@ export function createStateApplication(dependencies) {
     loadMarked,
     notifyDataSubscribers,
     observeServerNow,
-    paintAnchors,
     paintApproval,
-    paintAcknowledgments,
     panelIsOpen,
     prepareActivation,
     presented,
@@ -236,13 +234,13 @@ export function createStateApplication(dependencies) {
       // on the page by now, so an action naming one that isn't names a widget no version
       // holds, and reconciliation can retire it instead of looking for it forever.
       reconcileState();
-      // Outside the log-growth block: a work claim lands and ages without changing an
-      // event this tab holds. After widget reconciliation because a module may rebuild
-      // its authored subtree; the local line is the transient overlay that follows it.
-      paintAcknowledgments();
+      // One complete tail after widget rendering: it may change derived content, including
+      // the row and outlet holding a local thread. Re-resolve anchors, reconcile declared
+      // surfaces, then their fallbacks and receipts from that final DOM. This also repaints
+      // time-dependent claim chrome on a state heartbeat with no new event.
+      await renderPanel();
       if (finishActivation) {
         finishActivation();
-        paintAnchors();
         updateFab();
         notice(`Updated to ${runtime.currentLabel}`);
       }

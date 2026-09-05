@@ -375,8 +375,8 @@ createMeasurements({ shownBox });
 installReachedForWordsGuard();
 
 createDataProjection({
-  paintAnchors,
   reachScrollers,
+  reconcileThreads: renderPanel,
   setChildren,
 });
 
@@ -481,7 +481,7 @@ const watchDisclosures = (root) =>
     attributeFilter: ["open", "aria-expanded"],
     attributeOldValue: true,
   });
-createShadowStage(watchDisclosures, watchExternalLinks);
+createShadowStage(watchDisclosures, watchExternalLinks, setChildren);
 
 const {
   byCommand,
@@ -679,6 +679,7 @@ const el = (tag, cls, text) => {
 };
 let chromeLayout;
 let livingMargin = null;
+const renderLivingMargin = (...args) => livingMargin?.render(...args);
 const syncLayout = (...args) => chromeLayout.syncLayout(...args);
 const setPanel = (...args) => chromeLayout.setPanel(...args);
 const moveShell = (...args) => chromeLayout.moveShell(...args);
@@ -1408,7 +1409,10 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   landTyping,
   loadDraft,
   mayLandTyping,
-  openInlineThread: (...args) => livingMargin?.openInlineThread(...args) ?? null,
+  openInlineThread: (...args) =>
+    conversationRuntime?.focusSurfaceThread(args[0]) ??
+    livingMargin?.openInlineThread(...args) ??
+    null,
   panelIsOpen,
   paintAnchors,
   paintHere,
@@ -3402,12 +3406,11 @@ const runtimeProjection = createProjection(runtime, {
   pagePresented,
   pageQueryAll,
   pageShifted,
-  paintAnchors,
   paintKeys,
-  paintAcknowledgments,
   post,
   projectedParent,
   quoteFrom,
+  reconcileThreads: renderPanel,
   removeOutbox,
   renderQuiet,
   renderRetired,
@@ -3476,6 +3479,7 @@ conversationRuntime = createConversation({
   designIsOn: () => designOn,
   captureAuthoredFacets,
   claimState: workClaimState,
+  containsAcross,
   designName,
   droppedAt,
   el,
@@ -3523,6 +3527,7 @@ conversationRuntime = createConversation({
   rememberAuthoredParents,
   renderQuiet,
   renderSaid,
+  renderLivingMargin,
   reportPageError,
   runtime,
   saveDraft,
@@ -3593,6 +3598,7 @@ anchorRuntime = createAnchors({
   quoteFrom,
   queueLegend,
   rangeOf,
+  reconcileThreads: renderPanel,
   refreshAction: refreshFab,
   registry,
   reveal,
@@ -3651,6 +3657,7 @@ livingMargin = createLivingMargin({
   stateProjection,
   threadPanel: panel,
   threads: () => conversationRuntime.threadList,
+  threadClaimed: (id) => conversationRuntime.threadClaimed(id),
   updateSequence,
   versionBtn,
   waitingForPickupSince,
@@ -3696,9 +3703,7 @@ stateApplication = createStateApplication({
   loadMarked,
   notifyDataSubscribers,
   observeServerNow,
-  paintAnchors,
   paintApproval,
-  paintAcknowledgments,
   panelIsOpen,
   prepareActivation,
   presented,
@@ -3802,7 +3807,7 @@ function presentPage() {
   // leave a composer carrying its authored words.
   anchoringReady = true;
   try {
-    paintAnchors();
+    renderPanel();
   } catch (error) {
     anchoringReady = false;
     throw error;

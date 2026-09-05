@@ -442,6 +442,7 @@ EXTENSION_SCHEMA = {
         },
         "x-shadow": {"type": "boolean"},
         "x-state": STATE_SCHEMA,
+        "x-thread-surface": {"const": True},
         "x-tone": _ATTRIBUTE_NAME,
         "x-upgrade": {"type": "boolean"},
         "x-verbatim": {"type": "boolean"},

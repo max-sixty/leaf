@@ -40,19 +40,20 @@ lf-diff:not(.lf-rendered) > pre {
    below can pin. Both clip a rounded corner identically; only `hidden` also makes the
    box a scroll container, and a sticky child is held by the nearest scrolling ancestor —
    which would be this box, which never scrolls, so the header stuck to nothing and
-   scrolled away with its rows. */
-:host(.lf-rendered) details,
+   scrolled away with its rows. `:where` scopes the rule without outranking the review
+   press's later negative-margin placement. */
+:host(.lf-rendered) :where(.lf-diff-file) > details,
 :host(.lf-rendered) .lf-diff-rename { margin: 0; padding: 0; overflow: clip;
                               background: var(--pre-bg); border: 1px solid var(--code-border);
                               border-radius: var(--r); }
-:host(.lf-rendered) summary,
+:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
 :host(.lf-rendered) .lf-diff-rename { padding: 7px 10px; font-size: var(--t-5);
                                      font-family: var(--sans); color: var(--code-ink);
                                      background: var(--code-chrome); }
 /* The press is out of the summary's flow, so that line holds a column open for it and a
    long path wraps above it rather than running underneath. A copy with no press to make
    room for takes its ordinary inset back. */
-.lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) summary,
+.lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) > details > summary,
 .lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) .lf-diff-rename {
                                      padding-right: calc(var(--lf-diff-press) + 18px); }
 .lf-diff-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
@@ -117,7 +118,7 @@ lf-diff:not(.lf-rendered) > pre {
    is inset — theme.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
    with it. */
-:host(.lf-rendered) summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-summary;
+:host(.lf-rendered) .lf-diff-file > details > summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-summary;
                                             outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The file header pins under the banner while its own rows go past, which is the thread
    list's answer to the same question — the name of the part you are reading has to be on
@@ -132,7 +133,7 @@ lf-diff:not(.lf-rendered) > pre {
    one underneath — inside the panel the pinned slot is the run headings', and a diff in a
    reply scrolls in that list rather than in the document. */
 @media screen {
-  :host(.lf-rendered[data-lf-diff-pinned]) summary { position: sticky;
+  :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary { position: sticky;
                               top: var(--lf-banner-h, 0px); z-index: 2; }
   /* The press with it, 5px down: its own 6px less the border the summary's box starts
      inside, which is the distance between the two at rest. */
@@ -184,6 +185,22 @@ lf-diff:not(.lf-rendered) > pre {
 :host(.lf-rendered) code[data-code]:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
                           --lf-here-ring: code-pre-shadow;
                           outline-offset: calc(-1 * var(--here-ring-w)); }
+/* A Thread occupies one additional Pierre subgrid row. The widget inserts a content
+   outlet and a paired gutter spacer at the same line index; matching fills and borders
+   make them one full-width review row while preserving the renderer's two columns. */
+.lf-diff-thread-outlet, .lf-diff-thread-gutter {
+                          min-width: 0; border-block: 1px solid var(--rule);
+                          background: var(--paper); }
+.lf-diff-thread-gutter { border-inline-end: 1px solid var(--rule); }
+.lf-diff-thread-outlet { padding: 10px clamp(10px, 2vw, 18px); white-space: normal; }
+.lf-diff-thread-outlet > .lf-conversation-thread {
+                          max-width: 760px; border: 1px solid var(--border-2);
+                          border-radius: 7px; padding: 10px 12px; background: var(--card); }
+.lf-diff-thread-outlet > .lf-conversation-thread + .lf-conversation-thread {
+                          margin-top: 8px; }
+.lf-diff-thread-outlet > details.lf-conversation-thread:not([open]) { padding: 0; }
+.lf-diff-thread-outlet > details.lf-conversation-thread:not([open]) > summary {
+                          border-radius: inherit; }
 /* Soft wrap. A diff line is `white-space: pre` and the box it sits in scrolls sideways,
    so the only way to read the end of a long line is a scrollbar at the foot of the whole
    file — twenty-four thousand pixels below the line, on the patch this was measured on.
@@ -219,7 +236,7 @@ lf-diff:not(.lf-rendered) > pre {
 [data-lf-syn="ty"] { color: var(--syn-type); }
 @media print {
   .lf-diff-tools, .lf-diff-review:not([data-lf-said]) { display: none !important; }
-  .lf-diff-file:not(:has([data-lf-said])) summary,
+  .lf-diff-file:not(:has([data-lf-said])) > details > summary,
   .lf-diff-file:not(:has([data-lf-said])) .lf-diff-rename { padding-right: 10px; }
   /* The row's pull (above) takes back the press's height, and the press an unreviewed
      file's row is pulled over is gone here: a hidden box has no margins, so a pull on

@@ -1,6 +1,6 @@
 ---
 name: developing-with-leaf
-description: Uses the current Leaf repository checkout to author or revise a live page, preview a shipped example, or test worktree changes in the real browser loop.
+description: Uses the current Leaf checkout to author or revise pages and shipped guidance, preview examples, or test changes in the real browser loop.
 ---
 
 # Develop with the checkout's Leaf
@@ -9,6 +9,10 @@ Resolve the repository root three directories above this `SKILL.md`, then resolv
 `<root>/bin/leaf` to an absolute path. Run that launcher with `--version` and
 continue only when it prints the same repository root. Use the absolute launcher
 throughout; a bare `leaf` command may resolve to the installed plugin instead.
+
+Leaf supports many kinds of work. Guidance about how agents write to users
+should set goals for tone and reading experience, and explain the surface where
+the user reads it. Preserve the agent's judgment about format and phrasing.
 
 Use the visible-change handoff in `<root>/CLAUDE.md` to choose a workflow.
 When a visual or content artifact would help the developer judge the work,

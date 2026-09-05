@@ -1,6 +1,7 @@
 [
   "diagram",
   "diff",
+  "swipe",
   "command-hub",
   "pr-review"
 ]

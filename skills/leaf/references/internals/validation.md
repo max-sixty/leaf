@@ -39,6 +39,14 @@ channel, and the headless shell handed over under each variable that names one â
 and a unit reading covers the PATH search, which is only reached where the channel
 misses. `version export` launches through the same helper, so the two move together.
 
+The browser's authored-state conflict check considers only surviving reader actions
+made before the revision being checked. Actions made on that revision already saw
+its markup. After the observational probes, the complete-state renderer shows the
+authored baseline and the carried decisions, then restores current state. The gate
+reports only individual attributes or placement facts changed both by the author
+and by those carried decisions; another facet on the same element is independent.
+The runtime keeps no event-to-DOM write history for this check.
+
 The one thing export asks of a browser that the render gate does not is its age. The
 copy ends in `root.getHTML({ serializableShadowRoots: true })`, which Chromium grew
 in 125, so a browser older than that draws every render invariant clean and then

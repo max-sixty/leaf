@@ -1,32 +1,51 @@
-import { shallowSigs, standingState } from "/runtime/widget-api.js";
+import { inChrome, shallowSigs, standingState } from "/runtime/widget-api.js";
 
-// A version whose markup asserts a state the log replays over — `chosen` moved
-// to another option, a card re-authored into a column the user dragged it
-// out of. Replay resolves it in the user's favor, so what needs reporting is
-// the author's intent going down silently. The static half can't say which
-// attribute is a verb's state — that lives in each widget's renderState, and a
-// table here would be the second copy the registry exists to prevent — so the
-// browser compares: projection reconciliation records the ids it wrote on the body
-// (data-lf-replay-wrote), and this pass asks which of them the author also
-// changed since the previous version, reading both files with the runtime's own
-// shallowSigs. An authored change replay then overrode is a conflict; an
-// unchanged id is the initial condition the log is supposed to outrank. For the
-// message, each conflicting id is laid at the door of the widget whose replay
-// wrote it — its nearest ancestor with an renderState.
-//
-// The two files are handed in rather than fetched: which pair to compare is a
-// question about the log and the URL, both of which the caller holds, and a read
-// it makes is a read it can put a deadline on (see `served` in render_version).
-export function replayOverrides({ curHtml, prevHtml }) {
-  const ids = (document.body.dataset.lfReplayWrote ?? "").split(" ").filter(Boolean);
-  if (!ids.length) return [];
+// Measure the state painted by surviving decisions made before this revision.
+// A decision made on this markup cannot contradict its authoring, even when the
+// widget or facet changed since the previous stamp. Render the authored baseline
+// and those carried winners through the same complete-state fold, then restore
+// the full current state. This also separates old and new facets on one owner.
+// Run after the observational probes: these temporary renders change the page.
+export function replayOverrides({ curHtml, prevHtml, carriedActions }) {
+  if (!carriedActions.length) return [];
+  const pageStates = (ids) =>
+    standingState(ids).filter((s) => s.widget?.renderState && !inChrome(s.widget));
+  const current = pageStates(null);
+  const render = (states) => {
+    for (const { widget, state } of states) widget.renderState(state);
+  };
+  let baseline, carried;
+  try {
+    render(pageStates([]));
+    baseline = shallowSigs(document.body);
+    render(pageStates(carriedActions));
+    carried = shallowSigs(document.body);
+  } finally {
+    render(current);
+  }
   const sigs = (html) =>
     shallowSigs(new DOMParser().parseFromString(html, "text/html").body);
   const cur = sigs(curHtml),
     prev = sigs(prevHtml);
+  // Intersect facts, not whole elements: a carried choice changing `chosen`
+  // does not overrule a freshly authored label on that same option.
+  const facts = (signature) => {
+    if (!signature) return {};
+    const { attrs, ...placement } = JSON.parse(signature);
+    return {
+      ...placement,
+      ...Object.fromEntries(
+        Object.entries(attrs).map(([key, value]) => [`attr:${key}`, value]),
+      ),
+    };
+  };
+  const changed = (before, after) =>
+    Object.keys({ ...before, ...after }).filter((key) => before[key] !== after[key]);
   const groups = new Map();
-  for (const id of ids) {
-    if ((cur.get(id) ?? "") === (prev.get(id) ?? "")) continue;
+  for (const id of new Set([...baseline.keys(), ...carried.keys()])) {
+    const written = changed(facts(baseline.get(id)), facts(carried.get(id)));
+    const authored = changed(facts(prev.get(id)), facts(cur.get(id)));
+    if (!written.some((key) => authored.includes(key))) continue;
     let widget = null;
     for (let a = document.getElementById(id); a; a = a.parentElement)
       if (a.renderState) {

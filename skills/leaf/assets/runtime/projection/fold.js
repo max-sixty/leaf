@@ -180,8 +180,17 @@ export function createProjectionFold(runtime, dependencies) {
     );
   }
 
-  const standingState = () =>
-    [...widgetStates()].map(([id, { state, specs }]) => ({
+  // Restricting the desired winners lets the render gate observe what carried
+  // decisions alone paint. It never revives a superseded event or changes the log.
+  function standingState(eventIds = null) {
+    const projection = stateProjection();
+    if (eventIds !== null) {
+      const included = new Set(eventIds);
+      projection.desired = new Map(
+        [...projection.desired].filter(([, entry]) => included.has(entry.e.id)),
+      );
+    }
+    return [...widgetStates(projection)].map(([id, { state, specs }]) => ({
       get widget() {
         return elementById(id);
       },
@@ -191,6 +200,7 @@ export function createProjectionFold(runtime, dependencies) {
           .filter(([, spec]) => spec.record?.kind === "body")
           .map(([facet, spec]) => [facet, domFacet(elementById(id), spec.record)]),
     }));
+  }
 
   return {
     compareProjected,

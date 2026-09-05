@@ -2094,6 +2094,15 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     )
     assert render_gate_model.render_version(browser, stamp(3, honored)) == []
 
+    # A different order in the same column is a real placement conflict too.
+    reordered = honored.replace(IMPORTER_CARD, "")
+    reordered = reordered.replace(
+        "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
+    )
+    with preview_server(d, reordered.encode(), 4) as preview_url:
+        failures = render_gate_model.render_version(browser, preview_url)
+    assert len(failures) == 1 and "id=work" in failures[0], failures
+
     # v4 asserts the other option and re-authors the card into Doing: both
     # widgets changed since v3 and replay overrides both — the author must hear.
     contradicted = REPLAYED_PAGE.replace('id="opt-stage"', 'id="opt-stage" chosen')
@@ -2102,6 +2111,118 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     assert len(failures) == 2, failures
     assert any("id=approach" in f and "opt-stage" in f for f in failures), failures
     assert any("id=work" in f and "card-importer" in f for f in failures), failures
+
+
+@pytest.mark.parametrize(
+    "introduced", [False, True], ids=["changed-state", "new-widget"]
+)
+def test_render_accepts_actions_made_after_the_authored_change(
+    browser, serve, introduced
+):
+    """A reader choosing on r2 does not retroactively contradict r2's authoring."""
+    previous = (
+        leaf_page("Approach", '<p id="intro">Choose an approach.</p>')
+        if introduced
+        else REPLAYED_PAGE
+    )
+    url = serve(previous)
+    d = serve.page_dir
+    current = REPLAYED_PAGE.replace('id="opt-stage"', 'id="opt-stage" chosen')
+    (d / ".fixture-versions" / "v2.html").write_text(current)
+    stamp_version_file(d, 2, "t")
+    append_command(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 2,
+            "widget": "approach",
+            "action": "choose",
+            "detail": {"options": ["opt-shim"]},
+        },
+    )
+    assert (
+        render_gate_model.render_version(browser, url.replace("v1.html", "v2.html"))
+        == []
+    )
+
+
+def test_render_separates_old_and_new_facets_on_one_element(
+    browser, serve, tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    package = author_test_widget(tmp_path, "lf-pair", upgrade=True)
+    registry_path = package / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entry = entries["lf-pair"]
+    entry["properties"].update(
+        first={"type": "string"},
+        second={"type": "string"},
+        restated={"type": "boolean"},
+    )
+    entry["x-state"] = {
+        facet: {
+            "detail": {
+                "type": "object",
+                "properties": {"value": {"type": "string"}},
+                "required": ["value"],
+                "additionalProperties": False,
+            },
+            "facet": facet,
+            "unit": "widget",
+            "record": {"kind": "value", "attr": facet, "value": "value"},
+        }
+        for facet in ("first", "second")
+    }
+    registry_path.write_text(json.dumps(entries))
+    (package / "widgets" / "lf-pair.js").write_text(
+        """import { once } from "/runtime/widget-api.js";
+customElements.define("lf-pair", class extends HTMLElement {
+  connectedCallback() { once(this); }
+  renderState(state) {
+    for (const [facet, reading] of Object.entries(state)) {
+      if (reading.value === null) this.removeAttribute(facet);
+      else this.setAttribute(facet, reading.value);
+    }
+  }
+});
+"""
+    )
+    previous = leaf_page(
+        "Two facets", '<lf-pair id="pair" first="a" second="a">Two facts.</lf-pair>'
+    )
+    url = serve(previous)
+    d = serve.page_dir
+
+    def act(revision, facet):
+        append_command(
+            d,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": revision,
+                "widget": "pair",
+                "action": facet,
+                "detail": {"value": "picked"},
+            },
+        )
+
+    act(1, "first")
+    current = previous.replace('second="a"', 'second="b"')
+    (d / ".fixture-versions" / "v2.html").write_text(current)
+    stamp_version_file(d, 2, "t")
+    act(2, "second")
+    # Both renderState writes hit the same id. Only the newer facet was authored.
+    assert (
+        render_gate_model.render_version(browser, url.replace("v1.html", "v2.html"))
+        == []
+    )
+    # The same older facet really is contradicted when its own record changes.
+    with preview_server(
+        d, current.replace('first="a"', 'first="b"').encode(), 3
+    ) as preview_url:
+        failures = render_gate_model.render_version(browser, preview_url)
+    assert len(failures) == 1 and "id=pair" in failures[0], failures
 
 
 def test_the_render_gate_applies_every_standing_action_a_second_time(browser, serve):
@@ -2791,7 +2912,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
 def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, serve):
     """A widget may use the runtime's namespace for state without making that state
     runtime paint. Replaying a suggestion changes only data-lf-state on its authored
-    element, so the replay record must name it; runtime attributes and generated chrome
+    element, so its signature must change; runtime attributes and generated chrome
     must not change the signature."""
     url = serve(SUGGESTION_PAGE)
     append_command(
@@ -2807,9 +2928,6 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
     )
     page, errors = open_page(browser, url)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
-    page.wait_for_function(
-        "() => (document.body.dataset.lfReplayWrote ?? '').split(' ').includes('sug-refill')"
-    )
 
     signatures = page.evaluate("""async () => {
         const { shallowSigs } = await import("/runtime/widget-api.js");
@@ -2851,29 +2969,21 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
         const moved = Object.fromEntries(shallowSigs(root));
         return { before, painted, moved };
     }""")
-    assert positions == {
-        "before": {
-            "signature-root": "DIV [id=signature-root] in=#-1",
-            "first": "DIV [id=first] in=signature-root#0",
-            "nested": "B [id=nested] in=first#0",
-            "thread-widget": "LF-OPTIONS [id=thread-widget] in=#0",
-            "second": "DIV [id=second] in=signature-root#1",
-        },
-        "painted": {
-            "signature-root": "DIV [id=signature-root] in=#-1",
-            "first": "DIV [id=first] in=signature-root#0",
-            "nested": "B [id=nested] in=first#0",
-            "thread-widget": "LF-OPTIONS [id=thread-widget] in=#0",
-            "second": "DIV [id=second] in=signature-root#1",
-        },
-        "moved": {
-            "signature-root": "DIV [id=signature-root] in=#-1",
-            "second": "DIV [id=second] in=signature-root#0",
-            "first": "DIV [id=first] in=signature-root#1",
-            "nested": "B [id=nested] in=first#0",
-            "thread-widget": "LF-OPTIONS [id=thread-widget] in=#0",
-        },
+    assert positions["before"] == positions["painted"]
+    assert set(positions["before"]) == {
+        "signature-root",
+        "first",
+        "nested",
+        "thread-widget",
+        "second",
     }
+    assert {
+        identity
+        for identity, signature in positions["before"].items()
+        if positions["moved"][identity] != signature
+    } == {"first", "second"}
+    assert json.loads(positions["before"]["nested"])["parent"] == "first"
+    assert json.loads(positions["before"]["thread-widget"])["parent"] == ""
     assert errors == []
     page.close()
 

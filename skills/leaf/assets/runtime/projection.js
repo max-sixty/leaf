@@ -47,27 +47,21 @@ export function createProjection(runtime, dependencies) {
   // state survived a revision activation or a thread reconcile; node identity can. A
   // coordinate with no winner is committed too, once its authored baseline stands.
   const committedProjection = new Map();
-  // An authored, id-bearing element's state as markup can say it: tag, attributes,
-  // and place among its authored id-bearing kin. Generated chrome is deliberately
-  // absent. Text is deliberately absent — words are the
-  // static gate's subject (restatement_errors); this is the rest, the state no
-  // authored document can speak. What the runtime itself paints onto page elements —
-  // exactly PAGE_PAINT_ATTRIBUTES — is absent too: no version can assert those,
-  // and looking away from them keeps a reading taken from the live DOM equal to
-  // one taken from the file without hiding a widget's own data-lf state. Diffed around each replay batch to
-  // record what replay wrote, and imported by version check --render to read version
-  // documents with the same eyes, so the two readings cannot drift.
+  // Stable, structured signatures of authored tag, attributes and placement.
+  // Generated chrome and runtime paint are absent. The render gate compares the
+  // same facts in source documents and in the DOM; text has its own reading.
   function shallowSigs(root) {
     const sigs = new Map();
     const siblingPositions = new Map();
     const isAuthored = (el) => Boolean(el.id) && authored(el)(el);
     for (const el of [root, ...root.querySelectorAll("[id]")]) {
       if (!isAuthored(el)) continue;
-      const attrs = [...el.attributes]
-        .filter((a) => !PAGE_PAINT_ATTRIBUTES.has(a.name))
-        .map((a) => `${a.name}=${a.value}`)
-        .sort()
-        .join(" ");
+      const attrs = Object.fromEntries(
+        [...el.attributes]
+          .filter((a) => !PAGE_PAINT_ATTRIBUTES.has(a.name))
+          .map((a) => [a.name, a.value])
+          .sort(([a], [b]) => a.localeCompare(b)),
+      );
       const parent = el.parentElement;
       let positions = siblingPositions.get(parent);
       if (!positions) {
@@ -78,7 +72,12 @@ export function createProjection(runtime, dependencies) {
       }
       sigs.set(
         el.id,
-        `${el.tagName} [${attrs}] in=${parent && isAuthored(parent) ? parent.id : ""}#${positions.get(el) ?? -1}`,
+        JSON.stringify({
+          tag: el.tagName,
+          attrs,
+          parent: parent && isAuthored(parent) ? parent.id : "",
+          index: positions.get(el) ?? -1,
+        }),
       );
     }
     return sigs;
@@ -128,12 +127,7 @@ export function createProjection(runtime, dependencies) {
       authoredStates.delete(owner);
       committedWidgets.delete(owner);
     }
-    for (const attr of [
-      PAGE_PAINT_ATTRIBUTE.applied,
-      PAGE_PAINT_ATTRIBUTE.replayWrote,
-      PAGE_PAINT_ATTRIBUTE.reportWrote,
-    ])
-      document.body.removeAttribute(attr);
+    document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
   }
 
   const {
@@ -426,20 +420,6 @@ export function createProjection(runtime, dependencies) {
     return covered;
   }
 
-  function rememberWrites(before, kind) {
-    const now = shallowSigs(document.body);
-    const changed = [...new Set([...before.keys(), ...now.keys()])].filter(
-      (id) => before.get(id) !== now.get(id) && !inChrome(elementById(id)),
-    );
-    if (!changed.length) return;
-    const attr =
-      kind === "action"
-        ? PAGE_PAINT_ATTRIBUTE.replayWrote
-        : PAGE_PAINT_ATTRIBUTE.reportWrote;
-    const prior = document.body.getAttribute(attr)?.split(" ") ?? [];
-    document.body.setAttribute(attr, [...new Set([...prior, ...changed])].join(" "));
-  }
-
   let projectionDragObserver = null;
   function watchProjectionDrag() {
     if (projectionDragObserver) return;
@@ -487,7 +467,6 @@ export function createProjection(runtime, dependencies) {
             committedProjection.get(coordinate)?.unit !== elementById(unit),
         );
         if (commit?.widget !== widget || commit.key !== key || unitsChanged) {
-          const before = inChrome(widget) ? null : shallowSigs(document.body);
           try {
             if (widget.renderState?.(state) === false) continue;
             renderSettlement(widget, state);
@@ -498,9 +477,6 @@ export function createProjection(runtime, dependencies) {
             failSoft(widget, error);
             renderSettlement(widget, state);
           }
-          if (before)
-            for (const kind of new Set(entries.map(({ e }) => e.kind)))
-              rememberWrites(before, kind);
           committedWidgets.set(widgetId, { widget, key });
           painted = true;
         }

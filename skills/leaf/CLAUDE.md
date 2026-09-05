@@ -576,9 +576,11 @@ reconciles, releases eligible outbox entries, repaints keys, and dispatches
 `lf-actions`. Do not let a read or the heartbeat fight the pointer by applying
 projection during a drag.
 
-`rememberWrites` compares `shallowSigs` before and after each widget render and records the ids replay changed. The render gate reads those marks
-to check that a module writes only state declared by its record form. Text is
-handled by the passage and restatement checks, not by the shallow signature.
+`shallowSigs` reads authored tags, individual attributes, and placement. The render
+gate temporarily renders the authored state and surviving decisions from earlier
+revisions, intersects their writes with the author's changed facts, then restores
+current state. New actions on this revision cannot contradict its authoring. No
+per-render DOM write history is kept. Text has the passage and restatement checks.
 
 ### Authored state and undo
 

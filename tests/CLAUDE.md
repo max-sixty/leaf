@@ -306,7 +306,8 @@ These are independent facts. Network quiet implies neither. A browser action
 sent before replay has landed may be ignored without a later assertion revealing
 that the keypress itself was lost. Use the shared `BOTH_STAMPS` predicate for
 manual navigations as well; the `upgraded=False` escape in `open_page` is only
-for a test whose subject is the interval before those stamps.
+for a test whose subject is the interval before those stamps, waits for the
+banner module to exist, and must make its later readiness explicit.
 
 `watched` must be installed before navigation. It collects console errors and
 `pageerror`, and calls `leaf.render_checks.install_window_errors` so browser
@@ -340,7 +341,10 @@ any binding, so a promise awaited inside it is a wait nothing bounds: it spends
 the job's whole step, and the share of the suite already handed to that worker
 never runs. State synchronous readiness inside the page and poll it with
 `wait_for_probe`, whose driver-side wait carries `SERVED_TIMEOUT_MS`;
-`render_checks.py` refuses a probe that returns a Promise.
+`render_checks.py` refuses a probe that returns a Promise. The diff renders in
+`test_render_anchors.py` hold a frame poll against an explicit rejecting timer;
+a shipped probe's ordinary browser lifecycle is always a synchronous fact
+observed from outside the page.
 
 ### A state the page passes through is not a state to poll for
 
@@ -492,7 +496,9 @@ while a handler is still reading it.
 
 The assertion names the ordering the route created: hold the first POST, make
 the second gesture, and inspect `Traffic.sends` before release. The final log
-order alone lets the scheduler choose the test's premise.
+order alone lets the scheduler choose the test's premise. For a stale-state
+test, withhold the exact state response that would otherwise reconcile the page
+and prove both the page's stale view and the server's newer view before release.
 
 ### A test cannot assert over noise it makes itself
 

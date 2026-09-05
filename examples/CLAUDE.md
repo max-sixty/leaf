@@ -13,7 +13,8 @@ outside one document, name that condition and exercise it in the gallery's brows
 test. The gallery uses the same companion version, log, and data conventions as an
 example, but the website does not publish it. `corpus.html` and `corpus.data.json`
 are generated from both sets; edit the source page and regenerate the corpus
-instead of patching either output.
+instead of patching either output (`test_corpus_is_generated_from_the_examples`
+holds the two to their sources).
 
 ## Every widget and idiom in the vocabulary stands here
 
@@ -187,8 +188,9 @@ A before/after pair is drawn rather than captured, since what it shows is a
 fiction the example needs. Draw both images at one height, because they share one
 grid cell and the shorter would sit in blank space. The frame scales an image to
 its own width, so draw the file at twice the width the shot will get where it
-stands, measured from the layout rather than carried over. Take the palette from
-the pair already here.
+stands, measured from the layout rather than carried over. The state rail has its
+own band above the image, so the mock can use its whole canvas. Take the palette
+from the pair already here.
 
 The script that draws a mock belongs in scratch, not in `scripts/`. A mock depicts
 a console that does not exist, so nothing can make it false and nothing will re-run

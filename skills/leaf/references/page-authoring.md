@@ -44,7 +44,9 @@ The field the short query leaves out is `description`, and it carries what no
 schema can state: what may go inside the tag, what the widget does when the
 reader acts on it, and how to word the question it puts. Package-defined tags and
 `$` facts join the same key list. `leaf page guidance <page>` lists the composed
-guidance audiences; read `author` when it is present.
+guidance audiences and `leaf page guidance <page> <audience>` prints one guide;
+read `author` when it is present, and the assigned audience before acting in any
+other role.
 
 ## Document scaffold
 

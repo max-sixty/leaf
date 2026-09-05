@@ -51,6 +51,7 @@ _PREVIEW_RESTART_ERRORS = {
     "Failed to load resource: net::ERR_EMPTY_RESPONSE",
     "Failed to load resource: net::ERR_CONTENT_LENGTH_MISMATCH",
     "leaf: page failed to start: Failed to fetch",
+    "leaf: read failed: Failed to fetch",
 }
 _PREVIEW_RESTART_ICON_ERROR = re.compile(
     r"TypeError: Failed to fetch\n"
@@ -69,7 +70,7 @@ _PREVIEW_RESTART_IMPORT_ERROR = re.compile(
 
 
 def assert_only_preview_restart_errors(errors):
-    """A preview restart may interrupt only its page, module and icon fetches."""
+    """A preview restart may interrupt only its page, log, module and icon fetches."""
     unexpected = [
         error
         for error in errors
@@ -78,6 +79,45 @@ def assert_only_preview_restart_errors(errors):
         and _PREVIEW_RESTART_IMPORT_ERROR.fullmatch(error) is None
     ]
     assert unexpected == [], unexpected
+
+
+def test_the_restart_reading_accepts_only_observed_restart_diagnostics():
+    """The restart tolerance stays bounded to diagnostics this test can produce."""
+    assert_only_preview_restart_errors(
+        [
+            "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+            "Failed to load resource: net::ERR_CONTENT_LENGTH_MISMATCH",
+            "leaf: page failed to start: Failed to fetch",
+            "leaf: read failed: Failed to fetch",
+            (
+                "leaf: page failed to start: Failed to fetch dynamically imported "
+                "module: http://127.0.0.1:43925/widgets/lf-swipe-deck.js"
+            ),
+            (
+                "TypeError: Failed to fetch\n"
+                "    at loadIcon (http://127.0.0.1:43925/runtime/banner.js:71:22)\n"
+                "    at startPage (http://127.0.0.1:43925/leaf.js:3880:5)\n"
+                "    at http://127.0.0.1:43925/leaf.js:3899:1"
+            ),
+        ]
+    )
+    for refused in (
+        "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID",
+        "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+        "Failed to load resource: the server responded with a status of 404 ()",
+        "Failed to load resource: the server responded with a status of 500 ()",
+        "leaf: registry failed to load (500)",
+        "leaf: page failed to start: SyntaxError: Unexpected token '<'",
+        "TypeError: page.querySelector(...) is null",
+        (
+            "TypeError: Failed to fetch\n"
+            "    at loadIcon (http://127.0.0.1:43925/runtime/banner.js:71:22)\n"
+            "    at startPage (http://127.0.0.1:43926/leaf.js:3880:5)\n"
+            "    at http://127.0.0.1:43926/leaf.js:3899:1"
+        ),
+    ):
+        with pytest.raises(AssertionError):
+            assert_only_preview_restart_errors([refused])
 
 
 @pytest.fixture

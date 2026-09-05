@@ -704,8 +704,8 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     # is born here, so this selection is the state the generation records.
     first.locator("#job-mounts").evaluate("el => el.setAttribute('chosen', '')")
     text = "Use a heated camera sleeve"
-    first.locator("#jobs > .lf-another input").fill(text)
-    expect(second.locator("#jobs > .lf-another input")).to_have_value(text)
+    first.locator("#jobs > .lf-another textarea").fill(text)
+    expect(second.locator("#jobs > .lf-another textarea")).to_have_value(text)
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))

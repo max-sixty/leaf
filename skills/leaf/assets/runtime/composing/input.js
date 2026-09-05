@@ -2,19 +2,21 @@ import { focused, keys } from "../keyboard/scopes.js";
 import { spell } from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
 import { notice } from "../notifications.js";
-// One helper wires every durable text surface: the general box, each per-thread reply,
-// and the compact anchored composer. `wireInput` gives runtime textareas one input
-// contract: persist each edit, keep the send button and placeholder current, prevent
-// parallel sends of one local surface (an impatient second click), and send with
-// `Mod+Enter`. Enter retains the textarea's native newline. The stylesheet owns
+// One helper wires every durable composition surface: the general box, each per-thread
+// reply, the compact anchored composer, and composition boxes contributed by widgets.
+// `wireInput` gives every such textarea one input contract: persist each edit, keep the
+// action button and placeholder current, prevent parallel submissions of one local
+// surface (an impatient second click), and submit with `Mod+Enter`. Enter retains the
+// textarea's native newline. The stylesheet owns
 // textarea growth through `field-sizing: content`, within the room supplied by floating
 // placement; script does not derive textarea height from its text. wire() returns a
 // sync() the caller runs after setting .value programmatically, so the send button and
 // any containing chrome agree with what's in the box: that sync refreshes the composer's
 // placement for typed and programmatic edits alike, including drafts mirrored from
-// another tab. An image paste uploads bytes to page media. The draft keeps the resulting
-// Markdown, while the textarea shows only the reader's words and a thumbnail projection.
-// The send binding, and the register's spelling of it: the placeholder, the button's
+// another tab. When the surface accepts images, a paste uploads bytes to page media. The
+// draft keeps the resulting Markdown, while the textarea shows only the reader's words
+// and a thumbnail projection.
+// The submit binding, and the register's spelling of it: the placeholder, the button's
 // tooltip and the row a box declares all read one string.
 const SEND = "Mod+Enter";
 let uploadMedia;
@@ -118,10 +120,10 @@ export function wireInput(
   };
   inputPaints.set(ta, paint);
   const repaint = () => {
+    sendBtn.title = `${sendBtn.textContent.trim()} (${sendKeys})`;
     if (focused() === ta) paintInputs();
     else paint();
   };
-  sendBtn.title = `Send (${sendKeys})`;
   if (altBtn) altBtn.title = altBtn.textContent;
   let sending = false;
   let uploading = false;
@@ -155,7 +157,10 @@ export function wireInput(
     // (the notice announces too).
     const raw = draftValue();
     const text = raw.trim();
-    if (!hasContent(raw)) return notice("Nothing to send — the box is empty");
+    if (!hasContent(raw))
+      return notice(
+        `Nothing to ${sendBtn.textContent.trim().toLowerCase()} — the box is empty`,
+      );
     sending = true;
     refresh();
     try {
@@ -176,6 +181,7 @@ export function wireInput(
       .map((item) => item.getAsFile())
       .filter(Boolean);
     if (!images.length) return;
+    if (!allowsMedia) return;
     event.preventDefault();
     if (!allowsMedia()) {
       notice("Images can be added to comments, not replacement text");
@@ -211,7 +217,7 @@ export function wireInput(
   // the press are the same object. Every box the runtime wires gets it — the general box,
   // each thread's reply, the selection composer, a widget conversation — where the reference
   // used to carry one row saying "in the focused composer" for a chord that fires in all
-  // of them.
+  // of them, including widget-owned text boxes.
   // The sentence is the same in every box, so the reference names the binding once however
   // many boxes the page holds; the word is this box's, because what the press does here is
   // what the line is for — a composer in suggestion mode and a thread's reply are one
@@ -220,7 +226,7 @@ export function wireInput(
     {
       id: "text.send",
       keys: [SEND],
-      does: "Send what you have typed",
+      does: "Submit what you have typed",
       line: sends,
       run: () => sendBtn.click(),
     },

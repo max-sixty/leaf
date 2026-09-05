@@ -1452,7 +1452,7 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
 
     # A pointer landing inside an open decision is standing in it, though no walk brought
     # them there: the ring renders the focus rather than remembering a press.
-    page.locator("#live-question .lf-another input").click()
+    page.locator("#live-question .lf-another textarea").click()
     expect(question).to_have_attribute("data-lf-ask", "1")
 
     # Answering takes it off with the focus still inside: the ring is for the question

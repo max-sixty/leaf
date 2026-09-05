@@ -370,7 +370,7 @@ def test_a_margin_start_uses_the_item_alongside_it_as_context(browser, serve):
 
     expect(page.locator(".lf-fab-input")).to_be_focused()
     with sending(page, "the margin drawing"):
-        page.keyboard.press("ControlOrMeta+Enter")
+        page.locator(".lf-composer-row .primary").evaluate("button => button.click()")
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["anchor"] == {"section": "prose"}
     assert "text" not in event

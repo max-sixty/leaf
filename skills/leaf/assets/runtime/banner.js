@@ -230,6 +230,17 @@ function renderStatusNow(state) {
     return;
   }
   renderPreview(state);
+  if (state.example) {
+    const install = el("a", "lf-example-install", "Install Leaf");
+    install.href = state.example.install_url;
+    showStatus(
+      "unattended",
+      TONE.unattended,
+      "This is an example on the Leaf website. No agent will respond. ",
+      install,
+    );
+    return;
+  }
   const { status, pending } = state;
   const { kind, quiet, dropped, detail } = presented(state);
   // What the user's words do meanwhile. The log takes them with nobody on the other

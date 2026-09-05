@@ -17,6 +17,7 @@ def full_state(
     events: list,
     layer_identity: dict | None = None,
     preview: dict | None = None,
+    example: dict | None = None,
     source_error: str | None = None,
     view_revision: int | None = None,
     active_override: dict | None = None,
@@ -73,4 +74,5 @@ def full_state(
         # log's own, which $events already stamps.
         "events": events,
         **({"preview": preview} if preview else {}),
+        **({"example": example} if example else {}),
     }

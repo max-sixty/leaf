@@ -46,10 +46,10 @@ import {
 import { outbox, post, removeOutbox } from "./outbox.js";
 import {
   answeredContext,
-  decisionEntry,
+  askEntry,
   isAwaiting,
   projectedParent,
-} from "./decisions/model.js";
+} from "./asks/model.js";
 import { unaccountedGesture } from "./keyboard/page.js";
 import { notice } from "./notifications.js";
 import { paintKeys } from "./keyboard/scopes.js";
@@ -259,7 +259,7 @@ function requirementTarget(widget, target, context) {
     node = projectedParent(node, context)
   )
     if (registry[node.localName])
-      return permitted.includes(node.localName) && decisionEntry(node) ? node : null;
+      return permitted.includes(node.localName) && askEntry(node) ? node : null;
   return null;
 }
 

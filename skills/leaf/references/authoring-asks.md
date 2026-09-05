@@ -1,12 +1,12 @@
-# Decisions and sign-off
+# Asks and sign-off
 
 Read this while authoring a new, unanswered ask or sign-off. Read the selected
 registry entries for the exact widget contracts.
 
 ## Asks and sign-off
 
-On a quick-decision page, open with the Ask. Put its short shared premise inside
-the `lf-decision`, before the control, and put backing detail after it in a
+On a quick-answer page, open with the Ask. Put its short shared premise inside
+the `lf-ask`, before the control, and put backing detail after it in a
 disclosure. The first viewport should show the objective, current state, and
 available move together.
 
@@ -16,7 +16,7 @@ follows that item, and an Ask that turns on a claim follows the claim rather
 than the backing collapsed under it. Only an Ask that turns on the whole record
 comes last.
 
-Write related, independently answerable Asks as ordinary `lf-decision` elements
+Write related, independently answerable Asks as ordinary `lf-ask` elements
 in page order. They remain visible as one complete page. The reader can press
 `a` to reach the next open Ask and use its displayed `1`–`9` actions. If a later
 Ask depends on an earlier answer, publish it in the next turn instead of authoring
@@ -30,7 +30,7 @@ Hold everything except the disputed treatment constant, and include the current 
 no-treatment case as a neutral control. Put longer rationale or provenance in a
 disclosure after the Ask. Use a short option that points
 elsewhere only to select among sections or work items that already exist
-independently of the decision; do not create separate sections to hold an Ask's
+independently of the Ask; do not create separate sections to hold its
 alternatives. Allow multiple picks only when several options may stand.
 
 On the page the group's last cell is an option the reader writes, saying
@@ -41,12 +41,12 @@ the group's ordinary `choose` action, with `detail.additions` mapping the comple
 set of reader-added option ids to their words. In a thread the reply box already owns
 free-form words, so the group carries no add cell of its own.
 
-The standing `choose` action answers the Decision immediately and preserves
+The standing `choose` action answers the Ask immediately and preserves
 generated options across revisions. If an added option needs clarification,
 open a separate exact-section thread anchored to its event-supplied id. When
 editing that option's markup, follow `authoring-revisions.md`'s reader-state rules.
 
-An ask must name itself without context outside the ask. Begin `lf-decision` with
+An ask must name itself without context outside the ask. Begin `lf-ask` with
 one ordinary heading, then include any introduction or evidence and the
 actionable widget. That heading is the question: it stays in the document's
 hierarchy, is available to selection and comments, names the Asks tray row, and

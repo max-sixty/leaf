@@ -1,7 +1,7 @@
 # Page authoring
 
 Read this before writing or revising any version. It owns the rules every page
-needs; the main skill routes decisions, live revisions, and evidence to separate
+needs; the main skill routes Asks, live revisions, and evidence to separate
 references.
 
 - [Read the registry](#read-the-registry)
@@ -85,7 +85,7 @@ registry is the only widget vocabulary.
 
 The runtime injects the status banner, thread panel, version picker, keyboard
 shortcuts, live-leaves tray, and active-asks tray. Authors declare reader asks
-through the registry's decision widgets and regions, but do not duplicate that
+through the registry's Ask sources and surfaces, but do not duplicate that
 chrome or maintain a second list of it in the page.
 
 Keep content inside the page's column. The theme scrolls a `<pre>` or a table
@@ -120,8 +120,8 @@ Open words are read; collapsed words are there when the reader wants them. What
 stands open in the column is what the reader has to take from the page. History,
 method, source excerpts, exhaustive support, transcripts, and raw output are
 backing by default and go under `<details>`. Collapsed words stay quotable, and
-the runtime opens the disclosure when a comment or a walk lands inside one. A
-decision and the evidence it turns on never collapse.
+the runtime opens the disclosure when a comment or a walk lands inside one. An
+Ask and the evidence it turns on never collapse.
 
 The title names the page, and the lede under it carries the finding. A section
 that reaches a finding says it in the heading, briefly enough to scan in an

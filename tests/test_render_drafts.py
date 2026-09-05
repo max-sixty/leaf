@@ -13,8 +13,8 @@ from leaf import session as session_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
+    ASK_PAGE,
     BOTH_STAMPS,
-    DECISION_PAGE,
     DRAFT_EDITED,
     DRAFT_TEXT,
     JOURNEY_V1,
@@ -696,7 +696,7 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     submit the one shared add-option generation, so deriving its absolute choice from
     each tab's DOM would reuse one attempt for two conflicting payloads.
     """
-    url = serve(DECISION_PAGE)
+    url = serve(ASK_PAGE)
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(browser, url, context=one_reader)
 
@@ -1165,6 +1165,55 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert composer_quote(page)["text"].strip("“”") == "A short second passage."
+    assert errors == []
+    page.close()
+
+
+def test_a_held_comment_send_leaves_a_later_keyboard_target_selected(
+    held_events, serve
+):
+    """The target chosen with `s` is later than a comment already in flight."""
+    browser, held = held_events
+    page, errors = open_page(browser, serve(NOTED_PAGE))
+    compose(page, "#p1", "The first remark.")
+
+    page.keyboard.press("ControlOrMeta+Enter")
+    _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
+
+    # Leave the sending field, then use the target-first keyboard path to choose p2.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).not_to_have_count(0)
+    target_code = page.evaluate(
+        """() => {
+          const top = document.querySelector('#p2').getBoundingClientRect().top;
+          return [...document.querySelectorAll('.lf-target-hint')]
+            .sort((a, b) => Math.abs(a.getBoundingClientRect().top - top)
+                          - Math.abs(b.getBoundingClientRect().top - top))[0]
+            .dataset.lfTarget;
+        }"""
+    )
+    page.keyboard.type(target_code)
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+    expect(page.locator("#p2")).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "aria-label", re.compile(r"^Respond to paragraph")
+    )
+
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+
+    expect(page.locator(".lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+    expect(page.locator("#p2")).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "aria-label", re.compile(r"^Respond to paragraph")
+    )
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    assert composer_quote(page)["text"].endswith("A short second passage.")
     assert errors == []
     page.close()
 

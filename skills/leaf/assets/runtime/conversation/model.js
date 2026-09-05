@@ -6,7 +6,7 @@
    thread that grew out of a reaction opens on the mark, whose body
    conversation/messages.js writes as the glyph and its word. Whose turn a thread is
    (`awaitsReader`, `awaitsAgent`) is the server's projection, read here rather than
-   derived: the banner's decision count and the panel's narrowing ask the same question
+   derived: the banner's Ask count and the panel's narrowing ask the same question
    and must get one answer. */
 import { sameAnchor } from "../anchors.js";
 import { registry } from "../registry.js";

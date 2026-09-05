@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from leaf.anchor_capture import capture_anchor
-from leaf.decisions import local_decision_entry, page_awaiting_values
+from leaf.asks import local_ask_entry, page_awaiting_values
 from leaf.event_contracts import report_contract_error
 from leaf.event_log import read_events
 from leaf.files import (
@@ -166,7 +166,7 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str, awaits: bool = False) 
             sys.exit(
                 f"thread {root_id!r} requires a page version and cannot take a reply; "
                 "incorporate its request in the next version, or open a separate "
-                "thread on the same Decision with `leaf comment --section <decision-id>` if "
+                "thread on the same Ask with `leaf comment --section <ask-id>` if "
                 "you need an answer first"
             )
         fragment = check_markup(page_dir, "reply", markup, events) if markup else None
@@ -176,13 +176,13 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str, awaits: bool = False) 
                 {
                     rec["tag"]
                     for rec in fragment.lf_elements
-                    if local_decision_entry(registry.get(rec["tag"]) or {})
+                    if local_ask_entry(registry.get(rec["tag"]) or {})
                 }
             )
             if structural:
                 sys.exit(
                     "--awaits is for a prose question; reply markup already declares "
-                    "a local decision "
+                    "a local Ask "
                     f"({', '.join(f'<{tag}>' for tag in structural)})"
                 )
         event = {
@@ -258,7 +258,7 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
         ):
             sys.exit(
                 f"thread {root_id!r} requires a page version that answers its "
-                "originating Decision, or changes its declared answer if it was already "
+                "originating Ask, or changes its declared answer if it was already "
                 "answered, before the agent can resolve it"
             )
         event = {

@@ -179,7 +179,7 @@ uses the same stamp before it can capture or post a passage coordinate.
 The registry entry is JSON Schema over the element's attributes, plus the `x-` keys that
 say how the layer treats the tag — its content model, whether a module upgrades it, which
 attributes the reader sees as words, its action verbs and their record forms, whether it
-stands as one of the page's decisions. The merged registry's `$keys` entry defines each key,
+stands as one of the page's Asks. The merged registry's `$keys` entry defines each key,
 and the shipped widget entries are the worked examples. Every widget entry carries a
 non-empty `description`. Its first plain sentence identifies the widget's purpose; the
 rest explains its detailed contract. An entry's `x-example` must validate and is the
@@ -191,12 +191,12 @@ required string enum, and the child admits the container through `x-parent`. `ve
 check` then refuses a missing or repeated enum value. This keeps fixed role sets in the
 package contract without adding their tags or vocabulary to Leaf.
 
-When a position action completes a Decision only after its own move empties a queue,
+When a position action completes an Ask only after its own move empties a queue,
 declare `completion: {empty: {within: "CONTAINER-TAG", when: {ATTRIBUTE: [VALUE]}}}`
 on that x-state verb. `within` names an items container inside the answering widget and
 `when` selects exactly one instance by static authored attributes. POST overlays the
 candidate move on the authoritative holder relation before testing emptiness, and the
-Decision projection uses the same condition for standing state. Do not add a second
+Ask projection uses the same condition for standing state. Do not add a second
 completed attribute or trust the browser's optimistic item count. Re-vendoring must
 preserve the completion condition for every recorded action.
 
@@ -265,8 +265,8 @@ Register the semantic capability, not every nearby button. Evidence nested insid
 option is not an answer, and a shared-margin Button may sit outside the Ask source. When
 controls or availability change, keep the row fields computed and call `paintKeys()`;
 every command projection then updates together. A package that needs the page-wide open
-Ask set calls `watchDecisions(owner, callback)`. It invokes `callback(openDecisions)`
-immediately, invokes it again after a complete decision projection reconciles, binds the
+Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)`
+immediately, invokes it again after a complete Ask projection reconciles, binds the
 subscription lifetime to `owner`, and returns an explicit cleanup function. Packages do
 not listen to Leaf's internal `lf-actions` invalidation event.
 
@@ -313,7 +313,7 @@ tells the host how to execute and recover them.
 Every live request holder must contain at least one matching direct child and may offer
 each verb only once; two differently worded controls that send the same instruction
 cannot produce distinguishable requests. When a later revision has carried out the
-instruction, remove the holder rather than leaving an empty Decision with no possible answer.
+instruction, remove the holder rather than leaving an empty Ask with no possible answer.
 `verbs` gives each operation a closed detail schema. Optional `bind` entries require a
 detail field to equal an authored string attribute on the holder, so a crafted event
 cannot retarget the operation. Every bound detail field and holder attribute is required,
@@ -340,17 +340,17 @@ Leaf validates the generic relation; the package owns the map, roles, and partic
 widget tags. A later package can therefore add another goal or worker widget by merging
 its entry into `$command.widgets`, without changing core.
 
-Set `decision: true` when the ready operation is a question the reader must answer. Leaf then
+Set `ask: true` when the ready operation is a question the reader must answer. Leaf then
 puts that holder in the canonical Asks projection only while its lifecycle is `ready`.
 Acceptance hands the turn to the host, so `pending` and `completed` holders leave the
-reader's list; a failed receipt returns the lifecycle to `ready` and reopens the decision. A
+reader's list; a failed receipt returns the lifecycle to `ready` and reopens the Ask. A
 parent `x-awaits.rollup` reads that same lifecycle, so nested task and header projections
 do not need package-specific request bookkeeping.
 
 ```json
 {
   "x-request": {
-    "decision": true,
+    "ask": true,
     "offers": { "lf-operation": "verb" },
     "verbs": {
       "restart": {

@@ -18,7 +18,7 @@ from leaf.conversation import (
 )
 from leaf.data import cmd_data_capture, cmd_data_clear, cmd_data_set
 from leaf.exporting import cmd_export
-from leaf.hooks import cmd_hook, unanswered_decisions
+from leaf.hooks import cmd_hook, unanswered_asks
 from leaf.host import host_identity
 from leaf.hosting import cmd_serve, cmd_serve_temporary, cmd_stop, start_server
 from leaf.media import cmd_media
@@ -29,7 +29,7 @@ from leaf.publishing import cmd_stamp
 from leaf.requests import cmd_receipt
 from leaf.schema import (
     ACK_BATCH_INSTRUCTION,
-    ANSWER_DECISION_INSTRUCTION,
+    ANSWER_ASK_INSTRUCTION,
     EVENTS_FILE,
     SKILL_ROOT,
     WAIT_BATCH_OUTPUT_INSTRUCTION,
@@ -242,7 +242,7 @@ def guidance(dir: str, audience: str | None) -> None:
 def state(dir: str, thread_id: str | None) -> None:
     """Fold the log onto the active revision and print the result as one JSON
     object: effective content with source and edit addresses, standing state,
-    reports, open decisions, thread content, versions, presence, and bound data.
+    reports, open Asks, thread content, versions, presence, and bound data.
     Content follows the same document projection as the browser."""
     cmd_page_state(resolve_dir(dir), thread_id=thread_id)
 
@@ -553,7 +553,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
         events = page.events
         cursor = page.cursor
         pending = len(unacknowledged(events, cursor))
-        unanswered = unanswered_decisions(events, cursor, active_enclosing(page_dir))
+        unanswered = unanswered_asks(events, cursor, active_enclosing(page_dir))
         if pending:
             prefix = (
                 f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
@@ -569,8 +569,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
             sys.exit(
                 f"{len(unanswered)} acknowledged "
                 f"comment{'s' if len(unanswered) != 1 else ''} with no answer "
-                f"({ids}); idling ends the leaf over them. "
-                + ANSWER_DECISION_INSTRUCTION
+                f"({ids}); idling ends the leaf over them. " + ANSWER_ASK_INSTRUCTION
             )
         page.set_status(state, detail)
     click.echo(_status_line(state, detail, on))

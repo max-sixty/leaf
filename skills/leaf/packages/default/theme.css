@@ -724,7 +724,7 @@ lf-options > .lf-done > .lf-address { position: absolute;
    * options control that makes the permanent frame look like a second, stateful border.
    * Suppress that outer paint while focus is inside this control; keyboard focus is
    * carried by the exact row, while pointer focus needs no extra channel at all. */
-  [data-lf-decision]:has(
+  [data-lf-ask]:has(
     lf-options[choose]:not(:where([data-lf-exhibit]) *) :is(:focus, .lf-focus)
   ) { outline: none; }
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
@@ -1454,11 +1454,11 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
 }
 .lf-toc-target { display: block; width: 1px; height: 0; }
 
-/* lf-decision: a semantic reading and arrival boundary, with no presentation of its own.
+/* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the standing ring says
  * are one Decision. Child margins keep the same ordinary block rhythm they have in a section. */
-lf-decision { display: block; }
+lf-ask { display: block; }
 
 /* lf-specimen: quoted material — a widget or section the page exhibits rather
  * than speaks (a sample decision, a demo board). It wears the quotation idiom, a

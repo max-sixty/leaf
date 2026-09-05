@@ -1653,10 +1653,10 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-decision></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -1749,19 +1749,19 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-decision></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
         version.read_text().replace("</section>", operation + "</section>")
     )
     publish(page_dir)
-    ready_decisions = {decision["id"] for decision in state_json(page_dir)["decisions"]}
-    assert "commands-decision" in ready_decisions
-    assert "goal" not in ready_decisions
+    ready_asks = {ask["id"] for ask in state_json(page_dir)["asks"]}
+    assert "commands-decision" in ready_asks
+    assert "goal" not in ready_asks
     first = append_command(
         page_dir,
         {
@@ -1774,7 +1774,7 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
         },
     )
     assert "commands-decision" not in {
-        decision["id"] for decision in state_json(page_dir)["decisions"]
+        ask["id"] for ask in state_json(page_dir)["asks"]
     }
     failure = events_model.append_event(
         page_dir,
@@ -1786,9 +1786,7 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
             "text": "Worker lease disappeared",
         },
     )
-    assert "commands-decision" in {
-        decision["id"] for decision in state_json(page_dir)["decisions"]
-    }
+    assert "commands-decision" in {ask["id"] for ask in state_json(page_dir)["asks"]}
     retry = append_command(
         page_dir,
         {
@@ -1810,7 +1808,7 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
     assert lifecycle["latest"]["request"]["id"] == retry["id"]
     assert lifecycle["latest"]["receipt"] is None
     assert "commands-decision" not in {
-        decision["id"] for decision in state_json(page_dir)["decisions"]
+        ask["id"] for ask in state_json(page_dir)["asks"]
     }
 
 
@@ -2482,7 +2480,7 @@ def test_reader_state_survives_without_source_copying(page_dir):
     assert "record behind the log" not in result.output
     state = state_json(page_dir)
     assert state["state"][0]["detail"] == {"options": ["o-shim"]}
-    assert state["decisions"] == []
+    assert state["asks"] == []
 
     # Explicit incorporation is permitted but unnecessary for correctness.
     write(2, a=" chosen")
@@ -2565,19 +2563,19 @@ def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir)
     """The file-side facet is the runtime's same ownership reading. An inner chosen
     option is not part of the outer group's record; a nested decision does not
     change the outer reader choice."""
-    nested = """<lf-decision id="outer-decision"><h3>Which outer choices?</h3>
+    nested = """<lf-ask id="outer-decision"><h3>Which outer choices?</h3>
   <lf-options id="outer" choose multiple>
     <lf-option id="outer-a" chosen><strong>Outer A</strong>
-      <lf-decision id="inner-decision"><h4>Which inner choice?</h4>
+      <lf-ask id="inner-decision"><h4>Which inner choice?</h4>
         <lf-options id="inner" choose>
           <lf-option id="inner-a" chosen>Inner A</lf-option>
           <lf-option id="inner-b">Inner B</lf-option>
         </lf-options>
-      </lf-decision>
+      </lf-ask>
     </lf-option>
     <lf-option id="outer-b"><strong>Outer B</strong></lf-option>
   </lf-options>
-</lf-decision>"""
+</lf-ask>"""
     html = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + nested)
     (page_dir / ".fixture-versions" / "v1.html").write_text(html)
     publish(page_dir)
@@ -2628,9 +2626,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     }
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`.
-    assert state["decisions"] == [
-        {"id": "g1-decision", "tag": "lf-decision", "thread": None}
-    ]
+    assert state["asks"] == [{"id": "g1-decision", "tag": "lf-ask", "thread": None}]
     assert {"g1", "o-shim", "o-stage"} <= {el["id"] for el in state["elements"]}
     assert state["state"] == []
 
@@ -2646,7 +2642,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert state["decisions"] == []
+    assert state["asks"] == []
     assert state["state"] == [
         {
             "widget": "g1",
@@ -3496,17 +3492,17 @@ def test_the_data_store_wraps_invalid_utf8_at_its_boundary(page_dir):
 
 
 def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):
-    """The Decision list names the whole reading the reader arrives at. Its nested
-    request remains the action owner, so answering it closes the broader Decision without
-    moving the standing decision onto a wrapper that declares no state."""
+    """The Ask list names the whole reading the reader arrives at. Its nested
+    request remains the action owner, so answering it closes the broader Ask without
+    moving the standing Ask onto a wrapper that declares no state."""
     opts = """<lf-options id="g1" choose>
       <lf-option id="o-shim"><strong>Shim it</strong> Fastest to ship.</lf-option>
       <lf-option id="o-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
     </lf-options>"""
     ask = (
-        '<lf-decision id="plan-decision"><h2>Plan</h2>'
+        '<lf-ask id="plan-decision"><h2>Plan</h2>'
         "<p>Choose after reading this framing.</p>"
-        f"{opts}</lf-decision>"
+        f"{opts}</lf-ask>"
     )
     (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace("<h2>Plan</h2>", ask)
@@ -3514,9 +3510,7 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
     publish(page_dir)
 
     state = state_json(page_dir)
-    assert state["decisions"] == [
-        {"id": "plan-decision", "tag": "lf-decision", "thread": None}
-    ]
+    assert state["asks"] == [{"id": "plan-decision", "tag": "lf-ask", "thread": None}]
 
     append_command(
         page_dir,
@@ -3530,7 +3524,7 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
         },
     )
     state = state_json(page_dir)
-    assert state["decisions"] == []
+    assert state["asks"] == []
     assert state["state"][0]["widget"] == "g1"
 
 
@@ -3590,7 +3584,7 @@ def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
-    assert state_json(page_dir)["decisions"] == []
+    assert state_json(page_dir)["asks"] == []
 
 
 def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
@@ -3690,8 +3684,8 @@ def test_page_state_points_to_a_readers_suggestion_record(page_dir):
     assert records[0]["suggestion"] is True
 
 
-def test_page_state_holds_a_thread_decision_open_until_its_verb(page_dir):
-    """A widget in thread markup presents a Decision like one on the page; `until` holds a
+def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
+    """A widget in thread markup presents an Ask like one on the page; `until` holds a
     `multiple` group open across picks, and only the named verb closes it."""
     (page_dir / ".fixture-versions" / "v1.html").write_text(PAGE)
     publish(page_dir)
@@ -3702,15 +3696,15 @@ def test_page_state_holds_a_thread_decision_open_until_its_verb(page_dir):
             "author": "claude",
             "revision": 1,
             "text": "Which mitigations?",
-            "markup": '<lf-decision id="gm-decision"><h2>Which mitigations?</h2>'
+            "markup": '<lf-ask id="gm-decision"><h2>Which mitigations?</h2>'
             '<lf-options id="gm" choose multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
-            "</lf-options></lf-decision>",
+            "</lf-options></lf-ask>",
         },
     )
-    assert state_json(page_dir)["decisions"] == [
-        {"id": "gm-decision", "tag": "lf-decision", "thread": root["id"]}
+    assert state_json(page_dir)["asks"] == [
+        {"id": "gm-decision", "tag": "lf-ask", "thread": root["id"]}
     ]
     append_command(
         page_dir,
@@ -3723,8 +3717,8 @@ def test_page_state_holds_a_thread_decision_open_until_its_verb(page_dir):
             "detail": {"options": ["m-cap"]},
         },
     )
-    assert state_json(page_dir)["decisions"] == [
-        {"id": "gm-decision", "tag": "lf-decision", "thread": root["id"]}
+    assert state_json(page_dir)["asks"] == [
+        {"id": "gm-decision", "tag": "lf-ask", "thread": root["id"]}
     ]
     append_command(
         page_dir,
@@ -3737,7 +3731,7 @@ def test_page_state_holds_a_thread_decision_open_until_its_verb(page_dir):
             "detail": {},
         },
     )
-    assert state_json(page_dir)["decisions"] == []
+    assert state_json(page_dir)["asks"] == []
 
 
 def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
@@ -3745,18 +3739,18 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
       <lf-task id="vendor" status="blocked"><strong>Vendor fix</strong></lf-task>
       <lf-task id="copy" status="review"><strong>Copy review</strong></lf-task>
       <lf-task id="future" status="active"><strong>Future review</strong>
-        <lf-decision id="future-decision"><h3>Review it now?</h3>
+        <lf-ask id="future-decision"><h3>Review it now?</h3>
           <lf-options id="future-review" choose>
             <lf-option id="future-yes">Yes</lf-option><lf-option id="future-no">No</lf-option>
           </lf-options>
-        </lf-decision>
+        </lf-ask>
       </lf-task>
       <lf-task id="decision" status="blocked"><strong>Reader decision</strong>
-        <lf-decision id="decision-decision"><h3>Which way out?</h3>
+        <lf-ask id="decision-decision"><h3>Which way out?</h3>
           <lf-options id="decision-options" choose>
             <lf-option id="decision-a">A</lf-option><lf-option id="decision-b">B</lf-option>
           </lf-options>
-        </lf-decision>
+        </lf-ask>
       </lf-task>
       <lf-task id="release" status="review"><strong>Release review</strong>
         <lf-task id="release-build" status="done"><strong>Build release</strong></lf-task>
@@ -3767,9 +3761,9 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
     )
     publish(page_dir)
 
-    assert state_json(page_dir)["decisions"] == [
-        {"id": "future-decision", "tag": "lf-decision", "thread": None},
-        {"id": "decision-decision", "tag": "lf-decision", "thread": None},
+    assert state_json(page_dir)["asks"] == [
+        {"id": "future-decision", "tag": "lf-ask", "thread": None},
+        {"id": "decision-decision", "tag": "lf-ask", "thread": None},
     ]
 
 
@@ -3785,7 +3779,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
     )
     publish(page_dir)
-    assert state_json(page_dir)["decisions"] == []
+    assert state_json(page_dir)["asks"] == []
     rep = append_command(
         page_dir,
         {
@@ -3799,7 +3793,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert state["decisions"] == []
+    assert state["asks"] == []
     assert state["updates"] == [
         {
             "id": rep["id"],
@@ -3858,7 +3852,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "disposition": "settled",
         }
     ]
-    assert state["decisions"] == []
+    assert state["asks"] == []
 
 
 def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
@@ -3918,7 +3912,7 @@ def test_page_state_before_first_stamp(page_dir):
     assert state["active"]["revision"] == 1
     assert state["active"]["version"] is None
     assert state["active"]["label"] == "Draft"
-    assert state["elements"] and state["decisions"] == []
+    assert state["elements"] and state["asks"] == []
     assert state["title"] == "t"
 
 
@@ -4008,17 +4002,17 @@ def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
         '<lf-specimen id="sample"><lf-options id="example" choose>'
         '<lf-option id="example-a"><strong>Example only</strong></lf-option>'
         "</lf-options></lf-specimen>"
-        '<lf-decision id="real-decision"><h3>What next?</h3>'
+        '<lf-ask id="real-decision"><h3>What next?</h3>'
         '<lf-options id="real" choose><lf-option id="real-a">A</lf-option>'
-        '<lf-option id="real-b">B</lf-option></lf-options></lf-decision>'
+        '<lf-option id="real-b">B</lf-option></lf-options></lf-ask>'
         "</lf-task></lf-command>"
     )
     (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace("</section>", markup + "</section>")
     )
     publish(page_dir)
-    assert state_json(page_dir)["decisions"] == [
-        {"id": "real-decision", "tag": "lf-decision", "thread": None}
+    assert state_json(page_dir)["asks"] == [
+        {"id": "real-decision", "tag": "lf-ask", "thread": None}
     ]
 
 
@@ -4040,7 +4034,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
         PAGE.replace("</section>", command("active", True, "paste") + "</section>")
     )
     publish(page_dir)
-    assert state_json(page_dir)["decisions"] == [
+    assert state_json(page_dir)["asks"] == [
         {"id": "cargo", "tag": "lf-draft", "thread": None}
     ]
 
@@ -4055,7 +4049,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
             "detail": {"text": "ledger_id,amount\n7,42"},
         },
     )
-    assert state_json(page_dir)["decisions"] == []
+    assert state_json(page_dir)["asks"] == []
 
     (page_dir / ".fixture-versions" / "v2.html").write_text(
         PAGE.replace(
@@ -4064,7 +4058,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
         )
     )
     publish(page_dir, 2)
-    assert state_json(page_dir)["decisions"] == []
+    assert state_json(page_dir)["asks"] == []
 
 
 # The colour-vision maths the series palette is stepped against, written out here because

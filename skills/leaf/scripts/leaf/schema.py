@@ -24,11 +24,11 @@ ORPHAN_GRACE_SECS = 1
 # before the receipt is.
 UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
-ANSWER_DECISION_INSTRUCTION = (
+ANSWER_ASK_INSTRUCTION = (
     "`leaf page state <page>` lists each thread's current state, and "
     "`leaf events <page> --thread <id>` prints its exact records. A thread with "
     "`response.kind: version` is answered by revising the page and resolving it; open a "
-    "separate `leaf comment --section <decision-id>` on the same Decision if that revision "
+    "separate `leaf comment --section <ask-id>` on the same Ask if that revision "
     "needs an answer first. Reply to other threads with `leaf reply <page> --to "
     "<id> --text ...`; an ordinary reply leaves the thread open for the reader."
 )
@@ -101,7 +101,7 @@ _RECORD_VALUE = {
 
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves Decisions and conversations because they
+# present or absent). One condition shape serves Asks and conversations because they
 # ask the same question of the same authored attributes.
 AWAITING_CONDITION = {
     "type": "object",
@@ -114,7 +114,7 @@ AWAITING_CONDITION = {
     },
 }
 
-# Current action eligibility reuses Leaf's standing-decision projection. `self` is the
+# Current action eligibility reuses Leaf's standing-Ask projection. `self` is the
 # sending widget; `parent` is the holder relation its x-parent already declares.
 ACTION_REQUIREMENT = {
     "type": "object",
@@ -228,9 +228,9 @@ REPORT_SCHEMA = _verbs_schema(
 REQUEST_SCHEMA = {
     "type": "object",
     "properties": {
-        "decision": {"type": "boolean"},
+        "ask": {"type": "boolean"},
         # This request supplies the commands but not its own question title.
-        # A matching holder therefore stands inside an x-decision region, whose direct
+        # A matching holder therefore stands inside an x-ask-surface region, whose direct
         # heading owns the reading and arrival.
         "region": {"const": True},
         "offers": {
@@ -280,7 +280,7 @@ AWAITS_SCHEMA = {
         },
         "rollup": {"const": True},
         # This widget supplies the answer control but not its own question title.
-        # A matching instance therefore stands inside an x-decision region, whose direct
+        # A matching instance therefore stands inside an x-ask-surface region, whose direct
         # heading owns the reading and arrival.
         "region": {"const": True},
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
@@ -389,7 +389,7 @@ CHILDREN_SCHEMA = {
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
-        "x-decision": {"const": True},
+        "x-ask-surface": {"const": True},
         "x-awaits": AWAITS_SCHEMA,
         "x-conversation": {
             "type": "object",

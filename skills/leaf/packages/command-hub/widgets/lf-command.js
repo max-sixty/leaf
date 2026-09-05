@@ -15,7 +15,7 @@ import {
   projectData,
   relabel,
   selectableOffer,
-  watchDecisions,
+  watchAsks,
 } from "/runtime/widget-api.js";
 import {
   closestCommandRole,
@@ -516,7 +516,7 @@ customElements.define(
 
     connectedCallback() {
       once(this);
-      this.#stop = watchDecisions(this, () => render(this));
+      this.#stop = watchAsks(this, () => render(this));
       this.#observer = new MutationObserver((changes) => {
         if (
           changes.some((change) => {

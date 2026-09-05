@@ -12,9 +12,9 @@ import { leavesOffered, paintLeavesOffer } from "./live-leaves.js";
 import { motion } from "./motion.js";
 import { readerStore } from "./storage.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { renderDecisions } from "./decisions/view.js";
+import { renderAsks } from "./asks/view.js";
 import { pagePresented } from "./presentation.js";
-import { allDecisions } from "./decisions/model.js";
+import { allAsks } from "./asks/model.js";
 import { walkRows } from "./keyboard/bindings.js";
 import { renderMargin } from "./living-margin.js";
 // The left side holds one tray at a time. `showTray` owns `trayUp` and renders the
@@ -43,7 +43,7 @@ import { renderMargin } from "./living-margin.js";
 // word of the page's — the status dot's 9px, its 8px gap, and the 20px and 8px the row
 // and the tray take for padding — and what is left holds a title that ellipsizes rather
 // than wrapping, so under this the tray is furniture showing the first syllable of every
-// name on it. The decisions tray's rows clamp to three lines instead and would go on reading
+// name on it. The Asks tray's rows clamp to three lines instead and would go on reading
 // further down, which is why the floor is the leaves tray's to set.
 const TRAY_W = 300;
 const TRAY_MIN = 220;
@@ -56,12 +56,12 @@ export const TRAY_PROP = "--lf-tray-w";
 // takes the strip spells this list in chrome.css, and the layer test holds the two equal.
 //
 // The leaves tray is not on the list, and that is not an inconsistency between two twins:
-// a leaf's row is a way out of this page and a decision's row is a way around it, so pressing
-// a decision's row scrolls the document to the decision and stands you on the control that answers
+// a leaf's row is a way out of this page and an Ask's row is a way around it, so pressing
+// an Ask's row scrolls the document to the Ask and stands you on the control that answers
 // it — and a tray lying over the document would be hiding the very thing it just sent you
 // to. A 300px tray and a 720px column overlap on any window under about 1320px, which is
 // most of them, so this is the common case rather than the narrow one.
-export const STRIP_TRAYS = ["decisions"];
+export const STRIP_TRAYS = ["asks"];
 
 export const TRAY_KEY = "lf-tray-up";
 
@@ -72,7 +72,7 @@ const beforeOpen = () => {
 
 // The rows' own box, one per tray. Collected privately as they are made, because what
 // the layout reserves at the foot of one it reserves at the foot of every one — and a
-// second place to remember that is exactly where the decisions tray was left out of it: its
+// second place to remember that is exactly where the Asks tray was left out of it: its
 // walk parked the last row 47px under the key line, on the one tray nothing had ever
 // walked to the end of. Callers state the clearance; this owner decides which lists it
 // reaches and how each one spends it.
@@ -99,13 +99,13 @@ export const traysEdge = drawnEdge({
   key: "lf-tray-width",
   covering: TRAY_COVERING,
   // A page with no tray to open has no edge to draw, so the reference does not name one.
-  when: () => leavesOffered() || decisionsOffered(),
+  when: () => leavesOffered() || asksOffered(),
   land: landEdge,
 });
 
 // Every active Ask and the route back through its current answer. The banner says
 // completed/total (sayAsks); a/A still walks only the open worklist.
-export const decisionsBtn = el("button", "lf-btn lf-decisions", "");
+export const asksBtn = el("button", "lf-btn lf-asks", "");
 // The machine's live leaves and what each is doing: a left panel of rows, each a
 // link opening that page in its own tab, judged by the same `presented` the banner
 // answers with, from the same facts — `others` on /api/state carries them for every
@@ -127,11 +127,11 @@ export const leavesList = trayList(othersPanel);
 // A tray of the page's active asks, on the same edge: open and answered rows in the
 // order the page asks them. The list is declaration-driven, so a widget joins without
 // a row here knowing what kind of thing it is standing for.
-export const decisionsPanel = el("nav", "lf-ui lf-tray-panel lf-decisions-panel");
-decisionsPanel.setAttribute("aria-label", "Asks from this page");
-decisionsPanel.tabIndex = -1;
-traysEdge.handle(decisionsPanel, () => decisionsBtn);
-export const decisionsList = trayList(decisionsPanel);
+export const asksPanel = el("nav", "lf-ui lf-tray-panel lf-asks-panel");
+asksPanel.setAttribute("aria-label", "Asks from this page");
+asksPanel.tabIndex = -1;
+traysEdge.handle(asksPanel, () => asksBtn);
+export const asksList = trayList(asksPanel);
 
 // The left edge holds one tray at a time. Leaves and asks are the same furniture asking
 // at two scopes — which page needs me, and what this page needs of me — and each has to
@@ -146,7 +146,7 @@ export const decisionsList = trayList(decisionsPanel);
 // registering and none of them names a tray to do its job.
 const trays = new Map();
 // A reader gesture writes through showTray. A reload writes saved intent later through
-// restoreTrays, after registration and the late decisions painter have been initialized.
+// restoreTrays, after registration and the late Asks painter have been initialized.
 let trayUp = null;
 export const currentTray = () => trayUp;
 export const openTray = (key) => trayUp === key;
@@ -212,9 +212,7 @@ function trayIs(key, panel, btn, paint) {
 // The painters are thunks: each tray's owner imports this module back, so neither
 // painter is a binding this module can read as it evaluates.
 trayIs("leaves", othersPanel, othersBtn, (...args) => paintLeavesOffer(...args));
-trayIs("decisions", decisionsPanel, decisionsBtn, (...args) =>
-  renderDecisions(...args),
-);
+trayIs("asks", asksPanel, asksBtn, (...args) => renderAsks(...args));
 export const trayNames = Object.freeze([...trays.keys()]);
 
 // A persisted tray is state-dependent chrome: Asks folds the log and Leaves comes from
@@ -243,35 +241,33 @@ export function restoreTrays() {
 }
 
 // Each tray's one offer: something to show, or the tray already standing so its button
-// can still close it. A decisions tray of none is the same.
-export const decisionsOffered = () =>
-  pagePresented() && (allDecisions().length > 0 || openTray("decisions"));
-export const decisionRows = () => [
-  ...decisionsPanel.querySelectorAll("button.lf-decisions-row"),
-];
-// The decisions tray's own walk, the leaves tray's twin: ArrowUp and ArrowDown are the page's
+// can still close it. An Asks tray of none is the same.
+export const asksOffered = () =>
+  pagePresented() && (allAsks().length > 0 || openTray("asks"));
+export const askRows = () => [...asksPanel.querySelectorAll("button.lf-asks-row")];
+// The Asks tray's own walk, the leaves tray's twin: ArrowUp and ArrowDown are the page's
 // scroll everywhere else and the tray's here, and Enter is the platform's, a row being a
 // button — so the scope names what walking does and leaves the press to the button.
 keys(
-  decisionsPanel,
+  asksPanel,
   "In the Asks tray",
   [
     {
-      id: "decision.list-walk",
+      id: "ask.list-walk",
       keys: ["ArrowUp", "ArrowDown"],
       routes: [
         {
-          id: "decision.row-previous",
+          id: "ask.row-previous",
           binding: "ArrowUp",
           does: "Previous ask",
         },
-        { id: "decision.row-next", binding: "ArrowDown", does: "Next ask" },
+        { id: "ask.row-next", binding: "ArrowDown", does: "Next ask" },
       ],
       does: "Walk the asks",
       line: "walk the asks",
       repeat: true,
-      run: (binding) => walkRows(decisionRows(), binding === "ArrowDown" ? 1 : -1),
+      run: (binding) => walkRows(askRows(), binding === "ArrowDown" ? 1 : -1),
     },
   ],
-  () => decisionRows().length > 0,
+  () => askRows().length > 0,
 );

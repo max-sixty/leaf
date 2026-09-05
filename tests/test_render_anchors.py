@@ -41,7 +41,7 @@ from render_support import (
     TAIL_PAGE,
     THIN_V1,
     THIN_V2,
-    THREAD_DECISIONS,
+    THREAD_ASKS,
     TWICE_PAGE,
     TWO_COPIES_PAGE,
     _publish,
@@ -349,7 +349,7 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     """A focused stream may hide the earlier context, never its collaboration state.
 
     The shipped example opens on the narrow work in hand. A comment and a decision in
-    inactive panels still stand in the page's one Threads list and one Decisions tray,
+    inactive panels still stand in the page's one Threads list and one Asks tray,
     and either global surface opens the panel it points into. Switching panels is
     reading the page, so it leaves the event log untouched."""
     example = next(p for p in EXAMPLES if p.stem == "live-progress")
@@ -387,16 +387,14 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     expect(finance).to_have_attribute("aria-selected", "true")
 
     page.get_by_role("button", name="Close threads").click()
-    decisions = page.locator(".lf-decisions")
+    decisions = page.locator(".lf-asks")
     expect(decisions).to_have_text("Asks 0/1")
     decisions.click()
-    # The row names the broader Decision's opening context now, and the arrival stands the
+    # The row names the broader Ask's opening context now, and the arrival stands the
     # reader on it — inside a tab the press had to select first. The options it holds own
     # the choice and follow it in the tab order; where exactly they fall is the arrival's
     # own test to say (test_an_ask_arrival_starts_with_the_context_that_frames_it).
-    hidden_decision = page.locator(
-        '.lf-decisions-row[data-lf-at="lp-finance-decision"]'
-    )
+    hidden_decision = page.locator('.lf-asks-row[data-lf-at="lp-finance-decision"]')
     expect(hidden_decision).to_have_count(1)
     expect(hidden_decision).to_contain_text("Which cases should the fixture cover?")
     hidden_decision.click()
@@ -596,7 +594,7 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
 def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     """One physical press keeps its geometry wherever Leaf presents it."""
     url = serve(ADDRESSED_PAGE)
-    for event in THREAD_DECISIONS:
+    for event in THREAD_ASKS:
         events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
 

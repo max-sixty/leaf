@@ -30,7 +30,7 @@ from render_support import (
     HERE_SHADOW,
     HOLD_MOTION,
     LONG_PAGE,
-    MANY_DECISIONS_PAGE,
+    MANY_ASKS_PAGE,
     NEIGHBOUR,
     NEIGHBOURHOOD,
     PAGE_FIXTURES,
@@ -93,12 +93,12 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-old>Keep the broad sweep.</lf-old>
   <lf-new>Keep one causal case per control archetype.</lf-new>
 </lf-suggestion>
-<lf-decision id="stable-options-decision"><h2>Which control should stay?</h2>
+<lf-ask id="stable-options-decision"><h2>Which control should stay?</h2>
 <lf-options id="stable-options" choose>
   <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
   <lf-option id="stable-choice-b" for="control-target">Keep B</lf-option>
-</lf-options></lf-decision>
-<lf-decision id="stable-swipe-decision"><h2>Which proof should stay?</h2>
+</lf-options></lf-ask>
+<lf-ask id="stable-swipe-decision"><h2>Which proof should stay?</h2>
 <lf-swipe-deck id="stable-swipe">
   <lf-swipe-pile id="stable-swipe-queue" verdict="unseen">
     <lf-swipe-card id="stable-swipe-a"><strong>Keep the first proof</strong></lf-swipe-card>
@@ -106,7 +106,7 @@ CONTROL_STABILITY_PAGE = leaf_page(
   </lf-swipe-pile>
   <lf-swipe-pile id="stable-swipe-pass" verdict="pass"></lf-swipe-pile>
   <lf-swipe-pile id="stable-swipe-keep" verdict="keep"></lf-swipe-pile>
-</lf-swipe-deck></lf-decision>
+</lf-swipe-deck></lf-ask>
 <lf-tabs id="stable-tabs">
   <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
   <lf-tab id="stable-tab-b" label="Second">Second panel.</lf-tab>
@@ -1353,7 +1353,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
     )
     try:
         page, errors = open_page(
-            browser, serve(MANY_DECISIONS_PAGE, comments=12), context=context
+            browser, serve(MANY_ASKS_PAGE, comments=12), context=context
         )
         assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
         cdp = context.new_cdp_session(page)
@@ -1439,15 +1439,11 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         # The tray still has range at 320px, and its grip finishes sliding on screen.
         page.get_by_role("button", name="Close threads").click()
         panel_settled(page, open=False)
-        banner_address(page, ".lf-decisions").click()
+        banner_address(page, ".lf-asks").click()
         panel_settled(page, open=False)
-        expect(page.locator(".lf-decisions-panel")).to_have_class(
-            re.compile(r"\bopen\b")
-        )
+        expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
         page_at_rest(page)
-        narrow_decisions = edge_geometry(
-            ".lf-decisions-panel", ".lf-decisions-panel > .lf-edge"
-        )
+        narrow_decisions = edge_geometry(".lf-asks-panel", ".lf-asks-panel > .lf-edge")
         assert not narrow_decisions["edge"]["hidden"]
         assert narrow_decisions["edge"]["left"] >= -0.1, narrow_decisions
         assert (
@@ -1476,12 +1472,12 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
                 48,
             ),
             (
-                "decisions",
+                "asks",
                 900,
-                ".lf-decisions",
-                ".lf-decisions-panel",
-                ".lf-decisions-panel > .lf-edge",
-                ".lf-decisions-panel .lf-tray-list",
+                ".lf-asks",
+                ".lf-asks-panel",
+                ".lf-asks-panel > .lf-edge",
+                ".lf-asks-panel .lf-tray-list",
                 -36,
             ),
         ):
@@ -1759,10 +1755,10 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     url = serve(
         leaf_page(
             "self eligibility",
-            '<h1 id="heading">Choose</h1><lf-decision id="pick-decision"><h2>Which option?</h2>'
+            '<h1 id="heading">Choose</h1><lf-ask id="pick-decision"><h2>Which option?</h2>'
             '<lf-options id="pick" choose>'
             '<lf-option id="pick-a">A</lf-option>'
-            '<lf-option id="pick-b">B</lf-option></lf-options></lf-decision>',
+            '<lf-option id="pick-b">B</lf-option></lf-options></lf-ask>',
         )
     )
     page, errors = open_page(browser, url)
@@ -1797,10 +1793,10 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     url = serve(
         leaf_page(
             "seated eligibility",
-            '<h1 id="heading">Choose</h1><lf-decision id="pick-decision">'
+            '<h1 id="heading">Choose</h1><lf-ask id="pick-decision">'
             "<h2>Cap the retries?</h2>"
             '<lf-verdict id="pick" asks>Three attempts, then stop.</lf-verdict>'
-            "</lf-decision>",
+            "</lf-ask>",
         ),
         layer_registry=SEATED_ASK_LAYER,
         layer_widgets=SEATED_ASK_WIDGETS,
@@ -1817,7 +1813,7 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     )
     page, errors = open_page(browser, url)
     # Off the reader's list, which is the whole reason the two readings differ here.
-    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
 
     page.get_by_role("button", name="Accept").click()
     round_trip(page)
@@ -2095,7 +2091,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
         ".lf-threads-toggle",
         ".lf-signoff",
         ".lf-answer-all",
-        ".lf-decisions",
+        ".lf-asks",
     ]
     wide = page.evaluate(holds_its_width, named)
     # Narrowed, but not past the covering breakpoint: that row deliberately spends less
@@ -2267,14 +2263,14 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
         return page.locator(".lf-banner-actions > *").evaluate_all(
             """els => els.map(el =>
                  [['others', 'lf-others'], ['latest', 'lf-latest-chip'],
-                  ['decisions', 'lf-decisions'], ['version', 'lf-version'],
+                  ['asks', 'lf-asks'], ['version', 'lf-version'],
                   ['comments', 'lf-threads-toggle'], ['signoff', 'lf-signoff']]
                    .find(([, cls]) => el.classList.contains(cls))?.[0])
                  .filter(Boolean)"""
         )
 
     wide = actions()
-    assert wide == ["others", "latest", "decisions", "version", "signoff", "comments"]
+    assert wide == ["others", "latest", "asks", "version", "signoff", "comments"]
     others_x = page.locator(".lf-others").bounding_box()["x"]
     comments = page.locator(".lf-threads-toggle").bounding_box()
     assert others_x < page.viewport_size["width"] / 2, (
@@ -2635,13 +2631,13 @@ def test_workspaces_replace_each_other_and_name_the_open_one(
     active face. Its peers return to rest as it takes their place, so the tint names
     exactly the workspace the reader can see rather than merely the last one pressed.
     """
-    page, errors = open_page(browser, serve(MANY_DECISIONS_PAGE))
+    page, errors = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, width, 700)
-    decisions = page.locator(".lf-decisions-panel")
+    asks = page.locator(".lf-asks-panel")
     comments = page.locator(".lf-panel")
     controls = {
         "leaves": page.locator(".lf-others"),
-        "decisions": page.locator(".lf-decisions"),
+        "asks": page.locator(".lf-asks"),
         "threads": page.locator(".lf-threads-toggle"),
     }
 
@@ -2672,12 +2668,12 @@ def test_workspaces_replace_each_other_and_name_the_open_one(
             )
             assert face(control) == (active if peer == name else resting[peer])
 
-    page.locator(".lf-decisions").click()
-    expect(decisions).to_have_class(re.compile(r"\bopen\b"))
-    expect_open("decisions")
+    page.locator(".lf-asks").click()
+    expect(asks).to_have_class(re.compile(r"\bopen\b"))
+    expect_open("asks")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(decisions).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(asks).not_to_have_class(re.compile(r"\bopen\b"))
     expect_open("threads")
 
     page.keyboard.press("g")
@@ -2685,11 +2681,11 @@ def test_workspaces_replace_each_other_and_name_the_open_one(
     expect(page.locator(".lf-others-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect_open("leaves")
 
-    page.locator(".lf-decisions").click()
+    page.locator(".lf-asks").click()
     panel_settled(page, open=False)
-    expect(decisions).to_have_class(re.compile(r"\bopen\b"))
+    expect(asks).to_have_class(re.compile(r"\bopen\b"))
     expect(comments).not_to_have_class(re.compile(r"\bopen\b"))
-    expect_open("decisions")
+    expect_open("asks")
     assert errors == []
     page.close()
 
@@ -2737,20 +2733,20 @@ def test_a_walk_down_the_tray_stops_clear_of_the_key_line(browser, serve, live_l
     page.close()
 
 
-def test_a_walk_down_the_decisions_tray_stops_clear_of_the_key_line(browser, serve):
+def test_a_walk_down_the_asks_tray_stops_clear_of_the_key_line(browser, serve):
     """The leaves tray's reading above, made of the tray beside it. The room is one
     fact — the key line stands in the corner both lists reach — and it was written to one
-    list, so the decisions tray's walk parked its last row 47px under the line. Nothing said
-    so, because no example ships enough Decisions to fill a tray and the walk that would have
+    list, so the Asks tray's walk parked its last row 47px under the line. Nothing said
+    so, because no example ships enough Asks to fill a tray and the walk that would have
     shown it had only ever been made down the other one.
 
     So the two lists reserve it together (`trayLists`), and this is the half of that the
     leaves reading could not cover: a fact stated per tray is a fact the second tray
     goes without, and the second tray is the one nobody looks at."""
-    page, errors = open_page(browser, serve(MANY_DECISIONS_PAGE))
+    page, errors = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 900, 420)
-    page.locator(".lf-decisions").click()
-    rows = page.locator("button.lf-decisions-row")
+    page.locator(".lf-asks").click()
+    rows = page.locator("button.lf-asks-row")
     expect(rows).to_have_count(24)
     rows.first.focus()
     page.keyboard.press("ArrowUp")
@@ -2758,9 +2754,9 @@ def test_a_walk_down_the_decisions_tray_stops_clear_of_the_key_line(browser, ser
     for _ in range(24):
         page.keyboard.press("ArrowDown")
     expect(rows.last).to_be_focused()
-    tray = page.locator(".lf-decisions-panel .lf-tray-list")
+    tray = page.locator(".lf-asks-panel .lf-tray-list")
     assert page.evaluate(
-        "() => { const b = document.querySelector('.lf-decisions-panel .lf-tray-list');"
+        "() => { const b = document.querySelector('.lf-asks-panel .lf-tray-list');"
         "        return b.scrollHeight > b.clientHeight; }"
     ), "the tray never overflowed, so the walk had nothing to scroll and proves nothing"
     last = rows.last.bounding_box()
@@ -3496,14 +3492,14 @@ customElements.define("lf-quota", class extends HTMLElement {
         '<h1 id="heading">Quota</h1><lf-tasks id="tasks">'
         '<lf-task id="task" status="active"><strong>Task</strong>'
         '<lf-quota id="quota" slots="1"></lf-quota>'
-        '<lf-decision id="quota-intervention-decision"><h2>Proceed?</h2>'
+        '<lf-ask id="quota-intervention-decision"><h2>Proceed?</h2>'
         '<lf-options id="quota-intervention" choose>'
-        '<lf-option id="quota-ready" chosen>Ready</lf-option></lf-options></lf-decision>'
+        '<lf-option id="quota-ready" chosen>Ready</lf-option></lf-options></lf-ask>'
         '<lf-task id="child" status="active"><strong>Child</strong>'
-        '<lf-decision id="quota-child-decision"><h2>Is the child ready?</h2>'
+        '<lf-ask id="quota-child-decision"><h2>Is the child ready?</h2>'
         '<lf-options id="quota-child-review" choose>'
         '<lf-option id="quota-child-ready" chosen>Ready</lf-option>'
-        "</lf-options></lf-decision></lf-task>"
+        "</lf-options></lf-ask></lf-task>"
         "</lf-task>"
         '<lf-task id="destination" status="active">'
         "<strong>Destination</strong></lf-task>"
@@ -4098,7 +4094,7 @@ RING_WALKS = (
         ("corpus", "ship-review"),
     ),
     ("the comments", ("c",), ("ship-review",)),
-    ("the decisions tray", (), ("ship-review",)),
+    ("the Asks tray", (), ("ship-review",)),
     ("the leaves tray", ("g", "Shift+l"), ("corpus",)),
     # The menu's own walk after the key that opens it: an open lands on the version being
     # read, which is the last row, and the comparison press beside a row is a Tab forward
@@ -4157,14 +4153,14 @@ RING_SCOPE_SURFACE = {
     # frame and shows only for an anchor.
     "item hints": (".lf-target-hint.lf-current", None),
     "the response bar": (".lf-fab-bar .lf-composer[data-lf-open]", None),
-    "the decisions tray": (".lf-decisions-panel.open", ".lf-decisions"),
+    "the Asks tray": (".lf-asks-panel.open", ".lf-asks"),
     "the leaves tray": (".lf-others-panel.open", ".lf-others"),
     "the versions menu": (".lf-version-menu:popover-open", None),
     "the reference": (".lf-help.open", None),
     "design mode": ("body.lf-design", None),
 }
 RING_SCOPE_CONTROL = {
-    "the decisions tray": (".lf-decisions", ".lf-decisions-row"),
+    "the Asks tray": (".lf-asks", ".lf-asks-row"),
     "a thread card": (
         '.lf-margin-marker[data-lf-kinds~="comment"]',
         ".lf-margin-preview",

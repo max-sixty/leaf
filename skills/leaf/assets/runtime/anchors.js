@@ -588,7 +588,7 @@ export function itemWord(item) {
   if (!item) return "";
   const tag = item.tagName.toLowerCase();
   // A widget whose kind is not its tag says which it is. Three shapes of change are all
-  // <lf-suggestion>, and naming each of them by the tag put a deletion on the decisions tray
+  // <lf-suggestion>, and naming each of them by the tag put a deletion in the Asks tray
   // under the words it proposed to remove, reading exactly like the insertion above it.
   // Asked only where an entry says there is something to ask, and answered only by an
   // element that has upgraded — before that, and for every widget that declares nothing,
@@ -616,7 +616,7 @@ const ITEM_SAYS_CAP = 52;
 // the page is: rooted at the item, so the panel around it is nobody's chrome (see the
 // note on `overIn`) while the item's own marks and offers still are. A veto on
 // `inChrome` stood in front of this, from the days only an anchor's section reached it:
-// it threw the reading away and left the decisions tray naming the question by its raw id.
+// it threw the reading away and left the Asks tray naming the question by its raw id.
 export function itemSays(item) {
   if (!item) return "";
   // A module that names its own kind (x-word) may name its own words too: a rewrite's
@@ -1052,7 +1052,7 @@ export function paintAnchors(threads = buildThreads()) {
       continue;
     }
     if (targetElement(found)) {
-      // The boxes the element shows through, for the same reason the decision ring hangs on
+      // The boxes the element shows through, for the same reason the Ask ring hangs on
       // those: an outline needs a box, and a wrapper that generates none took its ring
       // to the document's origin and drew nothing there. The record is what the pass
       // clears, what the pointer hit-tests, and what the composer stands off, so all
@@ -1371,7 +1371,7 @@ export function markAt(x, y) {
 }
 
 // Bring an element in the document to the position its caller names. A thread's element
-// anchor takes the middle; a Decision takes the readable start so its context comes before
+// anchor takes the middle; an Ask takes the readable start so its context comes before
 // its control. Which box does the travelling is scrollerFor's answer, asked here rather
 // than assumed: the document's scroller was written into this twice, so an element
 // standing in the panel's list was taken into view by the platform and then had this

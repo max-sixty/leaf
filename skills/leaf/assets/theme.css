@@ -243,7 +243,7 @@
      annotated, and the two never look alike side by side. */
   --react: #dfd1ed40;
   /* The "you are here" ring: where the reader is standing, wherever they are
-     standing. The decision they are in wears it ([data-lf-decision], leaf.js), as do the
+     standing. The decision they are in wears it ([data-lf-ask], leaf.js), as do the
      runtime's own controls, which is where a reader backing out of the panel lands.
      One band for one fact — stated apart,
      the same ring was free to become three, and a reader would have had to learn
@@ -1396,7 +1396,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
  * the change is has to have. An element generating none measures (0,0) at the document's
  * origin, which is not a degenerate answer but a wrong one, naming the top of the page.
  * Four consumers met that separately and each worked around it where it stood: the ring
- * had nothing to hang on, the decision walk's travel centred the document, a container's edge
+ * had nothing to hang on, the Ask walk's travel centred the document, a container's edge
  * rule reached past the wrapper to the slots, and the widget prepends a span to itself
  * for its controls to anchor from. None of the first three arises here now. The fourth
  * outlived the reason it was written for and earns its place on another: what a widget
@@ -1622,7 +1622,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     border-color: var(--accent); color: var(--ink); background: var(--paper); }
 .lf-margin-change { color: var(--accent); }
 .lf-margin-comment { color: var(--mark-ink); }
-.lf-margin-decision { color: var(--warn-ink); }
+.lf-margin-ask { color: var(--warn-ink); }
 .lf-margin-activity { color: var(--accent); }
 .lf-margin-count { position: absolute; top: -7px; right: -7px; min-width: 16px;
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;

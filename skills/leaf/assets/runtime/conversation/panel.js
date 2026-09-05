@@ -43,7 +43,7 @@ findInput.setAttribute("aria-label", "Find in threads");
 findInput.title = "Find in threads";
 // What is waiting on the reader: an agent comment, an explicit question in a reply, or a
 // reply whose own x-awaits markup still asks. The last case is derived from the same
-// declaration-driven projection as the decisions tray; settling reactions can acknowledge
+// declaration-driven projection as the Asks tray; settling reactions can acknowledge
 // either kind without closing the thread.
 export const needsBtn = el("button", "lf-btn lf-needs", "Waiting on you");
 needsBtn.setAttribute("aria-pressed", "false");
@@ -54,7 +54,7 @@ export const threadsBox = el("div", "lf-threads");
 threadsBox.tabIndex = -1;
 // And a name, because `g T` lands a reader here and the panel's visible heading alone does
 // not name a focusable container. A page key's arrival has to say where it arrived — the
-// other direct destinations are named by a leaf link, a decision row, or a Page-map marker
+// other direct destinations are named by a leaf link, an Ask row, or a Page-map marker
 // — or the press is silent to exactly the reader who cannot see the ring it painted. The
 // same reason the reference dialog carries a role and a label beside its -1.
 // `group` rather than `list`: the box holds run headings as well as threads, so a list

@@ -73,12 +73,12 @@ superseded section instead of adding the next one beside it. Keep older material
 only when the current work still needs its context; move only the needed
 passages to a `Past work` section at the foot, inside a collapsed `<details>`
 whose summary names what it contains. A passage whose id anchors an open thread
-or holds a standing decision survives with its id and words whatever else goes;
+or holds a standing Ask survives with its id and words whatever else goes;
 `version check` refuses a version that drops one. Mark a concluded `lf-options`
 group `settled` when it retires inside a section that remains live.
 
 Relocation is not revision: moving unchanged content needs neither a suggestion
-nor `restated`. Keep a decision live while it is being applied, and settle it
+nor `restated`. Keep an Ask live while it is being applied, and settle it
 only after the work no longer revisits it. Keep a section live while the reader
 is still commenting there.
 

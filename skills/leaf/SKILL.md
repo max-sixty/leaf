@@ -83,8 +83,8 @@ owns. Read `references/page-checkpoints.md` before stamping or ending. Edit only
 Unless the user specifies the page's form or depth, a Leaf is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
 state, or offers one move, so the reader can grasp it at a glance and continue;
-disclosures keep supporting detail available without putting it in that path. A
-quick-decision page puts its first Ask in the initial viewport, with the short
+   disclosures keep supporting detail available without putting it in that path. A
+   quick-answer page puts its first Ask in the initial viewport, with the short
 shared premise and alternatives it needs. A record or system page may expose the
 whole state and put each Ask where that state makes it answerable. The visible
 page follows the subject's shape rather than a report outline;
@@ -105,7 +105,7 @@ so a phase does not depend on discovering a chain of references.
 ### Author a version
 
 - `references/page-authoring.md`: before writing or revising any version.
-- `references/authoring-decisions.md`: while authoring a new, unanswered ask or
+- `references/authoring-asks.md`: while authoring a new, unanswered ask or
   sign-off.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a reader-owned draft, or revising standing state.

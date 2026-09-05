@@ -385,7 +385,7 @@ export const ariaShortcuts = (rows, current = true, where) =>
 //
 // A letter matches on its lowercase with Shift asked for separately, because caps lock
 // writes an uppercase key out of an unshifted press and reads an unshifted one out of a
-// shifted press. Read off the glyph, `D` would match the shifted decision walk from a
+// shifted press. Read off the glyph, `A` would match the shifted Ask walk from a
 // bare letter under caps lock, and could no longer be reached with the Shift the chip
 // names. Asking
 // for the modifier is what makes the chip true in both directions.

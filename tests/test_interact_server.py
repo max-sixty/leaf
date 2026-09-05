@@ -1096,10 +1096,10 @@ def test_action_door_owns_generated_child_snapshots(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-decision id="delivery-decision"><h3>When should this ship?</h3>'
+            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
             '<lf-options id="delivery" choose>'
             '<lf-option id="delivery-now">Now</lf-option>'
-            "</lf-options></lf-decision></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
     publish(page_dir)
@@ -1144,11 +1144,11 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-decision id="delivery-decision"><h3>When should this ship?</h3>'
+            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
             '<lf-options id="delivery" choose>'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></lf-decision></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
     publish(page_dir)
@@ -1188,11 +1188,11 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-decision id="delivery-decision"><h3>When should this ship?</h3>'
+            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
             '<lf-options id="delivery" choose>'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></lf-decision></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
     publish(page_dir)
@@ -1231,9 +1231,9 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
     old_page = PAGE.replace("<lf-options>", '<lf-options id="picks">')
     old_page = old_page.replace(
         "</section>",
-        '<lf-decision id="other-decision"><h3>Another choice</h3>'
+        '<lf-ask id="other-decision"><h3>Another choice</h3>'
         '<lf-options id="other-picks"><lf-option id="other-option">'
-        "Another option</lf-option></lf-options></lf-decision></section>",
+        "Another option</lf-option></lf-options></lf-ask></section>",
     )
     new_page = (
         old_page.replace('id="flag-first"', 'id="moved-option"')
@@ -1408,11 +1408,11 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-decision id="delivery-decision"><h3>When should this ship?</h3>'
+            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
             '<lf-options id="delivery" choose>'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></lf-decision></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
     publish(page_dir)
@@ -1706,10 +1706,10 @@ def test_server_admits_only_a_widget_declared_host_request(server, page_dir):
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-decision></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -1784,10 +1784,10 @@ def test_server_refuses_a_host_verb_the_widget_instance_did_not_offer(server, pa
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-decision></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -1829,11 +1829,11 @@ def test_server_refuses_a_second_request_while_the_first_is_pending(server, page
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
-        "</lf-operations></lf-decision></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -1897,11 +1897,11 @@ def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
-        "</lf-operations></lf-decision></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -2160,10 +2160,10 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
             "Pick one:",
             "--markup",
             (
-                '<lf-decision id="thread-pick-decision"><h3>Which option?</h3>'
+                '<lf-ask id="thread-pick-decision"><h3>Which option?</h3>'
                 '<lf-options id="thread-pick" choose>'
                 '<lf-option id="thread-a"><strong>A</strong></lf-option>'
-                "</lf-options></lf-decision>"
+                "</lf-options></lf-ask>"
                 '<lf-specimen id="sample">'
                 '<lf-options id="exhibited-pick" choose>'
                 '<lf-option id="exhibited-a"><strong>A</strong></lf-option>'
@@ -2231,11 +2231,11 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-decision id="eligibility-decision"><h3>Which option?</h3>'
+            '<lf-ask id="eligibility-decision"><h3>Which option?</h3>'
             '<lf-options id="eligibility-options" choose>'
             '<lf-option id="eligibility-a">A</lf-option>'
             '<lf-option id="eligibility-b">B</lf-option>'
-            "</lf-options></lf-decision></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
 
@@ -2265,11 +2265,11 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
                 "Here it is:",
                 "--markup",
                 (
-                    '<lf-decision id="thread-options-decision"><h3>Which option?</h3>'
+                    '<lf-ask id="thread-options-decision"><h3>Which option?</h3>'
                     '<lf-options id="thread-options" choose>'
                     '<lf-option id="thread-a">A</lf-option>'
                     '<lf-option id="thread-b">B</lf-option>'
-                    "</lf-options></lf-decision>"
+                    "</lf-options></lf-ask>"
                 ),
             ],
         )
@@ -2324,11 +2324,11 @@ def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, pa
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-decision id="seated-decision"><h3>Which option?</h3>'
+            '<lf-ask id="seated-decision"><h3>Which option?</h3>'
             '<lf-options id="seated-options" choose>'
             '<lf-option id="seated-a">A</lf-option>'
             '<lf-option id="seated-b">B</lf-option>'
-            "</lf-options></lf-decision></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
     publish(page_dir)
@@ -2437,20 +2437,20 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
             '<strong>Worker</strong><lf-worktree id="quota-tree" '
             'source="project-worktrees"></lf-worktree></lf-agent>'
             '<lf-quota id="quota" slots="1"></lf-quota>'
-            '<lf-decision id="quota-intervention-decision"><h3>Proceed?</h3>'
+            '<lf-ask id="quota-intervention-decision"><h3>Proceed?</h3>'
             '<lf-options id="quota-intervention" choose>'
             '<lf-option id="quota-ready" chosen>Ready</lf-option>'
-            "</lf-options></lf-decision>"
-            '<lf-decision id="quota-operations-decision"><h3>Restart?</h3>'
+            "</lf-options></lf-ask>"
+            '<lf-ask id="quota-operations-decision"><h3>Restart?</h3>'
             '<lf-operations id="quota-operations" target="quota-task" '
             'worker="quota-worker" worktree="quota-tree">'
             '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-            "</lf-operations></lf-decision>"
+            "</lf-operations></lf-ask>"
             '<lf-task id="quota-child" status="active"><strong>Child</strong>'
-            '<lf-decision id="quota-child-decision"><h3>Is the child ready?</h3>'
+            '<lf-ask id="quota-child-decision"><h3>Is the child ready?</h3>'
             '<lf-options id="quota-child-review" choose>'
             '<lf-option id="quota-child-ready">Ready</lf-option>'
-            "</lf-options></lf-decision></lf-task>"
+            "</lf-options></lf-ask></lf-task>"
             "</lf-task>"
             '<lf-task id="quota-destination" status="active">'
             "<strong>Destination</strong></lf-task>"
@@ -4098,10 +4098,10 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
             "revision": 1,
             "text": "the answer that survived it",
             "markup": (
-                '<lf-decision id="orphan-decision"><h3>Which repair?</h3>'
+                '<lf-ask id="orphan-decision"><h3>Which repair?</h3>'
                 '<lf-options id="orphan-choice" choose>'
                 '<lf-option id="orphan-retry">Retry it</lf-option>'
-                "</lf-options></lf-decision>"
+                "</lf-options></lf-ask>"
             ),
         },
     )
@@ -4129,10 +4129,10 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     open_state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert open_state.exit_code == 0, open_state.output
     open_reading = json.loads(open_state.output)
-    assert open_reading["decisions"] == [
+    assert open_reading["asks"] == [
         {
             "id": "orphan-decision",
-            "tag": "lf-decision",
+            "tag": "lf-ask",
             "thread": "c-lost",
         }
     ]
@@ -4157,7 +4157,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     closed_reading = json.loads(state.output)
     [thread] = closed_reading["threads"]
     assert thread == {"id": "c-lost", "anchor": None, "resolved": "user"}
-    assert closed_reading["decisions"] == []
+    assert closed_reading["asks"] == []
     assert [
         element["id"]
         for element in closed_reading["elements"]

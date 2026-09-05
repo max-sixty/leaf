@@ -7,8 +7,8 @@ from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from playwright.sync_api import expect
 from render_support import (
-    DECISION_SHAPES_PAGE,
-    SETTLED_DECISION_PAGE,
+    ASK_SHAPES_PAGE,
+    SETTLED_ASK_PAGE,
     SETTLED_PAGE,
     composer_quote,
     live_url,
@@ -168,7 +168,7 @@ def test_a_settled_ask_reconciles_added_options_into_its_disclosure(browser, ser
     The disclosure's count and controls describe the complete current option set,
     including options reconstructed from the standing action and their later undo.
     """
-    page, errors = open_page(browser, serve(SETTLED_DECISION_PAGE))
+    page, errors = open_page(browser, serve(SETTLED_ASK_PAGE))
     group = page.locator("#jobs")
     row = group.locator(":scope > .lf-settled")
 
@@ -231,7 +231,7 @@ def test_a_printed_page_says_which_option_carries_the_pick(browser, serve):
 
 def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
     """A settled answer still follows the authored question, on-page and in a reply."""
-    url = serve(DECISION_SHAPES_PAGE)
+    url = serve(ASK_SHAPES_PAGE)
     events_model.append_event(
         serve.page_dir,
         {
@@ -239,11 +239,11 @@ def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
             "author": "claude",
             "revision": 1,
             "text": "And settled in here.",
-            "markup": '<lf-decision id="th-done-decision"><h3>Where, again?</h3>'
+            "markup": '<lf-ask id="th-done-decision"><h3>Where, again?</h3>'
             '<lf-options id="th-done" choose settled>'
             '<lf-option id="th-redis" chosen><strong>Redis</strong></lf-option>'
             '<lf-option id="th-pg"><strong>Postgres</strong></lf-option>'
-            "</lf-options></lf-decision>",
+            "</lf-options></lf-ask>",
         },
     )
     page, errors = open_page(browser, live_url(url))

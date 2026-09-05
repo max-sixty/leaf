@@ -30,7 +30,7 @@ from .structure import VOID_TAGS, implicit_closes
 #               the log's outcomes drops here exactly what drops there — and a widget
 #               whose decision leaves nothing showing goes with its slots (settledAway
 #               there, `gone` here). Its values are also the vocabulary's decision
-#               verbs, which is where `decisions` reads them from.
+#               verbs, which is where `asks` reads them from.
 #   x-state, record kind "body"  the verb whose detail text becomes this element's
 #               body once the user sends one (lf-draft's `edit`): replay writes
 #               the newest surviving one into the DOM verbatim (renderState is
@@ -110,7 +110,7 @@ class _PassageParser(HTMLParser):
     the way a captured quote is; `owner[i]` is the ids enclosing text[i], outermost
     first, so a match can name the section it fell in and be re-read within it.
 
-    `decided` is the accept/reject each suggestion stands under (`decisions`).
+    `decided` is the accept/reject each suggestion stands under (`asks`).
     A decision retires a slot — the registry's `x-retired-when` names which outcome —
     and the browser's anchor pass reads the same key (`quotable` in leaf.js), so
     this reading drops it the same way. A decision that leaves its

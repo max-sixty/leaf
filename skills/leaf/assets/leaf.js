@@ -14,7 +14,7 @@ import { runtime } from "./runtime/context.js";
 import { promoteDeferredModals } from "./runtime/deferred-modals.js";
 import { reportPageError } from "./runtime/layer-client.js";
 
-import { buildBulkAnswers, syncDecisions } from "./runtime/decisions/view.js";
+import { buildBulkAnswers, syncAsks } from "./runtime/asks/view.js";
 
 import { paintHere, paintKeys, paintsHere } from "./runtime/keyboard/scopes.js";
 import { paintStandingChrome } from "./runtime/standing.js";
@@ -135,7 +135,7 @@ async function startPage() {
   // initial condition, and replay is about to overwrite them in the DOM.
   captureAuthoredFacets();
   buildBulkAnswers();
-  syncDecisions();
+  syncAsks();
   // Every widget has upgraded and every async one has settled, so the geometry and
   // the drawn SVG are final. `version export` copies the page at this moment and has no
   // other way to know it arrived: a load event fires before the modules run, and

@@ -1,13 +1,13 @@
 """Shared semantic reading of one document and its standing event log.
 
-Browser state and agent inspection use the same retirement, request, and decision
+Browser state and agent inspection use the same retirement, request, and Ask
 assembly. Callers supply the HTML and events from their page transaction; this
 reading does no file I/O and stores no derived state.
 """
 
 from typing import NamedTuple
 
-from .decisions import page_decision_inventory, page_decision_projection
+from .asks import page_ask_inventory, page_ask_projection
 from .events import retractions, seats_with_agent
 from .passages import Passages, enclosing_of, page_passages
 from .projection import StateProjection, page_projection, retirement_outcomes
@@ -22,7 +22,7 @@ class DocumentReading(NamedTuple):
     spoken: dict
     passages: Passages
     requests: list
-    decisions: dict
+    asks: dict
     within: dict
     floors: dict
 
@@ -36,7 +36,7 @@ def read_document(
     *,
     prepared: tuple | None = None,
 ) -> DocumentReading:
-    """Resolve a document's durable state and its reader's outstanding decisions.
+    """Resolve a document's durable state and its reader's outstanding Asks.
 
     `spoken` retains authored words because retractions and action ownership are
     based on construction. `passages` removes retired slots; exact replacement
@@ -56,7 +56,7 @@ def read_document(
         {"kind": "page", "revision": revision},
     )
     phases = request_phases(requests)
-    reader, awaiting = page_decision_projection(
+    reader, awaiting = page_ask_projection(
         parser,
         projection,
         parser.by_id,
@@ -66,7 +66,7 @@ def read_document(
         seats_with_agent(threads),
         request_phases=phases,
     )
-    unanswered, unanswered_awaiting = page_decision_projection(
+    unanswered, unanswered_awaiting = page_ask_projection(
         parser,
         projection,
         parser.by_id,
@@ -76,7 +76,7 @@ def read_document(
         set(),
         request_phases=phases,
     )
-    inventory = page_decision_inventory(
+    inventory = page_ask_inventory(
         parser,
         projection,
         parser.by_id,
@@ -93,7 +93,7 @@ def read_document(
         spoken=spk,
         passages=passages,
         requests=requests,
-        decisions={
+        asks={
             "all": inventory,
             "reader": reader,
             "unanswered": unanswered,

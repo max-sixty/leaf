@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from .decisions import quoted_in
+from .asks import quoted_in
 from .host import message_identity
 from .leases import contract_writer
 from .registry.contract import schema_error

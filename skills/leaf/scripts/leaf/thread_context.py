@@ -10,7 +10,7 @@ def thread_roots(events: list) -> dict:
     """Message id → the id of the comment that opened its thread.
 
     Two readings of the panel's own document resolve a reply to its root, and they
-    must answer alike: a decision and a question naming different conversations for one
+    must answer alike: an Ask and a question naming different conversations for one
     message is a disagreement no reader could account for. (`build_threads` walks the
     same relation to a different end — the thread object itself, with its resolution —
     so it keeps its own walk, and answers the same way where the log is torn.)

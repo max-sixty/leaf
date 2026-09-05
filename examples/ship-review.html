@@ -58,7 +58,7 @@
             <lf-task id="off-t-workaround" status="review" owner="mobile">
               <strong>Keep the resend workaround in the patch</strong> After 20 seconds
               the client resends the queued batch; 500 forced stalls all recovered.
-              <lf-decision id="off-workaround-decision">
+              <lf-ask id="off-workaround-decision">
                 <h3>Is that enough for the first patch?</h3>
                 <lf-options id="off-workaround-review" choose>
                   <lf-option id="off-workaround-approve" for="off-t-resync">
@@ -68,7 +68,7 @@
                     Request another pass — hold the patch for a native fix.
                   </lf-option>
                 </lf-options>
-              </lf-decision>
+              </lf-ask>
             </lf-task>
             <lf-task id="off-t-telemetry" status="done" owner="data">
               <strong>Keep reconnect telemetry</strong> The release cohort retains the

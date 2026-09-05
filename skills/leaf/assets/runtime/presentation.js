@@ -30,10 +30,10 @@
      theme.
    - `renderSettlement` (projection.js) paints the holder's authoritative settlement.
    - `renderRetired` marks slots retired by the declared holder relation.
-   - The decision model (decisions/model.js) reads `x-awaits`, while the decision tray
-     projects a declared `x-decision` region around that source where one exists;
+   - The Ask model (asks/model.js) reads `x-awaits`, while the Ask tray
+     projects a declared `x-ask-surface` region around that source where one exists;
      neither names a tag.
-   - A holder declaring `x-request.decision` joins that same decision projection only
+   - A holder declaring `x-request.ask` joins that same Ask projection only
      while its canonical request lifecycle is `ready`. Pending and completed requests
      are the host's turn; a failed receipt returns the holder to the reader without a
      package-maintained pending flag.
@@ -82,7 +82,7 @@ import { highlightBlocks } from "./syntax.js";
 // replay signature must keep seeing it — its own gate is RETIRED_SLOTS, not the sigs.
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   class: "class",
-  decision: "data-lf-decision",
+  ask: "data-lf-ask",
   done: "data-lf-done",
   restated: "data-lf-restated",
   retired: "data-lf-retired",

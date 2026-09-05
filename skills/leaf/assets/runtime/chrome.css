@@ -1482,8 +1482,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
     margin-top: 6px; }
   .lf-page-strip { padding: 8px 14px 0; }
-  /* The latest agent reply keeps one ellipsis visible. Older replies expose theirs
-     while the reader is in the thread; a standing mark remains visible at rest. */
+  /* The latest agent reply keeps its React… trigger visible. Older replies expose
+     theirs while the reader is in the thread; a standing mark remains visible at rest. */
   .lf-thread:not(:hover, :focus-within, .lf-focus-within)
     .lf-react-strip:not(.lf-open, .lf-react-open) > .lf-react-trigger { display: none; }
   .lf-thread:not(:hover, :focus-within, .lf-focus-within)

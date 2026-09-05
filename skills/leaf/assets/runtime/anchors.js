@@ -31,7 +31,9 @@ import {
   composerQuote,
   pendingAbout,
   pendingAnchor,
+  pendingDrawing,
 } from "./composing/selection.js";
+import { drawingShifted } from "./composing/drawing.js";
 import {
   designName,
   designOn,
@@ -828,6 +830,7 @@ const marked = new Map(); // thread id -> (Range | Element)[]: the pass's record
 // record answers for the other. Written only by the pass that resolves the anchors, so the
 // two readings can never come from different resolutions.
 const placed = new Map();
+let pendingPlaced = null;
 let pendingMarks = []; // the same record for the open composer's own passage
 let pendingOutline = []; // the elements the open draft outlines, owned by nobody else
 let actionOutline = []; // the visual target whose action bar is standing
@@ -1012,6 +1015,7 @@ export function paintAnchors(threads = buildThreads()) {
       exact: true,
       status: "exact",
       ...found,
+      target: targetElement(found) ?? found.place,
       element: found.place,
     });
     if (found.status === "outdated") continue;
@@ -1057,11 +1061,13 @@ export function paintAnchors(threads = buildThreads()) {
       // to the document's origin and drew nothing there. The record is what the pass
       // clears, what the pointer hit-tests, and what the composer stands off, so all
       // three follow the paint by holding the parts rather than the element.
-      const parts = targetParts(found);
-      for (const part of parts) part.classList.add("lf-mark-el");
       rememberVisual(found);
-      marked.set(t.root.id, parts);
-    } else {
+      if (!t.root.drawing) {
+        const parts = targetParts(found);
+        for (const part of parts) part.classList.add("lf-mark-el");
+        marked.set(t.root.id, parts);
+      }
+    } else if (!t.root.drawing) {
       const ranges = targetSegments(found).map((seg) => rangeOf([seg]));
       marked.set(t.root.id, ranges);
       posted.push(...ranges);
@@ -1094,15 +1100,23 @@ export function paintAnchors(threads = buildThreads()) {
   // true state: where the draft stands, and where the next comment would land.
   const draft =
     composerOpen && pendingAnchor ? resolveAnchor(pendingAnchor, text) : null;
+  pendingPlaced = draft
+    ? {
+        ...draft,
+        target: targetElement(draft) ?? draft.place,
+        element: draft.place,
+      }
+    : null;
   // Where the draft's passage is, recorded the way the threads' is. An element a thread
   // already outlines belongs in the record too — it is marked, just in the posted colour
   // rather than the accent.
   const draftMarked = Boolean(draft && draft.status !== "outdated");
-  pendingMarks = draftMarked
-    ? targetElement(draft)
-      ? targetParts(draft)
-      : targetSegments(draft).map((seg) => rangeOf([seg]))
-    : [];
+  pendingMarks =
+    draftMarked && !pendingDrawing
+      ? targetElement(draft)
+        ? targetParts(draft)
+        : targetSegments(draft).map((seg) => rangeOf([seg]))
+      : [];
   if (draft) rememberVisual(draft);
   const pending = [];
   if (targetElement(draft)) {
@@ -1720,6 +1734,7 @@ export function pageShifted() {
   refreshHover();
   refreshAim();
   shifted();
+  drawingShifted();
   // A board scrolled sideways carries its cards out from under their boxes, and the
   // page scrolled brings items into view that had no box yet (shownRect).
   queueLegend();
@@ -1740,6 +1755,9 @@ addEventListener(
 );
 
 export const isMarked = (id) => marked.has(id);
+export function pendingAt() {
+  return pendingPlaced;
+}
 export const placedAt = (id) => placed.get(id);
 export const traceTarget = (target) => {
   const part = target ? visualAt(target, { unclaimed: false })?.part : null;

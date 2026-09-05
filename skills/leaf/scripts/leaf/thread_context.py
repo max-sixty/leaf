@@ -161,6 +161,7 @@ MESSAGE_FIELDS = (
     # message with nothing in it.
     "token",
     "markup",
+    "drawing",
     "suggestion",
     "edited",
 )

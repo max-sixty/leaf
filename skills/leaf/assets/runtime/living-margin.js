@@ -2766,8 +2766,18 @@ function refreshHighlight() {
     (preview.contains(active) || preview.matches(":popover-open")
       ? hosts.get(previewEntry?.key)
       : null);
+  const entry = pageMapEntries.find(
+    (candidate) => candidate.key === source?.lfEntry?.key,
+  );
+  // A drawing already marks this target on the page. When every item at the location
+  // is a drawing comment, focusing its marker or thread needs no second target box.
+  const drawingOnly =
+    entry?.items.length &&
+    entry.items.every(
+      (item) => item.kind === "comment" && Boolean(item.thread?.root.drawing),
+    );
   highlight(
-    pageMapEntries.find((entry) => entry.key === source?.lfEntry?.key)?.target ?? null,
+    drawingOnly ? null : (entry?.target ?? null),
     source === pointerHost ? hoveredBehavior : null,
   );
 }

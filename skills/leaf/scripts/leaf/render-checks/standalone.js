@@ -113,6 +113,20 @@ export function coveredWords({
 // is named here: this marks the medium, and the widgets answer for themselves.
 export function bake() {
   document.documentElement.classList.add("lf-copy");
+  // The chrome's sheet and the marks' are adopted, so they stand in no element's
+  // markup and a serialized copy would open without them — and the copy reads this
+  // sheet: its `html.lf-copy` rules are what dress a copy's marks. Written into the
+  // head as one <style>, the way the theme's link becomes its text on export.
+  const adopted = document.adoptedStyleSheets;
+  if (adopted.length) {
+    const style = document.createElement("style");
+    style.dataset.lfRuntime = "1";
+    style.textContent = adopted
+      .flatMap((sheet) => [...sheet.cssRules].map((rule) => rule.cssText))
+      .join("\n");
+    document.head.append(style);
+    document.adoptedStyleSheets = [];
+  }
   // A live report is runtime chrome even where its seat is in the page rather than
   // under .lf-chrome, so it is answered here, in the document and in every open shadow
   // root, before those roots are serialized below.

@@ -98,11 +98,12 @@ guards, deferred measurement, layout-change signalling, and control sizing;
 `runtime/registry.js` owns vocabulary queries;
 `runtime/scrolling.js` owns the document scroller identity, relative scroller moves,
 fixed-surface wheel forwarding, and the gutter its bar takes;
-`runtime/chrome-style.js` owns the comment layer's private stylesheet, built from
-the declaration-derived names and layout queries the runtime supplies it, and keeps
-the root, body's layout shell, and the chrome's paint hosts out of the containing-block chain for
-document-positioned chrome. It also keeps page-attached paint below covering workspaces
-and paint for chrome targets above them;
+`runtime/chrome.css` is the comment layer's private stylesheet, a CSS module the boot
+module adopts, and keeps the root, body's layout shell, and the chrome's paint hosts out
+of the containing-block chain for document-positioned chrome. It also keeps page-attached
+paint below covering workspaces and paint for chrome targets above them.
+`runtime/marks.css` is the marks' sheet, adopted by the document and by every shadow
+stage;
 `runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, the document
 room left after the panel and trays, the final-layout column motion between workspace
 states, and page repaint caused by shell motion or reflow;
@@ -3306,8 +3307,8 @@ animation can expose the behavior.
 Run `node --check skills/leaf/assets/leaf.js`, formatting, and a
 focused real-browser test while iterating. Before handing over a runtime or theme
 change, run the relevant full browser file or `leaf version check --render` on
-the affected example. `node --check` cannot validate browser bindings, runtime
-CSS inside the module's template literal, computed layout, or reconciliation.
+the affected example. `node --check` cannot validate browser bindings, computed
+layout, or reconciliation; the layer tests parse every vendored stylesheet.
 
 Re-vendor a page before trusting its browser result. A page directory carries
 the runtime, registry, modules, vendor files, and theme copied by `page init`; a

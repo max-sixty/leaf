@@ -42,8 +42,9 @@ import { settle, settling } from "./widget-upgrade.js";
 // properties that page-local styles read. The live document also paints its own facts
 // onto those same two elements. The authored share is remembered at import, before the
 // boot module has run a line: no runtime module writes the document at its own top
-// level, and the runtime's stylesheet and the banner's icon link come later from the
-// boot module. An activation can then replace exactly that share without erasing the
+// level, the runtime's stylesheets are adopted rather than written into the head, and
+// the banner's icon link comes later from the boot module. An activation can then
+// replace exactly that share without erasing the
 // presentation, layout, and mode facts the surviving runtime owns.
 const authoredAttributes = (root) =>
   new Map([...root.attributes].map(({ name, value }) => [name, value]));
@@ -103,7 +104,6 @@ export function createVersion({
   showNews,
   stateCoordinate,
   stateSignoff,
-  style,
   syncLayout,
 }) {
   // ---------- the version chooser ----------
@@ -913,14 +913,15 @@ export function createVersion({
     return next;
   }
 
+  // The chrome's sheets are adopted, not head nodes, so they cascade after everything
+  // the head holds whatever order it is written in; the authored share goes at the end.
   function activateHead(doc, revision) {
     for (const node of authoredHeadNodes) node.remove();
-    const runtimeStyle = style;
     const next = new Set();
     for (const node of doc.head.children) {
       if (!versionedHeadNode(node)) continue;
       const imported = document.importNode(node, true);
-      document.head.insertBefore(imported, runtimeStyle);
+      document.head.append(imported);
       next.add(imported);
     }
     authoredHeadNodes = next;
@@ -929,7 +930,7 @@ export function createVersion({
       marker = document.createElement("meta");
       marker.name = "lf-revision";
       marker.dataset.lfRuntime = "1";
-      document.head.insertBefore(marker, runtimeStyle);
+      document.head.append(marker);
     }
     marker.content = String(revision.revision);
     stateSignoff(doc.querySelector('meta[name="lf-review"]')?.content === "sign-off");

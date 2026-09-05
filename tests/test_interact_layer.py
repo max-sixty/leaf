@@ -10,6 +10,7 @@ import threading
 from pathlib import Path
 
 import pytest
+import tinycss2
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
@@ -757,6 +758,59 @@ def test_init_vendors_the_layer(page_dir):
     }
 
 
+def _css_parse_errors(nodes):
+    """Every parse-error token in a tinycss2 reading, at any depth."""
+    errors = []
+    for node in nodes:
+        if node.type == "error":
+            errors.append(f"{node.source_line}:{node.source_column} {node.message}")
+        errors.extend(_css_parse_errors(getattr(node, "content", None) or []))
+    return errors
+
+
+def test_every_vendored_stylesheet_parses(page_dir):
+    """The chrome's sheet was a JavaScript template literal, which `node --check` accepts
+    with a body a backtick has cut short and the browser then refuses whole. As files,
+    the gate's own CSS parser reads them, and an error token anywhere is the finding."""
+    for name in ["theme.css", "runtime/chrome.css", "runtime/marks.css"]:
+        rules = tinycss2.parse_stylesheet(
+            (page_dir / name).read_text(), skip_comments=True, skip_whitespace=True
+        )
+        assert rules, f"{name} is empty"
+        assert not _css_parse_errors(rules), f"{name}: {_css_parse_errors(rules)}"
+
+
+def test_the_chrome_sheet_spells_the_runtime_s_layout_numbers():
+    """A media query cannot read a custom property, so chrome.css states the covering
+    widths and the strip-taking tray as literals while the runtime lays out by the
+    constants. Held equal here rather than trusted to stay so."""
+    runtime = schema_model.ASSETS / "runtime"
+    layout = (runtime / "chrome-layout.js").read_text()
+    trays = (runtime / "trays.js").read_text()
+    sheet = (runtime / "chrome.css").read_text()
+    panel = int(
+        re.search(r"^export const PANEL_W = (\d+);", layout, re.MULTILINE).group(1)
+    )
+    tray = int(re.search(r"^const TRAY_W = (\d+);", trays, re.MULTILINE).group(1))
+    strip = re.search(
+        r"^const STRIP_TRAYS = \[(.*?)\];", trays, re.MULTILINE | re.DOTALL
+    ).group(1)
+    strip_rule = (
+        "body:is("
+        + ",".join(
+            f'[data-lf-tray="{name}"]' for name in re.findall(r'"([a-z-]+)"', strip)
+        )
+        + ")"
+    )
+    for spelling in (
+        f"(width <= {panel * 2}px)",
+        f"(width > {panel * 2}px)",
+        f"(width <= {tray * 2}px)",
+        strip_rule,
+    ):
+        assert spelling in sheet, f"chrome.css no longer spells {spelling}"
+
+
 def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(tmp_path):
     """The stable identity follows bytes while generation still invalidates old tabs."""
     runner = CliRunner()
@@ -1060,7 +1114,7 @@ def test_init_user_layer_applies(tmp_path, monkeypatch):
     assert vendored_theme.endswith(custom_theme)
     assert (d / "widgets" / "lf-foo.js").read_text() == "// user widget"
     assert (d / "widgets" / "lf-tabs.js").is_file()  # shipped modules still vendored
-    assert (d / "runtime" / "chrome-style.js").is_file()
+    assert (d / "runtime" / "chrome.css").is_file()
 
 
 def test_init_project_layer_wins(tmp_path, monkeypatch):

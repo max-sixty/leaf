@@ -2651,10 +2651,10 @@ const DESIGN = {
       does: "Comment on what the click lands on — a widget, a control, the chrome; prose still selects",
     },
     {
-      // Both keys, on one row: i is the toggle and Escape the mode's own rung, and two
+      // Both keys, on one row: l is the toggle and Escape the mode's own rung, and two
       // chips reading "leave design" said one thing twice on the line.
       id: "design.leave",
-      keys: ["Escape", "i"],
+      keys: ["Escape", "l"],
       does: "Leave design mode",
       line: "leave design",
       run: () => setDesign(false),
@@ -2877,7 +2877,7 @@ const PAGE = {
       // The way in; the mode's own scope takes the letter back out (DESIGN), nearer
       // than this row, so while it stands this one is shadowed off the line.
       id: "design.enter",
-      keys: ["i"],
+      keys: ["l"],
       does: "Design mode: comment on the layer — a widget, a control, the chrome — rather than the page",
       line: "design mode",
       run: () => setDesign(true),

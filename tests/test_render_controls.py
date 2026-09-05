@@ -4002,7 +4002,7 @@ RING_WALKS = (
     # nothing and the pair covers a menu of any length this corpus can hold.
     ("the versions menu", ("g", "Shift+v", "ArrowUp", "ArrowUp"), ("corpus",)),
     ("the reference", ("?", "?"), ("corpus",)),
-    ("design mode", ("i",), ("corpus",)),
+    ("design mode", ("l",), ("corpus",)),
     # A Thread card and the compact Page-map sheet are the two layers a Tab walk of the
     # page cannot open for itself. The card is a press on a Thread Button; the sheet is a
     # press on a Map control the wide posture does not draw at all, so its walk asks for

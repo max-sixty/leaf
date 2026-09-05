@@ -220,7 +220,7 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     option = page.locator("#bg-choice-street")
     option_box = option.bounding_box()
     assert option_box is not None
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
     page.mouse.click(
         option_box["x"] + option_box["width"] / 2,

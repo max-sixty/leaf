@@ -2139,12 +2139,18 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
             else if (r.selectorText) classes(r.selectorText).forEach(c => into.add(c));
             else if (r.cssRules) collect(r.cssRules, into); } };
         collect(sheet.cssRules, global_);
+        // A shared class may take its document face from the authored theme rather than
+        // from the runtime sheet. It is still outside this collision probe: any movement
+        // it causes in the page is that deliberate global rule, not a leaked scoped one.
+        const documentGlobal = new Set(global_);
+        for (const other of [...document.styleSheets].filter(s => s !== sheet))
+            collect(other.cssRules, documentGlobal);
         const probe = document.createElement("div"), plain = document.createElement("div");
         // Minus the shared vocabulary: a word document level dresses on purpose
         // (lf-address, worn by the chord's own layer and by an option's corner alike)
         // is named by the scoped rule that says when to paint it, and it would answer
         // this question with the reach it was given rather than with a leak.
-        probe.className = [...scoped].filter(c => !global_.has(c)).join(" ");
+        probe.className = [...scoped].filter(c => !documentGlobal.has(c)).join(" ");
         probe.textContent = plain.textContent = "probe";
         document.getElementById("s").append(plain, probe);
         const cs = el => { const c = getComputedStyle(el), out = {};

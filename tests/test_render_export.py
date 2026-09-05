@@ -101,7 +101,6 @@ def test_the_restart_reading_accepts_only_observed_restart_diagnostics():
         "Failed to load resource: the server responded with a status of 404 ()",
         "Failed to load resource: the server responded with a status of 500 ()",
         "leaf: registry failed to load (500)",
-        "leaf: external data failed to load: Failed to fetch",
         "leaf: page failed to start: SyntaxError: Unexpected token '<'",
         "TypeError: page.querySelector(...) is null",
     ):

@@ -2749,6 +2749,16 @@ customElements.define('lf-test-surface', class extends HTMLElement {
                         ["first", "second", "first"],
                         strict=True,
                     )
+                ]
+                + [
+                    {
+                        "id": "surface-reply",
+                        "kind": "reply",
+                        "author": "claude",
+                        "parent": roots[0],
+                        "revision": 1,
+                        "text": "The first datum deserves a closer look.",
+                    }
                 ],
             )
         ),
@@ -2764,6 +2774,9 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     broken.locator(".lf-conversation-thread textarea").first.fill(
         "Keep this unsent reply."
     )
+    strip = broken.locator(".lf-react-strip")
+    strip.locator(".lf-react-trigger").click()
+    expect(strip.locator(".lf-react:visible")).to_have_count(6)
     assert errors == []
 
     broken.evaluate("(widget, phase) => widget.fail(phase)", failure)
@@ -2793,6 +2806,15 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         0,
         0,
     ], "old core views survived in moved, detached, or retired outlets"
+    # A removed picker must release the keyboard, not accept a reaction on its
+    # now-invisible target. The following page-comment gesture is the positive
+    # completion edge before checking that the digit produced no stale send.
+    page.keyboard.press("1")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-general textarea")).to_be_focused()
+    round_trip(page)
+    assert not [event for event in sent_events(serve.page_dir) if event.get("token")]
+    page.keyboard.press("Escape")
     if failure == "disconnect":
         expect(markers).to_have_count(0)
         page.get_by_role("button", name=re.compile(r"^Threads")).click()

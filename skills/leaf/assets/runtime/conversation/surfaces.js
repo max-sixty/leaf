@@ -19,6 +19,7 @@ export function createThreadSurfaces({
   renderThreadSurface,
   reportPageError,
   requestReconcile,
+  setChildren,
 }) {
   const registrations = new Map();
   let claimed = new Set();
@@ -35,7 +36,7 @@ export function createThreadSurfaces({
 
   function clearOutlets(outlets) {
     for (const outlet of outlets) {
-      outlet.replaceChildren();
+      setChildren(outlet, []);
       delete outlet.dataset.lfThreadSurface;
     }
   }

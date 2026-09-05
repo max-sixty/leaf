@@ -3894,6 +3894,25 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         "no",
     )
 
+    # A layout change can withdraw the outlet without a pointer press to dismiss
+    # its reaction picker. Removing the view must release that keyboard mode too.
+    strip.locator(".lf-react-trigger").click()
+    assert "1–6" in key_line(page)
+    file = page.locator("lf-diff .lf-diff-file > details")
+    file.evaluate("details => { details.open = false; }")
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
+    assert "1–6" not in key_line(page)
+    count = len(events_model.read_events(serve.page_dir))
+    page.keyboard.press("1")
+    key_line(page)
+    round_trip(page)
+    assert len(events_model.read_events(serve.page_dir)) == count
+    page.keyboard.press("g")
+    assert "versions" in key_line(page)
+    page.keyboard.press("Escape")
+    file.evaluate("details => { details.open = true; }")
+    expect(thread.locator("textarea")).to_be_visible()
+
     with sending(page, "the inline resolution"):
         thread.get_by_role("button", name="Resolve", exact=True).click()
     expect(thread).not_to_have_attribute("open", "")

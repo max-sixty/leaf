@@ -313,6 +313,7 @@ export function createConversation(dependencies) {
     renderThreadSurface,
     reportPageError,
     requestReconcile: renderPanel,
+    setChildren,
   });
   threadListRuntime = createConversationThreadList({
     ago,

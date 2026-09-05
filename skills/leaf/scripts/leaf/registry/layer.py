@@ -70,6 +70,24 @@ def _required_layer_declarations(registry: dict, path):
     return kinds, names, paths, tones, data, tokens
 
 
+def _validate_event_handling(events: dict, kinds: dict, path) -> None:
+    """`$events.handling` is read directly by every batch a wait prints, so a
+    layer that restates a kind is held to the shape the consumer assumes: a
+    declared kind, one non-empty sentence. Absent is fine (a layer vendored
+    before the member existed), and a null member is the merge's own deletion."""
+    handling = events.get("handling")
+    if handling is None:
+        return
+    if not isinstance(handling, dict) or any(
+        kind not in kinds or not isinstance(text, str) or not text.strip()
+        for kind, text in handling.items()
+    ):
+        raise RegistryError(
+            f"{path}: $events.handling must map declared kinds to one non-empty "
+            "sentence each"
+        )
+
+
 def _validate_event_contracts(kinds: dict, path) -> None:
     if not isinstance(kinds, dict):
         raise RegistryError(f"{path}: $events.kinds must map names to event contracts")

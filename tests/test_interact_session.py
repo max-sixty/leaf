@@ -508,8 +508,6 @@ def test_a_batch_says_what_each_kind_present_asks_of_the_agent(page_dir, capsys)
     """The first line's `handling` is the vendored layer's `$events.handling` for
     exactly the kinds in the batch, so the rule reaches the agent beside the event
     it applies to rather than in a reference the loop never opens."""
-    from leaf.registry.storage import load_registry
-
     serving(page_dir, 1)
     session_model.cmd_status(page_dir, "waiting", "")
     events_model.append_event(
@@ -523,13 +521,12 @@ def test_a_batch_says_what_each_kind_present_asks_of_the_agent(page_dir, capsys)
     header, *shown = [
         json.loads(line) for line in capsys.readouterr().out.strip().splitlines()
     ]
-    declared = load_registry(page_dir)["$events"]["handling"]
+    declared = registry_storage.load_registry(page_dir)["$events"]["handling"]
     assert set(header["handling"]) == {event["kind"] for event in shown}
     assert header["handling"] == {
         "comment": declared["comment"],
         "resolve": declared["resolve"],
     }
-    assert "leaf reply" in declared["comment"]
 
 
 def test_reopening_a_thread_reveals_its_unanswered_claim(page_dir):

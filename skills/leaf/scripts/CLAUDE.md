@@ -99,7 +99,7 @@ declarations without a widget-name list.
 Within `registry/`, `contract` owns shared schema helpers and layer readings,
 `layer`, `widgets`, and `state` own their complete vocabulary contracts,
 `validation` composes those gates, `storage` owns the vendored-file cache and
-page lookup, and `reactions` owns reaction and event-handling descriptions. Import the owner
+page lookup, and `reactions` owns reaction descriptions. Import the owner
 directly; the package initializer is only a marker.
 
 Within `served_state/`, `wire` serializes one declared fold, `conversation` and

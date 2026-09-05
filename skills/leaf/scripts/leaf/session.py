@@ -13,8 +13,8 @@ from .hosting import start_server
 from .leases import take_waiter_lease, waiter_lease_path
 from .locations import path_location, paths_same
 from .passages import active_enclosing
-from .registry.contract import RegistryError
-from .registry.reactions import described, handling
+from .registry.contract import RegistryError, handling
+from .registry.reactions import described
 from .registry.storage import load_registry
 from .revisioning import activate_source
 from .server import running_server

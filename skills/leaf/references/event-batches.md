@@ -18,8 +18,9 @@ the page and carries two readings:
   JSONL records, and `leaf transcript <page>` is the human-facing Markdown export.
 - `handling`: for each event kind present in the batch, what the layer asks of
   you. The sentences are the page's vendored `$events.handling`, so a project
-  layer can restate one kind and its pages say so. A reaction also carries its
-  token's `means` beside it.
+  layer can restate one kind and its pages say so. A page vendored before the
+  layer carried `handling` delivers `{}` until it is re-vendored. A reaction also
+  carries its token's `means` beside it.
 
 Then each event, one per line. Address every one of them; `handling` is the rule
 for each kind, and this reference is the mechanism around it.

@@ -983,6 +983,11 @@ fabBar.append(fab);
 // keeps these pointer-inert projections above the provider's drawing.
 const visualMarkLayer = el("div", "lf-ui lf-visual-marks");
 visualMarkLayer.setAttribute("aria-hidden", "true");
+// A status remains flat and inert while its hover trace identifies the target it reports
+// on. Anchors owns the shared rectangular and shaped target paint; the living margin
+// owns when this instance is shown.
+const marginTraceBox = el("div", "lf-ui lf-margin-status-trace lf-target-paint");
+marginTraceBox.setAttribute("aria-hidden", "true");
 // The aim's paint host (see its rule above). Pointer-inert and carrying only aria-hidden
 // drawing geometry, it says nothing to a screen reader and takes nothing from the press
 // it promises; refreshAim is its one writer, and data-for is the aimed id stated where a
@@ -1121,6 +1126,7 @@ chromeRoot.append(
   selectionLayer,
   selectionSearch,
   visualMarkLayer,
+  marginTraceBox,
   aimBox,
   fabBar,
   liveEl,
@@ -3598,6 +3604,7 @@ anchorRuntime = createAnchors({
   inChrome,
   inUi,
   inspectEl,
+  marginTraceBox,
   offer,
   pageQueryAll,
   pageScroller,
@@ -3665,6 +3672,7 @@ livingMargin = createLivingMargin({
   setPanel,
   showThread,
   stateProjection,
+  traceTarget: (...args) => anchorRuntime.traceTarget(...args),
   threadPanel: panel,
   threads: () => conversationRuntime.threadList,
   updateSequence,

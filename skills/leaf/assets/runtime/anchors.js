@@ -62,6 +62,7 @@ export function createAnchors(dependencies) {
     inChrome,
     inUi,
     inspectEl,
+    marginTraceBox,
     offer,
     pageQueryAll,
     pageScroller,
@@ -665,6 +666,10 @@ export function createAnchors(dependencies) {
   aimShape.setAttribute("aria-hidden", "true");
   const aimMaskId = "lf-runtime-aim-shape-mask";
   aimBox.append(aimShape);
+  const marginTraceShape = document.createElementNS(SVG_NS, "svg");
+  marginTraceShape.classList.add("lf-margin-status-trace-shape");
+  marginTraceShape.setAttribute("aria-hidden", "true");
+  marginTraceBox.append(marginTraceShape);
 
   const paints = (shape, property) => {
     const style = getComputedStyle(shape);
@@ -815,6 +820,56 @@ export function createAnchors(dependencies) {
 
   const visualPaintRect = (item, shaped) =>
     visualPaintPlacement(item, shaped)?.rect ?? null;
+
+  let marginTraceTarget = null;
+  let marginTraceGeometry = null;
+  let marginTraceShapeKey = "";
+  function paintMarginTrace(target = marginTraceTarget, rebuildGeometry = true) {
+    if (!(target instanceof Element) || !target.isConnected) {
+      marginTraceTarget = target instanceof Element ? target : null;
+      marginTraceGeometry = null;
+      marginTraceShapeKey = "";
+      marginTraceBox.style.display = "none";
+      marginTraceBox.classList.remove("lf-shaped");
+      marginTraceShape.replaceChildren();
+      marginTraceBox.removeAttribute("data-for");
+      delete marginTraceBox.dataset.lfPaintPlane;
+      return;
+    }
+    const changed = target !== marginTraceTarget;
+    const geometry =
+      changed || rebuildGeometry ? visualPaintGeometry(target) : marginTraceGeometry;
+    const placement = visualPaintPlacement(target, Boolean(geometry));
+    marginTraceTarget = target;
+    marginTraceGeometry = geometry;
+    if (!placement) {
+      marginTraceBox.style.display = "none";
+      return;
+    }
+    const { rect, shapeKey } = placement;
+    let shaped = Boolean(geometry);
+    if (shaped && (changed || rebuildGeometry || shapeKey !== marginTraceShapeKey))
+      shaped = paintVisualShape(marginTraceShape, geometry, rect);
+    if (!shaped) marginTraceShape.replaceChildren();
+    marginTraceShapeKey = shaped ? shapeKey : "";
+    marginTraceBox.classList.toggle("lf-shaped", shaped);
+    if (target.id) marginTraceBox.setAttribute("data-for", target.id);
+    else marginTraceBox.removeAttribute("data-for");
+    marginTraceBox.dataset.lfPaintPlane = inChrome(target) ? "chrome" : "page";
+    const at = documentPoint(rect.left, rect.top);
+    Object.assign(marginTraceBox.style, {
+      display: "block",
+      left: `${at.left}px`,
+      top: `${at.top}px`,
+      width: `${rect.right - rect.left}px`,
+      height: `${rect.bottom - rect.top}px`,
+      borderRadius: getComputedStyle(target).borderRadius,
+    });
+  }
+
+  function traceTarget(target) {
+    paintMarginTrace(target, target !== marginTraceTarget);
+  }
 
   function refreshAim() {
     const target = aimTarget();
@@ -1717,11 +1772,21 @@ export function createAnchors(dependencies) {
       paintVisualMarks(false);
     });
   }
+  let marginTraceFrame = 0;
+  function queueMarginTracePlacement() {
+    if (marginTraceFrame || !marginTraceTarget) return;
+    marginTraceFrame = requestAnimationFrame(() => {
+      marginTraceFrame = 0;
+      paintMarginTrace(marginTraceTarget, false);
+    });
+  }
   function pageShifted(rebuildVisualMarks = false) {
     refreshHover();
     refreshAim();
     if (rebuildVisualMarks === true) paintVisualMarks();
     else queueVisualMarkPlacement();
+    if (rebuildVisualMarks === true) paintMarginTrace(marginTraceTarget);
+    else queueMarginTracePlacement();
     // A board scrolled sideways carries its cards out from under their boxes, and the
     // page scrolled brings items into view that had no box yet (shownRect).
     queueLegend();
@@ -1751,6 +1816,7 @@ export function createAnchors(dependencies) {
     isMarked: (id) => marked.has(id),
     placedAt: (id) => placed.get(id),
     refreshAim,
+    traceTarget,
     dockSeats,
     paintAnchors,
     fragmentId,

@@ -62,11 +62,7 @@ def main() -> None:
             page.on("pageerror", lambda error: errors.append(str(error)))
             for source in site_build.example_sources():
                 errors.clear()
-                page.goto(
-                    f"{origin}/examples/{source.stem}/versions/"
-                    + site_build.newest_version(source),
-                    wait_until="load",
-                )
+                page.goto(f"{origin}/examples/{source.stem}/", wait_until="load")
                 page.wait_for_function(READY)
                 png = page.screenshot(animations="disabled", caret="hide")
                 image = Image.open(io.BytesIO(png)).convert("RGB")

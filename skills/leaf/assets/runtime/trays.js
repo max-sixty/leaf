@@ -1,3 +1,22 @@
+import {
+  landEdge,
+  moveShell,
+  panelIsOpen,
+  setPanel,
+  syncLayout,
+} from "./chrome-layout.js";
+import { closePreview } from "./living-margin.js";
+import { el } from "./widget-elements.js";
+import { drawnEdge } from "./drawn-edge.js";
+import { leavesOffered, paintLeavesOffer } from "./live-leaves.js";
+import { motion } from "./motion.js";
+import { readerStore } from "./storage.js";
+import { keys, paintKeys } from "./keyboard/scopes.js";
+import { renderDecisions } from "./decisions/view.js";
+import { pagePresented } from "./presentation.js";
+import { allDecisions } from "./decisions/model.js";
+import { walkRows } from "./keyboard/bindings.js";
+import { renderMargin } from "./living-margin.js";
 // The left side holds one tray at a time. `showTray` owns `trayUp` and renders the
 // complete outcome for leaves and asks. The leaves tray overlays the document because its
 // rows leave the page. The asks tray takes a strip because its rows travel within the
@@ -28,7 +47,7 @@
 // further down, which is why the floor is the leaves tray's to set.
 const TRAY_W = 300;
 const TRAY_MIN = 220;
-export const TRAY_COVERING = `(width <= ${TRAY_W * 2}px)`;
+const TRAY_COVERING = `(width <= ${TRAY_W * 2}px)`;
 // Where the standing width is written, and where the cascade reads it. chrome.css
 // spells the same name and the same covering width, and the layer test holds the two
 // spellings equal, since a stylesheet cannot read a constant.
@@ -46,242 +65,213 @@ export const STRIP_TRAYS = ["decisions"];
 
 export const TRAY_KEY = "lf-tray-up";
 
-export function createTrays({
-  allDecisions,
-  beforeOpen,
-  drawnEdge,
-  el,
-  keys,
-  leavesOffered,
-  moveShell,
-  motion,
-  pagePresented,
-  paintKeys,
-  PRESS,
-  readerStore,
-  renderDecisions,
-  paintLeavesOffer,
-  syncLayout,
-  trayChanged,
-  walkRows,
-}) {
-  // The rows' own box, one per tray. Collected privately as they are made, because what
-  // the layout reserves at the foot of one it reserves at the foot of every one — and a
-  // second place to remember that is exactly where the decisions tray was left out of it: its
-  // walk parked the last row 47px under the key line, on the one tray nothing had ever
-  // walked to the end of. Callers state the clearance; this owner decides which lists it
-  // reaches and how each one spends it.
-  const trayLists = [];
-  function trayList(panel) {
-    const list = el("div", "lf-tray-list");
-    panel.append(list);
-    trayLists.push(list);
-    return list;
-  }
-  function reserveListClearance(clear) {
-    for (const list of trayLists) {
-      list.style.paddingBottom = clear;
-      list.style.scrollPaddingBottom = clear;
-    }
-  }
+const beforeOpen = () => {
+  if (panelIsOpen()) setPanel(false);
+  closePreview();
+};
 
-  const traysEdge = drawnEdge({
-    side: "left",
-    noun: "tray panel",
-    wide: TRAY_W,
-    min: TRAY_MIN,
-    prop: TRAY_PROP,
-    key: "lf-tray-width",
-    covering: TRAY_COVERING,
-    // A page with no tray to open has no edge to draw, so the reference does not name one.
-    when: () => leavesOffered() || decisionsOffered(),
-  });
-
-  // Every active Ask and the route back through its current answer. The banner says
-  // completed/total (sayAsks); a/A still walks only the open worklist.
-  const decisionsBtn = el("button", "lf-btn lf-decisions", "");
-  // The machine's live leaves and what each is doing: a left panel of rows, each a
-  // link opening that page in its own tab, judged by the same `presented` the banner
-  // answers with, from the same facts — `others` on /api/state carries them for every
-  // live page, and every URL in the list carries only the key this reader already
-  // holds, since there is one key for the machine (`host_key`). The current page heads
-  // the list as a marked, unlinked row, so the panel reads as the whole machine. A
-  // status tray's point is being live, so rows reconcile on every applied state, keyed by URL —
-  // the stable identity, since address, port and key all survive a restart — and a
-  // status change repaints the row's own dot and words without moving it.
-  const othersBtn = el("button", "lf-btn lf-others", "");
-  othersBtn.title = "Leaves live on this machine, and what each is doing";
-  // A nav, because navigation is what it is and a bare div may not carry the
-  // aria-label the card needs (axe: aria-prohibited-attr, serious).
-  const othersPanel = el("nav", "lf-ui lf-tray-panel lf-others-panel");
-  othersPanel.setAttribute("aria-label", "Leaves on this machine");
-  othersPanel.tabIndex = -1;
-  traysEdge.handle(othersPanel, () => othersBtn);
-  const leavesList = trayList(othersPanel);
-  // A tray of the page's active asks, on the same edge: open and answered rows in the
-  // order the page asks them. The list is declaration-driven, so a widget joins without
-  // a row here knowing what kind of thing it is standing for.
-  const decisionsPanel = el("nav", "lf-ui lf-tray-panel lf-decisions-panel");
-  decisionsPanel.setAttribute("aria-label", "Asks from this page");
-  decisionsPanel.tabIndex = -1;
-  traysEdge.handle(decisionsPanel, () => decisionsBtn);
-  const decisionsList = trayList(decisionsPanel);
-
-  // The left edge holds one tray at a time. Leaves and asks are the same furniture asking
-  // at two scopes — which page needs me, and what this page needs of me — and each has to
-  // stand while the reader works, which is the whole reason either is a fixed edge rather
-  // than a menu over the page. So which one is up is one fact held in one place. A boolean
-  // per tray would be one guarantee written twice, and the two would first disagree on the
-  // day a third surface opened one without closing the other; the reader would then have
-  // two trays over one edge with the lower one unreachable.
-  //
-  // Registered rather than listed, for the same reason the widgets are: the toggle, the
-  // press, the reload and the Escape rung all read this map, so a third tray joins by
-  // registering and none of them names a tray to do its job.
-  const trays = new Map();
-  // A reader gesture writes through showTray. A reload writes saved intent later through
-  // restoreTrays, after registration and the late decisions painter have been initialized.
-  let trayUp = null;
-  const currentTray = () => trayUp;
-  const openTray = (key) => trayUp === key;
-  function showTray(key) {
-    if (trayUp === key) return;
-    // Threads and trays are alternate workspaces. Retire the standing one before another
-    // opens so layout, focus, and persisted state never have to reconcile two of them.
-    if (key) beforeOpen();
-    trayUp = key;
-    for (const [name, { panel, btn, paint }] of trays) {
-      const open = name === key;
-      btn.setAttribute("aria-expanded", String(open));
-      if (open) {
-        // Filled before it is shown, so the tray is its own list from the first frame of
-        // the slide rather than a blank card that populates a moment later. The way down
-        // is the mirror of it, below: emptied once it is hidden, never before, or the
-        // reader watches the list they just closed blank out and an empty card slide away.
-        paint?.();
-        panel.classList.add("open");
-        motion(
-          panel,
-          [{ transform: "translateX(-100%)" }, { transform: "translateX(0)" }],
-          200,
-        );
-      } else if (panel.classList.contains("open")) {
-        // Slid out before hidden, and hidden only if still closed on arrival — a
-        // reopen mid-slide leaves the panel standing rather than racing the finish.
-        const out = motion(
-          panel,
-          [{ transform: "translateX(0)" }, { transform: "translateX(-100%)" }],
-          160,
-        );
-        const hide = () => {
-          if (trayUp === name) return; // reopened mid-slide; it stays up, list and all
-          panel.classList.remove("open");
-          paint?.();
-        };
-        if (out) out.finished.then(hide, () => {});
-        else hide();
-        if (panel.contains(document.activeElement)) btn.focus();
-      }
-    }
-    readerStore.set(TRAY_KEY, key ?? "");
-    // Publish the tray through the shared shell boundary so responsive postures settle
-    // once and only the reading column's route to them is motion.
-    moveShell(() => {
-      if (key) document.body.dataset.lfTray = key;
-      else delete document.body.dataset.lfTray;
-    });
-    syncLayout();
-    trayChanged();
-    paintKeys();
-  }
-  // Registration only. No tray opens while this factory evaluates: showTray runs from a
-  // press, and restoreTrays runs from the entry's restore block after every owner is
-  // published.
-  function trayIs(key, panel, btn, paint) {
-    trays.set(key, { panel, btn, paint });
-    btn.classList.add("lf-workspace");
-    btn.onclick = () => showTray(openTray(key) ? null : key);
-    btn.setAttribute("aria-expanded", "false");
-  }
-  trayIs("leaves", othersPanel, othersBtn, paintLeavesOffer);
-  trayIs("decisions", decisionsPanel, decisionsBtn, renderDecisions);
-  const trayNames = Object.freeze([...trays.keys()]);
-
-  // A persisted tray is state-dependent chrome: Asks folds the log and Leaves comes from
-  // the first state response. Keep the remembered intent in trayUp, but restore its pixels
-  // only once that response has produced the page's presentation. Unlike showTray, this
-  // first paint does not animate — it is part of the page arriving, not a reader gesture.
-  function restoreTray() {
-    if (!trayUp) return;
-    const tray = trays.get(trayUp);
-    if (!tray) return;
-    beforeOpen();
-    tray.btn.setAttribute("aria-expanded", "true");
-    tray.paint?.();
-    tray.panel.classList.add("open");
-    document.body.dataset.lfTray = trayUp;
-  }
-  function restoreTrays() {
-    // Remembered tray intent is staged here, after every declaration exists. Its strip is
-    // part of the arrival geometry, but its state-dependent rows stay hidden until the first
-    // replay presents the page and restoreTray paints them. An already-presented document
-    // (an exported or pre-presented DOM) can restore immediately through the same function.
-    trayUp = readerStore.get(TRAY_KEY) || null;
-    if (trayUp) document.body.dataset.lfTray = trayUp;
-    trayChanged();
-    if (pagePresented()) restoreTray();
-  }
-
-  // Each tray's one offer: something to show, or the tray already standing so its button
-  // can still close it. A decisions tray of none is the same.
-  const decisionsOffered = () =>
-    pagePresented() && (allDecisions().length > 0 || openTray("decisions"));
-  const decisionRows = () => [
-    ...decisionsPanel.querySelectorAll("button.lf-decisions-row"),
-  ];
-  // The decisions tray's own walk, the leaves tray's twin: ArrowUp and ArrowDown are the page's
-  // scroll everywhere else and the tray's here, and Enter is the platform's, a row being a
-  // button — so the scope names what walking does and leaves the press to the button.
-  keys(
-    decisionsPanel,
-    "In the Asks tray",
-    [
-      {
-        id: "decision.list-walk",
-        keys: ["ArrowUp", "ArrowDown"],
-        routes: [
-          {
-            id: "decision.row-previous",
-            binding: "ArrowUp",
-            does: "Previous ask",
-          },
-          { id: "decision.row-next", binding: "ArrowDown", does: "Next ask" },
-        ],
-        does: "Walk the asks",
-        line: "walk the asks",
-        repeat: true,
-        run: (binding) => walkRows(decisionRows(), binding === "ArrowDown" ? 1 : -1),
-      },
-    ],
-    () => decisionRows().length > 0,
-  );
-
-  return {
-    decisionRows,
-    decisionsBtn,
-    decisionsList,
-    decisionsOffered,
-    decisionsPanel,
-    currentTray,
-    leavesList,
-    openTray,
-    othersBtn,
-    othersPanel,
-    reserveListClearance,
-    restoreTray,
-    restoreTrays,
-    showTray,
-    trayNames,
-    traysEdge,
-  };
+// The rows' own box, one per tray. Collected privately as they are made, because what
+// the layout reserves at the foot of one it reserves at the foot of every one — and a
+// second place to remember that is exactly where the decisions tray was left out of it: its
+// walk parked the last row 47px under the key line, on the one tray nothing had ever
+// walked to the end of. Callers state the clearance; this owner decides which lists it
+// reaches and how each one spends it.
+const trayLists = [];
+function trayList(panel) {
+  const list = el("div", "lf-tray-list");
+  panel.append(list);
+  trayLists.push(list);
+  return list;
 }
+export function reserveListClearance(clear) {
+  for (const list of trayLists) {
+    list.style.paddingBottom = clear;
+    list.style.scrollPaddingBottom = clear;
+  }
+}
+
+export const traysEdge = drawnEdge({
+  side: "left",
+  noun: "tray panel",
+  wide: TRAY_W,
+  min: TRAY_MIN,
+  prop: TRAY_PROP,
+  key: "lf-tray-width",
+  covering: TRAY_COVERING,
+  // A page with no tray to open has no edge to draw, so the reference does not name one.
+  when: () => leavesOffered() || decisionsOffered(),
+  land: landEdge,
+});
+
+// Every active Ask and the route back through its current answer. The banner says
+// completed/total (sayAsks); a/A still walks only the open worklist.
+export const decisionsBtn = el("button", "lf-btn lf-decisions", "");
+// The machine's live leaves and what each is doing: a left panel of rows, each a
+// link opening that page in its own tab, judged by the same `presented` the banner
+// answers with, from the same facts — `others` on /api/state carries them for every
+// live page, and every URL in the list carries only the key this reader already
+// holds, since there is one key for the machine (`host_key`). The current page heads
+// the list as a marked, unlinked row, so the panel reads as the whole machine. A
+// status tray's point is being live, so rows reconcile on every applied state, keyed by URL —
+// the stable identity, since address, port and key all survive a restart — and a
+// status change repaints the row's own dot and words without moving it.
+export const othersBtn = el("button", "lf-btn lf-others", "");
+othersBtn.title = "Leaves live on this machine, and what each is doing";
+// A nav, because navigation is what it is and a bare div may not carry the
+// aria-label the card needs (axe: aria-prohibited-attr, serious).
+export const othersPanel = el("nav", "lf-ui lf-tray-panel lf-others-panel");
+othersPanel.setAttribute("aria-label", "Leaves on this machine");
+othersPanel.tabIndex = -1;
+traysEdge.handle(othersPanel, () => othersBtn);
+export const leavesList = trayList(othersPanel);
+// A tray of the page's active asks, on the same edge: open and answered rows in the
+// order the page asks them. The list is declaration-driven, so a widget joins without
+// a row here knowing what kind of thing it is standing for.
+export const decisionsPanel = el("nav", "lf-ui lf-tray-panel lf-decisions-panel");
+decisionsPanel.setAttribute("aria-label", "Asks from this page");
+decisionsPanel.tabIndex = -1;
+traysEdge.handle(decisionsPanel, () => decisionsBtn);
+export const decisionsList = trayList(decisionsPanel);
+
+// The left edge holds one tray at a time. Leaves and asks are the same furniture asking
+// at two scopes — which page needs me, and what this page needs of me — and each has to
+// stand while the reader works, which is the whole reason either is a fixed edge rather
+// than a menu over the page. So which one is up is one fact held in one place. A boolean
+// per tray would be one guarantee written twice, and the two would first disagree on the
+// day a third surface opened one without closing the other; the reader would then have
+// two trays over one edge with the lower one unreachable.
+//
+// Registered rather than listed, for the same reason the widgets are: the toggle, the
+// press, the reload and the Escape rung all read this map, so a third tray joins by
+// registering and none of them names a tray to do its job.
+const trays = new Map();
+// A reader gesture writes through showTray. A reload writes saved intent later through
+// restoreTrays, after registration and the late decisions painter have been initialized.
+let trayUp = null;
+export const currentTray = () => trayUp;
+export const openTray = (key) => trayUp === key;
+export function showTray(key) {
+  if (trayUp === key) return;
+  // Threads and trays are alternate workspaces. Retire the standing one before another
+  // opens so layout, focus, and persisted state never have to reconcile two of them.
+  if (key) beforeOpen();
+  trayUp = key;
+  for (const [name, { panel, btn, paint }] of trays) {
+    const open = name === key;
+    btn.setAttribute("aria-expanded", String(open));
+    if (open) {
+      // Filled before it is shown, so the tray is its own list from the first frame of
+      // the slide rather than a blank card that populates a moment later. The way down
+      // is the mirror of it, below: emptied once it is hidden, never before, or the
+      // reader watches the list they just closed blank out and an empty card slide away.
+      paint?.();
+      panel.classList.add("open");
+      motion(
+        panel,
+        [{ transform: "translateX(-100%)" }, { transform: "translateX(0)" }],
+        200,
+      );
+    } else if (panel.classList.contains("open")) {
+      // Slid out before hidden, and hidden only if still closed on arrival — a
+      // reopen mid-slide leaves the panel standing rather than racing the finish.
+      const out = motion(
+        panel,
+        [{ transform: "translateX(0)" }, { transform: "translateX(-100%)" }],
+        160,
+      );
+      const hide = () => {
+        if (trayUp === name) return; // reopened mid-slide; it stays up, list and all
+        panel.classList.remove("open");
+        paint?.();
+      };
+      if (out) out.finished.then(hide, () => {});
+      else hide();
+      if (panel.contains(document.activeElement)) btn.focus();
+    }
+  }
+  readerStore.set(TRAY_KEY, key ?? "");
+  // Publish the tray through the shared shell boundary so responsive postures settle
+  // once and only the reading column's route to them is motion.
+  moveShell(() => {
+    if (key) document.body.dataset.lfTray = key;
+    else delete document.body.dataset.lfTray;
+  });
+  syncLayout();
+  renderMargin();
+  paintKeys();
+}
+// Registration only. No tray opens while this module evaluates: showTray runs from a
+// press, and restoreTrays from the arrangement restore at boot, after every owner has
+// evaluated.
+function trayIs(key, panel, btn, paint) {
+  trays.set(key, { panel, btn, paint });
+  btn.classList.add("lf-workspace");
+  btn.onclick = () => showTray(openTray(key) ? null : key);
+  btn.setAttribute("aria-expanded", "false");
+}
+// The painters are thunks: each tray's owner imports this module back, so neither
+// painter is a binding this module can read as it evaluates.
+trayIs("leaves", othersPanel, othersBtn, (...args) => paintLeavesOffer(...args));
+trayIs("decisions", decisionsPanel, decisionsBtn, (...args) =>
+  renderDecisions(...args),
+);
+export const trayNames = Object.freeze([...trays.keys()]);
+
+// A persisted tray is state-dependent chrome: Asks folds the log and Leaves comes from
+// the first state response. Keep the remembered intent in trayUp, but restore its pixels
+// only once that response has produced the page's presentation. Unlike showTray, this
+// first paint does not animate — it is part of the page arriving, not a reader gesture.
+export function restoreTray() {
+  if (!trayUp) return;
+  const tray = trays.get(trayUp);
+  if (!tray) return;
+  beforeOpen();
+  tray.btn.setAttribute("aria-expanded", "true");
+  tray.paint?.();
+  tray.panel.classList.add("open");
+  document.body.dataset.lfTray = trayUp;
+}
+export function restoreTrays() {
+  // Remembered tray intent is staged here, after every declaration exists. Its strip is
+  // part of the arrival geometry, but its state-dependent rows stay hidden until the first
+  // replay presents the page and restoreTray paints them. An already-presented document
+  // (an exported or pre-presented DOM) can restore immediately through the same function.
+  trayUp = readerStore.get(TRAY_KEY) || null;
+  if (trayUp) document.body.dataset.lfTray = trayUp;
+  renderMargin();
+  if (pagePresented()) restoreTray();
+}
+
+// Each tray's one offer: something to show, or the tray already standing so its button
+// can still close it. A decisions tray of none is the same.
+export const decisionsOffered = () =>
+  pagePresented() && (allDecisions().length > 0 || openTray("decisions"));
+export const decisionRows = () => [
+  ...decisionsPanel.querySelectorAll("button.lf-decisions-row"),
+];
+// The decisions tray's own walk, the leaves tray's twin: ArrowUp and ArrowDown are the page's
+// scroll everywhere else and the tray's here, and Enter is the platform's, a row being a
+// button — so the scope names what walking does and leaves the press to the button.
+keys(
+  decisionsPanel,
+  "In the Asks tray",
+  [
+    {
+      id: "decision.list-walk",
+      keys: ["ArrowUp", "ArrowDown"],
+      routes: [
+        {
+          id: "decision.row-previous",
+          binding: "ArrowUp",
+          does: "Previous ask",
+        },
+        { id: "decision.row-next", binding: "ArrowDown", does: "Next ask" },
+      ],
+      does: "Walk the asks",
+      line: "walk the asks",
+      repeat: true,
+      run: (binding) => walkRows(decisionRows(), binding === "ArrowDown" ? 1 : -1),
+    },
+  ],
+  () => decisionRows().length > 0,
+);

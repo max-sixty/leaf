@@ -41,7 +41,7 @@ export function registerVisualParts(source, read) {
   return { update: () => layoutChanged(source) };
 }
 
-export const hasVisualParts = (source) => registrations.has(source);
+const hasVisualParts = (source) => registrations.has(source);
 
 export function visualPartProblems(source, declared) {
   if (!hasVisualParts(source)) return ["did not call registerVisualParts"];
@@ -56,7 +56,7 @@ export function visualPartProblems(source, declared) {
   }
 }
 
-export function visualParts(source) {
+function visualParts(source) {
   const read = registrations.get(source);
   if (!read) return [];
   const seenIds = new Set();

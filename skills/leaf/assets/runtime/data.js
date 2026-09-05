@@ -15,6 +15,7 @@ import { runtime } from "./context.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { registry } from "./registry.js";
 import { clocked } from "./presence.js";
+import { reportPageError } from "./layer-client.js";
 
 export function acceptData(candidate) {
   if (
@@ -40,19 +41,12 @@ export function acceptData(candidate) {
 // boundary as the next data notification instead of letting the notification stamp the
 // revision while the mount is still painting it.
 const initialRenders = [];
-let reportDataError = (text) => console.error(`leaf: ${text}`);
-
-export function configureDataReporting(report) {
-  if (typeof report !== "function")
-    throw new TypeError("data error reporter must be a function");
-  reportDataError = report;
-}
 
 async function settleDataRenders(renderings) {
   const settled = await Promise.allSettled(renderings);
   for (const result of settled)
     if (result.status === "rejected")
-      reportDataError(
+      reportPageError(
         `data subscriber failed: ${result.reason?.message ?? result.reason}`,
       );
 }

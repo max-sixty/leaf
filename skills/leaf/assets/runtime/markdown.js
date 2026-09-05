@@ -1,7 +1,7 @@
 // One safe Markdown reading for every runtime and package surface. The parser stays
 // lazy because most pages contain no Markdown supplied at runtime; callers can paint
 // escaped source immediately and await this only when their own rendering needs it.
-export const escapeHtml = (text) =>
+const escapeHtml = (text) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 let render = (text) => escapeHtml(text);

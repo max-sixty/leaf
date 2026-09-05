@@ -3207,7 +3207,7 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     expect(preview).to_be_visible()
 
     preview.get_by_role("button", name="Close thread").focus()
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
     expect(preview).to_be_hidden()
     page.mouse.move(4, 200)

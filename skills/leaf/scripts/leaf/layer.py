@@ -315,15 +315,17 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         if source is None:
             sys.exit(f"the incoming layer has no {name}")
         top_files[name] = source.read_bytes()
-    if top_files["leaf.js"].count(LAYER_PLACEHOLDER) != 1:
-        sys.exit(
-            "the incoming leaf.js must contain exactly one layer-generation placeholder"
-        )
     directory_files = {
         sub: {
             name: source.read_bytes() for name, source in directory_sources[sub].items()
         }
         for sub in BROWSER_DIRS
     }
+    client = directory_files["runtime"].get("layer-client.js", b"")
+    if client.count(LAYER_PLACEHOLDER) != 1:
+        sys.exit(
+            "the incoming runtime/layer-client.js must contain exactly one "
+            "layer-generation placeholder"
+        )
     directory_files[GUIDANCE_DIR] = composed_guidance(roots)
     return LayerComposition(incoming, top_files, directory_files)

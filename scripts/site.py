@@ -11,17 +11,17 @@ The examples are the files in the tree too, and they are live. A static build
 materializes the version addresses that Leaf's live server resolves from revision
 records; the one thing it hasn't got is the process behind /api/state,
 /api/event, and /api/news. So the build lays one vendored layer at the site's root,
-where a page's absolute /theme.css and /leaf.js resolve, and puts each example at its
-own examples/<name>/versions/, which is where the runtime reads a version number from.
-An example that ships a prior version publishes every one of them, so the chooser on
-the published page travels and marks the same way the served page's does. The
-Authored HTML paints before this site's JavaScript arrives, as it does on a served Leaf
-page. What answers the three paths is `docs/session.js`, loaded in front of
-the runtime by `docs/leaf.js`: the log lives in the reader's own tab. Every control on
-the page is then the shipped one, working — the banner, the thread panel, a board that
-takes a drag and holds it. The half no host can supply is the agent at the other end:
-the page reports itself unattended and the banner says so in the runtime's own words,
-and `docs/sitenote.js` says the whole of it in the site's own label above the document.
+where a page's absolute /theme.css and /leaf.js resolve, and puts each current example
+at examples/<name>/. Earlier immutable versions remain under that page's versions/,
+and every published document gets the same revision and version markers as a document
+served by Leaf. The Authored HTML paints before this
+site's JavaScript arrives, as it does on a served Leaf page. What answers the three
+paths is `docs/session.js`, loaded in front of the runtime by `docs/leaf.js`: the log
+lives in the reader's own tab. Every control on the page is then the shipped one,
+working — the banner, the thread panel, a board that takes a drag and holds it. The half
+no host can supply is the agent at the other end: the page reports itself unattended
+and the banner says so in the runtime's own words, and `docs/sitenote.js` says the whole
+of it in the site's own label above the document.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
@@ -46,6 +46,7 @@ from urllib.parse import unquote, urlsplit
 from example_data import data_operations, example_versions
 from leaf.event_log import read_events
 from leaf.files import revision_path, version_revisions
+from leaf.http import runtime_document
 
 ROOT = Path(__file__).resolve().parent.parent
 LEAF = ROOT / "bin" / "leaf"
@@ -105,37 +106,9 @@ DEFAULT_THEME = re.compile(
 # it named and the link check below is what notices.
 PAYLOAD_SOURCE = ("../skills/", f"{REPO}/blob/main/skills/")
 # An example is a page directory here, so its link is the directory rather than a file:
-# examples/triage-board/ , where the index below sends a reader on to the version file.
-# A live server can keep the root address because it injects the exact projected-version
-# marker into that response; this static host has no changing root response to mark.
+# examples/triage-board/, where the index is the current stamped document. Earlier
+# versions keep the same subordinate addresses a served page uses.
 EXAMPLE_LINK = re.compile(r"\.\./examples/([a-z0-9-]+)\.html")
-
-# A static showcase has no server response that can stamp a live root with the version
-# it projected, so the directory's index forwards to the newest immutable file — every
-# earlier one is published beside it, which is what the chooser travels to. Both routes
-# are present because a 0-second meta refresh leaves a history entry on some engines and
-# the back button then bounces forward off it.
-REDIRECT = """<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>leaf</title>
-    <link rel="canonical" href="versions/{name}" />
-    <noscript><meta http-equiv="refresh" content="0; url=versions/{name}" /></noscript>
-    <script>
-      location.replace("versions/{name}");
-    </script>
-  </head>
-  <body>
-    <a href="versions/{name}">Open the page</a>
-  </body>
-</html>
-"""
-
-
-def newest_version(source: Path) -> str:
-    """The version file a reader of this example lands on."""
-    return f"v{len(example_versions(source))}.html"
 
 
 class Links(HTMLParser):
@@ -300,8 +273,9 @@ def publish_pages(out: Path, env: dict) -> None:
             seed = source.with_suffix(".jsonl")
             seed_text = seed.read_text(encoding="utf-8") if seed.exists() else ""
             # Each authored version through the real stamp boundary, oldest first, so a
-            # revised example is published with the chooser's whole list rather than the
-            # one document a reader would otherwise have no way off.
+            # revised example has the same stamped history as a served page. The build
+            # below publishes prior documents at their immutable addresses and the
+            # current document at the page root.
             for order, authored in enumerate(example_versions(source)):
                 (page / "index.html").write_text(
                     authored.read_text(encoding="utf-8"), encoding="utf-8"
@@ -318,17 +292,19 @@ def publish_pages(out: Path, env: dict) -> None:
                     with log.open("a", encoding="utf-8") as event_log:
                         event_log.write(seed_text)
             published = out / "examples" / source.stem
-            (published / "versions").mkdir(parents=True)
-            for version, revision in sorted(
-                version_revisions(read_events(page)).items()
-            ):
+            published.mkdir(parents=True)
+            mapped = sorted(version_revisions(read_events(page)).items())
+            prior_versions = mapped[:-1]
+            if prior_versions:
+                (published / "versions").mkdir(parents=True)
+            for version, revision in prior_versions:
                 markup = revision_path(page, revision).read_text(encoding="utf-8")
-                (published / "versions" / f"v{version}.html").write_text(
-                    markup,
-                    encoding="utf-8",
-                )
-            (published / "index.html").write_text(
-                REDIRECT.format(name=newest_version(source)), encoding="utf-8"
+                document = runtime_document(markup, revision, version)
+                (published / "versions" / f"v{version}.html").write_bytes(document)
+            version, revision = mapped[-1]
+            markup = revision_path(page, revision).read_text(encoding="utf-8")
+            (published / "index.html").write_bytes(
+                runtime_document(markup, revision, version)
             )
             # The thread the page opens on. A served page hands its log to the browser
             # through /api/state, which is `docs/session.js`'s answer here. The static

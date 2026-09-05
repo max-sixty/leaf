@@ -31,14 +31,21 @@
  * second copy of that door would be a second thing to keep in step with the first.
  */
 
-// Which version this document is, read the way the runtime reads it.
-const VERSION = Number(location.pathname.match(/\/versions\/v([1-9]\d*)\.html$/)?.[1]);
-const REVISION = 1;
-const revisionMarker = document.createElement("meta");
-revisionMarker.name = "lf-revision";
-revisionMarker.content = String(REVISION);
-revisionMarker.dataset.lfRuntime = "";
-document.head.append(revisionMarker);
+// The builder injects the same identity markers as Leaf's HTTP server. That lets the
+// current document keep its page-root URL while immutable historical versions retain
+// their versions/vN.html addresses.
+const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
+const PAGE_ROOT = new URL(
+  VERSION_PATH.test(location.pathname) ? "../" : "./",
+  location.href,
+).pathname;
+const DOCUMENT_URL = location.pathname;
+const REVISION = Number(
+  document.querySelector('meta[name="lf-revision"][data-lf-runtime]')?.content,
+);
+const VERSION = Number(
+  document.querySelector('meta[name="lf-version"][data-lf-runtime]')?.content,
+);
 const realFetch = window.fetch.bind(window);
 
 // Begin every file read before installing the runtime. The local API below awaits this
@@ -50,10 +57,10 @@ let DATA;
 let events;
 const sessionReady = Promise.all([
   realFetch("/registry.json").then((response) => response.json()),
-  realFetch("../data.json")
+  realFetch(`${PAGE_ROOT}data.json`)
     .then((response) => (response.ok ? response.json() : { revision: 0, sources: {} }))
     .catch(() => ({ revision: 0, sources: {} })),
-  realFetch("../events.jsonl")
+  realFetch(`${PAGE_ROOT}events.jsonl`)
     .then((response) => (response.ok ? response.text() : ""))
     .catch(() => "")
     .then((text) =>
@@ -262,6 +269,12 @@ const matchesWhen = (element, when = {}) =>
     );
   });
 
+const quoted = (element) => {
+  for (let parent = element.parentElement; parent; parent = parent.parentElement)
+    if (REGISTRY[parent.localName]?.["x-exhibit"]) return true;
+  return false;
+};
+
 function demoDecisions(projection, threads) {
   const standing = new Set(projection.actions);
   const withAgent = new Set(
@@ -270,26 +283,36 @@ function demoDecisions(projection, threads) {
       .map((thread) => thread.seat)
       .filter(Boolean),
   );
-  const values = {};
-  const descriptors = [];
+  const decisions = { all: [], reader: [], unanswered: [] };
+  const awaiting = {};
+  const unansweredAwaiting = {};
   for (const [tag, entry] of Object.entries(REGISTRY)) {
-    if (tag.startsWith("$") || !entry?.["x-awaits"]) continue;
+    const decision = entry?.["x-awaits"];
+    const request = entry?.["x-request"]?.decision;
+    if (tag.startsWith("$") || (!request && (!decision || decision.rollup))) continue;
     for (const element of document.querySelectorAll(tag)) {
-      if (!element.id || !matchesWhen(element, entry["x-awaits"].when)) continue;
-      const answered = (entry["x-awaits"].answers ?? []).some((verb) => {
-        const spec = entry["x-state"]?.[verb];
-        const coordinate = spec && [element.id, element.id, spec.facet];
-        return projection.entries.some(
-          (candidate) =>
-            candidate.event.widget === element.id &&
-            candidate.event.action === verb &&
-            standing.has(candidate.event.id) &&
-            JSON.stringify(candidate.coordinate) === JSON.stringify(coordinate),
-        );
-      });
-      const awaiting = !answered;
-      values[element.id] = awaiting;
-      if (!awaiting || withAgent.has(element.id)) continue;
+      if (
+        !element.id ||
+        (!request && !matchesWhen(element, decision.when)) ||
+        quoted(element)
+      )
+        continue;
+      const answered = request
+        ? events.some(
+            (event) => event.kind === "request" && event.widget === element.id,
+          )
+        : (decision.answers ?? []).some((verb) =>
+            projection.entries.some(
+              (candidate) =>
+                candidate.event.widget === element.id &&
+                candidate.event.action === verb &&
+                standing.has(candidate.event.id),
+            ),
+          );
+      const stillUnanswered = !answered;
+      const waitsOnReader = stillUnanswered && !withAgent.has(element.id);
+      awaiting[element.id] = waitsOnReader;
+      unansweredAwaiting[element.id] = stillUnanswered;
       let surface = element;
       for (let parent = element.parentElement; parent; parent = parent.parentElement) {
         if (REGISTRY[parent.localName]?.["x-decision"]) {
@@ -297,10 +320,13 @@ function demoDecisions(projection, threads) {
           break;
         }
       }
-      descriptors.push({ id: surface.id, tag: surface.localName, thread: null });
+      const description = { id: surface.id, tag: surface.localName, thread: null };
+      decisions.all.push(description);
+      if (waitsOnReader) decisions.reader.push(description);
+      if (stillUnanswered) decisions.unanswered.push(description);
     }
   }
-  return { descriptors, values };
+  return { ...decisions, awaiting, unansweredAwaiting };
 }
 
 function demoBrowser() {
@@ -338,10 +364,11 @@ function demoBrowser() {
           revision: REVISION,
           projection,
           decisions: {
-            reader: decisions.descriptors,
-            unanswered: decisions.descriptors,
-            awaiting: decisions.values,
-            unanswered_awaiting: decisions.values,
+            all: decisions.all,
+            reader: decisions.reader,
+            unanswered: decisions.unanswered,
+            awaiting: decisions.awaiting,
+            unanswered_awaiting: decisions.unansweredAwaiting,
           },
         },
         updates: [],
@@ -352,7 +379,7 @@ function demoBrowser() {
     },
     conversation: {
       projection: { entries: [], actions: [], reports: [], desired: [] },
-      decisions: { reader: [], unanswered: [], awaiting: {} },
+      decisions: { all: [], reader: [], unanswered: [], awaiting: {} },
       threads,
       done: events.filter((event) => event.kind === "done"),
     },
@@ -371,13 +398,12 @@ function demoBrowser() {
 // goes blank the day it starts reading one.
 const state = () => ({
   layer: REGISTRY.$layer,
-  // The versions this page has, which here is the one being read: the site publishes a
-  // single version of each example. A second would want the list handed to this file
-  // rather than guessed from a path, since a reader on v1 has to be offered v2.
+  // This static session projects the document being read. Historical documents retain
+  // their own addresses; the current document stands at the page root.
   active: {
     revision: REVISION,
     version: VERSION,
-    url: `/versions/v${VERSION}.html`,
+    url: DOCUMENT_URL,
     label: `v${VERSION}`,
     activated_at: null,
   },
@@ -385,7 +411,7 @@ const state = () => ({
     {
       version: VERSION,
       revision: REVISION,
-      url: `/versions/v${VERSION}.html`,
+      url: DOCUMENT_URL,
     },
   ],
   source_error: null,

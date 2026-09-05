@@ -1431,8 +1431,8 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
 def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     """a lands on the authored question and exposes the deck's own bindings there.
 
-    The last classification both places its card and closes the Ask, so one undo
-    reopens the question with that card back in the queue.
+    The last classification both places its card and closes the Ask, so z reopens the
+    question with that card back in the queue.
     """
     page, errors = open_page(browser, serve(SWIPE_PAGE))
     decision = page.locator("#session-triage-decision")
@@ -1447,11 +1447,9 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     expect(pass_reference.locator(".lf-key-sequence")).to_have_attribute(
         "aria-label", "ArrowLeft"
     )
-    undo_reference = page.locator('.lf-help tr[data-lf-command="swipe.undo-last"]')
-    expect(undo_reference.locator("kbd")).to_have_text("Undo last swipe")
-    expect(undo_reference.locator(".lf-key-sequence")).to_have_attribute(
-        "aria-label", "Undo last swipe"
-    )
+    expect(
+        page.locator('.lf-help tr[data-lf-command="swipe.undo-last"]')
+    ).to_have_count(0)
     page.keyboard.press("Escape")
 
     page.keyboard.press("a")
@@ -1484,8 +1482,8 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
         page.keyboard.press(binding)
     round_trip(page)
     expect(page.locator(".lf-decisions")).to_have_text("Asks 1/1")
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text("1")
-    assert "1\nUndo last swipe" in key_line(page)
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_count(0)
+    assert "Undo last swipe" not in key_line(page)
     assert [event["action"] for event in actions(serve.page_dir)] == [
         "swipe",
         "swipe",
@@ -1503,18 +1501,13 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     expect(row).to_be_focused()
     expect(row.locator(".lf-decisions-answer")).to_have_text("3 kept · 3 passed")
     page.keyboard.press("Enter")
-    assert "1\nUndo last swipe" in key_line(page)
-
-    # At strip width the tray and the chosen Ask can remain visible together. If the
-    # window then narrows until that same tray covers the page, its nearer keyboard
-    # scope must remove the already-painted package action address. Widening restores
-    # the same canonical route; no package-specific repaint owns either transition.
-    resized(page, 420, 900)
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_count(0)
-    resized(page, 1200, 900)
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text("1")
+    assert "Undo last swipe" not in key_line(page)
 
     page.keyboard.press("1")
+    expect(page.locator("#session-pass > #swipe-d")).to_have_count(1)
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/1")
+
+    page.keyboard.press("z")
     round_trip(page)
     expect(page.locator("#session-queue > #swipe-d")).to_have_count(1)
     expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")

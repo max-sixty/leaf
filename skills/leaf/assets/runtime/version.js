@@ -12,8 +12,16 @@
  * `prepareActivation` fetches the revision a state names ahead of the commit that
  * installs it; the arrival landing; the menu readings the composing surface and the
  * margin take (`closeVersionMenu`, `versionMenuIsOpen`, `comparisonBase`,
- * `comparisonChanges`); and `readingBlock`, the block the decision walk and the
- * keyboard reference start from.
+ * `comparisonChanges`, and the pair the margin's Change reading discloses with,
+ * `comparisonEarlier` and `toggleEarlier`); and `readingBlock`, the block the decision
+ * walk and the keyboard reference start from.
+ *
+ * A comparison has two depths and both are this owner's. The marks say which blocks
+ * changed; the earlier reading says what one of them changed from, folded open inside
+ * the block itself. The second is per block and asked for, because a page's worth of
+ * before-and-after opened at once is a diff view rather than the version the reader
+ * chose to read. Nothing else shows a base version's words: this is the one place that
+ * document is ever in hand.
  *
  * One surface owns each destination. The version control opens the complete version list
  * with notes and comparison controls. There are no separate older/newer page keys. A
@@ -98,6 +106,7 @@ import {
   paintKeys,
   pruneScopedElements,
 } from "./keyboard/scopes.js";
+import { FOLD_MS, motion } from "./motion.js";
 import { notice } from "./notifications.js";
 import {
   authored,
@@ -125,7 +134,14 @@ import {
   VERSION_PATH,
   versionUrl,
 } from "./storage.js";
-import { el, focusDestination, quoted, reveal } from "./widget-elements.js";
+import { alignText, alignedNodes, sentenceUnits } from "./text-alignment.js";
+import {
+  el,
+  focusDestination,
+  layoutChanged,
+  quoted,
+  reveal,
+} from "./widget-elements.js";
 import { settle, settling } from "./widget-upgrade.js";
 import { reserveNewsSlot, showNews } from "./banner-shelf.js";
 import { allButTheReference, midComposition } from "./keyboard/page.js";
@@ -731,6 +747,19 @@ const diffOpaqueSel = () =>
 let diffBase = null;
 let diffOn = false;
 const diffMarked = [];
+// What each marked block said in the base version, and which of those readings the
+// reader has open. The marks say a block changed; these say what it changed from, at
+// the block, so learning it costs no travel to the other version and back.
+//
+// Identity across versions is the id — the fact threads and reading position already
+// ride, and the same lookup the state half of applyDiff resolves its units by. A block
+// with no id names nothing in the base document, so the comparison holds nothing for it
+// and its Change reading stays the plain travel it always was. An opaque widget holds
+// nothing either, and for the reason the pass keys those by identity rather than by
+// words: the live one is upgraded and the base one is not, so their texts were never
+// each other's to compare.
+const diffEarlier = new Map(); // marked element -> the base version's words, or null
+const earlierOpen = new Map(); // marked element -> the node standing open under it
 // The comparison request that owns the page. Every request takes the next number and every
 // stop takes one too, so a base whose document lands after the reader has moved on is
 // dropped rather than painted over the base they are standing on now. Reachable because the
@@ -850,8 +879,150 @@ function applyDiff(doc, baseVersion, baseReading) {
       }
     }
   }
+  // One pass over everything marked, after both halves, because the two halves mark
+  // for different reasons and a block reached by either is a block a reader can ask
+  // about. The words are taken here rather than at the press: this is the one moment
+  // the base document is in hand, and holding it open for a press that may never come
+  // would keep a whole second document alive for the life of the comparison.
+  const opaque = diffOpaqueSel();
+  for (const block of diffMarked) {
+    if (!block.id || block.closest(opaque)) continue;
+    const baseBlock = doc.getElementById(block.id);
+    diffEarlier.set(block, baseBlock ? wrote(baseBlock) : null);
+  }
   return diffMarked.length;
 }
+// ---------- the earlier reading of a marked block ----------
+// Inside the block rather than beside it, because a text block is the only thing the
+// page reliably lets a sibling stand next to: an <li>'s parent takes list items and
+// nothing else. A span carrying `display: block` is content every one of them may hold.
+// `.lf-ui` is what keeps it out of the page — the anchor pass will not let a quote name
+// it, `wrote` does not read it into a block key, and a copy leaves it behind — and the
+// `lf-` id namespace is reserved from authored pages, so the name can only be this.
+const earlierId = (target) => `lf-earlier-${target.id}`;
+
+function earlierNode(target) {
+  const before = diffEarlier.get(target);
+  const node = el("span", "lf-ui lf-earlier");
+  node.id = earlierId(target);
+  // The head names the version the words below are from, so a reader arriving at one
+  // open block is told which without reading it off the chooser. A block the base
+  // version never had says that instead, being the one case with no words to show.
+  node.append(
+    el(
+      "span",
+      "lf-earlier-head",
+      before === null ? `New since v${diffBase}` : `v${diffBase}`,
+    ),
+  );
+  if (before !== null) {
+    const body = el("span", "lf-earlier-body");
+    // The `same` and `delete` halves alone, which join to reconstruct the base version
+    // exactly: this is the version the reader is *not* reading, so what it shows is
+    // that version's own paragraph, marked where the words did not survive. The
+    // `insert` half is the paragraph they are looking at, washed and two lines up, and
+    // saying it again here would make the reading twice as long to learn nothing.
+    // `wrote` on both sides, the reading the comparison decided by, so a word an
+    // upgrade generated is in neither the base document nor this one.
+    //
+    // A block the state half marked — a pick moved, a card carried — keeps every word
+    // it had, so nothing in it strikes. That is the answer rather than a third case.
+    body.append(
+      ...alignedNodes(
+        alignText(before, wrote(target), sentenceUnits).filter(
+          (run) => run.kind !== "insert",
+        ),
+      ),
+    );
+    node.append(body);
+  }
+  return node;
+}
+
+// What the press reports. The move, not the words: revealTarget reports through the
+// banner's status line, which holds a moment's news, and a paragraph there is clipped
+// and a hover away. The words go where a reader can read them at their own pace and a
+// screen reader can reach them from the Button's own `aria-controls` — into the block,
+// which is the whole of what this surface does.
+function earlierSaid(target) {
+  return diffEarlier.get(target) === null
+    ? `v${diffBase} had nothing here`
+    : `showing what v${diffBase} said`;
+}
+
+// Room going in and coming back, at the fold's own length. The reader asked for this
+// content change, so it may reflow what stands under it — provided they can watch it
+// happen rather than find the page moved. One pair of frames, played either way.
+function fold(node, opening) {
+  const style = getComputedStyle(node);
+  const open = {
+    height: `${node.getBoundingClientRect().height}px`,
+    marginTop: style.marginTop,
+    paddingTop: style.paddingTop,
+    paddingBottom: style.paddingBottom,
+    opacity: 1,
+  };
+  const shut = Object.fromEntries(Object.keys(open).map((key) => [key, "0px"]));
+  shut.opacity = 0;
+  return motion(node, opening ? [shut, open] : [open, shut], FOLD_MS);
+}
+
+function openEarlier(target) {
+  // A reader who presses twice inside the fold's own length finds the last reading
+  // still folding out. It goes now rather than on its own promise: the two carry one
+  // id, and the Button's `aria-controls` may not name the one that is leaving.
+  target.querySelector(":scope > .lf-earlier")?.remove();
+  const node = earlierNode(target);
+  target.append(node);
+  earlierOpen.set(target, node);
+  fold(node, true);
+  layoutChanged(node);
+  return earlierSaid(target);
+}
+
+function closeEarlier(target) {
+  const node = earlierOpen.get(target);
+  earlierOpen.delete(target);
+  const said = `v${diffBase} hidden`;
+  if (!node?.isConnected) return said;
+  const gone = () => {
+    node.remove();
+    layoutChanged(target);
+  };
+  // Straight off the promise: motion() holds the last frame until this reaction has
+  // made it true, so the room closes once rather than snapping shut and then closing.
+  const played = fold(node, false);
+  if (played) played.finished.then(gone);
+  else gone();
+  return said;
+}
+
+// What the comparison holds at a marked block, for the margin's reading of it: the
+// node it discloses, whether that node stands open, and the promise the Button makes
+// — named here, where every other version word is. The promise is the shut one alone
+// because the layer hides a Button's label while it is expanded, what it opened being
+// on screen by then. Null where the comparison holds nothing, which is what leaves a
+// Change Button over an unidentifiable block the plain travel it always was, promising
+// nothing it cannot do.
+export const comparisonEarlier = (target) =>
+  diffOn && diffEarlier.has(target)
+    ? {
+        id: earlierId(target),
+        open: earlierOpen.has(target),
+        offer: `Show what v${diffBase} said`,
+      }
+    : null;
+
+// The press, and the sentence to say about it — composed here, where the versions are
+// named. The event is the comparison's, because what changed is its standing
+// rendering: the same pass that reads the marks reads the Button's relation back.
+export function toggleEarlier(target) {
+  if (!comparisonEarlier(target)) return null;
+  const said = earlierOpen.has(target) ? closeEarlier(target) : openEarlier(target);
+  document.dispatchEvent(new CustomEvent("lf-comparison"));
+  return said;
+}
+
 // Whether a stamped version can be compared with the revision being read: any stamp
 // on an earlier revision, which is which rows the menu builds a press onto.
 const comparable = (version) => {
@@ -915,6 +1086,15 @@ function setDiff(on, base) {
   if (on) diffBase = base;
   if (!on) {
     diffRequest++; // a stop outranks a comparison still on its way
+    // The earlier readings go in the frame the marks do. They are the comparison's
+    // rendering as much as the wash is, and one of them left folding out under a
+    // block nothing marks any more would be the comparison half gone.
+    for (const [target, node] of earlierOpen) {
+      node.remove();
+      layoutChanged(target);
+    }
+    earlierOpen.clear();
+    diffEarlier.clear();
     for (const b of diffMarked) b.classList.remove("lf-ins-block");
     diffMarked.length = 0;
   }

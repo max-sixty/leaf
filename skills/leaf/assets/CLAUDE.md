@@ -127,7 +127,8 @@ report, and work-claim feeds;
 `runtime/version.js` owns version travel whole: the chooser control, its menu and the
 newest-version chip, its `g V` destination row and the menu's local `v` scope, forced
 live activation,
-version-comparison state, marks and chooser paint, version document loading,
+version-comparison state, its marks and chooser paint, the earlier reading a
+marked block discloses, version document loading,
 authored-root replacement, the persisted semantic reading landmarks carried across that
 replacement, and the page-block reading directional walks start from;
 `runtime/widget-upgrade.js` owns widget upgrade guards, data bodies, fail-soft
@@ -185,8 +186,7 @@ and panel arrival;
 `runtime/conversation/narrowing.js` owns comment-panel search and waiting-on-reader
 filter state;
 `runtime/conversation/placement.js` owns document-order grouping;
-`runtime/conversation/reaction-strips.js` owns the panel's message and page reaction
-surfaces;
+`runtime/conversation/reaction-strips.js` owns the panel's message reaction surfaces;
 `runtime/conversation/surfaces.js` owns registry-declared widget outlets and the set of
 threads they claim from the living-margin fallback;
 `runtime/conversation/thread-card.js` owns retained panel thread cards, their quote

@@ -486,6 +486,9 @@ KERNEL = SKILL_ROOT / "assets"
 ASSETS = KERNEL
 BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
+# Outside the layer roots: an MCP host reads a resource here from the install over
+# the tool transport, so `page init` never copies one into a page directory.
+MCP_APP = SKILL_ROOT / "mcp-app"
 VENDORED_FILES = ("leaf.js", "theme.css", "registry.json", "icon.svg")
 PACKAGE_FILES = VENDORED_FILES
 BROWSER_DIRS = ("runtime", "widgets", "vendor")

@@ -286,7 +286,13 @@ import { commentsEdge, panelIsOpen, setPanel } from "./chrome-layout.js";
 import { designOn } from "./design.js";
 import { focused, keys, paintKeys } from "./keyboard/scopes.js";
 import { chromeRoot } from "./chrome.js";
-import { comparisonBase, comparisonChanges, versionBtn } from "./version.js";
+import {
+  comparisonBase,
+  comparisonChanges,
+  comparisonEarlier,
+  toggleEarlier,
+  versionBtn,
+} from "./version.js";
 import { foldShelf } from "./banner-shelf.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { panel } from "./conversation/panel.js";
@@ -460,8 +466,9 @@ export function marginButton(
     // Whether this call writes the disclosure's relation. True for every disclosure the
     // layer draws, which carries `aria-expanded` from the moment it appears. False says
     // another writer owns it: the margin's readings, whose `aria-controls` and
-    // `aria-expanded` `syncThreadRelation` decides together from whether the reading
-    // opens a thread and takes off together when it opens none. The declaration names
+    // `aria-expanded` `syncReadingRelation` decides together from whether the reading
+    // opens a thread, or holds what its own item declares, and takes off together when
+    // it holds neither. The declaration names
     // the writer rather than the role, because `marginButton` is published through the
     // widget API and a module reaching it brings no second writer with it.
     writesRelation = true,
@@ -985,7 +992,6 @@ const threadBeside = () =>
   getComputedStyle(document.querySelector("main"))
     .getPropertyValue("--lf-thread-beside")
     .trim() === "1";
-const markerNeedsPreview = (entry) => primaryReading(entry)?.kind === "comment";
 const controlsOf = (offered) => marginControls(offered.controls);
 const offerReadings = (offered) => {
   const items = typeof offered.items === "function" ? offered.items() : offered.items;
@@ -1223,17 +1229,31 @@ function readingContext(choice) {
 // hold is a key no surface can promise.
 const readingControl = (className) => offer("span", className);
 
-function syncThreadRelation(control, isThread) {
-  if (!isThread) {
+// The one writer over a reading's disclosure relation, settling `aria-controls` and
+// `aria-expanded` together because a control that says it opens something has to say
+// whether it is open. Two shapes reach it. A Thread Button's destination is the panel's
+// posture to decide. Any other reading is asked what it discloses, and a single item
+// that answers has named the node and said which way it stands — the Change reading's
+// earlier words, folded into the block itself. An item answering nothing promises
+// nothing, which is what leaves a Change Button over a block the comparison holds no
+// earlier reading for the plain travel it always was.
+function syncReadingRelation(control, choice) {
+  if (choice?.kind === "comment") {
+    const opensBeside =
+      !panelIsOpen() && (threadBeside() || forcedInlineKey === control.lfEntry?.key);
+    keeps(control, "aria-controls", opensBeside ? preview.id : panel.id);
+    if (opensBeside) keeps(control, "aria-expanded", previewButton === control);
+    else control.removeAttribute("aria-expanded");
+    return;
+  }
+  const disclosed = choice?.items.length === 1 ? choice.items[0].discloses?.() : null;
+  if (!disclosed) {
     control.removeAttribute("aria-controls");
     control.removeAttribute("aria-expanded");
     return;
   }
-  const opensBeside =
-    !panelIsOpen() && (threadBeside() || forcedInlineKey === control.lfEntry?.key);
-  keeps(control, "aria-controls", opensBeside ? preview.id : panel.id);
-  if (opensBeside) keeps(control, "aria-expanded", previewButton === control);
-  else control.removeAttribute("aria-expanded");
+  keeps(control, "aria-controls", disclosed.id);
+  keeps(control, "aria-expanded", disclosed.open);
 }
 let postureFrame = 0;
 let previewPositionFrame = 0;
@@ -1429,11 +1449,27 @@ function collectEntries() {
   const base = comparisonBase();
   comparisonChanges().forEach((target, index) => {
     const account = `${itemWord(target)} changed${base == null ? "" : ` since v${base}`}`;
+    const earlier = comparisonEarlier(target);
     add(groups, target, {
       kind: "change",
       id: `change:${targetPath(target)}:${index}`,
       text: trimmed(`${account} · ${itemSays(target)}`),
-      activate: () => revealTarget(target, account),
+      // A disclosure has to say what it holds, or its one word reports a fact and
+      // promises nothing. The Button's quieter line carries it, and a block the
+      // comparison holds nothing for has none, so no Button offers a press it has
+      // not got.
+      ...(earlier ? { context: earlier.offer } : {}),
+      // What a Change reading holds, where the comparison kept the base version's
+      // words for this block: pressing it folds them open under the block and says
+      // them, so the reader learns what changed without travelling to the other
+      // version and back. Where it kept none, the press is the travel it always was,
+      // and `discloses` answering null is what says so — to the Button's relation, to
+      // the key line's word for the press, and to the reference.
+      discloses: () => comparisonEarlier(target),
+      activate: () => {
+        const said = toggleEarlier(target);
+        revealTarget(target, said ? `${account} · ${said}` : account);
+      },
     });
   });
 
@@ -1975,7 +2011,7 @@ function paintMarker(row, entry, primary) {
     writesSeat: false,
   });
   row.onclick = behavior === "status" ? null : pressMarker;
-  syncThreadRelation(row, markerNeedsPreview(entry));
+  syncReadingRelation(row, choice);
   row.removeAttribute("aria-pressed");
   syncButtonCount(row, markerCount);
   if (row.lfTakeFocus) {
@@ -2072,7 +2108,7 @@ function readingOptionNode(entry, choice) {
   });
   node.lfEntry = entry;
   node.lfChoice = choice;
-  syncThreadRelation(node, choice.kind === "comment");
+  syncReadingRelation(node, choice);
   keeps(node, "data-lf-kinds", choice.kind);
   keeps(
     node,
@@ -2637,9 +2673,9 @@ function renderNow() {
         transferThreadCard(owner, { returnFocus: threadOwnerHeld });
         buildThreadCard(fresh);
         for (const row of rows.values())
-          syncThreadRelation(row, markerNeedsPreview(row.lfEntry));
+          syncReadingRelation(row, primaryReading(row.lfEntry));
         for (const reading of readingButtons.values())
-          syncThreadRelation(reading, reading.lfChoice?.kind === "comment");
+          syncReadingRelation(reading, reading.lfChoice);
       }
     }
   }
@@ -2775,9 +2811,9 @@ function showPreview(entry, button, retry = true) {
   placeThreadPreview();
   refreshHighlight();
   for (const row of rows.values())
-    syncThreadRelation(row, markerNeedsPreview(row.lfEntry));
+    syncReadingRelation(row, primaryReading(row.lfEntry));
   for (const button of readingButtons.values())
-    syncThreadRelation(button, button.lfChoice?.kind === "comment");
+    syncReadingRelation(button, button.lfChoice);
   paintKeys();
 }
 
@@ -2804,9 +2840,9 @@ export function closePreview(returnFocus = false) {
   if (preview.matches(":popover-open")) preview.hidePopover();
   refreshHighlight();
   for (const row of rows.values())
-    syncThreadRelation(row, markerNeedsPreview(row.lfEntry));
+    syncReadingRelation(row, primaryReading(row.lfEntry));
   for (const reading of readingButtons.values())
-    syncThreadRelation(reading, reading.lfChoice?.kind === "comment");
+    syncReadingRelation(reading, reading.lfChoice);
   if (returnFocus) {
     if (button?.isConnected && button.checkVisibility())
       button.focus({ preventScroll: true });
@@ -3159,9 +3195,9 @@ preview.addEventListener("toggle", (event) => {
   button?.style.removeProperty("anchor-name");
   refreshHighlight();
   for (const row of rows.values())
-    syncThreadRelation(row, markerNeedsPreview(row.lfEntry));
+    syncReadingRelation(row, primaryReading(row.lfEntry));
   for (const reading of readingButtons.values())
-    syncThreadRelation(reading, reading.lfChoice?.kind === "comment");
+    syncReadingRelation(reading, reading.lfChoice);
   paintKeys();
 });
 // The row's acknowledgment face is read out of the state projection, so it follows the

@@ -2031,7 +2031,12 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
     """The draft renderer is allowed to choose where an ambiguous repeated word
     aligns, but never to lose or invent a character. The two projections are the
     contract: same+delete is the old text, same+insert the new one. Unicode,
-    whitespace and repetition are where a character or regex diff quietly breaks."""
+    whitespace and repetition are where a character or regex diff quietly breaks.
+
+    Both granularities, because the unit is the caller's and the contract is not: a
+    draft's history aligns by word, a version comparison by sentence, and that comparison
+    renders same+delete alone — so a sentence walk that dropped or invented a character
+    would put words in the base version nobody wrote."""
     page, errors = open_page(browser, serve(JOURNEY_V1))
     cases = [
         ("", ""),
@@ -2045,17 +2050,26 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
             "shared " + " ".join(f"new-{i}" for i in range(2500)) + " ending",
         ),
     ]
-    aligned = page.evaluate(
+    aligned, by_sentence = page.evaluate(
         """async (pairs) => {
-          const {alignText} = await import('/runtime/widget-api.js');
-          return pairs.map(([before, after]) => alignText(before, after));
+          const {alignText, sentenceUnits} =
+            await import('/runtime/text-alignment.js');
+          return [
+            pairs.map(([before, after]) => alignText(before, after)),
+            pairs.map(([before, after]) => alignText(before, after, sentenceUnits)),
+          ];
         }""",
         cases,
     )
-    for (before, after), runs in zip(cases, aligned):
-        assert "".join(run["text"] for run in runs if run["kind"] != "insert") == before
-        assert "".join(run["text"] for run in runs if run["kind"] != "delete") == after
-        assert all(a["kind"] != b["kind"] for a, b in itertools.pairwise(runs))
+    for unit, walked in (("word", aligned), ("sentence", by_sentence)):
+        for (before, after), runs in zip(cases, walked):
+            joined = "".join(run["text"] for run in runs if run["kind"] != "insert")
+            assert joined == before, (unit, joined, before)
+            joined = "".join(run["text"] for run in runs if run["kind"] != "delete")
+            assert joined == after, (unit, joined, after)
+            assert all(a["kind"] != b["kind"] for a, b in itertools.pairwise(runs)), (
+                unit
+            )
 
     repeated = aligned[-2]
     assert "".join(r["text"] for r in repeated if r["kind"] == "delete") == "once"

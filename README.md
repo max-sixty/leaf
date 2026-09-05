@@ -21,8 +21,9 @@ Claude Code and Codex so far.
 ![leaf demo](docs/demo.gif)
 
 <https://leaf.page/> is the tour, the mechanism, the example pages, and the guide to
-themes and project widgets. Each page uses leaf's own theme, so they double as
-specimens, and each opens the same from a checkout ([`docs/`](docs/)) as from the web.
+themes and project widgets. Each product page is itself a leaf using the theme and
+widgets it describes. From a checkout, `uv run scripts/site.py --serve` assembles and
+serves the complete site from the sources in [`docs/`](docs/).
 
 ## Install
 
@@ -99,7 +100,7 @@ contract.
 
 [`examples/`](examples/) holds a complete page for each kind of work, including a
 dashboard meant to change as work finishes. They are live in the visual index at
-<https://leaf.page/examples.html>; every example opens as its own complete page.
+<https://leaf.page/examples/>; every example opens as its own complete page.
 From a checkout, `uv run scripts/site.py --serve` previews that catalog and all its routes;
 `scripts/preview.py triage-board` watches one page and its runtime with the real agent
 loop behind it, preserving reader feedback across edits. Add `--background` to keep

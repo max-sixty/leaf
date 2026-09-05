@@ -28,6 +28,7 @@ import {
 } from "../conversation/panel.js";
 import { inPanel, panelIsOpen, setPanel } from "../chrome-layout.js";
 import { composerOpen, fabInput } from "../composing/selection.js";
+import { draftOf } from "../composing/input.js";
 import {
   dismissFab,
   fabAnchorAt,
@@ -664,10 +665,10 @@ const COMPOSER = {
       id: "composer.close",
       keys: ["Escape"],
       does: () =>
-        fabInput.value.trim()
+        draftOf(fabInput).trim()
           ? "Close the composer, keeping the draft"
           : "Close the composer",
-      line: () => (fabInput.value.trim() ? "close — draft kept" : "close"),
+      line: () => (draftOf(fabInput).trim() ? "close — draft kept" : "close"),
       promoteEscape: false,
       run: () => dismissFab(),
     },
@@ -1422,7 +1423,7 @@ export function midComposition() {
     Boolean(fabAnchorAt()) ||
     unaccountedGesture() ||
     (active?.tagName === "TEXTAREA" &&
-      (active.value !== "" ||
+      (draftOf(active) !== "" ||
         replyDraft === true ||
         (replyDraft === null && active.hasAttribute("data-lf-offer"))))
   );

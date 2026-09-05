@@ -30,6 +30,9 @@ import { mountThreadList } from "./conversation/thread-list.js";
 import { wireNarrowing } from "./conversation/narrowing.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
 import { wireThreadCards } from "./conversation/thread-card.js";
+import { mediaViewer } from "./media.js";
+import { configureInput } from "./composing/input.js";
+import { uploadMedia } from "./layer-client.js";
 
 // The one scope root for the chrome's private rules: they match nothing outside this
 // container. A div, not a lf-* element — the render gate reads a lf-* ancestor as
@@ -69,6 +72,7 @@ skipToChrome.onclick = () => {
 
 // Every part in the layer's stacking order, named, and the root put in the document.
 export function mountChrome() {
+  configureInput(uploadMedia);
   mountBanner();
   // The runtime's parts, named: a design comment can point at one, and an anchor names an
   // element by id, so each part that is a thing to point at carries a stable one under the
@@ -83,6 +87,7 @@ export function mountChrome() {
     [panel, "lf-threads"],
     [fab, "lf-comment-button"],
     [composer, "lf-composer"],
+    [mediaViewer, "lf-media-viewer"],
     [helpEl, "lf-help"],
     [keylineEl, "lf-keyline"],
   ])
@@ -105,6 +110,7 @@ export function mountChrome() {
     aimBox,
     fabBar,
     liveEl,
+    mediaViewer,
     helpEl,
     keylineEl,
     inspectEl,

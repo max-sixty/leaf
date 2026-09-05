@@ -111,6 +111,23 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(page.locator(".lf-panel")).to_be_visible()
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(3)
     expect(page.locator(".lf-details .lf-thread")).to_have_count(1)
+    expect(page.locator("#bg-thread-media")).to_contain_text(
+        "supplied by its companion thread log"
+    )
+    media_open = page.locator(
+        '.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"] .lf-message-media'
+    )
+    expect(media_open).to_be_visible()
+    url_before = page.url
+    media_open.click()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    expect(viewer).to_be_visible()
+    expect(viewer.locator("img")).to_have_attribute(
+        "src", "/media/051bee487bfb5d13.png"
+    )
+    assert page.url == url_before
+    page.keyboard.press("Escape")
+    expect(media_open).to_be_focused()
     page.locator(".lf-threads-toggle").click()
 
     page.locator(".lf-version").click()

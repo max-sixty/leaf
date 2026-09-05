@@ -5,9 +5,8 @@
  * /runtime.js is the vendored entry file byte for byte.
  *
  * These are dynamic imports because the order is a dependency, not presentation.
- * /session.js starts reading the page's seed files and installs its in-tab /api/state
- * responder before the runtime asks. The responder waits for those files when asked,
- * so their reads overlap the runtime graph and widget modules. Published example
+ * /session.js reads the page's seed files, establishes its document identity, and
+ * installs its in-tab /api/state responder before the runtime asks. Published example
  * documents also get /sitenote.js last; product pages are Leaf documents in their own
  * right and do not need the example label.
  */

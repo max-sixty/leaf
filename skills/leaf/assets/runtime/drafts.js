@@ -340,12 +340,11 @@ addEventListener("storage", (ev) => {
   tellDraft(ctx, active ? incoming.text : null);
 });
 
-// One box's view of one draft: the plain boxes, which have nothing to render about a
-// draft but its words, so a settlement and an emptying leave the same empty box. The
-// value is written only where it differs, because writing .value on a focused box moves
-// the caret to the end of it; the box grows to fit either way, sizing being the
-// stylesheet's (wireInput). sync() is what makes the Send button agree with what is now
-// in the box.
+// One box's view of one draft: sync.value() reads the complete durable value, including
+// a pasted-media projection that is not exposed in the textarea. Write .value only when
+// that complete value differs, because writing it on a focused box moves the caret to
+// the end. The box grows to fit either way, sizing being the stylesheet's (wireInput),
+// and sync() makes its visible words, media shelf, and Send button agree.
 //
 // A box out of the document drops its view at the next word it would have shown, rather
 // than at the moment it leaves — the one box that ever leaves is a reply box going with
@@ -357,7 +356,7 @@ export function mirrorDraft(ta, sync, ctx) {
   const off = watchDraft(ctx, (value) => {
     if (!ta.isConnected) return off();
     const text = value ?? "";
-    if (ta.value === text) return;
+    if (sync.value() === text) return;
     ta.value = text;
     sync();
   });

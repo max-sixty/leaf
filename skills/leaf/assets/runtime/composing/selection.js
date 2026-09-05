@@ -33,6 +33,7 @@ import { paintAnchors } from "../anchors.js";
 import { elementById, inChrome } from "../passages.js";
 import { focusSurface } from "../conversation/surfaces.js";
 import { showThread } from "../conversation/landing.js";
+import { notice } from "../notifications.js";
 
 // The floating field immediately accepts a comment on the target the reader named.
 // Pressing Tab or its ellipsis exchanges its field for the other responses in place.
@@ -111,11 +112,12 @@ const composerCtx = (anchor) =>
       .filter(([, value]) => ["string", "number", "boolean"].includes(typeof value))
       .sort(([left], [right]) => left.localeCompare(right)),
   );
-const saveComposerDraft = () =>
+let syncComposer;
+const saveComposerDraft = (text = syncComposer.value()) =>
   saveDraft(
     composerCtx(pendingAnchor),
     JSON.stringify({
-      text: composerInput.value,
+      text,
       anchor: pendingAnchor,
       suggest: suggestCheck.checked,
       about: pendingAbout,
@@ -144,7 +146,7 @@ export function pendingComposer() {
 }
 let inFlight = null;
 let composerEpoch = 0;
-const syncComposer = wireInput(composerInput, {
+syncComposer = wireInput(composerInput, {
   hint: () =>
     suggestCheck.checked
       ? "Replacement text"
@@ -153,9 +155,10 @@ const syncComposer = wireInput(composerInput, {
         : "Comment…",
   sends: () => (suggestCheck.checked ? "suggest" : "comment"),
   sendBtn: composerSend,
+  allowsMedia: () => !suggestCheck.checked,
   save: saveComposerDraft,
   layout: refreshFab,
-  send: async (text, raw) => {
+  send: async (text, raw, owns, visible) => {
     const anchor = structuredClone(pendingAnchor);
     const ctx = composerCtx(anchor);
     const suggestion = suggestCheck.checked;
@@ -174,7 +177,7 @@ const syncComposer = wireInput(composerInput, {
       borderColor: composerStyle.borderColor,
       borderRadius: composerStyle.borderRadius,
       boxShadow: composerStyle.boxShadow,
-      text: raw,
+      text: visible,
     };
     const flight = { ctx, raw, epoch: composerEpoch };
     inFlight = flight;
@@ -182,7 +185,7 @@ const syncComposer = wireInput(composerInput, {
     try {
       sent = await sendDraft(
         ctx,
-        () => composerCtx(pendingAnchor) === ctx && composerInput.value === raw,
+        () => composerCtx(pendingAnchor) === ctx && owns(),
         (attempt) => {
           const event = {
             kind: "comment",
@@ -238,8 +241,15 @@ function syncSuggestMode() {
 }
 export function setSuggestionMode(suggest) {
   suggestCheck.checked = Boolean(suggest);
+  if (suggestCheck.checked && syncComposer.hasMedia()) {
+    suggestCheck.checked = false;
+    syncSuggestMode();
+    notice("Remove pasted images before suggesting replacement text");
+    composerInput.focus({ preventScroll: true });
+    return;
+  }
   // Entering suggestion mode seeds the box with the passage to edit in place.
-  if (suggestCheck.checked && !composerInput.value.trim() && pendingAnchor?.quote) {
+  if (suggestCheck.checked && !syncComposer.value().trim() && pendingAnchor?.quote) {
     composerInput.value = seededQuote = pendingAnchor.quote;
     syncComposer();
   }
@@ -291,7 +301,7 @@ export function openComposer(
   let carriedDraft = false;
   if (previousCtx !== ctx) {
     composerEpoch += 1;
-    const previousText = composerInput.value;
+    const previousText = syncComposer.value();
     const leavesFlight = inFlight?.ctx === previousCtx && previousText === inFlight.raw;
     composerInput.value = "";
     // Automatic selection merely opens another passage's view. An explicit Comment
@@ -332,7 +342,7 @@ function watchComposer() {
   composerWatch = watchDraft(composerCtx(pendingAnchor), (value) => {
     if (value === null) return closeComposer();
     const { text, suggest, about } = JSON.parse(value);
-    if (composerInput.value !== text) {
+    if (syncComposer.value() !== text) {
       composerInput.value = text;
       // Whatever stood here is another tab's words now, not this box's machine seed.
       seededQuote = "";

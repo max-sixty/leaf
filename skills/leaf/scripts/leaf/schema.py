@@ -422,6 +422,9 @@ EXTENSION_SCHEMA = {
         # its lf-code). `version check` refuses one outside the body (line_ref_errors).
         "x-lines": _ATTRIBUTE_LIST,
         "x-measured": MEASURED_SCHEMA,
+        # The element that lists the page's own headings. `version check` advises a
+        # page with two or more headings and no such element (missing_outline).
+        "x-outline": {"const": True},
         # Attributes the theme renders as paint alone — a status marker's tint or an
         # event's kind. The runtime speaks each as a clipped word (renderQuiet), the
         # value or, where a flag carries no value, the attribute's own name.

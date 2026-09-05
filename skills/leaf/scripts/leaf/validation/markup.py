@@ -2,7 +2,12 @@
 
 from pathlib import Path
 
-from leaf.structure import OPTIONAL_END, SECTIONING_TAGS, _StructParser
+from leaf.structure import (
+    HEADING_TAGS,
+    OPTIONAL_END,
+    SECTIONING_TAGS,
+    _StructParser,
+)
 from leaf.styles import inline_presentation_override_errors
 
 
@@ -92,6 +97,39 @@ def unpointable_blocks(parser: _StructParser) -> list:
                 f"lands on the whole of #{under[1]}"
             )
     return lines
+
+
+def missing_outline(parser: _StructParser, registry: dict) -> list:
+    """A page with several headings and nothing that lists them. Advice, never a
+    gate: the outline widget's own entry states the default — a page with two or
+    more headings carries one — and this is that default's feedback loop, the way
+    unpointable_blocks is the id rule's.
+
+    The registry says which element is the outline (x-outline), so a layer shipping
+    its own navigation gets its own tag back and a layer shipping none stays quiet
+    instead of naming an element the page could not declare. Two headings is a
+    deliberately low bar. An author who reads the line and still leaves the page
+    bare has answered it: on a page short enough to take in whole, a list of its
+    headings says nothing the page has not already said."""
+    outline = sorted(
+        # Widgets only — a $ entry is a layer-wide namespace, not a tag a page can
+        # write, and $keys spells its members in the x- keys' own names.
+        tag
+        for tag, entry in registry.items()
+        if tag.startswith("lf-") and entry.get("x-outline")
+    )
+    if not outline or any(record["tag"] in outline for record in parser.lf_elements):
+        return []
+    headings = [node for node in parser.nodes if node["tag"] in HEADING_TAGS]
+    if len(headings) < 2:
+        return []
+    return [
+        (
+            f"{len(headings)} headings and no <{outline[0]}>: one in an "
+            "aside.sidebar near the opening lists them, unless the page is compact "
+            "enough that its outline is already visible at a glance"
+        )
+    ]
 
 
 def structure_errors(parser: _StructParser) -> list:

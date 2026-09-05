@@ -27,6 +27,12 @@ def test_ship_review_asks_are_directly_answerable(browser, serve):
     expect(page.locator("#off-workaround-approve .lf-pick")).to_have_attribute(
         "aria-checked", "true"
     )
+    # The key line's rows are painted by a registration the boot makes, not by anything
+    # a widget or the page asks for, so a runtime that lost that registration keeps
+    # every other everyday assertion green while no reader can see a key. The More
+    # control's own keycap is static, so the rows are what is asked for; at rest a page
+    # shows `c` and `r`.
+    expect(page.locator(".lf-keyline .lf-key:not([hidden])")).not_to_have_count(0)
 
     assert errors == []
     page.close()

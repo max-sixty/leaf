@@ -81,7 +81,8 @@
  * Composing: every composition textarea behaves identically — saves its draft on each
  * keystroke and submits its contextual action on ⌘/Ctrl+Enter — because runtime and
  * widget composition boxes are all wired through wireInput. Direct editors register the
- * same Enter and Mod+Enter meanings with their additional commands. Growing with
+ * same Enter and Mod+Enter meanings with their additional commands, and the isolated MCP
+ * App mirrors them at its own boundary. Growing with
  * its content is the stylesheet's job: `field-sizing: content` on the one text-box rule,
  * which a widget's own box opts into by wearing `lf-ui`. No script measures a textarea,
  * so none can leave one momentarily too small for its own text — the shape of bug that

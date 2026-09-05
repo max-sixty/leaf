@@ -6,8 +6,7 @@ from pathlib import Path
 from leaf.event_log import jsonl_line, read_events
 from leaf.events import build_threads, is_reaction, taken_back
 from leaf.files import latest_revision, revision_label, revision_path
-from leaf.passages import active_enclosing, enclosing_of
-from leaf.projection import page_projection, record_lag
+from leaf.passages import active_enclosing, enclosing_of, spoken
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.storage import load_registry
 from leaf.structure import parse_revision
@@ -119,22 +118,16 @@ def _print_edits(events: list) -> None:
 
 def _published_reading(
     page_dir: Path,
-    events: list,
     registry: dict,
     revision: int | None,
-) -> tuple:
+) -> dict:
     # Against the active revision — the page as it now stands, which is what a
     # transcript is an account of. A page with no valid revision has no reading.
-    latest = (
-        revision_path(page_dir, revision).read_text(encoding="utf-8")
-        if revision
-        else ""
+    if revision is None:
+        return {}
+    return spoken(
+        revision_path(page_dir, revision).read_text(encoding="utf-8"), registry
     )
-    projection = parser = None
-    spk = {}
-    if revision is not None:
-        projection, parser, spk = page_projection(latest, events, registry, revision)
-    return projection, parser, spk
 
 
 def _thread_heading(thread: dict) -> str:
@@ -196,14 +189,6 @@ def _print_approval(events: list) -> None:
             break
 
 
-def _print_record_lag(projection, parser, spk: dict, registry: dict) -> None:
-    # To stderr — stdout is the artifact. A transcript is a page's closing act,
-    # and the record debt it reports here is about to stop being fixable.
-    if projection and registry:
-        for line in record_lag(projection, parser.by_id, spk, registry):
-            print(f"record behind the log — {line}", file=sys.stderr)
-
-
 def cmd_transcript(page_dir: Path) -> None:
     """The page's exchange as Markdown, for reuse in a PR description."""
     events = read_events(page_dir)
@@ -212,7 +197,6 @@ def cmd_transcript(page_dir: Path) -> None:
     print(f"## Leaf: {title or page_dir.name}")
     _print_versions(events)
     _print_edits(events)
-    projection, parser, spk = _published_reading(page_dir, events, registry, revision)
+    spk = _published_reading(page_dir, registry, revision)
     _print_threads(events, spk, registry)
     _print_approval(events)
-    _print_record_lag(projection, parser, spk, registry)

@@ -212,12 +212,15 @@ def guidance(dir: str, audience: str | None) -> None:
 
 @page.command(short_help="Print where the page stands, as JSON.")
 @click.argument("dir", metavar="PAGE")
-def state(dir: str) -> None:
+@click.option(
+    "--thread", "thread_id", help="Read the effective content of one exact thread."
+)
+def state(dir: str, thread_id: str | None) -> None:
     """Fold the log onto the active revision and print the result as one JSON
-    object: elements, standing state and reports, record lag, open decisions,
-    current thread state, versions, presence, and external-data bindings plus the
-    canonical files holding source and values."""
-    cmd_page_state(resolve_dir(dir))
+    object: effective content with source and edit addresses, standing state,
+    reports, open decisions, thread content, versions, presence, and bound data.
+    Content follows the same document projection as the browser."""
+    cmd_page_state(resolve_dir(dir), thread_id=thread_id)
 
 
 @cli.group(short_help="Set, capture, or clear page-bound external data.")

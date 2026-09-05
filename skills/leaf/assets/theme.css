@@ -1139,7 +1139,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
    clears the moment a version carries the decision or a retraction hands the
    state back. Green, the user's color: their decision stands here in
    replay, not yet in the page's own words. */
-[data-lf-pending] { outline: 2px solid color-mix(in srgb, var(--ok) 82%, transparent);
+[data-lf-reader-override] { outline: 2px solid color-mix(in srgb, var(--ok) 82%, transparent);
                     outline-offset: 3px; border-radius: 2px; }
 
 /* A worker's standing report: this element's state arrived through the log

@@ -34,11 +34,30 @@ const prepareSvg = (svg) =>
  * the directive from an ordinary flowchart node an author happened to name `click`. */
 const UNSUPPORTED_DIRECTIVE =
   /^\s*(?:click\s+[A-Za-z_]|accTitle\s*:|accDescr\s*(?::|\{))/m;
+
+/* The same parser reads a label as the text up to the first closing delimiter without
+ * noticing the quotes Mermaid uses to hold one. `A["list[str]"]` is therefore cut at the
+ * inner bracket, and the remainder of the line — the node an edge points at included —
+ * is dropped, so the reader sees a box short of a diagram rather than an error. Refuse
+ * that source. The reading is the parser's own: a quoted label is cut only by the
+ * delimiter run that actually follows it, so a doubled closer (`A[["list[str]"]]`) and a
+ * pipe-delimited edge label (`A -->|"list[str]"| B`) both pass through whole. */
+const QUOTED_LABEL = /"([^"\n]*)"([\])}|>/\\]*)/g;
+const rejectCutLabel = (source) => {
+  for (const [, label, closer] of source.matchAll(QUOTED_LABEL))
+    if (closer && label.includes(closer))
+      throw new Error(
+        `a quoted label cannot hold ${closer}, the delimiter that closes its own ` +
+          `shape — the renderer cuts the line there: "${label}"`,
+      );
+};
+
 const rejectUnsupportedSource = (source) => {
   if (UNSUPPORTED_DIRECTIVE.test(source))
     throw new Error(
       "click, accTitle and accDescr directives are not supported by Leaf diagrams",
     );
+  rejectCutLabel(source);
 };
 
 /* The renderer uses fixed ids for arrowheads, gradients and masks. Repeated ids make

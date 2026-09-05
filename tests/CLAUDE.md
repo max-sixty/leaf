@@ -5,8 +5,9 @@ event log, and a returning reader. Most failures in that boundary are not hard t
 assert once they are visible. The difficult part is arranging the test so that a
 green result could only have come from the behavior named by the test.
 
-This file owns test setup, suite structure, and testing mechanics. The runtime's
-`CLAUDE.md` and `skills/leaf/references/internals/` own the product protocols.
+This file owns test setup, suite structure, and testing mechanics.
+`skills/leaf/assets/CLAUDE.md` and `skills/leaf/references/internals/` own the product
+protocols.
 Keep implementation rules there; state here only what a test must observe or
 control.
 

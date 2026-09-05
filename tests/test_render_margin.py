@@ -3021,7 +3021,7 @@ def test_a_narrow_margin_gives_the_inline_thread_the_page_not_a_sliver(browser, 
     wrapping one word to a line and the placeholder one character. The theme's
     --thread-card-floor is where the margin stops being a margin — under it the card comes
     off its marker and covers the page, which is the posture an accepted comment's thread
-    is already allowed (skills/leaf/CLAUDE.md, "Chrome, conversations, and text input").
+    is already allowed (skills/leaf/assets/CLAUDE.md, "Chrome, conversations, and text input").
     It does not hand the reader to the Threads panel instead, so a card is what both
     halves of this test read.
 

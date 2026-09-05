@@ -39,7 +39,7 @@ site, demo, and vendor tooling.
 
 Read the scoped instructions for the area being changed:
 
-- `skills/leaf/CLAUDE.md`: browser, widget, registry, and theme;
+- `skills/leaf/assets/CLAUDE.md`: browser runtime, widget modules, registry, and theme;
 - `skills/leaf/scripts/CLAUDE.md`: Python boundaries and protocol references;
 - `examples/CLAUDE.md`: corpus and preview fixtures;
 - `tests/CLAUDE.md`: test setup and evidence rules;

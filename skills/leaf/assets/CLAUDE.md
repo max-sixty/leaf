@@ -1,7 +1,7 @@
 # The page in the browser
 
-This file defines the contract for `assets/leaf.js`, its runtime modules under
-`assets/runtime/`, the widget modules, and `assets/theme.css`. It describes the
+This file defines the contract for `leaf.js`, its runtime modules under `runtime/`,
+the widget modules under each package's `widgets/`, and `theme.css`. It describes the
 current runtime. Page-authoring commands and
 markup rules live in `references/page-authoring.md`; package authoring lives in
 `references/packages.md`. The repository-level `AGENTS.md`

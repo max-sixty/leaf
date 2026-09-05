@@ -183,8 +183,8 @@ Decision projection uses the same condition for standing state. Do not add a sec
 completed attribute or trust the browser's optimistic item count. Re-vendoring must
 preserve the completion condition for every recorded action.
 
-A CSS-only widget is an entry and a theme rule. One with behavior takes a module. The
-skill's own `CLAUDE.md`, one directory up from this file, defines what the module owes:
+A CSS-only widget is an entry and a theme rule. One with behavior takes a module.
+`assets/CLAUDE.md` in the skill directory defines what the module owes:
 a total, idempotent `renderState(state)`, `says()` over `textContent`, `offer()` and `relabel()` on anything
 injected, `commands()` at upgrade — through `DISCLOSE(el)` over anything that folds, the
 runtime owning those commands — `quoted()` before wiring input, `actionAvailable()` for

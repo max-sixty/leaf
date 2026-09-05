@@ -4520,7 +4520,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     a pair the widget picks. A widget row is nearer than the runtime's disclosure scope
     and `lineRows` keeps only the keys the nearer row names, so a head binding Enter and
     Space alone took the arrow off both surfaces while the arrow went on opening the
-    tree — the shape `skills/leaf/CLAUDE.md` names as one promise rather than two.
+    tree — the shape `skills/leaf/assets/CLAUDE.md` names as one promise rather than two.
 
     Both surfaces of that promise, because a row naming the wrong keys names them wrongly
     on both — the line the reader sees and the `aria-keyshortcuts` a listener is read —

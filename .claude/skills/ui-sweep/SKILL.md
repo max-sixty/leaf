@@ -43,11 +43,13 @@ endpoints are sound.
 
 ## Judge
 
-Read the frames against skills/leaf/CLAUDE.md — each norm there is a checklist row —
-and against the craft the norms don't state: nothing stands on words being read or
-written about, nothing renders below legibility, nothing runs out of room while
-the screen has some, floats track what they point at. A finding is a reproduced
-number or screenshot, not an impression.
+Read the frames against the norms in `skills/leaf/assets/CLAUDE.md`: the render-gate
+table under "Render gates" is what the gate already holds, and "Layout and motion",
+"Width, frames, and overflow", and "Target Buttons" state what it cannot, one rule per
+paragraph. Then judge the craft the norms don't state: nothing stands on words being
+read or written about, nothing renders below legibility, nothing runs out of room while
+the screen has some, floats track what they point at. A finding is a reproduced number
+or screenshot, not an impression.
 
 ## Fix and pin
 

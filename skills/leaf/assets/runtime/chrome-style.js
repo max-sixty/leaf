@@ -342,7 +342,7 @@ export function chromeStyle({
   }
   .lf-margin-button[aria-disabled="true"] { cursor: default; }
   .lf-margin-button.lf-react[aria-pressed="true"] {
-    background: var(--chip); color: var(--ink-2);
+    background: var(--chip);
   }
   .lf-margin-button-glyph { line-height: 1; }
   .lf-margin-button-icon {

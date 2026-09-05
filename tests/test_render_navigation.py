@@ -2529,8 +2529,10 @@ def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
     )
 
     def sequence_geometry(locator):
-        return locator.evaluate(
-            """sequence => {
+        # Paint replaces these inert hints. Query and measure in one browser turn so
+        # a locator handle cannot become detached before its geometry is read.
+        return locator.evaluate_all(
+            """([sequence]) => {
               const box = sequence.getBoundingClientRect();
               return {
                 width: box.width,
@@ -2566,6 +2568,8 @@ def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
         )
 
     initial_legend_geometry = sequence_geometry(legend)
+    assert initial_legend_geometry["width"] > 0
+    assert initial_legend_geometry["height"] > 0
     initial_link_geometry = link_geometry()
     assert len(initial_link_geometry) == 2
 

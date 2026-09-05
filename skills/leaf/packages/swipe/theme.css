@@ -29,6 +29,7 @@ lf-swipe-pile[verdict="unseen"]::before,
 lf-swipe-pile[verdict="unseen"]::after {
   content: "";
   display: block;
+  box-sizing: border-box;
   grid-area: 1 / 1;
   min-height: 12rem;
   border: 1px solid var(--border-2);

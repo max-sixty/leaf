@@ -2603,17 +2603,6 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
         layer_registry=GENERIC_VISUAL_LAYER,
         layer_widgets=GENERIC_VISUAL_WIDGETS,
     )
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "outer-comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Keep the boundary visible.",
-            "anchor": {"section": "visual", "visual": "outer"},
-        },
-    )
     page, errors = open_page(browser, url)
     resized(page, 1280, 720)
     page.evaluate(

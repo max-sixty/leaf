@@ -1906,8 +1906,8 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     page, errors = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
-          keys(document.body, 'On a draft',
+          const { commands } = await import('/runtime/widget-api.js');
+          commands(document.body, 'On a draft',
                [{ id: 'test.project-widget', keys: ['F2'],
                   does: 'a project widget using the same heading' }]);
         }"""

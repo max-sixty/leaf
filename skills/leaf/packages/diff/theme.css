@@ -102,7 +102,7 @@ lf-diff:not(.lf-rendered) > pre {
                                      font-family: var(--sans); }
 .lf-diff-review { box-sizing: border-box; width: var(--lf-diff-press);
                   min-height: 26px; padding: 2px 8px;
-                  color: var(--code-muted); font-size: var(--t-6); }
+                  font-size: var(--t-6); }
 .lf-diff-reviewed { font-size: var(--t-5); line-height: 26px; }
 .lf-diff-review[aria-pressed="true"], .lf-diff-reviewed { color: var(--ok);
                                                          font-weight: 650; }

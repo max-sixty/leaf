@@ -1628,7 +1628,7 @@ html.lf-versioning::view-transition-new(root) {
  * Packages may adjust placement and density; margin Buttons and reaction chips
  * retain their separate forms. */
 /* lf-shadow:start */
-.lf-btn { padding: 4px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: inherit; display: inline-block; }
+.lf-btn { padding: 4px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
 .lf-btn:hover { background: var(--chip); }
 .lf-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--paper); }
 .lf-btn.primary:hover { filter: brightness(.92); }

@@ -298,6 +298,21 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     ).evaluate("el => getComputedStyle(el).backgroundColor")
     expect(group.locator(":scope > summary")).to_have_count(1)
     expect(group).not_to_have_attribute("open", "")
+    # Ordinary buttons keep the same ink on tinted document and shadow surfaces.
+    colors = []
+    for control in (".lf-call-toggle", ".lf-diff-next", ".lf-diff-review"):
+        colors.append(
+            page.locator(control).first.evaluate("""button => {
+            const parent = button.parentElement;
+            const prior = parent.style.color;
+            const before = getComputedStyle(button).color;
+            parent.style.color = 'rgb(200, 0, 100)';
+            const tinted = getComputedStyle(button).color;
+            parent.style.color = prior;
+            return [before, tinted];
+        }""")
+        )
+    assert len({color for pair in colors for color in pair}) == 1, colors
     widget.locator(".lf-call-toggle").click()
     expect(group).to_have_attribute("open", "")
     expect(widget.locator(".lf-call-toggle")).to_have_text("Collapse all")

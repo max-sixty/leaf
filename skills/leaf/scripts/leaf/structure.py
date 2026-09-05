@@ -115,6 +115,10 @@ POINTABLE_TAGS = {"section", "article", "aside", "pre", "table", "figure"}
 # Where an aim that found no tighter id has escaped to: naming one of these is
 # naming most of the page.
 SECTIONING_TAGS = {"section", "article", "main", "body"}
+# The headings an outline of the page lists. h1 names the page, so it heads that
+# outline rather than standing in it. The outline widget selects the same set in the
+# browser (its own HEADING_SELECTOR).
+HEADING_TAGS = {"h2", "h3", "h4", "h5", "h6"}
 # The properties that overflow a column when pinned in pixels. max-width defines the
 # column instead, so it is read there and never counted here.
 OVERFLOW_PROPS = ("width", "min-width")

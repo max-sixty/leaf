@@ -404,13 +404,26 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
 
 @pytest.mark.parametrize(
     "resource",
-    ["leaf.js", "runtime/context.js", "registry.json", "theme.css", "syntax"],
+    [
+        "leaf.js",
+        "runtime/context.js",
+        "widgets/lf-options.js",
+        "registry.json",
+        "theme.css",
+        "syntax",
+    ],
 )
 def test_a_failed_preview_bootstrap_hears_the_replacement_server(
     browser, watched_preview, resource
 ):
     """Supervision precedes entry, dependency, registry and stylesheet loading."""
     _, runtime, directory, _, url = watched_preview
+    if resource == "widgets/lf-options.js":
+        standing, errors = open_page(browser, url)
+        standing.locator("#opt-redis .lf-pick").click()
+        round_trip(standing)
+        assert errors == []
+        standing.close()
     page = browser.new_page()
     failures = []
     navigations = []
@@ -454,6 +467,8 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         "data-lf-presented", "1", timeout=30000
     )
     expect(status).not_to_be_visible()
+    if resource == "widgets/lf-options.js":
+        expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
     assert len(navigations) == 2
     assert (
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]

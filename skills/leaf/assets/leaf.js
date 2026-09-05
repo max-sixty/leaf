@@ -563,7 +563,6 @@ const {
 } = createWidgetLoader({
   buildReactBar: (...args) => buildReactBar(...args),
   rememberAuthoredParents: (...args) => rememberAuthoredParents(...args),
-  reportPageError,
   revealLayer,
   sameLayer,
 });
@@ -3837,9 +3836,9 @@ async function startPage() {
     upgradeWidgets(),
     // Alongside rather than after, and caught rather than fatal: the tab icon is not
     // what the page is for, so a layer missing it says so in the console and leaves the
-    // rest working — the same bargain a widget module that fails to import makes. It is
-    // still awaited here, because `version export` copies the page at the stamp below
-    // and a mark that arrived after it would leave the copy's tab to chance.
+    // rest working. It is still awaited here, because `version export` copies the
+    // page at the stamp below, and an icon arriving later would leave the copy's
+    // tab to chance.
     loadIcon().catch((err) => console.error(err)),
   ]);
   if (!upgraded) return;

@@ -336,6 +336,9 @@ offline answer. Parsing or rendering errors pass to the recovery boundary and
 leave the candidate sequence unresolved; authored content stays readable while
 state-dependent controls remain unavailable.
 
+Required widget imports reject through the startup or activation boundary; a missing
+module cannot count as a completed upgrade.
+
 `reportPageError` is the common runtime error surface. A widget failure may
 `failSoft` its own element so the rest of the page and Threads remain usable,
 but it does not convert a partial state read into a committed one. The window

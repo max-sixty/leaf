@@ -13,7 +13,6 @@ import { settle, settling } from "./widget-upgrade.js";
 export function createWidgetLoader({
   buildReactBar,
   rememberAuthoredParents,
-  reportPageError,
   revealLayer,
   sameLayer,
 }) {
@@ -48,7 +47,8 @@ export function createWidgetLoader({
   //
   // A tag is asked for once per tab and the same promise answers every later caller, so
   // a version that keeps a tag, a second diff in a second reply, and a poll that sees
-  // the same conversation again all cost nothing.
+  // the same conversation again all cost nothing. A failed import stays rejected:
+  // startup and activation must not present markup whose required module is absent.
   const modules = new Map();
   const presentTags = (scope, holds) =>
     tagsDeclaring(holds).filter((tag) => scope.querySelector(tag));
@@ -64,13 +64,7 @@ export function createWidgetLoader({
       await loadShadowRules();
     await Promise.all(
       presentTags(scope, (entry) => entry["x-upgrade"]).map((tag) => {
-        if (!modules.has(tag))
-          modules.set(
-            tag,
-            import(`/widgets/${tag}.js`).catch((err) =>
-              reportPageError(`widget ${tag} failed to load: ${err?.message ?? err}`),
-            ),
-          );
+        if (!modules.has(tag)) modules.set(tag, import(`/widgets/${tag}.js`));
         return modules.get(tag);
       }),
     );

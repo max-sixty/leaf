@@ -1047,7 +1047,10 @@ def test_a_drawing_that_has_not_drawn_claims_no_room(browser, serve):
     page = browser.new_page(viewport={"width": 1600, "height": 900})
     page.route("**/widgets/lf-diagram.js", lambda route: route.abort())
     page.goto(url, wait_until="load")
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    expect(
+        page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    ).to_be_visible()
+    expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
     at = page.evaluate("""() => {
         const main = document.querySelector('main'), ms = getComputedStyle(main);
         const mb = main.getBoundingClientRect();

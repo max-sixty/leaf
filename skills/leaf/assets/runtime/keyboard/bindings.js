@@ -9,7 +9,14 @@
 
    A row has these meanings:
 
-   - `keys` is a binding or computed list of bindings.
+   - `id` is its stable dotted identity. Words and keys may change without changing the
+     route the reference and the other projections use.
+   - `keys` is a binding or computed list of bindings: "a", "Escape", "Mod+Enter",
+     "Shift+a", "d"; a function where the set is the page's (an option group's 1–N).
+   - `routes` are optional stable subcommands when those bindings mean different things.
+     The key line keeps the compact row; the reference presents each route separately. A
+     route may override `line` and `label` for the case where a nearer scope shadows only
+     its sibling binding.
    - `label` optionally overrides the compact keycap in the command's own scope. A keyless
      Decision command falls back to its `decision` action name in the complete reference.
      An Ask instead shows the resolved binding beside that separate action name, so an
@@ -22,6 +29,20 @@
      family of controls.
    - `does` is the sentence for the press, or a function when the current state changes
      the sentence.
+   - `line` is the key line's word: a row carrying one stands on the key line, and a row
+     that has a `run` must carry one. That is the failure this register was built for, at
+     its smallest — page travel worked, and no always-visible surface named it, because
+     the field was optional and its absence read exactly like a decision. A row with no
+     `run` may carry one all the same, since a press can be real and immediate without
+     being the runtime's: Enter opens the focused leaf because the row is a link. What
+     carries no word is reference, named in the "?" overlay and never promised as the
+     next press — F7, ⌥ click, a press on a draft's own box.
+   - `lineWhen` is optional projection-only visibility on the key line. Unlike `when`, it
+     never changes whether the command dispatches or appears in the reference, and an
+     active chord shows every live row regardless of it.
+   - `promoteEscape` says whether an Escape row takes the line's second visible slot. On
+     by default; a local action that happens to clear state can leave the slot to the
+     next action on that state.
    - `when` says whether the capability exists. When a destination surface is available
      independently of its members, its row stays live and opens the surface even when the
      collection is empty. Member-dependent rows use the collection as their capability.
@@ -39,8 +60,11 @@
      invocation instead of letting a closing implementation control become the origin.
    - `native: true` performs `run` without preventing the platform default. Use it when
      Leaf must change state before the browser completes the same press, not to leave an
-     otherwise owned press half-handled. It still follows the ordinary `repeat` policy;
-     declare `repeat: true` when repeated keydowns must also run.
+     otherwise owned press half-handled. Off by default: a row normally owns the press it
+     answers. It still follows the ordinary `repeat` policy; declare `repeat: true` when
+     repeated keydowns must also run — off by default, because a held `]` was a page
+     navigation per repeat and a held pick a `choose` per repeat, and it applies to native
+     rows too, independently of whether their platform default repeats.
 
    `live` answers the declared liveness once for every projection. Do not repeat a guard
    inside `run` if the guard changes whether the key should be shown. When the reference

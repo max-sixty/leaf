@@ -402,40 +402,8 @@ function receiveState(...args) {
 // register's own scopes and the dispatcher that walks them are in the keyboard section
 // below; what is here is the vocabulary they and the widget modules share.
 //
-// A row:
-//   id    — its stable dotted identity. Words and keys may change without changing the
-//           route used by the reference and other projections.
-//   keys  — the bindings it answers: "a", "Escape", "Mod+Enter", "Shift+a", "d".
-//           A function where the set is the page's (an option group's 1–N).
-//   routes— optional stable subcommands when those bindings mean different things. The
-//           keyline keeps the compact row; the reference presents each route separately.
-//           A route may override `line` and `label` for the case where a nearer scope
-//           shadows only its sibling binding.
-//   label — how it renders. Computed from `keys` unless the row is a chord whose second
-//           half is another scope's row, and then built from that row rather than typed.
-//   does  — the overlay's sentence.
-//   line  — the line's word: a row carrying one stands on the key line, and a row that has
-//           a `run` must carry one. That is the failure this register was built for, at
-//           its smallest — page travel worked, and no always-visible surface named it,
-//           because the field was optional and its absence read exactly like a decision.
-//           A row with no `run` may carry one all the same, since a press can be real and
-//           immediate without being the runtime's: Enter opens the focused leaf because
-//           the row is a link. What carries no word is reference, named in the "?"
-//           overlay and never promised as the next press — F7, ⌥ click, a press on a
-//           draft's own box.
-//   lineWhen — optional projection-only visibility on the key line. Unlike `when`, it
-//           never changes whether the command dispatches or appears in the reference,
-//           and an active chord shows every live row regardless of it.
-//   promoteEscape — whether an Escape row takes the line's second visible slot. On by
-//           default; a local action that happens to clear state can leave the slot to the
-//           next action on that state.
-//   when  — its liveness. The one predicate every surface asks.
-//   run   — the press, taking the binding that fired.
-//   native— whether the platform completes its default after `run`. Off by default: a
-//           row normally owns the press it answers.
-//   repeat— whether holding the key repeats the press. Off by default: a held `]` was a
-//           page navigation per repeat, and a held pick a `choose` per repeat. It applies
-//           to native rows too, independently of whether their platform default repeats.
+// What a row's fields mean is stated once, in keyboard/bindings.js, beside the checks a
+// declaration passes on its way in.
 //
 // A scope is where the keyboard means something particular — the page, a focused thread,
 // a card grip, a box being typed in. It declares its rows and where it holds, and where it

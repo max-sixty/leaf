@@ -210,24 +210,19 @@ function render(el) {
 customElements.define(
   "lf-agent",
   class extends HTMLElement {
-    #stopUpdates = null;
+    #stop = null;
 
     connectedCallback() {
       if (once(this)) render(this);
-      this.#watchUpdates();
-    }
-
-    disconnectedCallback() {
-      this.#stopUpdates?.();
-      this.#stopUpdates = null;
-    }
-
-    #watchUpdates() {
-      if (this.#stopUpdates) return;
       // The shared clock refreshes this when its displayed age changes and touches
       // one text node when it does, rather than rebuilding a row the reader may have
       // their pointer in.
-      this.#stopUpdates = watchUpdates(this, (updates) => heard(this, updates));
+      this.#stop ??= watchUpdates(this, (updates) => heard(this, updates));
+    }
+
+    disconnectedCallback() {
+      this.#stop?.();
+      this.#stop = null;
     }
 
     applyAction(action, detail) {

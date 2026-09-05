@@ -444,6 +444,21 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     ).evaluate("el => getComputedStyle(el).backgroundColor")
     expect(group.locator(":scope > summary")).to_have_count(1)
     expect(group).not_to_have_attribute("open", "")
+    # Ordinary buttons keep the same ink on tinted document and shadow surfaces.
+    colors = []
+    for control in (".lf-call-toggle", ".lf-diff-next", ".lf-diff-review"):
+        colors.append(
+            page.locator(control).first.evaluate("""button => {
+            const parent = button.parentElement;
+            const prior = parent.style.color;
+            const before = getComputedStyle(button).color;
+            parent.style.color = 'rgb(200, 0, 100)';
+            const tinted = getComputedStyle(button).color;
+            parent.style.color = prior;
+            return [before, tinted];
+        }""")
+        )
+    assert len({color for pair in colors for color in pair}) == 1, colors
     widget.locator(".lf-call-toggle").click()
     expect(group).to_have_attribute("open", "")
     expect(widget.locator(".lf-call-toggle")).to_have_text("Collapse all")
@@ -4250,7 +4265,26 @@ def test_command_hub_request_waits_for_one_linked_host_receipt(browser, serve):
     )
     assert available == [True, False]
 
+    page.locator(".lf-decisions").click()
+    request_row = page.locator(
+        '.lf-decisions-row[data-lf-at="dedupe-operations-decision"]'
+    )
+    expect(request_row).to_have_attribute("data-lf-answer-state", "open")
+    page.evaluate(
+        """() => {
+          window.__lfFirstRequestAnswer = new Promise(resolve => {
+            document.addEventListener('lf-actions', () => queueMicrotask(() => {
+              resolve(document.querySelector(
+                '[data-lf-at="dedupe-operations-decision"] .lf-decisions-answer'
+              ).textContent);
+            }), {once: true});
+          });
+        }"""
+    )
     operations.get_by_role("button", name="Restart with a fresh worker").click()
+    assert page.evaluate("() => window.__lfFirstRequestAnswer") == (
+        "Restart with a fresh worker"
+    ), "the open Asks tray missed the package's first request projection"
     round_trip(page)
     requests = [
         event
@@ -4270,10 +4304,6 @@ def test_command_hub_request_waits_for_one_linked_host_receipt(browser, serve):
     )
     expect(operations).to_contain_text("restart requested · waiting for the host")
     expect(page.locator(".lf-decisions")).to_have_text("Asks 1/5")
-    page.locator(".lf-decisions").click()
-    request_row = page.locator(
-        '.lf-decisions-row[data-lf-at="dedupe-operations-decision"]'
-    )
     expect(request_row).to_have_attribute("data-lf-answer-state", "answered")
     expect(request_row.locator(".lf-decisions-answer")).to_have_text(
         "Restart with a fresh worker"
@@ -5148,7 +5178,14 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     page.close()
 
 
-def test_command_hub_stopped_age_does_not_cross_an_active_publication(browser, serve):
+@pytest.mark.parametrize(
+    "client_clock_offset_hours",
+    [0, 6],
+    ids=["control-clock", "client-clock-plus-six-hours"],
+)
+def test_command_hub_stopped_age_does_not_cross_an_active_publication(
+    browser, serve, client_clock_offset_hours
+):
     """Two stopped reports are not proof of one continuous stop. An honoring
     publication can absorb the first, and a later version can author active work;
     a fresh stopped report dates the new interruption from itself."""
@@ -5196,7 +5233,15 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(browser, s
     )
 
     latest = url.replace("/versions/v1.html", "/")
-    page, errors = open_page(browser, latest)
+    offset_ms = client_clock_offset_hours * 60 * 60 * 1000
+    page, errors = open_page(
+        browser,
+        latest,
+        init_script=f"""
+            const nativeDateNow = Date.now;
+            Date.now = () => nativeDateNow() + {offset_ms};
+        """,
+    )
     expect(page.locator(".lf-version")).to_contain_text("v3")
     assert "/versions/" not in page.url
     row = page.locator(
@@ -5398,9 +5443,7 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
     stated once beside the hand it withdraws, so a request that is finished cannot go on
     looking like one that is waiting.
 
-    And the ring, which is this page's job to prove because the request press is the
-    layer's example of a control no widget rings: the shared rule is a fallback, and a
-    fallback that nothing ever falls back to is a rule that was never tested."""
+    The request also uses the ordinary button focus ring, reached by keyboard."""
     page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     face = """el => { const cs = getComputedStyle(el);
         return {cursor: cs.cursor, opacity: cs.opacity,
@@ -5425,8 +5468,7 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
     ready = live.evaluate(face)
     assert ready["cursor"] == "pointer" and float(ready["opacity"]) == 1
 
-    # The ring the shared rule draws, on the one control the layer leaves to it. Reached
-    # by a real Tab, because :focus-visible is a fact about how focus arrived.
+    # Reach the ordinary button ring by Tab: :focus-visible depends on how focus arrived.
     live.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
@@ -5436,7 +5478,7 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
                      cs.getPropertyValue('--here-ring-w').trim(),
                      cs.getPropertyValue('--lf-here-ring').trim()]; }"""
     )
-    assert ring == ["solid", ring[2], ring[2], "pressable"], (
+    assert ring == ["solid", ring[2], ring[2], "btn"], (
         f"a request press wears no here ring from the layer's shared rule: {ring}"
     )
 

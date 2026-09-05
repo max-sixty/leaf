@@ -18,6 +18,7 @@ import {
   actionAvailable,
   actionStands,
   alignText,
+  commands,
   FOLD_MS,
   marginButton,
   marginButtonState,
@@ -28,7 +29,6 @@ import {
   quoted,
   relabel,
   renderRetired,
-  registerDecisionActions,
   registerMarginItem,
   says,
   sendAction,
@@ -132,7 +132,6 @@ customElements.define(
     #undo = null;
     #undoing = false;
     #margin = null;
-    #decisionActions = null;
     #stopActions = null;
 
     connectedCallback() {
@@ -140,7 +139,7 @@ customElements.define(
       // restore this target's contribution to the shared Button cluster.
       if (!once(this)) {
         this.#offer();
-        if (!quoted(this)) this.#watchActions();
+        this.#watchActions();
         return;
       }
       // Presentation, not input, so an exhibited pending change gets it too:
@@ -163,25 +162,20 @@ customElements.define(
       this.#accept = this.#button("accept");
       this.#reject = this.#button("reject");
       this.#renderControls();
-      this.#decisionActions = registerDecisionActions(
-        this,
-        () =>
-          [...this.#row.querySelectorAll(":scope > .lf-margin-button")].map(
-            (control) => ({
-              control,
-              label: control.querySelector(":scope > .lf-margin-button-label")
-                ?.textContent,
-            }),
-          ),
-        () =>
-          this.dataset.lfState
-            ? this.dataset.lfState === "accept"
-              ? "Accepted"
-              : "Rejected"
-            : "",
-      );
       this.#offer();
       this.#watchActions();
+    }
+
+    #watchActions() {
+      if (quoted(this) || !this.#row) return;
+      this.#stopActions ??= watchActions(this, null, () => {
+        if (!this.dataset.lfState) {
+          this.#paintAvailability();
+          return;
+        }
+        this.#renderControls();
+        this.#margin?.update();
+      });
     }
 
     disconnectedCallback() {
@@ -191,18 +185,6 @@ customElements.define(
       this.#margin = null;
       emphasized.delete(this);
       repaintEmphasis();
-    }
-
-    #watchActions() {
-      if (this.#stopActions) return;
-      this.#stopActions = watchActions(this, null, () => {
-        if (!this.dataset.lfState) {
-          this.#paintAvailability();
-          return;
-        }
-        this.#renderControls();
-        this.#margin?.update();
-      });
     }
 
     #offer() {
@@ -404,7 +386,32 @@ customElements.define(
           .find((node) => node.matches(".lf-margin-button") && node.checkVisibility())
           ?.focus({ preventScroll: true });
       }
-      this.#decisionActions?.update();
+      commands(
+        this,
+        "On a suggested change",
+        wanted
+          .filter((control) => control.matches?.(".lf-margin-button"))
+          .map((control) => {
+            const label = control.querySelector(
+              ":scope > .lf-margin-button-label",
+            ).textContent;
+            return {
+              id: `suggestion.${control.dataset.lfButtonKey}`,
+              keys: [],
+              control,
+              decision: label,
+              does: `${label} the suggested change`,
+              line: label.toLowerCase(),
+              run: () => control.click(),
+            };
+          }),
+        {
+          answer: () => {
+            if (!this.dataset.lfState) return "";
+            return this.dataset.lfState === "accept" ? "Accepted" : "Rejected";
+          },
+        },
+      );
     }
 
     // What the change is about, for the button's label and the notice: the

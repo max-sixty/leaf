@@ -206,3 +206,65 @@ It omits some inactive content and includes generated presentation, so keep it a
 evaluation evidence rather than another page authority. Extend shared construction
 semantics only where failures identify a missing fact; custom-renderer limits
 should remain explicit.
+
+### Measured reading gaps
+
+The feature-gallery reading inspected on 2026-09-04 contained 6,703 lines:
+184,247 bytes formatted, 79,290 bytes compact, against 26,732 bytes of source
+HTML. Its 314 content nodes held 13,925 bytes of text. Bound input values were
+only 2,258 bytes; repeated structure and edit metadata dominated this example.
+An in-memory variant inheriting ordinary source-edit defaults, including the id
+already present in attributes, reduced compact output to 60,816 bytes without
+removing content. Apply this inheritance before adding a summary interface, and
+retain exceptional event, data, and conversation authorities explicitly.
+
+A separate browser context established a visibility gap:
+
+| Selected tab | Visible sentence | Construction content | Event sequence |
+| --- | --- | --- | --- |
+| Current | The current sample route is under review. | Identical | 23 |
+| Context | The earlier route crossed the courtyard. | Identical | 23 |
+
+The tabs keep their selection locally; source and the event log cannot supply
+that observation. Closed disclosures and responsive visibility make the same
+distinction relevant elsewhere. The complete document reading should remain
+available, while questions about the current screen need browser observation.
+That observation must come from the reader's actual browser state or an explicit
+capture of it: opening another preview can select a different tab and cannot
+establish what the reader sees.
+Keep the observed element ids, projected-record labels, and `data-lf-origin`
+addresses beside rendered content so that seeing a value also identifies its
+construction. Reuse those existing declarations instead of adding a separate
+widget-summary implementation.
+
+A shared-source discriminator used two `lf-worktree` widgets and an unrelated
+third record, listed first and resembling one widget's record. The browser
+rendered the correct records and stamped their exact paths. The file reading
+repeated all three records under each widget with `path: []`, but its linked
+registry contract explicitly states that records are selected by authored widget
+id. The correct edit target is therefore recoverable without reading widget
+source. This demonstrates an indirect join and duplicated input, not missing
+semantics or a wrong-target ambiguity. Test whether cold agents follow that join
+before adding another abstraction; do not duplicate the renderer in Python.
+
+### Next paired check
+
+Use isolated copies of the same page and fixed tasks under three conditions:
+active HTML plus the compact state indexes; construction plus HTML; construction
+plus HTML and browser observation. Keep model settings and tool access equal
+apart from the information being compared.
+
+Cover a reader-owned draft overriding source, live versus pinned data, the
+shared-source record case, a chart or diagram referent, and locally selected
+versus hidden content. State the expected answer and mutation target before
+running each case. Check factual answers, the chosen edit owner, preservation of
+reader state, and actual context usage. Do not score visual resemblance or the
+number of JSON lines as comprehension.
+
+First classify each failure: missing information, inaccessible information, or
+information the agent misread. Missing view state calls for browser observation;
+an incorrect record selection calls for a construction link; repeated metadata
+calls for a smaller reading. A concise prose rendering is warranted only when
+the remaining failures show a benefit over these simpler changes. If HTML plus
+compact state performs as well as the expanded tree at lower context cost,
+remove the redundant tree output rather than preserving it as another default.

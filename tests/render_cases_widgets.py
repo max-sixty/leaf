@@ -84,6 +84,126 @@ graph LR
 </pre></lf-diagram>
 """,
 )
+GENERIC_VISUAL_PAGE = leaf_page(
+    "registered visual parts",
+    """
+<h1 id="title">Registered visual parts</h1>
+<lf-test-visual id="visual" parts="outer inner html"></lf-test-visual>
+""",
+)
+GENERIC_VISUAL_LAYER = {
+    "lf-test-visual": {
+        "description": "A generic rendered visual used to exercise Leaf's package contract.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "parts": {"type": "string", "minLength": 1},
+        },
+        "required": ["id", "parts"],
+        "additionalProperties": False,
+        "x-content": "none",
+        "x-upgrade": True,
+        "x-visual": {"parts": "parts"},
+        "x-example": '<lf-test-visual id="visual" parts="outer inner html"></lf-test-visual>',
+    }
+}
+GENERIC_VISUAL_WIDGETS = {
+    "lf-test-visual.js": """
+import { once, registerVisualParts } from '/runtime/widget-api.js';
+
+customElements.define('lf-test-visual', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    this.innerHTML = `<svg viewBox="0 0 240 120" width="240" height="120">
+      <g id="outer">
+        <rect id="outer-surface" x="10" y="10" width="220" height="100" rx="8"
+              fill="#dbeafe" stroke="#2563eb" stroke-width="2"></rect>
+        <line id="outer-decoration" x1="25" y1="36" x2="215" y2="36"
+              stroke="#2563eb" stroke-width="2"></line>
+        <g id="inner">
+          <path d="M120 44 L158 76 L120 104 L82 76 Z"
+                fill="#fef3c7"></path>
+          <line x1="100" y1="76" x2="140" y2="76"
+                stroke="#d97706" stroke-width="2"></line>
+        </g>
+      </g>
+    </svg>
+    <div id="html" style="width: 220px; padding: 8px;">
+      <span id="html-surface" style="display: inline-block; border-radius: 12px; padding: 4px 10px; background: #dbeafe;">HTML surface</span>
+      <span id="html-decoration"> · decoration</span>
+    </div>`;
+    const outer = this.querySelector('#outer');
+    const inner = this.querySelector('#inner');
+    const outerSurface = this.querySelector('#outer-surface');
+    const html = this.querySelector('#html');
+    const htmlSurface = this.querySelector('#html-surface');
+    this.parts = [
+      { id: 'outer', element: outer, surface: outerSurface, label: 'Outer store' },
+      { id: 'inner', element: inner, label: 'Inner decision' },
+      { id: 'html', element: html, surface: htmlSurface, label: 'HTML target' },
+    ];
+    this.visualRegistration = registerVisualParts(this, () => this.parts);
+    this.redraw = () => {
+      outerSurface.setAttribute('rx', '28');
+      this.visualRegistration.update();
+    };
+  }
+});
+"""
+}
+SHADOW_VISUAL_PAGE = leaf_page(
+    "shadow visual clipping",
+    """
+<h1 id="title">Shadow visual clipping</h1>
+<lf-test-shadow-visual id="shadow-visual" parts="wide"></lf-test-shadow-visual>
+""",
+)
+SHADOW_VISUAL_LAYER = {
+    "lf-test-shadow-visual": {
+        "description": "A clipped shadow-root visual used to exercise Leaf's package contract.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "parts": {"type": "string", "minLength": 1},
+        },
+        "required": ["id", "parts"],
+        "additionalProperties": False,
+        "x-content": "none",
+        "x-upgrade": True,
+        "x-shadow": True,
+        "x-visual": {"parts": "parts"},
+        "x-example": '<lf-test-shadow-visual id="shadow-visual" parts="wide"></lf-test-shadow-visual>',
+    }
+}
+SHADOW_VISUAL_WIDGETS = {
+    "lf-test-shadow-visual.js": """
+import { once, registerVisualParts, shadowStage } from '/runtime/widget-api.js';
+
+customElements.define('lf-test-shadow-visual', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    Object.assign(this.style, {
+      display: 'block',
+      width: '100px',
+      height: '60px',
+      overflow: 'hidden',
+    });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 220 60');
+    svg.setAttribute('width', '220');
+    svg.setAttribute('height', '60');
+    svg.style.cssText = 'display: block; max-width: none';
+    svg.innerHTML = `<rect id="wide-surface" x="10" y="10" width="200" height="40"
+      rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"></rect>`;
+    shadowStage(this, [svg]);
+    const surface = this.shadowRoot.querySelector('#wide-surface');
+    this.visualRegistration = registerVisualParts(this, () => [
+      { id: 'wide', element: surface, label: 'Clipped wide surface' },
+    ]);
+  }
+});
+""",
+}
 # Every supported structural diagram whose authored ids reach a drawn box. State
 # machines carry nested boxes and ER entities carry attribute tables, while sequence
 # and class diagrams exercise source ids outside the flowchart renderer.

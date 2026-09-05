@@ -103,22 +103,12 @@ function receipt(event, events) {
 customElements.define(
   "lf-record",
   class extends HTMLElement {
-    #stopHistory = null;
+    #stop = null;
     #signature = null;
 
     connectedCallback() {
-      once(this);
-      this.#watchHistory();
-    }
-
-    disconnectedCallback() {
-      this.#stopHistory?.();
-      this.#stopHistory = null;
-    }
-
-    #watchHistory() {
-      if (this.#stopHistory) return;
-      this.#stopHistory = watchHistory(this, (events) => {
+      if (!once(this) && this.#stop) return;
+      this.#stop = watchHistory(this, (events) => {
         const relevant = events.filter((event) => kinds.has(event.kind));
         const next = JSON.stringify(relevant);
         if (next === this.#signature) return;
@@ -135,6 +125,11 @@ customElements.define(
           );
         this.replaceChildren(list);
       });
+    }
+
+    disconnectedCallback() {
+      this.#stop?.();
+      this.#stop = null;
     }
   },
 );

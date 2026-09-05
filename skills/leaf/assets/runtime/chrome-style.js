@@ -187,18 +187,7 @@ export function chromeStyle({
       background: none; color: inherit; font: inherit; }
     .lf-btn, .lf-ui textarea, textarea.lf-ui { font: inherit; }
   }
-  /* Only .lf-btn needs a shared box because every other control is a flex item or
-     positioned. Selection goes off where nothing under a control is page text. */
-  .lf-btn { padding: 4px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: inherit; display: inline-block; }
   .lf-ui:is([role="button"], [role="checkbox"]):not([data-lf-said]):not(:has([data-lf-said])) { user-select: none; -webkit-user-select: none; }
-  .lf-btn:hover { background: var(--chip); }
-  .lf-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--paper); }
-  .lf-btn.primary:hover { filter: brightness(.92); }
-  /* Two selectors, two mechanisms, one look: the platform's own on the banner's real
-     buttons, and the attribute wireInput sets, which is the only one a span press can
-     wear. */
-  .lf-btn:disabled, .lf-btn[aria-disabled="true"] { opacity: .55; cursor: default; }
-  .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
   /* Pills remain the compact label shape used by chrome and conversation surfaces.
      Target actions use .lf-margin-button below: one stricter control type shared by
      content widgets, page-map information, and communication gestures. */
@@ -594,10 +583,11 @@ ${MARK_RULES}
      and not the mark's own "open this thread". */
   body:is(.lf-aiming, .lf-design) .lf-mark-el { cursor: default; }
   body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
-  /* A semantic SVG part keeps these classes for hit-testing and thread ownership, while
-     the chrome layer draws their shared geometry above the package's own paint. Suppress
-     only the rectangular representation; ordinary elements stay on the outline path. */
-  :is(.lf-mark-el, .lf-react-el).lf-shaped-mark { outline: none; }
+  /* A semantic visual part keeps these classes for hit-testing and thread ownership,
+     while the chrome layer draws its registered surface contour or rectangular fallback
+     above the package's own paint. Suppress only that duplicate representation;
+     ordinary anchors stay on the outline path. */
+  :is(.lf-mark-el, .lf-react-el, .lf-action-target).lf-shaped-mark { outline: none; }
   /* Keyboard access to a picture is runtime chrome beside the provider's drawing rather
      than a role written onto that drawing. Resting it is a conventional clipped control;
      focus gives it a skip-link-style face under the banner. */
@@ -815,8 +805,7 @@ ${MARK_RULES}
     .lf-dot.offline { background: var(--danger); }
     .lf-preview { flex: none; max-width: min(36vw, 240px); padding: 2px 7px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      border: 1px solid var(--border-2); border-radius: 999px;
-      background: var(--chip); color: var(--ink-2); font: inherit; font-size: var(--t-6);
+      font: inherit; font-size: var(--t-6);
       cursor: pointer; }
     .lf-preview:hover { border-color: var(--accent); color: var(--ink); }
     .lf-preview:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -1467,8 +1456,12 @@ ${MARK_RULES}
     .lf-visual-marks { display: contents; }
     .lf-visual-mark { position: absolute; display: none; pointer-events: none;
       --lf-shape-ink: var(--mark-ink); --lf-shape-stroke: 1px;
-      --lf-shape-dash: none; }
-    .lf-visual-mark.lf-visual-mark-reaction { --lf-shape-dash: 3px 2px; }
+      --lf-shape-dash: none;
+      border: var(--lf-shape-stroke) solid var(--lf-shape-ink); }
+    .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important; }
+    .lf-visual-mark.lf-visual-mark-reaction {
+      --lf-shape-dash: 3px 2px; border-style: dashed; }
+    .lf-visual-mark.lf-visual-mark-action { --lf-shape-ink: var(--accent); }
     .lf-visual-mark:is(.lf-visual-mark-hover, .lf-visual-mark-here) {
       --lf-shape-stroke: var(--here-ring-w); }
     .lf-visual-mark:is(.lf-visual-mark-pending, .lf-visual-mark-here) {

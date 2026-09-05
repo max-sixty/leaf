@@ -2499,10 +2499,18 @@ def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
         == ["pressed", "neutral", "neutral"] * 4
     )
 
-    def sequence_geometry(locator):
-        return locator.evaluate(
-            """sequence => {
+    def sequence_geometry():
+        # Chord progress repaints the key line. Read only a sequence that is standing,
+        # and capture its whole box in that same browser task rather than retaining the
+        # element across the paint that replaces it.
+        return page.wait_for_function(
+            """() => {
+              const sequence = document.querySelector(
+                '.lf-keyline .lf-key[data-lf-commands~="navigation.link"]'
+                + ' > .lf-key-sequence');
+              if (!sequence) return false;
               const box = sequence.getBoundingClientRect();
+              if (!box.width || !box.height) return false;
               return {
                 width: box.width,
                 height: box.height,
@@ -2512,15 +2520,18 @@ def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
                 }),
               };
             }"""
-        )
+        ).json_value()
 
     def link_geometry():
-        return page.locator(CHIPS).evaluate_all(
-            """chips => chips.filter(chip => {
+        return page.wait_for_function(
+            """() => {
+              const chips = [...document.querySelectorAll('.lf-addresses > .lf-address')]
+                .filter(chip => {
                 const keys = [...chip.querySelectorAll('kbd')].map(key => key.textContent);
                 return keys[0] === 'g' && keys[1] === 'h';
-              })
-              .map(chip => {
+              });
+              if (chips.length !== 2) return false;
+              const geometry = chips.map(chip => {
                 const box = chip.getBoundingClientRect();
                 return {
                   text: chip.textContent,
@@ -2533,10 +2544,15 @@ def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
                     return {left: at.left - box.left, width: at.width, height: at.height};
                   }),
                 };
-              })"""
-        )
+              });
+              return geometry.every(
+                item => item.width && item.height
+                  && item.keys.every(key => key.width && key.height))
+                ? geometry : false;
+            }"""
+        ).json_value()
 
-    initial_legend_geometry = sequence_geometry(legend)
+    initial_legend_geometry = sequence_geometry()
     initial_link_geometry = link_geometry()
     assert len(initial_link_geometry) == 2
 
@@ -2555,7 +2571,7 @@ def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
         )
         == ["pressed", "pressed", "neutral"] * 2
     )
-    assert sequence_geometry(legend) == initial_legend_geometry, (
+    assert sequence_geometry() == initial_legend_geometry, (
         "the key-line chord moved its keys when h became pressed"
     )
     assert link_geometry() == initial_link_geometry, (
@@ -2801,8 +2817,8 @@ def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
 
-    first = page.locator('.lf-help-command[data-lf-command="decision.activate-1"]')
-    second = page.locator('.lf-help-command[data-lf-command="decision.activate-2"]')
+    first = page.locator('.lf-help-command[data-lf-command="option.choose-1"]')
+    second = page.locator('.lf-help-command[data-lf-command="option.choose-2"]')
     expect(first).to_have_text("Activate the “Keep the store” action")
     expect(second).to_have_text("Activate the “Signed tokens” action")
     expect(
@@ -2841,7 +2857,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
 
     page.keyboard.press("?")
     page.keyboard.press("?")
-    edit = page.locator('.lf-help-command[data-lf-command="decision.activate-1"]')
+    edit = page.locator('.lf-help-command[data-lf-command="draft.edit"]')
     expect(edit).to_have_text("Activate the “Edit…” action")
     edit.click()
     expect(page.locator("#note textarea")).to_be_focused()
@@ -2850,9 +2866,10 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     save.focus()
     expect(save).to_be_focused()
     page.keyboard.press("?")
-    assert "1–2\nSave / Cancel" in key_line(page)
+    assert re.search(r"(⌘⏎|Ctrl\+⏎) / 1\nSave / Cancel", key_line(page))
+    expect(save).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
     page.keyboard.press("?")
-    cancel = page.locator('.lf-help-command[data-lf-command="decision.activate-2"]')
+    cancel = page.locator('.lf-help-command[data-lf-command="draft.cancel"]')
     expect(cancel).to_have_text("Activate the “Cancel” action")
     cancel.click()
     expect(page.locator("#note textarea")).to_have_count(0)
@@ -3556,13 +3573,13 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
     page, errors = open_page(browser, serve(NOTED_PAGE))
     page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           const host = document.createElement('section');
           host.id = 'key-owning-widget';
           const box = document.createElement('textarea');
           host.append(box);
           document.querySelector('main').append(host);
-          keys(host, 'Around a text box', [
+          commands(host, 'Around a text box', [
             {id: 'test.widget',
              keys: ['a', 'Enter', 'Shift+ArrowLeft', 'Mod+z', 'Escape'],
              does: 'Work the widget', line: 'work widget',
@@ -3600,7 +3617,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     page, errors = open_page(browser, serve(NOTED_PAGE))
     answers = page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           const { activeRows, answers: bindingAnswers, canonicalBinding } =
             await import('/runtime/keyboard/bindings.js');
           const { createReturnStack } =
@@ -3611,7 +3628,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             button.id = id;
             document.querySelector('main').append(button);
             try {
-              keys(button, id, rows);
+              commands(button, id, rows);
               return 'declared';
             } catch (error) {
               return error.message;
@@ -3633,7 +3650,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             document.querySelector('main').append(button);
             let declaration = 'declared';
             try {
-              keys(button, id, [
+              commands(button, id, [
                 {id: 'test.kept-first', keys: ['F4'], does: 'First kept meaning', line: 'first', run: () => {}},
                 {id: 'test.kept-second', keys: ['F4'], does: 'Second kept meaning', line: 'second', run: () => {}},
               ], when);
@@ -3729,6 +3746,21 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               {id: 'test.named-space', keys: ['Space'], does: 'Named space binding',
                line: 'work', run: () => {}},
             ]),
+            invalidDecision: declare('invalid-decision', [
+              {id: 'test.invalid-decision', keys: [], control: document.body,
+               decision: true, does: 'Invalid decision role'},
+            ]),
+            invalidDecisionRoute: declare('invalid-decision-route', [
+              {id: 'test.invalid-decision-family', keys: ['ArrowLeft'],
+               control: document.body, does: 'Invalid decision route', routes: [{
+                 id: 'test.invalid-decision-route', binding: 'ArrowLeft',
+                 decision: true, does: 'Invalid decision route',
+               }]},
+            ]),
+            emptyDecision: declare('empty-decision', [
+              {id: 'test.empty-decision', keys: [], control: document.body,
+               decision: '  ', does: 'Empty decision action name'},
+            ]),
             invalidReturnFrame: declare('invalid-return-frame', [
               {id: 'test.invalid-return-frame', keys: ['F8'], does: 'Enter badly',
                line: 'enter', returnFrame: {}, run: () => {}},
@@ -3761,6 +3793,13 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     }, answers
     assert "write the canonical Mod+Shift+x" in answers["noncanonical"], answers
     assert 'write the canonical " "' in answers["namedSpace"], answers
+    expected_decision_error = (
+        "invalid Decision action name true; expected a non-empty string or function "
+        "returning one"
+    )
+    assert expected_decision_error in answers["invalidDecision"], answers
+    assert expected_decision_error in answers["invalidDecisionRoute"], answers
+    assert "invalid Decision action name" in answers["emptyDecision"], answers
     assert "returnFrame that is not a function" in answers["invalidReturnFrame"], (
         answers
     )
@@ -3780,14 +3819,14 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     # belong to separate focus locations, so they are not a conflict in either scope.
     page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           let first;
           for (const label of ['First', 'Second']) {
             const button = document.createElement('button');
             button.textContent = label;
             document.querySelector('main').append(button);
             if (!first) first = button;
-            keys(button, 'Repeated controls', [
+            commands(button, 'Repeated controls', [
               {id: 'test.repeated', keys: ['F3'], does: () => `Work ${label}`,
                line: 'work', run: () => button.dataset.fired = '1'},
               ...(label === 'Second' ? [{
@@ -4052,9 +4091,9 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
 
     refused = page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           try {
-            keys(document.body, 'A project scope', [
+            commands(document.body, 'A project scope', [
               { id: 'test.no-line', keys: ['F2'],
                 does: 'a press with nothing to say for itself',
                 run: () => {} },
@@ -4075,9 +4114,9 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # one thing no surface can project, so it is refused where declarations enter.
     modified = page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           try {
-            keys(document.body, 'A project scope', [
+            commands(document.body, 'A project scope', [
               { id: 'test.bad-modifier', keys: ['Ctrl+k'],
                 does: 'a modifier the matcher never asks about',
                 line: 'a key that is really just k', run: () => {} },
@@ -4096,10 +4135,10 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # both the reference and key line omit from their shared presentation projection.
     routed = page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           const declare = row => {
             try {
-              keys(document.body, 'A routed project scope', [row]);
+              commands(document.body, 'A routed project scope', [row]);
               return 'declared';
             } catch (e) {
               return e.message;
@@ -4140,13 +4179,13 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # uses this for the Tab that closes it before the browser moves focus past its door.
     native = page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           const owner = document.createElement('div');
           owner.tabIndex = -1;
           document.body.append(owner);
           owner.focus();
           let ran = 0;
-          keys(owner, 'A native companion', [
+          commands(owner, 'A native companion', [
             { id: 'test.native-companion', keys: ['F2'],
               does: 'Run before the browser', line: 'run first',
               native: true, run: () => ran++ },
@@ -4174,12 +4213,12 @@ def test_a_partially_shadowed_row_keeps_each_other_live_binding(browser, serve):
     page, errors = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { keys } = await import('/runtime/widget-api.js');
+          const { commands } = await import('/runtime/widget-api.js');
           const target = document.createElement('button');
           target.id = 'local-down';
           target.textContent = 'Local down';
           document.querySelector('main').prepend(target);
-          keys(target, 'On local down', [{
+          commands(target, 'On local down', [{
             id: 'test.local-down', keys: ['d'], does: 'Local down', line: 'local down',
             run: () => { target.dataset.pressed = '1'; },
           }]);

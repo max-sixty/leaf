@@ -84,14 +84,14 @@ import {
   dataBody,
   once,
   offer,
+  paintKeys,
   quoted,
   revisionLabel,
-  registerDecisionActions,
   registerMarginItem,
   sendAction,
   sendDraft,
   notice,
-  keys,
+  commands,
   saveDraft,
   loadDraft,
   measure,
@@ -162,7 +162,6 @@ customElements.define(
     #failed = false;
     #failureReceipt = null;
     #margin = null;
-    #decisionActions = null;
     #buttonReserve = 0;
     #stopActions = null;
     #stopDraft = null;
@@ -171,7 +170,8 @@ customElements.define(
       if (!once(this)) {
         this.#offer();
         this.#paintAvailability();
-        if (!quoted(this)) this.#watch();
+        this.#watchActions();
+        this.#watchDraft();
         return;
       }
 
@@ -193,14 +193,23 @@ customElements.define(
       // never offers it as the next press — the rule that keeps ⌥ click and F7 off it.
       // Declared on the element the reader stands on before the box exists, so opening a
       // draft is in the reference from the moment the page has one.
-      keys(this, "On a draft", [
-        {
-          id: "draft.edit",
-          keys: [],
-          label: "click or ✎",
-          does: "Edit the text in place",
-        },
-      ]);
+      commands(
+        this,
+        "On a draft",
+        [
+          {
+            id: "draft.edit",
+            keys: [],
+            control: () => this.#pencil,
+            decision: "Edit…",
+            does: "Edit the text in place",
+            line: "edit",
+            when: () => !this.#ta,
+            run: () => this.#pencil.click(),
+          },
+        ],
+        { answer: () => this.#body?.textContent?.trim() || "Empty" },
+      );
 
       this.#pencil = this.#marginButton(
         "edit",
@@ -243,16 +252,6 @@ customElements.define(
       this.#row.style.opacity = "0";
       this.#row.append(this.#save, this.#cancel);
       this.#offer();
-      this.#decisionActions = registerDecisionActions(
-        this,
-        () =>
-          (this.#ta ? [this.#save, this.#cancel] : [this.#pencil]).map((control) => ({
-            control,
-            label: control.querySelector(":scope > .lf-margin-button-label")
-              ?.textContent,
-          })),
-        () => this.#body.textContent || "Empty",
-      );
       // Establish availability before the action watcher makes its first synchronous
       // reading, which no longer notifies. Every later transition this paints — failed,
       // sending, engaged — already runs through a notifying `#paintButtons`, so the
@@ -269,9 +268,9 @@ customElements.define(
         this.#row.replaceChildren(this.#pencil);
         this.#row.style.opacity = "";
         this.#margin?.update();
-        this.#decisionActions.update();
+        paintKeys();
       });
-      this.#watch();
+      this.#watchActions();
 
       // The box is the door. A draft is the one block on the page whose whole purpose is
       // that the reader rewrites it, so a press anywhere in it opens the editor with the
@@ -297,6 +296,15 @@ customElements.define(
         this.#open(undefined, caretAt(this.#body, ev.clientX, ev.clientY));
       });
 
+      // One edit, however many tabs are open on the page. An open box follows what is
+      // typed in another; a closed one stays closed, because news arriving has no gesture
+      // behind it and the box would open under whatever the reader is doing here — it
+      // takes up the words at the next opening either way (#open reads the store). A
+      // settlement is the case that does move this tab: the words are sent or discarded,
+      // so an open box holding them has nothing left to hold, and closing it lets replay
+      // paint whatever the log ends up saying.
+      this.#watchDraft();
+
       // A recovered edit outranks the authored text: the user typed it and never
       // got it sent, so it must survive exactly as the composer's drafts do.
       const pending = loadEdit(this.id);
@@ -313,18 +321,19 @@ customElements.define(
       this.#margin = null;
     }
 
-    #watch() {
-      if (!this.#stopActions) {
-        this.#stopActions = watchActions(this, "edit", (actions) =>
-          this.#renderHistory(actions),
-        );
-      }
-      if (!this.#stopDraft) {
-        this.#stopDraft = watchDraft(ctx(this.id), (text) => {
-          if (text === null) this.#close(false);
-          else if (this.#ta && this.#ta.value !== text) this.#ta.value = text;
-        });
-      }
+    #watchActions() {
+      if (quoted(this) || !this.#row) return;
+      this.#stopActions ??= watchActions(this, "edit", (actions) =>
+        this.#renderHistory(actions),
+      );
+    }
+
+    #watchDraft() {
+      if (quoted(this) || !this.#row) return;
+      this.#stopDraft ??= watchDraft(ctx(this.id), (text) => {
+        if (text === null) this.#close(false);
+        else if (this.#ta && this.#ta.value !== text) this.#ta.value = text;
+      });
     }
 
     #offer() {
@@ -416,7 +425,7 @@ customElements.define(
       }
       if (notify) {
         this.#margin?.update();
-        this.#decisionActions?.update();
+        paintKeys();
       }
     }
 
@@ -527,7 +536,7 @@ customElements.define(
       // since the reader standing here is still on a draft. Both cells are read where they
       // are painted: which way the press goes is something the reader can see, and which
       // keys it takes is the scope's own answer for where this box is standing.
-      keys(summary, "On a draft", [
+      commands(summary, "On a draft", [
         {
           id: "draft.history.toggle",
           keys: () => DISCLOSE(summary),
@@ -588,14 +597,26 @@ customElements.define(
       // discard) — and being the innermost scope's is what keeps the runtime's own rung
       // from running behind it and closing the panel too, which the widget used to have to
       // prevent by consuming the press.
-      keys(ta, "On a draft", [
+      commands(ta, "On a draft", [
         {
           id: "draft.save",
           reach: "in an open draft editor",
           keys: ["Mod+Enter"],
+          control: this.#save,
+          decision: () => (this.#failed ? "Retry" : "Save"),
           does: () => (this.#failed ? "Retry saving the edit" : "Save the edit"),
           line: () => (this.#failed ? "retry" : "save"),
           run: () => this.#save.click(),
+        },
+        {
+          id: "draft.cancel",
+          reach: "in an open draft editor",
+          keys: [],
+          control: this.#cancel,
+          decision: "Cancel",
+          does: "Cancel the edit",
+          line: "cancel",
+          run: () => this.#cancel.click(),
         },
         {
           id: "draft.close",

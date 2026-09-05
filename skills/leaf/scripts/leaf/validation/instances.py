@@ -89,6 +89,27 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
                 )
             if rec["text"]:
                 errors.append(f"{where}: loose text between its items isn't allowed")
+        for child_tag, constraint in entry.get("x-children", {}).items():
+            attribute = constraint["one-each"]
+            values = registry[child_tag]["properties"][attribute]["enum"]
+            direct = [
+                child
+                for child in lf_elements
+                if child["holder"] is rec
+                and child["parent"] == tag
+                and child["tag"] == child_tag
+            ]
+            counts = {
+                value: sum(child["attrs"].get(attribute) == value for child in direct)
+                for value in values
+            }
+            missing = [value for value, count in counts.items() if count == 0]
+            repeated = [value for value, count in counts.items() if count > 1]
+            if missing or repeated:
+                errors.append(
+                    f"{where}: must contain exactly one direct <{child_tag}> for "
+                    f"each `{attribute}` value; missing {missing}, repeated {repeated}"
+                )
     return errors
 
 

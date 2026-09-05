@@ -1,4 +1,81 @@
-/* Retained comment-panel list reconciliation. */
+/* Retained comment-panel list reconciliation.
+
+   `renderThreads` holds one live card through every list mutation. It chooses the card
+   under the pointer while the pointer is in the list, then the card containing focus,
+   then the topmost visible card. It records later visible cards before the mutation
+   and refreshes their baselines after each correction, so a live successor can take
+   over if the first leaves or becomes hidden. The held `paintAcknowledgments` call
+   covers claim-only mutations too. The list follows changes in the card's content
+   position, keeping reflow out from under the pointer without fighting an intentional
+   scroll. Browser scroll anchoring is disabled only for the life of a hold so those two
+   authorities cannot compensate the same change; outside a held mutation the browser
+   keeps its native safety net. The correction runs after each mutation and on every
+   frame of a resolution fold; fold completion removes its node through
+   `renderThreads`, under the same hold.
+
+   `pageOutline` reads the page's own headings, and `groupFor` names the run of threads
+   under each (conversation/placement.js). A run's heading is one node kept across
+   reconciles and stuck to the top of the list while its run scrolls past. A stuck box
+   is held by its margin edge inside the scroller's content, so the room above a
+   heading is its own padding and the pin is drawn back over `--lf-list-inset`, the
+   property the list spends its own inset from. A margin there, or a `top` of zero,
+   leaves a strip the list scrolls through in full view.
+
+   Being pinned is `.lf-pinned`, worn by the run headings and by the resolved
+   disclosure's summary, which takes the slot from the last heading when the reader
+   reaches it. One class carries the mechanics, so the slot cannot move in one of them;
+   it is also what `renderThreads` sweeps to answer how much of the list's top stands
+   covered. That answer is the one number in the list's `scroll-padding` that CSS
+   cannot work out, because a long heading wraps — the tallest is written to
+   `--lf-head-room`, and a `ResizeObserver` on the list writes it again when the reader
+   draws the panel narrower and a heading wraps — a drag posts no event, so a reconcile
+   never comes. Without it a walk lands threads under the heading with the opening
+   words of the comment behind it, which is what
+   `test_no_focus_ring_the_keyboard_lands_on_is_cut_or_covered` holds.
+
+   The measurement is taken only while the panel is open, and this is a rule rather
+   than an optimization. Shut, the panel is `display: none` and every heading measures
+   zero, so the number written is not the room a heading takes but the absence of a
+   panel. Taking it anyway costs a forced layout on every reconcile, for a page whose
+   reader may never open the panel at all — and that cost is not notional: it delayed
+   an event's acknowledgement past the window an undo is offered in, so a press the key
+   line had just promised was refused, which
+   `test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll` caught
+   under a loaded machine and nowhere else. The observer covers the reopen, a box
+   arriving being a resize, so the number is written at the first moment it can be
+   right. A retained value from the last open panel is a real measurement and stands
+   until then; the property is unset until the first open, where the `0px` fallback in
+   the rule is the honest answer.
+
+   Reserved room only reaches a control that lands in it, and a press lands nowhere:
+   the browser focuses the card under the pointer and scrolls nothing. So the thread
+   list lands a thread that takes the focus, whoever moved it, and that is the row the
+   ownership table carries. Without it a list nudged a dozen pixels leaves the first
+   card of a run under its own stuck heading by the width of an inset ring, which is a
+   card with three sides. A press lands when it is over rather than as focus arrives,
+   because focus arrives on the way down and the press may be the start of a drag
+   across the comment's own words; a drag that ends in the thread takes no landing at
+   all. What it lands is the thread the completed gesture leaves the reader in, not the
+   one the focus moved to, so a press on the thread they are already standing in —
+   which moves no focus — brings it back like any other.
+
+   This is an arrival rule and not a promise about the paint. Scrolling the list under
+   a standing thread cuts its ring again, and nothing re-lands it: the reader is moving
+   away from what they were standing in, and a control under something is a fact about
+   where it was put. A thread taller than the list's own scrollport is the excepted
+   case in both directions — there is no scroll that shows all of it, which is the same
+   thing the ring reading declines to report. Landing in a reply inside such a thread
+   reveals its composer and actions together; an editor too tall to fit with its
+   actions reveals the focused control itself.
+
+   `test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered`,
+   `test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading`, and
+   `test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` hold this
+   for the panel's own walk, for a press inside its list, and for every shipped page's
+   tab order. They ask one question: where the control can be seen, so can the ring
+   that names it. A control that itself stands under a fixed bar is not a finding —
+   that is a fact about where it was put — and neither is a box too tall for the region
+   it is in. */
 export function createConversationThreadList(dependencies) {
   const {
     ago,

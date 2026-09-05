@@ -1,5 +1,18 @@
-/* Landing in a conversation: the return a keyboard-entered box hands the reader back
-   through.
+/* Landing the reader in a conversation: which node a reveal shows, and where focus
+   goes.
+
+   `showThread` reveals a directly requested thread or message. It clears a narrowing
+   that hides the destination and finishes an outgoing resolution fold before opening
+   the resolved disclosure. A thread opens in its reply box, or on its card when
+   resolved; a message takes focus at its own words so Tab reaches its controls. A
+   thread too tall for its scrollport starts at the earliest complete content block
+   that still leaves its reply area visible. That puts the first visible content on a
+   clean boundary instead of leaving an arbitrary partial message line below the pinned
+   heading. The transient arrival flash belongs to the revealed target — short card,
+   reply area, message, or oversized editor — rather than to a long card spanning
+   beyond the scrollport. The explicit `t`/`T` walk remains on cards; Enter starts a
+   reply and Escape returns to the card. An accepted anchored comment continues in the
+   open Threads panel, widening a filter that would hide it.
 
    A keyboard-entered box hands the reader back through its captured return frame.
    `boxReturnFrame` and `standingConversation` climb the same conversation relation, so

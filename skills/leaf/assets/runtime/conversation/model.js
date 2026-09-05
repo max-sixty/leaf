@@ -1,4 +1,13 @@
-/* Conversation structure and turn-taking projected by the server. */
+/* Conversation structure and turn-taking projected by the server.
+
+   This reads the log by `isReaction`, `spoken`, `turns`, and `bareReaction`, the names
+   `events.py` reads it by, and answers `reactionsOn` from the fold it last built. The
+   panel lists `conversational` threads only; a card shows its turns and its root, so a
+   thread that grew out of a reaction opens on the mark, whose body
+   conversation/messages.js writes as the glyph and its word. Whose turn a thread is
+   (`awaitsReader`, `awaitsAgent`) is the server's projection, read here rather than
+   derived: the banner's decision count and the panel's narrowing ask the same question
+   and must get one answer. */
 import { sameAnchor } from "../anchors.js";
 
 export function createThreadModel({ registry, runtime }) {

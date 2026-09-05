@@ -1,4 +1,78 @@
-/* The page's one DOM reading and quote resolver. */
+/* The page's one DOM reading and quote resolver.
+
+   Passages use one representation: ordered segments `{node, start, end}` over composed
+   text. `textNodesUnder` produces the segments, and quote capture, quote resolution,
+   reading position, item labels, and version-comparison readings all use them. Never
+   introduce another text walk for one of those jobs.
+
+   Two readings are intentionally different:
+
+   - `says` is what the rendered page tells the reader. It includes registry or
+     module-generated words declared as part of the page. A behavior module reads
+     authored or user-facing words with `says`, never raw `textContent`.
+   - `wrote` is what the author placed in the version. It excludes generated runtime
+     and widget words and is appropriate for version comparison.
+
+   Both are bounded by the root they are handed. `.lf-ui` says the runtime built a node
+   rather than the author, and a reading rooted at the document takes that straight.
+   Rooted at an element it is a different sentence, and the difference is the whole of
+   what a widget in a message needs: such a widget stands inside the thread panel, so
+   the panel is `.lf-ui` over every word it says, and an unbounded reading has it saying
+   nothing at all. Chrome above the root is not the root's apparatus; chrome inside it
+   still is. A page-rooted walk does not move.
+
+   Keep them as named readings. A boolean passed to one ambiguous reader makes callers
+   choose semantics at each call site.
+
+   `GENERATED` is `.lf-ui, [data-lf-gen]`. It marks words that are not authored.
+   `data-lf-said` is nearer than `.lf-ui` and declares that a label inside
+   chrome-looking structure is still one of the page's words. This lets a tab label or
+   draft heading remain quotable while runtime controls stay outside the passage.
+   `relabel` writes the said marker; `offer` writes the control marker. They are
+   independent facts and neither clears the other.
+
+   A label copied off another element on the page is a route to those words rather
+   than a second place the page says them. Say it once: a contents link, a roster row
+   naming a worker, any generated index entry stays chrome, and the passage lives where
+   the page speaks it. Two copies of one label carry the same text and, being fenced,
+   the same empty context, so neither can be told from the other and a drag across
+   either detaches. (`relabel`'s third answer, `says: "echo"`, is what such a route
+   declares; widget-elements.js says how.)
+
+   Use `inChrome` when the question is whether an element belongs to the runtime's
+   document layer. Use `.lf-ui` when the question is whether words or styling are
+   runtime apparatus. Use `data-lf-offer` when the question is whether something is an
+   injected control. These markers are not interchangeable; `pageWords` is the
+   conjunction of the first two, and the comment over it says which hole each half
+   alone leaves.
+
+   The search pattern uses only a bounded lead (`LEAD_CAP`) to locate candidates.
+   `confirmRest` walks the remainder against passage text. Do not truncate the stored
+   quote to satisfy a regular-expression limit; the stored quote is the passage the
+   reader selected.
+
+   Shadow trees: only open roots declared through `x-shadow` join the page reading.
+   `pageShadowRoots` (shadow.js) enumerates them. `textNodesUnder` crosses those roots,
+   `pageRange` requests them from `getComposedRanges`, and `upFrom`, `containsAcross`,
+   and `closestAcross` cross back to the host.
+
+   Identity crosses the same boundary. `elementById` searches the document and declared
+   open roots. `pageQueryAll` clears or queries marks everywhere the runtime may write.
+   `focused` (keyboard/scopes.js) descends through retargeted `document.activeElement`
+   until it finds the actual control.
+
+   Hit testing asks two different questions. `elementFromPointAcross` and `markAt`
+   (anchors.js) may descend into a shadow root when the exact marked text matters.
+   `aimedTarget` (composing/aim.js) may keep document retargeting when the host is the
+   semantic item. Choose the reading by the question, not by convenience.
+
+   The page's widget inventory remains the document's declared inventory. Do not
+   silently discover nested widget families inside shadow roots as new top-level
+   content. A module that stages a declared widget inside a shadow tree still owes the
+   visible words promised by that widget's entry. `silentWords`, in the render checks,
+   examines open roots and catches promised words that are absent, clipped, or hidden.
+   It also catches a module that replaces declared words after the shared render
+   passes. */
 let publishedPassages;
 // The page's own text blocks: what a reader takes in as one unit of prose, and the
 // grain every question about "where in the document is this" is answered at — which

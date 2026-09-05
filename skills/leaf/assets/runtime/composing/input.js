@@ -1,9 +1,14 @@
 // One helper wires every durable text surface: the general box, each per-thread reply,
-// and the compact anchored composer. They persist a draft on each keystroke, send with
-// Mod+Enter, and can't be double-sent by an impatient second click.
-// Growing with their content is the stylesheet's job (field-sizing), not this file's.
-// wire() returns a sync() the caller runs after setting .value programmatically, so the
-// send button and any containing chrome agree with what's in the box.
+// and the compact anchored composer. `wireInput` gives runtime textareas one input
+// contract: persist each edit, keep the send button and placeholder current, prevent
+// parallel sends of one local surface (an impatient second click), and send with
+// `Mod+Enter`. Enter retains the textarea's native newline. The stylesheet owns
+// textarea growth through `field-sizing: content`, within the room supplied by floating
+// placement; script does not derive textarea height from its text. wire() returns a
+// sync() the caller runs after setting .value programmatically, so the send button and
+// any containing chrome agree with what's in the box: that sync refreshes the composer's
+// placement for typed and programmatic edits alike, including drafts mirrored from
+// another tab.
 export function createInput({ focused, keys, notice, spell }) {
   // The send binding, and the register's spelling of it: the placeholder, the button's
   // tooltip and the row a box declares all read one string.

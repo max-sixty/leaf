@@ -14,7 +14,8 @@ export function createThreadPlacement(dependencies) {
   //
   // Where a thread stands is where the anchor pass resolved its passage to (`placed`) — the
   // same resolution the marks are drawn from, so the list and the page cannot disagree about
-  // which of two threads comes first.
+  // which of two threads comes first. `inPageOrder` sorts by that placement and breaks ties
+  // by log order.
   //
   // A passage this version has rewritten falls back to the element the anchor names, which
   // is the whole point of an anchor carrying one: an id survives a rewrite that takes the

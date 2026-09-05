@@ -1,4 +1,4 @@
-import { scheduleMarginLayout } from "./margin-layout.js";
+import { layoutMarginRows } from "./margin-layout.js";
 
 // The width the panel stands at for a reader who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
@@ -279,9 +279,8 @@ export function createChromeLayout({
     if (played) {
       const settled = () => {
         if (shellMotion === played) shellMotion = null;
-        // The carry changes position without another resize. Rows measured before
-        // it finishes may have docked outside the final shell's available margin.
-        scheduleMarginLayout();
+        // The carry changes position without another resize; the repaint's frames lay
+        // the margin's rows out along it and once more at rest (repaintMovingShell).
         scheduleShellRepaint();
       };
       played.finished.then(settled, settled);
@@ -402,6 +401,14 @@ export function createChromeLayout({
   function repaintMovingShell() {
     shellFrame = 0;
     pageShifted();
+    // The margin's rows are placed off the column's box, and the column's box is in
+    // flight: the body's width change laid them out on the carry's first frame, against
+    // a column a few pixels into its move, and nothing asked again once it had arrived —
+    // a resize observer hears a box change size, not place. So the rows stood where the
+    // column had been until the next poll or pointer move, over the prose the column had
+    // moved under them. Laid out on each carried frame, they ride with the column, and
+    // the last call here is the one taken at rest.
+    layoutMarginRows();
     if (shellMotion?.playState === "running")
       shellFrame = requestAnimationFrame(repaintMovingShell);
   }

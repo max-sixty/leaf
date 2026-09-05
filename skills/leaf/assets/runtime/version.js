@@ -475,7 +475,7 @@ export function createVersion({
       // that says the same thing in words. A grid sibling rather than a child, a
       // button inside a button being no markup at all, and named in full: the glyph
       // is the eye's shorthand and says nothing aloud.
-      const press = el("button", "lf-version-diff", "Δ");
+      const press = el("button", "lf-version-diff", "Δ changes");
       press.setAttribute("role", "menuitemcheckbox");
       press.dataset.lfVersion = entry.version;
       press.setAttribute("aria-label", `Mark what changed since v${entry.version}`);

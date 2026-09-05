@@ -16,7 +16,7 @@ export function createNotifications({ liveEl, noticeEl }) {
   }
 
   // A notice is the status line saying something else for a moment: the acknowledgement
-  // of a gesture ("Moved to Done — recorded"), an arrival ("Updated to v3"), a refusal
+  // of a gesture ("Moved to Done — sent"), an arrival ("Updated to v3"), a refusal
   // ("Nothing to send — the box is empty"). It stands in the banner's status slot in the
   // line's place and the line returns when it fades, so the page has one place for news
   // — the corner the reader already watches for its state — rather than that corner and a

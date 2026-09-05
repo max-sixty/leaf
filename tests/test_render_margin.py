@@ -4228,3 +4228,73 @@ def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, ser
 
     assert errors == []
     page.close()
+
+
+def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serve):
+    """The margin's rows ride the shell carry and are laid out once more at rest.
+
+    Closing Threads carries the reading column back across the window. The body's
+    width change laid the margin rows out on the carry's first frame, against a
+    column a few pixels into its move, and nothing asked again once it had arrived:
+    a resize observer hears a box change size, not place. So two thread Buttons
+    stood over the prose the column had moved under them, until the next poll or
+    pointer move — a screenshot a blind drive took, and the kind of frame the
+    movement tests do not compare because no control was pressed.
+
+    On the shipped page it happened on: a thread on plain prose stands in the
+    toolbar host, which is placed off the column's box, where a contributed
+    cluster is hoisted into the column and rides it for free."""
+    page, errors = open_page(
+        browser, serve(next(p for p in EXAMPLES if p.stem == "log-retention"))
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first
+    rest = marker.bounding_box()["x"]
+    # Every margin layout the page makes, timestamped, and the carry's end from the
+    # animation itself: the fact to consume is a layout after the column came to
+    # rest, not a number of frames.
+    page.evaluate(
+        """() => {
+          window.__lfLayouts = [];
+          document.addEventListener('lf-margin-layout',
+            () => window.__lfLayouts.push(performance.now()));
+        }"""
+    )
+    for close in ("Close threads", "toggle", "Escape"):
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        if close == "toggle":
+            page.locator(".lf-threads-toggle").click()
+        elif close == "Escape":
+            page.locator(".lf-threads").focus()
+            page.keyboard.press("Escape")
+        else:
+            page.get_by_role("button", name=close, exact=True).click()
+        # The carry runs to its own end rather than being finished for it: the stale
+        # placement is the one the body's resize laid out two frames into the move,
+        # and finishing the carry before that frame would settle the column first
+        # and read a page the reader never sees.
+        page.evaluate(
+            """() => {
+              window.__lfCarryEnd = null;
+              const carries = document.querySelector('body > main').getAnimations();
+              if (!carries.length) { window.__lfCarryEnd = performance.now(); return; }
+              Promise.all(carries.map(carry => carry.finished)).then(
+                () => { window.__lfCarryEnd = performance.now(); });
+            }"""
+        )
+        page.wait_for_function(
+            "() => !document.querySelector('.lf-panel').classList.contains('open')"
+        )
+        page.wait_for_function(
+            "() => window.__lfCarryEnd !== null"
+            " && window.__lfLayouts.some(t => t >= window.__lfCarryEnd)",
+            timeout=5000,
+        )
+        landed = marker.bounding_box()["x"]
+        assert landed == pytest.approx(rest, abs=1), (
+            f"after {close}: the Thread Button stands at {landed}, the column's rest is {rest}"
+        )
+    assert errors == []
+    page.close()

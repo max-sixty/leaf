@@ -2136,10 +2136,10 @@ def test_a_recorded_move_is_acknowledged_in_the_banner_and_nowhere_else(browser,
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
-    expect(notice).to_have_text("Moved to Done — recorded")
+    expect(notice).to_have_text("Moved to Done — sent")
     expect(notice).to_be_visible()
     expect(status).to_be_hidden()
-    expect(page.locator(".lf-live")).to_have_text("Moved to Done — recorded")
+    expect(page.locator(".lf-live")).to_have_text("Moved to Done — sent")
     assert page.locator(".lf-toast").count() == 0, "a second surface says the news"
     round_trip(page)
 

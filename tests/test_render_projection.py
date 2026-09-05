@@ -1075,7 +1075,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
     expect(page.locator(".lf-banner-status .lf-notice")).to_have_text(
-        "Chose “Two” — recorded"
+        "Chose “Two” — sent"
     )
     round_trip(page)
     assert errors == []
@@ -4259,7 +4259,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(decisions).to_have_text("Asks 2/2")
     expect(decisions).to_have_attribute("data-lf-complete", "")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
-    expect(page.locator(".lf-notice")).to_have_text("Marked answered — recorded")
+    expect(page.locator(".lf-notice")).to_have_text("Marked answered — sent")
     # Said once, by the log's answer. An `answered` attribute on the group said it
     # again in the author's namespace, where the entry admits nothing undeclared and no
     # version could ever have carried a record of a thread verb — invisible to every

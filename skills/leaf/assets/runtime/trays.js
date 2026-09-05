@@ -87,7 +87,6 @@ export function createTrays({
   // Every active Ask and the route back through its current answer. The banner says
   // completed/total (sayAsks); a/A still walks only the open worklist.
   const decisionsBtn = el("button", "lf-btn lf-decisions", "");
-  decisionsBtn.title = "Show or hide this page's asks";
   // The machine's live leaves and what each is doing: a left panel of rows, each a
   // link opening that page in its own tab, judged by the same `presented` the banner
   // answers with, from the same facts — `others` on /api/state carries them for every

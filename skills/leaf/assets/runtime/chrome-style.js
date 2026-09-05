@@ -1108,6 +1108,11 @@ ${MARK_RULES}
     .lf-edge:hover::before, .lf-edge:is(:focus-visible, .lf-focus-visible)::before { opacity: 1; }
     .lf-edge:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: edge; }
     .lf-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
+    /* The banner, the key line and the panel's head are apparatus, not words the page says:
+       a drag that starts in a paragraph and ends past the top of the window swept "All
+       leaves (6) · Asks 0/2 · v1" into the copy. Messages and quotes stay selectable — a
+       reply is words the reader may want. */
+    .lf-banner, .lf-keyline, .lf-panel-head { user-select: none; -webkit-user-select: none; }
     /* The narrowing row, under the head and above the list it narrows. Standing rather
        than raised by a key or a count, for the reason every other control here stands:
        a row that arrives at the eighth thread moves the list under the reader at the

@@ -90,7 +90,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
         "Threads",
         "version picker",
         "Map",
-        "keyboard reference",
+        "all keyboard shortcuts",
         "All leaves",
     ):
         expect(guide).to_contain_text(surface)
@@ -109,7 +109,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
 
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-panel")).to_be_visible()
-    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(3)
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(3)
     expect(page.locator(".lf-details .lf-thread")).to_have_count(1)
     page.locator(".lf-threads-toggle").click()
 
@@ -119,7 +119,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
 
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.get_by_role("dialog", name="Keyboard reference")).to_be_visible()
+    expect(page.get_by_role("dialog", name="All keyboard shortcuts")).to_be_visible()
     page.keyboard.press("Escape")
 
     page.locator(".lf-others").click()
@@ -928,7 +928,7 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_quote(browser, serve):
     page.mouse.move(*card_body(page, "About this bit."))
     wait_hovered(page, "bold text")
     page.fill(".lf-find-box", "neighbouring block")
-    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(second).to_have_class(re.compile(r"\blf-mark-hover\b"))
     wait_hovered(page, "neighbouring block")
     assert errors == []
@@ -1102,7 +1102,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
             },
         )
     page, errors = open_page(browser, url)
-    threads = page.locator(".lf-threads > .lf-thread")
+    threads = page.locator(".lf-threads > .lf-thread:not([hidden])")
     thread = threads.first
     reply = thread.locator(":scope > .lf-compose textarea")
 
@@ -1274,7 +1274,9 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
 
     # Standing in a comment while writing back to it is still standing in it: the reply
     # box is inside the thread, and knowing which passage it is on is worth most there.
-    page.locator(".lf-threads > .lf-thread").first.locator("textarea").focus()
+    page.locator(".lf-threads > .lf-thread:not([hidden])").first.locator(
+        "textarea"
+    ).focus()
     wait_standing(page, "bold text")
 
     # And leaving the panel takes it down. A mark that outlived the reader's attention
@@ -3910,7 +3912,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     )
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.get_by_role("dialog", name="Keyboard reference")).to_be_visible()
+    expect(page.get_by_role("dialog", name="All keyboard shortcuts")).to_be_visible()
     search = page.get_by_role("combobox", name="Search keyboard shortcuts")
     search.fill("work only the second")
     page.keyboard.press("ArrowDown")
@@ -4577,7 +4579,7 @@ def test_the_resting_key_line_names_the_presses_that_say_something_back(browser,
     help_el = page.locator(".lf-help")
     expect(help_el).to_be_visible()
     expect(help_el).to_contain_text("Search all the text on the page")
-    expect(help_el).to_contain_text("Select a visible item by hint")
+    expect(help_el).to_contain_text("Choose a visible item by hint, to comment on or react to")
     expect(help_el).to_contain_text("Move 60% of a page down")
     expect(help_el).to_contain_text("Move 60% of a page up")
     assert errors == []
@@ -5145,7 +5147,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     page.evaluate("() => getSelection().removeAllRanges()")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    thread = page.locator(".lf-threads > .lf-thread")
+    thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
     thread.focus()
     thread_standing = key_line(page)
     assert "reply" in thread_standing
@@ -5561,7 +5563,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # scene branch that restates the t/T row over it asks the same liveness.
     page.keyboard.press("c")
     for n in [1, 2]:
-        page.locator(".lf-threads > .lf-thread").first.get_by_role(
+        page.locator(".lf-threads > .lf-thread:not([hidden])").first.get_by_role(
             "button", name="Resolve"
         ).click()
         expect(page.locator(".lf-details summary")).to_have_text(f"Resolved ({n})")

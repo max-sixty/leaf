@@ -1393,14 +1393,12 @@ function collectEntries() {
     receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
   }
   for (const thread of threadList()) {
-    if (thread.resolved || !thread.root.anchor || claimed(thread.root.id)) continue;
+    if (thread.resolved || !thread.anchor || claimed(thread.root.id)) continue;
     const id = thread.root.id;
     add(groups, placedAt(id)?.element, {
       kind: "comment",
       id: `comment:${id}`,
-      text: trimmed(
-        thread.root.text || anchorLabel(thread.root.anchor, thread.root.about),
-      ),
+      text: trimmed(thread.root.text || anchorLabel(thread.anchor, thread.root.about)),
       thread,
       activate: () => showThread(id),
     });
@@ -2702,8 +2700,8 @@ function buildThreadCard(entry) {
   // heads it: a card headed "aside · The fallback cookie is read-only…" over a comment
   // on the aside's last sentence was a third name for one thread, and the least exact.
   const quoted =
-    threadItems.length === 1 && threadItems[0].thread?.root.anchor
-      ? anchorLabel(threadItems[0].thread.root.anchor, threadItems[0].thread.root.about)
+    threadItems.length === 1 && threadItems[0].thread?.anchor
+      ? anchorLabel(threadItems[0].thread.anchor, threadItems[0].thread.root.about)
       : null;
   const title = trimmed(targetHeading || quoted || entry.title, 72);
   keeps(preview, "data-lf-thread", "");

@@ -1004,8 +1004,8 @@ export function paintAnchors(threads = buildThreads()) {
   const seats = new Map(); // block -> the reactions whose passage starts in it
   const noted = new Map(); // element -> ordered thread ids marking something inside it
   for (const t of threads) {
-    if (!t.root.anchor) continue;
-    const found = resolveAnchor(t.root.anchor, text);
+    if (!t.anchor) continue;
+    const found = resolveAnchor(t.anchor, text);
     if (!found) continue;
     // Where the thread's passage lands in this version, recorded for every thread the
     // page still holds — the resolved ones too, which take no paint but do take a place
@@ -1083,7 +1083,7 @@ export function paintAnchors(threads = buildThreads()) {
     // blocks, and a design comment on a runtime part is on chrome the panel already
     // reads out — an aria-hidden injected note button would be focusable content nobody
     // is told about.
-    for (const holder of blocks.length ? blocks : [sectionOf(t.root.anchor)])
+    for (const holder of blocks.length ? blocks : [sectionOf(t.anchor)])
       if (holder && !inChrome(holder))
         noted.set(holder, [...(noted.get(holder) ?? []), t.root.id]);
   }
@@ -1535,7 +1535,7 @@ export async function scrollToThread(id, { land = null } = {}) {
   const intent = ++threadTravelIntent;
   const startingFocus = focused();
   const thread = buildThreads().find((candidate) => candidate.root.id === id);
-  const anchor = thread?.root.anchor;
+  const anchor = thread?.anchor;
   if (anchor?.datum && placed.get(id)?.status !== "outdated") {
     const source = sectionOf(anchor);
     // The line may already exist under a widget-owned filter. Core asks the owner to

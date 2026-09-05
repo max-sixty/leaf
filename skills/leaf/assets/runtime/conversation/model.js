@@ -35,9 +35,7 @@ export const reactionsOn = (anchor) =>
   lastThreads
     .filter(
       (thread) =>
-        bareReaction(thread) &&
-        !thread.resolved &&
-        sameAnchor(thread.root.anchor, anchor),
+        bareReaction(thread) && !thread.resolved && sameAnchor(thread.anchor, anchor),
     )
     .map((thread) => thread.root);
 

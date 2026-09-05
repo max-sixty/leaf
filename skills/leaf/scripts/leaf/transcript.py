@@ -131,7 +131,7 @@ def _published_reading(
 
 
 def _thread_heading(thread: dict) -> str:
-    anchor = thread["root"].get("anchor") or {}
+    anchor = thread["anchor"] or {}
     if anchor.get("quote"):
         head = f"> “{shown(anchor['quote'])}”"
     elif anchor.get("section"):

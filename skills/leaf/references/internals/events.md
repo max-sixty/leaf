@@ -6,7 +6,7 @@ Every event carries `id`, `ts`, `author`, `kind`, `seq` (its line number in
 | Kind | Author | Door | Fields | Meaning |
 | --- | --- | --- | --- | --- |
 | `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "layer"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
-| `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; `awaits` and `markup` (CLI only) | answers a thread without closing it |
+| `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; `awaits`, `markup`, and a replacement `anchor` (CLI only) | answers a thread without closing it; an anchored agent reply also moves the thread's current location |
 | `edit` | agent | `leaf edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the reader reopens a resolved thread |
@@ -107,6 +107,13 @@ The original id, timestamp, author, thread position, anchor, and markup remain
 its own. Markup is not editable because a reader action may already rest on a
 widget frozen into it.
 
+An agent reply may carry an `anchor` captured against its `revision`. The fold uses
+the latest such anchor as the thread's current location while retaining the opening
+comment's anchor on the immutable root event. The anchor and explanatory reply are
+one append, so the page never observes a move without the message that accounts for
+it. A thread whose root `holds` a command goal cannot move, and a version-response
+root takes no reply at all, because those anchors are part of the request's meaning.
+
 A message body is Markdown, stored as typed and rendered by the page's own
 vendored runtime, so the renderer and the panel's styles version together. A
 fragment link in a body (`[the group](#d-channel)`) points at an element of the
@@ -140,9 +147,10 @@ first accepts it.
 ## Anchors
 
 The user selects a passage and the browser writes the anchor from the selection;
-`leaf comment` writes its file-confirmable form from a quote by reading authored
-HTML through `leaf.passages`. The browser's anchor pass applies the matching
-rules to the DOM. Projected data has no file-side value to quote: its browser
+`leaf comment`, and `leaf reply` when it moves a thread, write the file-confirmable
+form from a quote by reading authored HTML through `leaf.passages`. The browser's
+anchor pass applies the matching rules to the DOM. Projected data has no file-side
+value to quote: its browser
 anchor adds the projection's section and datum key, and when `projectData` names
 an `x-data` input, the source id and `data_revision`. The append door checks that
 the section displayed that source revision: a racing current-value replacement is

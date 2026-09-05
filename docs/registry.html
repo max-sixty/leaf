@@ -6,32 +6,113 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    />
     <title>leaf registry keys</title>
     <meta
       name="description"
       content="Reference for the registry declarations that connect a Leaf widget schema to the page."
     />
-    <link rel="icon" href="../skills/leaf/assets/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="leaf registry keys" />
     <meta
       property="og:description"
       content="A generated, browsable reference for every x-* declaration in a Leaf registry."
     />
-    <meta property="og:url" content="https://leaf.page/registry.html" />
-    <meta property="og:image" content="https://leaf.page/session-light.png" />
+    <meta property="og:url" content="https://leaf.page/registry/" />
+    <meta property="og:image" content="https://leaf.page/media/b570d38114308294.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="../skills/leaf/assets/theme.css" />
-    <link rel="stylesheet" href="../skills/leaf/packages/default/theme.css" />
-    <link rel="stylesheet" href="site.css" />
+    <link rel="stylesheet" href="/theme.css" />
+    <style>
+      .reference-index {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 20px;
+        margin: 18px 0 40px;
+        padding: 14px 0;
+        border-block: 1px solid var(--rule);
+        --lf-frame: 1;
+      }
+      .reference-index a {
+        text-decoration: none;
+      }
+      .reference-index a:is(:hover, :focus-visible) {
+        text-decoration: underline;
+      }
+      .reference-index code {
+        padding: 0;
+        overflow-wrap: normal;
+        background: none;
+        font-size: var(--t-5);
+        white-space: nowrap;
+      }
+      .reference-entry {
+        display: grid;
+        grid-template-columns: 9rem minmax(0, 1fr);
+        gap: var(--sp-3);
+        margin: 0;
+        padding: 18px 0;
+        border-bottom: 1px solid var(--rule);
+        scroll-margin-top: 18px;
+      }
+      .reference-entry h3 {
+        margin: 0;
+        font-size: var(--t-4);
+        line-height: 1.6;
+      }
+      .reference-entry h3 code {
+        overflow-wrap: normal;
+        font-size: 84%;
+        white-space: nowrap;
+      }
+      .reference-copy > p {
+        margin: 0;
+      }
+      .reference-more {
+        margin: 8px 0 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: none;
+      }
+      .reference-more > summary {
+        width: max-content;
+        color: var(--accent);
+        font: 500 var(--t-5) / 1.5 var(--sans);
+      }
+      .reference-more > p {
+        margin: 8px 0 0;
+        color: var(--ink-2);
+      }
+      .reference-entry:target {
+        border-bottom-color: var(--accent);
+      }
+      .reference-entry:target h3 code {
+        color: var(--accent);
+      }
+      @media screen and (max-width: 640px) {
+        .reference-index {
+          column-gap: var(--sp-3);
+        }
+        .reference-entry {
+          grid-template-columns: minmax(0, 1fr);
+          gap: var(--sp-1);
+        }
+      }
+    </style>
+    <script type="module" src="/leaf.js"></script>
   </head>
-  <body>
+  <body class="site-page">
     <main>
       <nav class="sitenav" aria-label="Site">
-        <a class="brand" href="index.html">leaf</a>
-        <a href="examples.html">Examples</a>
-        <a href="how-it-works.html">How it works</a>
-        <a href="packages.html">Packages</a>
+        <a class="brand" href="/">leaf</a>
+        <a href="/examples/">Examples</a>
+        <a href="/how-it-works/">How it works</a>
+        <a href="/packages/">Packages</a>
+        <a href="/registry/" aria-current="page">Registry</a>
         <a href="https://github.com/max-sixty/leaf">GitHub</a>
       </nav>
 
@@ -46,8 +127,11 @@
         <p>
           This reference is generated from the registry's <code>$keys</code>, the same
           entry an agent can query in a page's merged <code>registry.json</code>. Start
-          with the <a href="packages.html">package tutorial</a>, or read the
-          <a href="../skills/leaf/references/packages.md">complete package contract</a>.
+          with the <a href="/packages/">package tutorial</a>, or read the
+          <a
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md"
+            >complete package contract</a
+          >.
         </p>
       </header>
 
@@ -759,11 +843,11 @@
         <!-- /$keys -->
       </section>
 
-      <footer id="colophon">
+      <footer class="site-footer" id="colophon">
         <p id="links">
-          <a href="index.html">Tour</a> · <a href="examples.html">Examples</a> ·
-          <a href="how-it-works.html">How it works</a> ·
-          <a href="packages.html">Packages</a> · <a href="registry.html">Registry</a> ·
+          <a href="/">Tour</a> · <a href="/examples/">Examples</a> ·
+          <a href="/how-it-works/">How it works</a> ·
+          <a href="/packages/">Packages</a> · <a href="/registry/">Registry</a> ·
           <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
           <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>

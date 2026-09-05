@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 LEAF = ROOT / "bin" / "leaf"
 DEFAULT_OUTPUT = ROOT / "docs" / "demo.gif"
 GIF_SIZE = (1120, 700)
-# The size docs/index.html states on the <img>, so a reshoot needs no edit there.
+# The viewport used for the landing page's representative stills.
 STILL_SIZE = (1280, 953)
 
 

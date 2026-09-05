@@ -6,32 +6,36 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    />
     <title>how leaf works</title>
     <meta
       name="description"
       content="The mechanism behind leaf: one local process, an append-only event log, host-specific wait loops, and a vendored theme-and-widget layer."
     />
-    <link rel="icon" href="../skills/leaf/assets/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="how leaf works" />
     <meta
       property="og:description"
       content="One local process, an append-only event log, host-specific wait loops, and a vendored theme-and-widget layer."
     />
-    <meta property="og:url" content="https://leaf.page/how-it-works.html" />
-    <meta property="og:image" content="https://leaf.page/session-light.png" />
+    <meta property="og:url" content="https://leaf.page/how-it-works/" />
+    <meta property="og:image" content="https://leaf.page/media/b570d38114308294.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="../skills/leaf/assets/theme.css" />
-    <link rel="stylesheet" href="../skills/leaf/packages/default/theme.css" />
-    <link rel="stylesheet" href="site.css" />
+    <link rel="stylesheet" href="/theme.css" />
+    <script type="module" src="/leaf.js"></script>
   </head>
-  <body>
+  <body class="site-page">
     <main>
       <nav class="sitenav" aria-label="Site">
-        <a class="brand" href="index.html">leaf</a>
-        <a href="examples.html">Examples</a>
-        <a href="how-it-works.html" aria-current="page">How it works</a>
-        <a href="packages.html">Packages</a>
+        <a class="brand" href="/">leaf</a>
+        <a href="/examples/">Examples</a>
+        <a href="/how-it-works/" aria-current="page">How it works</a>
+        <a href="/packages/">Packages</a>
+        <a href="/registry/">Registry</a>
         <a href="https://github.com/max-sixty/leaf">GitHub</a>
       </nav>
 
@@ -46,177 +50,33 @@
         </p>
       </header>
 
+      <aside class="sidebar" id="mechanics-route">
+        <lf-toc id="mechanics-contents"></lf-toc>
+      </aside>
+
       <section id="wake">
         <h2>The loop</h2>
 
-        <svg
-          class="arch"
-          id="arch"
-          viewBox="0 0 720 190"
-          role="img"
-          aria-labelledby="arch-title"
-        >
-          <title id="arch-title">
-            The agent writes version files and runs leaf commands, both reaching the
-            browser through leaf's loopback server; leaf wait carries a comment back
-            into the agent's context.
-          </title>
-          <defs>
-            <marker
-              id="arr"
-              viewBox="0 0 8 8"
-              refX="7"
-              refY="4"
-              markerWidth="7"
-              markerHeight="7"
-              orient="auto-start-reverse"
-            >
-              <path d="M0 0 L8 4 L0 8 z" fill="var(--muted-2)"></path>
-            </marker>
-            <marker
-              id="arr-accent"
-              viewBox="0 0 8 8"
-              refX="7"
-              refY="4"
-              markerWidth="7"
-              markerHeight="7"
-              orient="auto-start-reverse"
-            >
-              <path d="M0 0 L8 4 L0 8 z" fill="var(--accent)"></path>
-            </marker>
-          </defs>
-          <g>
-            <rect
-              x="8"
-              y="44"
-              width="180"
-              height="68"
-              rx="8"
-              fill="var(--card)"
-              stroke="var(--rule)"
-            ></rect>
-            <text
-              x="98"
-              y="72"
-              text-anchor="middle"
-              font-size="14"
-              font-weight="600"
-              fill="var(--ink)"
-            >
-              agent session
-            </text>
-            <text
-              x="98"
-              y="93"
-              text-anchor="middle"
-              font-size="11.5"
-              fill="var(--muted)"
-            >
-              version files · commands
-            </text>
-          </g>
-          <g>
-            <rect
-              x="270"
-              y="44"
-              width="180"
-              height="68"
-              rx="8"
-              fill="var(--card)"
-              stroke="var(--rule)"
-            ></rect>
-            <text
-              x="360"
-              y="72"
-              text-anchor="middle"
-              font-size="14"
-              font-weight="600"
-              fill="var(--ink)"
-            >
-              leaf server
-            </text>
-            <text
-              x="360"
-              y="93"
-              text-anchor="middle"
-              font-size="11.5"
-              fill="var(--muted)"
-            >
-              loopback port · event log
-            </text>
-          </g>
-          <g>
-            <rect
-              x="532"
-              y="44"
-              width="180"
-              height="68"
-              rx="8"
-              fill="var(--card)"
-              stroke="var(--rule)"
-            ></rect>
-            <text
-              x="622"
-              y="72"
-              text-anchor="middle"
-              font-size="14"
-              font-weight="600"
-              fill="var(--ink)"
-            >
-              your browser
-            </text>
-            <text
-              x="622"
-              y="93"
-              text-anchor="middle"
-              font-size="11.5"
-              fill="var(--muted)"
-            >
-              comments, drags, picks
-            </text>
-          </g>
-          <line
-            x1="192"
-            y1="78"
-            x2="264"
-            y2="78"
-            stroke="var(--muted-2)"
-            stroke-width="1.5"
-            marker-end="url(#arr)"
-          ></line>
-          <line
-            x1="454"
-            y1="78"
-            x2="526"
-            y2="78"
-            stroke="var(--muted-2)"
-            stroke-width="1.5"
-            marker-end="url(#arr)"
-          ></line>
-          <path
-            d="M622 116 L622 160 L98 160 L98 122"
-            fill="none"
-            stroke="var(--accent)"
-            stroke-width="1.5"
-            marker-end="url(#arr-accent)"
-          ></path>
-          <text
-            x="360"
-            y="152"
-            text-anchor="middle"
-            font-size="12"
-            fill="var(--accent)"
-          >
-            leaf wait carries a comment into the agent's context
-          </text>
-        </svg>
+        <lf-diagram id="arch" parts="node:Agent node:Leaf node:Browser">
+          <pre>
+sequenceDiagram
+  participant Agent as agent session
+  participant Leaf as leaf server
+  participant Browser as your browser
+  Agent-&gt;&gt;Leaf: version files · commands
+  Leaf-&gt;&gt;Browser: page + current state
+  Browser-&gt;&gt;Leaf: comments · drags · picks
+  Leaf-&gt;&gt;Agent: leaf wait carries the event batch
+</pre>
+        </lf-diagram>
 
         <h3 id="loop-shell">One turn, from the agent's side</h3>
         <p id="loop-shell-lede">
           A file write and four commands. The output below is a real page's, on a
           version asking which of two ways to shed load when a queue backs up:
         </p>
-        <pre id="loop-transcript"><code>$ leaf page init ./review
+        <lf-specimen id="loop-transcript-specimen" label="a real turn">
+          <pre id="loop-transcript"><code>$ leaf page init ./review
 initialized /home/you/review
 
 # the agent writes ./review/index.html — an ordinary file write
@@ -234,6 +94,7 @@ $ leaf wait ./review
 {"kind": "comment", "author": "user", "revision": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed", "quote": "Callers get a 429 immediately"}, "id": "a56486d1", "ts": "2026-08-16T02:35:07-07:00", "seq": 3}
 
 $ leaf ack ./review 3</code></pre>
+        </lf-specimen>
         <p id="loop-shell-read">
           The batch carries two events. The pick is an action, and every later revision
           replays it, so the decision survives the page being rewritten under it. The
@@ -357,8 +218,10 @@ $ leaf ack ./review 3</code></pre>
           <li id="src-bespoke">
             <strong>Bespoke presentation.</strong> A page-local
             <code>&lt;style&gt;</code> and hand-drawn inline SVG, both riding the
-            theme's tokens; the architecture diagram above is one. This is the escape
-            hatch for presentation only this page needs, never a second palette.
+            theme's tokens. This is the last escape hatch for presentation only one page
+            needs, never a second palette. The architecture diagram above does not need
+            it: <code>&lt;lf-diagram&gt;</code> comes from the optional
+            <code>diagram</code> package.
           </li>
         </ol>
         <p id="boundaries">
@@ -382,12 +245,12 @@ $ leaf ack ./review 3</code></pre>
         </p>
         <p id="dogfood">
           This page is set in the plugin's own <code>theme.css</code>, and the widgets
-          below are rendering in it right now, with no script involved. Each sits in a
+          below are rendering through its real runtime right now. Each sits in a
           <code>lf-specimen</code> — the gutter that marks quoted material — so an
           example decision never reads as one the page is asking you to make.
         </p>
 
-        <figure>
+        <figure id="options-demo">
           <lf-specimen id="spec-options-frame" label="lf-options">
             <lf-options id="spec-options">
               <lf-option id="so-rewrite"
@@ -429,7 +292,7 @@ $ leaf ack ./review 3</code></pre>
           </figcaption>
         </figure>
 
-        <figure>
+        <figure id="board-demo">
           <lf-specimen id="spec-board-frame" label="lf-board">
             <lf-board id="spec-board">
               <lf-column id="sb-incoming" label="Incoming">
@@ -461,8 +324,8 @@ $ leaf ack ./review 3</code></pre>
           The committed catalog runs wider: mermaid diagrams, unified diffs with
           per-file collapse, annotated code walkthroughs, file trees, timelines, metric
           rows, plans with milestones, and dense command surfaces. The
-          <a href="examples.html">examples gallery</a> opens each complete page in its
-          own browser view.
+          <a href="/examples/">examples gallery</a> opens each complete page in its own
+          browser view.
         </p>
       </section>
 
@@ -513,7 +376,10 @@ $ leaf ack ./review 3</code></pre>
           layer, then vendors its runtime, theme, registry, and widget modules into the
           page's directory. Because pages are self-contained, a version you approved
           can't change under you when the defaults do. The
-          <a href="../skills/leaf/references/packages.md">package contract</a>
+          <a
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md"
+            >package contract</a
+          >
           owns composition order and replacement rules.
         </p>
         <p id="what-is-customizable">
@@ -529,7 +395,7 @@ $ leaf ack ./review 3</code></pre>
           default widget reaches the page through the same door as a project widget. You
           or the agent can restyle or replace an entry or file and add new ones beside
           it; the checked result must still satisfy the kernel's generic event and
-          runtime contracts. The <a href="packages.html">package tutorial</a> builds the
+          runtime contracts. The <a href="/packages/">package tutorial</a> builds the
           smallest useful example.
         </p>
       </section>
@@ -574,17 +440,17 @@ $ leaf ack ./review 3</code></pre>
         </p>
       </section>
 
-      <footer id="colophon">
+      <footer class="site-footer" id="colophon">
         <p id="links">
-          <a href="index.html">Tour</a> · <a href="examples.html">Examples</a> ·
-          <a href="how-it-works.html">How it works</a> ·
-          <a href="packages.html">Packages</a> ·
+          <a href="/">Tour</a> · <a href="/examples/">Examples</a> ·
+          <a href="/how-it-works/">How it works</a> ·
+          <a href="/packages/">Packages</a> ·
           <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
           <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>
         <p>
-          This page is a static render of the theme and widgets it describes; the
-          comment layer joins in when a live session serves a page.
+          This page is a leaf using the theme and widgets it describes. Its public-site
+          session is intentionally browser-local and unattended.
         </p>
       </footer>
     </main>

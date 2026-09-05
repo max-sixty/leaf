@@ -107,6 +107,15 @@ body renders as its own characters. A widget in a message rides the event's
 `markup` field instead, whose one door is `leaf comment`/`leaf reply`, where it
 is validated against the vendored registry; the browser door refuses the field.
 
+A raster image pasted into a browser text box is stored first as content-addressed page
+media. Its durable draft carries an ordinary Markdown image at
+`/media/<digest>.<ext>`, while the composer projects that generated block as a removable
+thumbnail. The draft and message schemas gain no attachment field: retries and delivery
+preserve the exact Markdown, while each HTTP presentation scopes the canonical media
+path when it renders. An abandoned draft may leave unreferenced media behind; Leaf
+retains it because reachability has to include every immutable revision and event before
+deletion could be safe.
+
 A browser comment carrying `response: {kind: version, verb}` is a request to
 change authored state. Its exact-section view is text-only, and `leaf reply`
 refuses every message in that thread. When the change needs clarification, the

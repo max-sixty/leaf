@@ -46,10 +46,14 @@ A page directory holds:
                          user approved cannot show them different pixels later,
                          and two versions showing the same screenshot share one
                          file rather than carrying a copy each. It is also the
-                         only door an image has into a page: the page's author is
-                         a language model, and a screenshot is a megabyte of
-                         base64 it cannot type — nor should each version carry a
-                         copy that `version check` walks and a browser reloads.
+                         transport an image uses to enter a page. `page media`
+                         admits files chosen by the author; `/api/media` admits a
+                         bounded raster image pasted by the reader into a text box.
+                         Both meet at the same content-addressed write, and the
+                         pasted draft carries only Markdown pointing here.
+                         The page's author is a language model, and a screenshot is
+                         a megabyte of base64 it cannot type — nor should each version
+                         carry a copy that `version check` walks and a browser reloads.
                          So the transport was never an optimisation over
                          inlining; inlining was never available
     events.jsonl         append-only event log; an event's seq is its line number (1-based)

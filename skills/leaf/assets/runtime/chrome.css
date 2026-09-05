@@ -492,6 +492,35 @@ textarea.lf-ui:where(:not(.lf-fab-input)) { padding: 8px 10px; border: 1px solid
 .lf-ui textarea:where(:not(.lf-fab-input)):is(:focus, .lf-focus),
 textarea.lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--here-ring);
   --lf-here-ring: text-box; outline-offset: 1px; border-color: var(--accent); }
+/* Pasted media stays in the draft's Markdown, but the writing surface shows the thing
+   rather than its transport. The strip takes its own row beside every textarea shape;
+   the compact response bar overrides that row below. */
+:is(.lf-compose, .lf-general, .lf-say):has(> .lf-composer-media:not([hidden])) {
+  flex-wrap: wrap; }
+:is(.lf-compose, .lf-general, .lf-say) > .lf-composer-media {
+  display: flex; flex: 1 0 100%; gap: 6px; min-width: 0; overflow-x: auto;
+  padding: 2px; box-sizing: border-box; }
+.lf-composer-media[hidden] { display: none !important; }
+.lf-composer-media-item { position: relative; flex: none; display: block; }
+.lf-media-open { display: block; width: fit-content; max-width: 100%; padding: 0;
+  border: 0; border-radius: var(--r); background: transparent; color: inherit;
+  font: inherit; cursor: zoom-in; }
+.lf-media-open:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+  --lf-here-ring: media; outline-offset: 2px; }
+.lf-composer-media-open { width: 68px; height: 52px; overflow: hidden;
+  border: 1px solid var(--border-2); background: var(--paper); }
+.lf-composer-media-open img { display: block; width: 100%; height: 100%;
+  object-fit: cover; }
+.lf-composer-media-remove { position: absolute; top: -5px; right: -5px;
+  width: 20px; height: 20px; padding: 0; border: 1px solid var(--border-2);
+  border-radius: 50%; background: var(--card); color: var(--ink); font: inherit;
+  line-height: 17px; cursor: pointer; box-shadow: 0 1px 4px var(--shade); }
+.lf-composer-media-remove:is(:hover, :focus-visible) { border-color: var(--accent); }
+/* Sent media can live in chrome-owned threads or page-owned widget conversations.
+   Scale the complete image in both surfaces; a tall capture must not become the whole
+   conversation, and nothing is cropped. */
+.lf-message-media img { display: block;
+  max-width: 100%; max-height: min(60vh, 480px); border-radius: var(--r); }
 body.lf-over-mark { cursor: pointer; }
 /* Holding ⌥ changes what a click means, and nothing on the page said so — the chord's
    whole cost is that it is invisible. Two things say it, and the division matters:
@@ -1567,7 +1596,11 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-visual-mark.lf-visual-mark-here { --lf-shape-dash: none; }
   .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-composer { display: none; }
-  .lf-fab-bar .lf-composer > :not(.lf-fab-input) { display: none !important; }
+  .lf-fab-bar .lf-composer > :not(.lf-fab-input, .lf-composer-media) {
+    display: none !important; }
+  .lf-fab-bar .lf-composer-media { display: flex; gap: 6px; flex: none;
+    max-width: 148px; padding: 0; overflow-x: auto; }
+  .lf-fab-bar .lf-composer-media-open { width: 42px; height: 34px; }
   .lf-suggest-label { font-size: var(--t-6); letter-spacing: .05em; text-transform: uppercase; color: var(--ok-ink); margin: 4px 0 2px; }
   /* A suggestion renders verbatim — its characters are what the next version
      carries (see msgNode) — so this is where they keep their own line breaks. */
@@ -1582,6 +1615,22 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     box-shadow: 0 12px 32px var(--shade); padding: 14px 18px; }
   .lf-help.open { display: flex; flex-direction: column; }
   .lf-help::backdrop { background: color-mix(in srgb, var(--ink) 24%, transparent); }
+  .lf-media-viewer { position: fixed; inset: 0; z-index: 9400;
+    width: min(960px, calc(100vw - var(--lf-safe-left) - var(--lf-safe-right) - 32px));
+    height: min(82dvh, 760px); box-sizing: border-box; margin: auto; padding: 0;
+    overflow: hidden; color: var(--ink); background: var(--card);
+    border: 1px solid var(--border-2); border-radius: 12px;
+    box-shadow: 0 18px 48px var(--shade); }
+  .lf-media-viewer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+  .lf-media-viewer::backdrop {
+    background: color-mix(in srgb, var(--ink) 38%, transparent); }
+  .lf-media-viewer-head { display: flex; align-items: center;
+    justify-content: space-between; gap: 12px; padding: 10px 12px;
+    border-bottom: 1px solid var(--rule); }
+  .lf-media-viewer-stage { min-width: 0; min-height: 0; overflow: auto;
+    display: grid; place-items: center; padding: 12px; background: var(--paper); }
+  .lf-media-viewer-stage img { display: block; max-width: 100%; max-height: 100%;
+    object-fit: contain; }
   .lf-help-head { display: flex; align-items: center; justify-content: space-between;
     gap: 12px; margin-bottom: 8px; }
   .lf-help-title { font-weight: 600; }

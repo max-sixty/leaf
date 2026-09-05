@@ -35,6 +35,12 @@ a source line.
 
 ## Preview a shipped example
 
+Browser automation runs `scripts/preview.py <example> --automation` in a long-running
+process. The command uses the browser suite's temporary server: the real HTTP and event
+log, with no task claim or durable service. Its default page is
+`.tmp/previews/<example>-automation`; use the reader preview's distinct page when
+presenting a URL for feedback. An explicit slot cannot change interaction mode.
+
 1. From the repository root, start `scripts/preview.py <example>` in a
    long-running command or terminal session. Keep it alive and retain the exact
    served URL. The script watches source and runtime edits and preserves feedback
@@ -49,8 +55,9 @@ a source line.
    thread. Codex Annotation mode creates visual comments that the user sends with
    their next chat message.
 
-When finished with a preview, run the matching preview command with `--stop`; it
-waits for the watcher and service to stop. Ctrl-C stops a foreground preview.
+When finished with a preview, run the matching preview command with `--stop` (and
+`--automation` for its automation slot); it waits for the watcher and server to
+stop. Ctrl-C stops a foreground preview.
 Changing an occupied slot to a different source or seeded history requires a new
 slot; the existing page and feedback are retained.
 

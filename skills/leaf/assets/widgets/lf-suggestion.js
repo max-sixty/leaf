@@ -9,7 +9,8 @@
  *
  * The suggestion owns only those controls and their semantics. It contributes the row
  * through `registerMarginItem`; the living margin joins it to comment threads,
- * decisions, outcomes, activity, and temporary reaction controls for this same target.
+ * decisions, delivery status, activity, and temporary reaction controls for this same
+ * target.
  * That owner hoists and places the one resulting item, measures the rail, docks it when
  * the margin is too narrow, and reads rendered descendants when a project makes the
  * target `display: contents`. A suggestion never creates a second RHS surface or
@@ -220,11 +221,11 @@ customElements.define(
             : [
                 {
                   id: `suggestion:${this.id}`,
-                  // The contribution is already the decision while pending and its durable
-                  // outcome after settlement. Tell the shared projection not to add a second
-                  // generated Button that says the same thing at the same target.
-                  kind: this.dataset.lfState ? "outcome" : "decision",
-                  represents: true,
+                  // Before settlement this contribution is the Ask, so suppress the shared
+                  // Ask at the same target. Afterwards the item keeps the receipt and Undo
+                  // controls in this cluster without inventing another page-map reading.
+                  kind: this.dataset.lfState ? "action" : "decision",
+                  ...(this.dataset.lfState ? {} : { represents: true }),
                   text: this.dataset.lfState
                     ? `${this.dataset.lfState === "accept" ? "Accepted" : "Rejected"} suggested change`
                     : "Accept or reject suggested change",

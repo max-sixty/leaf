@@ -1,6 +1,7 @@
-"""HTTP server binding, process startup, and the in-process serve command."""
+"""Durable and process-owned page servers."""
 
 import errno
+import secrets
 import socket
 import subprocess
 import sys
@@ -32,6 +33,8 @@ try:
     import fcntl
 except ImportError:  # pragma: no cover - unsupported non-POSIX platform
     fcntl = None
+
+TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
 
 
 class LeafHTTPServer(ThreadingHTTPServer):
@@ -78,6 +81,91 @@ class LeafHTTPServer(ThreadingHTTPServer):
         it, so that is the side to weigh if this number moves again.
         """
         super().serve_forever(poll_interval)
+
+
+class TemporaryPageServer:
+    """Serve one page on loopback for the lifetime of this process.
+
+    The server owns a per-instance access key and no durable service record or page
+    claim. Browser tests and automation therefore exercise the real HTTP and event-log
+    boundary without enrolling the page in an agent session's delivery loop.
+    """
+
+    def __init__(
+        self,
+        page_dir: Path,
+        *,
+        token: str | None = None,
+        port: int = 0,
+        handler_options: dict | None = None,
+    ) -> None:
+        self.token = token or secrets.token_urlsafe(16)
+        self.httpd = LeafHTTPServer(
+            ("127.0.0.1", port),
+            handler_for(page_dir, self.token, **(handler_options or {})),
+        )
+        self._thread = None
+        self._closed = False
+
+    @property
+    def origin(self) -> str:
+        return f"http://127.0.0.1:{self.httpd.server_address[1]}"
+
+    @property
+    def port(self) -> int:
+        return self.httpd.server_address[1]
+
+    @property
+    def url(self) -> str:
+        return f"{self.origin}/?t={self.token}"
+
+    @property
+    def running(self) -> bool:
+        return not self._closed and self._thread is not None and self._thread.is_alive()
+
+    def start(self):
+        """Start the server in a thread owned by this object."""
+        if self._closed or self._thread is not None:
+            raise RuntimeError("temporary page server cannot be started twice")
+        self._thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self._thread.start()
+        return self
+
+    def run(self) -> None:
+        """Serve on the current thread until the process is interrupted."""
+        if self._closed or self._thread is not None:
+            raise RuntimeError("temporary page server is already running")
+        try:
+            self.httpd.serve_forever()
+        finally:
+            self.httpd.server_close()
+            self._closed = True
+
+    def close(self) -> None:
+        """Stop a threaded server and release its socket."""
+        if self._closed:
+            return
+        if self._thread is not None and self._thread.is_alive():
+            self.httpd.shutdown()
+        self.httpd.server_close()
+        if self._thread is not None:
+            self._thread.join(timeout=2)
+        self._closed = True
+
+    def __enter__(self):
+        return self.start()
+
+    def __exit__(self, *_exc) -> None:
+        self.close()
+
+
+def cmd_serve_temporary(page_dir: Path) -> None:
+    """Run the process-owned page server used by browser automation."""
+    require_cross_process_locking()
+    server = TemporaryPageServer(page_dir)
+    print(server.url, flush=True)
+    print(TEMPORARY_SERVER_NOTE, file=sys.stderr, flush=True)
+    server.run()
 
 
 def _provenance_label(provenance: dict) -> str:

@@ -1511,7 +1511,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-change { color: var(--accent); }
 .lf-margin-comment { color: var(--mark-ink); }
 .lf-margin-decision { color: var(--warn-ink); }
-.lf-margin-outcome { color: var(--ok-ink); }
 .lf-margin-activity { color: var(--accent); }
 .lf-margin-count { position: absolute; top: -7px; right: -7px; min-width: 16px;
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;

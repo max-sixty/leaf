@@ -146,13 +146,15 @@ export function createBanner({
     const commit = preview.commit
       ? `@${preview.commit}${preview.dirty ? "+" : ""}`
       : "";
-    const label = `Preview · ${preview.checkout}${commit}`;
+    const kind = preview.interaction === "automation" ? "Automation" : "Preview";
+    const label = `${kind} · ${preview.checkout}${commit}`;
     const safeUrl = new URL(location.href);
     safeUrl.searchParams.delete("t");
     previewDiagnostics = [
       "Leaf preview",
       `example: ${preview.example}`,
       `checkout: ${preview.checkout}`,
+      `interaction: ${preview.interaction}`,
       ...(preview.commit ? [`commit: ${preview.commit}`] : []),
       ...(preview.dirty !== undefined ? [`dirty: ${preview.dirty}`] : []),
       `started: ${preview.started}`,

@@ -11,9 +11,10 @@ standalone HTML file instead.
 
 The live result is a page, not a picture of one: it takes comments. Served from
 an agent session, `leaf wait` on the same directory carries them to the agent and
-the example gets revised like any other page; run from a bare shell, they queue
-in the log until an agent next reads it. Which of those happens follows from the
-host identity the launcher puts in the environment.
+the example gets revised like any other page. Outside an agent host, gestures remain
+in the log until an agent claims the page. `--automation` uses the same temporary
+page server as the browser harness: gestures traverse the real HTTP and event-log
+boundary, but the server creates no claim or durable service.
 
 An example can also ship companion `.jsonl` events and `.data.json` source
 values. The first lets a page arrive mid-conversation; the second supplies the
@@ -183,6 +184,11 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
         type=slot_name,
         help="stable name for a preview that may coexist with other slots",
     )
+    parser.add_argument(
+        "--automation",
+        action="store_true",
+        help="watch through the process-owned browser harness",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--background",
@@ -197,11 +203,15 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     parser.add_argument("--_worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--_ready-fd", type=int, help=argparse.SUPPRESS)
     mode.add_argument(
-        "--stop", action="store_true", help="stop this preview watcher and its service"
+        "--stop", action="store_true", help="stop this preview watcher and its server"
     )
     parsed = parser.parse_args()
     if parsed.source and parsed.example:
         parser.error("choose an example name or --source, not both")
+    if parsed.automation and (parsed.background or parsed.export):
+        parser.error(
+            "--automation is a foreground watcher; omit --background or --export"
+        )
     return parser, parsed
 
 
@@ -303,7 +313,7 @@ def preparation_note(source: Path, data_sources: int, versions: int) -> str:
     return f"prepared {source.stem} ({', '.join(details)})"
 
 
-def mark_preview(source: Path, page: Path, runtime: Path) -> None:
+def mark_preview(source: Path, page: Path, runtime: Path, *, automation: bool) -> None:
     """Identify the live runtime without exposing its absolute path to the browser."""
     layer = json.loads((page / "registry.json").read_text(encoding="utf-8"))["$layer"]
     producer = layer.get("producer", {})
@@ -311,6 +321,7 @@ def mark_preview(source: Path, page: Path, runtime: Path) -> None:
         "kind": "example",
         "example": source.stem,
         "checkout": runtime.name,
+        "interaction": "automation" if automation else "reader",
         "started": datetime.now(timezone.utc).isoformat(),
         **({"commit": producer["commit"]} if "commit" in producer else {}),
         **({"dirty": producer["dirty"]} if "dirty" in producer else {}),
@@ -320,8 +331,10 @@ def mark_preview(source: Path, page: Path, runtime: Path) -> None:
     )
 
 
-def preview_directory(source: Path, slot: str | None) -> Path:
+def preview_directory(source: Path, slot: str | None, automation: bool) -> Path:
     name = re.sub(r"[^A-Za-z0-9._-]", "-", source.stem).strip("._-")[:64] or "preview"
+    if automation and slot is None:
+        name = f"{name}-automation"
     return TMP / "previews" / (slot or name)
 
 
@@ -378,24 +391,30 @@ def fixture_seed(source: Path) -> dict:
     return {str(path): digest(path) for path in paths}
 
 
-def source_identity(source: Path, runtime: Path) -> dict:
+def source_identity(source: Path, runtime: Path, automation: bool) -> dict:
     return {
         "source": str(source),
         "runtime": str(runtime),
         "seed": fixture_seed(source),
+        "interaction": "automation" if automation else "reader",
     }
 
 
 def refresh_preview(
-    source: Path, page: Path, launcher: Path, runtime: Path, identity: dict
+    source: Path,
+    page: Path,
+    launcher: Path,
+    runtime: Path,
+    identity: dict,
+    automation: bool,
 ) -> None:
     """Replace only admitted layer/source changes; never recreate the page log.
 
     Runtime updates do not overwrite an agent's direct page edits. If the fixture
     and the live authored source both changed, neither silently wins.
     """
-    if source_identity(source, runtime) != {
-        key: identity[key] for key in ("source", "runtime", "seed")
+    if source_identity(source, runtime, automation) != {
+        key: identity[key] for key in ("source", "runtime", "seed", "interaction")
     }:
         raise ValueError(
             "fixture identity or seeded history changed; use a new --slot to preview it"
@@ -435,7 +454,7 @@ def refresh_preview(
             raise
         identity["source_digest"] = incoming_digest
         update_preview_state(page, source_digest=identity["source_digest"])
-    mark_preview(source, page, runtime)
+    mark_preview(source, page, runtime, automation=automation)
 
 
 def watch_paths(
@@ -518,12 +537,23 @@ def preview_ready(
 
 
 def watch_preview(
-    source: Path, page: Path, launcher: Path, runtime: Path, ready_fd: int | None
+    source: Path,
+    page: Path,
+    launcher: Path,
+    runtime: Path,
+    ready_fd: int | None,
+    automation: bool,
 ) -> None:
     from leaf.event_log import flocked
     from leaf.files import read_json, write_json
     from leaf.host import host_identity
-    from leaf.hosting import cmd_stop, start_server, startup_note
+    from leaf.hosting import (
+        TEMPORARY_SERVER_NOTE,
+        TemporaryPageServer,
+        cmd_stop,
+        start_server,
+        startup_note,
+    )
     from leaf.layer import layer_inputs
     from leaf.leases import take_waiter_lease
     from leaf.server import running_server
@@ -537,10 +567,14 @@ def watch_preview(
         lease = take_waiter_lease(lease_path)
         identity = read_json(metadata)
         if lease is not None:
+            expected = source_identity(source, runtime, automation)
             if page.exists() and (
                 identity is None
-                or source_identity(source, runtime)
-                != {key: identity.get(key) for key in ("source", "runtime", "seed")}
+                or expected
+                != {
+                    key: identity.get(key)
+                    for key in ("source", "runtime", "seed", "interaction")
+                }
             ):
                 lease.close()
                 raise ValueError(
@@ -550,17 +584,23 @@ def watch_preview(
                 identity
                 if page.exists()
                 else {
-                    **source_identity(source, runtime),
+                    **expected,
                     "source_digest": digest(source),
                 }
             )
             write_json(metadata, {**identity, "enabled": True})
     if lease is None:
-        running = running_server(page)
-        if identity and source_identity(source, runtime) == {
-            key: identity.get(key) for key in ("source", "runtime", "seed")
+        expected = source_identity(source, runtime, automation)
+        if identity and expected == {
+            key: identity.get(key)
+            for key in ("source", "runtime", "seed", "interaction")
         }:
-            while running is None and read_json(metadata)["enabled"]:
+            if automation:
+                raise ValueError(
+                    "automation preview already running; use the URL printed by its foreground command"
+                )
+            running = running_server(page)
+            while running is None and (read_json(metadata) or {}).get("enabled"):
                 time.sleep(0.05)
                 running = running_server(page)
             if running is None:
@@ -578,12 +618,18 @@ def watch_preview(
         raise ValueError(
             f"a watcher already owns {page}; choose a new --slot for another fixture"
         )
+    temporary = None
     with lease:
         try:
+            if automation and PageTransaction(page).active_claim is not None:
+                raise ValueError(f"{page} has an active task claim; use a new --slot")
             if page.exists():
-                cmd_stop(page)
+                if not automation:
+                    cmd_stop(page)
                 try:
-                    refresh_preview(source, page, launcher, runtime, identity)
+                    refresh_preview(
+                        source, page, launcher, runtime, identity, automation
+                    )
                 except (SystemExit, ValueError, OSError) as error:
                     print(
                         f"Preview update refused: {error}. Feedback is preserved; edit the inputs to retry.",
@@ -593,14 +639,18 @@ def watch_preview(
                 prepared = f"resumed {source.stem} (feedback preserved)"
             else:
                 data_sources, versions = prepare(source, page, launcher, runtime)
-                mark_preview(source, page, runtime)
+                mark_preview(source, page, runtime, automation=automation)
                 prepared = preparation_note(source, data_sources, versions)
             if not read_json(metadata)["enabled"]:
                 return
-            ready = start_preview_server(page, launcher, runtime)
-            if ready is None:
-                raise RuntimeError(f"could not start preview {page}")
-            url, note = ready
+            if automation:
+                temporary = TemporaryPageServer(page).start()
+                url, note = temporary.url, TEMPORARY_SERVER_NOTE
+            else:
+                ready = start_preview_server(page, launcher, runtime)
+                if ready is None:
+                    raise RuntimeError(f"could not start preview {page}")
+                url, note = ready
             roots = layer_inputs(
                 tuple(read_json(page / "registry.json")["$layer"]["packages"])
             )
@@ -613,9 +663,10 @@ def watch_preview(
             serving = True
             while read_json(metadata)["enabled"]:
                 time.sleep(0.25)
-                if serving and not running_server(page):
+                live = temporary.running if automation else running_server(page)
+                if serving and not live:
                     return  # an explicit service stop or the owning session ended
-                if not serving:
+                if not serving and not automation:
                     # A refused restart has no service watching the claim's
                     # lifetime. Lost ownership ends this watcher as well.
                     with PageTransaction(page) as state:
@@ -631,9 +682,16 @@ def watch_preview(
                     candidate = current
                     continue  # one quiet interval groups an editor's save batch
                 previous = current
-                cmd_stop(page)
+                if automation:
+                    token, port = temporary.token, temporary.port
+                    temporary.close()
+                    temporary = None
+                else:
+                    cmd_stop(page)
                 try:
-                    refresh_preview(source, page, launcher, runtime, identity)
+                    refresh_preview(
+                        source, page, launcher, runtime, identity, automation
+                    )
                     roots = layer_inputs(
                         tuple(read_json(page / "registry.json")["$layer"]["packages"])
                     )
@@ -645,15 +703,24 @@ def watch_preview(
                     )
                 if not read_json(metadata)["enabled"]:
                     return
-                # Ownership was claimed while the launch still had its host
-                # ancestor. A detached refresh preserves that lifetime; the
-                # serving child validates the retained claim before restarting.
-                serving = start_server(page) is not None
+                if automation:
+                    temporary = TemporaryPageServer(
+                        page, token=token, port=port
+                    ).start()
+                    serving = True
+                else:
+                    # Ownership was claimed while the launch still had its host
+                    # ancestor. A detached refresh preserves that lifetime; the
+                    # serving child validates the retained claim before restarting.
+                    serving = start_server(page) is not None
                 if serving:
                     print(f"Reloaded {source.stem}", flush=True)
         finally:
             update_preview_state(page, enabled=False)
-            cmd_stop(page)
+            if temporary is not None:
+                temporary.close()
+            elif not automation:
+                cmd_stop(page)
 
 
 def announce_preview(announcement: dict, log_path: Path | None) -> None:
@@ -665,7 +732,12 @@ def announce_preview(announcement: dict, log_path: Path | None) -> None:
 
 
 def start_preview_worker(
-    source: Path, page: Path, runtime: Path, background: bool, stop: bool
+    source: Path,
+    page: Path,
+    runtime: Path,
+    background: bool,
+    stop: bool,
+    automation: bool,
 ) -> None:
     """Run in the selected checkout's uv environment, including --runtime previews."""
     command = [
@@ -680,6 +752,8 @@ def start_preview_worker(
     # The caller's page path is retained even when the selected runtime is elsewhere.
     if page.parent == TMP / "previews":
         command.extend(("--slot", page.name))
+    if automation:
+        command.append("--automation")
     if stop:
         command.append("--stop")
     if not background:
@@ -712,12 +786,17 @@ def main() -> None:
     if args._worker:
         runtime = args.runtime.resolve()
         source = args.source.resolve()
-        page = preview_directory(source, args.slot)
+        page = preview_directory(source, args.slot, args.automation)
         if args.stop:
             stop_preview(page)
         else:
             watch_preview(
-                source, page, runtime / "bin" / "leaf", runtime, args._ready_fd
+                source,
+                page,
+                runtime / "bin" / "leaf",
+                runtime,
+                args._ready_fd,
+                args.automation,
             )
         return
     runtime, launcher = checkout(parser, args.runtime)
@@ -740,8 +819,10 @@ def main() -> None:
         print(out.resolve())
         return
 
-    page = preview_directory(source, args.slot)
-    start_preview_worker(source, page, runtime, args.background, args.stop)
+    page = preview_directory(source, args.slot, args.automation)
+    start_preview_worker(
+        source, page, runtime, args.background, args.stop, args.automation
+    )
 
 
 if __name__ == "__main__":

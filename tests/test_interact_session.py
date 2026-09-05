@@ -4035,6 +4035,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_reader(claimed, capsys)
             "kind": "example",
             "example": "design-decision",
             "checkout": "leaf",
+            "interaction": "reader",
             "started": "2026-09-01T10:00:00+00:00",
         },
     )
@@ -5080,6 +5081,34 @@ def test_server_run_standing_declines_the_claim_a_host_session_offers(page_dir, 
     assert process.stderr.readline().strip() == "server   standing"
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "standing"
     assert service_model.page_claim(page_dir) is None
+
+
+def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn):
+    """A temporary serve is real HTTP with process-owned lifetime and access.
+
+    It writes neither half of durable delivery: no service for a later wait to revive,
+    and no claim for this test's host session to watch.
+    """
+    process = spawn(
+        [*LEAF_COMMAND, "server", "run", "--temporary", str(page_dir)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    url = process.stdout.readline().strip()
+    assert url.startswith("http://127.0.0.1:")
+    assert process.stderr.readline().strip() == (
+        "server   temporary (stops with this command)"
+    )
+    state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
+    assert urllib.request.urlopen(state).status == 200
+    assert not (page_dir / "service.json").exists()
+    assert service_model.page_claim(page_dir) is None
+
+    process.send_signal(signal.SIGINT)
+    _, error = process.communicate(timeout=5)
+    assert process.returncode == 1, error
+    assert error.endswith("Aborted!\n")
 
 
 def test_server_run_standing_refuses_to_adopt_a_session_server(page_dir):

@@ -138,6 +138,49 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     page.close()
 
 
+def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
+    browser, serve
+):
+    """A chrome layout pass repacks the margin's rows; it does not restate its offers.
+
+    `syncLayout` ends in the anchor runtime's `dockSeats`, and the here-paint frame
+    ends in `syncLayout`; a margin render ends in `paintKeys`, which ends in the next
+    `paintHere`. So a `dockSeats` that restated every seat's offer closed a cycle —
+    chrome layout, margin render, paint, chrome layout — on any page carrying a
+    standing reaction, and the gallery ran a whole margin render every frame with
+    nothing dispatched and nothing on the page moving. Measured then: ~350ms of main
+    thread per frame, which is also long enough that every Playwright read of that
+    page waits on it.
+
+    The reaction seat is asserted first, because it is the ingredient the cycle needed:
+    with no seat `dockSeats` visits nothing and a page passes this without saying
+    anything. The heartbeat is the one render a settled page is allowed here, and it
+    comes every two seconds, so at most one of these frames can carry it.
+    """
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 1280, 900)
+    margins_laid_out(page)
+    assert page.locator(".lf-react-mark").count() >= 1
+
+    layouts = page.evaluate(
+        """async frames => {
+          const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+          for (let i = 0; i < 10; i++) await frame();
+          let seen = 0;
+          const count = () => { seen += 1; };
+          document.addEventListener('lf-margin-layout', count);
+          for (let i = 0; i < frames; i++) await frame();
+          document.removeEventListener('lf-margin-layout', count);
+          return seen;
+        }""",
+        30,
+    )
+
+    assert layouts <= 1, layouts
+    assert errors == []
+    page.close()
+
+
 def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serve):
     """A heartbeat refresh cannot force layout once per Page-map location."""
     corpus = next(example for example in EXAMPLES if example.stem == "corpus")

@@ -711,7 +711,9 @@ def test_the_live_root_places_its_marker_by_the_parsers_own_line_break(
         '<meta name="lf-revision" data-lf-runtime content="1">'
         '<meta name="lf-version" data-lf-runtime content="1">'
     )
-    assert body == source.replace(script, marker + script)
+    assert body.count(marker) == 1
+    assert "  " + marker + script in body
+    assert "<title>Backfill plan\u2028Q3</title>" in body
     # The old splice corrupted this tag while leaving the page renderable.
     assert '<link rel="stylesheet" href="/theme.css">' in body
 

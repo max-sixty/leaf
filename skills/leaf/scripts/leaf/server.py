@@ -39,6 +39,9 @@ def preview_metadata(page_dir: Path) -> dict | None:
     for field in ("example", "checkout", "started"):
         if not isinstance(preview.get(field), str) or not preview[field]:
             sys.exit(f"{path}: preview {field} must be a non-empty string")
+    interaction = preview.get("interaction")
+    if interaction not in ("reader", "automation"):
+        sys.exit(f"{path}: preview interaction must be reader or automation")
     commit = preview.get("commit")
     if commit is not None and not (
         isinstance(commit, str) and re.fullmatch(r"[0-9a-f]{7,40}", commit)
@@ -51,6 +54,7 @@ def preview_metadata(page_dir: Path) -> dict | None:
         "kind": "example",
         "example": preview["example"],
         "checkout": preview["checkout"],
+        "interaction": interaction,
         "started": preview["started"],
         **({"commit": commit} if commit is not None else {}),
         **({"dirty": dirty} if dirty is not None else {}),

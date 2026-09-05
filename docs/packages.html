@@ -202,6 +202,12 @@ $ leaf version check PAGE --render</code></pre>
           Re-running <code>page init</code> is the explicit update for an existing page.
           Pages that are not re-initialized keep their vendored layer unchanged.
         </p>
+        <p>
+          <code>leaf package install packages/callout</code> copies the checked package
+          into <code>~/.local/state/leaf/packages/</code>, after which
+          <code>--package callout</code> reaches it by name from any project on this
+          machine.
+        </p>
         <dl class="package-next">
           <dt><a href="/registry/">Registry keys</a></dt>
           <dd>

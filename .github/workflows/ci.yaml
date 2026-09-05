@@ -86,3 +86,7 @@ jobs:
 
       - run: npm test
         working-directory: worker
+
+      - name: Build website deploy artifact
+        run: npx wrangler deploy --dry-run --outdir ../.tmp/worker-deploy
+        working-directory: worker

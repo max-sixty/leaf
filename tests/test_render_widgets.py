@@ -1435,7 +1435,8 @@ def test_composer_grows_with_its_text_without_script(browser, serve):
     page.close()
 
 
-def test_suggestion_controls_stay_out_of_the_column(browser, serve):
+@pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
+def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_motion):
     """Suggestion chrome hangs in the page margin, so the prose keeps the full column
     and reads as it will once the change is settled. The row is the column's own
     child and takes its line from an anchor inside the change, so how deep the
@@ -1449,7 +1450,8 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     proves it is the one a user reads in: with the thread panel open, a
     centred column left too little beside it and every row docked — above the
     change it decides, which reads as the paragraph before's."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
+    page.emulate_media(reduced_motion=reduced_motion)
     assert errors == []
     column = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
     room = page.evaluate("() => document.body.getBoundingClientRect().right")
@@ -1484,6 +1486,17 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     # other. Measured after the layout has moved, since opening the panel resizes
     # the page and the rows re-place on the frame after that.
     page.locator(".lf-threads-toggle").click()
+    if reduced_motion == "no-preference":
+        # Hold the presentation offset while the resize-driven placements dock the
+        # rows. Let that frame's ResizeObserver delivery and its queued placement run
+        # before finishing the carry, so no pending resize accidentally repairs them.
+        page.wait_for_function(
+            "() => [...document.querySelectorAll('[data-lf-for=sug-refill], [data-lf-for=sug-thistle]')]"
+            ".every(r => r.parentElement.classList.contains('lf-docked'))"
+        )
+        page.evaluate("""() => new Promise(resolve => {
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+        })""")
     panel_settled(page)
     page.wait_for_function(
         "() => [...document.querySelectorAll("

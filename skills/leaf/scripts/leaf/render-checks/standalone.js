@@ -125,24 +125,17 @@ export function bake() {
   // down on the live page, and the press removal below reads that same value to mean "a
   // box a widget built" and walks past.
   //
-  // What a file may claim is what splits them, which is why the behavior alone is not
-  // the reading. Sent, Waiting for pickup and Picked up are news about a move an agent
-  // is still making, and a file has nothing standing behind that, so keeping the
-  // sentence would turn provisional news into a lie. A standing Outcome is the opposite:
-  // the page map's record of a decision this document already carries, with the decided
-  // state applied in the same file — the very fact the rail below is held open for, and
-  // for a widget speaking no status of its own the only margin record of the choice.
-  // `marginButton` states which is which (data-lf-standing); what the copy keeps is
-  // settled below, once the presses standing beside it have gone.
+  // Sent, Waiting for pickup, and Picked up are news about a live handoff. A file has no
+  // session behind it, so keeping one would turn provisional news into a statement. The
+  // durable action remains applied in the widget itself; the page map adds no second
+  // record for a copy to preserve.
   const roots = [document];
   for (const root of roots)
     for (const element of root.querySelectorAll("*"))
       if (element.shadowRoot) roots.push(element.shadowRoot);
   for (const root of roots)
     root
-      .querySelectorAll(
-        '.lf-receipt, [data-lf-behavior="status"]:not([data-lf-standing])',
-      )
+      .querySelectorAll('.lf-receipt, [data-lf-behavior="status"]')
       .forEach((el) => el.remove());
   document.querySelectorAll("script, .lf-chrome").forEach((el) => el.remove());
   // A measurement of this window is not a fact about the reader's. The live page states
@@ -345,64 +338,11 @@ export function bake() {
       )
         el.removeAttribute(attr.name);
   });
-  // The record kept above, now that the presses around it have gone. It stands once and
-  // in the item itself: a copy cannot open a fold, because the `…` that would is one of
-  // those presses, and the resting seat a widget's control held is free again for the
-  // same reason. So one seat per reading — the one the live page showed, else the marker
-  // it hid — and the seat gives up the promise it never used, which is the status role
-  // the walk lands on, its tab stop, and the marker that said a widget built this box.
-  // No widget did: this reading is the runtime's, which is why nothing here is left for
-  // the press pass above to keep, the way it keeps a control's page words.
-  //
-  // It keeps its circle and its glyph, though, so what it gives up the status for is the
-  // one role a shape with a collapsed word can hold: `img`, with the word as its text
-  // alternative, the same bargain the reaction mark above strikes and for the same
-  // reason. `aria-label` on a span with no role is a name nothing is obliged to read,
-  // and both seats land here as spans — the marker was one already, and the option seat
-  // gave its own role up above.
-  for (const item of document.querySelectorAll(".lf-margin-item")) {
-    const seats = new Map();
-    for (const record of item.querySelectorAll("[data-lf-standing]")) {
-      const standing = seats.get(record.dataset.lfButtonKey);
-      if (standing && !standing.hidden) {
-        record.remove();
-        continue;
-      }
-      if (standing) standing.remove();
-      seats.set(record.dataset.lfButtonKey, record);
-    }
-    for (const record of seats.values()) {
-      record.hidden = false;
-      for (const attr of ["tabindex", "data-lf-offer"]) record.removeAttribute(attr);
-      // And it stops being a page-map marker, where the live page showed it as one.
-      // The class is the rail's seat rather than the reading's: both media rules that
-      // stop drawing the page map keep it company (`.lf-living-margin,
-      // .lf-margin-marker.lf-margin-button` at the 900px floor and again for print), so
-      // a record left wearing it would be a fact this file keeps on a wide screen and
-      // drops on a narrow one or on paper, while the same record kept in a widget's own
-      // fold stands in all three. The name goes with the class for the same reason it
-      // is written: `markerName` speaks the walk — which entry of how many, and how far
-      // down the exporter's window the target sat — and a copy has neither the walk nor
-      // that window. What replaces it is the reading's own word, restated as the name.
-      // That is how every other seat in the margin is named — `marginButton` writes the
-      // record's label there, and the option seat below it carries `Outcome for …` —
-      // and the word standing in the DOM cannot stand in for it: the chrome stylesheet
-      // rides into the file and styles that span as hover chrome, `visibility: hidden`
-      // until a pointer is on the control, so it is read in no medium and by nothing.
-      if (record.classList.replace("lf-margin-marker", "lf-margin-reading-option"))
-        record.setAttribute(
-          "aria-label",
-          record.querySelector(":scope > .lf-margin-button-label").textContent,
-        );
-      record.setAttribute("role", "img");
-      item.append(record);
-    }
-  }
   // Target items are generated containers rather than offers themselves. A pending
   // action leaves the container empty when its inert controls are stripped above; take
   // that shell too, or :has(.lf-margin-item) reserves the live page's rail in a copy
-  // that kept nothing in it. Decided records and standing reaction marks remain as
-  // children and therefore retain both their shared item and its rail.
+  // that kept nothing in it. Standing reaction marks remain as children and therefore
+  // retain both their shared item and its rail.
   //
   // The fold `…` unfolds is a container of the same kind, and it stands in every item
   // whether or not anything is folded into it. Emptied of its stand-in Buttons, it is a
@@ -417,10 +357,10 @@ export function bake() {
   // the shells above are gone so the question is about what survived. The reservation
   // exists because a Button can arrive on a gesture and the reader must not pay a reflow
   // for it; a file takes no gestures, so what it has when it is written is all it will
-  // ever have. Kept regardless, a copy of a page nobody had acted on opened with its
-  // column pushed off-centre by a strip holding nothing. The width above is not on this
-  // list and must not join it: a decided change keeps its record and the room that
-  // record was reserved for, and that room is the rail it was exported with.
+  // ever have. Kept regardless, a copy of a page with no durable margin content opened
+  // with its column pushed off-centre by a strip holding nothing. The width above is not
+  // on this list and must not join it: a standing reaction keeps its mark and the room
+  // that mark was reserved for, and that room is the rail it was exported with.
   if (!document.querySelector("main .lf-margin-item"))
     document.documentElement.removeAttribute("data-lf-rail");
   // What the runtime painted, as against what a widget built, goes the same way. An

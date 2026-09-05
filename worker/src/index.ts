@@ -36,7 +36,8 @@ function randomSessionId(): string {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const pathname = new URL(request.url).pathname;
+    const url = new URL(request.url);
+    const pathname = url.pathname;
     if (!isExampleRequest(pathname)) return env.ASSETS.fetch(request);
     if (needsExampleSlash(pathname)) {
       const canonical = new URL(request.url);
@@ -50,7 +51,7 @@ export default {
     if (existing !== null) return response;
 
     const headers = new Headers(response.headers);
-    headers.append("Set-Cookie", sessionCookie(sessionId));
+    headers.append("Set-Cookie", sessionCookie(sessionId, url.protocol === "https:"));
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,

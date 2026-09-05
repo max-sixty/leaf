@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  HTTP_SESSION_COOKIE,
   SESSION_COOKIE,
   isExampleRequest,
   needsExampleSlash,
@@ -24,15 +25,24 @@ describe("website example routing", () => {
   it("reuses only a well-formed opaque session cookie", () => {
     const id = "01".repeat(16);
     expect(sessionFromCookie(`theme=dark; ${SESSION_COOKIE}=${id}`)).toBe(id);
+    expect(sessionFromCookie(`${HTTP_SESSION_COOKIE}=${id}`)).toBe(id);
+    expect(
+      sessionFromCookie(
+        `${HTTP_SESSION_COOKIE}=${"02".repeat(16)}; ${SESSION_COOKIE}=${id}`,
+      ),
+    ).toBe(id);
     expect(sessionFromCookie(`${SESSION_COOKIE}=not-a-session`)).toBe(null);
     expect(sessionFromCookie(null)).toBe(null);
   });
 
-  it("mints a host-only secure session cookie from 128 random bits", () => {
+  it("mints transport-appropriate session cookies from 128 random bits", () => {
     const id = newSessionId(Uint8Array.from({ length: 16 }, (_, index) => index));
     expect(id).toBe("000102030405060708090a0b0c0d0e0f");
-    expect(sessionCookie(id)).toBe(
+    expect(sessionCookie(id, true)).toBe(
       `${SESSION_COOKIE}=${id}; Path=/; Secure; HttpOnly; SameSite=Strict`,
+    );
+    expect(sessionCookie(id, false)).toBe(
+      `${HTTP_SESSION_COOKIE}=${id}; Path=/; HttpOnly; SameSite=Strict`,
     );
   });
 });

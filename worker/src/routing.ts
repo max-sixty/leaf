@@ -1,6 +1,7 @@
 /** Pure request routing for the public site worker. */
 
 export const SESSION_COOKIE = "__Host-leaf-example";
+export const HTTP_SESSION_COOKIE = "leaf-example-local";
 
 const EXAMPLE_PATH = /^\/examples\/[a-z0-9-]+(?:\/|$)/;
 const EXAMPLE_WITHOUT_SLASH = /^\/examples\/[a-z0-9-]+$/;
@@ -16,14 +17,14 @@ export function needsExampleSlash(pathname: string): boolean {
 
 export function sessionFromCookie(cookie: string | null): string | null {
   if (cookie === null) return null;
+  let local: string | null = null;
   for (const item of cookie.split(";")) {
     const [name, ...value] = item.trim().split("=");
-    if (name === SESSION_COOKIE) {
-      const candidate = value.join("=");
-      return SESSION_ID.test(candidate) ? candidate : null;
-    }
+    const candidate = value.join("=");
+    if (name === SESSION_COOKIE && SESSION_ID.test(candidate)) return candidate;
+    if (name === HTTP_SESSION_COOKIE && SESSION_ID.test(candidate)) local = candidate;
   }
-  return null;
+  return local;
 }
 
 export function newSessionId(random: Uint8Array): string {
@@ -33,7 +34,9 @@ export function newSessionId(random: Uint8Array): string {
   return Array.from(random, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-export function sessionCookie(sessionId: string): string {
+export function sessionCookie(sessionId: string, secure: boolean): string {
   if (!SESSION_ID.test(sessionId)) throw new Error("invalid Leaf website session id");
-  return `${SESSION_COOKIE}=${sessionId}; Path=/; Secure; HttpOnly; SameSite=Strict`;
+  const name = secure ? SESSION_COOKIE : HTTP_SESSION_COOKIE;
+  const security = secure ? "; Secure" : "";
+  return `${name}=${sessionId}; Path=/${security}; HttpOnly; SameSite=Strict`;
 }

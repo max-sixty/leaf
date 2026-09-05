@@ -7,6 +7,7 @@ import {
   shownRect,
 } from "./geometry.js";
 import { marginButton, registerMarginItem } from "./living-margin.js";
+import { scheduleMarginLayout } from "./margin-layout.js";
 import {
   resolvedElement,
   resolvedPassage,
@@ -1184,10 +1185,19 @@ export function createAnchors(dependencies) {
         reactionSeats.delete(at);
       }
   }
-  // Kept as the anchor runtime's layout hook: callers do not need to know that seats
-  // now ask the shared target item to remeasure instead of registering their own rows.
+  // The anchor runtime's layout hook: the chrome moved, so the rows a seat hangs in
+  // have to be packed again. Callers do not need to know that a seat is a contribution
+  // to the shared target item rather than a row of its own.
+  //
+  // A layout pass repacks; it does not restate what the seats offer. Saying `update()`
+  // here restated them, and a margin render ends in `paintKeys`, which ends in
+  // `paintHere` — the frame this hook is called from. On a page carrying a standing
+  // reaction that closed a cycle: chrome layout, margin render, paint, chrome layout,
+  // a whole margin render every frame with nothing dispatched and nothing moving.
+  // Measured on the feature gallery, ~350ms of main thread a frame, which is also what
+  // made every read of that page wait on it.
   function dockSeats() {
-    for (const record of reactionSeats.values()) record.margin.update();
+    if (reactionSeats.size) scheduleMarginLayout();
   }
 
   // Re-resolve marks after replay or a package-owned layout replaces their derived

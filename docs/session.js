@@ -31,14 +31,21 @@
  * second copy of that door would be a second thing to keep in step with the first.
  */
 
-// Which version this document is, read the way the runtime reads it.
-const VERSION = Number(location.pathname.match(/\/versions\/v([1-9]\d*)\.html$/)?.[1]);
-const REVISION = 1;
-const revisionMarker = document.createElement("meta");
-revisionMarker.name = "lf-revision";
-revisionMarker.content = String(REVISION);
-revisionMarker.dataset.lfRuntime = "";
-document.head.append(revisionMarker);
+// The builder injects the same identity markers as Leaf's HTTP server. That lets the
+// current document keep its page-root URL while immutable historical versions retain
+// their versions/vN.html addresses.
+const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
+const PAGE_ROOT = new URL(
+  VERSION_PATH.test(location.pathname) ? "../" : "./",
+  location.href,
+).pathname;
+const DOCUMENT_URL = location.pathname;
+const REVISION = Number(
+  document.querySelector('meta[name="lf-revision"][data-lf-runtime]')?.content,
+);
+const VERSION = Number(
+  document.querySelector('meta[name="lf-version"][data-lf-runtime]')?.content,
+);
 const realFetch = window.fetch.bind(window);
 
 // Begin every file read before installing the runtime. The local API below awaits this
@@ -50,10 +57,10 @@ let DATA;
 let events;
 const sessionReady = Promise.all([
   realFetch("/registry.json").then((response) => response.json()),
-  realFetch("../data.json")
+  realFetch(`${PAGE_ROOT}data.json`)
     .then((response) => (response.ok ? response.json() : { revision: 0, sources: {} }))
     .catch(() => ({ revision: 0, sources: {} })),
-  realFetch("../events.jsonl")
+  realFetch(`${PAGE_ROOT}events.jsonl`)
     .then((response) => (response.ok ? response.text() : ""))
     .catch(() => "")
     .then((text) =>
@@ -371,13 +378,12 @@ function demoBrowser() {
 // goes blank the day it starts reading one.
 const state = () => ({
   layer: REGISTRY.$layer,
-  // The versions this page has, which here is the one being read: the site publishes a
-  // single version of each example. A second would want the list handed to this file
-  // rather than guessed from a path, since a reader on v1 has to be offered v2.
+  // This static session projects the document being read. Historical documents retain
+  // their own addresses; the current document stands at the page root.
   active: {
     revision: REVISION,
     version: VERSION,
-    url: `/versions/v${VERSION}.html`,
+    url: DOCUMENT_URL,
     label: `v${VERSION}`,
     activated_at: null,
   },
@@ -385,7 +391,7 @@ const state = () => ({
     {
       version: VERSION,
       revision: REVISION,
-      url: `/versions/v${VERSION}.html`,
+      url: DOCUMENT_URL,
     },
   ],
   source_error: null,

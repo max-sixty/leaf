@@ -213,6 +213,15 @@ export function marginButton(
     // the writer rather than the role, because `marginButton` is published through the
     // widget API and a module reaching it brings no second writer with it.
     writesRelation = true,
+    // Whether this call seats the control. True for every fitting that owns its own tab
+    // stop, including the reading options, which stand in a group the rail's walk does
+    // not reach. False says the rail's roving stop owns the seat: `holdTabStop` writes
+    // every row's `tabindex` on the frame after each pass, so a seat written here is a
+    // second writer the next pass contradicts — an unguardable `0` and `-1` taking turns
+    // on every marker the stop is not on. Declared for the same reason as the relation:
+    // the role cannot stand in for it, since a marker and a reading option wear the same
+    // one and only the marker is a row.
+    writesSeat = true,
   },
 ) {
   if (!(control instanceof Element))
@@ -237,6 +246,12 @@ export function marginButton(
     tone,
     role,
     state,
+    // Carried on the record because `optionControlNode` rebuilds a Button from one: a
+    // proxy that re-inferred the default would write the disclosure relation its source
+    // has no writer for, and `syncForwardedButtonState` would strip it again the same
+    // pass. The seat is not carried — a proxy is a native button standing outside the
+    // rail, so it always owns its own.
+    writesRelation,
   });
   control[BUTTON_RECORD] = record;
 
@@ -269,13 +284,13 @@ export function marginButton(
     // The attribute rather than the property: a span with no `tabindex` already reads
     // `tabIndex === -1`, so a property guard would never write the one that makes the
     // seat programmatically focusable, while an unguarded write restates it every pass.
-    keeps(control, "tabindex", -1);
+    if (writesSeat) keeps(control, "tabindex", -1);
   } else if (!(control instanceof HTMLButtonElement)) {
     keeps(control, "role", "button");
-    if (control.tabIndex < 0) control.tabIndex = 0;
+    if (writesSeat && control.tabIndex < 0) control.tabIndex = 0;
   } else if (control.getAttribute("role") === "status") {
     control.removeAttribute("role");
-    control.removeAttribute("tabindex");
+    if (writesSeat) control.removeAttribute("tabindex");
   }
   let glyphNode = control.querySelector(
     ":scope > :is(.lf-margin-button-glyph, .lf-margin-button-icon)",
@@ -1748,6 +1763,7 @@ export function createLivingMargin(dependencies) {
       role: "reading",
       state: readingState(choice),
       writesRelation: false,
+      writesSeat: false,
     });
     row.onclick = behavior === "status" ? null : pressMarker;
     syncThreadRelation(row, markerNeedsPreview(entry));
@@ -1813,6 +1829,7 @@ export function createLivingMargin(dependencies) {
       tone: record.tone,
       role: record.role,
       state: record.state,
+      writesRelation: record.writesRelation,
     });
     syncForwardedButtonState(node, control);
     node.lfForwardedControl = control;
@@ -2248,6 +2265,7 @@ export function createLivingMargin(dependencies) {
           behavior: "disclosure",
           role: "reading",
           writesRelation: false,
+          writesSeat: false,
         });
         keys(
           host,

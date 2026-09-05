@@ -117,7 +117,11 @@ export function layoutMarginRows() {
     }
     if (staysDocked.has(row)) continue;
     if (row.classList.contains("lf-docked")) options.float?.(row);
-    row.classList.remove("lf-docked", "lf-waiting");
+    // `remove` re-serializes the class attribute whether or not the tokens stand, and
+    // this pass runs on the heartbeat, so ask before clearing: a row that hangs in the
+    // margin carries neither class and has nothing to be put back.
+    if (row.classList.contains("lf-docked") || row.classList.contains("lf-waiting"))
+      row.classList.remove("lf-docked", "lf-waiting");
     row.style.transform = "";
   }
   if (!rows.size) {

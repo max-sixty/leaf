@@ -1568,8 +1568,8 @@ item that sets `represents` and names its
 reading of the same kind at that exact target rather than showing the fact twice.
 Every fitting in a contribution is built with
 `marginButton(control, {key, icon, label, context, behavior, tone, standing, role,
-state, writesRelation})`; an authored reaction can supply `glyph` instead of `icon`,
-never both.
+state, writesRelation, writesSeat})`; an authored reaction can supply `glyph` instead
+of `icon`, never both.
 `standing` is read only from a `status`, and says the report is one the file itself
 carries. That is the one RHS control
 type: it owns the circle, size, type, focus, state paint, and glyph/word anatomy shared
@@ -1578,7 +1578,10 @@ what the fitting promises. Behavior, tone, and state are independent axes: never
 use a heavier border to mean positive, busy, selected, or complete.
 
 `marginButton` also establishes the canonical Button record: key, face, label, context,
-behavior, standing durability, tone, role, and lifecycle state. Registration assigns its stable owner and
+behavior, standing durability, tone, role, lifecycle state, and the relation writer the
+call declared. The record carries that last one because the options group rebuilds a
+proxy Button from it, and a proxy that re-inferred the default would write a relation
+its source has no writer for. Registration assigns its stable owner and
 rejects duplicate Button keys within that owner. The compact rail and complete Page map
 both render from this record; neither infers semantics by scraping the contributor's
 painted DOM. Transient native state such as disabled and `aria-expanded` is mirrored
@@ -1595,7 +1598,11 @@ activation owner.
   `aria-controls` and `aria-expanded` are settled together from whether the reading opens
   a thread. Two writers over one attribute say something different each pass, so no
   record of theirs restates anything while the document's disclosure watch reads the pair
-  as news;
+  as news. `writesSeat: false` says the same thing about the control's `tabindex`: the
+  rail's roving stop writes every row's seat on the frame after each pass, so a marker
+  that seated itself here would have the next pass contradict it. The two are declared
+  apart because they part on the reading options, which stand outside the rail's walk
+  and own their own seat while another writer owns their relation;
 - `status` reports a move already made and offers no press. It keeps its icon and its
   circular Button silhouette and seat in the cluster on the page surface with a ghost
   keyline, but gives up its raised edge, hover response, pointer, and tab stop. It remains a

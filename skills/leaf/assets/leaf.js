@@ -758,21 +758,23 @@ const {
   trayChanged: () => livingMargin?.render(),
   walkRows,
 });
-const { leavesOffered, othersLinks, paintLeavesOffer, renderOthers } = createLiveLeaves({
-  ago,
-  el,
-  keys,
-  leavesList,
-  openTray,
-  othersBtn,
-  othersPanel,
-  pagePresented,
-  paintKeys,
-  presented: (...args) => presented(...args),
-  showNews,
-  toneFor: (...args) => toneFor(...args),
-  walkRows,
-});
+const { leavesOffered, othersLinks, paintLeavesOffer, renderOthers } = createLiveLeaves(
+  {
+    ago,
+    el,
+    keys,
+    leavesList,
+    openTray,
+    othersBtn,
+    othersPanel,
+    pagePresented,
+    paintKeys,
+    presented: (...args) => presented(...args),
+    showNews,
+    toneFor: (...args) => toneFor(...args),
+    walkRows,
+  },
+);
 for (const control of [decisionsBtn, othersBtn]) showNews(control, false);
 // One owner for everything a move between two documents of one page takes: the chooser
 // and its key, the comparison marks, live activation, and the reading landmark that

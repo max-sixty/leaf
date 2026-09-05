@@ -45,7 +45,7 @@ def browser_state(
     views = {}
     for revision in sorted(view_revisions):
         html = documents[revision]
-        document, projection, within, floors = _browser_document(
+        document, projection = _browser_document(
             html,
             events,
             registry,

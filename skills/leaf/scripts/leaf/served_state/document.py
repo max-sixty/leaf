@@ -14,7 +14,7 @@ def _browser_document(
     threads: dict,
     *,
     prepared: tuple | None = None,
-) -> tuple[dict, StateProjection, dict, dict]:
+) -> tuple[dict, StateProjection]:
     document = read_document(
         html, events, registry, revision, threads, prepared=prepared
     )
@@ -31,8 +31,6 @@ def _browser_document(
             "requests": document.requests,
         },
         document.projection,
-        document.within,
-        document.floors,
     )
 
 

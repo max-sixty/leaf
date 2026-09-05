@@ -241,9 +241,9 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     _until(page, lambda t: t.sends >= 2, "sent the move it was asked for")
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
     page.keyboard.press("z")
-    assert (
-        _traffic(page).sends == 2
-    ), "the press took back a gesture read off a log missing the one before it"
+    assert _traffic(page).sends == 2, (
+        "the press took back a gesture read off a log missing the one before it"
+    )
 
     held[0].continue_()
     round_trip(page)
@@ -1734,9 +1734,9 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
         "aria-label", re.compile(r"^Accept the suggested change")
     )
     expect(page.locator(".lf-decisions")).to_have_text("Asks 0/3")
-    assert (
-        page.locator("[data-lf-for='sug-refill']").count() == 1
-    ), "undo left more than one control row for the same suggestion"
+    assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
+        "undo left more than one control row for the same suggestion"
+    )
     (accepted,) = actions(serve.page_dir)
     assert accepted["action"] == "accept"
     assert [
@@ -1911,9 +1911,9 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
         "named, over the move that still stands"
     )
     fresh, errors_fresh = open_page(browser, url)
-    assert (
-        fresh.eval_on_selector_all(*order) == standing
-    ), "a tab reading the log fresh disagrees with the tab that heard the undo"
+    assert fresh.eval_on_selector_all(*order) == standing, (
+        "a tab reading the log fresh disagrees with the tab that heard the undo"
+    )
     # The stale tab's own console too: `refuse` cancels rather than fails a
     # request, so stopping its polls leaves nothing for it to report.
     assert errors_stale == [] and errors_mover == []
@@ -2073,9 +2073,9 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     page.locator("#opt-strict").click(click_count=3)
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("what did the trial actually show?")
-    assert mark_shows_beside_composer(
-        page
-    ), "the box covered the passage it just opened on"
+    assert mark_shows_beside_composer(page), (
+        "the box covered the passage it just opened on"
+    )
 
     page.reload()
     page.wait_for_function(
@@ -2086,9 +2086,9 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
         "the restored box came back on top of its own mark, and with the mark hidden "
         "nothing on screen says what the draft is about"
     )
-    assert not composer_quote(page)[
-        "shown"
-    ], "the mark is showing and the composer prints the passage as well"
+    assert not composer_quote(page)["shown"], (
+        "the mark is showing and the composer prints the passage as well"
+    )
     assert errors == []
     page.close()
 
@@ -2162,9 +2162,9 @@ def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serv
             .map(el => el.id || el.tagName);
         return { touching };
     }""")
-    assert (
-        standing["touching"] == []
-    ), f"the box stands on the page's own text: {standing['touching']}"
+    assert standing["touching"] == [], (
+        f"the box stands on the page's own text: {standing['touching']}"
+    )
     assert errors == []
     page.close()
 
@@ -2235,9 +2235,9 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
     wait_for_revision(page, 2)
     expect(page).not_to_have_url(re.compile("/versions/"))
     expect(page.locator(".lf-composer")).to_be_hidden()
-    assert (
-        pending_text(page) == ""
-    ), "v2 rewrote the passage and the page marked it anyway"
+    assert pending_text(page) == "", (
+        "v2 rewrote the passage and the page marked it anyway"
+    )
 
     page.goto(url)
     page.wait_for_selector("#p")
@@ -2302,15 +2302,15 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     # Read once, on the frame the paint coalesces to, rather than through `expect`:
     # a heartbeat two seconds out repaints the line whatever this drag did, so an
     # assertion that re-decisions passes on the poll and says nothing about the edge.
-    assert "z undo" not in _painted_line(
-        page
-    ), "the line offered a press the dispatcher refuses for the length of a drag"
+    assert "z undo" not in _painted_line(page), (
+        "the line offered a press the dispatcher refuses for the length of a drag"
+    )
 
     page.mouse.up()
     assert page.locator("lf-board.lf-dragging").count() == 0
-    assert "z undo" in _painted_line(
-        page
-    ), "the drop that sent nothing left the line refusing a press that is live"
+    assert "z undo" in _painted_line(page), (
+        "the drop that sent nothing left the line refusing a press that is live"
+    )
     assert _traffic(page).sends == sent, "the drop that moved nothing sent a move"
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     assert errors == []

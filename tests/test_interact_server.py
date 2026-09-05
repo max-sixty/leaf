@@ -4007,14 +4007,14 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     log.write_text("\n".join(lines), encoding="utf-8")
 
     events = event_model.read_events(page_dir)
-    assert [e["id"] for e in events if e["kind"] == "reply"] == [
-        "r-kept"
-    ], "the tear took the reply with it, so nothing below is being read"
+    assert [e["id"] for e in events if e["kind"] == "reply"] == ["r-kept"], (
+        "the tear took the reply with it, so nothing below is being read"
+    )
     assert thread_context_model.thread_roots(events)["r-kept"] == "c-lost"
     threads = event_folds_model.build_threads(events, {})  # nothing published to sit on
-    assert list(threads) == [
-        "c-lost"
-    ], f"the two readings put the reply in different conversations: {list(threads)}"
+    assert list(threads) == ["c-lost"], (
+        f"the two readings put the reply in different conversations: {list(threads)}"
+    )
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
 
     # The surviving message is still the frozen document that owns its widgets.

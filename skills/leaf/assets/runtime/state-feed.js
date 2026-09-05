@@ -1,3 +1,18 @@
+/* The page's ear: the state reads, the news stream that says when to ask, the heartbeat
+   that re-applies what the page holds, and the phase the answers leave it in.
+
+   `statePhase` distinguishes `waiting`, `ready`, and `offline`. An empty `events` array
+   while waiting means the log has not been read; it does not mean there are no comments.
+   A restored or newly opened panel keeps its general composer usable and shows a loading
+   state until that distinction resolves.
+
+   A failed fetch is a complete offline answer for interaction: the authored page is the
+   best state available when no log can be reached, so fixed status chrome reports the
+   loss and its controls may activate. A successful response with malformed state is not
+   an offline answer. Parsing or rendering errors pass to the recovery boundary and leave
+   the candidate sequence unresolved; authored content stays readable while
+   state-dependent controls remain unavailable. */
+
 import { countTraffic } from "./traffic.js";
 
 export function createStateFeed({

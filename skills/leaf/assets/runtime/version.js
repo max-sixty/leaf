@@ -13,6 +13,67 @@
  * installs it; the arrival landing; the menu readings the composing surface and the
  * margin take (`closeVersionMenu`, `versionMenuIsOpen`, `comparisonBase`,
  * `comparisonChanges`); and `readingBlock`, the block the decision walk starts from.
+ *
+ * One surface owns each destination. The version control opens the complete version list
+ * with notes and comparison controls. There are no separate older/newer page keys. A
+ * comparison base is the focused row in the menu; opening the menu lands on the current
+ * base, and walking to the version being read clears the comparison because it has no
+ * earlier base to mark against.
+ *
+ * The live root follows the newest version without navigating. It begins fetching as
+ * soon as a state read announces the version, but `midComposition` or an open version
+ * menu defers activation and leaves the newest-version chip visible. Ending the
+ * composition releases the version on the next heartbeat; pressing the chip is an
+ * explicit override and still keeps the live address. `goActive` is the one door for
+ * that in-place newest-version request and for the way back to the live address from a
+ * pinned document; `goVersion` is the door to an older public version.
+ *
+ * An older version is historical rather than live: choosing one navigates to its virtual
+ * version address with `?pin`, and it stays at the revision it was pinned at while
+ * offering the newest-version chip. The view record carries reading position and the
+ * decision-walk landmark across that document navigation. Focus and a selection do not
+ * cross to a new document. On live activation, runtime-chrome nodes and their focus
+ * survive; authored-main nodes are replaced, so the semantic landmark—not a DOM node—is
+ * the continuity guarantee.
+ *
+ * The served page root is a stable live document. Its first response projects the latest
+ * immutable revision and carries a runtime-only version marker. On a later state read,
+ * `prepareActivation` fetches the next mapped revision in the background
+ * (`revisionDocuments`). `activateRevision` replaces the authored head declarations,
+ * root attributes, and `body > main`; runs the same fence, parent, dressing, settlement,
+ * and authored-facet passes as startup; reconciles the log; and restores the semantic
+ * reading landmark and the reader's standing. That standing is written down by id before
+ * the swap — the nearest element carrying one, and the control within it by kind and
+ * position — and handed back after it: the same control where the revision kept it, its
+ * owner where the revision kept only that, and nothing where it kept neither. A chord
+ * armed before the swap is the runtime's and holds through it; its chips are read off
+ * the document standing afterwards. The gestures `midComposition` names — item hints, a
+ * reaction list, page search, a drag or grab — defer the activation instead. The chrome,
+ * browser document, module globals, panel, and address remain standing.
+ *
+ * That activation is one presentation boundary. Its async work runs in a
+ * `startViewTransition` update callback where the platform supplies one, including for
+ * reduced motion (whose transition duration collapses in the theme). Concurrent state
+ * responses serialize behind the active application; none may capture or replace a
+ * half-upgraded main. A runtime without the API applies the same ordered boundary
+ * without animation. If activation fails after advancing the document, reload the stable
+ * root rather than leaving a mixed version. A layer-generation change always reloads:
+ * soft activation is only valid within one vendored contract.
+ *
+ * `captureView` stores a passage-based reading landmark, correction within the block,
+ * and the last decision landmark. `restoreView` resolves the landmark after upgrade and
+ * corrects the scroll from the rendered box. A URL fragment outranks the saved view on a
+ * fresh navigation; the saved view outranks a leftover fragment on reload or back
+ * navigation. `landArrival` applies that ranking only after final page geometry is
+ * available.
+ *
+ * Focus and selection are not restored across document travel. Restoring focus onto a
+ * control the reader never stood on would change the next Space from page scroll to
+ * activation, and a selection may refer to words the new version replaced. The saved
+ * decision landmark preserves directional continuity without claiming the reader still
+ * stands there. A live activation is the other case: the reader's own standing carries
+ * across it (see "Startup and presentation"), so the next press means what it meant
+ * before the swap.
  */
 import { runtime } from "./context.js";
 import { designOn } from "./design.js";

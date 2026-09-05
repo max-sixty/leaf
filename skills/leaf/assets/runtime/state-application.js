@@ -1,3 +1,21 @@
+/* The one door for a complete server state, and what a refused application gives back.
+
+   `receiveState` is the only door for a complete server state. Three callers use it: a
+   read of `GET /api/state`, an accepted POST answer, and the heartbeat re-applying the
+   state the page already holds. It:
+
+   1. verifies the layer generation; 2. rejects an answer taken before the one it holds,
+   and an event sequence older than `lastEventSeq`; 3. loads the Markdown renderer before
+   any message body needs it; 4. installs candidate `events` and renders all log-derived
+   surfaces; 5. awaits thread-widget upgrades and initial capture, then calls
+   `reconcileState`; 6. advances `lastEventSeq` only after the whole state renders; 7.
+   accounts for outbox attempts; 8. dispatches `lf-actions` after replay.
+
+   If any required render throws, `receiveState` restores the prior event list, phase,
+   sequence, and held answer. A candidate history may be visible only during its own
+   application. Focus, undo, draft settlement, and later asynchronous wakeups must not
+   consume a log tail the page did not adopt. */
+
 import { LIVE_ROOT } from "./storage.js";
 
 // What an application writes to the runtime and a refused one gives back, the three

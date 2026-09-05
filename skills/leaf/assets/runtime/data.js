@@ -1,3 +1,13 @@
+/* The accepted external data and its watchers.
+
+   The browser keeps the accepted data revision independently from `lastEventSeq`,
+   because overlapping poll and POST responses can order the authorities differently.
+   `watchData(widget, input, callback)` delivers a clone of `{source, contract, revision,
+   updated, value, origin}` for current, a clone with `snapshot`, `label`, and optional
+   `lines` for a selected capture, or `null` before a bound current value exists. Modules
+   project the result into the authored seat; they do not fetch it, mutate the accepted
+   copy, or keep a hidden current-value map of their own. */
+
 import { runtime } from "./context.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { registry } from "./registry.js";

@@ -17,7 +17,10 @@ export function once(el) {
 // and note anchors all point one line off.
 export const dataBody = (el) => el.querySelector(":scope > pre").textContent;
 
-// A failed upgrade becomes a visible error box rather than a blank page.
+// A failed upgrade becomes a visible error box rather than a blank page. A widget failure
+// may failSoft its own element so the rest of the page and Threads remain usable, but it
+// does not convert a partial state read into a committed one (reportPageError,
+// layer-client.js, is the page-level evidence every failure reports through).
 export function failSoft(el, err, source) {
   const box = document.createElement("div");
   box.className = "lf-error";

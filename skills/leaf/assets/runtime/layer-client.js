@@ -1,3 +1,18 @@
+/* The vendored-generation gate, the one door events post through, and the page's error
+   channel to the agent.
+
+   A vendored runtime and registry are one generation. The runtime contains the
+   `"__LEAF_LAYER_GENERATION__"` placeholder and the registry carries the same epoch
+   after `page init`. `sameLayer` checks every successful state read and POST response.
+   If the server speaks a newer layer, the tab reloads before it reads or posts again. Do
+   not let one generation interpret another generation's registry or events.
+
+   `reportPageError` is the common runtime error surface. A widget failure may `failSoft`
+   its own element so the rest of the page and Threads remain usable, but it does not
+   convert a partial state read into a committed one. The window error listener, module
+   load failures, and render gate all report through the same page-level evidence. Do not
+   catch an error merely to stamp readiness or continue accounting for outbox attempts. */
+
 import { countTraffic } from "./traffic.js";
 
 export function createLayerClient({ currentRevision, layerGeneration, sayLine }) {

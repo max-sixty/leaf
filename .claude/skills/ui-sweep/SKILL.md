@@ -15,10 +15,12 @@ that use: drive, judge, fix, pin.
 ## Drive
 
 Serve pages the way the browser suite does (`serve` and `open_page`, which
-tests/render_harness.py owns, or the same pattern in a scratch script) and drive
-them with real input. Tour the gallery and one prose-heavy example, at 1200×900
-and 1440×900, in both color schemes. At each station take a screenshot and record
-the geometry it claims:
+tests/render_harness.py owns, or `scripts/preview.py <example> --automation` for a
+live preview) and drive them with real input. Both routes use the process-owned
+temporary server, so gestures traverse the real HTTP and event-log loop without
+becoming reader feedback in the task. Tour the gallery and one prose-heavy example,
+at 1200×900 and 1440×900, in both color schemes. At each station take a screenshot
+and record the geometry it claims:
 
 1. Select mid-paragraph, raise the 💬, open the composer, type twenty lines.
 2. Scroll ±300px with the composer open.

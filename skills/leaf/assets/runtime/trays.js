@@ -47,6 +47,7 @@ export function createTrays({
   PRESS,
   readerStore,
   renderDecisions,
+  paintLeavesOffer,
   syncLayout,
   trayChanged,
   walkRows,
@@ -190,7 +191,7 @@ export function createTrays({
     btn.onclick = () => showTray(openTray(key) ? null : key);
     btn.setAttribute("aria-expanded", "false");
   }
-  trayIs("leaves", othersPanel, othersBtn);
+  trayIs("leaves", othersPanel, othersBtn, paintLeavesOffer);
   trayIs("decisions", decisionsPanel, decisionsBtn, renderDecisions);
   const trayNames = Object.freeze([...trays.keys()]);
 

@@ -62,7 +62,7 @@ ALIVE_S = 5.0
 # the claimant lives is a pid, and the neighbours are other pages' directories and
 # servers. Each is cheap to read once and dear to read twenty times a second, and two
 # seconds is the staleness the poll gave every fact, so it is the staleness these keep.
-PRESENCE_S = 2.0
+PRESENCE_S = presence_model.PRESENCE_CACHE_S
 
 
 _ROOTED_PAGE_ROUTE = re.compile(

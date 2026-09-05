@@ -36,7 +36,7 @@ from render_support import (
     primed,
     refuse,
     resized,
-    round_trip,
+    sending,
     serious_axe_violations,
     watched,
 )
@@ -203,15 +203,194 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
             assert errors == []
             page.close()
     finally:
-        for page, runtime in zip(pages, runtimes, strict=True):
+        for slot, page, runtime in zip(slots, pages, runtimes, strict=True):
             subprocess.run(
-                [str(runtime / "bin" / "leaf"), "server", "stop", str(page)],
-                cwd=runtime,
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "preview.py"),
+                    "--source",
+                    str(source),
+                    "--runtime",
+                    str(runtime),
+                    "--slot",
+                    slot,
+                    "--stop",
+                ],
+                cwd=ROOT,
                 check=False,
                 capture_output=True,
                 text=True,
+                timeout=30,
             )
             shutil.rmtree(page, ignore_errors=True)
+
+
+def test_automation_preview_records_real_gestures_outside_the_task(
+    browser, tmp_path, preview_slot, spawn, request
+):
+    """Automation and reader previews use the same event door but different lifetimes.
+
+    The selected runtime's temporary server is held by the watcher rather than a
+    service record. Its log survives source reloads, while a distinct reader slot is
+    claimed for task delivery and cannot be overwritten by automation.
+    """
+    slot, page_dir = preview_slot
+    source = tmp_path / "automation.html"
+    source.write_text(
+        (ROOT / "examples" / "design-decision.html").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    runtime = install_payload(tmp_path / "automation-runtime")
+    automation_command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--runtime",
+        str(runtime),
+        "--slot",
+        slot,
+        "--automation",
+    ]
+    automation_process = spawn(
+        automation_command,
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert automation_process.stdout.readline() == ("prepared automation (1 version)\n")
+    assert automation_process.stdout.readline() == "\n"
+    automation_url = automation_process.stdout.readline().strip()
+    assert automation_url.startswith("http://127.0.0.1:")
+    assert (
+        automation_process.stderr.readline().strip()
+        == "server   temporary (stops with this command)"
+    )
+    assert service_model.page_claim(page_dir) is None
+    assert not (page_dir / "service.json").exists()
+    watcher_metadata = page_dir.with_name(f"{page_dir.name}.preview.json")
+    assert "url" not in json.loads(watcher_metadata.read_text())
+    assert page_dir not in service_model.owned_pages(
+        os.environ["CLAUDE_CODE_SESSION_ID"]
+    )
+    automation, automation_errors = open_page(browser, automation_url)
+    expect(automation.locator(".lf-preview")).to_contain_text(
+        f"Automation · {runtime.name}"
+    )
+    with sending(automation, "the automation option pick"):
+        automation.locator("#opt-redis .lf-pick").click()
+    expect(automation.locator("#opt-redis")).to_have_attribute("chosen", "")
+    [automated_event] = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "action" and event["author"] == "user"
+    ]
+    feedback = (page_dir / "events.jsonl").read_bytes()
+    inode = (page_dir / "events.jsonl").stat().st_ino
+
+    source.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "Where sessions live", "Automation follows source edits", 1
+        ),
+        encoding="utf-8",
+    )
+    expect(
+        automation.get_by_role("heading", name="Automation follows source edits")
+    ).to_be_visible(timeout=30000)
+    expect(automation.locator("#opt-redis")).to_have_attribute("chosen", "")
+    assert (page_dir / "events.jsonl").read_bytes().startswith(feedback)
+    assert (page_dir / "events.jsonl").stat().st_ino == inode
+    assert service_model.page_claim(page_dir) is None
+    assert not (page_dir / "service.json").exists()
+    assert set(automation_errors) <= {
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_RESET",
+        "Failed to load resource: net::ERR_EMPTY_RESPONSE",
+    }
+    automation.close()
+
+    automation_process.send_signal(signal.SIGINT)
+    _, automation_stderr = automation_process.communicate(timeout=10)
+    assert automation_process.returncode == 130, automation_stderr
+    assert "Traceback" not in automation_stderr
+
+    reader_slot = f"{slot}-reader"
+    reader_dir = page_dir.with_name(reader_slot)
+    reader_command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--runtime",
+        str(runtime),
+        "--slot",
+        reader_slot,
+    ]
+
+    def cleanup_reader():
+        subprocess.run(
+            [*reader_command, "--stop"],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+        shutil.rmtree(reader_dir, ignore_errors=True)
+
+    request.addfinalizer(cleanup_reader)
+    reader_result = subprocess.run(
+        [*reader_command, "--background"],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+    assert reader_result.returncode == 0, (
+        f"stdout:\n{reader_result.stdout}\nstderr:\n{reader_result.stderr}"
+    )
+    reader_url = reader_result.stdout.splitlines()[-1]
+    claim = service_model.page_claim(reader_dir)
+    assert claim is not None and claim["id"] == os.environ["CLAUDE_CODE_SESSION_ID"]
+    reader, reader_errors = open_page(browser, reader_url)
+    expect(reader.locator(".lf-preview")).to_contain_text(f"Preview · {runtime.name}")
+    with sending(reader, "the reader option pick"):
+        reader.locator("#opt-jwt .lf-pick").click()
+    expect(reader.locator("#opt-jwt")).to_have_attribute("chosen", "")
+    [reader_event] = [
+        event
+        for event in events_model.read_events(reader_dir)
+        if event["kind"] == "action" and event["author"] == "user"
+    ]
+    assert reader_event["id"] != automated_event["id"]
+    assert reader_event in service_model.unacknowledged(
+        events_model.read_events(reader_dir), 0
+    )
+    reader_feedback = (reader_dir / "events.jsonl").read_bytes()
+    refused = subprocess.run(
+        [*reader_command, "--automation"],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=30,
+    )
+    assert refused.returncode == 1
+    assert "choose a new --slot" in refused.stderr
+    assert (reader_dir / "events.jsonl").read_bytes() == reader_feedback
+    assert reader_errors == []
+    reader.close()
+    stopped = subprocess.run(
+        [*reader_command, "--stop"],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=30,
+    )
+    assert stopped.returncode == 0, stopped.stdout + stopped.stderr
 
 
 @pytest.fixture
@@ -338,8 +517,8 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     source, runtime, directory, command, url = watched_preview
     original = source.read_text(encoding="utf-8")
     page, errors = open_page(browser, url)
-    page.locator("#opt-redis .lf-pick").click()
-    round_trip(page)
+    with sending(page, "the watched reader option pick"):
+        page.locator("#opt-redis .lf-pick").click()
     expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
     feedback = (directory / "events.jsonl").read_bytes()
     assert b'"kind": "action"' in feedback
@@ -378,6 +557,12 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     ).to_be_visible()
     assert (directory / "index.html").read_text() == revised
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
+    refused_generation = json.loads((directory / "registry.json").read_text())[
+        "$layer"
+    ]["generation"]
+    expect(page.locator("script[data-lf-runtime]")).to_have_attribute(
+        "data-lf-layer", refused_generation, timeout=30000
+    )
 
     source.write_text(
         revised.replace("A watched source revision", "Recovered watched source"),
@@ -421,8 +606,8 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
     _, runtime, directory, _, url = watched_preview
     if resource == "widgets/lf-options.js":
         standing, errors = open_page(browser, url)
-        standing.locator("#opt-redis .lf-pick").click()
-        round_trip(standing)
+        with sending(standing, "the standing reader option pick"):
+            standing.locator("#opt-redis .lf-pick").click()
         assert errors == []
         standing.close()
     page = browser.new_page()

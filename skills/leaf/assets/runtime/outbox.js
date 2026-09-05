@@ -286,6 +286,9 @@ export function createOutbox(runtime, dependencies) {
       };
       outbox.push(entry);
       stageOutboxAction(entry);
+      // Staging commits the widget's optimistic coordinate. Its consumers need
+      // that reading now, even while the POST is still waiting for a response.
+      if (entry.projection) document.dispatchEvent(new Event("lf-actions"));
     });
     paintKeys();
     void drainOutbox();

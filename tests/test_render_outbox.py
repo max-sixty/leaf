@@ -1556,6 +1556,51 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
     page.close()
 
 
+def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve):
+    """Closing a deferred editor must let its commit stage before replay runs.
+
+    A remote edit received while the editor is open defers the authoritative projection.
+    Commit closes the editor before it enters the outbox; the close notification therefore
+    has to wait one microtask, or replay paints the remote words over the new optimistic
+    body before the outbox can install its local winner.
+    """
+    page, errors = open_page(browser, serve(UNDO_PAGE))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    draft = page.locator("#note-cli")
+    page.locator(".lf-draft-controls[data-lf-for='note-cli'] .lf-draft-pencil").click()
+    draft.locator("textarea").fill("Local C")
+
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "note-cli",
+            "action": "edit",
+            "detail": {"text": "Remote B"},
+        },
+    )
+    told(page)
+    expect(draft.locator("textarea")).to_have_value("Local C")
+
+    page.keyboard.press("Meta+Enter")
+    _until(page, lambda traffic: traffic.sends > 0, "staged the draft commit")
+    expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
+    assert len(held) == 1
+
+    held[0].continue_()
+    round_trip(page)
+    expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
+    assert [event["detail"]["text"] for event in actions(serve.page_dir)] == [
+        "Remote B",
+        "Local C",
+    ]
+    assert errors == []
+    page.close()
+
+
 def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     """The walk steps past what it has already taken and reaches the gesture before
     it — the edit here, whose authored text comes back with its paragraphs, where
@@ -1727,10 +1772,10 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     told(two)
     expect(two.locator(body)).to_have_text("Rewritten.")
 
-    # Let go, and the withdrawal it could not take yet lands on the next poll.
+    # Let go, and the withdrawal it could not take yet lands from the editor's close.
     two.keyboard.press("Escape")
     expect(two.locator("lf-draft textarea")).to_have_count(0)
-    expect(two.locator(body)).to_have_text(authored)
+    assert two.locator(body).inner_text() == authored
     expect(two.locator("lf-draft .lf-draft-history > summary")).to_have_text(
         "Changes · 1 edit"
     )

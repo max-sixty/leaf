@@ -4,7 +4,6 @@ import itertools
 import json
 import os
 import re
-import threading
 import time
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
@@ -81,6 +80,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         "checkout": "fb77",
         "commit": "26499ea1abcd",
         "dirty": True,
+        "interaction": "reader",
         "started": "2026-08-31T12:00:00+00:00",
     }
     context = browser.new_context(
@@ -104,6 +104,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         diagnostics = page.evaluate("() => navigator.clipboard.readText()")
         assert "example: postmortem" in diagnostics
         assert "checkout: fb77" in diagnostics
+        assert "interaction: reader" in diagnostics
         assert "commit: 26499ea1abcd" in diagnostics
         assert "dirty: true" in diagnostics
         assert "layer generation:" in diagnostics
@@ -1869,11 +1870,10 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
         "Server offline — reconnecting. Keep this page open so pending changes can send."
     )
 
-    httpd = hosting_model.LeafHTTPServer(
-        ("127.0.0.1", port), http_model.handler_for(serve.page_dir, TOKEN)
-    )
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    serve.servers.append(httpd)
+    server = hosting_model.TemporaryPageServer(
+        serve.page_dir, token=TOKEN, port=port
+    ).start()
+    serve.servers.append(server)
     events_model.append_event(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Back."},
@@ -3230,6 +3230,84 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
     page.close()
 
 
+def test_conversation_timestamps_age_without_new_state(browser, serve):
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
+    page.keyboard.press("c")
+    timestamp = page.locator(".lf-msg-head > time").first
+    expect(timestamp).to_have_text("just now")
+    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
+    ticked(page)
+    expect(timestamp).to_have_text("3h ago")
+    assert errors == []
+    page.close()
+
+
+def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
+    url = serve(LONG_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "An earlier question.",
+            "ts": (datetime.now().astimezone() - timedelta(hours=1)).isoformat(),
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.keyboard.press("c")
+    timestamp = page.locator(".lf-msg-head > time").first
+    expect(timestamp).to_have_text("1h ago")
+    stale = page.evaluate("async () => (await fetch('/api/state')).json()")
+    stale["taken"] = 0
+    stale["now"] = (datetime.now().astimezone() - timedelta(hours=3)).isoformat()
+    page.route("**/api/state*", lambda route: route.fulfill(json=stale))
+    with page.expect_response("**/api/state*"):
+        files_model.write_json(
+            serve.page_dir / "status.json",
+            {"state": "working", "detail": "newer", "ts": events_model.now_iso()},
+        )
+    ticked(page)
+    expect(timestamp).to_have_text("1h ago")
+    assert errors == []
+    page.close()
+
+
+def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serve):
+    """An unchanged clock must not render state or redeliver an unchanged source.
+
+    Observe mutations over two actual timer ticks instead of imposing a machine-speed
+    budget. Clock aging has its own rendered-word test in the projection suite.
+    """
+    page, errors = open_page(browser, data_projection_page(serve))
+    ticked(page)
+    page.evaluate(
+        """async () => {
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          const {watchData} = await import('/runtime/widget-api.js');
+          window.idleDeliveries = 0;
+          window.stopIdleData = watchData(document.querySelector('lf-feed'), 'rows', () => {
+            window.idleDeliveries++;
+          });
+          window.idleMutations = 0;
+          window.idleObserver = new MutationObserver(records => window.idleMutations += records.length);
+          window.idleObserver.observe(document.documentElement,
+            {subtree: true, childList: true, attributes: true, characterData: true});
+        }"""
+    )
+    ticked(page)
+    ticked(page)
+    assert page.evaluate(
+        """() => {
+          window.idleObserver.disconnect();
+          window.stopIdleData();
+          return {mutations: window.idleMutations, deliveries: window.idleDeliveries};
+        }"""
+    ) == {"mutations": 0, "deliveries": 1}
+    assert errors == []
+    page.close()
+
+
 def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
     browser, serve
 ):
@@ -3281,7 +3359,7 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
         "currentRevision": 1,
         "unbound": None,
         "absent": None,
-        "captured": [None, None],
+        "captured": [None],
         "failedCalls": 1,
         "message": "mount failed",
     }
@@ -3441,6 +3519,52 @@ def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser,
     page.close()
 
 
+def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
+    browser, serve
+):
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.evaluate(
+        """async () => {
+          const {clocked, clockValue} = await import('/runtime/widget-api.js');
+          window.clockVersion = 0;
+          for (const stage of ['read', 'paint', 'async']) {
+            const paint = clocked(document.body, () => {
+              const version = clockValue(() => {
+                if (stage === 'read' && window.clockVersion)
+                  throw new Error('read broke');
+                return window.clockVersion;
+              });
+              if (!version) return;
+              if (stage === 'async') return Promise.reject(new Error('async broke'));
+              throw new Error('paint broke');
+            });
+            paint();
+          }
+          clocked(document.body, () => {
+            window.healthyClock = clockValue(() => window.clockVersion);
+          })();
+          window.clockVersion = 1;
+        }"""
+    )
+    ticked(page)
+    assert page.evaluate("window.healthyClock") == 1
+    told(page)  # Error reports legitimately change the log and cause one state read.
+    ticked(page)
+    asked = _traffic(page).asked
+    page.evaluate("window.clockVersion = 2")
+    ticked(page)
+    ticked(page)
+    assert page.evaluate("window.healthyClock") == 2
+    assert _traffic(page).asked == asked
+    assert all("clock paint failed:" in error for error in errors), errors
+    assert {e["text"] for e in sent_events(serve.page_dir) if e["kind"] == "error"} == {
+        "clock paint failed: read broke",
+        "clock paint failed: paint broke",
+        "clock paint failed: async broke",
+    }
+    page.close()
+
+
 def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
     """The data stamp proves that every asynchronous subscriber has settled.
 
@@ -3473,7 +3597,10 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
               return Promise.reject(new Error('update projection failed'));
           });
           const revision = runtime.data.revision + 1;
-          acceptData({...structuredClone(runtime.data), revision});
+          const next = structuredClone(runtime.data);
+          next.revision = revision;
+          next.sources.deployments.revision = revision;
+          acceptData(next);
           await notifyDataSubscribers();
           stopUpdate();
           return {
@@ -3492,6 +3619,41 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
         sum("data subscriber failed: mount projection failed" in e for e in errors) == 1
     )
     assert any("data subscriber failed: update projection failed" in e for e in errors)
+    page.close()
+
+
+def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
+    """Another state read cannot stamp data ready while its first render is held."""
+    page, errors = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {watchData} = await import('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await import('/runtime/data.js');
+          const {runtime} = await import('/runtime/context.js');
+          let release;
+          let calls = 0;
+          const stop = watchData(document.querySelector('lf-feed'), 'rows', () => {
+            if (++calls > 1) return new Promise(resolve => { release = resolve; });
+          });
+          const next = structuredClone(runtime.data);
+          next.revision++;
+          next.sources.deployments.revision = next.revision;
+          acceptData(next);
+          const first = notifyDataSubscribers();
+          while (!release) await new Promise(resolve => setTimeout(resolve, 0));
+          let complete = false;
+          const again = notifyDataSubscribers().then(() => { complete = true; });
+          await new Promise(resolve => setTimeout(resolve, 0));
+          const before = {complete, calls, ready: document.body.dataset.lfDataRevision};
+          release();
+          await Promise.all([first, again]);
+          stop();
+          return {before, after: document.body.dataset.lfDataRevision, revision: next.revision};
+        }"""
+    )
+    assert result["before"] == {"complete": False, "calls": 2, "ready": "1"}
+    assert result["after"] == str(result["revision"])
+    assert errors == []
     page.close()
 
 

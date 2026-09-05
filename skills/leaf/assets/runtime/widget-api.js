@@ -37,7 +37,7 @@ export {
   uiInside,
   wrote,
 } from "./passages.js";
-export { ago, quietSince } from "./presence.js";
+export { ago, clocked, clockValue, quietSince } from "./presence.js";
 export { shallowSigs, standingState, undoableAction, withdraw } from "./projection.js";
 export { shadowStage } from "./shadow.js";
 export { agentName, revisionLabel } from "./context.js";

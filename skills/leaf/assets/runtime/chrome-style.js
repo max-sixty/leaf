@@ -1427,10 +1427,10 @@ ${MARK_RULES}
     .lf-thread:not(:hover, :focus-within, .lf-focus-within)
       .lf-react-strip:not(.lf-open, .lf-react-open):not(:has([aria-pressed="true"])) {
         margin-top: 0; }
-    .lf-react-palette > .lf-react:not([aria-pressed="true"]) { border-color: transparent;
+    .lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]) { border-color: transparent;
       background: transparent; color: var(--muted); }
-    .lf-react-palette > .lf-react:not([aria-pressed="true"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-busy="true"]),
-    .lf-react-open .lf-react-palette > .lf-react:not([aria-pressed="true"]) {
+    .lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-busy="true"]),
+    .lf-react-open .lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]) {
       border-color: var(--border-2); background: var(--chip); color: var(--ink-2); }
     .lf-fab-bar .lf-react-palette > .lf-response-action:not([aria-pressed="true"]) {
       background: var(--card); }

@@ -1228,11 +1228,11 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-react[aria-busy="true"] { opacity: .55; }
 .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
           margin-top: 6px; }
-.lf-react-palette > .lf-react:not([aria-pressed="true"]) { color: var(--muted);
+.lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]) { color: var(--muted);
           border-color: transparent; background: transparent; }
-.lf-react-palette > .lf-react:not([aria-pressed="true"]):is(:hover, :focus-visible,
+.lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]):is(:hover, :focus-visible,
           .lf-focus-visible, [aria-busy="true"]),
-.lf-react-open .lf-react-palette > .lf-react:not([aria-pressed="true"]) {
+.lf-react-open .lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]) {
           color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
 /* Where a subject has no page edge of its own, one receipt grows beneath the reader
    move it acknowledges: Sent, Picked up, then Active when an explicit work claim names

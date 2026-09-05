@@ -32,7 +32,6 @@ import json
 import math
 import os
 import shutil
-import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -48,7 +47,6 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import host as host_model
 from leaf import hosting as hosting_model
-from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
@@ -572,26 +570,20 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
             )
         if preview is not None:
             files_model.write_json(d / schema_model.PREVIEW_FILE, preview)
-        httpd = hosting_model.LeafHTTPServer(
-            ("127.0.0.1", 0), http_model.handler_for(d, TOKEN)
-        )
-        threading.Thread(target=httpd.serve_forever, daemon=True).start()
-        servers.append(httpd)
-        go.httpd = httpd
+        server = hosting_model.TemporaryPageServer(d, token=TOKEN).start()
+        servers.append(server)
+        go.httpd = server.httpd
         go.servers = servers
         go.page_dir = d  # for tests that publish a v2 or read the event log
         # The key rides in the URL exactly as it does in a handover, so the first
         # navigation of each browser context earns the cookie the rest of the
         # page's own fetches go out under.
-        return (
-            f"http://127.0.0.1:{httpd.server_address[1]}"
-            f"/versions/v{len(authored)}.html?t={TOKEN}"
-        )
+        return f"{server.origin}/versions/v{len(authored)}.html?t={TOKEN}"
 
     servers = []
     yield go
-    for httpd in servers:
-        httpd.shutdown()
+    for server in servers:
+        server.close()
 
 
 def page_registry(page):
@@ -945,18 +937,14 @@ def nudge(page_dir):
 
 
 def ticked(page):
-    """Wait for the page's next re-application of what it holds, by whichever door.
+    """Wait for the shared clock and any deferred projection to finish a tick.
 
-    The poll used to supply this, so a test that wanted the page's next local pass —
-    a deferred correction applied once an editor closed — waited for the next request.
-    The pass is the heartbeat now, or a read, or a POST's answer, and none of them
-    marks the wire for it; `lf-actions` is what every one dispatches when it has run,
-    and the listener is put on before the wait so a pass already past cannot answer.
+    This is independent of network reads and does not imply a state repaint.
     """
     page.evaluate(
         """() => {
           window.__lfTicked = false;
-          document.addEventListener('lf-actions', () => { window.__lfTicked = true; },
+          document.addEventListener('lf-tick', () => { window.__lfTicked = true; },
                                     { once: true });
         }"""
     )

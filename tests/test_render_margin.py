@@ -16,6 +16,9 @@ from render_support import (
     DECISION_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
+    GENERIC_VISUAL_LAYER,
+    GENERIC_VISUAL_PAGE,
+    GENERIC_VISUAL_WIDGETS,
     PANEL_PAGE,
     SUGGESTION_PAGE,
     _publish,
@@ -1983,6 +1986,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expect(page.locator(".lf-margin-status-trace")).to_be_hidden()
     secondary.hover()
     expect(page.locator('.lf-margin-status-trace[data-for="jobs"]')).to_be_visible()
+    expect(target).not_to_have_class(re.compile(r"\blf-margin-target\b"))
     page.locator(".lf-receipt-primary-probe").hover()
     expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
     expect(page.locator(".lf-margin-status-trace")).to_be_hidden()
@@ -2592,21 +2596,25 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
     page.close()
 
 
-def test_status_hover_trace_uses_a_registered_svg_targets_shape(browser, serve):
-    """A status identifies any registered target without reducing it to a rectangle."""
-    page, errors = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "A shaped target",
-                """
-<svg viewBox="0 0 160 80" width="320" aria-label="A diagram">
-  <circle id="shaped-target" cx="80" cy="40" r="24" fill="var(--chip)" />
-</svg>
-""",
-            )
-        ),
+def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
+    """A status follows a package's surface instead of its decorated semantic part."""
+    url = serve(
+        GENERIC_VISUAL_PAGE,
+        layer_registry=GENERIC_VISUAL_LAYER,
+        layer_widgets=GENERIC_VISUAL_WIDGETS,
     )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "outer-comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep the boundary visible.",
+            "anchor": {"section": "visual", "visual": "outer"},
+        },
+    )
+    page, errors = open_page(browser, url)
     resized(page, 1280, 720)
     page.evaluate(
         """async () => {
@@ -2616,7 +2624,7 @@ def test_status_hover_trace_uses_a_registered_svg_targets_shape(browser, serve):
             key: 'shape-status', icon: 'pickup', label: 'Picked up', behavior: 'status'
           });
           registerMarginItem({
-            key: 'shape-status', target: document.querySelector('#shaped-target'),
+            key: 'shape-status', target: document.querySelector('#outer'),
             controls: status
           });
         }"""
@@ -2625,26 +2633,28 @@ def test_status_hover_trace_uses_a_registered_svg_targets_shape(browser, serve):
 
     status = page.locator('[data-lf-button-key="shape-status"]')
     status.hover()
-    trace = page.locator('.lf-margin-status-trace[data-for="shaped-target"]')
+    trace = page.locator('.lf-margin-status-trace[data-for="outer"]')
     expect(trace).to_be_visible()
     expect(trace).to_have_class(re.compile(r"\blf-shaped\b"))
-    expect(trace.locator("circle")).to_have_count(1)
+    assert trace.locator(".lf-margin-status-trace-shape > g > *").evaluate_all(
+        "nodes => nodes.map(node => node.localName)"
+    ) == ["rect"]
     geometry = page.evaluate(
         """() => {
-          const target = document.querySelector('#shaped-target').getBoundingClientRect();
+          const surface = document.querySelector('#outer-surface').getBoundingClientRect();
           const trace = document.querySelector('.lf-margin-status-trace');
           const box = trace.getBoundingClientRect();
-          const circle = trace.querySelector('circle');
-          const style = getComputedStyle(circle);
+          const shape = trace.querySelector('rect');
+          const style = getComputedStyle(shape);
           const swatch = document.createElement('span');
           swatch.style.color = 'var(--status-trace-ink)';
           document.head.append(swatch);
           const traceInk = getComputedStyle(swatch).color;
           swatch.remove();
           return {
-            sameCenter: Math.abs(box.x + box.width / 2 - (target.x + target.width / 2)) < .5
-              && Math.abs(box.y + box.height / 2 - (target.y + target.height / 2)) < .5,
-            surrounds: box.width > target.width && box.height > target.height,
+            sameCenter: Math.abs(box.x + box.width / 2 - (surface.x + surface.width / 2)) < .5
+              && Math.abs(box.y + box.height / 2 - (surface.y + surface.height / 2)) < .5,
+            surrounds: box.width > surface.width && box.height > surface.height,
             stroke: style.stroke,
             traceInk,
             fill: style.fill,

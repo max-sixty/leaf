@@ -373,8 +373,7 @@ export function createTargetPaint({
     if (rebuild) geometryFrame = placementFrame = 0;
     geometryDirty = false;
     paintTargets(rebuild);
-    if (traceNeedsGeometry && traceElement)
-      paintTrace(traceElement, traceSurface, true);
+    if (traceElement) paintTrace(traceElement, traceSurface, traceNeedsGeometry);
   }
 
   function shifted() {

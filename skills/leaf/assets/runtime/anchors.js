@@ -1569,7 +1569,8 @@ export function createAnchors(dependencies) {
     isMarked: (id) => marked.has(id),
     placedAt: (id) => placed.get(id),
     refreshAim,
-    traceTarget: targetPaint.traceTarget,
+    traceTarget: (target) =>
+      targetPaint.traceTarget(target, visualTargets.get(target) ?? target),
     dockSeats,
     paintAnchors,
     fragmentId,

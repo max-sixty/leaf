@@ -213,7 +213,8 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
     page.close()
 
 
-def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve):
+@pytest.mark.parametrize("section", ["draft-ops", None])
+def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve, section):
     """A passage's generated body is not the owner of the reaction's margin control."""
     url = serve(JOURNEY_V1)
     events_model.append_event(
@@ -224,7 +225,7 @@ def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve):
             "revision": 1,
             "token": "ok",
             "anchor": {
-                "section": "draft-ops",
+                **({"section": section} if section else {}),
                 "quote": "Run the migration before deploying.",
             },
         },

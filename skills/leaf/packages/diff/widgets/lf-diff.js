@@ -532,7 +532,7 @@ customElements.define(
           : null;
         if (this.boundStamp === stamp) return this.boundRendering ?? Promise.resolve();
         this.boundStamp = stamp;
-        const rendering = this.render(source, true);
+        const rendering = this.render(source, true, snapshot?.origin);
         this.boundRendering = rendering;
         rendering.finally(() => {
           if (this.boundRendering === rendering) this.boundRendering = null;
@@ -558,7 +558,7 @@ customElements.define(
       this.sharedStyles = null;
     }
 
-    async render(source, bound) {
+    async render(source, bound, origin = null) {
       const rendering = (this.rendering ?? 0) + 1;
       this.rendering = rendering;
       try {
@@ -580,7 +580,7 @@ customElements.define(
           return;
         }
         if (bound && typeof source === "object") {
-          await this.renderManifest(source, rendering);
+          await this.renderManifest(source, rendering, origin);
           return;
         }
         if (typeof source !== "string")
@@ -628,7 +628,7 @@ customElements.define(
             entries.flatMap(({ lines }) => lines),
             lineKey,
             ({ node }) => node,
-            { nested: true, labelOf: lineLabel },
+            { nested: true, labelOf: lineLabel, originOf: () => origin },
           );
         this.paintHeadRoom();
         this.watchHeadRoom();
@@ -653,7 +653,7 @@ customElements.define(
       }
     }
 
-    async renderManifest(source, rendering) {
+    async renderManifest(source, rendering, origin) {
       if (!Array.isArray(source.files) || !source.files.length)
         throw new Error("empty diff manifest");
       const entries = [];
@@ -714,6 +714,7 @@ customElements.define(
       if (rendering !== this.rendering || !this.isConnected) return;
       for (const { node } of entries) node.dataset.lfGen = "1";
       this.manifestEntries = entries;
+      this.manifestOrigin = origin;
       this.fileEntries = entries;
       this.sharedStyles = new Map();
       this.reviewTools = reviewTools(this);
@@ -744,10 +745,15 @@ customElements.define(
     projectManifest() {
       projectData(
         this,
-        (this.manifestEntries ?? []).flatMap(({ lines }) => lines),
+        (this.manifestEntries ?? []).flatMap(({ lines }, index) =>
+          lines.map((line) => ({
+            ...line,
+            origin: { ...this.manifestOrigin, path: ["files", index, "patch"] },
+          })),
+        ),
         lineKey,
         ({ node }) => node,
-        { nested: true, labelOf: lineLabel },
+        { nested: true, labelOf: lineLabel, originOf: ({ origin }) => origin },
       );
     }
 

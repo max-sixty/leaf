@@ -1816,19 +1816,20 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-clusters">
         <p class="eyebrow bg-feature-elements">
-          Action Button · Disclosure Button · Options Button · Reaction Button
+          Action · Disclosure · Button-shaped status · Lifecycle state
         </p>
         <h2 id="bg-clusters-heading">
           <strong>Buttons</strong
-          ><span class="bg-feature-detail">: actions, disclosures, and states</span>
+          ><span class="bg-feature-detail">: action, disclosure, and status</span>
         </h2>
         <p id="bg-buttons-line">
           <strong>One shared target.</strong> Use the
           <lf-suggestion id="bg-crowded"
             ><lf-old>courtyard</lf-old><lf-new>covered terrace</lf-new></lf-suggestion
           >
-          for the practice session. Accept and Reject act immediately; Thread opens its
-          conversation; reaction marks show settled verdicts; and ⋯ exposes the group.
+          for the practice session. Accept and Reject act immediately; Thread and ⋯
+          disclose more; reaction marks are settled actions. Delivery statuses below
+          report what already happened without offering another press.
         </p>
       </section>
 
@@ -2254,6 +2255,18 @@ gallery/
           To ask for a refinement, comment on the sample that shows it and say what
           should change. Plain experiment clicks do not request implementation work.
         </p>
+        <details id="bg-construction-reading">
+          <summary>Inspect the page and find what to edit</summary>
+          <p id="bg-construction-guide">
+            Move the card, submit a draft, or add an option above. Run
+            <code>leaf page state PAGE</code> against this preview's page directory. Its
+            content keeps your exact words, selected options, and card order; source
+            locations and edit routes distinguish authored content from reader decisions
+            and captured data. Change unrelated source wording and inspect again: those
+            reader choices survive without copying them into HTML. Use
+            <code>--thread ID</code> to inspect a frozen conversation.
+          </p>
+        </details>
       </section>
 </lf-tab>
 

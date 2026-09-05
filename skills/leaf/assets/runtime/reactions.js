@@ -1,13 +1,13 @@
 import {
   iconElement,
-  marginAction,
-  marginActionState,
+  marginButton,
+  marginButtonState,
   registerMarginItem,
 } from "./living-margin.js";
 
 // The anchored response bar has one control grammar of its own. Its buttons share the
 // field's type, border, height, and floating elevation without claiming to be target-
-// margin actions. The repeated anatomy lets Comment, Suggest, and package reactions
+// margin Buttons. The repeated anatomy lets Comment, Suggest, and package reactions
 // change vocabulary without each inventing a button shape.
 export function responseAction(
   control,
@@ -47,8 +47,8 @@ export function paintReactionStanding(strip, standing) {
   for (const pill of strip.querySelectorAll(":scope > .lf-react-palette > .lf-react")) {
     const on = by.get(pill.dataset.token) ?? null;
     pill.setAttribute("aria-pressed", on ? "true" : "false");
-    if (pill.classList.contains("lf-margin-action"))
-      marginActionState(pill, on ? "settled" : "idle");
+    if (pill.classList.contains("lf-margin-button"))
+      marginButtonState(pill, on ? "settled" : "idle");
     pill.lfReaction = on;
   }
 }
@@ -113,7 +113,7 @@ export function createReactions({
     pill.dataset.token = name;
     if (margin) {
       pill.setAttribute("aria-label", meaning);
-      marginAction(pill, {
+      marginButton(pill, {
         key: `reaction:${String(ordinal).padStart(4, "0")}:${name}`,
         glyph: entry.glyph,
         label: meaning,
@@ -454,7 +454,7 @@ export function createReactions({
     if (surface === marginSurface) return buttonChoices(fabTargetAt());
     return [
       ...surface.querySelectorAll(
-        ":scope > .lf-response-action, :scope > .lf-margin-action, :scope > .lf-react-palette > .lf-react",
+        ":scope > .lf-response-action, :scope > .lf-margin-button, :scope > .lf-react-palette > .lf-react",
       ),
     ].filter((choice) => choice.checkVisibility());
   }

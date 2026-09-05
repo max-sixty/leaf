@@ -12,6 +12,7 @@ from leaf import render_checks as render_checks_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
+    ADDRESS_PAGE,
     ALL_DECISIONS_IN_ORDER,
     ASK_IN_A_CARD_PAGE,
     ASKS_IN_A_ROW_PAGE,
@@ -1187,7 +1188,7 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
     expect(
         board.get_by_role(
             "button",
-            name="Move: Squirrel baffle — Done — awaiting next version",
+            name="Move: Squirrel baffle — Done — your move",
             exact=True,
         )
     ).to_be_visible()
@@ -1200,7 +1201,7 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         '- list "Done":\n'
         "  - listitem:\n"
         "    - strong: Squirrel baffle\n"
-        "    - 'button \"Move: Squirrel baffle — Done — awaiting next version\"': ⠿"
+        "    - 'button \"Move: Squirrel baffle — Done — your move\"': ⠿"
     )
     assert errors == []
     page.close()
@@ -1631,7 +1632,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     box = "el => [el.offsetLeft, el.offsetTop, el.offsetWidth, el.offsetHeight]"
     before = accept.evaluate(box)
     # The verb is discovery chrome; at rest the Button is the canonical circle.
-    expect(accept.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(accept.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "check"
     )
 
@@ -1646,7 +1647,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(accept).to_have_count(0)
     undo_button = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(undo_button.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(undo_button.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
     receipt = row.locator(".lf-sug-receipt")
@@ -2223,7 +2224,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # replay here rather than by a press, which is the only place that path is driven.
     row = second.locator("[data-lf-for='sug-refill']")
     accepted = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(accepted.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(accepted.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
     expect(row.locator(".lf-sug-receipt")).to_have_text("Accepted", use_inner_text=True)
@@ -2412,10 +2413,10 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     everything inside the decision comes after it.
     """
     page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
-    # Short enough that the decision's first pick falls past the foot of the window once
-    # the decision's opening is at its head, which is the shape the fault has: the walk
-    # cannot both show the question and stand the reader on its answer.
-    resized(page, 900, 300)
+    # Short enough that even the pick in the card's compact header falls past the foot of
+    # the window once the decision's opening is at its head, which is the shape the fault
+    # has: the walk cannot both show the question and stand the reader on its answer.
+    resized(page, 900, 230)
 
     # The options really do begin below context, and enough page follows the region for
     # aligning its start to be possible. Without either condition, centring the inner
@@ -2570,21 +2571,36 @@ def test_ask_option_addresses_stay_one_projection_when_focus_enters_a_card(
 
 
 def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
-    """A clamped action chip yields to the legend that explains its digit."""
-    page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
+    """A row address that reaches the key line yields to the legend naming its digit."""
+    page, errors = open_page(browser, serve(ADDRESS_PAGE))
     resized(page, 900, 520)
 
+    # The first Ask uses titled cards, whose trailing addresses cannot meet the leading
+    # key line. Step to the compact row Ask, where both occupy the leading edge.
     page.keyboard.press("a")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    page.keyboard.press("a")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     expect(
-        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator("#rows > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_text(["1", "2"])
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
-    page.keyboard.press("k")
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
-    page.keyboard.press("k")
+    # Put the second row's address one pixel into the key line's band. The first stays a
+    # row above it, so a placement pass that reserves the legend keeps one and removes
+    # the other. Calculate the scroll from their current boxes rather than pinning the
+    # fixture to today's spacing.
+    page.evaluate(
+        """() => {
+          const addresses = document.querySelectorAll(
+            '#rows > lf-option > .lf-address[data-lf-ask-address]'
+          );
+          const last = addresses[addresses.length - 1].getBoundingClientRect();
+          const line = document.querySelector('.lf-keyline').getBoundingClientRect();
+          scrollTo(0, scrollY + last.top - line.top - 1);
+        }"""
+    )
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     expect(
-        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator("#rows > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_count(1)
     geometry = page.evaluate(
         """() => {

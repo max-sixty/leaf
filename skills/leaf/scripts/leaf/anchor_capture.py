@@ -45,6 +45,7 @@ def capture_anchor(
     part: str | None = None,
     prefix: str | None = None,
     suffix: str | None = None,
+    additions: dict | None = None,
 ) -> dict:
     """The anchor a quote makes, written the way a selection's is. Raises ValueError with
     what to do about it — a quote the file doesn't hold, or holds twice, is a question
@@ -58,14 +59,15 @@ def capture_anchor(
 
     `decided` and `rewrites` make this the reading the user is looking at rather
     than the version as authored: a slot their decision retired is off the page, and a
-    body their edit rewrote holds their words — so an anchor is met here the way it
-    would land there, instead of detaching in front of them."""
+    body their edit rewrote holds their words. `additions` supplies the declared
+    children of standing events, so reader-created elements are reachable before
+    an author incorporates them in source."""
     if part and not section:
         raise ValueError("--part needs --section to name its visual")
     if part and quote:
         raise ValueError("--part names a visual box; use it without --quote")
     text, owner, fences, retired, rewritten, gone, shown, enclosing = page_passages(
-        html, registry, decided, rewrites
+        html, registry, decided, rewrites, additions
     )
     if section:
         # Against the structure, not the text: an element anchor is the one a click makes

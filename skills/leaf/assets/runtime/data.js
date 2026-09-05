@@ -90,6 +90,15 @@ export function watchData(element, input, callback) {
     ? element.getAttribute(declaration.snapshot)
     : null;
   const deliver = (snapshot, event) => {
+    if (snapshot)
+      snapshot.origin = {
+        input,
+        source,
+        contract: declaration.contract,
+        revision: snapshot.revision,
+        data_revision: runtime.data.revision,
+        ...(selected ? { snapshot: selected } : {}),
+      };
     const rendering = callback(snapshot);
     if (rendering?.then && Array.isArray(event?.detail?.pending))
       event.detail.pending.push(rendering);

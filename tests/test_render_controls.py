@@ -134,8 +134,8 @@ CONTROL_ARCHETYPES = (
     {
         # Accept and Reject share the resting row. A thread adds the third Button that
         # puts the secondary choices behind `…`; opening it must leave Accept still.
-        "name": "margin-action",
-        "coverage": ".lf-margin-action",
+        "name": "margin-button",
+        "coverage": ".lf-margin-button",
         "target": '[data-lf-margin-for="stable-suggestion"] > .lf-margin-more',
     },
     {
@@ -3688,7 +3688,7 @@ def test_the_ring_reading_tells_a_ring_from_the_layers_other_outlines(browser, s
     """The reading sweeps for boxes painting the ring, so it has to know one on sight.
 
     Style and width do not say. The layer draws three other outlines at exactly the
-    ring's weight: `[data-lf-restated]` and `[data-lf-pending]` are 2px solid over a
+    ring's weight: `[data-lf-restated]` and `[data-lf-reader-override]` are 2px solid over a
     `color-mix`, and a mark under the pointer takes the ring's own width while keeping
     the mark's hue. A sweep asking style and width alone claims all three and then
     reports the page painting a ring no rule named — a complaint with no answer, since
@@ -3714,11 +3714,11 @@ def test_the_ring_reading_tells_a_ring_from_the_layers_other_outlines(browser, s
       const box = document.querySelector('main p');
       box.classList.add('probe-target');
       box.removeAttribute('data-lf-restated');
-      box.removeAttribute('data-lf-pending');
+      box.removeAttribute('data-lf-reader-override');
       box.classList.remove('lf-mark-el', 'lf-mark-hover');
       box.style.outline = '';
       if (how === 'restated') box.setAttribute('data-lf-restated', '');
-      if (how === 'pending') box.setAttribute('data-lf-pending', '');
+      if (how === 'pending') box.setAttribute('data-lf-reader-override', '');
       if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
       if (how === 'the ring itself') box.style.outline = 'var(--here-ring)';
       const cs = getComputedStyle(box);

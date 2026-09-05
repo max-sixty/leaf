@@ -6,6 +6,7 @@ import re
 import time
 
 import pytest
+from interact_support import append_command
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
@@ -305,6 +306,12 @@ def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
                 "widget": "sug-rewrite",
                 "action": "accept",
                 "detail": {},
+                "meaning": {
+                    "document": {"kind": "page", "revision": 1},
+                    "coordinate": ["sug-rewrite", "sug-rewrite", "settlement"],
+                    "depends": ["sug-rewrite"],
+                    "answer": None,
+                },
             }
         ],
     )
@@ -2317,7 +2324,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
             ),
         },
     )
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",
@@ -2326,11 +2333,10 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
             "widget": "an-set",
             "action": "choose",
             "detail": {"options": ["an-chase", "an-say"]},
-            "generated": [],
         },
     )
     # The Done press. Recordless, and the last word on the group.
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",
@@ -2347,7 +2353,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     resized(page, 1280, 900)
     standing = page.evaluate(
         "async () => (await import('/runtime/widget-api.js')).standingState()"
-        ".map((s) => [s.unit, s.action])"
+        ".flatMap(({widget, state}) => Object.values(state).map(facet => [widget.id, facet.action]))"
     )
     assert ["an-set", "choose"] in standing and ["an-set", "answer"] in standing, (
         f"the reader's decisions are not among what the runtime hands the gate: "

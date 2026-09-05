@@ -3,9 +3,14 @@ import {
   createAddressPlacement,
   MAX_NUMBERED_ADDRESSES,
 } from "../keyboard/address-placement.js";
+import {
+  ariaShortcuts,
+  bindings,
+  decisionControls,
+  spell,
+} from "../keyboard/bindings.js";
 import { closestAcross, containsAcross, TEXT_BLOCK } from "../passages.js";
 import { pageScroller } from "../scrolling.js";
-import { decisionActions, decisionAnswer, watchDecisionActions } from "./actions.js";
 
 export function createDecisionView({
   PAGE_PAINT_ATTRIBUTE,
@@ -23,6 +28,8 @@ export function createDecisionView({
   banner,
   readingBlock,
   closeTray,
+  commandScopesWithin,
+  commandsWithin,
   documentFocused,
   el,
   elementById,
@@ -140,16 +147,16 @@ export function createDecisionView({
     );
     // While the tray stands its button stands too, whatever the count just did — the
     // press that opened it has to be able to close it.
-    showNews(decisionsBtn, decisionsOffered());
     sayAsks(completed, all.length);
+    showNews(decisionsBtn, decisionsOffered());
     // Only while the tray is up: the count above is what a closed tray says, and these
     // rows are what an open one says. A closed tray reconciling a list on every poll is
     // work for a reader who cannot see it, and rows in a document nothing can press.
     if (openTray("decisions")) renderDecisions(all, unanswered);
     for (const { btn, label, n } of blanketAnswers(decisions)) {
-      showNews(btn, Boolean(n));
       const said = `${label} all (${n})`;
       if (btn.textContent !== said) btn.textContent = said;
+      showNews(btn, Boolean(n));
     }
     // The a/A row stands on this list, so the surfaces reading it are repainted
     // where it changes — the rule showFab and showTray already keep for the words
@@ -169,7 +176,10 @@ export function createDecisionView({
     syncDecisions();
     paintAnchors();
   });
-  document.addEventListener("lf-actions", syncDecisions);
+  // Semantic package watchers consume this broad invalidation synchronously and may
+  // update the package-owned answer read above. Reconcile the shared Ask surfaces after
+  // every listener has seen the complete projection, regardless of registration order.
+  document.addEventListener("lf-actions", () => queueMicrotask(syncDecisions));
   // One row per active decision, reconciled on every signal that moves the list, the way the
   // leaves tray reconciles its own — rows kept in place rather than rebuilt, so a
   // repaint doesn't swap a row out from under a pressed pointer or drop focus inside it.
@@ -199,6 +209,28 @@ export function createDecisionView({
     "Nothing is waiting on you. A question the page needs an answer for appears " +
       "here when the agent asks one.",
   );
+  const ANSWER_CAP = 120;
+  const answerWords = (value) => {
+    const whole = String(value ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if ([...whole].length <= ANSWER_CAP) return whole;
+    const short = [...whole].slice(0, ANSWER_CAP).join("");
+    const at = short.lastIndexOf(" ");
+    return (at > ANSWER_CAP / 2 ? short.slice(0, at) : short).trimEnd() + "…";
+  };
+  function currentDecisionAnswer(decision) {
+    const source = decisionSource(decision);
+    const readers = commandScopesWithin(source)
+      .filter(
+        ({ source: commandSource, answer }) =>
+          answer && ownedDecisionControl(source, commandSource),
+      )
+      .map(({ answer }) => answer);
+    if (readers.length > 1)
+      throw new TypeError(`Ask ${decision.id} has more than one answer reader`);
+    return answerWords(readers[0]?.());
+  }
   function renderDecisions(
     decisions = allDecisions(),
     unanswered = new Set(unansweredDecisions()),
@@ -253,7 +285,7 @@ export function createDecisionView({
       // screen reader rebuilds its buffer on.
       if (kind.textContent !== word) kind.textContent = word;
       if (says.textContent !== said) says.textContent = said;
-      const answerText = answered ? decisionAnswer(decisionSource(decision)) : "";
+      const answerText = answered ? currentDecisionAnswer(decision) : "";
       if (answer.textContent !== answerText) answer.textContent = answerText;
       const answerState = answered ? "answered" : "open";
       if (row.dataset.lfAnswerState !== answerState)
@@ -397,50 +429,76 @@ export function createDecisionView({
       : null;
   }
 
-  // The Ask-local numeric map. The widget contributes the exact controls that work its
-  // decision source; this view owns their stable addresses wherever focus stands in that
-  // Ask. Tab moves through the controls without minting a second action context. A
-  // control's nearer scope may still own its native or local mechanics, while the
-  // dispatcher's ordinary shadowing keeps digits out of text entry and nested modes.
+  // The Ask-local action map. A package contributes exact controls through the same
+  // command scopes dispatch and Help already consume. Core preserves a contributed
+  // binding and gives each keyless action the next free contextual digit. The map stays
+  // active as Tab moves into the Ask; nearer local scopes still own the bindings they
+  // declare, and the dispatcher's ordinary shadowing keeps actions out of text entry and
+  // nested modes.
+  function ownedDecisionControl(decisionSource, commandSource) {
+    const selector = tagsDeclaring(
+      (entry) => entry["x-awaits"] || entry["x-request"]?.decision,
+    ).join(",");
+    return !selector || closestAcross(commandSource, selector) === decisionSource;
+  }
   const availableActions = () => {
     const decision = standingIn();
     if (!decision) return [];
-    return decisionActions(decisionSource(decision))
-      .filter(
-        ({ control }) =>
-          control.isConnected &&
-          !control.matches(":disabled") &&
-          control.getAttribute("aria-disabled") !== "true" &&
-          control.getAttribute("aria-busy") !== "true",
-      )
-      .slice(0, MAX_NUMBERED_ADDRESSES);
+    const source = decisionSource(decision);
+    const actions = decisionControls(
+      commandsWithin(source),
+      `Ask ${decision.id}`,
+    ).filter(
+      ({ source: commandSource, control }) =>
+        ownedDecisionControl(source, commandSource) &&
+        control.isConnected &&
+        !control.matches(":disabled") &&
+        control.getAttribute("aria-disabled") !== "true" &&
+        control.getAttribute("aria-busy") !== "true",
+    );
+    const reserved = new Set(
+      actions.map(({ binding }) => binding).filter((binding) => binding !== null),
+    );
+    // Generated addresses are bindings too. Read them through the same preference filter
+    // as declared package keys; otherwise a non-character action can keep the row live
+    // while its words still name contextual actions the dispatcher has removed.
+    const contextual = bindings({
+      keys: Array.from({ length: MAX_NUMBERED_ADDRESSES }, (_, index) =>
+        String(index + 1),
+      ),
+    }).filter((binding) => !reserved.has(binding));
+    return actions.flatMap((action) => {
+      const resolvedBinding = action.binding ?? contextual.shift();
+      return resolvedBinding ? [{ ...action, resolvedBinding }] : [];
+    });
   };
   // A binding with a different result is a different command. Keep each action as a
   // route under one compact row, so the dispatcher, reference, key line, and the
   // control-facing projections all consume the same binding-to-control identity.
   const actionRoutes = () =>
-    availableActions().map(({ control, label, address }, index) => {
-      const binding = String(index + 1);
-      return {
-        id: `decision.activate-${binding}`,
+    availableActions().map(
+      ({ id, control, label, address, resolvedBinding: binding }) => ({
+        id,
         binding,
         does: `Activate the “${label}” action`,
         line: label,
         control,
         address,
-      };
-    });
+      }),
+    );
   const actionRow = {
     id: "decision.activate-nth",
     keys: () => actionRoutes().map(({ binding }) => binding),
     routes: actionRoutes,
     label: () => {
-      const count = actionRoutes().length;
-      return count > 1 ? `1–${count}` : "1";
+      const routes = actionRoutes();
+      if (routes.every(({ binding }, index) => binding === String(index + 1)))
+        return routes.length > 1 ? `1–${routes.length}` : "1";
+      return routes.map(({ binding }) => spell(binding)).join(" / ");
     },
     does: () =>
       `Activate an action in this Ask: ${actionRoutes()
-        .map(({ binding, line }) => `${binding} ${line}`)
+        .map(({ binding, line }) => `${spell(binding)} ${line}`)
         .join("; ")}`,
     line: () =>
       actionRoutes()
@@ -489,6 +547,9 @@ export function createDecisionView({
       actionLayer.replaceChildren();
       return;
     }
+    // A covering tray does not invalidate the commands or their accessible shortcuts,
+    // but it does hide the page controls that inline address faces claim to label.
+    const addressesVisible = !(openTray("decisions") && trayCovers());
     const placement = createAddressPlacement({
       banner,
       keylineEl,
@@ -501,20 +562,26 @@ export function createDecisionView({
     // general address pass drops a route chip where the screen cannot say it safely.
     for (const { binding, control, address } of routes) {
       const previousShortcut = control.getAttribute("aria-keyshortcuts");
-      const projectedShortcut = [previousShortcut, binding].filter(Boolean).join(" ");
+      const projected = ariaShortcuts([{ keys: [binding] }], false).split(/\s+/);
+      const projectedShortcut = [
+        ...new Set([
+          ...(previousShortcut ?? "").split(/\s+/).filter(Boolean),
+          ...projected,
+        ]),
+      ].join(" ");
       wornShortcuts.set(control, {
         previous: previousShortcut,
         projected: projectedShortcut,
       });
       control.setAttribute("aria-keyshortcuts", projectedShortcut);
-      if (!address?.isConnected) continue;
+      if (!addressesVisible || !address?.isConnected) continue;
       const previous = {
         display: address.style.getPropertyValue("display"),
         priority: address.style.getPropertyPriority("display"),
         text: address.textContent,
       };
       address.setAttribute("data-lf-ask-address", "");
-      address.textContent = binding;
+      address.textContent = spell(binding);
       address.style.setProperty("display", "block", "important");
       const box = address.checkVisibility() && placement.visibleBox(address);
       if (!placement.reserve(box)) {
@@ -525,13 +592,13 @@ export function createDecisionView({
     }
 
     const chips = [];
-    for (const { binding, control, address } of routes) {
+    for (const { binding, control, address } of addressesVisible ? routes : []) {
       if (address) continue;
       const presented = presentedActionControl(control);
       if (!presented.checkVisibility()) continue;
       const box = placement.visibleBox(presented);
       if (!box) continue;
-      const chip = el("span", "lf-address lf-ask-address", binding);
+      const chip = el("span", "lf-address lf-ask-address", spell(binding));
       chip.setAttribute("aria-hidden", "true");
       chip.style.left = `${box.left}px`;
       chip.style.top = `${box.top}px`;
@@ -539,15 +606,13 @@ export function createDecisionView({
     }
     placement.paint(actionLayer, chips);
   }
-  watchDecisionActions(() => {
-    syncDecisions();
-    paintKeys();
-  });
   addEventListener("scroll", () => reachableActionRoutes().length && paintHere(), {
     capture: true,
     passive: true,
   });
-  addEventListener("resize", () => reachableActionRoutes().length && paintHere());
+  // Resizing can make routes unreachable or put their controls under a covering tray.
+  // Repaint unconditionally so either transition clears the prior projections.
+  addEventListener("resize", paintHere);
   // The ring that says so, painted from the focus rather than written where the reader was
   // put. The walk used to write it, and it then said where the walk had left them rather
   // than where they were: click away, work in the panel, come back tomorrow, and a decision

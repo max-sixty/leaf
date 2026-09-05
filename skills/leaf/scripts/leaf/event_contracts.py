@@ -2,18 +2,26 @@
 
 from pathlib import Path
 
+from leaf.data import read_data
 from leaf.decisions import (
     asking,
+    completion_met,
     page_awaiting_values,
     projected_action_holders,
     quoted_in,
     thread_decision_projection,
 )
+from leaf.event_meaning import direct_dependencies
 from leaf.events import build_threads
 from leaf.files import revision_path
 from leaf.passages import enclosing_ids
 from leaf.projection import frozen_thread_reading, page_projection
-from leaf.registry.contract import created_children, schema_error, visual_parts
+from leaf.registry.contract import (
+    created_children,
+    schema_error,
+    state_specs,
+    visual_parts,
+)
 from leaf.requests import request_lifecycles_for, request_phases
 from leaf.structure import parse_revision
 
@@ -25,6 +33,17 @@ def event_record_error(contract: dict, event: dict, browser: bool = False):
     if browser:
         # Supply the fields the server and reader add so the full record schema
         # can validate the unstamped request beside its browser assertions.
+        schema = {
+            **schema,
+            "properties": {
+                key: value
+                for key, value in schema["properties"].items()
+                if key not in {"meaning", "generated"}
+            },
+            "required": [
+                key for key in schema["required"] if key not in {"meaning", "generated"}
+            ],
+        }
         schema = {"allOf": [schema, contract["browser"]]}
         instance = {
             **event,
@@ -53,6 +72,15 @@ def declared_event_error(
         )
     if message := schema_error(spec["detail"], event["detail"]):
         return f"<{tag}> {kind} {event['action']!r} detail is invalid: {message}"
+    if "resolves" in event["detail"] and not event["detail"]["resolves"]:
+        return f"<{tag}> {kind} {event['action']!r} resolves must name a non-empty thread id"
+    if message := schema_error(
+        {"type": "array", "items": {"type": "string", "minLength": 1}},
+        direct_dependencies(event, spec),
+    ):
+        return (
+            f"<{tag}> {kind} {event['action']!r} identity fields are invalid: {message}"
+        )
     return None
 
 
@@ -62,6 +90,8 @@ def declared_action_error(
     thread_by_id: dict,
     registry: dict,
     prior_registry: dict | None = None,
+    *,
+    stored: bool = True,
 ):
     """Why a stored action violates its sending widget's durable declaration."""
     # Page widgets come from the action's own immutable revision. Thread widgets
@@ -79,7 +109,7 @@ def declared_action_error(
         return error
     spec = registry[tag]["x-state"][event["action"]]
     creates = spec.get("creates")
-    if creates:
+    if creates and stored:
         if "generated" not in event:
             return (
                 f"<{tag}> action {event['action']!r} declares generated children "
@@ -92,7 +122,7 @@ def declared_action_error(
                 f"the sorted keys of detail field {creates['field']!r}: "
                 f"expected {expected}, found {event['generated']}"
             )
-    elif "generated" in event:
+    elif not creates and "generated" in event:
         return (
             f"<{tag}> action {event['action']!r} has a generated snapshot but its "
             "declaration creates no children"
@@ -117,6 +147,84 @@ def declared_action_error(
         return (
             f"<{tag}> {event['widget']!r} stands inside an exhibit (x-exhibit); "
             "quoted material takes no input"
+        )
+    return None
+
+
+def position_record_error(
+    event: dict,
+    spec: dict,
+    current: dict,
+    by_id: dict,
+    registry: dict,
+    projected_holders: dict[str, dict],
+):
+    """Why a position record does not name one real relation owned by its sender."""
+    record = spec.get("record") or {}
+    if record.get("kind") != "position":
+        return None
+
+    unit_id = (
+        event["widget"] if spec["unit"] == "widget" else event["detail"][spec["unit"]]
+    )
+    unit = current if spec["unit"] == "widget" else by_id.get(unit_id)
+    if unit is None:
+        return f"position record names unknown {spec['unit']} {unit_id!r}"
+
+    target_id = event["detail"][record["value"]]
+    target = by_id.get(target_id)
+    if target is None:
+        return f"position record names unknown destination {target_id!r}"
+    if target["tag"] != record["within"]:
+        return (
+            f"position record destination {target_id!r} is <{target['tag']}>, "
+            f"not <{record['within']}>"
+        )
+
+    def holder(node: dict):
+        return projected_holders.get(node["attrs"].get("id"), node.get("holder"))
+
+    def inside(node: dict, owner: dict) -> bool:
+        seen = set()
+        while node is not None and id(node) not in seen:
+            if node is owner:
+                return True
+            seen.add(id(node))
+            node = holder(node)
+        return False
+
+    def recording_owner(node: dict):
+        """Nearest enclosing widget whose declaration records durable state."""
+        while node is not None:
+            entry = registry.get(node["tag"], {})
+            if any(spec.get("record") for _, _, spec in state_specs(entry)):
+                return node
+            node = node["holder"]
+        return None
+
+    if recording_owner(unit) is not current:
+        return (
+            f"position record unit {unit_id!r} is not owned by action widget "
+            f"{event['widget']!r}"
+        )
+    if inside(target, unit):
+        return (
+            f"position record cannot put {unit_id!r} inside itself or its descendant "
+            f"{target_id!r}"
+        )
+    # A part record repositions something inside its owning widget, so its
+    # destination belongs there too. A self-position record instead moves the
+    # widget among containers admitted by its x-parent (often siblings of its
+    # current parent), and the registry relation below is its complete boundary.
+    if unit is not current and not inside(target, current):
+        return (
+            f"position record destination {target_id!r} is outside action widget "
+            f"{event['widget']!r}"
+        )
+    if target["tag"] not in (registry.get(unit["tag"]) or {}).get("x-parent", []):
+        return (
+            f"position record cannot put <{unit['tag']}> {unit_id!r} within "
+            f"<{target['tag']}> {target_id!r}"
         )
     return None
 
@@ -190,6 +298,56 @@ def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
     return None
 
 
+def datum_anchor_error(page_dir: Path, event: dict, page_by_id: dict, registry: dict):
+    """Why a source-versioned datum was not displayed by its declared seat.
+
+    Current source values are replaceable, so an older valid revision may race a
+    replacement and is admitted as an already-outdated comment. An authored
+    snapshot selection is immutable and therefore has one exact revision.
+    """
+    anchor = event.get("anchor") or {}
+    source = anchor.get("source")
+    if source is None:
+        return None
+    section = anchor["section"]
+    rec = page_by_id.get(section)
+    if rec is None:
+        return f"datum anchor names unknown section {section!r}"
+    entry = registry.get(rec["tag"]) or {}
+    bindings = [
+        spec
+        for spec in entry.get("x-data", {}).values()
+        if rec["attrs"].get(spec["source"]) == source
+    ]
+    if not bindings:
+        return f"datum anchor source {source!r} is not bound by section {section!r}"
+
+    stored = read_data(page_dir)
+    revision = anchor["data_revision"]
+    if revision > stored["revision"]:
+        return (
+            f"datum anchor data revision {revision} is newer than page data "
+            f"revision {stored['revision']}"
+        )
+    source_store = stored["sources"].get(source)
+    if source_store is None:
+        return f"datum anchor source {source!r} has never been supplied to this page"
+
+    for binding in bindings:
+        snapshot_attr = binding.get("snapshot")
+        selected = rec["attrs"].get(snapshot_attr) if snapshot_attr else None
+        if selected is None:
+            if revision in source_store["revisions"]:
+                return None
+            continue
+        if revision == int(selected) and selected in source_store.get("snapshots", {}):
+            return None
+    return (
+        f"datum anchor data revision {revision} was never displayed from source "
+        f"{source!r} by section {section!r}"
+    )
+
+
 def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
     """Why a fresh action violates its declaration or current applicability.
 
@@ -207,14 +365,18 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     thread = frozen_thread_reading(events, registry)
     thread_projection = thread.projection
     thread_by_id = thread.by_id
-    if error := declared_action_error(event, page.by_id, thread_by_id, registry):
+    if error := declared_action_error(
+        event, page.by_id, thread_by_id, registry, stored=False
+    ):
         return error
     page_rec = page.by_id.get(event["widget"])
     rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
     spec = registry[tag]["x-state"][event["action"]]
     requirement = spec.get("requires")
-    if not requirement:
+    completion = spec.get("completion")
+    position = (spec.get("record") or {}).get("kind") == "position"
+    if not requirement and not completion and not position:
         return None
 
     if page_rec:
@@ -265,6 +427,33 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         )
 
     holders = projected_action_holders(projection, byid, registry)
+    if error := position_record_error(event, spec, current, byid, registry, holders):
+        return f"<{tag}> action {event['action']!r} is invalid: {error}"
+    if completion:
+        record = spec.get("record") or {}
+        after_holders = dict(holders)
+        if record.get("kind") == "position":
+            unit_id = (
+                event["widget"]
+                if spec["unit"] == "widget"
+                else event["detail"][spec["unit"]]
+            )
+            after_holders[unit_id] = byid[event["detail"][record["value"]]]
+        if not completion_met(
+            current,
+            spec,
+            projection,
+            byid,
+            registry,
+            positioned_holders=after_holders,
+        ):
+            return (
+                f"<{tag}> {event['widget']!r} action {event['action']!r} is "
+                "unavailable: its recorded result does not satisfy its completion "
+                "condition"
+            )
+    if not requirement:
+        return None
     target = (
         current
         if requirement["target"] == "self"

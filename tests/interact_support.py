@@ -89,6 +89,16 @@ from leaf import cli as cli_model
 """
 
 
+def append_command(page_dir, command):
+    """Seed a widget command through the real transaction's admission step.
+
+    A test of raw storage or retired vocabulary passes an explicitly admitted
+    event, including meaning, to event_log.append_event instead.
+    """
+    with service_model.PageTransaction(page_dir) as page:
+        return page.append_event(command)
+
+
 def run_async(entry):
     """Run an async entry point on a thread of this test's own.
 
@@ -116,25 +126,37 @@ def spawn_probe(spawn, page_dir, body, **environment):
 
 
 def shipped_payload():
-    """Every git-tracked path in the repo — what a host's copy carries whole.
+    """Every candidate payload path in the working tree.
 
-    Git is the source of truth for what ships rather than a filesystem walk with an
-    exclusion list: `.venv`, `__pycache__`, and every other build tool's cache now
-    live under this same root the checkout and the payload share, and none of them
-    is tracked.
+    Git is the source of truth rather than a filesystem walk with an exclusion list:
+    cached and not-ignored untracked paths are the tree a completed change would ship,
+    while a cached path deleted by that change no longer exists. This lets an install
+    boundary test exercise additions and removals before the change is staged, without
+    sweeping in `.venv`, `__pycache__`, or another ignored build cache.
     """
     listed = subprocess.run(
-        ["git", "-C", str(PLUGIN_ROOT), "ls-files"],
+        [
+            "git",
+            "-C",
+            str(PLUGIN_ROOT),
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ],
         capture_output=True,
         text=True,
         check=True,
     ).stdout
-    return [PLUGIN_ROOT / relative for relative in listed.splitlines()]
+    return [
+        path
+        for relative in listed.splitlines()
+        if (path := PLUGIN_ROOT / relative).exists()
+    ]
 
 
 def install_payload(destination):
-    """Copy the payload into `destination` the way a host installs it — the tracked
-    tree, whole — and say where it landed."""
+    """Copy the candidate payload the way a host installs the committed tree."""
     for path in shipped_payload():
         target = destination / path.relative_to(PLUGIN_ROOT)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -557,7 +579,7 @@ def suggest(page_dir, version=2, markup=SUGGESTION):
 
 
 def decide(page_dir, outcome, widget="sug-refill"):
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -580,7 +602,7 @@ def _decided(page_dir, words):
         )
     )
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -663,8 +685,19 @@ ACCEPT = {
     "widget": "sug-a",
     "action": "accept",
     "detail": {"resolves": "c1"},
+    "meaning": {
+        "document": {"kind": "page", "revision": 1},
+        "coordinate": ["sug-a", "sug-a", "settlement"],
+        "depends": ["sug-a"],
+        "answer": "c1",
+    },
 }
-REJECT = {**ACCEPT, "action": "reject", "detail": {}}
+REJECT = {
+    **ACCEPT,
+    "action": "reject",
+    "detail": {},
+    "meaning": {**ACCEPT["meaning"], "answer": None},
+}
 RESOLVE = {"kind": "resolve", "author": "user", "parent": "c1"}
 
 
@@ -673,7 +706,14 @@ def logged(page_dir, *events):
     the whole log and the page the decisions were folded over. Copied in, because
     `append_event` stamps an id onto what it is handed and these are constants."""
     for event in events:
-        events_model.append_event(page_dir, dict(event))
+        event = dict(event)
+        if event["kind"] == "action":
+            event["meaning"] = {
+                **event["meaning"],
+                "coordinate": [event["widget"], event["widget"], "settlement"],
+                "depends": [event["widget"]],
+            }
+        events_model.append_event(page_dir, event)
     return event_folds_model.build_threads(
         events_model.read_events(page_dir),
         passages_model.enclosing_ids(
@@ -781,24 +821,6 @@ def _report_without_overruled(registry):
 
 def _report_without_upgrade(registry):
     registry["lf-task"]["x-upgrade"] = False
-
-
-def _state_with_optional_value_record(registry):
-    task = registry["lf-task"]
-    task["properties"]["restated"] = {"type": "boolean"}
-    task["x-state"] = {
-        "assign": {
-            "detail": {
-                "type": "object",
-                "properties": {"owner": task["properties"]["owner"]},
-                "required": ["owner"],
-                "additionalProperties": False,
-            },
-            "facet": "owner",
-            "unit": "widget",
-            "record": {"kind": "value", "attr": "owner", "value": "owner"},
-        }
-    }
 
 
 def _body_record_with_prose(registry):
@@ -1317,7 +1339,7 @@ def edit(page_dir, text, widget="note", version=1):
     revision = files_model.version_revisions(events).get(
         version, files_model.latest_revision(page_dir)
     )
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",

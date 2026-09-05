@@ -13,7 +13,7 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from xml.etree import ElementTree
 
-from .event_log import flocked, read_cursor, read_events
+from .event_log import flocked, read_cursor
 from .files import read_json, write_json
 from .host import host_identity, state_home
 from .leases import adapter_is_live, adapter_lease_path, take_waiter_lease
@@ -32,6 +32,7 @@ from .session import Watch, acknowledge, batch_data, read_watch_pass, record_pic
 QUEUE_TIMEOUT = 20
 START_TIMEOUT = 20
 ACTIVE_DELIVERY_RECOVERY_TIMEOUT = 15 * 60
+DELIVERY_EPOCH_FORMAT = "leaf-codex-delivery-v1"
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -139,6 +140,10 @@ def _epochs(session_id: str) -> list[tuple[Path, dict]]:
         (path, epoch)
         for path in sorted(directory.glob("*.json"))
         if (epoch := read_json(path)) is not None
+        # Earlier adapters stored their already-delivered batch records in this
+        # directory. A missing format is a delivery epoch written before epochs
+        # became self-describing; every other explicit format is a different record.
+        and epoch.get("format") in {None, DELIVERY_EPOCH_FORMAT}
     ]
 
 
@@ -175,6 +180,7 @@ def _append_batch(
         epoch_path = delivery_epoch_path(session_id, str(uuid.uuid4()))
         epoch_path.parent.mkdir(parents=True, exist_ok=True)
         epoch = {
+            "format": DELIVERY_EPOCH_FORMAT,
             "queue": "pending" if queue_if_new else "none",
             "queued": 0,
             "stop_offered": 0,
@@ -188,11 +194,15 @@ def _append_batch(
             epoch["phase"] = "entered"
 
     delivered = {
-        (entry["page"], event["id"])
+        (entry["page"], event["seq"], event["id"])
         for entry in epoch["batches"]
         for event in entry["events"]
     }
-    fresh = [event for event in batch if (str(page_dir), event["id"]) not in delivered]
+    fresh = [
+        event
+        for event in batch
+        if (str(page_dir), event["seq"], event["id"]) not in delivered
+    ]
     if not fresh:
         return None
 
@@ -232,44 +242,33 @@ def capture_batch(session_id: str, reading) -> bool:
     return captured is not None
 
 
-def _matching_batch_events(batch: dict, events: list[dict]) -> list[dict] | None:
-    """Resolve a persisted batch by its durable event identities."""
-    by_id = {event["id"]: event for event in events}
-    if not all(event["id"] in by_id for event in batch["events"]):
-        return None
-    return [by_id[event["id"]] for event in batch["events"]]
-
-
 def _finish_batch(batch: dict) -> None:
     """Take receipt for one persisted batch, preserving a successor's claim."""
     page_dir = Path(batch["page"])
+    expected = {event["seq"]: event["id"] for event in batch["events"]}
     try:
         with PageTransaction(page_dir) as page:
-            delivered = _matching_batch_events(batch, page.events)
-            if delivered is None:
+            delivered = {
+                event["seq"]: event
+                for event in page.events
+                if min(expected) <= event["seq"] <= max(expected)
+            }
+            if not all(
+                delivered.get(seq, {}).get("id") == event_id
+                for seq, event_id in expected.items()
+            ):
                 return
-            record_pickup(page, delivered)
-            acknowledge(page, max(event["seq"] for event in delivered))
+            record_pickup(page, [delivered[seq] for seq in expected])
+            acknowledge(page, max(expected))
     except FileNotFoundError:
         pass
 
 
 def _page_acknowledged(batch: dict) -> bool:
-    """Whether this page incarnation's cursor covers the batch's exact events."""
     page_dir = Path(batch["page"])
     if not (page_dir / EVENTS_FILE).is_file():
         return True
-    try:
-        # Read the replaceable cursor first. If the page is reinitialized between
-        # these reads, the following event-id match refuses the mixed incarnation;
-        # the reverse order could let a replacement cursor receipt the old events.
-        cursor = read_cursor(page_dir)
-        delivered = _matching_batch_events(batch, read_events(page_dir))
-    except FileNotFoundError:
-        return True
-    if delivered is None:
-        return False
-    return cursor >= max(event["seq"] for event in delivered)
+    return read_cursor(page_dir) >= max(event["seq"] for event in batch["events"])
 
 
 def _sync_receipts(epoch_path: Path, epoch: dict) -> None:
@@ -398,10 +397,10 @@ def _capture_pages(session_id: str, pages: list[PageTransaction]) -> None:
         epoch_path, batch_index, entry = captured
         # The epoch must survive before the page cursor advances.
         # A hook process may fail open after either write.
-        events = {event["id"]: event for event in page.events}
-        delivered = [events[event["id"]] for event in entry["events"]]
+        events = {event["seq"]: event for event in page.events}
+        delivered = [events[event["seq"]] for event in entry["events"]]
         record_pickup(page, delivered)
-        acknowledge(page, max(event["seq"] for event in delivered))
+        acknowledge(page, max(event["seq"] for event in entry["events"]))
         _record_receipt(epoch_path, batch_index)
 
 

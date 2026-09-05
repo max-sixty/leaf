@@ -186,6 +186,35 @@ def _validate_widget_structure(
     if unknown := sorted(set(entry.get("x-parent", [])) - set(widgets)):
         raise RegistryError(f"{path}: <{tag}> x-parent names unknown widgets {unknown}")
     properties = entry.get("properties", {})
+    children = entry.get("x-children", {})
+    if children and entry.get("x-content") != "items":
+        raise RegistryError(f"{path}: <{tag}> x-children requires x-content: items")
+    for child_tag, constraint in children.items():
+        child = widgets.get(child_tag)
+        if child is None:
+            raise RegistryError(
+                f"{path}: <{tag}> x-children names unknown widget <{child_tag}>"
+            )
+        if tag not in child.get("x-parent", []):
+            raise RegistryError(
+                f"{path}: <{tag}> x-children names <{child_tag}>, but that widget "
+                "does not name it in x-parent"
+            )
+        attribute = constraint["one-each"]
+        attribute_schema = child.get("properties", {}).get(attribute, {})
+        values = (
+            attribute_schema.get("enum") if isinstance(attribute_schema, dict) else None
+        )
+        if (
+            attribute not in child.get("required", [])
+            or not isinstance(values, list)
+            or not values
+            or any(not isinstance(value, str) or not value for value in values)
+        ):
+            raise RegistryError(
+                f"{path}: <{tag}> x-children <{child_tag}> one-each `{attribute}` "
+                "must name a required, non-empty string enum on the child"
+            )
     request = entry.get("x-request")
     if request:
         if "id" not in entry.get("required", []):
@@ -582,6 +611,7 @@ def _validate_widget_interactions(
             "x-language",
             "x-verbatim",
             "x-shadow",
+            "x-thread-surface",
             "x-conversation",
         )
         if entry.get(key) and not entry["x-upgrade"]

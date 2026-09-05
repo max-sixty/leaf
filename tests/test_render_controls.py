@@ -5,6 +5,7 @@ import re
 
 import pytest
 from click.testing import CliRunner
+from interact_support import append_command
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -1991,7 +1992,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     # user's browser hears about another's decisions.
     def decide(*widgets):
         for widget in widgets:
-            events_model.append_event(
+            append_command(
                 d,
                 {
                     "kind": "action",
@@ -3476,10 +3477,12 @@ customElements.define("lf-quota", class extends HTMLElement {
     paint(this);
     document.getElementById("destination")?.append(this);
   }
-  applyAction(action, detail) {
-    if (action === "move") document.getElementById(detail.to)?.append(this);
-    else if (["increase", "decrease"].includes(action))
-      this.setAttribute("slots", detail.slots);
+  renderState(state) {
+    const { to, index } = state.placement.detail;
+    const parent = document.getElementById(to);
+    const rest = [...parent.children].filter(child => child.id && child !== this);
+    parent.insertBefore(this, rest[index] ?? null);
+    this.setAttribute("slots", state.capacity.value);
     paint(this);
   }
 });
@@ -3508,7 +3511,7 @@ customElements.define("lf-quota", class extends HTMLElement {
     stale, stale_errors = open_page(browser, url, context=stale_held)
     current, current_errors = open_page(browser, live_url(url), context=one_reader)
 
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "report",
@@ -3525,7 +3528,7 @@ customElements.define("lf-quota", class extends HTMLElement {
     expect(current.get_by_role("button", name="Increase")).to_have_attribute(
         "aria-disabled", "false"
     )
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "report",
@@ -3592,7 +3595,7 @@ customElements.define("lf-quota", class extends HTMLElement {
         "aria-disabled", "true"
     )
 
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",

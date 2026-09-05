@@ -63,11 +63,12 @@ is the launcher a host and an agent type runs, and it brings uv, `--no-dev`, and
 the environment uv syncs for the payload project along with it — use it where
 what a host actually runs is the subject: that resolution itself, or a process
 chain that has to look like one an agent started. It leaves `.venv` behind at
-the repo root, beside `__pycache__` for every module the suite imports; neither
-is tracked, so `shipped_payload()` and `install_payload()` read what `git
-ls-files` reports rather than walking the filesystem, which keeps those and any
-other build tool's cache out of the copy that stands in for an install without
-naming either.
+the repo root, beside `__pycache__` for every module the suite imports.
+`shipped_payload()` and `install_payload()` read what `git ls-files --cached
+--others --exclude-standard` reports rather than walking the filesystem. That
+includes unstaged candidate additions and excludes candidate deletions, while
+keeping those and any other ignored build cache out of the copy that stands in
+for an install without naming either.
 
 ## Put each assertion at the boundary that owns it
 

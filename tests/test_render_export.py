@@ -2,6 +2,7 @@
 
 import importlib.util
 import itertools
+import json
 import os
 import re
 import shutil
@@ -15,9 +16,11 @@ import pytest
 from click.testing import CliRunner
 from interact_support import install_payload
 from leaf import cli as cli_model
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import hosting as hosting_model
+from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import server as server_model
 from leaf import service as service_model
@@ -54,7 +57,7 @@ def preview_slot(tmp_path):
 
 
 def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spawn):
-    """Ctrl-C reaches the foreground server directly and produces only its abort."""
+    """Ctrl-C retires the watcher and its server without a traceback or lost feedback."""
     slot, page = preview_slot
     preview = spawn(
         [
@@ -83,8 +86,9 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
     os.killpg(preview.pid, signal.SIGINT)
     output, _ = preview.communicate(timeout=10)
 
-    assert preview.returncode == 1, output
-    assert output.endswith("Aborted!\n")
+    assert preview.returncode == 130, output
+    assert server_model.running_server(page) is None
+    assert (page / "events.jsonl").is_file()
     assert "Traceback" not in output
 
 
@@ -199,45 +203,63 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
             assert errors == []
             page.close()
     finally:
-        for page, runtime in zip(pages, runtimes, strict=True):
+        for slot, page, runtime in zip(slots, pages, runtimes, strict=True):
             subprocess.run(
-                [str(runtime / "bin" / "leaf"), "server", "stop", str(page)],
-                cwd=runtime,
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "preview.py"),
+                    "--source",
+                    str(source),
+                    "--runtime",
+                    str(runtime),
+                    "--slot",
+                    slot,
+                    "--stop",
+                ],
+                cwd=ROOT,
                 check=False,
                 capture_output=True,
                 text=True,
+                timeout=30,
             )
             shutil.rmtree(page, ignore_errors=True)
 
 
 def test_automation_preview_records_real_gestures_outside_the_task(
-    browser, preview_slot, spawn
+    browser, tmp_path, preview_slot, spawn, request
 ):
     """Automation and reader previews use the same event door but different lifetimes.
 
-    The temporary server is the browser harness's production helper, held by the
-    foreground process rather than a service record. Recreating the exact slot as a
-    reader preview is the control: its click occupies the same local sequence, has a
-    distinct durable identity, and the page joins the current task's delivery set.
+    The selected runtime's temporary server is held by the watcher rather than a
+    service record. Its log survives source reloads, while a distinct reader slot is
+    claimed for task delivery and cannot be overwritten by automation.
     """
     slot, page_dir = preview_slot
+    source = tmp_path / "automation.html"
+    source.write_text(
+        (ROOT / "examples" / "design-decision.html").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    runtime = install_payload(tmp_path / "automation-runtime")
+    automation_command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--runtime",
+        str(runtime),
+        "--slot",
+        slot,
+        "--automation",
+    ]
     automation_process = spawn(
-        [
-            sys.executable,
-            str(ROOT / "scripts" / "preview.py"),
-            "design-decision",
-            "--slot",
-            slot,
-            "--automation",
-        ],
+        automation_command,
         cwd=ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    assert automation_process.stdout.readline() == (
-        "prepared design-decision (1 version)\n"
-    )
+    assert automation_process.stdout.readline() == ("prepared automation (1 version)\n")
     assert automation_process.stdout.readline() == "\n"
     automation_url = automation_process.stdout.readline().strip()
     assert automation_url.startswith("http://127.0.0.1:")
@@ -247,12 +269,14 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     )
     assert service_model.page_claim(page_dir) is None
     assert not (page_dir / "service.json").exists()
+    watcher_metadata = page_dir.with_name(f"{page_dir.name}.preview.json")
+    assert "url" not in json.loads(watcher_metadata.read_text())
     assert page_dir not in service_model.owned_pages(
         os.environ["CLAUDE_CODE_SESSION_ID"]
     )
     automation, automation_errors = open_page(browser, automation_url)
     expect(automation.locator(".lf-preview")).to_contain_text(
-        f"Automation · {ROOT.name}"
+        f"Automation · {runtime.name}"
     )
     with sending(automation, "the automation option pick"):
         automation.locator("#opt-redis .lf-pick").click()
@@ -262,23 +286,62 @@ def test_automation_preview_records_real_gestures_outside_the_task(
         for event in events_model.read_events(page_dir)
         if event["kind"] == "action" and event["author"] == "user"
     ]
-    assert automation_errors == []
+    feedback = (page_dir / "events.jsonl").read_bytes()
+    inode = (page_dir / "events.jsonl").stat().st_ino
+
+    source.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "Where sessions live", "Automation follows source edits", 1
+        ),
+        encoding="utf-8",
+    )
+    expect(
+        automation.get_by_role("heading", name="Automation follows source edits")
+    ).to_be_visible(timeout=30000)
+    expect(automation.locator("#opt-redis")).to_have_attribute("chosen", "")
+    assert (page_dir / "events.jsonl").read_bytes().startswith(feedback)
+    assert (page_dir / "events.jsonl").stat().st_ino == inode
+    assert service_model.page_claim(page_dir) is None
+    assert not (page_dir / "service.json").exists()
+    assert set(automation_errors) <= {
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_RESET",
+        "Failed to load resource: net::ERR_EMPTY_RESPONSE",
+    }
     automation.close()
 
     automation_process.send_signal(signal.SIGINT)
     _, automation_stderr = automation_process.communicate(timeout=10)
-    assert automation_process.returncode == 1, automation_stderr
-    assert automation_stderr.endswith("Aborted!\n")
+    assert automation_process.returncode == 130, automation_stderr
+    assert "Traceback" not in automation_stderr
 
+    reader_slot = f"{slot}-reader"
+    reader_dir = page_dir.with_name(reader_slot)
+    reader_command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--runtime",
+        str(runtime),
+        "--slot",
+        reader_slot,
+    ]
+
+    def cleanup_reader():
+        subprocess.run(
+            [*reader_command, "--stop"],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+        shutil.rmtree(reader_dir, ignore_errors=True)
+
+    request.addfinalizer(cleanup_reader)
     reader_result = subprocess.run(
-        [
-            sys.executable,
-            str(ROOT / "scripts" / "preview.py"),
-            "design-decision",
-            "--slot",
-            slot,
-            "--background",
-        ],
+        [*reader_command, "--background"],
         cwd=ROOT,
         capture_output=True,
         check=False,
@@ -289,25 +352,379 @@ def test_automation_preview_records_real_gestures_outside_the_task(
         f"stdout:\n{reader_result.stdout}\nstderr:\n{reader_result.stderr}"
     )
     reader_url = reader_result.stdout.splitlines()[-1]
-    claim = service_model.page_claim(page_dir)
+    claim = service_model.page_claim(reader_dir)
     assert claim is not None and claim["id"] == os.environ["CLAUDE_CODE_SESSION_ID"]
     reader, reader_errors = open_page(browser, reader_url)
-    expect(reader.locator(".lf-preview")).to_contain_text(f"Preview · {ROOT.name}")
+    expect(reader.locator(".lf-preview")).to_contain_text(f"Preview · {runtime.name}")
     with sending(reader, "the reader option pick"):
         reader.locator("#opt-jwt .lf-pick").click()
     expect(reader.locator("#opt-jwt")).to_have_attribute("chosen", "")
     [reader_event] = [
         event
-        for event in events_model.read_events(page_dir)
+        for event in events_model.read_events(reader_dir)
         if event["kind"] == "action" and event["author"] == "user"
     ]
-    assert reader_event["seq"] == automated_event["seq"]
     assert reader_event["id"] != automated_event["id"]
     assert reader_event in service_model.unacknowledged(
-        events_model.read_events(page_dir), 0
+        events_model.read_events(reader_dir), 0
     )
+    reader_feedback = (reader_dir / "events.jsonl").read_bytes()
+    refused = subprocess.run(
+        [*reader_command, "--automation"],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=30,
+    )
+    assert refused.returncode == 1
+    assert "choose a new --slot" in refused.stderr
+    assert (reader_dir / "events.jsonl").read_bytes() == reader_feedback
     assert reader_errors == []
     reader.close()
+    stopped = subprocess.run(
+        [*reader_command, "--stop"],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=30,
+    )
+    assert stopped.returncode == 0, stopped.stdout + stopped.stderr
+
+
+@pytest.fixture
+def watched_preview(tmp_path, preview_slot):
+    source = tmp_path / "watched.html"
+    original = (ROOT / "examples" / "design-decision.html").read_text(encoding="utf-8")
+    source.write_text(original, encoding="utf-8")
+    runtime = install_payload(tmp_path / "watched-runtime")
+    slot, directory = preview_slot
+    command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--runtime",
+        str(runtime),
+        "--slot",
+        slot,
+        "--background",
+    ]
+    started = subprocess.run(
+        command, cwd=ROOT, capture_output=True, text=True, check=False, timeout=90
+    )
+    assert started.returncode == 0, started.stdout + started.stderr
+    url = started.stdout.splitlines()[-1]
+    yield source, runtime, directory, command, url
+    stopped = subprocess.run(
+        [*command[:-1], "--stop"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert stopped.returncode == 0, stopped.stdout + stopped.stderr
+
+
+def test_a_detached_preview_restarts_under_its_original_codex_claim(
+    tmp_path, preview_slot, codex_program, codex_env, spawn
+):
+    """The launcher exits; the real session lifetime survives outside worker ancestry."""
+    source = tmp_path / "detached.html"
+    source.write_text((ROOT / "examples" / "design-decision.html").read_text())
+    slot, directory = preview_slot
+    command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--slot",
+        slot,
+        "--background",
+    ]
+    ready = tmp_path / "started.json"
+    owner = spawn(
+        [
+            str(codex_program),
+            "-c",
+            (
+                "import json, pathlib, subprocess, sys; "
+                "result = subprocess.run(sys.argv[2:], capture_output=True, text=True); "
+                "pathlib.Path(sys.argv[1]).write_text(json.dumps([result.returncode, result.stdout, result.stderr])); "
+                "sys.stdin.read()"
+            ),
+            str(ready),
+            *command,
+        ],
+        env=codex_env
+        | {"CODEX_THREAD_ID": "preview-codex", "PYTHONHOME": sys.base_prefix},
+        stdin=subprocess.PIPE,
+    )
+    deadline = time.monotonic() + 90
+    while not ready.exists():
+        assert time.monotonic() < deadline
+        time.sleep(0.05)
+    result = json.loads(ready.read_text())
+    assert result[0] == 0, result
+    claim = service_model.page_claim(directory)
+    assert claim["pid"] == owner.pid
+    try:
+        revised = source.read_text().replace("Where sessions live", "Detached revision")
+        source.write_text(revised)
+        log = directory.with_name(f"{directory.name}.preview.log")
+        deadline = time.monotonic() + 30
+        while "Reloaded detached" not in log.read_text():
+            assert time.monotonic() < deadline, log.read_text()
+            time.sleep(0.05)
+        assert server_model.running_server(directory)
+        assert service_model.page_claim(directory) == claim
+
+        # SessionEnd can win while recompose waits for the page transaction.
+        with service_model.PageTransaction(directory) as transaction:
+            source.write_text(revised.replace("Detached revision", "Released revision"))
+            deadline = time.monotonic() + 30
+            while server_model.running_server(directory):
+                assert time.monotonic() < deadline, "refresh did not stop the service"
+                time.sleep(0.05)
+            transaction.release_claim()
+        deadline = time.monotonic() + 30
+        while "no longer owns" not in log.read_text():
+            assert time.monotonic() < deadline, log.read_text()
+            time.sleep(0.05)
+        assert server_model.running_server(directory) is None
+        assert service_model.page_claim(directory)["released"] is not None
+        lease = directory.with_name(f"{directory.name}.preview.lock")
+        deadline = time.monotonic() + 10
+        while leases_model.lock_is_held(lease):
+            assert time.monotonic() < deadline, (
+                "released session left its watcher alive"
+            )
+            time.sleep(0.05)
+        metadata = directory.with_name(f"{directory.name}.preview.json")
+        assert json.loads(metadata.read_text())["enabled"] is False
+    finally:
+        subprocess.run(
+            [*command[:-1], "--stop"], check=True, capture_output=True, timeout=30
+        )
+
+
+def test_preview_watches_runtime_and_source_without_losing_reader_state(
+    browser, watched_preview
+):
+    """The open tab follows edits; rejected source never replaces its last good page."""
+    source, runtime, directory, command, url = watched_preview
+    original = source.read_text(encoding="utf-8")
+    page, errors = open_page(browser, url)
+    with sending(page, "the watched reader option pick"):
+        page.locator("#opt-redis .lf-pick").click()
+    expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+    feedback = (directory / "events.jsonl").read_bytes()
+    assert b'"kind": "action"' in feedback
+    inode = (directory / "events.jsonl").stat().st_ino
+    registry = json.loads((directory / "registry.json").read_text())
+    generation = registry["$layer"]["generation"]
+
+    theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+    with theme.open("a", encoding="utf-8") as stream:
+        stream.write("\nh1 { color: rgb(17, 83, 129); }\n")
+    expect(page.locator("h1")).to_have_css("color", "rgb(17, 83, 129)", timeout=30000)
+    assert (
+        json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
+        != generation
+    )
+    expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+    assert (directory / "events.jsonl").read_bytes().startswith(feedback)
+    assert (directory / "events.jsonl").stat().st_ino == inode
+
+    revised = original.replace("Where sessions live", "A watched source revision", 1)
+    source.write_text(revised, encoding="utf-8")
+    expect(page.get_by_role("heading", name="A watched source revision")).to_be_visible(
+        timeout=30000
+    )
+    expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+    assert (directory / "events.jsonl").read_bytes().startswith(feedback)
+
+    source.write_text("<p>invalid source</p>", encoding="utf-8")
+    log_path = directory.with_name(f"{directory.name}.preview.log")
+    deadline = time.monotonic() + 30
+    while "Preview update refused" not in log_path.read_text():
+        assert time.monotonic() < deadline, log_path.read_text()
+        page.wait_for_timeout(50)
+    expect(
+        page.get_by_role("heading", name="A watched source revision")
+    ).to_be_visible()
+    assert (directory / "index.html").read_text() == revised
+    assert (directory / "events.jsonl").read_bytes().startswith(feedback)
+
+    source.write_text(
+        revised.replace("A watched source revision", "Recovered watched source"),
+        encoding="utf-8",
+    )
+    expect(page.get_by_role("heading", name="Recovered watched source")).to_be_visible(
+        timeout=30000
+    )
+    expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+    repeated = subprocess.run(
+        command, cwd=ROOT, capture_output=True, text=True, check=False, timeout=30
+    )
+    assert repeated.returncode == 0, repeated.stdout + repeated.stderr
+    assert repeated.stdout.splitlines()[-1] == url
+    assert (directory / "events.jsonl").read_bytes().startswith(feedback)
+    assert (directory / "events.jsonl").stat().st_ino == inode
+    # A stopped/restarted service briefly refuses the browser's reconnect.
+    assert set(errors) <= {
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_RESET",
+        "Failed to load resource: net::ERR_EMPTY_RESPONSE",
+    }
+    page.close()
+
+
+@pytest.mark.parametrize(
+    "resource",
+    [
+        "leaf.js",
+        "runtime/context.js",
+        "widgets/lf-options.js",
+        "registry.json",
+        "theme.css",
+        "syntax",
+    ],
+)
+def test_a_failed_preview_bootstrap_hears_the_replacement_server(
+    browser, watched_preview, resource
+):
+    """Supervision precedes entry, dependency, registry and stylesheet loading."""
+    _, runtime, directory, _, url = watched_preview
+    if resource == "widgets/lf-options.js":
+        standing, errors = open_page(browser, url)
+        with sending(standing, "the standing reader option pick"):
+            standing.locator("#opt-redis .lf-pick").click()
+        assert errors == []
+        standing.close()
+    page = browser.new_page()
+    failures = []
+    navigations = []
+    page.on(
+        "framenavigated",
+        lambda frame: (
+            navigations.append(frame.url) if frame == page.main_frame else None
+        ),
+    )
+
+    def interrupt_resource(route):
+        if failures:
+            route.continue_()
+            return
+        failures.append(True)
+        if resource == "syntax":
+            route.fulfill(content_type="text/javascript", body="const = broken;")
+        else:
+            route.abort()
+
+    page.route(
+        "**/" + ("leaf.js" if resource == "syntax" else resource), interrupt_resource
+    )
+    page.goto(url, wait_until="load")
+    status = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    expect(status).to_be_visible()
+    # Hearing the same server does not loop on a persistent syntax/startup fault.
+    with page.expect_response("**/registry.json") as response:
+        pass
+    assert response.value.ok
+    assert len(navigations) == 1
+    expect(status).to_be_visible()
+    generation = json.loads((directory / "registry.json").read_text())["$layer"][
+        "generation"
+    ]
+    # A refused re-vendor still replaces the server; the old layer is now loadable.
+    (runtime / "skills" / "leaf" / "packages" / "default" / "registry.json").write_text(
+        "{", encoding="utf-8"
+    )
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-presented", "1", timeout=30000
+    )
+    expect(status).not_to_be_visible()
+    if resource == "widgets/lf-options.js":
+        expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+    assert len(navigations) == 2
+    assert (
+        json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
+        == generation
+    )
+    page.close()
+
+
+def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
+    source, _, directory, _, _ = watched_preview
+    media = source.parent / "media"
+    media.mkdir()
+    image = media / "051bee487bfb5d13.png"
+    expected = (ROOT / "examples" / "media" / image.name).read_bytes()
+    image.write_bytes(expected)
+    revised = source.read_text().replace(
+        "</main>", f'<img src="/media/{image.name}" alt="Preview proof"></main>'
+    )
+    source.write_text(revised)
+    deadline = time.monotonic() + 30
+    while (directory / "index.html").read_text() != revised:
+        assert time.monotonic() < deadline, (
+            "source referencing new media was not stamped"
+        )
+        time.sleep(0.05)
+    assert (directory / "media" / image.name).read_bytes() == expected
+
+    image.write_bytes(b"changed bytes")
+    log = directory.with_name(f"{directory.name}.preview.log")
+    deadline = time.monotonic() + 30
+    while "use a new filename" not in log.read_text():
+        assert time.monotonic() < deadline, log.read_text()
+        time.sleep(0.05)
+    assert (directory / "media" / image.name).read_bytes() == expected
+
+    image.unlink()
+    second = media / "a99a1b63048502d0.png"
+    second.write_bytes((ROOT / "examples" / "media" / second.name).read_bytes())
+    deadline = time.monotonic() + 30
+    while not (directory / "media" / second.name).exists():
+        assert time.monotonic() < deadline, "new media did not reach the preview"
+        time.sleep(0.05)
+    assert (directory / "media" / image.name).read_bytes() == expected
+
+
+def test_stopping_a_preview_waits_for_its_active_recompose(watched_preview, spawn):
+    """Stop intent survives an update's own stopped-service interval and returns last."""
+    source, runtime, directory, command, _ = watched_preview
+    metadata = directory.with_name(f"{directory.name}.preview.json")
+    # Real page-transaction contention pauses init after the watcher stops the service.
+    # The stop command must wait for that work and suppress its pending restart.
+    with events_model.flocked(directory / "events.jsonl"):
+        theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+        with theme.open("a", encoding="utf-8") as stream:
+            stream.write("\nh1 { color: navy; }\n")
+        deadline = time.monotonic() + 30
+        while json.loads((directory / "service.json").read_text())["enabled"]:
+            assert time.monotonic() < deadline, "watcher did not begin the update"
+            time.sleep(0.05)
+        stopping = spawn(
+            [*command[:-1], "--stop"],
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        while json.loads(metadata.read_text())["enabled"]:
+            assert time.monotonic() < deadline, "stop did not record its intent"
+            time.sleep(0.05)
+        assert stopping.poll() is None
+    stdout, stderr = stopping.communicate(timeout=30)
+    assert stopping.returncode == 0, stdout + stderr
+    assert server_model.running_server(directory) is None
+    assert not json.loads(metadata.read_text())["enabled"]
+    assert (directory / "events.jsonl").is_file()
+    assert (directory / "index.html").read_bytes() == source.read_bytes()
 
 
 # ---------- export: the page as one file ----------
@@ -361,7 +778,7 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
     preview = importlib.util.module_from_spec(spec)
     monkeypatch.syspath_prepend(str(ROOT / "scripts"))
     spec.loader.exec_module(preview)
-    monkeypatch.setattr(preview, "PAGE", page_dir)
+    monkeypatch.setattr(preview, "TMP", page_dir.parent)
     monkeypatch.setattr(sys, "argv", ["preview.py", "pr-walkthrough", "--export"])
 
     try:
@@ -538,6 +955,81 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     page.close()
 
 
+@pytest.mark.parametrize("resolved", [False, True], ids=["open", "resolved"])
+def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
+    browser, serve, tmp_path, resolved
+):
+    """Copies keep native thread disclosure; paper shows even a closed thread."""
+    url = serve(
+        leaf_page(
+            "thread export",
+            '<h1>Review</h1><lf-diff id="patch" source="review-patch">'
+            "<pre></pre></lf-diff>",
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        '@@ -1 +1 @@\n-return "old"\n+return "new"\n',
+    )
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this check beside the changed line.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "data_revision": 1,
+            },
+        },
+    )
+    if resolved:
+        events_model.append_event(
+            serve.page_dir,
+            {"kind": "resolve", "author": "user", "parent": root["id"]},
+        )
+    selector = f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
+    live, live_errors = open_page(browser, url)
+    thread = live.locator(selector)
+    expect(thread).to_have_count(1)
+    expect(thread.locator("button")).not_to_have_count(0)
+    live.emulate_media(media="print")
+    expect(thread.locator(".lf-conversation-body")).to_be_visible()
+    assert (
+        thread.locator("button:visible, textarea:visible, .lf-receipt:visible").count()
+        == 0
+    )
+    assert live_errors == []
+    live.close()
+
+    out = tmp_path / "thread-copy.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    copy = browser.new_page()
+    errors = watched(copy)
+    copy.goto(out.as_uri(), wait_until="load")
+    thread = copy.locator(selector)
+    expect(thread).to_have_count(1)
+    expect(thread.locator("button, textarea, .lf-receipt")).to_have_count(0)
+    expect(copy.locator("script, .lf-chrome, .lf-mark-note")).to_have_count(0)
+    if resolved:
+        expect(thread.locator(".lf-conversation-body")).to_be_hidden()
+        thread.locator("summary").click()
+    expect(thread.locator(".lf-conversation-body")).to_be_visible()
+    expect(thread).to_contain_text("Keep this check beside the changed line.")
+    if resolved:
+        thread.locator("summary").click()
+        expect(thread.locator(".lf-conversation-body")).to_be_hidden()
+    copy.emulate_media(media="print")
+    expect(thread.locator(".lf-conversation-body")).to_be_visible()
+    assert errors == []
+    copy.close()
+
+
 RECEIPT_DRAFTS = leaf_page(
     "drafts",
     """
@@ -555,6 +1047,12 @@ SETTLED_EDIT = {
     "widget": "d-settled",
     "action": "edit",
     "detail": {"text": "The sample workshop is in the green room."},
+    "meaning": {
+        "document": {"kind": "page", "revision": 1},
+        "coordinate": ["d-settled", "d-settled", "body"],
+        "depends": ["d-settled"],
+        "answer": None,
+    },
 }
 OPEN_EDIT = {
     "kind": "action",
@@ -563,6 +1061,12 @@ OPEN_EDIT = {
     "widget": "d-open",
     "action": "edit",
     "detail": {"text": "The sample workshop is in the red room."},
+    "meaning": {
+        "document": {"kind": "page", "revision": 1},
+        "coordinate": ["d-open", "d-open", "body"],
+        "depends": ["d-open"],
+        "answer": None,
+    },
 }
 
 
@@ -673,6 +1177,12 @@ AGENT_ACCEPT = {
     "widget": "sug-refill",
     "action": "accept",
     "detail": {},
+    "meaning": {
+        "document": {"kind": "page", "revision": 1},
+        "coordinate": ["sug-refill", "sug-refill", "settlement"],
+        "depends": ["sug-refill"],
+        "answer": None,
+    },
 }
 
 

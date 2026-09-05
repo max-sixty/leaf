@@ -101,7 +101,9 @@ contract.
 dashboard meant to change as work finishes. They are live in the visual index at
 <https://leaf.page/examples.html>; every example opens as its own complete page.
 From a checkout, `uv run scripts/site.py --serve` previews that catalog and all its routes;
-`scripts/preview.py triage-board` serves one page with the real agent loop behind it.
+`scripts/preview.py triage-board` watches one page and its runtime with the real agent
+loop behind it, preserving reader feedback across edits. Add `--background` to keep
+watching between commands, or `--stop` to stop that preview.
 Synthetic feature specimens live together in
 [`examples/developer/feature-gallery.html`](examples/developer/feature-gallery.html);
 `scripts/preview.py feature-gallery --automation` serves that developer playground

@@ -31,6 +31,7 @@ from interact_support import (
     PLUGIN_ROOT,
     SKILL_ROOT,
     _status,
+    append_command,
     available_loopback_port,
     check,
     fetch,
@@ -404,7 +405,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
 
     # The reader still has r1 open after r2 became active. That move is new work,
     # not something the earlier r2 note could already have answered.
-    answer = events_model.append_event(
+    answer = append_command(
         page_dir,
         {
             "kind": "action",
@@ -545,6 +546,11 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
             "widget": "b",
             "action": "move",
             "detail": {"card": "x", "to": "y", "index": 0},
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "coordinate": ["b", "x", "position"],
+                "depends": ["b", "x", "y"],
+            },
         },
     )
     assert session_model.cmd_wait(page_dir) == 0
@@ -602,6 +608,11 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
             "agent": "Indexer",
             "session": "worker-1",
             "widget": "t1",
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "coordinate": ["t1", "t1", "status"],
+                "depends": ["t1"],
+            },
             "action": "status",
             "detail": {"status": "review"},
             "revision": 1,
@@ -618,7 +629,7 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
 
 
 def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
-    """The page and each event's id identify retries for any consumer."""
+    """The page and each event's sequence identify retries for any consumer."""
     serving(page_dir, 1)
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
@@ -638,7 +649,7 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
     assert len(pickups) == 1 and pickups[0]["events"] == ["c1"]
 
     # If wait output was lost or truncated, retrieving it again before ack can
-    # include a newer event. The old event keeps the same page-and-id identity
+    # include a newer event. The old event keeps the same page-and-seq identity
     # for the receiving task to skip.
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "later"}
@@ -773,7 +784,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
             "</lf-options>",
         },
     )
-    chose = events_model.append_event(
+    chose = append_command(
         page_dir,
         {
             "kind": "action",
@@ -782,7 +793,6 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
             "widget": "gm",
             "action": "choose",
             "detail": {"options": ["m-cap"]},
-            "generated": [],
         },
     )
 
@@ -867,7 +877,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
     )
     session_model.cmd_ack(page_dir, target_seq)
     capsys.readouterr()
-    accepted = events_model.append_event(
+    accepted = append_command(
         page_dir,
         {
             "kind": "action",
@@ -939,7 +949,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
         parent = sent["id"]
         if index == 2:
             request_message = sent
-    requested = events_model.append_event(
+    requested = append_command(
         page_dir,
         {
             "kind": "request",
@@ -1029,7 +1039,7 @@ def test_a_page_decision_that_settles_a_thread_carries_its_conversation(
     _settling_page(page_dir)
     session_model.cmd_ack(page_dir, 1)  # c1 delivered; its words are the
     capsys.readouterr()  # envelope's to carry from here
-    events_model.append_event(page_dir, dict(SETTLING_ACCEPT))
+    append_command(page_dir, dict(SETTLING_ACCEPT))
     # The action door accepts this event, so the shape is the product's own.
     events = events_model.read_events(page_dir)
     assert (
@@ -1050,7 +1060,7 @@ def test_an_undo_of_a_page_decision_carries_the_thread_it_reopens(page_dir, caps
     """Withdrawing that gesture reopens the conversation, so the delivery owes
     the same reading the accept did."""
     _settling_page(page_dir)
-    accepted = events_model.append_event(page_dir, dict(SETTLING_ACCEPT))
+    accepted = append_command(page_dir, dict(SETTLING_ACCEPT))
     session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
     capsys.readouterr()
     events_model.append_event(
@@ -1070,11 +1080,11 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
     what the answer rested on all change the same conversation without naming it
     directly. Exact history and live delivery use one Leaf-owned membership join."""
     _settling_page(page_dir)
-    accepted = events_model.append_event(page_dir, dict(SETTLING_ACCEPT))
+    accepted = append_command(page_dir, dict(SETTLING_ACCEPT))
     session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
     capsys.readouterr()
 
-    rejected = events_model.append_event(
+    rejected = append_command(
         page_dir,
         {
             "kind": "action",
@@ -1168,7 +1178,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
         },
     )
     publish(page_dir, 1)
-    answered = events_model.append_event(
+    answered = append_command(
         page_dir,
         {
             "kind": "action",
@@ -1177,7 +1187,6 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
             "widget": "picks",
             "action": "choose",
             "detail": {"options": ["flag-first"], "resolves": opened["id"]},
-            "generated": [],
         },
     )
     # Rewriting the option they picked retracts the pick: the thing they chose is
@@ -1305,7 +1314,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "</lf-options>",
         },
     )
-    chose = events_model.append_event(
+    chose = append_command(
         page_dir,
         {
             "kind": "action",
@@ -1314,7 +1323,6 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "widget": "gm",
             "action": "choose",
             "detail": {"options": ["m-cap"]},
-            "generated": [],
         },
     )
     # Bury the question: enough later exchange that the bound would drop it.
@@ -1390,6 +1398,11 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
             "kind": "report",
             "author": "claude",
             "widget": "t1",
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "coordinate": ["t1", "t1", "status"],
+                "depends": ["t1"],
+            },
             "action": "status",
             "detail": {"status": "review"},
             "revision": 1,
@@ -2122,6 +2135,25 @@ def test_codex_receipt_advances_after_page_ownership_transfers(page_dir):
     assert len(pickups) == 1 and pickups[0]["events"] == [delivered["id"]]
 
 
+def test_codex_recovery_ignores_delivery_records_from_the_previous_adapter():
+    directory = codex_model.delivery_dir("codex-thread")
+    directory.mkdir(parents=True)
+    legacy = directory / "legacy-delivery.json"
+    files_model.write_json(
+        legacy,
+        {
+            "format": "leaf-delivery-v1",
+            "delivery_id": "legacy-delivery",
+            "page": "/tmp/old-page",
+            "batch_jsonl": '{"page":"/tmp/old-page"}\n',
+        },
+    )
+
+    assert not codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert not codex_model._has_delivery_work("codex-thread")
+    assert files_model.read_json(legacy)["delivery_id"] == "legacy-delivery"
+
+
 def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     page = codex_claimed_page
     for event_id in ("first", "second"):
@@ -2219,109 +2251,6 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
         if event["kind"] == "pickup"
     ]
     assert [pickup["events"] for pickup in pickups] == [["standing"]]
-
-
-def test_codex_delivery_keys_retries_by_stable_event_id(tmp_path):
-    """A page path and sequence can be reused while an event id can move.
-
-    Reinitializing the path supplies both contrasts. A new event at the old sequence
-    must join the epoch, while the old event copied to a later sequence remains the
-    same delivery and must not join it again.
-    """
-    page = tmp_path / "reused-page"
-
-    def initialize():
-        shutil.rmtree(page, ignore_errors=True)
-        vendoring_model.cmd_init(page)
-
-    def append_and_capture(event_id):
-        events_model.append_event(
-            page,
-            {
-                "kind": "comment",
-                "id": event_id,
-                "author": "user",
-                "text": event_id,
-            },
-        )
-        delivered = events_model.read_events(page)[-1]
-        with service_model.PageTransaction(page) as transaction:
-            reading = session_model.PageTick(
-                page,
-                transaction.status,
-                [delivered],
-                True,
-                "watching",
-                False,
-                None,
-                transaction,
-            )
-            return delivered, codex_model.capture_batch("codex-thread", reading)
-
-    initialize()
-    first, first_captured = append_and_capture("stable")
-    initialize()
-    replacement, replacement_captured = append_and_capture("replacement")
-    initialize()
-    events_model.append_event(
-        page,
-        {
-            "kind": "comment",
-            "id": "padding",
-            "author": "claude",
-            "text": "moves the stable event to the next sequence",
-        },
-    )
-    moved, moved_captured = append_and_capture("stable")
-
-    _, epoch = current_codex_delivery("codex-thread")
-    delivered = [event for batch in epoch["batches"] for event in batch["events"]]
-    assert first_captured and replacement_captured and not moved_captured
-    assert first["seq"] == replacement["seq"]
-    assert moved["seq"] != first["seq"]
-    assert [(event["id"], event["seq"]) for event in delivered] == [
-        ("stable", first["seq"]),
-        ("replacement", replacement["seq"]),
-    ]
-
-
-def test_a_replacement_cursor_cannot_receipt_events_from_the_previous_page(
-    tmp_path, monkeypatch
-):
-    """Receipt recovery cannot combine two incarnations observed across one race."""
-    page = tmp_path / "replaced-during-receipt"
-    vendoring_model.cmd_init(page)
-    events_model.append_event(
-        page,
-        {"kind": "comment", "id": "old", "author": "user", "text": "old page"},
-    )
-    old = events_model.read_events(page)[-1]
-    batch = {
-        "page": str(page),
-        "url": None,
-        "threads": [],
-        "events": [old],
-        "receipted": False,
-    }
-
-    def replace_page(_page):
-        shutil.rmtree(page)
-        vendoring_model.cmd_init(page)
-        events_model.append_event(
-            page,
-            {
-                "kind": "comment",
-                "id": "replacement",
-                "author": "user",
-                "text": "new page",
-            },
-        )
-        files_model.write_json(page / "cursor.json", {"seq": 1})
-        return 1
-
-    monkeypatch.setattr(codex_model, "read_cursor", replace_page)
-
-    assert not codex_model._page_acknowledged(batch)
 
 
 def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
@@ -4191,7 +4120,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
         claimed, {"kind": "comment", "author": "user", "text": "which of these?"}
     )
     publish(claimed, 1)
-    events_model.append_event(
+    append_command(
         claimed,
         {
             "kind": "action",
@@ -4200,7 +4129,6 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
             "widget": "picks",
             "action": "choose",
             "detail": {"options": ["flag-first"], "resolves": asked["id"]},
-            "generated": [],
         },
     )
     note = {
@@ -4651,6 +4579,11 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
             "kind": "report",
             "author": "claude",
             "widget": "t1",
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "coordinate": ["t1", "t1", "status"],
+                "depends": ["t1"],
+            },
             "action": "status",
             "detail": {"status": "review"},
             "revision": 1,

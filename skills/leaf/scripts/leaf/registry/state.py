@@ -6,6 +6,7 @@ from .contract import (
     CREATED_CHILDREN_DETAIL_SCHEMA,
     RegistryError,
     declares_string,
+    json_validator,
     state_specs,
 )
 
@@ -153,29 +154,6 @@ def _validate_widget_state_relations(
             f"{slot}); distinct facets must record independently"
         )
 
-    # A resolves-bearing widget has one answer fact. Thread history can outlive
-    # the markup that declared its verbs, so both thread builders deliberately
-    # fold answers by widget id alone; requiring every action verb on that tag
-    # to share the answer facet makes that historical key exact rather than a
-    # compatibility approximation.
-    state = entry.get("x-state", {})
-    resolving = [
-        (verb, spec)
-        for verb, spec in state.items()
-        if "resolves" in spec["detail"].get("properties", {})
-    ]
-    if resolving:
-        answer_verb, answer_spec = resolving[0]
-        answer_facet = answer_spec["facet"]
-        for verb, spec in state.items():
-            if spec["facet"] != answer_facet:
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` uses facet "
-                    f"`{spec['facet']}`, but `{answer_verb}` declares "
-                    "`resolves`; every x-state verb on a resolves-bearing "
-                    f"widget must share its answer facet `{answer_facet}`"
-                )
-
 
 def _validate_widget_record_contracts(
     tag: str,
@@ -235,15 +213,6 @@ def _validate_widget_record_contracts(
                         f"{path}: <{tag}> {channel} verb `{verb}` records "
                         f"undeclared attribute `{attr}`"
                     )
-                # Projection rebuilds a refused gesture from authored state.
-                # A required string value gives every baseline an absolute
-                # action detail; absence is represented by an admitted value.
-                if attr not in entry.get("required", []):
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` records "
-                        f"optional attribute `{attr}`; recorded state must be "
-                        "required so its authored value can be replayed"
-                    )
                 # An x-says value is words the reader sees, and the file's
                 # reading takes them from the markup — replay writing one
                 # would change what the page says while that reading held
@@ -281,21 +250,19 @@ def _validate_widget_record_contracts(
                     'this action answers) — declare it {"type": "string"} or '
                     "rename the field"
                 )
-            # A thread is answered by the decision, and a decision is a widget
-            # instance (x-awaits) — so the answer is absolute across the
-            # widget, and both thread builders key the standing answer on
-            # the widget id, the one key a log outlives its markup with.
-            # A per-part verb answering a thread would fold per part and
-            # settle per widget, and the disagreement is invisible: the
-            # thread reads right until a second part is acted on. Whoever
-            # writes that widget needs a decision per part first, and this is
-            # where they find that out.
-            if unit != "widget":
+            if verb not in entry.get("x-awaits", {}).get("answers", []):
                 raise RegistryError(
-                    f"{path}: <{tag}> {channel} verb `{verb}` answers a "
-                    f"comment thread (`resolves`) but folds per `{unit}` — "
-                    "a thread is answered by the decision, and a decision is the "
-                    "whole widget"
+                    f"{path}: <{tag}> `{verb}` carries resolves but is not an x-awaits answer"
+                )
+        for field in spec.get("references", []):
+            schema = detail_properties.get(field, {})
+            if not (
+                schema.get("type") == "string"
+                or schema.get("type") == "array"
+                and schema.get("items", {}).get("type") == "string"
+            ):
+                raise RegistryError(
+                    f"{path}: <{tag}> `{verb}` reference `{field}` must declare a string or string array"
                 )
         undeclared = [field for field in fields if field not in detail_properties]
         optional = [field for field in fields if field not in required]
@@ -308,16 +275,6 @@ def _validate_widget_record_contracts(
             raise RegistryError(
                 f"{path}: <{tag}> {channel} verb `{verb}` reads detail fields "
                 f"its schema {problem}"
-            )
-        # Undo restores a recorded action from authored markup. That markup
-        # can reconstruct exactly the fold unit and the record's value/order;
-        # any other required field would make a valid declaration impossible
-        # to restore without a widget-specific default hidden in core.
-        unrestorable = sorted(required.difference(fields))
-        if channel == "x-state" and record and unrestorable:
-            raise RegistryError(
-                f"{path}: <{tag}> {channel} verb `{verb}` requires detail "
-                f"fields {unrestorable} that authored markup cannot restore"
             )
         if unit != "widget" and record and record["kind"] != "position":
             raise RegistryError(
@@ -438,26 +395,85 @@ def _validate_retirement_facets(slots: dict, widgets: dict, path) -> None:
 
 def _validate_awaiting_units(widgets: dict, path) -> None:
     # Asked only after the record and retirement gates above have reported their
-    # more fundamental structural errors. An answer closes the whole decision, so its
-    # fold coordinate must be the widget rather than one detail-named child.
+    # more fundamental structural errors. An answer may record its complete result
+    # either on the widget or on a detail-named part: the projection identifies the
+    # answer by owner and verb, while its declared coordinate owns durable replay.
     for tag, entry in widgets.items():
         answers = (entry.get("x-awaits") or {}).get("answers", [])
-        if non_widget := sorted(
-            verb for verb in answers if entry["x-state"][verb]["unit"] != "widget"
-        ):
-            raise RegistryError(
-                f"{path}: <{tag}> x-awaits answer verbs {non_widget} must fold on "
-                "the widget"
-            )
         until = (entry.get("x-awaits") or {}).get("until")
-        if until and entry["x-state"][until["verb"]]["unit"] != "widget":
-            raise RegistryError(
-                f"{path}: <{tag}> x-awaits until verb `{until['verb']}` must fold "
-                "on the widget"
-            )
         completion_verbs = set(answers)
         if until:
             completion_verbs.add(until["verb"])
+        declared_conditions = {
+            verb: spec["completion"]
+            for verb, spec in entry.get("x-state", {}).items()
+            if spec.get("completion")
+        }
+        if non_answers := sorted(set(declared_conditions) - completion_verbs):
+            raise RegistryError(
+                f"{path}: <{tag}> x-state verbs {non_answers} declare completion "
+                "conditions but are not x-awaits completion verbs"
+            )
+        # A widget-scoped answer is itself the whole Decision's value. A part-scoped
+        # answer needs the predicate that lifts one part record to that whole-widget
+        # meaning; without it the first part action would answer the Decision.
+        if unanchored := sorted(
+            verb
+            for verb in completion_verbs
+            if entry["x-state"][verb]["unit"] != "widget"
+            and verb not in declared_conditions
+        ):
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits completion verbs {unanchored} fold on a "
+                "part rather than the widget, so each needs a completion condition"
+            )
+        for verb, completion in declared_conditions.items():
+            if entry["x-state"][verb].get("record", {}).get("kind") != "position":
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` completion requires a "
+                    "position record"
+                )
+            empty = completion["empty"]
+            within = empty["within"]
+            container = widgets.get(within)
+            if container is None:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` completion names "
+                    f"unknown container <{within}>"
+                )
+            if container.get("x-content") != "items":
+                raise RegistryError(
+                    f"{path}: <{tag}> x-state verb `{verb}` completion names "
+                    f"<{within}>, whose x-content is not items"
+                )
+            properties = container.get("properties", {})
+            mutable = {
+                spec["record"]["attr"]
+                for channel in ("x-state", "x-report")
+                for spec in container.get(channel, {}).values()
+                if (spec.get("record") or {}).get("kind") == "value"
+            }
+            for attr, values in empty["when"].items():
+                schema = properties.get(attr)
+                if schema is None:
+                    raise RegistryError(
+                        f"{path}: <{tag}> x-state verb `{verb}` completion tests "
+                        f"undeclared <{within}> attribute `{attr}`"
+                    )
+                if attr in mutable:
+                    raise RegistryError(
+                        f"{path}: <{tag}> x-state verb `{verb}` completion tests "
+                        f"mutable <{within}> attribute `{attr}`"
+                    )
+                for value in values:
+                    if errors := sorted(
+                        json_validator(schema).iter_errors(value), key=str
+                    ):
+                        raise RegistryError(
+                            f"{path}: <{tag}> x-state verb `{verb}` completion tests "
+                            f"<{within}> `{attr}` at {value!r}, which its schema does "
+                            f"not admit: {errors[0].message}"
+                        )
         self_circular = sorted(
             verb
             for verb in completion_verbs

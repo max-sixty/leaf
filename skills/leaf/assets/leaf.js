@@ -18,8 +18,8 @@
  * was made on, without the page's author having to copy it into the next one by
  * hand. When a version does mean to overrule one — the content the decision was
  * about got rewritten — `version check` makes the author say so (see restatement_errors in
- * the leaf.validation package); it is never inferred from the markup's silence. Widgets opt in via an
- * applyAction(action, detail) method stating an absolute value, so a reload keeps the
+ * the leaf.validation package); it is never inferred from the markup's silence. Widgets opt in via a
+ * renderState(state) method stating an absolute value, so a reload keeps the
  * user's drag and a second tab follows along live.
  *
  * Comment layer: talks to leaf's server — listens on GET /api/news and reads
@@ -375,8 +375,8 @@ createMeasurements({ shownBox });
 installReachedForWordsGuard();
 
 createDataProjection({
-  paintAnchors,
   reachScrollers,
+  reconcileThreads: renderPanel,
   setChildren,
 });
 
@@ -481,11 +481,13 @@ const watchDisclosures = (root) =>
     attributeFilter: ["open", "aria-expanded"],
     attributeOldValue: true,
   });
-createShadowStage(watchDisclosures, watchExternalLinks);
+createShadowStage(watchDisclosures, watchExternalLinks, setChildren);
 
 const {
   byCommand,
   claimsEsc,
+  commandScopesWithin,
+  commandsWithin,
   documentFocused,
   elementScopes,
   focused,
@@ -562,8 +564,7 @@ const {
   upgradeWidgets,
 } = createWidgetLoader({
   buildReactBar: (...args) => buildReactBar(...args),
-  rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
-  reportPageError,
+  rememberAuthoredParents: (...args) => rememberAuthoredParents(...args),
   revealLayer,
   sameLayer,
 });
@@ -678,6 +679,7 @@ const el = (tag, cls, text) => {
 };
 let chromeLayout;
 let livingMargin = null;
+const renderLivingMargin = (...args) => livingMargin?.render(...args);
 const syncLayout = (...args) => chromeLayout.syncLayout(...args);
 const setPanel = (...args) => chromeLayout.setPanel(...args);
 const moveShell = (...args) => chromeLayout.moveShell(...args);
@@ -812,7 +814,7 @@ const {
   quoteFrom: (...args) => quoteFrom(...args),
   rangeOf: (...args) => rangeOf(...args),
   readAndApply,
-  rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
+  rememberAuthoredParents: (...args) => rememberAuthoredParents(...args),
   rememberPassageParts,
   reportPageError,
   reserveNewsSlot,
@@ -919,7 +921,7 @@ findInput.type = "search";
 findInput.className = "lf-find-box";
 findInput.placeholder = "Find in threads";
 findInput.setAttribute("aria-label", "Find in threads");
-// The register appends the key that reaches it (`also`), so the control and the row
+// The register appends the key that reaches it (`control`), so the control and the row
 // cannot spell the binding differently.
 findInput.title = "Find in threads";
 // What is waiting on the reader: an agent comment, an explicit question in a reply, or a
@@ -982,6 +984,11 @@ fabBar.append(fab);
 // projections and keeps every anchored state above the package drawing.
 const visualMarkLayer = el("div", "lf-ui lf-visual-marks");
 visualMarkLayer.setAttribute("aria-hidden", "true");
+// A status remains flat and inert while its hover trace identifies the target it reports
+// on. Target paint owns its rectangular or shaped geometry; the living margin owns when
+// this instance is shown.
+const marginTraceBox = el("div", "lf-ui lf-margin-status-trace lf-target-paint");
+marginTraceBox.setAttribute("aria-hidden", "true");
 // The aim's paint host (see its rule above). Pointer-inert and carrying only aria-hidden
 // drawing geometry, it says nothing to a screen reader and takes nothing from the press
 // it promises; refreshAim is its one writer, and data-for is the aimed id stated where a
@@ -1062,9 +1069,9 @@ legendRoot.setAttribute("aria-hidden", "true");
 // so it says nothing to a screen reader.
 const addressLayer = el("div", "lf-ui lf-addresses");
 addressLayer.setAttribute("aria-hidden", "true");
-// Numeric actions for the Ask the reader is standing in. These share the address face
+// Contextual actions for the Ask the reader is standing in. These share the address face
 // but not the g chord's lifecycle: the decision view paints them whenever its semantic
-// focus and the dispatch stack leave the digit row reachable.
+// focus and the dispatch stack leave the contributed action row reachable.
 const decisionActionLayer = el("div", "lf-ui lf-addresses lf-ask-addresses");
 decisionActionLayer.setAttribute("aria-hidden", "true");
 // The selection chooser's two faces. Hints and the active search result are paint only;
@@ -1120,6 +1127,7 @@ chromeRoot.append(
   selectionLayer,
   selectionSearch,
   visualMarkLayer,
+  marginTraceBox,
   aimBox,
   fabBar,
   liveEl,
@@ -1407,7 +1415,10 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   landTyping,
   loadDraft,
   mayLandTyping,
-  openInlineThread: (...args) => livingMargin?.openInlineThread(...args) ?? null,
+  openInlineThread: (...args) =>
+    conversationRuntime?.focusSurfaceThread(args[0]) ??
+    livingMargin?.openInlineThread(...args) ??
+    null,
   panelIsOpen,
   paintAnchors,
   paintHere,
@@ -2016,6 +2027,8 @@ const {
   banner,
   readingBlock,
   closeTray: () => showTray(null),
+  commandScopesWithin,
+  commandsWithin,
   el,
   elementById: (...args) => elementById(...args),
   focusForNavigation: (control) => {
@@ -2260,7 +2273,7 @@ const HELP = {
       does: () =>
         keyline?.expanded ? "Back to more keyboard shortcuts" : "Close this reference",
       line: () => (keyline?.expanded ? "back to more shortcuts" : "close help"),
-      also: helpClose,
+      control: helpClose,
       runFromReference: false,
       run: () => helpClose.click(),
     },
@@ -2478,7 +2491,7 @@ const PANEL = {
           ? "Show every thread again"
           : "Show only the threads waiting on you",
       line: () => (conversationRuntime.needsYou ? "all threads" : "waiting on you"),
-      also: needsBtn,
+      control: needsBtn,
       when: () =>
         runtime.statePhase === "ready" &&
         (conversationRuntime.needsYou ||
@@ -2499,7 +2512,7 @@ const PANEL = {
       keys: ["/"],
       does: "Find in the threads",
       line: "find",
-      also: findInput,
+      control: findInput,
       returnFrame: () => ({
         active: () => panelIsOpen() && (findInput === documentFocused() || narrowed()),
         close: () => {
@@ -2745,7 +2758,7 @@ const REFERENCE = {
   does: () =>
     keyline?.expanded ? "The complete keyboard reference" : "More keyboard shortcuts",
   line: () => (keyline?.expanded ? "all shortcuts" : "more"),
-  also: keylineMore,
+  control: keylineMore,
   run: () => keylineMore.click(),
 };
 const PAGE = {
@@ -3001,7 +3014,7 @@ const CORE = SCOPES.filter((scope) => scope !== ELEMENTS);
 // upgrade, so a row here that presses with nothing to say for itself takes down the layer on
 // the first page rather than going quiet on every one.
 for (const scope of CORE) checked(scope.rows, scope.title ?? "the page's own keys");
-// A control the keyboard also reaches names its shortcut from the row. `also` is where a
+// A control the keyboard reaches names its shortcut from the row. `control` is where a
 // row says which control it duplicates; its projection follows liveness too, so a disabled
 // decision does not advertise a shortcut the dispatcher has withdrawn. The latest-version
 // chip's route spans two rows, so it is composed from both.
@@ -3021,19 +3034,19 @@ function paintCoreControls() {
       .join(" ");
   for (const scope of CORE)
     for (const row of scope.rows)
-      if (row.also) {
-        if (!("lfKeyTitle" in row.also.dataset))
-          row.also.dataset.lfKeyTitle = row.also.title;
+      if (row.control) {
+        if (!("lfKeyTitle" in row.control.dataset))
+          row.control.dataset.lfKeyTitle = row.control.title;
         const active = live(row) && bindings(row).length > 0;
-        row.also.title =
-          row.also.dataset.lfKeyTitle +
+        row.control.title =
+          row.control.dataset.lfKeyTitle +
           (active ? ` (${controlShortcut(scope, row)})` : "");
         // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
         // alternatives. The complete chord remains in the visible hint and accessible
         // keyboard reference instead of claiming its final press works alone.
         if (active && !scope.chord)
-          row.also.setAttribute("aria-keyshortcuts", ariaShortcuts([row], false));
-        else row.also.removeAttribute("aria-keyshortcuts");
+          row.control.setAttribute("aria-keyshortcuts", ariaShortcuts([row], false));
+        else row.control.removeAttribute("aria-keyshortcuts");
       }
   const referenceBound = bindings(REFERENCE).length > 0;
   keylineMoreKey.hidden = !referenceBound;
@@ -3212,9 +3225,9 @@ const midComposition = () => {
 // ---------- reading ----------
 // Rendering version V means making its DOM equal the log's desired projection.
 // Each `(owner widget, unit, facet)` keeps its last surviving action or report, with
-// a reader action outranking provisional agent news on the same coordinate. Widgets state
-// those winners through an absolute applyAction(action, detail); when several units
-// share one ordered container, their winners are applied together in log order.
+// a reader action outranking provisional agent news on the same coordinate. The framework composes
+// those winners with authored state, including complete ordered containers, before
+// widgets render each final facet map through renderState(state).
 //
 // Absolute is what makes projection converge. Reader actions outrank provisional agent
 // reports on the same coordinate; winners on different coordinates are applied in their
@@ -3384,68 +3397,49 @@ const {
 
 const runtimeProjection = createProjection(runtime, {
   unaccountedGesture,
-  DECISION_ROW,
   COLLAPSE,
-  MARKED_ANYWHERE,
-  MARKED_IN_PAGE,
   PAGE_PAINT_ATTRIBUTE,
   PAGE_PAINT_ATTRIBUTES,
   agentName,
   answeredContext,
   authored,
   decisionEntry,
-  containsAcross,
-  dress,
   elementById,
   failSoft,
-  focused,
   inChrome,
   isAwaiting,
-  markDeclared,
   outbox,
   pagePresented,
   pageQueryAll,
   pageShifted,
-  paintAnchors,
   paintKeys,
-  paintAcknowledgments,
   post,
   projectedParent,
   quoteFrom,
-  reachScrollers,
-  rememberPassageParts,
+  reconcileThreads: renderPanel,
   removeOutbox,
   renderQuiet,
   renderRetired,
   reportPageError,
-  settling,
   settlementSlots,
-  standOn,
   textNodesUnder,
   notice,
 });
 const {
-  authoredDetails,
-  authoredFacets,
-  authoredMarkup,
   authoredParents,
-  authoredStatements,
-  authoredWidgets,
   captureAuthoredFacets,
   committedProjection,
   coordinateProjectionCommitted,
   domFacet,
-  markSettled,
   matchesProjectedWhen,
   paintStateOrigins,
   projectedFacet,
   projectionFromView,
   projectionCommitted,
-  rebuild,
   reconcileKnownState,
   reconcileState,
   releaseProjectedOutbox,
-  rememberAuthoredMarkup,
+  rememberAuthoredParents,
   resetAuthoredPage,
   requirementMatches,
   stageOutboxAction,
@@ -3491,6 +3485,7 @@ conversationRuntime = createConversation({
   designIsOn: () => designOn,
   captureAuthoredFacets,
   claimState: workClaimState,
+  containsAcross,
   designName,
   droppedAt,
   el,
@@ -3535,9 +3530,10 @@ conversationRuntime = createConversation({
   sendReaction,
   refreshHover,
   registry,
-  rememberAuthoredMarkup,
+  rememberAuthoredParents,
   renderQuiet,
   renderSaid,
+  renderLivingMargin,
   reportPageError,
   runtime,
   saveDraft,
@@ -3597,6 +3593,7 @@ anchorRuntime = createAnchors({
   inChrome,
   inUi,
   inspectEl,
+  marginTraceBox,
   offer,
   pageQueryAll,
   pageScroller,
@@ -3608,6 +3605,7 @@ anchorRuntime = createAnchors({
   quoteFrom,
   queueLegend,
   rangeOf,
+  reconcileThreads: renderPanel,
   refreshAction: refreshFab,
   registry,
   reveal,
@@ -3664,8 +3662,10 @@ livingMargin = createLivingMargin({
   setPanel,
   showThread,
   stateProjection,
+  traceTarget: (...args) => anchorRuntime.traceTarget(...args),
   threadPanel: panel,
   threads: () => conversationRuntime.threadList,
+  threadClaimed: (id) => conversationRuntime.threadClaimed(id),
   updateSequence,
   versionBtn,
   waitingForPickupSince,
@@ -3711,9 +3711,7 @@ stateApplication = createStateApplication({
   loadMarked,
   notifyDataSubscribers,
   observeServerNow,
-  paintAnchors,
   paintApproval,
-  paintAcknowledgments,
   panelIsOpen,
   prepareActivation,
   presented,
@@ -3817,7 +3815,7 @@ function presentPage() {
   // leave a composer carrying its authored words.
   anchoringReady = true;
   try {
-    paintAnchors();
+    renderPanel();
   } catch (error) {
     anchoringReady = false;
     throw error;
@@ -3855,9 +3853,9 @@ async function startPage() {
     upgradeWidgets(),
     // Alongside rather than after, and caught rather than fatal: the tab icon is not
     // what the page is for, so a layer missing it says so in the console and leaves the
-    // rest working — the same bargain a widget module that fails to import makes. It is
-    // still awaited here, because `version export` copies the page at the stamp below
-    // and a mark that arrived after it would leave the copy's tab to chance.
+    // rest working. It is still awaited here, because `version export` copies the
+    // page at the stamp below, and an icon arriving later would leave the copy's
+    // tab to chance.
     loadIcon().catch((err) => console.error(err)),
   ]);
   if (!upgraded) return;
@@ -3884,6 +3882,7 @@ async function startPage() {
 startPage().catch((error) => {
   // The boundary itself must fail visibly. Authored HTML remains readable, while the
   // status names the fault and the absent presented stamp keeps durable controls closed.
+  window.dispatchEvent(new Event("lf-startup-failed"));
   reportPageError(`page failed to start: ${error?.message ?? error}`);
   renderStatus(error);
 });

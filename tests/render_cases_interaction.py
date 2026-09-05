@@ -3,6 +3,7 @@
 import json
 from datetime import datetime, timedelta
 
+from interact_support import append_command
 from leaf import event_log as events_model
 from render_harness import (
     EXAMPLES,
@@ -983,7 +984,7 @@ def stale_report(page_dir, widget, doing, hours, state="working"):
     quarter of an hour, so nothing that waits can reach it and nothing that sleeps
     should: the fact under test is what the row does with a timestamp, and the log
     is where a timestamp comes from."""
-    return events_model.append_event(
+    return append_command(
         page_dir,
         {
             "kind": "report",
@@ -1059,6 +1060,15 @@ STANDING_PAGE = leaf_page(
   <lf-old><p id="ab-roll">Access logs roll off after 30 days.</p></lf-old>
   <lf-new><p>Access logs are kept for 90 days.</p></lf-new>
 </lf-suggestion>
+<lf-decision id="ab-triage-decision"><h2>Which edge cases survive?</h2>
+<lf-swipe-deck id="ab-triage">
+  <lf-swipe-pile id="ab-queue" verdict="unseen">
+    <lf-swipe-card id="ab-expiry"><strong>Buffer expiry writes</strong></lf-swipe-card>
+    <lf-swipe-card id="ab-capacity"><strong>Partition capacity</strong></lf-swipe-card>
+  </lf-swipe-pile>
+  <lf-swipe-pile id="ab-pass" verdict="pass"></lf-swipe-pile>
+  <lf-swipe-pile id="ab-keep" verdict="keep"></lf-swipe-pile>
+</lf-swipe-deck></lf-decision>
 <lf-diff id="ab-patch"><pre>
 diff --git a/ab/bracket.py b/ab/bracket.py
 --- a/ab/bracket.py
@@ -1089,6 +1099,12 @@ STANDING_ACTIONS = [
     ("ab-email", "edit", {"text": "The words as the reader rewrote them."}),
     ("ab-sug-410", "accept", {}),
     ("ab-sug-logs", "reject", {}),
+    ("ab-triage", "swipe", {"card": "ab-expiry", "to": "ab-pass", "index": 0}),
+    (
+        "ab-triage",
+        "finish",
+        {"card": "ab-capacity", "to": "ab-keep", "index": 0},
+    ),
     ("ab-patch", "review", {"file": "ab/bracket.py", "reviewed": True}),
 ]
 RELATIVE_WIDGET_PAGE = leaf_page(
@@ -1113,13 +1129,9 @@ customElements.define(
     connectedCallback() {
       once(this);
     }
-    applyAction(action, detail) {
-      if (action === "step")
-        this.setAttribute(
-          "count",
-          Number(this.getAttribute("count")) + Number(detail.count),
-        );
-      if (action === "caption") this.querySelector("pre").append(detail.text);
+    renderState(state) {
+      this.setAttribute("count", Number(this.getAttribute("count")) + Number(state.count.value));
+      this.querySelector("pre").append(state.caption.value);
     }
   },
 );
@@ -1170,11 +1182,11 @@ customElements.define(
       }
       this.#place();
     }
-    // Absolute, as every applyAction is: the offset is stated, never stepped.
-    applyAction(action, detail) {
-      if (action !== "settle") return;
+    // Absolute, as every renderState is: the offset is stated, never stepped.
+    renderState(state) {
       const from = this.getAttribute("offset");
-      this.setAttribute("offset", String(detail.offset));
+      if (from === String(state.offset.value)) return;
+      this.setAttribute("offset", String(state.offset.value));
       this.#place();
       // Held at the old offset for nine tenths of the run, so the words are over
       // their neighbour's for as long as the motion lasts. A move that eased the
@@ -1482,8 +1494,12 @@ customElements.define(
       this.press.setAttribute("aria-pressed", "true");
     }
 
-    applyAction(action) {
-      if (action === "settle") this.settled();
+    renderState(state) {
+      if (state.verdict.value) this.settled();
+      else {
+        this.press.textContent = "Accept";
+        this.press.setAttribute("aria-pressed", "false");
+      }
     }
   },
 );

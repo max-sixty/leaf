@@ -286,10 +286,9 @@ def action_subjects(event: dict, byid: dict, within: dict, registry: dict) -> li
     `edit` carries text, an `accept` carries nothing) the widget is its own
     subject.
 
-    No verb is interpreted here. A detail value counts when it names an element
-    *inside the widget that sent the action* — not merely an id the page has
-    somewhere, which would let a literal like "approved" collide with an element
-    that happens to be called that."""
+    Admission records the direct identities declared by the verb. This reading
+    keeps the identities currently inside the sending widget; ordinary detail
+    text never becomes a subject because it happens to match an element id."""
     widget = event["widget"]
     parts = action_rests_on(event, within)[1:]
     subjects = [
@@ -390,14 +389,7 @@ def state_projection(
         spec = (registry.get(rec["tag"], {}).get(channel) or {}).get(event["action"])
         if not spec:
             continue
-        unit = (
-            event["widget"]
-            if spec["unit"] == "widget"
-            else event["detail"].get(spec["unit"])
-        )
-        if not isinstance(unit, str):
-            continue
-        coordinate = state_coordinate(event["widget"], unit, spec)
+        coordinate = tuple(event["meaning"]["coordinate"])
         entry = (event, spec)
         classified[event["id"]] = (coordinate, entry)
         if event["kind"] == "action":

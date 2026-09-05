@@ -34,6 +34,8 @@ try:
 except ImportError:  # pragma: no cover - unsupported non-POSIX platform
     fcntl = None
 
+TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
+
 
 class LeafHTTPServer(ThreadingHTTPServer):
     """Every page leaf serves — a session server, a preview, a test's fixture —
@@ -110,8 +112,16 @@ class TemporaryPageServer:
         return f"http://127.0.0.1:{self.httpd.server_address[1]}"
 
     @property
+    def port(self) -> int:
+        return self.httpd.server_address[1]
+
+    @property
     def url(self) -> str:
         return f"{self.origin}/?t={self.token}"
+
+    @property
+    def running(self) -> bool:
+        return not self._closed and self._thread is not None and self._thread.is_alive()
 
     def start(self):
         """Start the server in a thread owned by this object."""
@@ -154,7 +164,7 @@ def cmd_serve_temporary(page_dir: Path) -> None:
     require_cross_process_locking()
     server = TemporaryPageServer(page_dir)
     print(server.url, flush=True)
-    print("server   temporary (stops with this command)", file=sys.stderr, flush=True)
+    print(TEMPORARY_SERVER_NOTE, file=sys.stderr, flush=True)
     server.run()
 
 

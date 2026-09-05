@@ -140,6 +140,20 @@ Commands:
             id="package",
         ),
         pytest.param(
+            ["package", "init", "--help"],
+            """Usage: leaf package init [OPTIONS] PACKAGE
+
+  Create the package layout without replacing existing files.
+
+  With --widget, add one checked upgraded content widget starter.
+
+Options:
+  --widget TAG  add one upgraded content widget starter
+  --help        Show this message and exit.
+""",
+            id="package-init",
+        ),
+        pytest.param(
             ["page", "--help"],
             """Usage: leaf page [OPTIONS] COMMAND [ARGS]...
 
@@ -2211,6 +2225,220 @@ def test_package_init_never_overwrites_existing_contents(tmp_path, monkeypatch):
         for path in layer.rglob("*")
         if path.is_file()
     } == before
+
+
+def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    package = Path("packages/risk-notes")
+
+    created = runner.invoke(
+        cli_model.cli,
+        ["package", "init", str(package), "--widget", "lf-risk-note"],
+    )
+
+    assert created.exit_code == 0, created.output
+    package_root = tmp_path / package
+    registry = json.loads((package_root / "registry.json").read_text())
+    entry = registry["lf-risk-note"]
+    assert entry["description"]
+    assert entry["x-content"] == "prose"
+    assert entry["x-upgrade"] is True
+    assert entry["x-verbatim"] is True
+    assert entry["x-example"] == (
+        '<lf-risk-note id="risk-note"><strong>Risk note</strong> The retry budget '
+        "is three attempts before manual review.</lf-risk-note>"
+    )
+    assert (package_root / "theme.css").read_bytes() == b""
+    module = (package_root / "widgets" / "lf-risk-note.js").read_text()
+    assert module == (
+        'import { once } from "/runtime/widget-api.js";\n\n'
+        "customElements.define(\n"
+        '  "lf-risk-note",\n'
+        "  class extends HTMLElement {\n"
+        "    connectedCallback() {\n"
+        "      if (!once(this)) return;\n"
+        "    }\n"
+        "  },\n"
+        ");\n"
+    )
+    checked = runner.invoke(cli_model.cli, ["package", "check", str(package)])
+    assert checked.exit_code == 0, checked.output
+
+    page = tmp_path / "page"
+    initialized = runner.invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            "--package",
+            "diagram",
+            "--package",
+            str(package),
+            str(page),
+        ],
+    )
+    assert initialized.exit_code == 0, initialized.output
+    assert (page / "widgets" / "lf-risk-note.js").read_text() == module
+    fixture_version_path(page, 1).write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><lf-risk-note id="release-risk"><strong>Release risk'
+            "</strong> The retry budget is three attempts before manual review."
+            "</lf-risk-note>",
+        )
+    )
+    result = check(page)
+    assert result.exit_code == 0, result.output
+    rendered = runner.invoke(
+        cli_model.cli,
+        ["version", "check", str(page), "--render"],
+    )
+    assert rendered.exit_code == 0, rendered.output
+
+
+def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    package = tmp_path / ".leaf"
+    initialized = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
+    assert initialized.exit_code == 0, initialized.output
+    existing = add_test_widget(package, "lf-existing")
+    guidance = package / "guidance" / "author.md"
+    guidance.write_text("Keep this package guidance.\n")
+    helper = package / "runtime" / "existing-helper.js"
+    helper.write_text("export const existing = true;\n")
+    theme = (package / "theme.css").read_bytes()
+
+    result = runner.invoke(
+        cli_model.cli,
+        ["package", "init", ".leaf", "--widget", "lf-added-note"],
+    )
+
+    assert result.exit_code == 0, result.output
+    registry = json.loads((package / "registry.json").read_text())
+    assert registry["lf-existing"] == existing
+    assert "lf-added-note" in registry
+    assert (package / "theme.css").read_bytes() == theme
+    assert guidance.read_text() == "Keep this package guidance.\n"
+    assert helper.read_text() == "export const existing = true;\n"
+
+
+def test_package_init_widget_stages_only_the_package_contract(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    unrelated = tmp_path / "unrelated"
+    unrelated.mkdir()
+    (unrelated / "missing").symlink_to(unrelated / "not-there")
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["package", "init", ".", "--widget", "lf-risk-note"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "widgets" / "lf-risk-note.js").is_file()
+    assert (unrelated / "missing").is_symlink()
+
+
+def test_package_init_widget_validates_its_tag_without_writing(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "package"
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["package", "init", str(package), "--widget", "risk-note"],
+    )
+
+    assert result.exit_code != 0
+    assert "must match" in result.output
+    assert not package.exists()
+
+
+@pytest.mark.parametrize("collision", ["tag", "module", "lower-layer"])
+def test_package_init_widget_refuses_existing_members_without_writing(
+    tmp_path, monkeypatch, collision
+):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    package = tmp_path / ".leaf"
+    initialized = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
+    assert initialized.exit_code == 0, initialized.output
+    tag = "lf-existing-note"
+    if collision == "tag":
+        add_test_widget(package, tag)
+    elif collision == "module":
+        (package / "widgets" / f"{tag}.js").write_text("// keep this module\n")
+    else:
+        tag = "lf-options"
+    before = {
+        path.relative_to(package): path.read_bytes()
+        for path in package.rglob("*")
+        if path.is_file()
+    }
+
+    result = runner.invoke(
+        cli_model.cli,
+        ["package", "init", ".leaf", "--widget", tag],
+    )
+
+    assert result.exit_code != 0
+    assert "already exists in the composed layer" in result.output
+    assert {
+        path.relative_to(package): path.read_bytes()
+        for path in package.rglob("*")
+        if path.is_file()
+    } == before
+
+
+def test_package_init_widget_cannot_overwrite_a_member_created_during_init(
+    tmp_path, monkeypatch
+):
+    """Candidate validation and installation are separated by real work. A second
+    writer winning the module name in that interval keeps its bytes; initialization
+    fails without publishing the generated registry entry around them.
+    """
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    package = tmp_path / ".leaf"
+    initialized = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
+    assert initialized.exit_code == 0, initialized.output
+    before_registry = (package / "registry.json").read_bytes()
+    real_create = packages_model.create_package_files
+
+    def concurrent_create(root, files):
+        module = package / "widgets" / "lf-race-note.js"
+        module.write_text("// concurrent writer keeps this\n")
+        return real_create(root, files)
+
+    monkeypatch.setattr(packages_model, "create_package_files", concurrent_create)
+    result = runner.invoke(
+        cli_model.cli,
+        ["package", "init", ".leaf", "--widget", "lf-race-note"],
+    )
+
+    assert result.exit_code != 0
+    assert "was created while package init was running" in result.output
+    assert (package / "widgets" / "lf-race-note.js").read_text() == (
+        "// concurrent writer keeps this\n"
+    )
+    assert (package / "registry.json").read_bytes() == before_registry
+
+
+def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "package"
+    entry = widget_entry("lf-risk-note", upgrade=True)
+    entry["x-example"] = "<lf-risk-note>Missing the required id.</lf-risk-note>"
+    monkeypatch.setattr(packages_model, "starter_widget_entry", lambda tag: entry)
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["package", "init", str(package), "--widget", "lf-risk-note"],
+    )
+
+    assert result.exit_code != 0
+    assert "<lf-risk-note> x-example is invalid" in result.output
+    assert not package.exists()
 
 
 @pytest.mark.parametrize("role", ["project", "user"])

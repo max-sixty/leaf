@@ -126,6 +126,28 @@ ACTION_REQUIREMENT = {
     "additionalProperties": False,
 }
 
+# A completion verb may depend on the state its own record leaves behind. `empty`
+# identifies an item container inside the answering widget by its authored attributes;
+# after applying the candidate record, that container must hold no vocabulary items.
+# This keeps completion authoritative without adding a second completion record beside
+# the state the gesture actually changed.
+ACTION_COMPLETION = {
+    "type": "object",
+    "properties": {
+        "empty": {
+            "type": "object",
+            "properties": {
+                "within": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+                "when": AWAITING_CONDITION,
+            },
+            "required": ["within", "when"],
+            "additionalProperties": False,
+        }
+    },
+    "required": ["empty"],
+    "additionalProperties": False,
+}
+
 ACTION_CREATES = {
     "type": "object",
     "properties": {
@@ -154,10 +176,16 @@ def _verbs_schema(
         "facet": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "unit": {"type": "string", "minLength": 1},
         "record": {"oneOf": records},
+        "references": {
+            "type": "array",
+            "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            "uniqueItems": True,
+        },
     }
     if conditional:
         properties["requires"] = ACTION_REQUIREMENT
         properties["creates"] = ACTION_CREATES
+        properties["completion"] = ACTION_COMPLETION
     if updates:
         # A report may carry one short prose update beside the structured state it
         # records. Naming the detail field is what lets the common update feed expose
@@ -347,6 +375,17 @@ REFERENCE_SCHEMA = {
         "additionalProperties": False,
     },
 }
+CHILDREN_SCHEMA = {
+    "type": "object",
+    "minProperties": 1,
+    "propertyNames": {"pattern": f"^{WIDGET_NAME}$"},
+    "additionalProperties": {
+        "type": "object",
+        "properties": {"one-each": {"type": "string", "pattern": f"^{HTML_NAME}$"}},
+        "required": ["one-each"],
+        "additionalProperties": False,
+    },
+}
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -370,6 +409,7 @@ EXTENSION_SCHEMA = {
             "required": ["when"],
             "additionalProperties": False,
         },
+        "x-children": CHILDREN_SCHEMA,
         "x-content": {"enum": ["prose", "items", "data", "none"]},
         "x-data": DATA_INPUTS_SCHEMA,
         "x-example": {"type": "string"},
@@ -402,6 +442,7 @@ EXTENSION_SCHEMA = {
         },
         "x-shadow": {"type": "boolean"},
         "x-state": STATE_SCHEMA,
+        "x-thread-surface": {"const": True},
         "x-tone": _ATTRIBUTE_NAME,
         "x-upgrade": {"type": "boolean"},
         "x-verbatim": {"type": "boolean"},

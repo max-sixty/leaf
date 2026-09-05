@@ -6,21 +6,39 @@ runtime. They use the environment pinned by the root `pyproject.toml` and `uv.lo
 
 ## Examples and previews
 
-`preview.py [page]` freshly vendors and serves one public example or the developer
-feature gallery. It copies
-media, applies current values and file captures from its data manifest, stamps every
-authored version oldest first, copies the example's companion log in after the first
-of them, then sets the event cursor past seeded history. `--source`
-accepts any authored HTML file, while `--runtime` chooses the checkout that vendors
-it. Named `--slot` pages coexist; `--background` starts one and returns its URL.
-`--automation` runs the browser harness's temporary server in the foreground. Real
-browser gestures cross the HTTP and event-log boundaries, while the page creates no
-claim or durable service. Stop that command, then recreate the slot without the flag
-before handing its URL to a reader.
-A live preview shows that runtime's safe checkout provenance in a banner badge;
-pressing it copies the source, commit, layer identity, revision, event sequence, and
-a URL with its access token removed. `--export` writes the prepared page as one
-standalone HTML file for handoff and carries no preview badge.
+`preview.py [page]` prepares and watches one public example or developer fixture
+at `.tmp/previews/<source-stem>`. It seeds authored versions, companion events,
+media and data once; subsequent runs reuse that page and preserve feedback.
+`--source` accepts an authored HTML file, `--runtime` selects its Leaf checkout,
+and `--slot` names another independent copy. `--background` detaches the watcher;
+its startup output names the update log. The matching command with `--stop`
+(including `--automation` for its default automation slot) waits for the watcher
+and server to stop, including an in-flight update. Ctrl-C stops a foreground
+watcher the same way.
+
+`--automation` runs the same watcher in the foreground through the browser
+harness's process-owned temporary server. Browser gestures still cross the real
+HTTP and event-log boundaries, but the page creates no claim or durable service.
+Automation and reader previews have distinct default slots; an explicit slot keeps
+the interaction mode it was created with so automation feedback cannot enter task
+delivery.
+
+Source, runtime, theme, registry, media and selected package edits trigger the normal
+stop, init, stamp and start lifecycle. The generation handshake reloads open
+tabs at the same URL. Startup claims the page under the initiating host session;
+refresh restarts validate that retained claim without rediscovering ancestry
+from the detached watcher. Lost ownership retires the watcher even when a failed
+restart left no service running. Incompatible source/layer edits leave feedback intact and
+report a refusal; the next edit retries. Changing the source identity or seeded
+history/data requires a new slot. Runtime updates preserve direct edits to the
+live page; editing both that page and its source fixture requires reconciling them.
+Media refreshes add immutable files before stamping source changes. Removed source
+assets remain available to historical revisions; changed bytes require a new filename.
+
+The preview banner shows safe checkout provenance; pressing it copies the source,
+commit, layer identity, revision, event sequence, and a URL with its access token
+removed. `--export` independently prepares a frozen standalone file without a
+preview badge or watcher.
 `examples/CLAUDE.md` owns those fixture rules.
 
 `corpus.py` generates the internal `examples/corpus.html` stress fixture and its

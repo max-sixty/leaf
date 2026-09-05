@@ -524,7 +524,9 @@ export function createLivingMargin(dependencies) {
     setPanel,
     showThread,
     stateProjection,
+    traceTarget,
     threadPanel,
+    threadClaimed,
     threads,
     updateSequence,
     versionBtn,
@@ -550,10 +552,14 @@ export function createLivingMargin(dependencies) {
     const at = documentPoint(columnRect.left, columnRect.top);
     const height = main.scrollHeight;
     return () => {
-      nav.style.left = `${at.left}px`;
-      nav.style.top = `${at.top}px`;
-      nav.style.width = `${columnRect.width}px`;
-      nav.style.height = `${height}px`;
+      const dimensions = {
+        left: `${at.left}px`,
+        top: `${at.top}px`,
+        width: `${columnRect.width}px`,
+        height: `${height}px`,
+      };
+      for (const [property, value] of Object.entries(dimensions))
+        if (nav.style[property] !== value) nav.style[property] = value;
     };
   }
 
@@ -733,9 +739,11 @@ export function createLivingMargin(dependencies) {
   let forcedInlineKey = null;
   let expandedOptionsKey = null;
   let hoveredHost = null;
+  let hoveredBehavior = null;
   let settlingOptionsFocus = false;
   let suppressingOptionsArrival = false;
   let highlighted = null;
+  let highlightedBehavior = null;
   let rovingFrame = 0;
   let sheetCloseOwnsFocus = false;
   let sheetFrom = null;
@@ -1148,9 +1156,10 @@ export function createLivingMargin(dependencies) {
       receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
     }
     for (const thread of threads()) {
-      if (thread.resolved || !thread.root.anchor) continue;
+      if (thread.resolved || !thread.root.anchor || threadClaimed(thread.root.id))
+        continue;
       const id = thread.root.id;
-      add(groups, placedAt(id), {
+      add(groups, placedAt(id)?.element, {
         kind: "comment",
         id: `comment:${id}`,
         text: trimmed(
@@ -1218,7 +1227,7 @@ export function createLivingMargin(dependencies) {
           continue;
         const target =
           update.target.kind === "thread"
-            ? placedAt(update.target.id)
+            ? placedAt(update.target.id)?.element
             : elementById(update.target.id);
         const turnClosed =
           update.session && update.session === claimState().claimingSession
@@ -1647,6 +1656,7 @@ export function createLivingMargin(dependencies) {
     next.focus({ preventScroll: true });
   }
 
+  let marginKeysAvailable = false;
   const marginKeys = [
     // The seat a reading holds is a span, so the platform's own activation is not under
     // it. Declared here rather than answered by a listener on the control: this is the
@@ -2228,12 +2238,7 @@ export function createLivingMargin(dependencies) {
           behavior: "disclosure",
           role: "reading",
         });
-        keys(
-          host,
-          "In the page map",
-          marginKeys,
-          () => visibleRows().length > 0 || clusterButtons(host).length > 1,
-        );
+        keys(host, "In the page map", marginKeys, () => marginKeysAvailable);
         host.lfEntry = entry;
         rows.set(entry.key, marker);
         more = marginButton(offer("button", "lf-margin-more"), {
@@ -2276,6 +2281,7 @@ export function createLivingMargin(dependencies) {
           // A new keyboard destination outranks a pointer parked on the previous
           // target. Real pointer movement can take ownership back without a press.
           hoveredHost = null;
+          hoveredBehavior = null;
           refreshHighlight();
         });
         host.addEventListener("focusout", () =>
@@ -2285,15 +2291,16 @@ export function createLivingMargin(dependencies) {
           const control = document
             .elementFromPoint(event.clientX, event.clientY)
             ?.closest?.(".lf-margin-button");
-          hoveredHost =
-            control && host.contains(control) && control.dataset.lfBehavior !== "status"
-              ? host
-              : null;
+          hoveredHost = control && host.contains(control) ? host : null;
+          hoveredBehavior = hoveredHost ? control.dataset.lfBehavior : null;
           refreshHighlight();
         };
         host.addEventListener("pointermove", takePointerOwnership);
         host.addEventListener("pointerleave", () => {
-          if (hoveredHost === host) hoveredHost = null;
+          if (hoveredHost === host) {
+            hoveredHost = null;
+            hoveredBehavior = null;
+          }
           refreshHighlight();
         });
         host.addEventListener("focusout", (event) => {
@@ -2409,6 +2416,11 @@ export function createLivingMargin(dependencies) {
     scheduleMarginLayout();
     scheduleRoving();
     scheduleButtonLabels();
+    // Every Page-map host contributes the same keyboard section. Its capability is the
+    // map's existence; each row already asks the narrower question of whether its press
+    // works from the current focus. Repeating live geometry in every scope's `when`
+    // forced a layout per location when paintKeys reflected them.
+    marginKeysAvailable = pageMapEntries.length > 0;
     paintKeys();
   }
 
@@ -2463,23 +2475,30 @@ export function createLivingMargin(dependencies) {
     return node;
   }
 
-  function highlight(target) {
-    if (highlighted === target) return;
+  function highlight(target, behavior = null) {
+    if (highlighted === target && highlightedBehavior === behavior) return;
     highlighted?.classList.remove("lf-margin-target");
     highlighted = target;
-    highlighted?.classList.add("lf-margin-target");
+    highlightedBehavior = target ? behavior : null;
+    traceTarget(behavior === "status" ? target : null);
+    if (target && behavior !== "status") target.classList.add("lf-margin-target");
   }
 
   function refreshHighlight() {
     const active = focused();
     const focusedHost = closestAcross(active, "[data-lf-margin-for]");
-    const key =
-      (hoveredHost?.isConnected ? hoveredHost.lfEntry?.key : null) ??
-      focusedHost?.lfEntry?.key ??
+    const pointerHost = hoveredHost?.isConnected ? hoveredHost : null;
+    const source =
+      pointerHost ??
+      focusedHost ??
       (preview.contains(active) || preview.matches(":popover-open")
-        ? previewEntry?.key
+        ? hosts.get(previewEntry?.key)
         : null);
-    highlight(pageMapEntries.find((entry) => entry.key === key)?.target ?? null);
+    highlight(
+      pageMapEntries.find((entry) => entry.key === source?.lfEntry?.key)?.target ??
+        null,
+      source === pointerHost ? hoveredBehavior : null,
+    );
   }
 
   function showPreview(entry, button, retry = true) {

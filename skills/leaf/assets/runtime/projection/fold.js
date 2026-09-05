@@ -1,6 +1,6 @@
 /* The server's durable projection, adapted to live DOM nodes plus the local outbox. */
 export function createProjectionFold(runtime, dependencies) {
-  const { COLLAPSE, domFacet, elementById, outbox } = dependencies;
+  const { COLLAPSE, authoredStates, domFacet, elementById, outbox } = dependencies;
   const { registry } = runtime;
 
   function foldedFacet(e, record) {
@@ -105,25 +105,102 @@ export function createProjectionFold(runtime, dependencies) {
     return projection;
   }
 
-  const standingState = () => {
+  // Compose final values in memory. A placement action is absolute for its unit,
+  // but several placements share one ordered container; fold their winners once
+  // before any renderer moves a node.
+  function widgetStates(projection = stateProjection()) {
+    const states = new Map(
+      [...authoredStates].map(([id, authored]) => [
+        id,
+        {
+          state: structuredClone(authored.state),
+          entries: [],
+          specs: authored.specs,
+        },
+      ]),
+    );
+    const positions = Object.assign(
+      {},
+      ...[
+        ...new Set([...authoredStates.values()].map(({ positions }) => positions)),
+      ].map((positions) => structuredClone(positions)),
+    );
+    const place = (containers, unit, record, detail) => {
+      const destination = containers[detail[record.value]];
+      if (!destination || !Object.values(containers).some((ids) => ids.includes(unit)))
+        return;
+      for (const ids of Object.values(containers)) {
+        const index = ids.indexOf(unit);
+        if (index >= 0) ids.splice(index, 1);
+      }
+      destination.splice(detail[record.order], 0, unit);
+    };
+    for (const entry of [...projection.desired.values()].sort(compareProjected)) {
+      const owner = states.get(entry.e.widget);
+      if (!owner) continue;
+      const { spec, e, unit } = entry;
+      const record = spec.record;
+      const value = record ? structuredClone(e.detail[record.value]) : e.action;
+      const facet = { action: e.action, value, detail: structuredClone(e.detail) };
+      owner.entries.push(entry);
+      if (spec.unit === "widget") {
+        owner.state[spec.facet] = facet;
+        if (record?.kind === "position") place(positions, unit, record, e.detail);
+      } else {
+        const target = owner.state[spec.facet];
+        target.units[unit] = facet;
+        if (record?.kind === "position") place(target.value, unit, record, e.detail);
+      }
+    }
+    for (const [id, owner] of states) {
+      const { state, specs } = owner;
+      for (const [facet, spec] of specs)
+        if (spec.unit === "widget" && spec.record?.kind === "position") {
+          const record = spec.record;
+          const container = Object.keys(positions).find((key) =>
+            positions[key].includes(id),
+          );
+          if (container) {
+            state[facet].value = container;
+            state[facet].detail[record.value] = container;
+            state[facet].detail[record.order] = positions[container].indexOf(id);
+            owner.order = [container, positions[container].indexOf(id)];
+          }
+        }
+    }
+    // Widget-absolute placements share a physical ordering boundary despite having
+    // independent state owners. Place them in final order, exactly as a container
+    // renderer consumes its complete ordered list.
+    return new Map(
+      [...states].sort(([, a], [, b]) => {
+        const left = a.order ?? ["", -1];
+        const right = b.order ?? ["", -1];
+        return left[0].localeCompare(right[0]) || left[1] - right[1];
+      }),
+    );
+  }
+
+  // Restricting the desired winners lets the render gate observe what carried
+  // decisions alone paint. It never revives a superseded event or changes the log.
+  function standingState(eventIds = null) {
     const projection = stateProjection();
-    return [...projection.desired]
-      .sort(([, a], [, b]) => compareProjected(a, b))
-      .map(([_coordinate, { unit, e, spec }]) => ({
-        get widget() {
-          return elementById(e.widget);
-        },
-        unit,
-        facet: spec.facet,
-        record: spec.record?.kind ?? null,
-        action: e.action,
-        detail: e.detail,
-        read: () => {
-          const el = spec.record && elementById(unit);
-          return el ? domFacet(el, spec.record) : null;
-        },
-      }));
-  };
+    if (eventIds !== null) {
+      const included = new Set(eventIds);
+      projection.desired = new Map(
+        [...projection.desired].filter(([, entry]) => included.has(entry.e.id)),
+      );
+    }
+    return [...widgetStates(projection)].map(([id, { state, specs }]) => ({
+      get widget() {
+        return elementById(id);
+      },
+      state,
+      read: () =>
+        [...specs]
+          .filter(([, spec]) => spec.record?.kind === "body")
+          .map(([facet, spec]) => [facet, domFacet(elementById(id), spec.record)]),
+    }));
+  }
 
   return {
     compareProjected,
@@ -131,5 +208,6 @@ export function createProjectionFold(runtime, dependencies) {
     projectionFromView,
     standingState,
     stateProjection,
+    widgetStates,
   };
 }

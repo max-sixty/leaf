@@ -79,7 +79,14 @@ EXAMPLE_MEDIA = ROOT / "examples" / "media"
 
 
 def leaf_page(title: str, body: str, *, head: str = "") -> str:
-    """A complete page carrying the presentation boundary every fixture shares."""
+    """A complete page carrying the presentation boundary every fixture shares.
+
+    It supplies the same language, charset, CSP, theme, module, and main-content shell
+    to every specimen. Keep raw documents only when source structure is the subject:
+    lint fixtures, malformed markup, tokenizer input, line-number assertions, or a
+    document whose missing boundary is the condition under test. A shared shell must not
+    repair the malformed case a test is meant to present.
+    """
     extra_head = f"{head}\n" if head else ""
     return f"""<!doctype html>
 <html lang="en">
@@ -711,7 +718,18 @@ def _until(page, fact, wanted):
 # surface. A request failure does not finish delivery, because the outbox keeps the same
 # attempt and retries; waiting merely for `acked` would return on that ambiguous edge.
 def round_trip(page):
-    """Wait for what this page has sent to have come back to it."""
+    """Wait for what this page has sent to have come back to it.
+
+    A trip is over when the response names the accepted attempt, definitively refuses
+    it, or a state response contains the attempt. A request failure alone is not final
+    because the page may retry the same attempt. This proves delivery; it does not claim
+    every rendered effect of the response has completed. When applying the response is
+    itself the subject, wait for `data-lf-applied` to cover the expected events before
+    reading the resulting surface or making a gesture whose liveness depends on that
+    projection. That stamp counts replayed actions, reports, and undos, and no comment:
+    a comment, a reply, or a reaction never moves it, so a wait on it for one of those
+    spends the whole timeout; the fact such an event states is its paint or its card.
+    """
     _until(page, lambda t: not t.pending, "heard back what it sent")
 
 
@@ -768,7 +786,15 @@ def _server_reading(page):
 
 
 def told(page):
-    """Wait until the page has taken in everything the server now holds."""
+    """Wait until the page has taken in everything the server now holds.
+
+    Use it after the test writes a version, event, status, or lease that the browser
+    learns by reading. It names no transport: the page reads when its news stream says
+    the page has moved, and this compares what the page painted with what the server
+    says, so it is neither early by a request nor late by an interval. Letting `expect`
+    absorb the page's next read instead hides which mechanism supplied the wait and
+    spends its timeout budget on transport rather than on the assertion.
+    """
     deadline = time.monotonic() + 30
     began = None
     while True:
@@ -893,7 +919,12 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
 # default 1200×900 or something near it; under a viewport set narrow on purpose it would
 # run its budget out on a press that is perfectly live.
 def undo(page):
-    """Take the last gesture back, from the moment the line offers to."""
+    """Take the last gesture back, from the moment the line offers to.
+
+    Waits until the key line offers undo, presses `z`, observes the new send enter the
+    wire, and waits for its round trip. A visible changed widget is not enough: undo can
+    be refused while the preceding gesture is still unresolved.
+    """
     expect(page.locator(".lf-keyline")).to_contain_text("undo")
     with sending(page, "the withdrawal"):
         page.keyboard.press("z")
@@ -905,7 +936,13 @@ def undo(page):
 # tests/CLAUDE.md, "A test cannot assert over noise it makes itself". A refused event
 # request remains unresolved, deliberately: the outbox keeps its attempt and retries.
 def refuse(route):
-    """Stop this request with nothing for the page's console to report."""
+    """Stop this request with nothing for the page's console to report.
+
+    The `aborted` cancellation reason is what keeps Chrome from reporting a console load
+    failure for a request a test merely declined to answer, so a later assertion that
+    the console is quiet is not asserting over noise the test made. Use an ordinary
+    abort only when the failed request and its browser error are the subject.
+    """
     route.abort("aborted")
 
 
@@ -1263,6 +1300,7 @@ NEVER_ASKED_FOR = "**/__leaf_arms_interception__"
 
 
 def arm_interception(page):
+    """Turn request interception on before any request this page will make."""
     page.route(NEVER_ASKED_FOR, lambda route: route.abort())
 
 
@@ -1508,7 +1546,13 @@ def hold_selection(page, start, end, steps=8, frame_the_press=False):
 
 
 def select(page, start, end, steps=8):
-    """Drag and release a selection."""
+    """Drag and release a selection.
+
+    Floors the starting coordinates to a whole pixel because a fractional point can
+    straddle a glyph's caret boundary and leave an otherwise valid drag with an empty
+    selection. Preserve the end coordinate: changing its precision can move the selected
+    character.
+    """
     hold_selection(page, start, end, steps)
     page.mouse.up()
 

@@ -26,6 +26,15 @@ import { openRoots } from "./open-roots.js";
 // page itself put there, so this looks for the same, and a card's absolutely-positioned
 // pick mark is not the thing under its last paragraph.
 //
+// A box reading wearing a computed-style reading's clothes: inside `display: none` an
+// element's own `display` is still `block` and its padding and margins still resolve,
+// so this reads the shut thread panel and gets plausible numbers. They are not the
+// panel's numbers — a size container query does not match in there, so a rule that
+// switches a slot between two forms is stuck on one of them, and a percentage margin
+// comes back unresolved. Each finding is therefore tagged with which document it is in;
+// the render gate takes the page's half, and the suite opens the panel, where such a
+// widget has a box at last, before putting the layer half to it.
+//
 // Deduped per tag and edge, because one mistake is on every instance of that widget.
 export function trappedMargins() {
   // Which document each box is in is OPEN_ROOTS', imported rather than restated, for

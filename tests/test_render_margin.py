@@ -626,7 +626,7 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
     change_forms = page.locator("#bg-change-forms")
     expect(change_forms.locator(":scope > span")).to_have_count(3)
     expect(change_forms.locator("#bg-replace, #bg-insert, #bg-delete")).to_have_count(3)
-    expect(page.locator("#bg-changes lf-suggestion")).to_have_count(3)
+    expect(page.locator("#bg-changes lf-suggestion")).to_have_count(4)
 
     headings = page.locator("main section :is(h2, h3)").all_text_contents()
     assert [
@@ -993,7 +993,7 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
     draft.evaluate("node => node.remove()")
     assert not old_host.evaluate("node => node.isConnected")
     page.evaluate(
-        "node => document.querySelector('#bg-replace').after(node)",
+        "node => document.querySelector('#bg-editing-guide').before(node)",
         draft,
     )
     page.wait_for_function(

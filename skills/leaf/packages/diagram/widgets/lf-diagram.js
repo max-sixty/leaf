@@ -60,8 +60,8 @@ const rejectCutLabel = (source) => {
     for (const [, label, closer] of line.matchAll(QUOTED_LABEL))
       if (closer && label.includes(closer))
         throw new Error(
-          `a quoted label cannot hold ${closer}, the delimiter that closes its own ` +
-            `shape — the renderer cuts the line there: "${label}"`,
+          `a label cannot hold ${closer}, the delimiter that closes its own shape — ` +
+            `the renderer cuts the line there, quoted or not: "${label}"`,
         );
   }
 };

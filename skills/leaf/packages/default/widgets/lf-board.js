@@ -94,10 +94,10 @@ customElements.define(
       this.#observeMotion();
       this.#names();
       // Grip names come from where their cards sit and whether the runtime has
-      // marked their move as awaiting a version, so mutations of those two inputs
+      // marked the placement as their move, so mutations of those two inputs
       // restate them — not the four paths that move a card (arrow step, drag,
-      // cancel, replay) plus the pending pass, any of which would eventually
-      // forget. Only the pending attribute is observed, so #names writing an
+      // cancel, replay) plus the origin pass, any of which would eventually
+      // forget. Only the origin attribute is observed, so #names writing an
       // aria-label cannot feed the pass back into itself.
       this.#observeNames();
     }
@@ -140,16 +140,16 @@ customElements.define(
 
     // Every grip's name, in the idiom the live region already announces moves in
     // ("card — column"): the user who lands on a grip by Tab hears where the
-    // card is without having read the list it sits in, and whether the move still
-    // awaits a version after its transient announcement has faded.
+    // card is without having read the list it sits in, and whether the placement comes
+    // from their move after its transient announcement has faded.
     #names() {
       for (const col of this.querySelectorAll(":scope > lf-column")) {
         const where = col.getAttribute("label");
         for (const card of this.#cards(col)) {
-          const pending = card.hasAttribute("data-lf-pending")
-            ? " — awaiting next version"
+          const origin = card.hasAttribute("data-lf-reader-override")
+            ? " — your move"
             : "";
-          const name = `Move: ${this.#title(card)} — ${where}${pending}`;
+          const name = `Move: ${this.#title(card)} — ${where}${origin}`;
           const grip = card.querySelector(":scope > .lf-grip");
           if (grip && grip.getAttribute("aria-label") !== name)
             grip.setAttribute("aria-label", name);
@@ -208,7 +208,7 @@ customElements.define(
         for (const card of this.#cards(col))
           this.#namesObserver.observe(card, {
             attributes: true,
-            attributeFilter: ["data-lf-pending"],
+            attributeFilter: ["data-lf-reader-override"],
           });
       }
     }

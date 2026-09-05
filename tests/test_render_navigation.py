@@ -598,11 +598,11 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
     as a failure: a clipped element still reports its whole box and still answers
     `to_be_visible`, and a chip drawn over words breaks no rule anybody had written.
 
-    So the cell holds a column for it, and this asks the two questions that column
+    So the cell holds a place for it, and this asks the two questions that place
     answers — does any ancestor cut it, is it on anybody's words — in both forms,
-    stepped through with the key that reaches them, since the room inside a cell is
-    exactly what differed: cards padded clear of their corners, rows with none to
-    spare.
+    stepped through with the key that reaches them. Rows reserve a leading gutter;
+    titled cards share their trailing header-state slot with the same Ask-owned address
+    that temporarily replaces status.
 
     How far down the column it stands is each form's own answer, so each is asked for the
     fact it states rather than for one number covering both. A card's digit rides at the
@@ -612,17 +612,14 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
     the gate read was the number the theme stated, and the claim beside it, that a row's
     digit is level with its words, was checked by nothing.
 
-    How far in it stands is the whole group's, and it is asked as the relation it is: the
-    gutter reads cell edge, digit, then prose, so the digit is measured against those two
-    neighbours and against the other form's seat. Pinned as the number the gutter came to,
-    the reading broke twice over a neighbour it was never about — once when a status rule
-    took the head of the column and the digit moved along behind it, and again when that
-    rule left and it moved back."""
+    How far in it stands is each form's own relation: edge, digit, then prose for a row;
+    prose opening, then digit, then edge for a card. The two forms deliberately no longer
+    claim one rail, while every option within a form still claims one stable seat."""
     page, errors = open_page(browser, serve(ADDRESS_PAGE))
-    seats = {}
+    seats = {"card": {}, "row": {}}
     for options, sitting in [
-        (["c-heater", "c-cable", "c-hand"], "in the corner"),
-        (["r-now", "r-later"], "centred"),
+        (["c-heater", "c-cable", "c-hand"], "card"),
+        (["r-now", "r-later"], "row"),
     ]:
         page.keyboard.press("a")
         # The arrival stands on the decision; the digits are drawn once a mark holds the
@@ -634,27 +631,30 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
             cut = chip.evaluate(CLIPPED_BY)
             assert cut is None, f"{id_}'s digit is cut: {cut}"
             # Never on the hairline the outer corner would have shared with the cells
-            # around it, and never in either neighbour's room: the option's gutter opens
-            # at the cell's own start, and its words open at the column the option pads
-            # to. Read the row form here as well as the cards above; both reserve
-            # address, then prose in the same leading gutter.
+            # around it, and never in either neighbour's room. Rows put the address in
+            # the leading gutter; cards put it in their trailing header-state slot.
             sits = chip.evaluate(INSIDE_ITS_OPTION)
-            assert 0 < sits["x"] < sits["ends"] < sits["opens"], (
-                f"{id_}'s digit runs {sits['x']}…{sits['ends']} in a gutter that starts "
-                f"at its cell's own edge and whose words open at {sits['opens']}, so the "
-                "gutter is holding one of the two in the other's room"
-            )
-            seats.setdefault(round(sits["x"], 1), []).append(id_)
-            if sitting == "in the corner":
+            if sitting == "card":
+                assert 0 < sits["opens"] < sits["x"] < sits["ends"] < sits["width"], (
+                    f"{id_}'s digit runs {sits['x']}…{sits['ends']} in a card whose "
+                    f"words open at {sits['opens']} and whose far edge is "
+                    f"{sits['width']}, so it is not in the trailing state slot"
+                )
                 assert round(sits["y"]) == 8, (
                     f"{id_}'s digit sits {sits['y']} down from its option's top, not in "
-                    "the corner of the column its card reserves"
+                    "the card's header-state corner"
                 )
             else:
+                assert 0 < sits["x"] < sits["ends"] < sits["opens"], (
+                    f"{id_}'s digit runs {sits['x']}…{sits['ends']} in a row whose "
+                    f"words open at {sits['opens']}, so its leading gutter is holding "
+                    "one of the two in the other's room"
+                )
                 assert abs(sits["level"]) <= 0.5, (
                     f"{id_}'s digit is {sits['level']}px off the middle of its row's own "
                     "words"
                 )
+            seats[sitting].setdefault(round(sits["x"], 1), []).append(id_)
             assert sits["past"] <= 0, (
                 f"{id_}'s digit hangs past its own option and onto the next"
             )
@@ -662,9 +662,9 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
             # only right for as long as the column the theme reserves is.
             on = chip.evaluate(OVER_WORDS, id_)
             assert on is None, f"{id_}'s digit is drawn over the words “{on}”"
-    # One column, in both forms: a card's cell and a row's are the two shapes whose room
-    # differed, and a seat each would read as a straight rail down neither.
-    assert len(seats) == 1, f"the digits stand at more than one column: {seats}"
+    assert all(len(form) == 1 for form in seats.values()), (
+        f"the digits move between seats within one form: {seats}"
+    )
     assert errors == []
     page.close()
 

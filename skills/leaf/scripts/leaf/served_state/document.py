@@ -1,15 +1,11 @@
 """Document-scoped browser projection and undo readings."""
 
-from ..decisions import page_decision_inventory, page_decision_projection
+from ..document_reading import read_document
 from ..events import (
     UndoReading,
     action_retracted,
-    retractions,
-    seats_with_agent,
 )
-from ..passages import enclosing_of, page_passages
-from ..projection import StateProjection, page_projection, retirement_outcomes
-from ..requests import request_lifecycles_for, request_phases
+from ..projection import StateProjection
 from .wire import _browser_projection
 
 
@@ -22,73 +18,24 @@ def _browser_document(
     *,
     prepared: tuple | None = None,
 ) -> tuple[dict, StateProjection, dict, dict]:
-    projection, parser, spk = prepared or page_projection(
-        html, events, registry, revision
+    document = read_document(
+        html, events, registry, revision, threads, prepared=prepared
     )
-    passages = page_passages(
-        html, registry, retirement_outcomes(projection.actions, registry)
-    )
-    dropped = set(passages.retired) | set(passages.gone)
-    requests = request_lifecycles_for(
-        events,
-        parser.lf_elements,
-        registry,
-        {"kind": "page", "revision": revision},
-    )
-    phases = request_phases(requests)
-    reader_decisions, reader_awaiting = page_decision_projection(
-        parser,
-        projection,
-        parser.by_id,
-        spk,
-        registry,
-        dropped,
-        seats_with_agent(threads),
-        request_phases=phases,
-    )
-    unanswered_decisions, unanswered_awaiting = page_decision_projection(
-        parser,
-        projection,
-        parser.by_id,
-        spk,
-        registry,
-        dropped,
-        set(),
-        request_phases=phases,
-    )
-    all_decisions = page_decision_inventory(
-        parser,
-        projection,
-        parser.by_id,
-        spk,
-        registry,
-        dropped,
-        request_phases=phases,
-        settled_away=set(passages.gone),
-    )
-    within = enclosing_of(spk)
-    floors = retractions(events, revision)
     return (
         {
             "revision": revision,
             "projection": _browser_projection(
-                projection,
+                document.projection,
                 scope="document",
-                within=within,
-                floors=floors,
+                within=document.within,
+                floors=document.floors,
             ),
-            "decisions": {
-                "all": all_decisions,
-                "reader": reader_decisions,
-                "unanswered": unanswered_decisions,
-                "awaiting": reader_awaiting,
-                "unanswered_awaiting": unanswered_awaiting,
-            },
-            "requests": requests,
+            "decisions": document.decisions,
+            "requests": document.requests,
         },
-        projection,
-        within,
-        floors,
+        document.projection,
+        document.within,
+        document.floors,
     )
 
 

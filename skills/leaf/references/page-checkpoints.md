@@ -32,8 +32,8 @@ acknowledged thread that awaits your answer has one. A finished record, includin
 a quick page that became one, ends on a stamped final revision that honors
 standing decisions and reports. An unstamped quick page can go idle directly.
 Idling ends the interaction but does not delete the page directory. Sign-off is
-available only on a stamped revision. `leaf transcript <page>` prints record
-debt on stderr and the full exchange as Markdown.
+available only on a stamped revision. `leaf transcript <page>` prints the full
+exchange as Markdown.
 
 Then run:
 

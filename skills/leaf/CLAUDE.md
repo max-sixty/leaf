@@ -614,11 +614,12 @@ the generic retired-slot hiding. A module may paint the same
 `data-lf-state` optimistically as choreography, but authoritative replay writes
 it and clears it when another outcome on the settlement facet wins.
 
-`paintPending` compares each desired record with `authoredFacets`. It paints
-`data-lf-pending` for reader actions and `data-lf-reported` for reports only
+`paintStateOrigins` compares each desired record with `authoredFacets`. It paints
+`data-lf-reader-override` for reader actions and `data-lf-reported` for reports only
 while the log differs from this version's authored state. Recordless decisions
-remain pending while their holder remains in the document. These marks are
-renderings of the projection, never inputs to it.
+retain the reader-origin mark while their holder remains in the document. These
+marks describe origin, not unfinished work; receipts own processing and completion.
+They are renderings of the projection, never inputs to it.
 
 ### Version and conversation windows
 
@@ -1006,13 +1007,19 @@ and every standing selection. `page state` exposes those bindings and consumers 
 producers. The browser keeps the accepted data revision independently from
 `lastEventSeq`, because overlapping poll and POST responses can order the authorities
 differently. `watchData(widget, input, callback)` delivers a clone of
-`{contract, updated, value}` for current, a clone with `snapshot`, `label`, and optional
+`{contract, revision, updated, value, origin}` for current, a clone with `snapshot`, `label`, and optional
 `lines` for a selected capture, or `null` before a bound current value exists. It
 redelivers only when that source revision changes; overlapping reads await the same
 in-flight rendering before stamping readiness. Its synchronous time readings refresh
 independently of data delivery. Modules
 project the result into the authored seat; they do not fetch it, mutate the accepted
 copy, or keep a hidden current-value map of their own.
+
+The watcher constructs `origin` from the accepted source binding. Emitters pass it to
+`projectData`'s `originOf`, adding a source-value path only where construction knows that
+coordinate. The helper writes `data-lf-origin` beside each datum and clears it when an
+origin or nested datum retires. The package reference owns the origin fields; no reading
+infers them from a datum key or rendered text.
 
 Keys identify facts, not renderings or display strings. They are non-empty strings,
 unique within one projection, and must remain with the same logical datum across
@@ -1027,8 +1034,8 @@ quote in the thread; it never follows the old string to an equal value elsewhere
 missing or duplicate key detaches rather than guessing. Selections crossing datum
 boundaries remain ordinary quote anchors because they name a passage, not one fact.
 
-`data-lf-projection`, `data-lf-datum`, and `data-lf-gen` are written by `projectData`,
-never authored in a version. A custom widget joins through the helper alone; no
+`data-lf-projection`, `data-lf-datum`, `data-lf-origin`, and `data-lf-gen` are written by
+`projectData`, never authored in a version. A custom widget joins through the helper alone; no
 consumer names its tag. Export preserves the rendered elements and their labels as a
 snapshot, while dropping the scripts that could refresh them. Print preserves the same
 readable words. Neither medium claims that the snapshot remains live.

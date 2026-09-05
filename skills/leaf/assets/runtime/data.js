@@ -97,6 +97,15 @@ export function watchData(element, input, callback) {
   const deliver = (snapshot, event) => {
     const revision = snapshot?.revision ?? null;
     if (!delivered || deliveredRevision !== revision) {
+      if (snapshot)
+        snapshot.origin = {
+          input,
+          source,
+          contract: declaration.contract,
+          revision: snapshot.revision,
+          data_revision: runtime.data.revision,
+          ...(selected ? { snapshot: selected } : {}),
+        };
       rendering = paint(structuredClone(snapshot));
       delivered = true;
       deliveredRevision = revision;

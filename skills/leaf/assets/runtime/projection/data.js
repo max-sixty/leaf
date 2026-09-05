@@ -65,7 +65,7 @@ export function createDataProjection({ paintAnchors, reachScrollers, setChildren
     records,
     keyOf,
     render,
-    { nested = false, labelOf = null } = {},
+    { nested = false, labelOf = null, originOf = null } = {},
   ) {
     if (!(root instanceof Element))
       throw new TypeError("projectData root must be an element");
@@ -80,6 +80,8 @@ export function createDataProjection({ paintAnchors, reachScrollers, setChildren
       throw new TypeError("projectData nested must be a boolean");
     if (labelOf !== null && typeof labelOf !== "function")
       throw new TypeError("projectData labelOf must be a function or null");
+    if (originOf !== null && typeof originOf !== "function")
+      throw new TypeError("projectData originOf must be a function or null");
 
     const prior = new Map();
     const projected = nested ? projectedDescendants(root) : [...root.children];
@@ -144,6 +146,16 @@ export function createDataProjection({ paintAnchors, reachScrollers, setChildren
       node.dataset.lfGen = "1";
       node.dataset.lfProjection = root.id;
       node.dataset.lfDatum = key;
+      // The emitter knows which input it transformed. Keep that construction fact,
+      // never recover a source path by interpreting its opaque key or displayed words.
+      const origin = originOf?.(record, index) ?? null;
+      if (origin !== null) {
+        if (typeof origin !== "object" || Array.isArray(origin))
+          throw new TypeError(
+            `projectData(${root.id}) origin ${index} must be an object`,
+          );
+        node.dataset.lfOrigin = JSON.stringify(origin);
+      } else delete node.dataset.lfOrigin;
       wanted.push(node);
       index++;
     }
@@ -154,6 +166,7 @@ export function createDataProjection({ paintAnchors, reachScrollers, setChildren
           delete node.dataset.lfGen;
           delete node.dataset.lfProjection;
           delete node.dataset.lfDatum;
+          delete node.dataset.lfOrigin;
           const label = node.dataset.lfDatumLabel;
           if (label !== undefined) {
             if (node.getAttribute("aria-description") === label)

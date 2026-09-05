@@ -41,7 +41,7 @@ incomplete. A checkout keeps it at `bin/leaf`.
    queries. Read `references/authoring-decisions.md` while authoring a new,
    unanswered ask or sign-off; read `references/authoring-revisions.md` before
    changing a handed-over page, proposing a rewrite, using a reader-owned draft,
-   or carrying standing state. Read
+   or revising standing state. Read
    `references/authoring-evidence.md` only for measured, visual, source, or media
    evidence. Write `<page>/index.html` using only the registry's vocabulary. A
    valid save becomes the active immutable revision; an invalid save leaves the
@@ -135,7 +135,7 @@ so a phase does not depend on discovering a chain of references.
 - `references/authoring-decisions.md`: while authoring a new, unanswered ask or
   sign-off.
 - `references/authoring-revisions.md`: before changing a handed-over page,
-  proposing a rewrite, using a reader-owned draft, or carrying standing state.
+  proposing a rewrite, using a reader-owned draft, or revising standing state.
 - `references/authoring-evidence.md`: before using measured facts, diagrams,
   charts, source files, images, or before/after captures.
 

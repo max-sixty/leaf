@@ -45,13 +45,34 @@ pytestmark = pytest.mark.nightly
 
 ROOT = Path(__file__).parent.parent
 
-_PREVIEW_RESTART_ERRORS = {
-    "Failed to load resource: net::ERR_CONNECTION_REFUSED",
-    "Failed to load resource: net::ERR_CONNECTION_RESET",
-    "Failed to load resource: net::ERR_EMPTY_RESPONSE",
-    "Failed to load resource: net::ERR_CONTENT_LENGTH_MISMATCH",
-    "leaf: page failed to start: Failed to fetch",
-}
+# What a preview restart may leave behind, read as the two families it is rather than as
+# the wordings CI has met. The codes and the operations were listed one at a time as
+# each red run produced another — three `net::` codes, then `ERR_CONTENT_LENGTH_MISMATCH`
+# when a widget was lost mid-body rather than refused outright — and a list that only
+# grows when main is red is a list that is wrong until then. `leaf: read failed: Failed
+# to fetch`, from the log read that outlives the start, was the next one waiting.
+#
+# The transport family is every `net::` code, that prefix being Chrome's for a
+# connection that failed. A page served the wrong thing is reported by the status it was
+# answered with, and a script that goes wrong arrives on `pageerror`, so no fault of a
+# served page reaches the console in these words.
+_PREVIEW_RESTART_TRANSPORT_ERROR = re.compile(
+    r"Failed to load resource: net::ERR_[A-Z0-9_]+"
+)
+# The leaf family is every report of leaf's own whose cause is `Failed to fetch`, which
+# is the browser's words for a fetch that reached no server at all. A server that
+# answers badly resolves the fetch instead, and leaf reports that by its status —
+# `registry failed to load (500)` — so the tail is what tells a restart from a fault.
+# Which fetch lost the server decides the rest of the words: the start's registry read
+# says `page failed to start`, the log read says `read failed`, and a widget is a
+# dynamic import, so it names the module it could not reach as well.
+_PREVIEW_RESTART_FETCH_ERROR = re.compile(r"leaf: [^\n]+: Failed to fetch")
+_PREVIEW_RESTART_IMPORT_ERROR = re.compile(
+    r"leaf: [^\n]+: Failed to fetch dynamically imported module: "
+    r"http://127\.0\.0\.1:\d+/\S+"
+)
+# The icon's is in neither: it is the fetch's own TypeError, uncaught, carrying the
+# stack that took it out of the start.
 _PREVIEW_RESTART_ICON_ERROR = re.compile(
     r"TypeError: Failed to fetch\n"
     r"    at loadIcon \(http://127\.0\.0\.1:(?P<port>\d+)"
@@ -59,25 +80,56 @@ _PREVIEW_RESTART_ICON_ERROR = re.compile(
     r"    at startPage \(http://127\.0\.0\.1:(?P=port)/leaf\.js:\d+:\d+\)\n"
     r"    at http://127\.0\.0\.1:(?P=port)/leaf\.js:\d+:\d+"
 )
-# Which of the start's own fetches loses the server decides the words it fails in. A
-# plain fetch says only `Failed to fetch`, above; a dynamic import names the module it
-# could not reach. One condition, answered the same way, so the reading knows both.
-_PREVIEW_RESTART_IMPORT_ERROR = re.compile(
-    r"leaf: page failed to start: Failed to fetch dynamically imported module: "
-    r"http://127\.0\.0\.1:\d+/\S+"
+_PREVIEW_RESTART_READINGS = (
+    _PREVIEW_RESTART_TRANSPORT_ERROR,
+    _PREVIEW_RESTART_FETCH_ERROR,
+    _PREVIEW_RESTART_IMPORT_ERROR,
+    _PREVIEW_RESTART_ICON_ERROR,
 )
 
 
 def assert_only_preview_restart_errors(errors):
-    """A preview restart may interrupt only its page, module and icon fetches."""
+    """A preview restart may interrupt fetches — leaf's own and the transport's — only."""
     unexpected = [
         error
         for error in errors
-        if error not in _PREVIEW_RESTART_ERRORS
-        and _PREVIEW_RESTART_ICON_ERROR.fullmatch(error) is None
-        and _PREVIEW_RESTART_IMPORT_ERROR.fullmatch(error) is None
+        if not any(reading.fullmatch(error) for reading in _PREVIEW_RESTART_READINGS)
     ]
     assert unexpected == [], unexpected
+
+
+def test_the_restart_reading_refuses_what_a_restart_cannot_leave():
+    """What the tolerance above must still refuse, stated where nothing can arrange it.
+
+    Both halves are families now rather than the wordings CI met one at a time, and a
+    family is only worth reading if it is bounded. The refused list is what a page says
+    when something is actually wrong with what it was served: a status the server
+    answered with, a script that threw, a start that failed on the page's own words
+    rather than on a fetch that reached nothing. A restart cannot arrange one of those
+    — it takes the server away, which is the one thing none of them is — so this is the
+    only place the boundary can be read.
+    """
+    assert_only_preview_restart_errors(
+        [
+            "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+            "Failed to load resource: net::ERR_CONTENT_LENGTH_MISMATCH",
+            "leaf: page failed to start: Failed to fetch",
+            "leaf: read failed: Failed to fetch",
+            (
+                "leaf: page failed to start: Failed to fetch dynamically imported "
+                "module: http://127.0.0.1:43925/widgets/lf-swipe-deck.js"
+            ),
+        ]
+    )
+    for refused in (
+        "Failed to load resource: the server responded with a status of 404 ()",
+        "Failed to load resource: the server responded with a status of 500 ()",
+        "leaf: registry failed to load (500)",
+        "leaf: page failed to start: SyntaxError: Unexpected token '<'",
+        "TypeError: page.querySelector(...) is null",
+    ):
+        with pytest.raises(AssertionError):
+            assert_only_preview_restart_errors([refused])
 
 
 @pytest.fixture

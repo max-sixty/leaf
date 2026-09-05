@@ -21,6 +21,7 @@ from leaf import exporting as exporting_model
 from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import server as server_model
+from leaf import service as service_model
 from leaf.render_gate import browser as browser_model
 from playwright.sync_api import expect
 from render_support import (
@@ -244,6 +245,79 @@ def watched_preview(tmp_path, preview_slot):
         timeout=30,
     )
     assert stopped.returncode == 0, stopped.stdout + stopped.stderr
+
+
+def test_a_detached_preview_restarts_under_its_original_codex_claim(
+    tmp_path, preview_slot, codex_program, codex_env, spawn
+):
+    """The launcher exits; the real session lifetime survives outside worker ancestry."""
+    source = tmp_path / "detached.html"
+    source.write_text((ROOT / "examples" / "design-decision.html").read_text())
+    slot, directory = preview_slot
+    command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--slot",
+        slot,
+        "--background",
+    ]
+    ready = tmp_path / "started.json"
+    owner = spawn(
+        [
+            str(codex_program),
+            "-c",
+            (
+                "import json, pathlib, subprocess, sys; "
+                "result = subprocess.run(sys.argv[2:], capture_output=True, text=True); "
+                "pathlib.Path(sys.argv[1]).write_text(json.dumps([result.returncode, result.stdout, result.stderr])); "
+                "sys.stdin.read()"
+            ),
+            str(ready),
+            *command,
+        ],
+        env=codex_env
+        | {"CODEX_THREAD_ID": "preview-codex", "PYTHONHOME": sys.base_prefix},
+        stdin=subprocess.PIPE,
+    )
+    deadline = time.monotonic() + 90
+    while not ready.exists():
+        assert time.monotonic() < deadline
+        time.sleep(0.05)
+    result = json.loads(ready.read_text())
+    assert result[0] == 0, result
+    claim = service_model.page_claim(directory)
+    assert claim["pid"] == owner.pid
+    try:
+        revised = source.read_text().replace("Where sessions live", "Detached revision")
+        source.write_text(revised)
+        log = directory.with_name(f"{directory.name}.preview.log")
+        deadline = time.monotonic() + 30
+        while "Reloaded detached" not in log.read_text():
+            assert time.monotonic() < deadline, log.read_text()
+            time.sleep(0.05)
+        assert server_model.running_server(directory)
+        assert service_model.page_claim(directory) == claim
+
+        # SessionEnd can win while recompose waits for the page transaction.
+        with service_model.PageTransaction(directory) as transaction:
+            source.write_text(revised.replace("Detached revision", "Released revision"))
+            deadline = time.monotonic() + 30
+            while server_model.running_server(directory):
+                assert time.monotonic() < deadline, "refresh did not stop the service"
+                time.sleep(0.05)
+            transaction.release_claim()
+        deadline = time.monotonic() + 30
+        while "no longer owns" not in log.read_text():
+            assert time.monotonic() < deadline, log.read_text()
+            time.sleep(0.05)
+        assert server_model.running_server(directory) is None
+        assert service_model.page_claim(directory)["released"] is not None
+    finally:
+        subprocess.run(
+            [*command[:-1], "--stop"], check=True, capture_output=True, timeout=30
+        )
 
 
 def test_preview_watches_runtime_and_source_without_losing_reader_state(

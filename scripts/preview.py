@@ -522,7 +522,7 @@ def watch_preview(
 ) -> None:
     from leaf.event_log import flocked
     from leaf.files import read_json, write_json
-    from leaf.hosting import cmd_stop, startup_note
+    from leaf.hosting import cmd_stop, start_server, startup_note
     from leaf.layer import layer_inputs
     from leaf.leases import take_waiter_lease
     from leaf.server import running_server
@@ -637,7 +637,10 @@ def watch_preview(
                     )
                 if not read_json(metadata)["enabled"]:
                     return
-                serving = start_preview_server(page, launcher, runtime) is not None
+                # Ownership was claimed while the launch still had its host
+                # ancestor. A detached refresh preserves that lifetime; the
+                # serving child validates the retained claim before restarting.
+                serving = start_server(page) is not None
                 if serving:
                     print(f"Reloaded {source.stem}", flush=True)
         finally:

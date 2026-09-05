@@ -49,9 +49,14 @@ const QUOTED_LABEL = /"([^"\n]*)"([\])}|>/\\]*)/g;
  * so it carries the closer whole and `subgraph S["Stage [1]"]` renders today. Scan by line
  * so the title's line can be skipped without exempting the nodes around it. */
 const SUBGRAPH_TITLE = /^\s*subgraph\s/;
+
+/* A comment is not read at all: the parser trims each line and drops the ones starting
+ * with `%%` before any pattern sees them, so a commented-out label cannot be cut — and
+ * refusing one leaves an author no way to set a refused line aside while they work. */
+const COMMENT_LINE = /^\s*%%/;
 const rejectCutLabel = (source) => {
   for (const line of source.split("\n")) {
-    if (SUBGRAPH_TITLE.test(line)) continue;
+    if (SUBGRAPH_TITLE.test(line) || COMMENT_LINE.test(line)) continue;
     for (const [, label, closer] of line.matchAll(QUOTED_LABEL))
       if (closer && label.includes(closer))
         throw new Error(

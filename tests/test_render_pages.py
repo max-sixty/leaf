@@ -948,7 +948,8 @@ def test_a_quoted_label_holding_its_own_closer_is_refused(browser, serve):
     is missing, so the source is refused instead. The refusal is exact: a label
     whose closer is doubled, a pipe-delimited edge label, and a subgraph title —
     which the parser reads with its own end-anchored regex rather than through the
-    node patterns — all reach the renderer whole.
+    node patterns — and a commented-out line, which the parser drops before any
+    pattern sees it, all reach the renderer whole.
     """
     labels = leaf_page(
         "diagram labels",
@@ -976,6 +977,11 @@ flowchart LR
     A[x] --&gt; B[y]
   end
 </pre></lf-diagram>
+<lf-diagram id="commented-out" parts="node:A node:B"><pre>
+flowchart LR
+  %% A["names: list[str]"] --&gt; B[plain]
+  A[x] --&gt; B[y]
+</pre></lf-diagram>
 """,
     )
     page, _ = open_page(browser, serve(labels))
@@ -987,7 +993,7 @@ flowchart LR
         expect(page.locator(f"#{diagram} .lf-error")).to_contain_text(label)
         expect(page.locator(f"#{diagram} svg")).to_have_count(0)
 
-    for diagram in ("doubled-closer", "edge-label", "subgraph-title"):
+    for diagram in ("doubled-closer", "edge-label", "subgraph-title", "commented-out"):
         expect(page.locator(f"#{diagram} .lf-error")).to_have_count(0)
         expect(page.locator(f'#{diagram} g[data-id="B"]')).to_be_visible()
     expect(page.locator('#doubled-closer g[data-id="A"] text')).to_have_text(

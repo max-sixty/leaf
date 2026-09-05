@@ -7,6 +7,7 @@ import re
 
 import pytest
 from click.testing import CliRunner
+from interact_support import append_command
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
@@ -1204,7 +1205,7 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
         '<lf-option id="out-drill">', '<lf-option id="out-drill" chosen>'
     ).replace('<lf-option id="in-now">', '<lf-option id="in-now" chosen>')
     url = serve(nested_choices)
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -1213,7 +1214,6 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
             "widget": "outer",
             "action": "choose",
             "detail": {"options": ["out-drill"]},
-            "generated": [],
         },
     )
 

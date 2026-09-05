@@ -20,7 +20,10 @@ record the sequence of implementations that led to the current one.
 ## Runtime ownership
 
 `leaf.js` is the boot-only browser entry module: it composes the runtime owners and
-starts the page, but exports no capability. `runtime/widget-api.js` is the one public
+starts the page, but exports no capability. The HTTP boundary places the vendored
+`runtime/bootstrap.js` before loadable resources, with an exact CSP hash; it can
+show startup failure and hear a replacement server even if the module graph or
+stylesheet never loads. `runtime/widget-api.js` is the one public
 helper surface for behavior modules and reexports capabilities directly from their
 runtime owners. An owner may publish a factory-built capability after boot wires its
 dependencies; it never reaches back through the entry module or public facade.
@@ -70,7 +73,7 @@ subscriptions;
 `runtime/presence.js` owns claim freshness and attendance judgment;
 `runtime/state-feed.js` owns state reads, offline handling, heartbeat replay,
 event-stream wakeups, and first-read presentation scheduling and retry;
-`runtime/state-application.js` owns stale-answer ordering, activation serialization,
+`runtime/state-application.js` owns stale-answer ordering, application serialization,
 state commit, projection, notification, outbox accounting, and rollback;
 `runtime/banner.js` owns banner wording, tone, tab-icon paint, and announcing a
 status kind that has changed;
@@ -141,8 +144,8 @@ state, and their reply, resolve, and reopen controls;
 `runtime/conversation/thread-list.js` owns retained panel list reconciliation;
 `runtime/conversation/acknowledgments.js` owns growing acknowledgment receipts and live claim seats; and
 `runtime/conversation/reconcile.js` composes panel reconciliation;
-`runtime/projection/authored.js` owns captured authored state and restore
-statements; `runtime/projection/data.js` owns keyed runtime-data DOM
+`runtime/projection/authored.js` owns typed authored initial values and anchor
+parentage; `runtime/projection/data.js` owns keyed runtime-data DOM
 reconciliation; `runtime/projection/fold.js` adapts canonical action and report state
 to live DOM nodes and the local outbox;
 `runtime/projection.js` owns projection reconciliation and undo. The entry module
@@ -160,7 +163,7 @@ Each mutable fact has one writer:
 
 | Fact | Authority | Browser writer |
 | --- | --- | --- |
-| authored widget state | the version's markup before upgrade | `captureAuthoredFacets` and `rememberAuthoredMarkup` capture it; neither changes it |
+| authored widget state | markup after widget upgrade, before projection | `captureAuthoredFacets` reads typed initial values; `rememberAuthoredParents` preserves pre-upgrade anchor parentage |
 | external data | the latest accepted page data revision | `receiveState` replaces current values and retained captures; `watchData` delivers the authored current-or-snapshot selection to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
 | version shown by the live document | the latest mapped revision accepted at the activation boundary | `activateVersion` advances `currentVersion`; a public version address derives the version number from its URL |
@@ -230,8 +233,7 @@ Startup order is load-bearing:
 
 1. Begin the first state read without applying its answer.
 2. Fetch and validate the registry.
-3. Index passage fences and clone recordless authored widgets while the DOM
-   still contains only the version's markup.
+3. Index passage fences and authored parent identities before upgrade changes the DOM.
 4. Import the modules declared by `x-upgrade` for the tags this document
    contains, and no others.
 5. Wait for module settlement, then run the shared dressing passes.
@@ -251,19 +253,19 @@ large (`lf-diff`'s renderer) imports it on first render for the same reason.
 `missingUpgrades` therefore reports the page's own widgets; that a declared
 module exists at all stays `package check`'s.
 
-`rememberAuthoredMarkup` runs before imports because a clone taken after upgrade
-would contain generated controls and the module's once-only stamp. It stores
-only widget families with a recordless durable action. `captureAuthoredFacets`
-runs after upgrade because record-bearing widgets may arrange the authored state
-in `connectedCallback`, but it must run before replay changes that state.
-The state read overlaps those upgrades, but its answer stays buffered until both
-captures have established the authored initial condition.
+`rememberAuthoredParents` records parent identities before imports for anchor ownership.
+`captureAuthoredFacets` runs after upgrade because widgets may arrange authored state
+in `connectedCallback`. It records typed initial values before projection changes them.
+The first server answer stays buffered until these initial readings exist. Frozen
+thread widgets use the same boundary: the list connects them, waits for their
+registered upgrades, and captures initial values before the state application
+projects any winners. Concurrent applications wait for this whole boundary.
 
 The served page root is a stable live document. Its first response projects the
 latest immutable revision and carries a runtime-only version marker. On a later
 state read, `versionDocument` fetches the next mapped revision in the background.
 `activateVersion` replaces the authored head declarations, root attributes, and
-`body > main`; runs the same fence, clone, dressing, settlement, and authored-facet
+`body > main`; runs the same fence, parent, dressing, settlement, and authored-facet
 passes as startup; reconciles the log; and restores the semantic reading landmark
 and the reader's standing. That standing is written down by id before the swap —
 the nearest element carrying one, and the control within it by kind and position —
@@ -277,7 +279,7 @@ The chrome, browser document, module globals, panel, and address remain standing
 That activation is one presentation boundary. Its async work runs in a
 `startViewTransition` update callback where the platform supplies one, including
 for reduced motion (whose transition duration collapses in the theme). Concurrent
-state responses serialize behind `activatingState`; none may capture or replace a
+state responses serialize behind the active application; none may capture or replace a
 half-upgraded main. A runtime without the API applies the same ordered boundary
 without animation. If activation fails after advancing the document, reload the
 stable root rather than leaving a mixed version. A layer-generation change always
@@ -338,6 +340,9 @@ the loss and its controls may activate. A successful response with malformed sta
 offline answer. Parsing or rendering errors pass to the recovery boundary and
 leave the candidate sequence unresolved; authored content stays readable while
 state-dependent controls remain unavailable.
+
+Required widget imports reject through the startup or activation boundary; a missing
+module cannot count as a completed upgrade.
 
 `reportPageError` is the common runtime error surface. A widget failure may
 `failSoft` its own element so the rest of the page and Threads remain usable,
@@ -509,15 +514,14 @@ The two durable channels share the coordinate model but retain their meaning:
   facets on the same unit remain independent.
 
 `stateProjection` is uncached because registry declarations resolve through the
-live DOM. Thread construction and recordless restoration can replace node
-identities. Its result has four views: `actions`, `reports`, `classified`, and
+live DOM. Thread construction and revision activation can introduce new nodes. Its result has four views: `actions`, `reports`, `classified`, and
 `desired`. Add a browser consumer to one of these views or extend the Python wire
 view instead of building another fold over raw `events`.
 
 `committedProjection` is not a second state authority. It is a checkpoint of
 what node identities and semantic winner the DOM currently represents. Each
 entry records the widget node, unit node, and projected entry for one coordinate.
-Node identity matters because a rebuild or thread reconciliation may replace a
+Node identity matters because a revision activation or thread reconciliation may replace a
 node without changing an event id. A coordinate with no winner is committed when
 its authored baseline stands.
 
@@ -540,14 +544,14 @@ re-applying the state the page already holds. It:
    older than `lastEventSeq`;
 3. loads the Markdown renderer before any message body needs it;
 4. installs candidate `events` and renders all log-derived surfaces;
-5. calls `reconcileState` after thread widgets exist;
+5. awaits thread-widget upgrades and initial capture, then calls `reconcileState`;
 6. advances `lastEventSeq` only after the whole state renders;
 7. accounts for outbox attempts;
 8. dispatches `lf-actions` after replay.
 
 If any required render throws, `receiveState` restores the prior event list,
 phase, sequence, and held answer. A candidate history may be visible only during its own
-synchronous application. Focus, undo, draft settlement, and later asynchronous
+application. Focus, undo, draft settlement, and later asynchronous
 wakeups must not consume a log tail the page did not adopt.
 
 `reconcileKnownState` protects those wakeups. It permits reconciliation only
@@ -556,46 +560,51 @@ any events have been installed. A read that brought nothing is allowed to retry
 a deferred correction against that known state. It must not project a newer
 candidate whose surrounding render failed.
 
-`reconcileState` works at widget scope. When any coordinate in a widget is dirty,
-it restores that widget's complete authored recorded composition, then applies
-all current winners for the widget in logged and local order. This is necessary
-for position units that share an ordered container; restoring one card against
-siblings that still carry projected positions changes the meaning of its
-authored index.
+`reconcileState` delivers one complete facet map through `renderState(state)`.
+`widgetStates` starts with typed authored values, overlays the server's desired winners
+and unresolved local gestures, and composes ordered containers entirely in memory.
+No reset actions, baseline replay, or cloned subtree reconstruction occur.
 
-Every `applyAction(action, detail)` states an absolute value. Reapplying a
-standing winner must be a no-op. Returning `false` means a live gesture prevents
-safe application, so the coordinate and its outbox hold remain uncommitted until
-a later wakeup. Throwing reports a page error and fails soft, but reconciliation
-still records the layer-owned settlement paint when the declaration provides
-one.
+Each widget facet has `{action, value, detail}`. `action` is the winning verb, or `null`
+for authored state. `value` is the typed record value, or the winning verb (with `null`
+meaning undecided) for a recordless facet. `detail` preserves the winning event's detail,
+including generated child labels; the authored detail contains the declared record field.
+A facet with a non-widget unit has `units`, mapping each standing unit to that same
+facet shape. Its `value` maps container ids to complete ordered id lists for a position
+record, and is an empty object for recordless units. Missing recordless units are undecided.
+Widget-absolute position records retain their containing id as `value` and their final
+index in the declared detail field; ordering across those owners is composed together.
+
+Render every declared facet, including null/empty values, while retaining the widget and
+independent child widgets. Repeating a complete state must change nothing. Return `false`
+only while a live gesture prevents safe rendering; the coordinate and outbox hold stay
+uncommitted until a later wakeup. Throwing reports a page error and fails soft; the layer
+still renders declared settlement marks.
 
 `watchProjectionDrag` waits for the last `.lf-dragging` marker to clear, then
 reconciles, releases eligible outbox entries, repaints keys, and dispatches
 `lf-actions`. Do not let a read or the heartbeat fight the pointer by applying
 projection during a drag.
 
-`rememberWrites` compares `shallowSigs` before and after each projected action
-or report and records the ids replay changed. The render gate reads those marks
-to check that a module writes only state declared by its record form. Text is
-handled by the passage and restatement checks, not by the shallow signature.
+`shallowSigs` reads authored tags, individual attributes, and placement. The render
+gate temporarily renders the authored state and surviving decisions from earlier
+revisions, intersects their writes with the author's changed facts, then restores
+current state. New actions on this revision cannot contradict its authoring. No
+per-render DOM write history is kept. Text has the passage and restatement checks.
 
-### Authored restoration and undo
+### Authored state and undo
 
-Record forms determine how authored state is captured and restored:
+`authoredStates` holds the one typed initial condition per owner. Comparison readings
+come from those same values, collapsing body whitespace and omitting position indexes
+only where origin/diff checks require those comparisons.
 
-| Record kind | `domFacet` reads | `authoredDetail` restores |
-| --- | --- | --- |
-| `attribute` | sorted ids owned by the nearest recorded widget | the same sorted id set |
-| `value` | the named attribute's string value | that value; absence has no statement |
-| `position` | the declared containing id | containing id plus index among id-bearing children |
-| `body` | collapsed words from `textNodesUnder` | the original uncollapsed authored words |
-
-`authoredFacets` stores comparable values for pending-state paint.
-`authoredDetails` stores the absolute detail that can state a unit's authored
-value. `authoredStatements` groups those statements by widget for whole-widget
-restoration. `authoredMarkup` stores a pristine clone only for recordless
-families, where no verb can state the authored value.
+| Record kind | Complete initial value |
+| --- | --- |
+| `attribute` | sorted owned ids carrying the declared attribute |
+| `value` | the attribute string, or `null` when absent |
+| `position` | ordered id lists per container; an individual widget also names its containing id/index |
+| `body` | uncollapsed authored words from `textNodesUnder` |
+| no record | `null` for a widget facet; an empty unit map otherwise |
 
 Ownership of record members stops at `recordedOwner`, the nearest widget with a
 declared record. A custom outer container must not capture or restore a nested
@@ -607,22 +616,16 @@ authoritative log newest first, selects a standing user gesture, and offers an
 action only on the version where that action was made. Thread resolution is not
 version-scoped. Undo has no tab-local stack.
 
-`canUndoAction` asks whether removing the action leaves a state reconciliation
-can paint. For a recorded coordinate, that means another desired winner or an
-authored detail exists. For a recordless action, the authored markup clone must
-exist. Recorded state is restored by absolute statements and replay. Recordless
-state calls `rebuild` with the pristine clone, re-runs shared dressing, refreshes
-passage fences, restores focus when the reader was inside the replaced widget,
-and replays surviving projection onto the new node.
+`canUndoAction` requires a mounted authored owner with a complete renderer or generic
+retirement semantics. Undo selects a different complete projection; the same renderer
+handles it without replacing the owner, its independent children, or their controls.
 
-`markSettled` and `renderRetired` are layer responsibilities. The registry's
-`x-parent` and `x-retired-when` declarations already state which holder and slot
-an outcome settles, so modules do not need to duplicate the settlement mark or
-the generic retired-slot hiding. A module may paint the same
-`data-lf-state` optimistically as choreography, but authoritative replay writes
-it and clears it when another outcome on the settlement facet wins.
+`renderSettlement` and `renderRetired` are layer responsibilities. The registry's
+`x-parent` and `x-retired-when` declarations identify the holder and slots; the complete
+facet's winning action paints the outcome, and its null baseline clears it. A module
+may render the same marks as part of its animation choreography.
 
-`paintStateOrigins` compares each desired record with `authoredFacets`. It paints
+`paintStateOrigins` compares each desired record with its authored facet. It paints
 `data-lf-reader-override` for reader actions and `data-lf-reported` for reports only
 while the log differs from this version's authored state. Recordless decisions
 retain the reader-origin mark while their holder remains in the document. These
@@ -664,7 +667,7 @@ sequence helpers, not through raw `events`.
 `actionSequence(widget, action)` returns copies of the widget's matching
 absolute action events in log order and within its applicable version window.
 It includes only events for which `projectionCommitted` is true. A module must
-not narrate an action whose `applyAction` is deferred while the body still shows
+not narrate an action whose `renderState` is deferred while the body still shows
 another value.
 
 `updateSequence(target)` is the one reading of news about an item. Its target is
@@ -806,7 +809,7 @@ behavior, the layer implements it once. Current examples are:
 - `standingState` exposes replay winners to the render gate without naming a
   widget, the panel's own folds included: a widget an agent sent folds the way a
   page widget does and the poll replays it the same way, so the premise that
-  every `applyAction` is absolute binds it too.
+  every `renderState` is absolute binds it too.
 
 A module owns only its choreography and semantics that no declaration can
 express. For example, a suggestion module may animate its slots and write the
@@ -843,12 +846,12 @@ chrome, or duplicate a runtime helper inside a module. Every module has these
 minimum obligations:
 
 - Define the custom element once and make `connectedCallback` safe to run after
-  reconstruction.
+  reconnection.
 - Use `once(el, fn)` for generated chrome so reconnecting does not duplicate it.
 - Reserve a control's room from inside `measure`. A widget upgrades wherever the
   runtime connects it, and a shut panel is `display: none`, where every word
   measures zero and the floor the press needs is nothing at all.
-- Implement `applyAction(action, detail)` as an absolute statement and return
+- Implement `renderState(state)` as a total, idempotent rendering and return
   `false` only while a live gesture makes application unsafe.
 - Call `sendAction` for recorded user state. The detail must match the declared
   browser schema.
@@ -928,12 +931,10 @@ minimum obligations:
   rebind it. A module does not fetch or retain a second copy.
 - Keep durable standalone state in serializable HTML attributes. Export removes
   scripts and handlers.
-- Remove hoisted chrome in `disconnectedCallback` when a reconstruction replaces
-  the owner.
+- Remove hoisted chrome in `disconnectedCallback` when the owner disconnects.
 
-An `applyAction` may replace nodes. Callers therefore re-resolve the widget and
-unit between applications. It must write only attributes represented by the
-verb's record form on authored elements. Generated chrome may use platform
+A `renderState` retains its owner and independent nested widgets. It must write only
+attributes represented by declared record forms on authored elements. Generated chrome may use platform
 attributes and `data-*` state. Returning success while writing undeclared
 author-namespace attributes breaks the file/DOM comparison.
 
@@ -1706,9 +1707,11 @@ belongs to the name alone. Painted beside the phase, the same words read as prog
 rather than position.
 
 Hover or focus on any interactive fitting illuminates its exact target, including a
-cluster displaced by packing. Hovering a status shows its label without lifting it or
-claiming its target; a numbered Page-map arrival may still focus it and illuminate the
-target deliberately. Labels stay inside the viewport without moving the fitting.
+cluster displaced by packing. Hovering a status shows its label and connects it to the
+target with a softer neutral trace, without lifting the fitting or borrowing the accent
+ring that promises interaction. A numbered Page-map arrival may still focus it and
+illuminate the target deliberately. Labels stay inside the viewport without moving the
+fitting.
 Dense and narrow-screen tests must exercise that association and activate an excess
 action through Page map; counting hidden DOM nodes is not evidence of reachability.
 
@@ -1806,11 +1809,9 @@ fold because the same change can arrive from another tab or the agent. A
 resolved thread leaves the open-thread vocabulary at once, folds in place, then
 moves under the resolved disclosure.
 
-Synthetic restoration steps are silent. When reconciliation resets a widget to
-its authored composition and applies several winners, intermediate absolute
-placements must not animate. Capture the final authoritative correction and
-show one FLIP from the optimistic state to that result. A live drag defers the
-whole correction.
+Projection composes the complete final state before rendering. Ordered containers
+measure once around that composition and show one FLIP from the current layout
+to the final layout. A live drag defers the whole correction.
 
 Finite animations delay final geometry reads. Infinite ambient animation, such
 as the status indicator, does not. `moving` is the render gate's shared reading
@@ -1893,7 +1894,7 @@ positions the mark, in the document and in every declared shadow tree. It reads
 the composed box, so a page author's scroller and a package's are held on the
 same terms as the theme's own, and no stylesheet declares a position beside its
 overflow for the word's sake. The mark is written when a sweep reaches the box —
-at upgrade, on a new version, on a rebuild, on the panel's reconcile — so a
+at upgrade, on a new version, and on the panel's reconcile — so a
 scroller a module builds outside its own settlement owes the `reachScrollers`
 call it already owes for the stop.
 
@@ -2433,7 +2434,7 @@ is derived on each paint; it does not store the decision walk's position.
 
 A control that draws the band on itself draws it only where nothing else holds
 that box's one outline. A decision written out around the control wears the band
-already, and the log's news about the content — `restated`, `pending`,
+already, and the log's news about the content — `restated`, `reader-override`,
 `reported` — has no second carrier, while the band also has the washed cell and
 the address chips.
 
@@ -2924,7 +2925,7 @@ widgets use their target's existing margin cluster instead; an explicit page-wid
 claim is the cluster's **Active** reading. The fallback receipt wears `lf-ui` and
 `data-lf-gen`: it is an account of the conversation, not authored words, so selection
 and diff readings skip it. Reconcile widget state first and paint receipts afterward,
-because a module may rebuild the subtree that seats it. Keep surviving nodes
+so each receipt describes the state the widget now displays. Keep surviving nodes
 across state applications, and in their place, so an unchanged phase is not
 re-announced: a node taken out of the document and put back replays every
 animation it wears and re-announces its live region. A phase change is a change
@@ -3137,7 +3138,7 @@ Its stored record carries the anchor, mode, and last-touch time; startup reopens
 the most recently touched draft. Different passages may therefore hold
 independent unfinished comments.
 
-An `lf-draft` editor is a live gesture. Its `applyAction` returns `false` while
+An `lf-draft` editor is a live gesture. Its `renderState` returns `false` while
 the editor is open, so remote edits and refusal correction wait rather than
 overwriting the textarea. Closing the editor lets the authoritative projection
 apply in order.
@@ -3265,7 +3266,7 @@ been removed. `render-checks/init.js` installs the pre-navigation window-error c
 | `trappedMargins` | framed boxes show only their declared inset |
 | `paperWords` | print keeps every page statement and removes only affordance |
 | `replayOverrides` | the log, not conflicting authored markup, determines projected state |
-| `relativeReplays` | reapplying each standing absolute winner moves nothing |
+| `relativeReplays` | rendering each complete widget state twice changes nothing |
 
 `standingState` and `shallowSigs` are published by their projection owner through the
 widget API for these gates. Keep their

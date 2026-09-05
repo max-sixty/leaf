@@ -69,13 +69,13 @@ export function createAnchors(dependencies) {
     el,
     elementById,
     elementFromPointAcross,
-    elementOver,
     findQuote,
     focusedThreadOf,
     glideTo,
     inChrome,
     inUi,
     inspectEl,
+    marginTraceBox,
     offer,
     pageQueryAll,
     pageScroller,
@@ -626,7 +626,7 @@ export function createAnchors(dependencies) {
       return segments.length
         ? {
             ...resolvedPassage({
-              place: elementOver(segments[0].node),
+              place: blockAt(segments[0].node) ?? datum[0],
               segments,
             }),
             datumElement: datum[0],
@@ -665,7 +665,9 @@ export function createAnchors(dependencies) {
     const segments = findQuote(text, anchor.quote, anchor, sectionOf(anchor));
     return segments.length
       ? resolvedPassage({
-          place: elementOver(segments[0].node),
+          // Attached chrome belongs beside a widget's readable body, never inside
+          // that body. A block is the passage seat; otherwise use its authored item.
+          place: blockAt(segments[0].node) ?? itemAt(segments[0].node),
           segments,
         })
       : null;
@@ -707,7 +709,13 @@ export function createAnchors(dependencies) {
   let pendingOutline = []; // the elements the open draft outlines, owned by nobody else
   let actionOutline = []; // the visual target whose action bar is standing
   const visualTargets = new Map();
-  const targetPaint = createTargetPaint({ aimBox, el, inChrome, visualMarkLayer });
+  const targetPaint = createTargetPaint({
+    aimBox,
+    el,
+    inChrome,
+    marginTraceBox,
+    visualMarkLayer,
+  });
   // What the pointer would take, in whichever arming stands — the ⌥ aim's item, or design
   // mode's target: the element, and the control's word where the pointer is on one — and
   // null when neither is armed. One answer for the box, the cursor and the name.
@@ -1638,6 +1646,10 @@ export function createAnchors(dependencies) {
     isMarked: (id) => marked.has(id),
     placedAt: (id) => placed.get(id),
     refreshAim,
+    traceTarget: (target) => {
+      const part = target ? visualAt(target, { unclaimed: false })?.part : null;
+      targetPaint.traceTarget(target, part?.element === target ? part.surface : target);
+    },
     dockSeats,
     paintAnchors,
     fragmentId,

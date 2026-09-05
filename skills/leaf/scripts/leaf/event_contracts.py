@@ -11,6 +11,7 @@ from leaf.decisions import (
     quoted_in,
     thread_decision_projection,
 )
+from leaf.event_meaning import direct_dependencies
 from leaf.events import build_threads
 from leaf.files import revision_path
 from leaf.passages import enclosing_ids
@@ -32,6 +33,17 @@ def event_record_error(contract: dict, event: dict, browser: bool = False):
     if browser:
         # Supply the fields the server and reader add so the full record schema
         # can validate the unstamped request beside its browser assertions.
+        schema = {
+            **schema,
+            "properties": {
+                key: value
+                for key, value in schema["properties"].items()
+                if key not in {"meaning", "generated"}
+            },
+            "required": [
+                key for key in schema["required"] if key not in {"meaning", "generated"}
+            ],
+        }
         schema = {"allOf": [schema, contract["browser"]]}
         instance = {
             **event,
@@ -60,6 +72,15 @@ def declared_event_error(
         )
     if message := schema_error(spec["detail"], event["detail"]):
         return f"<{tag}> {kind} {event['action']!r} detail is invalid: {message}"
+    if "resolves" in event["detail"] and not event["detail"]["resolves"]:
+        return f"<{tag}> {kind} {event['action']!r} resolves must name a non-empty thread id"
+    if message := schema_error(
+        {"type": "array", "items": {"type": "string", "minLength": 1}},
+        direct_dependencies(event, spec),
+    ):
+        return (
+            f"<{tag}> {kind} {event['action']!r} identity fields are invalid: {message}"
+        )
     return None
 
 
@@ -69,6 +90,8 @@ def declared_action_error(
     thread_by_id: dict,
     registry: dict,
     prior_registry: dict | None = None,
+    *,
+    stored: bool = True,
 ):
     """Why a stored action violates its sending widget's durable declaration."""
     # Page widgets come from the action's own immutable revision. Thread widgets
@@ -86,7 +109,7 @@ def declared_action_error(
         return error
     spec = registry[tag]["x-state"][event["action"]]
     creates = spec.get("creates")
-    if creates:
+    if creates and stored:
         if "generated" not in event:
             return (
                 f"<{tag}> action {event['action']!r} declares generated children "
@@ -99,7 +122,7 @@ def declared_action_error(
                 f"the sorted keys of detail field {creates['field']!r}: "
                 f"expected {expected}, found {event['generated']}"
             )
-    elif "generated" in event:
+    elif not creates and "generated" in event:
         return (
             f"<{tag}> action {event['action']!r} has a generated snapshot but its "
             "declaration creates no children"
@@ -342,7 +365,9 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     thread = frozen_thread_reading(events, registry)
     thread_projection = thread.projection
     thread_by_id = thread.by_id
-    if error := declared_action_error(event, page.by_id, thread_by_id, registry):
+    if error := declared_action_error(
+        event, page.by_id, thread_by_id, registry, stored=False
+    ):
         return error
     page_rec = page.by_id.get(event["widget"])
     rec = page_rec or thread_by_id[event["widget"]]

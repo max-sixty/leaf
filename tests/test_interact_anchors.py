@@ -8,6 +8,7 @@ from interact_support import (
     PAGE,
     SUGGESTED,
     SUGGESTION,
+    append_command,
     before_choice,
     check,
     comment,
@@ -322,7 +323,7 @@ def test_comments_reach_reader_generated_choices_without_source_copying(page_dir
     identity = "routes-option-reader"
     words = "Use <a literal> & keep the source unchanged."
     for options in ([identity], ["flag-first"]):
-        events_model.append_event(
+        append_command(
             page_dir,
             {
                 "kind": "action",
@@ -331,7 +332,6 @@ def test_comments_reach_reader_generated_choices_without_source_copying(page_dir
                 "widget": "routes",
                 "action": "choose",
                 "detail": {"options": options, "additions": {identity: words}},
-                "generated": [identity],
             },
         )
 
@@ -410,6 +410,11 @@ def test_a_verb_the_registry_no_longer_speaks_moves_nothing(page_dir):
             "revision": 1,
             "widget": "note",
             "action": "scribble",
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "coordinate": ["note", "note", "body"],
+                "depends": ["note"],
+            },
             "detail": {"text": "Words no layer speaks."},
         },
     )
@@ -813,7 +818,7 @@ def test_thread_decisions_share_one_projection_across_open_fragments(page_dir):
         {"id": "group-b-decision", "tag": "lf-decision", "thread": roots[1]["id"]},
     ]
 
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -822,7 +827,6 @@ def test_thread_decisions_share_one_projection_across_open_fragments(page_dir):
             "widget": "group-a",
             "action": "choose",
             "detail": {"options": ["option-a"]},
-            "generated": [],
         },
     )
     assert state_json(page_dir)["decisions"] == [
@@ -906,7 +910,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
         == 0
     )
     thread = events_model.read_events(page_dir)[-1]["id"]
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -915,7 +919,6 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
             "widget": "ps-q",
             "action": "choose",
             "detail": {"options": ["ps-cookie"]},
-            "generated": [],
         },
     )
     out = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])

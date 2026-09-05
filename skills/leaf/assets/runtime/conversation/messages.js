@@ -5,7 +5,6 @@ export function createConversationMessages(dependencies) {
   const {
     MARKED_ANYWHERE,
     ago,
-    captureAuthoredFacets,
     designName,
     el,
     elementById,
@@ -15,7 +14,7 @@ export function createConversationMessages(dependencies) {
     itemWord,
     markDeclared,
     pageQueryAll,
-    rememberAuthoredMarkup,
+    rememberAuthoredParents,
     renderQuiet,
     renderSaid,
     reportPageError,
@@ -75,9 +74,9 @@ export function createConversationMessages(dependencies) {
       paintMsgText(text, m);
       // The widget markup beside the text, injected as the CLI gate validated it. A
       // template is deliberately inert: an already-defined custom element's constructor
-      // runs even in a detached ordinary div, which would make generated state look like
-      // the thread event's authored baseline. Capture the literal event markup first,
-      // then move those same nodes into the body; they upgrade when the body is connected.
+      // runs even in a detached ordinary div. Capture parentage in the literal markup,
+      // then connect these same nodes; thread-list captures typed initial values only
+      // after their synchronous and asynchronous upgrades finish.
       // The passes below don't come along with that upgrade — the said and quiet passes
       // write a widget's declared words, spoken and silent, and a fenced block is a
       // <pre><code class="language-…"> like any the page holds.
@@ -93,8 +92,7 @@ export function createConversationMessages(dependencies) {
       if (m.markup) {
         const authored = document.createElement("template");
         authored.innerHTML = m.markup;
-        rememberAuthoredMarkup(authored.content);
-        captureAuthoredFacets(authored.content);
+        rememberAuthoredParents(authored.content);
         body.append(authored.content);
       }
       markDeclared(body, MARKED_ANYWHERE);

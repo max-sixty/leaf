@@ -41,12 +41,10 @@ state. It withdraws rather than deletes. Nothing is removed from the log; the
 folds and the thread reading simply drop the event, so the page is what the
 revision says plus what still stands — the same sentence a reload has always
 read, and the same one `restated` already writes from the author's side. What
-the reader sees follows from that rather than from a second statement: where the
-log still leaves the unit a state that can be stated, the browser states it (a
-prior action's detail, or the placement the revision's markup arrived showing) so
-the page moves rather than being rebuilt; where the verb records nothing, and so
-no state can be stated, the browser rebuilds that widget from the revision's own
-markup and replays what survives onto it. The door refuses an `undoes` naming
+the reader sees follows from the complete widget projection: authored values plus
+surviving winners, including unset and undecided values. The same `renderState`
+contract paints both forward changes and withdrawals, retaining the widget and its
+independent children. The door refuses an `undoes` naming
 anything but an unwithdrawn gesture of the reader's own.
 
 The server stamps every other
@@ -58,6 +56,25 @@ agent sessions can write to one page,
 so the voice is read from the poster's environment rather than from the current
 watcher's claim record — and identity is the session id, because a display name
 is anyone's to choose and two workers may share one.
+
+Browser POSTs are commands. The append transaction stamps the accepted event with
+server-owned `meaning`; callers cannot send it or `generated`, and retry identity
+compares the original command fields rather than this enrichment. Actions and
+reports record `document`, the `[owner, unit, facet]` coordinate, and `depends`, the
+direct element identities named by declared state fields. Requests record their
+page-revision or frozen-thread document identity. A declared `x-awaits.answers`
+verb additionally records `answer`: a thread id closes that conversation, null
+states an answer that leaves it open, and an absent field is not an answer.
+Historical conversation folds use this coordinate even after its widget retires.
+Every action at the coordinate competes: a non-answer at that same coordinate
+supersedes its prior answer, while an independent facet leaves it standing.
+
+Dependency identities come from the fold unit, attribute-set and position record
+fields, and optional `references` detail-field declarations. Literal strings do
+not become dependencies by matching HTML ids. The log does not freeze ancestry:
+retraction tests use the current document's containment of those identities.
+Generated children retain the durable ownership established by `creates`, whose
+sorted identity snapshot the server stamps in `generated`.
 
 An agent comment opens a question. A reply answers without closing the thread;
 when its prose leaves another question for the reader, `leaf reply --awaits`

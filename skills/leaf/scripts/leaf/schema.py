@@ -176,6 +176,11 @@ def _verbs_schema(
         "facet": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "unit": {"type": "string", "minLength": 1},
         "record": {"oneOf": records},
+        "references": {
+            "type": "array",
+            "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            "uniqueItems": True,
+        },
     }
     if conditional:
         properties["requires"] = ACTION_REQUIREMENT

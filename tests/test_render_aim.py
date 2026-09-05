@@ -5,6 +5,7 @@ import math
 import re
 
 import pytest
+from interact_support import append_command
 from leaf import event_log as events_model
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
@@ -2274,7 +2275,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     page.mouse.move(*spot)
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "card-importer")
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",

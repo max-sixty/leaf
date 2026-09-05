@@ -5,6 +5,7 @@ import math
 import re
 
 import pytest
+from interact_support import append_command
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from playwright.sync_api import expect
@@ -516,7 +517,7 @@ def test_a_failed_background_read_cannot_aim_undo_at_its_partial_history(
         page.expect_console_message(lambda message: "read failed" in message.text),
         page.expect_request("**/api/state*"),
     ):
-        second = events_model.append_event(
+        second = append_command(
             serve.page_dir,
             {
                 "kind": "action",
@@ -798,17 +799,17 @@ def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
     page.close()
 
 
-def test_a_refused_position_rebuilds_the_whole_authored_sibling_order(browser, serve):
+def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
     """Authored indices are one container composition, not per-card snapshots. A
-    refused move must reset every sibling before replaying a surviving reorder; putting
-    back only the refused card makes both indices relative to a synthetic order."""
+    refused move must derive the complete order from authored siblings and surviving
+    winners before moving nodes; the rejected DOM cannot supply that order."""
     three_cards = BOARD_PAGE.replace(
         '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>',
         '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>\n'
         '    <lf-card id="card-third"><strong>Third card</strong></lf-card>',
     )
     url = serve(three_cards)
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -835,7 +836,7 @@ def test_a_refused_position_rebuilds_the_whole_authored_sibling_order(browser, s
             """() => { void import('/runtime/widget-api.js').then(({sendAction}) => {
               const widget = document.querySelector('#sprint');
               const detail = {card: 'card-baffle', to: 'col-todo', index: 2};
-              widget.applyAction('move', detail);
+              document.getElementById(detail.to).append(document.getElementById(detail.card));
               void sendAction(widget, 'move', detail);
             }); }"""
         )
@@ -918,13 +919,11 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
         """import { once } from "/runtime/widget-api.js";
 customElements.define("lf-outer-board", class extends HTMLElement {
   connectedCallback() { once(this); }
-  applyAction(action, detail) {
-    if (action !== "move") return;
-    const card = document.getElementById(detail.card);
-    const col = document.getElementById(detail.to);
-    if (!card?.matches("lf-card") || !col?.matches("lf-column") || !this.contains(col)) return;
-    const cards = [...col.children].filter(node => node.matches("lf-card") && node !== card);
-    col.insertBefore(card, cards[detail.index] ?? null);
+  renderState(state) {
+    for (const [id, order] of Object.entries(state.placement.value)) {
+      const column = document.getElementById(id);
+      for (const card of order) column.append(document.getElementById(card));
+    }
   }
 });
 """
@@ -951,7 +950,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
             """() => { void import('/runtime/widget-api.js').then(({sendAction}) => {
               const widget = document.querySelector('#outer');
               const detail = {card: 'outer-card', to: 'outer-done', index: 0};
-              widget.applyAction('move', detail);
+              document.getElementById(detail.to).append(document.getElementById(detail.card));
               void sendAction(widget, 'move', detail);
             }); }"""
         )
@@ -960,7 +959,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
         """() => { void import('/runtime/widget-api.js').then(({sendAction}) => {
           const widget = document.querySelector('#inner');
           const detail = {card: 'inner-card', to: 'inner-done', index: 0};
-          widget.applyAction('move', detail);
+          document.getElementById(detail.to).append(document.getElementById(detail.card));
           void sendAction(widget, 'move', detail);
         }); }"""
     )
@@ -1044,7 +1043,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     page.unroute("**/api/event")
 
     with page.expect_request("**/api/state*"):
-        events_model.append_event(
+        append_command(
             serve.page_dir,
             {
                 "kind": "action",
@@ -1128,7 +1127,7 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
     # stream would otherwise have the page read A alone in the time B takes.
     cut = CutOff().hold(page)
     older_answer = held[0].fetch()  # the server appends A; its response stays held
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -1315,7 +1314,7 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
     # reads held too, so one complete read accounts the accept and replays the reject.
     cut = CutOff().hold(page)
     accepted_answer = held[0].fetch()
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -1517,7 +1516,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
     page.wait_for_timeout(0)
     expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
 
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -1602,17 +1601,9 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     page.close()
 
 
-def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
-    """A suggestion's accept records nothing and retires the losing half of the
-    page on its way through, so there is no value to state it back to: undecided
-    is not a value any verb carries. Withdrawing needs none — the fold drops the
-    accept, and the widget goes back to the markup this version wrote, with what
-    survives replayed onto it. That is the whole of the rebuild's reason, and why
-    it is chosen by a declaration (no record) rather than by the tag's name.
-
-    The controls come back with it, which is the half a subtree swap could lose:
-    the row hangs in the page margin as the column's child, outside the subtree
-    that was replaced, and it is the widget's own to take away and hang again."""
+def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
+    """Withdrawing an accept renders the null settlement facet. The same suggestion
+    regains its old passage and decision controls without replacing its subtree."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     old = page.locator("#sug-refill lf-old")
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
@@ -1634,7 +1625,7 @@ def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
     )
     expect(page.locator(".lf-decisions")).to_have_text("Asks 0/3")
     assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
-        "the rebuilt change hung a second row beside the one it replaced"
+        "undo left more than one control row for the same suggestion"
     )
     (accepted,) = actions(serve.page_dir)
     assert accepted["action"] == "accept"
@@ -1647,21 +1638,8 @@ def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
     page.close()
 
 
-def test_a_rebuild_hands_back_the_place_and_the_marks(browser, serve):
-    """Two things the rebuild owes beyond the state, and both were missing because a
-    rebuild is the one restore that replaces nodes rather than moving them.
-
-    The marks are painted ranges over text nodes, so the ones on a retired sentence
-    were pointing into a subtree the document no longer had: the sentence came back
-    and the comment on it did not, which reads as a thread detached from a passage
-    that is plainly there. Replay repaints them when it has moved the page's text,
-    and a restore is replay moving it.
-
-    The place is the reader's own. They pressed the key standing on the control
-    that decided the change, and that control went with the subtree — so the press
-    put them on <body> with nothing saying so, which is the silence the ladder's
-    rung exists to avoid. A widget told its state keeps its focus by itself, so only
-    this route ever lost it."""
+def test_undo_preserves_the_place_and_restores_passage_marks(browser, serve):
+    """Undo restores a suggestion's passages and their anchored comment marks, and returns focus to the available decision control."""
     url = serve(SUGGESTION_PAGE)
     page, errors = open_page(browser, url)
     events_model.append_event(
@@ -1699,11 +1677,8 @@ def test_a_rebuild_hands_back_the_place_and_the_marks(browser, serve):
     page.close()
 
 
-def test_a_rebuild_leaves_a_reader_standing_elsewhere_where_they_are(browser, serve):
-    """The place is handed back only to the reader who was standing in what was
-    replaced. Pressing the key from the page is not a request to be taken to the
-    change it takes back, and a focus move nobody asked for is the page moving
-    under the reader in the one way no geometry reports."""
+def test_undo_leaves_a_reader_standing_elsewhere_where_they_are(browser, serve):
+    """Undo from elsewhere changes the decision without moving the reader's focus."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     round_trip(page)
@@ -1719,7 +1694,7 @@ def test_a_rebuild_leaves_a_reader_standing_elsewhere_where_they_are(browser, se
 def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve):
     """The withdrawal pass has to keep the discipline the replay loop keeps, because
     it is replay: a widget the page has painted ahead of the log gets the next poll
-    rather than being written over. `lf-draft` says so outright — its applyAction
+    rather than being written over. `lf-draft` says so outright — its renderState
     returns false while an editor stands, so the reader's unsent words are not yanked
     out from under them — and a pass that drops that answer and marks the withdrawal
     answered leaves the tab holding the withdrawn text for the rest of its life, with
@@ -1880,15 +1855,7 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
 
 
 def test_a_second_tab_takes_the_decision_back_too(browser, serve):
-    """The rebuild happens in every tab off the log, not in the one that pressed off
-    the gesture — so a tab that never saw the press arrives at the same page. That
-    is the difference between taking a decision back and painting over it: this tab
-    applied the accept through replay, and what puts it right is the withdrawal
-    arriving, not anything the other tab did to its own DOM.
-
-    It is also where the reader is left free to decide again, the other way: the
-    accept is withdrawn rather than reversed, so a reject after it is an ordinary
-    first decision and both tabs follow it."""
+    """A second tab receives the withdrawal from the log, restores the pending suggestion, and lets the reader decide again."""
     url = serve(SUGGESTION_PAGE)
     one, errors_one = open_page(browser, url)
     two, errors_two = open_page(browser, url)
@@ -1930,17 +1897,10 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
     two.close()
 
 
-def test_a_rebuild_keeps_what_the_reader_did_inside_the_change(browser, serve):
-    """A change may propose markup that holds a widget — the family's own answer to
-    a widget-state change, there being no separate patch shape — and a pick the
-    reader made inside it is theirs, not part of the decision they took back.
-
-    The rebuild replaces the subtree those actions were applied to, so what this
-    load had already applied inside it has to land again on the new nodes. Counting
-    only the rebuilt widget's own events leaves the nested pick marked as applied to
-    a node the page no longer has, and it comes back authored with the reader's
-    answer silently gone."""
+def test_undo_preserves_the_independent_decision_inside_a_change(browser, serve):
+    """Undoing an outer suggestion preserves the nested widget, its selected option, and the reader's independent decision."""
     page, errors = open_page(browser, serve(NESTED_SUGGESTION))
+    original = page.locator("#sug-thistle lf-options").element_handle()
     page.locator("#blend-mixed").click()
     round_trip(page)
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "blend-mixed")
@@ -1953,16 +1913,16 @@ def test_a_rebuild_keeps_what_the_reader_did_inside_the_change(browser, serve):
     expect(
         page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept")
     ).to_have_attribute("aria-label", re.compile(r"^Accept the suggested change"))
+    assert original.evaluate(
+        "node => node === document.querySelector('#sug-thistle lf-options')"
+    )
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "blend-mixed")
     assert errors == []
     page.close()
 
 
 def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
-    """The rebuild is how the page in front of the reader catches up; it is not
-    where the outcome lives. A page loaded after the fact never applies the
-    withdrawn accept at all — replay skips it exactly as it skips one a version
-    restated — so the same page comes back without a rebuild having run on it."""
+    """A page loaded after an undo renders the same undecided state as a page that received the withdrawal live."""
     url = serve(SUGGESTION_PAGE)
     page, errors = open_page(browser, url)
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
@@ -2193,7 +2153,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     put down where it was picked up takes the class off and returns before #send, so
     there is no send downstream to paint in its place."""
     url = serve(BOARD_PAGE)
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",

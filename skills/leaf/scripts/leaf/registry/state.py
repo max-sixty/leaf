@@ -154,29 +154,6 @@ def _validate_widget_state_relations(
             f"{slot}); distinct facets must record independently"
         )
 
-    # A resolves-bearing widget has one answer fact. Thread history can outlive
-    # the markup that declared its verbs, so both thread builders deliberately
-    # fold answers by widget id alone; requiring every action verb on that tag
-    # to share the answer facet makes that historical key exact rather than a
-    # compatibility approximation.
-    state = entry.get("x-state", {})
-    resolving = [
-        (verb, spec)
-        for verb, spec in state.items()
-        if "resolves" in spec["detail"].get("properties", {})
-    ]
-    if resolving:
-        answer_verb, answer_spec = resolving[0]
-        answer_facet = answer_spec["facet"]
-        for verb, spec in state.items():
-            if spec["facet"] != answer_facet:
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` uses facet "
-                    f"`{spec['facet']}`, but `{answer_verb}` declares "
-                    "`resolves`; every x-state verb on a resolves-bearing "
-                    f"widget must share its answer facet `{answer_facet}`"
-                )
-
 
 def _validate_widget_record_contracts(
     tag: str,
@@ -236,15 +213,6 @@ def _validate_widget_record_contracts(
                         f"{path}: <{tag}> {channel} verb `{verb}` records "
                         f"undeclared attribute `{attr}`"
                     )
-                # Projection rebuilds a refused gesture from authored state.
-                # A required string value gives every baseline an absolute
-                # action detail; absence is represented by an admitted value.
-                if attr not in entry.get("required", []):
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` records "
-                        f"optional attribute `{attr}`; recorded state must be "
-                        "required so its authored value can be replayed"
-                    )
                 # An x-says value is words the reader sees, and the file's
                 # reading takes them from the markup — replay writing one
                 # would change what the page says while that reading held
@@ -282,21 +250,19 @@ def _validate_widget_record_contracts(
                     'this action answers) — declare it {"type": "string"} or '
                     "rename the field"
                 )
-            # A thread is answered by the decision, and a decision is a widget
-            # instance (x-awaits) — so the answer is absolute across the
-            # widget, and both thread builders key the standing answer on
-            # the widget id, the one key a log outlives its markup with.
-            # A per-part verb answering a thread would fold per part and
-            # settle per widget, and the disagreement is invisible: the
-            # thread reads right until a second part is acted on. Whoever
-            # writes that widget needs a decision per part first, and this is
-            # where they find that out.
-            if unit != "widget":
+            if verb not in entry.get("x-awaits", {}).get("answers", []):
                 raise RegistryError(
-                    f"{path}: <{tag}> {channel} verb `{verb}` answers a "
-                    f"comment thread (`resolves`) but folds per `{unit}` — "
-                    "a thread is answered by the decision, and a decision is the "
-                    "whole widget"
+                    f"{path}: <{tag}> `{verb}` carries resolves but is not an x-awaits answer"
+                )
+        for field in spec.get("references", []):
+            schema = detail_properties.get(field, {})
+            if not (
+                schema.get("type") == "string"
+                or schema.get("type") == "array"
+                and schema.get("items", {}).get("type") == "string"
+            ):
+                raise RegistryError(
+                    f"{path}: <{tag}> `{verb}` reference `{field}` must declare a string or string array"
                 )
         undeclared = [field for field in fields if field not in detail_properties]
         optional = [field for field in fields if field not in required]
@@ -309,16 +275,6 @@ def _validate_widget_record_contracts(
             raise RegistryError(
                 f"{path}: <{tag}> {channel} verb `{verb}` reads detail fields "
                 f"its schema {problem}"
-            )
-        # Undo restores a recorded action from authored markup. That markup
-        # can reconstruct exactly the fold unit and the record's value/order;
-        # any other required field would make a valid declaration impossible
-        # to restore without a widget-specific default hidden in core.
-        unrestorable = sorted(required.difference(fields))
-        if channel == "x-state" and record and unrestorable:
-            raise RegistryError(
-                f"{path}: <{tag}> {channel} verb `{verb}` requires detail "
-                f"fields {unrestorable} that authored markup cannot restore"
             )
         if unit != "widget" and record and record["kind"] != "position":
             raise RegistryError(

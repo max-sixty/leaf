@@ -7,8 +7,21 @@ import {
   shownRect,
 } from "./geometry.js";
 import { marginButton, registerMarginItem } from "./living-margin.js";
+import {
+  resolvedElement,
+  resolvedPassage,
+  targetElement,
+  targetParts,
+  targetSegments,
+  targetSurface,
+} from "./resolved-target.js";
 import { moveScrollerBy } from "./scrolling.js";
 import { focused } from "./keyboard/scopes.js";
+import { createTargetPaint } from "./target-paint.js";
+import {
+  visualPart as registeredVisualPart,
+  visualPartAt as registeredVisualPartAt,
+} from "./visual-parts.js";
 
 /* Anchor resolution, painting, and anchor-specific travel. */
 let publishedAnchors;
@@ -188,9 +201,9 @@ export function createAnchors(dependencies) {
   }
 
   // A generated picture part keeps two identities. The authored widget is its semantic
-  // seat; the module supplies only the current box that one stable authored token paints.
-  // Core verifies the token against the declaration before trusting either module method,
-  // so a renderer's generated id never escapes into the event log.
+  // seat; the package registers the current rendering behind each stable authored token.
+  // Core verifies the token against the declaration before trusting the inventory, so a
+  // renderer's generated id never escapes into the event log.
   const visualPartAttribute = (visual) => {
     const declaration = registry[visual?.localName]?.["x-visual"];
     return declaration && typeof declaration === "object" ? declaration.parts : null;
@@ -202,14 +215,11 @@ export function createAnchors(dependencies) {
   };
   function visualPart(visual, part) {
     if (!declaredVisualParts(visual).has(part)) return null;
-    const answer = visual.lfVisualPart?.(part);
-    const element = answer?.element;
-    if (!(element instanceof Element) || !containsAcross(visual, element)) return null;
-    return { part, element, label: answer.label || part };
+    return registeredVisualPart(visual, part);
   }
   function visualPartAt(visual, target) {
-    const part = visual?.lfVisualPartAt?.(target);
-    return typeof part === "string" ? visualPart(visual, part) : null;
+    const declared = declaredVisualParts(visual);
+    return registeredVisualPartAt(visual, target, (part) => declared.has(part.id));
   }
   const visualPartLabel = (visual, part) => visualPart(visual, part)?.label ?? null;
   const declaredVisualSelector = () =>
@@ -300,7 +310,7 @@ export function createAnchors(dependencies) {
           return part && unclaimedVisualGesture(part.element)
             ? [
                 {
-                  anchor: { section: found.id, visual: token },
+                  anchor: { section: found.id, visual: part.id },
                   label: part.label,
                 },
               ]
@@ -334,11 +344,11 @@ export function createAnchors(dependencies) {
           control = offer("button", "lf-visual-action lf-quiet");
           control.onfocus = () => {
             let current = resolveAnchor(control.lfAnchor, pageText());
-            let element = current?.marks?.[0] ?? current?.element;
+            let element = targetParts(current)[0] ?? targetElement(current);
             if (!element) return;
             reveal(element);
             current = resolveAnchor(control.lfAnchor, pageText());
-            element = current?.marks?.[0] ?? current?.element;
+            element = targetParts(current)[0] ?? targetElement(current);
             element?.scrollIntoView({
               behavior: "instant",
               block: "nearest",
@@ -530,10 +540,10 @@ export function createAnchors(dependencies) {
     const visual = visualAt(node, { unclaimed: false });
     if (visual?.part)
       return {
-        anchor: { section: visual.id, visual: visual.part.part },
+        anchor: { section: visual.id, visual: visual.part.id },
         element: visual.part.element,
         label: aimLabel(sectionOf({ section: visual.id }), visual.part.label),
-        visual: visual.part,
+        surface: visual.part.surface,
       };
     const datum = closestAcross(node, DATUM);
     if (datum) return datumAimTarget(datum);
@@ -583,7 +593,7 @@ export function createAnchors(dependencies) {
             : source;
         if (!(fallback instanceof Element)) return null;
         return {
-          element: fallback,
+          ...resolvedElement({ element: fallback }),
           datumElement: null,
           exact: false,
           status: "outdated",
@@ -599,7 +609,7 @@ export function createAnchors(dependencies) {
         if (!(virtual instanceof Element) || !containsAcross(source, virtual))
           return null;
         return {
-          element: virtual,
+          ...resolvedElement({ element: virtual }),
           datumElement: null,
           exact: false,
           status: "fallback",
@@ -607,7 +617,7 @@ export function createAnchors(dependencies) {
       }
       if (!anchor.quote)
         return {
-          element: datum[0],
+          ...resolvedElement({ element: datum[0] }),
           datumElement: datum[0],
           exact: true,
           status: "exact",
@@ -615,13 +625,16 @@ export function createAnchors(dependencies) {
       const segments = findQuote(text, anchor.quote, anchor, datum[0]);
       return segments.length
         ? {
-            segments,
+            ...resolvedPassage({
+              place: elementOver(segments[0].node),
+              segments,
+            }),
             datumElement: datum[0],
             exact: true,
             status: "exact",
           }
         : {
-            element: datum[0],
+            ...resolvedElement({ element: datum[0] }),
             datumElement: datum[0],
             exact: true,
             status: "exact",
@@ -635,14 +648,27 @@ export function createAnchors(dependencies) {
       if (!section || !visualPartAttribute(section) || settledAway(section))
         return null;
       const found = visualPart(section, anchor.visual);
-      return found ? { element: section, marks: [found.element], visual: found } : null;
+      return found
+        ? resolvedElement({
+            element: found.element,
+            place: section,
+            surface: found.surface,
+          })
+        : null;
     }
     if (!anchor.quote) {
       const section = sectionOf(anchor);
-      return section && !settledAway(section) ? { element: section } : null;
+      return section && !settledAway(section)
+        ? resolvedElement({ element: section })
+        : null;
     }
     const segments = findQuote(text, anchor.quote, anchor, sectionOf(anchor));
-    return segments.length ? { segments } : null;
+    return segments.length
+      ? resolvedPassage({
+          place: elementOver(segments[0].node),
+          segments,
+        })
+      : null;
   }
 
   // Every mark the page wears, drawn by one pass, so ownership of an element both a thread
@@ -680,9 +706,8 @@ export function createAnchors(dependencies) {
   let pendingMarks = []; // the same record for the open composer's own passage
   let pendingOutline = []; // the elements the open draft outlines, owned by nobody else
   let actionOutline = []; // the visual target whose action bar is standing
-  const SHAPED = "lf-shaped-mark";
-  const visualPaintTargets = new Set();
-  const visualMarkOverlays = new Map();
+  const visualTargets = new Map();
+  const targetPaint = createTargetPaint({ aimBox, el, inChrome, visualMarkLayer });
   // What the pointer would take, in whichever arming stands — the ⌥ aim's item, or design
   // mode's target: the element, and the control's word where the pointer is on one — and
   // null when neither is armed. One answer for the box, the cursor and the name.
@@ -693,7 +718,7 @@ export function createAnchors(dependencies) {
         ? {
             el: target.element,
             part: "",
-            shape: target.visual ? visualPaintGeometry(target.visual.element) : null,
+            surface: target.surface ?? null,
           }
         : null;
     }
@@ -711,166 +736,6 @@ export function createAnchors(dependencies) {
   // in the same gesture, and a promise a frame behind the arm is one the press can outrun.
   // Ordinary items cost one hit-test and one rect walk, which is what the repaint gate
   // this replaced already spent per event on deciding whether to run a far dearer pass.
-  // A shaped visual also clones the few primitives its returned element paints; the clone
-  // stays in this layer and does not ask the page to repaint its own drawing.
-  const SVG_NS = "http://www.w3.org/2000/svg";
-  const SHAPE_STROKE_ROOM = 2;
-  const aimShape = document.createElementNS(SVG_NS, "svg");
-  aimShape.classList.add("lf-aim-shape");
-  aimShape.setAttribute("aria-hidden", "true");
-  const aimMaskId = "lf-runtime-aim-shape-mask";
-  aimBox.append(aimShape);
-
-  const paints = (shape, property) => {
-    const style = getComputedStyle(shape);
-    return (
-      style.display !== "none" &&
-      style.visibility === "visible" &&
-      Number.parseFloat(style.opacity) !== 0 &&
-      style[property] !== "none" &&
-      Number.parseFloat(style[`${property}Opacity`]) !== 0 &&
-      (property !== "stroke" || Number.parseFloat(style.strokeWidth) > 0)
-    );
-  };
-
-  // A visual module already identifies the generated element that one stable part names.
-  // Its rendered SVG is the paint contract: filled primitives make a transient veil and
-  // stroked primitives make every contour. HTML and canvas renderings keep the rectangular
-  // default. Aim and standing marks both consume this one reading.
-  function visualPaintGeometry(element) {
-    if (!(element instanceof SVGElement)) return null;
-    const geometry = [element, ...element.querySelectorAll("*")].filter(
-      (child) => child instanceof SVGGeometryElement,
-    );
-    const fill = geometry.filter((shape) => paints(shape, "fill"));
-    const paintedStroke = geometry.filter((shape) => paints(shape, "stroke"));
-    const stroke = paintedStroke.length ? paintedStroke : fill;
-    return fill.length || stroke.length ? { fill, stroke } : null;
-  }
-
-  function visualGeometryClone(source, left, top, property) {
-    const matrix = source.getScreenCTM();
-    if (!matrix) return null;
-    const clone = source.cloneNode(false);
-    clone.removeAttribute("id");
-    clone.removeAttribute("class");
-    clone.removeAttribute("opacity");
-    clone.removeAttribute("fill-opacity");
-    clone.removeAttribute("stroke-opacity");
-    clone.setAttribute(
-      "transform",
-      `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e - left} ${matrix.f - top})`,
-    );
-    clone.style.setProperty(
-      "fill",
-      property === "fill" ? "white" : "none",
-      "important",
-    );
-    clone.style.setProperty(
-      "stroke",
-      property === "stroke" ? "var(--lf-shape-ink)" : "none",
-      "important",
-    );
-    clone.style.setProperty("stroke-width", "var(--lf-shape-stroke)", "important");
-    clone.style.setProperty(
-      "stroke-dasharray",
-      "var(--lf-shape-dash, none)",
-      "important",
-    );
-    clone.style.setProperty("stroke-linejoin", "round", "important");
-    clone.style.setProperty("stroke-linecap", "round", "important");
-    clone.style.setProperty("vector-effect", "non-scaling-stroke", "important");
-    return clone;
-  }
-
-  // Clone a visual part's rendered SVG into the runtime's paint layer. The original
-  // drawing keeps its colors. A transient promise may also ask for the union mask, which
-  // gives it one translucent veil with no darker seams where compound shapes overlap.
-  function paintVisualShape(
-    host,
-    geometry,
-    { left, top, right, bottom },
-    { maskId = "", veil = false } = {},
-  ) {
-    if (!geometry) return false;
-    const width = right - left;
-    const height = bottom - top;
-    const fill = veil
-      ? geometry.fill.map((shape) => visualGeometryClone(shape, left, top, "fill"))
-      : [];
-    const stroke = geometry.stroke.map((shape) =>
-      visualGeometryClone(shape, left, top, "stroke"),
-    );
-    if ([...fill, ...stroke].some((shape) => !shape)) return false;
-
-    const paint = [];
-    if (veil && fill.length) {
-      const defs = document.createElementNS(SVG_NS, "defs");
-      const mask = document.createElementNS(SVG_NS, "mask");
-      mask.id = maskId;
-      mask.setAttribute("maskUnits", "userSpaceOnUse");
-      mask.setAttribute("x", "0");
-      mask.setAttribute("y", "0");
-      mask.setAttribute("width", String(width));
-      mask.setAttribute("height", String(height));
-      mask.style.maskType = "alpha";
-      mask.append(...fill);
-      defs.append(mask);
-
-      const wash = document.createElementNS(SVG_NS, "rect");
-      wash.setAttribute("width", String(width));
-      wash.setAttribute("height", String(height));
-      wash.setAttribute("fill", "var(--lf-shape-ink)");
-      wash.setAttribute("fill-opacity", "0.08");
-      wash.setAttribute("mask", `url(#${maskId})`);
-      paint.push(defs, wash);
-    }
-    const outline = document.createElementNS(SVG_NS, "g");
-    outline.append(...stroke);
-    paint.push(outline);
-
-    host.setAttribute("viewBox", `0 0 ${width} ${height}`);
-    host.setAttribute("width", String(width));
-    host.setAttribute("height", String(height));
-    host.replaceChildren(...paint);
-    return true;
-  }
-
-  // An SVG stroke is centred on its geometry. Give the cloned contour room for its
-  // outside half, or the viewport cuts that half away and leaves the item's own border
-  // showing beside it on curves. Apply the normal ancestor clips after expanding: the
-  // paint may cover the item's edge, never a scroller edge that hid the item.
-  function visualPaintPlacement(item, shaped) {
-    const box = shownBox(item);
-    const pad = shaped ? SHAPE_STROKE_ROOM : 0;
-    const rect = clippedRect(
-      {
-        left: box.left - pad,
-        top: box.top - pad,
-        right: box.right + pad,
-        bottom: box.bottom + pad,
-      },
-      item,
-      new Map(),
-    );
-    if (!rect) return null;
-    // The clone's transforms are relative to this clipped paint box. Page and nested
-    // scrolling move its screen coordinates, but move the source matrix by the same
-    // amount; only a resize or a clip crossing the source changes the local drawing.
-    const shapeKey = [
-      rect.right - rect.left,
-      rect.bottom - rect.top,
-      box.left - rect.left,
-      box.top - rect.top,
-      box.right - rect.right,
-      box.bottom - rect.bottom,
-    ].join(":");
-    return { rect, shapeKey };
-  }
-
-  const visualPaintRect = (item, shaped) =>
-    visualPaintPlacement(item, shaped)?.rect ?? null;
-
   function refreshAim() {
     const target = aimTarget();
     const aimed = target?.el ?? null;
@@ -878,112 +743,13 @@ export function createAnchors(dependencies) {
     // stand over a press the paint knows takes nothing. `aiming` alone says the page
     // is armed; this says the aim has landed on something.
     document.body.classList.toggle("lf-over-item", Boolean(aimed));
-    const r = aimed && visualPaintRect(aimed, Boolean(target.shape));
+    const r = aimed && targetPaint.paintAim(aimed, target.surface);
     if (!r) {
-      aimBox.style.display = "none";
-      aimBox.classList.remove("lf-shaped");
-      aimShape.replaceChildren();
-      aimBox.removeAttribute("data-for");
-      delete aimBox.dataset.lfPaintPlane;
+      targetPaint.clearAim();
       paintInspect(null);
       return;
     }
-    const { left, top, right, bottom } = r;
-    const at = documentPoint(left, top);
-    const shaped = paintVisualShape(aimShape, target.shape, r, {
-      maskId: aimMaskId,
-      veil: true,
-    });
-    aimBox.classList.toggle("lf-shaped", shaped);
-    if (!shaped) aimShape.replaceChildren();
-    aimBox.setAttribute("data-for", aimed.id);
-    aimBox.dataset.lfPaintPlane = inChrome(aimed) ? "chrome" : "page";
-    // The item's own corner radius, so the ring hugs the corner the item draws.
-    Object.assign(aimBox.style, {
-      display: "block",
-      left: at.left + "px",
-      top: at.top + "px",
-      width: right - left + "px",
-      height: bottom - top + "px",
-      borderRadius: getComputedStyle(aimed).borderRadius,
-    });
-    paintInspect(designIsOn() ? target : null, { left, top });
-  }
-
-  const VISUAL_MARK_CLASSES = {
-    "lf-visual-mark-comment": "lf-mark-el",
-    "lf-visual-mark-reaction": "lf-react-el",
-    "lf-visual-mark-pending": PENDING,
-    "lf-visual-mark-hover": "lf-mark-hover",
-    "lf-visual-mark-here": "lf-mark-here",
-  };
-
-  function syncVisualMarkStates() {
-    for (const [source, { overlay }] of visualMarkOverlays)
-      for (const [paint, state] of Object.entries(VISUAL_MARK_CLASSES))
-        overlay.classList.toggle(paint, source.classList.contains(state));
-  }
-
-  // A semantic visual part has one paint geometry in every state. The source element
-  // keeps the semantic classes used for hit-testing and thread ownership; this layer
-  // renders their shape above the package drawing and leaves rectangular elements on
-  // the existing CSS-outline path. An anchor pass rebuilds the drawing from package
-  // paint; a scroll frame normally moves only its box, keeping the cloned contour until
-  // a resize or clipping edge changes its local coordinate system.
-  function paintVisualMarks(rebuildGeometry = true) {
-    for (const source of [...visualMarkOverlays.keys()])
-      if (!visualPaintTargets.has(source)) {
-        source.classList.remove(SHAPED);
-        visualMarkOverlays.get(source).overlay.remove();
-        visualMarkOverlays.delete(source);
-      }
-
-    for (const source of visualPaintTargets) {
-      let record = visualMarkOverlays.get(source);
-      const geometry =
-        rebuildGeometry || !record ? visualPaintGeometry(source) : record.geometry;
-      const placement = geometry && visualPaintPlacement(source, true);
-      if (!geometry || !placement) {
-        source.classList.remove(SHAPED);
-        if (record) {
-          record.geometry = geometry;
-          record.shapeKey = "";
-          record.overlay.style.display = "none";
-        }
-        continue;
-      }
-      if (!record) {
-        const overlay = el("div", "lf-ui lf-visual-mark lf-target-paint");
-        const shape = document.createElementNS(SVG_NS, "svg");
-        shape.classList.add("lf-visual-mark-shape");
-        overlay.append(shape);
-        visualMarkLayer.append(overlay);
-        record = { overlay, shape, geometry: null, shapeKey: "" };
-        visualMarkOverlays.set(source, record);
-      }
-      const { overlay, shape } = record;
-      const { rect, shapeKey } = placement;
-      source.classList.add(SHAPED);
-      if (
-        rebuildGeometry ||
-        record.geometry !== geometry ||
-        record.shapeKey !== shapeKey
-      ) {
-        paintVisualShape(shape, geometry, rect);
-        record.geometry = geometry;
-        record.shapeKey = shapeKey;
-      }
-      overlay.dataset.lfPaintPlane = inChrome(source) ? "chrome" : "page";
-      const at = documentPoint(rect.left, rect.top);
-      Object.assign(overlay.style, {
-        display: "block",
-        left: `${at.left}px`,
-        top: `${at.top}px`,
-        width: `${rect.right - rect.left}px`,
-        height: `${rect.bottom - rect.top}px`,
-      });
-    }
-    syncVisualMarkStates();
+    paintInspect(designIsOn() ? target : null, { left: r.left, top: r.top });
   }
   // The name of what design mode is aimed at, at the box's top-left corner — above it
   // where there is room, inside it where there isn't (the banner sits at the top edge).
@@ -1012,6 +778,40 @@ export function createAnchors(dependencies) {
   let hoverQueued = false;
   const marksOf = (id) => marked.get(id) ?? [];
   const allMarks = () => [...marked.values()].flat();
+  const elementMarks = (where) =>
+    [...where].flat().filter((mark) => mark instanceof Element);
+  const rememberVisual = (resolved) => {
+    const element = targetElement(resolved);
+    const surface = targetSurface(resolved);
+    if (element && surface) visualTargets.set(element, surface);
+  };
+  function paintVisualStates() {
+    const comments = new Set(elementMarks(marked.values()));
+    const reactions = new Set(elementMarks(reacted.values()));
+    const pending = new Set(pendingOutline);
+    const action = new Set(actionOutline);
+    const hover = new Set(hoverParts);
+    const here = new Set(hereParts);
+    const stateSources = [
+      ["comment", comments],
+      ["reaction", reactions],
+      ["pending", pending],
+      ["action", action],
+      ["hover", hover],
+      ["here", here],
+    ];
+    targetPaint.setTargets(
+      [...visualTargets].map(([element, surface]) => ({
+        element,
+        surface,
+        states: new Set(
+          stateSources
+            .filter(([, elements]) => elements.has(element))
+            .map(([state]) => state),
+        ),
+      })),
+    );
+  }
   // What a reader who cannot see the paint is told. A highlight is glyphs, not an element, so
   // it builds no accessibility node — where a <mark> wrapper was a `mark` node, the paint is
   // nothing at all, and a passage carrying a comment reads exactly like one that doesn't.
@@ -1063,13 +863,12 @@ export function createAnchors(dependencies) {
       if (where instanceof Element) where.classList.remove("lf-react-el");
     for (const el of pendingOutline) el.classList.remove("lf-mark-el", PENDING);
     for (const el of actionOutline) el.classList.remove("lf-action-target");
-    for (const el of visualPaintTargets) el.classList.remove(SHAPED);
     marked.clear();
     reacted.clear();
     placed.clear();
     pendingOutline = [];
     actionOutline = [];
-    visualPaintTargets.clear();
+    visualTargets.clear();
 
     const text = pageText(); // read once, for every anchor this pass places
     const posted = [];
@@ -1083,13 +882,12 @@ export function createAnchors(dependencies) {
       // Where the thread's passage lands in this version, recorded for every thread the
       // page still holds — the resolved ones too, which take no paint but do take a place
       // in the panel's order and keep the one they had while they fold out of it.
-      const place = found.element ?? elementOver(found.segments[0].node);
       placed.set(t.root.id, {
         datumElement: null,
         exact: true,
         status: "exact",
         ...found,
-        element: place,
+        element: found.place,
       });
       if (found.status === "outdated") continue;
       if (t.resolved) continue;
@@ -1104,17 +902,18 @@ export function createAnchors(dependencies) {
         // element's way: the document's rules do not reach in there to dress a seat.
         let at;
         let before;
-        if (found.element) {
-          const parts = found.marks ?? shownParts(found.element);
+        if (targetElement(found)) {
+          const parts = targetParts(found);
           for (const part of parts) part.classList.add("lf-react-el");
-          if (found.visual) visualPaintTargets.add(found.visual.element);
+          rememberVisual(found);
           reacted.set(t.root.id, parts);
-          [at, before] = [found.element, true];
+          [at, before] = [found.place, true];
         } else {
-          const ranges = found.segments.map((seg) => rangeOf([seg]));
+          const segments = targetSegments(found);
+          const ranges = segments.map((seg) => rangeOf([seg]));
           reacted.set(t.root.id, ranges);
           reactions.push(...ranges);
-          const block = blockAt(found.segments[0].node) ?? sectionOf(t.root.anchor);
+          const block = blockAt(segments[0].node) ?? found.place;
           const root = block?.getRootNode();
           [at, before] =
             root instanceof ShadowRoot ? [root.host, true] : [block, false];
@@ -1128,18 +927,18 @@ export function createAnchors(dependencies) {
         }
         continue;
       }
-      if (found.element) {
+      if (targetElement(found)) {
         // The boxes the element shows through, for the same reason the decision ring hangs on
         // those: an outline needs a box, and a wrapper that generates none took its ring
         // to the document's origin and drew nothing there. The record is what the pass
         // clears, what the pointer hit-tests, and what the composer stands off, so all
         // three follow the paint by holding the parts rather than the element.
-        const parts = found.marks ?? shownParts(found.element);
+        const parts = targetParts(found);
         for (const part of parts) part.classList.add("lf-mark-el");
-        if (found.visual) visualPaintTargets.add(found.visual.element);
+        rememberVisual(found);
         marked.set(t.root.id, parts);
       } else {
-        const ranges = found.segments.map((seg) => rangeOf([seg]));
+        const ranges = targetSegments(found).map((seg) => rangeOf([seg]));
         marked.set(t.root.id, ranges);
         posted.push(...ranges);
       }
@@ -1149,14 +948,16 @@ export function createAnchors(dependencies) {
       // with (a card's drag grip). Never the inline run or the body div in between, because
       // a widget reads those back as its own: lf-draft seeds the editor a user types
       // into from its body div, and a line inside it is chrome in the text they send back.
-      const blocks = found.element
-        ? [found.element]
-        : [...new Set(found.segments.map((seg) => blockAt(seg.node)))].filter(Boolean);
+      const blocks = targetElement(found)
+        ? [found.place]
+        : [...new Set(targetSegments(found).map((seg) => blockAt(seg.node)))].filter(
+            Boolean,
+          );
       // Not inside the chrome: the line is the runtime's word inside the page's own
       // blocks, and a design comment on a runtime part is on chrome the panel already
       // reads out — an aria-hidden injected note button would be focusable content nobody
       // is told about.
-      for (const holder of blocks.length ? blocks : [sectionOf(t.root.anchor)])
+      for (const holder of blocks.length ? blocks : [found.place])
         if (holder && !inChrome(holder))
           noted.set(holder, [...(noted.get(holder) ?? []), t.root.id]);
     }
@@ -1180,13 +981,13 @@ export function createAnchors(dependencies) {
     // rather than the accent.
     const draftMarked = Boolean(draft && draft.status !== "outdated");
     pendingMarks = draftMarked
-      ? draft.element
-        ? (draft.marks ?? shownParts(draft.element))
-        : draft.segments.map((seg) => rangeOf([seg]))
+      ? targetElement(draft)
+        ? targetParts(draft)
+        : targetSegments(draft).map((seg) => rangeOf([seg]))
       : [];
-    if (draft?.visual) visualPaintTargets.add(draft.visual.element);
+    if (draft) rememberVisual(draft);
     const pending = [];
-    if (draft?.element) {
+    if (targetElement(draft)) {
       // Part by part, because a thread's outline is claimed the same way: the draft takes
       // whichever boxes are still free and leaves the rest in the posted colour. The record
       // above records the same shown parts rather than a wrapper whose rect may sit at the
@@ -1198,11 +999,12 @@ export function createAnchors(dependencies) {
           pendingOutline.push(part);
         }
     }
-    if (draft?.segments) pending.push(...pendingMarks);
+    if (targetSegments(draft).length) pending.push(...pendingMarks);
 
     const active = composerIsOpen() ? null : actionAnchor();
     const action = active && !active.quote ? resolveAnchor(active, text) : null;
-    actionOutline = action?.element ? (action.marks ?? shownParts(action.element)) : [];
+    actionOutline = targetElement(action) ? targetParts(action) : [];
+    if (action) rememberVisual(action);
     for (const part of actionOutline) part.classList.add("lf-action-target");
 
     // The composer's echo of its own passage, decided here because here is where it is known
@@ -1246,12 +1048,13 @@ export function createAnchors(dependencies) {
     );
     seatReactions(seats);
     noteMarks(noted); // and the same fact for a reader who can't see any of it
-    paintStanding(); // the ranges are new objects and the element classes were just cleared
+    paintStanding(false); // the ranges are new objects and the element classes were just cleared
     // The semantic thread may be unchanged while this pass replaced every Range or
     // element part that paints its hover. Rebind the projection before geometry decides
     // whether the parked pointer still indicates that thread at all.
-    if (hovering || hoverThread || hoverParts.length) paintHover(hovering);
-    pageShifted(true); // the content moved: the hover, a held aim's promise, the legend ask again
+    if (hovering || hoverThread || hoverParts.length) paintHover(hovering, false);
+    paintVisualStates();
+    pageShifted(); // the content moved: the hover, a held aim's promise, the legend ask again
 
     paintThreadQuotes();
 
@@ -1381,15 +1184,21 @@ export function createAnchors(dependencies) {
     for (const record of reactionSeats.values()) record.margin.update();
   }
 
-  // Re-resolve marks after a package replaces derived passage nodes during replay.
-  let projectionAnchorPaintQueued = false;
-  document.addEventListener("lf-projection", () => {
-    if (projectionAnchorPaintQueued) return;
-    projectionAnchorPaintQueued = true;
+  // Re-resolve marks after replay or a package-owned layout replaces their derived
+  // elements. Both signals describe the same invalidation and share one microtask.
+  let anchorPaintQueued = false;
+  function queueAnchorPaint() {
+    if (anchorPaintQueued) return;
+    anchorPaintQueued = true;
     queueMicrotask(() => {
-      projectionAnchorPaintQueued = false;
+      anchorPaintQueued = false;
       reconcileThreads();
     });
+  }
+  document.addEventListener("lf-projection", queueAnchorPaint);
+  document.addEventListener("lf-layout", () => {
+    targetPaint.geometryChanged();
+    queueAnchorPaint();
   });
 
   // A reference a message makes into the page: its own Markdown link, or one a widget
@@ -1667,7 +1476,7 @@ export function createAnchors(dependencies) {
   let hoverThread = null;
   const hoverCardOf = (id) =>
     id ? threadsBox.querySelector(`:scope > .lf-thread[data-id="${id}"]`) : null;
-  function paintHover(id) {
+  function paintHover(id, repaintVisuals = true) {
     hovering = id;
     // The page and panel are reciprocal views of the thread. The highlight paints the
     // passage when the pointer is on its card; this class paints the card's quote when the
@@ -1696,7 +1505,7 @@ export function createAnchors(dependencies) {
         priority: 1,
       }),
     );
-    syncVisualMarkStates();
+    if (repaintVisuals) paintVisualStates();
   }
   // Which comment the reader is standing in, said out on the page. The panel has always
   // answered it on its own surface — the thread holds the focus, and a press on a mark
@@ -1722,7 +1531,7 @@ export function createAnchors(dependencies) {
   // the cursor promises the press, and the ink answers "which one".
   const HERE = "lf-mark-here";
   let hereParts = [];
-  function paintStanding() {
+  function paintStanding(repaintVisuals = true) {
     const localThread = focused()?.closest(".lf-conversation-thread");
     const where = marksOf(localThread?.dataset.thread ?? focusedThreadOf()?.dataset.id);
     const parts = where.filter((mark) => mark instanceof Element);
@@ -1744,7 +1553,7 @@ export function createAnchors(dependencies) {
         priority: 2,
       }),
     );
-    syncVisualMarkStates();
+    if (repaintVisuals) paintVisualStates();
   }
   // Coalesced to a frame: scroll outruns layout, the hit-test reads layout, and a repaint
   // asks from inside a pass that must stay cheap enough to run from a mousedown. The frame
@@ -1788,19 +1597,10 @@ export function createAnchors(dependencies) {
       refreshAction();
     });
   }
-  let visualMarkFrame = 0;
-  function queueVisualMarkPlacement() {
-    if (visualMarkFrame || !visualPaintTargets.size) return;
-    visualMarkFrame = requestAnimationFrame(() => {
-      visualMarkFrame = 0;
-      paintVisualMarks(false);
-    });
-  }
-  function pageShifted(rebuildVisualMarks = false) {
+  function pageShifted() {
     refreshHover();
     refreshAim();
-    if (rebuildVisualMarks === true) paintVisualMarks();
-    else queueVisualMarkPlacement();
+    targetPaint.shifted();
     // A board scrolled sideways carries its cards out from under their boxes, and the
     // page scrolled brings items into view that had no box yet (shownRect).
     queueLegend();
@@ -1811,6 +1611,14 @@ export function createAnchors(dependencies) {
   // parked pointer that way is the same fact as the page scrolling under it. Capture is
   // the one place every scroller's event passes.
   document.addEventListener("scroll", pageShifted, { capture: true, passive: true });
+  addEventListener(
+    "resize",
+    () => {
+      targetPaint.geometryChanged();
+      pageShifted();
+    },
+    { passive: true },
+  );
 
   const anchors = {
     sectionOf,

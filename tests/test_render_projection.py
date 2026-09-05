@@ -572,7 +572,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     expect(page.locator("#source.lf-pending, #source .lf-pending")).to_have_count(0)
 
     with sending(page, "the draft about the replaced source"):
-        draft.press("Enter")
+        draft.press("ControlOrMeta+Enter")
     comment = next(
         event
         for event in events_model.read_events(serve.page_dir)

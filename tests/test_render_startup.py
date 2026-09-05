@@ -2715,7 +2715,7 @@ customElements.define('lf-derived', class extends HTMLElement {
     page.locator('[data-lf-datum="api"]').click(click_count=3)
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Which readiness check is this?")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
     assert comment["anchor"] == {

@@ -1,5 +1,6 @@
 import { sameAnchor } from "../anchors.js";
 import { documentPoint } from "../geometry.js";
+import { targetElement, targetParts, targetSegments } from "../resolved-target.js";
 
 export function createSelectionSurface({
   anchoringIsReady,
@@ -182,20 +183,21 @@ export function createSelectionSurface({
       // no longer available once the textarea took focus.
       if (!composerIsOpen() && !fabHoldsCapturedPassage()) return null;
       found = resolveAnchor(anchor, pageText());
-      if (found?.segments?.length) {
+      const segments = targetSegments(found);
+      if (segments.length) {
         const range = document.createRange();
-        range.setStart(found.segments[0].node, found.segments[0].start);
-        range.setEnd(found.segments.at(-1).node, found.segments.at(-1).end);
+        range.setStart(segments[0].node, segments[0].start);
+        range.setEnd(segments.at(-1).node, segments.at(-1).end);
         return range.getBoundingClientRect();
       }
       // Replacing source data must not close a draft about its prior revision. The
       // contextual placement keeps the field reachable beside its original section.
       if (found?.status !== "outdated") return null;
     } else found = anchor ? resolveAnchor(anchor, pageText()) : null;
-    if (!found?.element) return null;
+    if (!targetElement(found)) return null;
     const clips = new Map();
     return union(
-      (found.marks ?? shownParts(found.element))
+      targetParts(found)
         .map((part) => shownRect(part, clips))
         .filter(Boolean),
     );
@@ -338,9 +340,9 @@ export function createSelectionSurface({
     if (!fabAnchor) return null;
     const found = resolveAnchor(fabAnchor, pageText());
     if (!found) return null;
-    if (!fabAnchor.quote) return found.element;
-    const block = blockAt(found.segments?.[0]?.node);
-    if (!block) return found.element ?? null;
+    if (!fabAnchor.quote) return targetElement(found);
+    const block = blockAt(targetSegments(found)[0]?.node);
+    if (!block) return targetElement(found);
     const root = block.getRootNode();
     return root instanceof ShadowRoot ? root.host : block;
   };
@@ -620,7 +622,7 @@ export function createSelectionSurface({
       visual &&
       !fabAnchor?.quote &&
       fabAnchor?.section === visual.id &&
-      fabAnchor?.visual === visual.part?.part;
+      fabAnchor?.visual === visual.part?.id;
     if (
       !sameVisual &&
       !target.closest?.(".lf-react-surface, .lf-composer") &&

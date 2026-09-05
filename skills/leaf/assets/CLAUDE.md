@@ -47,7 +47,9 @@ page. The browser gate is the guarantee (`leaf version check --render` and the
 everyday smoke test read page errors); the lint rule is the early, line-precise word:
 it refuses a module-scope read of a cycle binding or call of a cycle function, over the
 whole runtime directory whenever a runtime file is committed, and it does not see a
-callback another module runs during evaluation.
+callback another module runs during evaluation. The `eslint-evaluation-order` pre-commit
+hook runs `scripts/evaluation-order-faults.mjs`, which feeds eslint each of those faults
+at a real cycle path and checks that the rule refuses it on the right line.
 `runtime/chrome.js` owns the chrome's root, the order its parts stack in, and
 `mountChrome`, the one step that puts them in the document and wires what needs them
 there;

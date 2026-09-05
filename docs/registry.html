@@ -725,7 +725,10 @@
                   read exactly like the insertion above it. The word is asked for
                   wherever the page names an element away from itself — a tray row, a
                   comment's anchor label — and an element that has not upgraded yet, or
-                  answers nothing, falls back to the tag.
+                  answers nothing, falls back to the tag. The same declaration lets the
+                  module answer <code>lfSays()</code> with its own words, for a tag
+                  whose text nodes run together away from its paint (a rewrite's old and
+                  new); an element answering nothing is read as text.
                 </p>
               </details>
             </div>

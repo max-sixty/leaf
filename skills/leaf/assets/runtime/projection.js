@@ -439,7 +439,7 @@ export function createProjection(runtime, dependencies) {
     paintKeys();
     try {
       const accepted = await post({ kind: "undo", undoes: e.id });
-      if (accepted) notice(`${undoWord(e)} — recorded`);
+      if (accepted) notice(`${undoWord(e)} — sent`);
       return accepted;
     } finally {
       runtime.undoing = false;

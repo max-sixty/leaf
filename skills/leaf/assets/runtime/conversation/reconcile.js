@@ -185,7 +185,10 @@ export function createConversation(dependencies) {
   // than a record kept beside them: a thread the log settles is renamed out of them in
   // that frame (foldOut), which takes it out of the walk and out of x's press in one
   // stroke.
-  const openThreads = () => [...threadsBox.querySelectorAll(":scope > .lf-thread")];
+  // Cards a narrowing hid keep their nodes (thread-list.js) and are walked by nothing.
+  const openThreads = () => [
+    ...threadsBox.querySelectorAll(":scope > .lf-thread:not([hidden])"),
+  ];
   const placement = createThreadPlacement({
     inChrome,
     itemSays,
@@ -216,6 +219,14 @@ export function createConversation(dependencies) {
     );
   });
 
+  // A walk or a tray row travelling to a question the narrowing hid (decisions/view.js
+  // goToDecision → reveal) reveals outside-in through this event, which does not bubble
+  // — it is dispatched on each ancestor, this list among them; the list answers as the
+  // panel's own showThread does, by letting the narrowing go. Synchronous, so the focus
+  // the traveller lands next finds a card with a box.
+  threadsBox.addEventListener("lf-reveal", (event) => {
+    if (event.detail?.target?.closest?.(".lf-thread[hidden]")) narrowing.widen();
+  });
   const narrowing = createConversationNarrowing({
     anchorLabel,
     awaitsReader,

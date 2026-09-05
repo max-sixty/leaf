@@ -101,19 +101,14 @@ def canonical_acknowledgments(
     # A page action stays unsettled only while the authored document still lags
     # its standing record. A recordless verb has no markup form to compare, so a
     # later version note in the log is the document's answer to that move.
+    moves = []
     for coordinate, (source, spec) in projection.actions.items():
         widget, unit, facet = coordinate
         if not page_action_unsettled(
             coordinate, source, spec, parser, spk, registry, events
         ):
             continue
-        acknowledgments.append(
-            receipt(
-                source,
-                {"kind": "widget", "id": widget},
-                [widget, unit, facet],
-            )
-        )
+        moves.append((source, {"kind": "widget", "id": widget}, [widget, unit, facet]))
 
     # Frozen widget actions are answered by the next agent turn in their
     # conversation. They have no later authored document to absorb them into.
@@ -131,13 +126,25 @@ def canonical_acknowledgments(
             for message in thread["msgs"]
         ):
             continue
-        acknowledgments.append(
-            receipt(
-                source,
-                {"kind": "widget", "id": source["widget"]},
-                list(coordinate),
-            )
+        moves.append(
+            (source, {"kind": "widget", "id": source["widget"]}, list(coordinate))
         )
+
+    # One receipt per widget and unit, for the reader's newest move on it. A tick and
+    # the Done press that followed are two facets of one unit, and each minted a line:
+    # the thread showed "✓ Sent · just now" twice under one question. The later move
+    # supersedes the earlier for what the reader is owed — that the press landed.
+    # Units stay apart: two moved cards, two reviewed files, are two subjects with a
+    # Button each in the margin. Chosen before a receipt is minted, so a claim is
+    # spent on a move that survives rather than on one dropped here.
+    newest: dict[tuple[str, str], dict] = {}
+    for source, target, coordinate in moves:
+        key = (target["id"], coordinate[1])
+        if key not in newest or source["seq"] > newest[key]["seq"]:
+            newest[key] = source
+    for source, target, coordinate in moves:
+        if newest[(target["id"], coordinate[1])] is source:
+            acknowledgments.append(receipt(source, target, coordinate))
 
     # Keep an explicit claim visible even when there was no preceding reader
     # gesture to grow from. This preserves the useful part of `status --on`

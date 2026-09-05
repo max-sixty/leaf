@@ -736,7 +736,7 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
         read = page.evaluate(fits, sentence)
         # The pressure, said as the sentence outgrowing the box it is given rather than as
         # a ratio between them. The row's cap is the sentence's floor stated from the other
-        # end (chrome-style), so a crowded row leaves the status its floor and no less —
+        # end (chrome.css), so a crowded row leaves the status its floor and no less —
         # a margin over that floor is a number the design will not pay, and the fixture's
         # own crowding is asserted where the row is read, below.
         assert read["oneLine"] > read["shown"], (
@@ -2136,10 +2136,10 @@ def test_a_recorded_move_is_acknowledged_in_the_banner_and_nowhere_else(browser,
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
-    expect(notice).to_have_text("Moved to Done — recorded")
+    expect(notice).to_have_text("Moved to Done — sent")
     expect(notice).to_be_visible()
     expect(status).to_be_hidden()
-    expect(page.locator(".lf-live")).to_have_text("Moved to Done — recorded")
+    expect(page.locator(".lf-live")).to_have_text("Moved to Done — sent")
     assert page.locator(".lf-toast").count() == 0, "a second surface says the news"
     round_trip(page)
 

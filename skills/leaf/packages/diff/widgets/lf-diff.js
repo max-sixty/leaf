@@ -1036,7 +1036,7 @@ customElements.define(
         }).then((ok) => {
           if (ok)
             notice(
-              `${reviewed ? "Reviewed" : "Reopened"} ${target.record.path} — recorded`,
+              `${reviewed ? "Reviewed" : "Reopened"} ${target.record.path} — sent`,
             );
           else this.refreshReviewedState();
         });

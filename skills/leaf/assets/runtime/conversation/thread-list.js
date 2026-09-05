@@ -194,8 +194,8 @@ export function createConversationThreadList(dependencies) {
   let activeHold = null;
   const contentTop = (card) => card.getBoundingClientRect().top + threadsBox.scrollTop;
   // The box a card can hold the list's place by, or null where it can hold nothing: a
-  // fold renames its node out of .lf-thread on the way out, a narrowing takes one off
-  // the list, and a closed disclosure leaves one connected with no box to measure. One
+  // fold renames its node out of .lf-thread on the way out, a narrowing hides one, and
+  // a closed disclosure leaves one connected with no box to measure. One
   // statement of it, so what takes a hold and what corrects one cannot disagree over
   // which cards are still standing.
   const heldBox = (card) => {
@@ -369,7 +369,8 @@ export function createConversationThreadList(dependencies) {
     // Where the reader's own narrowing applies, and the only place it does: the page's
     // marks, the inline conversation seats and the banner's count are readings of the log
     // and go on saying what the log says. What the panel shows is the panel's business.
-    const shown = inPageOrder(threads).filter((t) => inFilter(t, group.get(t)));
+    const ordered = inPageOrder(threads);
+    const shown = ordered.filter((t) => inFilter(t, group.get(t)));
     const resolved = shown.filter((t) => t.resolved);
 
     const wanted = [];
@@ -385,12 +386,39 @@ export function createConversationThreadList(dependencies) {
     // A heading goes in wherever the run changes, so the reader scrolling a list four
     // thousand pixels long is told which part of the page they are reading about — and,
     // the headings being sticky, is still told halfway down a long run.
+    //
+    // An open thread the narrowing hides keeps its node, hidden, rather than leaving the
+    // list: a widget an agent sent in a reply is instantiated once, here, and every other
+    // reading of it — the banner's Asks count, the tray's rows, the a/A walk — finds it by
+    // id in the document. Pressing "Waiting on you" after answering a thread's question
+    // took that thread's node out and, with it, the question from the page's count: 2/2
+    // became 1/1 while the log said nothing had changed. Hidden is a fact about this list;
+    // gone is a claim about the log. Resolved threads are the disclosure's, below.
+    // Where the reader stood as this reconcile began, read before the loop: hiding a
+    // card dispatches lf-thread-hidden, and a listener answering it — a reaction list
+    // disarming — can move the focus out of the list itself. Read after the loop, that
+    // move said the reader had never been here, and the landing below was skipped.
+    const standingIn = threadsBox.contains(focused());
     let standing = null;
-    for (const t of shown) {
+    const visible = new Set(shown);
+    for (const t of ordered) {
+      if (t.resolved && !visible.has(t)) continue;
       // A resolved thread is either still giving its room back in place, or gone from this
       // list entirely and rebuilt under the disclosure below.
       const node = t.resolved ? foldOut(t) : threadNode(t, grow);
       if (!node) continue;
+      const hiding = !visible.has(t) && !node.hidden;
+      node.hidden = !visible.has(t);
+      if (node.hidden) {
+        // Hidden is removal to everything that was standing in the card — a reaction
+        // list open on one of its messages most of all, since its digits are live keys.
+        if (hiding)
+          document.dispatchEvent(
+            new CustomEvent("lf-thread-hidden", { detail: { node } }),
+          );
+        wanted.push(node);
+        continue;
+      }
       const here = group.get(t);
       if (here.key !== standing) {
         standing = here.key;
@@ -426,9 +454,14 @@ export function createConversationThreadList(dependencies) {
     // answering the last one waiting on the reader is exactly that — and a removed node drops
     // focus to body, which hands the next Space to the page behind the panel. Land them on
     // the list, where Escape lands them and t/T can walk on from.
-    const standingIn = threadsBox.contains(focused());
     setChildren(threadsBox, wanted);
-    if (standingIn && !threadsBox.contains(focused()))
+    // A card kept but hidden still contains the focus for a moment: the browser only
+    // drops it to body at its next rendering step, after this has run. Read the hidden
+    // card as the removal it is for the reader.
+    if (
+      standingIn &&
+      (!threadsBox.contains(focused()) || focused()?.closest?.(".lf-thread[hidden]"))
+    )
       threadsBox.focus({ preventScroll: true });
     paintHeadRoom();
     // Frozen markup has the same initial-value boundary as a page: connected and

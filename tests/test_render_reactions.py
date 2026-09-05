@@ -1982,7 +1982,9 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     ok = events_model.read_events(serve.page_dir)[-1]
     assert ok["token"] == "ok" and ok["parent"] == reply
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you")  # none
-    expect(page.locator(".lf-thread")).to_have_count(0)  # out of "waiting on you"
+    expect(page.locator(".lf-thread:not([hidden])")).to_have_count(
+        0
+    )  # out of "waiting on you"
     # The mark, pressed again, is the eraser — and the wait comes back with the undo.
     page.locator(".lf-needs").click()  # every comment again, so the strip is on screen
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -2010,7 +2012,7 @@ def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, r
     panel_settled(page)
     if removal == "filter":
         page.locator(".lf-needs").click()
-        expect(page.locator(".lf-thread")).to_have_count(1)
+        expect(page.locator(".lf-thread:not([hidden])")).to_have_count(1)
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     strip.locator(".lf-react-trigger").click()
     expect(strip).to_have_class(re.compile("lf-react-open"))
@@ -2025,7 +2027,14 @@ def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, r
     told(page)
     expect(page.locator(".lf-react-open")).to_have_count(0)
     if removal == "filter":
-        expect(page.locator(".lf-thread")).to_have_count(0)
+        expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
+    # The reader lands on the list, where Escape lands them and t/T walks on from. The
+    # disarm's own focus move runs while the list is still hiding the card, so a read of
+    # where the reader stood taken after that loop said they had never been in the list,
+    # and left them on body.
+    assert page.evaluate(
+        "() => document.activeElement === document.querySelector('.lf-threads')"
+    )
     count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")
     page.wait_for_timeout(100)

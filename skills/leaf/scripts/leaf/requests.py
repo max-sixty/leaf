@@ -10,14 +10,13 @@ from .leases import contract_writer
 from .registry.contract import schema_error
 from .service import PageTransaction
 from .structure import parse_revision
-from .thread_context import ThreadStructure, thread_structure
+from .thread_context import thread_structure
 from .validation.admission import read_text_arg
 from .validation.instances import reference_contract_error
 
 
 def request_lifecycle(events: list, *, widget: str, document: dict) -> dict:
     """The canonical lifecycle at one request seat over this event prefix."""
-    revision = document.get("revision") if document["kind"] == "page" else None
     receipts = {
         event["request"]: event for event in events if event["kind"] == "receipt"
     }
@@ -26,7 +25,7 @@ def request_lifecycle(events: list, *, widget: str, document: dict) -> dict:
         if (
             event["kind"] != "request"
             or event["widget"] != widget
-            or (revision is not None and event["revision"] != revision)
+            or event["meaning"]["document"] != document
         ):
             continue
         attempts.append({"request": event, "receipt": receipts.get(event["id"])})
@@ -190,32 +189,19 @@ def receipt_contract_error(event: dict, events: list) -> str | None:
     return None
 
 
-def request_lifecycles(
-    page_dir: Path, events: list, thread: ThreadStructure
-) -> list[dict]:
+def request_lifecycles(events: list) -> list[dict]:
     """Every occupied request seat, derived with its owning document identity."""
-    revisions = {}
-    seats = []
-    seen = set()
+    seats = {}
     for event in events:
         if event["kind"] != "request":
             continue
-        revision = event["revision"]
-        if revision not in revisions:
-            revisions[revision] = parse_revision(page_dir, revision)
-        _record, _elements, scope = request_document(event, revisions[revision], thread)
-        document = {
-            "kind": scope,
-            **({"revision": revision} if scope == "page" else {}),
-        }
-        coordinate = (scope, document.get("revision"), event["widget"])
-        if coordinate in seen:
-            continue
-        seen.add(coordinate)
-        seats.append(
-            request_lifecycle(events, widget=event["widget"], document=document)
-        )
-    return seats
+        document = event["meaning"]["document"]
+        coordinate = (document["kind"], document.get("revision"), event["widget"])
+        seats[coordinate] = (event["widget"], document)
+    return [
+        request_lifecycle(events, widget=widget, document=document)
+        for widget, document in seats.values()
+    ]
 
 
 @contract_writer

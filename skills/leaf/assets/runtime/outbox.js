@@ -1,7 +1,7 @@
 /* A widget's report of the user editing the document through it (a card dragged
  * between columns). The caller has already applied the edit to its own DOM; the
- * projection reconciler states it again once the log contains it, which is why applyAction
- * implementations must state an absolute placement, never a relative mutation.
+ * projection reconciler states it again once the log contains it, through the complete widget renderer. It must be idempotent so accepting a gesture
+ * does not change the state the reader already sees.
  *
  * The outbox is the one representation of a gesture the page has made and has not yet
  * read back into a complete rendered state. It orders every user event, tells replay
@@ -67,16 +67,12 @@ export function createOutbox(runtime, dependencies) {
     // Modules ask the same predicate before optimistic paint. Repeat it at the common
     // door so authored HTML cannot post while the first state projection is pending.
     if (!actionAvailable(el, action)) return null;
-    const spec = registry[el.localName]["x-state"][action];
-    const creates = spec.creates;
-    const generated = creates ? Object.keys(detail[creates.field] ?? {}).sort() : null;
     return post({
       kind: "action",
       revision: runtime.currentRevision,
       widget: el.id,
       action,
       detail,
-      ...(creates && { generated }),
       ...(attempt && { attempt }),
     });
   }

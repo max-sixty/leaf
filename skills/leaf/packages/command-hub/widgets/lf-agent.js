@@ -24,7 +24,7 @@
  * makes, and the alternative — marking it chrome — would put a word on screen that
  * the reader can read and not point at.
  *
- * Rebuilding is idempotent: applyAction states the absolute attribute, and the common
+ * Rebuilding is idempotent: renderState states the absolute attribute, and the common
  * update projection hands the declared activity clause to this row, so a reload, a
  * second tab, and a re-applied report all converge. watchUpdates refreshes on state changes and
  * when its clock readings change, keeping the elapsed line current without a timer
@@ -99,7 +99,7 @@ function heard(el, updates) {
   // endpoint was in it, drops focus off the reference beside it, and swallows a click
   // that straddles the swap — the failure "Paint; don't wrap" is about, arrived at by
   // rebuilding rather than by wrapping. So structure is rebuilt only when a report
-  // moves the row (render, from applyAction), and the clock touches one text node when
+  // moves the row (render, from renderState), and the clock touches one text node when
   // the minute turns.
   say(row, "lf-cold", stale ? "quiet" : null, "lf-heard");
   say(row, "lf-heard", ts ? `last heard ${ago(ts)}` : null);
@@ -225,16 +225,11 @@ customElements.define(
       this.#stop = null;
     }
 
-    applyAction(action, detail) {
-      // Absolute: the recorded state is the report's durable part, so re-applying one
-      // is a no-op and a second tab converges on the same row. One verb
-      // carries both because the fold holds one entry per unit — a second verb on this
-      // widget would take the same key and drop the first from every view derived from
-      // it. Structure is rebuilt here because this is where it changed; the elapsed
-      // line follows on the same poll, replay dispatching to the sequence consumers
-      // after it applies.
-      if (action !== "state") return;
-      this.setAttribute("state", detail.state);
+    renderState(state) {
+      const value = state.activity.value;
+      if (value === this.getAttribute("state")) return;
+      if (value === null) this.removeAttribute("state");
+      else this.setAttribute("state", value);
       render(this);
     }
   },

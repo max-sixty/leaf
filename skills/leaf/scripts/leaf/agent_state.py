@@ -285,7 +285,7 @@ def _write_page_state(
     threads = build_threads(events, enclosing_of(spoken))
     stored_data = read_data(page_dir)
     thread_reading = frozen_thread_reading(events, registry)
-    requests = request_lifecycles(page_dir, events, thread_reading.structure)
+    requests = request_lifecycles(events)
     state = _base_state(
         page_dir,
         events,

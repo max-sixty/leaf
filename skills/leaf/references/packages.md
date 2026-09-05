@@ -180,15 +180,29 @@ on that x-state verb. `within` names an items container inside the answering wid
 `when` selects exactly one instance by static authored attributes. POST overlays the
 candidate move on the authoritative holder relation before testing emptiness, and the
 Decision projection uses the same condition for standing state. Do not add a second
-completed attribute or trust the browser's optimistic item count.
+completed attribute or trust the browser's optimistic item count. Re-vendoring must
+preserve the completion condition for every recorded action.
 
 A CSS-only widget is an entry and a theme rule. One with behavior takes a module. The
 skill's own `CLAUDE.md`, one directory up from this file, defines what the module owes:
-an absolute `applyAction`, `says()` over `textContent`, `offer()` and `relabel()` on anything
+a total, idempotent `renderState(state)`, `says()` over `textContent`, `offer()` and `relabel()` on anything
 injected, `commands()` at upgrade — through `DISCLOSE(el)` over anything that folds, the
 runtime owning those commands — `quoted()` before wiring input, `actionAvailable()` for
 an x-state verb with `requires`, and durable state in attributes because export drops
 the scripts. `/runtime/widget-api.js` is the whole Leaf API a behavior module gets.
+`renderState` receives every declared facet, including the initial values an undo
+returns to. Widget facets are `{action, value, detail}`: `action` is null for authored
+state; `value` is the typed record value or a recordless outcome verb (null means
+undecided); `detail` retains generated-child labels and other declared event data.
+Non-widget facets contain `units`, keyed by unit id, and position facets also contain
+`value`, a map from container id to the complete ordered ids it holds. Missing
+recordless units are undecided. Render the final composition and keep independent
+nested widgets mounted; never recreate the owner to restore an initial state.
+Return false only while a live edit prevents rendering. When the edit closes,
+dispatch `lf-projection` on `document` so Leaf retries deferred state after the
+gesture has finished staging its local action. Optional recorded scalar
+attributes have a null initial value and must be removed when that value returns.
+
 The widget still owns its implementation: supporting modules can sit beside its entry
 module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
@@ -245,8 +259,8 @@ mapping; core owns the explicit Comment gestures, keyboard proxies, and paint.
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical
 `{element-id: non-empty words}` map schema. The child tag admits the sender through
-`x-parent`, requires only its canonical `id`, and has `x-content: prose`. `sendAction`
-then records the map's sorted ids in `generated`, allowing registry-free historical
+`x-parent`, requires only its canonical `id`, and has `x-content: prose`. The append
+transaction records the map's sorted ids in `generated`, allowing historical
 folds to retain their liveness while version checks enforce the declared tag and
 direct-parent relation.
 
@@ -602,8 +616,7 @@ layer. Note the re-vendor in the next stamped version's changelog.
 The render gate is where a module's mistakes surface — an upgrade that defines no element, a widget of no
 size, a `x-verbatim` the rendered words contradict, a shadow root the entry doesn't
 declare, a word the registry promised that never reached the page, an attribute left on
-the element that its entry doesn't declare, an `applyAction` that moves under
-re-application.
+the element that its entry doesn't declare, a `renderState` that changes the page when handed the same state again.
 
 Then put it on the page. A widget is reviewed in place: the version that follows the
 comment uses it where the comment asked, and the reader comments on it there. From the

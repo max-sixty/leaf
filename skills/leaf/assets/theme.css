@@ -163,6 +163,8 @@
   --here-ring-w: 2px;
   --here-ring: var(--here-ring-w) solid var(--accent); --here-ring-gap: 3px;
   --here-ring-room: calc(var(--here-ring-w) + var(--here-ring-gap));
+  --status-trace-w: 1.5px;
+  --status-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
   /* A keyboard address chip's box: the line box, which is a ratio of the font, plus
      the ring drawn around it (chrome-style.js dresses one). It is a token for the
      reason the ring's width is — a box somebody else holds room for has to be read
@@ -1226,11 +1228,11 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-react[aria-busy="true"] { opacity: .55; }
 .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
           margin-top: 6px; }
-.lf-react-palette > .lf-react:not([aria-pressed="true"]) { color: var(--muted);
+.lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]) { color: var(--muted);
           border-color: transparent; background: transparent; }
-.lf-react-palette > .lf-react:not([aria-pressed="true"]):is(:hover, :focus-visible,
+.lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]):is(:hover, :focus-visible,
           .lf-focus-visible, [aria-busy="true"]),
-.lf-react-open .lf-react-palette > .lf-react:not([aria-pressed="true"]) {
+.lf-react-open .lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]) {
           color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
 /* Where a subject has no page edge of its own, one receipt grows beneath the reader
    move it acknowledges: Sent, Picked up, then Active when an explicit work claim names
@@ -1462,6 +1464,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     width: 18px; border-top: 1px solid var(--border-2); opacity: 0;
     pointer-events: none; }
 .lf-margin-item:is(:hover, :focus-within)::before { opacity: 1; }
+.lf-margin-item:has(.lf-margin-button[data-lf-behavior="status"]:hover)::before {
+    border-color: var(--status-trace-ink); border-width: var(--status-trace-w); }
 .lf-margin-item.lf-waiting { display: none; }
 /* display, because the item is inline-flex where it hangs and absolute position is what
  * blockifies it there. Left inline-level once docked, the row joins whatever line box

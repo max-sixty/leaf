@@ -24,7 +24,7 @@
  *    indentation the HTML source gave every line, so an agent can indent a draft like
  *    any other child content without the indentation becoming part of the draft's
  *    text.
- * 2. applyAction states absolute values — the whole body, never a patch — so replay is
+ * 2. renderState states absolute values — the whole body, never a patch — so replay is
  *    idempotent and two tabs converge on the last write. Reader edits remain effective
  *    across revisions. The runtime marks an effective body that differs from authored
  *    text with data-lf-reader-override.
@@ -701,22 +701,11 @@ customElements.define(
       }
     }
 
-    // An absolute value, so replaying this tab's own edit is a no-op and a second
-    // tab converges rather than drifting. The reader-origin tint is the
-    // runtime's, not this widget's: the origin pass compares the fold against
-    // the authored text and marks data-lf-reader-override for every widget alike.
-    applyAction(action, detail) {
-      // The shape of `text` is the registry's claim and the POST door's gate
-      // (action_contract_error), so nothing here re-decisions it. What is left to
-      // check is what no schema can say, and for one absolute body that is
-      // nothing at all.
-      if (action !== "edit") return;
-      // Defer rather than yank words out from under a live edit. Only the open box
-      // is named here: a send in flight held this off too, and holding replay off a
-      // widget the page has painted ahead of the log is the layer's now, for every
-      // widget alike (sendAction).
+    // A live editor owns its transient text; the complete state waits for it.
+    renderState(state) {
       if (this.#ta) return false;
-      this.#body.textContent = detail.text;
+      if (this.#body.textContent !== state.body.value)
+        this.#body.textContent = state.body.value;
     }
   },
 );

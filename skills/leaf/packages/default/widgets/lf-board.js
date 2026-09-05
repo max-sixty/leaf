@@ -8,9 +8,8 @@
  * .lf-dragging for the whole gesture — the runtime's poll gates on it (no
  * version-follow, no foreign-action replay mid-gesture) — and a completed move
  * reports through #send as one absolute `move` action, indistinguishable on
- * the wire. applyAction states the absolute placement (card X sits at index i
- * of column C), so the poll's replay reconstructs a reload, syncs a second
- * tab, and no-ops on the sender. Presentation is theme CSS; authored content
+ * the wire. renderState receives every column's final ordered card ids. One render
+ * preserves native nodes, syncs a second tab, and no-ops on the sender. Presentation is theme CSS; authored content
  * is never replaced, so there is no failSoft.
  *
  * The board also says what it is non-visually: columns are labeled lists and
@@ -476,23 +475,51 @@ customElements.define(
       this.#sortables.add(sortable);
     }
 
-    // {card, to, index}: card X sits at index i among column C's cards. #place
-    // carries the FLIP, so a replay reads as motion, not teleport.
-    applyAction(action, detail) {
-      if (action !== "move") return;
-      const card = document.getElementById(detail.card);
-      const col = document.getElementById(detail.to);
+    // The complete column composition names every card in its final order. Measure
+    // once around that placement so FLIP animates the resulting layout together.
+    renderState(state) {
+      const columns = state.placement.value;
+      const cards = [...this.querySelectorAll(":scope > lf-column > lf-card")];
       if (
-        !card?.matches("lf-card") ||
-        !col?.matches("lf-column") ||
-        card.closest("lf-board") !== this ||
-        col.closest("lf-board") !== this
+        Object.entries(columns).every(([id, order]) => {
+          const column = document.getElementById(id);
+          const current = column && this.#cards(column);
+          return (
+            current?.length === order.length &&
+            current.every((card, index) => card.id === order[index])
+          );
+        })
       )
         return;
-      const grip = card.querySelector(":scope > .lf-grip");
-      const hadFocus = document.activeElement === grip;
-      this.#place(card, col, detail.index);
-      if (hadFocus) grip.focus({ preventScroll: true }); // reparenting blurred it
+      const first = new Map(
+        cards.map((card) => {
+          for (const animation of card.getAnimations()) animation.cancel();
+          return [card, card.getBoundingClientRect()];
+        }),
+      );
+      const focus = document.activeElement;
+      for (const [id, order] of Object.entries(columns)) {
+        const column = document.getElementById(id);
+        if (!column || column.closest("lf-board") !== this) continue;
+        order.forEach((id, index) => {
+          const card = cards.find((candidate) => candidate.id === id);
+          if (card && this.#cards(column)[index] !== card)
+            column.insertBefore(card, this.#cards(column)[index] ?? null);
+        });
+      }
+      if (focus?.isConnected && document.activeElement !== focus)
+        focus.focus({ preventScroll: true });
+      for (const card of cards) {
+        const last = card.getBoundingClientRect();
+        const dx = first.get(card).left - last.left;
+        const dy = first.get(card).top - last.top;
+        if (dx || dy)
+          motion(
+            card,
+            [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
+            150,
+          );
+      }
     }
   },
 );

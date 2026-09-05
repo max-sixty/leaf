@@ -91,7 +91,7 @@ export function createVersion({
   quoteFrom,
   rangeOf,
   readAndApply,
-  rememberAuthoredMarkup,
+  rememberAuthoredParents,
   rememberPassageParts,
   reportPageError,
   reserveNewsSlot,
@@ -219,7 +219,7 @@ export function createVersion({
     // reference's restore puts them when it hands the menu back, and moving them off it
     // would undo the whole point of the exemption.
     if (open && !versionMenu.contains(document.activeElement)) focusVersionRow();
-    if (!open) renderVersions(runtime.state);
+    if (!open) renderVersionMenu();
     paintHere();
   });
   // The press is the popover's declared invoker rather than a click handler that toggles by
@@ -490,6 +490,38 @@ export function createVersion({
       return [row, press];
     });
   }
+  function renderVersionMenu() {
+    // Dismissal can land while state application awaits a thread widget's upgrade.
+    // Read its rendered facts without reinstalling an older accepted state.
+    const notes = runtime.browser?.version_notes ?? {};
+    const key =
+      runtime.active === null
+        ? ""
+        : JSON.stringify([
+            runtime.active,
+            runtime.versions,
+            notes,
+            runtime.currentRevision,
+            runtime.currentStamp,
+            runtime.currentLabel,
+          ]);
+    // Rebuilt rather than reconciled: this runs only when the versions or their notes
+    // actually changed, which on a page's whole life is a handful of times, and the
+    // menu is only ever read while it is open — where a rebuild would take the focused
+    // row out from under a walk. So an open menu defers the rebuild, and the key is
+    // what the built list holds rather than what the last poll saw: consuming it here
+    // and skipping the build inside would mark the change handled and leave that
+    // version out of the menu until some later one happened along. A version arriving
+    // under an open menu is the new-version chip's news; the list catches up on the
+    // toggle that closes it, using the currently rendered version facts.
+    if (key !== lastVersionsKey && !versionMenuIsOpen()) {
+      lastVersionsKey = key;
+      versionMenu.replaceChildren(
+        ...(runtime.active === null ? [] : menuRows(runtime, notes)),
+      );
+    }
+  }
+
   // `null` is the page before its first state. A rendering is a function of its argument
   // and the three current-document facts on `runtime`, so state application rolls a
   // refused candidate back by painting the last accepted state again.
@@ -518,31 +550,7 @@ export function createVersion({
       versionsWalkable = walkable;
       paintKeys();
     }
-    const notes = runtime.browser?.version_notes ?? {};
-    const key =
-      state === null
-        ? ""
-        : JSON.stringify([
-            state.active,
-            state.versions,
-            notes,
-            runtime.currentRevision,
-            runtime.currentStamp,
-            runtime.currentLabel,
-          ]);
-    // Rebuilt rather than reconciled: this runs only when the versions or their notes
-    // actually changed, which on a page's whole life is a handful of times, and the
-    // menu is only ever read while it is open — where a rebuild would take the focused
-    // row out from under a walk. So an open menu defers the rebuild, and the key is
-    // what the built list holds rather than what the last poll saw: consuming it here
-    // and skipping the build inside would mark the change handled and leave that
-    // version out of the menu until some later one happened along. A version arriving
-    // under an open menu is the new-version chip's news; the list catches up on the
-    // toggle that closes it, using the last accepted state.
-    if (key !== lastVersionsKey && !versionMenuIsOpen()) {
-      lastVersionsKey = key;
-      versionMenu.replaceChildren(...(state === null ? [] : menuRows(state, notes)));
-    }
+    renderVersionMenu();
     paintDiff(); // the label may change even when an open menu defers its new rows
     // The keyboard reaches the chip through the chooser rather than past it — g V opens the
     // menu, and its local v takes the current page; the banner spells that motion
@@ -950,8 +958,8 @@ export function createVersion({
     if (comparedFrom !== null) setDiff(false);
 
     resetAuthoredPage();
-    rememberAuthoredMarkup(source);
-    rememberAuthoredMarkup(fresh);
+    rememberAuthoredParents(source);
+    rememberAuthoredParents(fresh);
     rememberPassageParts(fresh);
     markDeclared(fresh, MARKED_IN_PAGE);
     authoredHtmlAttributes = replaceAuthoredAttributes(

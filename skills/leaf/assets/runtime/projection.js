@@ -11,23 +11,16 @@ export const undoableAction = (...args) => publishedProjection.undoableAction(..
 /* Declaration-driven state projection and reconciliation. */
 export function createProjection(runtime, dependencies) {
   const {
-    DECISION_ROW,
     COLLAPSE,
-    MARKED_ANYWHERE,
-    MARKED_IN_PAGE,
     PAGE_PAINT_ATTRIBUTE,
     PAGE_PAINT_ATTRIBUTES,
     answeredContext,
     authored,
     decisionEntry,
-    containsAcross,
-    dress,
     elementById,
     failSoft,
-    focused,
     inChrome,
     isAwaiting,
-    markDeclared,
     outbox,
     pagePresented,
     pageQueryAll,
@@ -36,16 +29,12 @@ export function createProjection(runtime, dependencies) {
     post,
     projectedParent,
     quoteFrom,
-    reachScrollers,
-    rememberPassageParts,
     removeOutbox,
     reconcileThreads,
     renderQuiet,
     renderRetired,
     reportPageError,
-    settling,
     settlementSlots,
-    standOn,
     textNodesUnder,
     notice,
     unaccountedGesture,
@@ -54,30 +43,24 @@ export function createProjection(runtime, dependencies) {
 
   // The DOM's one checkpoint: each semantic coordinate names the projected winner
   // painted there and the widget/unit nodes that held it. Event ids alone cannot prove
-  // state survived a recordless rebuild or a thread reconcile; node identity can. A
+  // state survived a revision activation or a thread reconcile; node identity can. A
   // coordinate with no winner is committed too, once its authored baseline stands.
   const committedProjection = new Map();
-  // An authored, id-bearing element's state as markup can say it: tag, attributes,
-  // and place among its authored id-bearing kin. Generated chrome is deliberately
-  // absent. Text is deliberately absent — words are the
-  // static gate's subject (restatement_errors); this is the rest, the state no
-  // authored document can speak. What the runtime itself paints onto page elements —
-  // exactly PAGE_PAINT_ATTRIBUTES — is absent too: no version can assert those,
-  // and looking away from them keeps a reading taken from the live DOM equal to
-  // one taken from the file without hiding a widget's own data-lf state. Diffed around each replay batch to
-  // record what replay wrote, and imported by version check --render to read version
-  // documents with the same eyes, so the two readings cannot drift.
+  // Stable, structured signatures of authored tag, attributes and placement.
+  // Generated chrome and runtime paint are absent. The render gate compares the
+  // same facts in source documents and in the DOM; text has its own reading.
   function shallowSigs(root) {
     const sigs = new Map();
     const siblingPositions = new Map();
     const isAuthored = (el) => Boolean(el.id) && authored(el)(el);
     for (const el of [root, ...root.querySelectorAll("[id]")]) {
       if (!isAuthored(el)) continue;
-      const attrs = [...el.attributes]
-        .filter((a) => !PAGE_PAINT_ATTRIBUTES.has(a.name))
-        .map((a) => `${a.name}=${a.value}`)
-        .sort()
-        .join(" ");
+      const attrs = Object.fromEntries(
+        [...el.attributes]
+          .filter((a) => !PAGE_PAINT_ATTRIBUTES.has(a.name))
+          .map((a) => [a.name, a.value])
+          .sort(([a], [b]) => a.localeCompare(b)),
+      );
       const parent = el.parentElement;
       let positions = siblingPositions.get(parent);
       if (!positions) {
@@ -88,70 +71,38 @@ export function createProjection(runtime, dependencies) {
       }
       sigs.set(
         el.id,
-        `${el.tagName} [${attrs}] in=${parent && isAuthored(parent) ? parent.id : ""}#${positions.get(el) ?? -1}`,
+        JSON.stringify({
+          tag: el.tagName,
+          attrs,
+          parent: parent && isAuthored(parent) ? parent.id : "",
+          index: positions.get(el) ?? -1,
+        }),
       );
     }
     return sigs;
   }
-  // The settlement mark is the layer's paint of a logged decision, never a module
-  // obligation: x-retired-when and x-parent already state which verbs settle a holder,
-  // so the writer with the registry and the log both in hand is this replay. It used to
-  // be each holder module's duty, documented in the scaffold and enforced nowhere — the
-  // suggestion remembered, and the first module that forgot would have silently split
-  // the page's reading from the file's, with `leaf comment` refusing quotes as the only
-  // symptom. A module is still free to say the mark sooner as its own gesture's paint
-  // (lf-suggestion does, choreographing its fold around it); this write is then the
-  // no-op that makes the guarantee unconditional. Written only where an action retires
-  // behind the version and retraction gates — applied, thrown, or with no applyAction
-  // to call — so a pinned older page and a restated decision stay unmarked. The mark
-  // follows the fold both ways: the file's standing settlement is the last surviving
-  // action at that owner-unit-facet coordinate, so another outcome there displaces the
-  // decision and the mark goes with it — left standing, the page would silence slots the
-  // log had handed back. Returns whether it wrote, for the one caller that would otherwise
-  // report nothing written.
-  function markSettled(el, action) {
-    const outcomes = settlementSlots()[el.localName];
-    if (!outcomes) return false;
-    if (outcomes[action]) {
-      el.setAttribute("data-lf-state", action);
-      renderRetired(el);
-      return true;
-    }
-    const state = registry[el.localName]?.["x-state"] ?? {};
-    const spec = state[action];
-    const settlementFacet = state[el.getAttribute("data-lf-state")]?.facet;
-    if (
-      spec?.unit === "widget" &&
-      spec.facet === settlementFacet &&
-      el.hasAttribute("data-lf-state")
-    ) {
-      el.removeAttribute("data-lf-state");
-      renderRetired(el);
-      return true;
-    }
-    return false;
-  }
-  function clearSettled(el, facet) {
-    const action = el.getAttribute("data-lf-state");
-    const spec = registry[el.localName]?.["x-state"]?.[action];
-    if (!action || spec?.unit !== "widget" || spec.facet !== facet) return false;
-    el.removeAttribute("data-lf-state");
-    renderRetired(el);
-    return true;
+  // Settlement is a total facet too: the null baseline withdraws every mark.
+  // The registry owns retirement even when a content element needs no renderer.
+  function renderSettlement(widget, state) {
+    const outcomes = settlementSlots()[widget.localName];
+    if (!outcomes) return;
+    const spec = registry[widget.localName]["x-state"][Object.keys(outcomes)[0]];
+    const outcome = state[spec.facet].action;
+    if (outcomes[outcome]) widget.setAttribute("data-lf-state", outcome);
+    else widget.removeAttribute("data-lf-state");
+    renderRetired(widget);
   }
   const {
-    authoredDetails,
-    authoredFacets,
-    authoredMarkup,
+    authoredStates,
     authoredParents,
-    authoredStatements,
-    authoredWidgets,
+    authoredFacet,
     captureAuthoredFacets,
     domFacet,
-    rememberAuthoredMarkup,
+    rememberAuthoredParents,
     stateCoordinate,
     unitOf,
-  } = createAuthoredProjection({ quoteFrom, textNodesUnder });
+  } = createAuthoredProjection({ COLLAPSE, quoteFrom, textNodesUnder });
+  const committedWidgets = new Map();
 
   function resetAuthoredPage() {
     // A live revision replaces the page document, not the frozen widget markup in
@@ -170,30 +121,23 @@ export function createProjection(runtime, dependencies) {
         if (pageOwners.has(owner)) records.delete(coordinate);
       }
     };
-    dropCoordinates(authoredFacets);
-    dropCoordinates(authoredDetails);
     dropCoordinates(committedProjection);
     for (const owner of pageOwners) {
-      authoredStatements.delete(owner);
-      authoredMarkup.delete(owner);
-      authoredWidgets.delete(owner);
+      authoredStates.delete(owner);
+      committedWidgets.delete(owner);
     }
-    for (const attr of [
-      PAGE_PAINT_ATTRIBUTE.applied,
-      PAGE_PAINT_ATTRIBUTE.replayWrote,
-      PAGE_PAINT_ATTRIBUTE.reportWrote,
-    ])
-      document.body.removeAttribute(attr);
+    document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
   }
 
   const {
-    compareProjected,
     foldedFacet,
     projectionFromView,
     standingState,
     stateProjection,
+    widgetStates,
   } = createProjectionFold(runtime, {
     COLLAPSE,
+    authoredStates,
     domFacet,
     elementById,
     outbox,
@@ -206,7 +150,7 @@ export function createProjection(runtime, dependencies) {
   function projectedFacet(widget, spec, winners = stateProjection().desired) {
     const coordinate = stateCoordinate(widget.id, widget.id, spec);
     const winner = winners.get(coordinate);
-    return winner ? winner.value : authoredFacets.get(coordinate);
+    return winner ? winner.value : authoredFacet(coordinate);
   }
 
   // x-awaits conditions normally name authored configuration attributes (choose,
@@ -285,6 +229,7 @@ export function createProjection(runtime, dependencies) {
       value: foldedFacet(e, spec.record),
     };
     entry.projection = projection;
+    committedWidgets.delete(e.widget);
     committedProjection.set(coordinate, {
       widgetId: e.widget,
       widget,
@@ -293,39 +238,14 @@ export function createProjection(runtime, dependencies) {
     });
   }
 
-  // ---------- taking a gesture back ----------
-  // Undo withdraws; it never deletes. The log is append-only and the page is a fold over
-  // it, so `z` posts one event naming the gesture it takes back, and every fold and the
-  // thread reading drop that gesture. The page is then the version plus what still
-  // stands — the same sentence a reload has always read, and the same one `restated`
-  // already writes from the author's side. Nothing states a counter-gesture into the
-  // log: a card put back where it came from would read as a decision to move it there,
-  // and "undecided" is not a value any verb can carry, so a page whose reader takes back
-  // an accept could never have been stated at all.
-  //
-  // What the reader *sees* is derived from that rather than restated, and by the
-  // cheapest faithful means. Where the log still leaves the unit a state that can be
-  // stated — a prior action's detail, or the placement this version's markup arrived
-  // showing — the widget is told it, so the card travels back under the reader's eye and
-  // keeps its focus. Where the verb records nothing, there is no such state, so the
-  // widget is rebuilt from the version's own markup and whatever survives is replayed
-  // onto it. Both routes are chosen by a declaration and neither knows a widget's name.
-  // Whether removing one action leaves the reconciler a state it can paint. The actual
-  // transition belongs to reconciliation; this is only the keyboard offer, bounded to
-  // the version where the gesture was made.
+  // Undo withdraws a gesture; complete projection supplies the resulting state,
+  // including undecided and absent values. It never needs an inverse event.
   function canUndoAction(candidate) {
-    const e = candidate.event;
-    const el = elementById(e.widget);
-    if (!el || !el.applyAction) return false;
-    const spec = registry[el.tagName.toLowerCase()]?.["x-state"]?.[e.action];
-    if (!spec) return false;
-    if (!spec.record) return authoredMarkup.has(e.widget);
-    const unit = unitOf(e, spec);
-    const coordinate = stateCoordinate(e.widget, unit, spec);
-    return (
-      candidate.restores_desired ||
-      authoredDetails.has(coordinate) ||
-      authoredMarkup.has(e.widget)
+    const widget = elementById(candidate.event.widget);
+    return Boolean(
+      widget &&
+      authoredStates.has(widget.id) &&
+      (widget.renderState || settlementSlots()[widget.localName]),
     );
   }
 
@@ -429,57 +349,6 @@ export function createProjection(runtime, dependencies) {
     }
   }
 
-  // The widget put back as the version wrote it, for the withdrawal no state can state.
-  // A rebuild rather than an un-apply, because there is no un-apply to call: applyAction
-  // states a value, and the value here is "whatever the markup says", which only the
-  // markup holds. The clone is this version's, taken before replay first touched the
-  // page, so what goes back is exactly what a reload would render before the log is read
-  // — and the log is then read onto it, the same pass that reads it onto a fresh load.
-  function rebuild(el) {
-    const id = el.id;
-    // Whether the reader is standing in what is about to be replaced — inside it, or on
-    // a control the widget hoisted out of it — because they have to be handed the place
-    // back afterwards. The other route never asks: a widget told its state keeps its own
-    // focus, and it was only the rebuild that dropped a reader onto <body> without a
-    // word, which is the silence the ladder's own rung exists to avoid.
-    const here = focused();
-    const standing =
-      Boolean(here) &&
-      (containsAcross(el, here) ||
-        Boolean(here.closest?.(`[${DECISION_ROW}="${id}"]`)));
-    // Chrome the widget hoisted out of itself goes with it, and the widget is what takes
-    // it: a control hung in the page margin is outside the subtree being replaced, so
-    // only its owner knows to take it away, and disconnectedCallback is where the
-    // platform already asks. Sweeping `[data-lf-for]` here as well would be a second
-    // writer for one fact — and one that a widget hoisting chrome under some other
-    // marker would silently escape anyway. What holds it is the render gate, where a row
-    // left behind shows as two rows on one change.
-    const fresh = authoredMarkup.get(id).cloneNode(true);
-    // Before the insertion, as the load writes it before the modules import: a widget
-    // that declares a width model or an inline run asks for it on its first render, and
-    // connectedCallback is that render. The table is the place's: a rebuild reaches a
-    // widget in a reply too — buildMsgBody remembers its markup the same way — and in
-    // there the width half stays off for the reason that function gives, the room being
-    // the panel's rather than the document's.
-    markDeclared(fresh, inChrome(el) ? MARKED_ANYWHERE : MARKED_IN_PAGE);
-    const settlingFrom = settling.length;
-    el.replaceWith(fresh); // defined already, so connectedCallback runs on insertion
-    // The rest of what the upgrade gives every subtree beyond its module's own work. Not
-    // awaited as the upgrade awaits it: nothing is holding a first paint here, and a
-    // widget with async work of its own settles it the way it always does. The scroller
-    // sweep does wait, on what this insertion queued: the box a widget scrolls is one its
-    // module builds, and swept before that build returns it is neither reachable nor
-    // held (reach.js, on what every caller owes it).
-    dress(fresh);
-    Promise.allSettled(settling.slice(settlingFrom)).then(() => reachScrollers(fresh));
-    // The fences the passage reading walks are node identities, and these are new nodes
-    // holding the same markup — so the index is taken again rather than left naming a
-    // subtree the page no longer has.
-    rememberPassageParts();
-    if (standing) standOn(fresh);
-    return fresh;
-  }
-
   const committedEvent = (commit) => commit?.entry?.e.id ?? null;
 
   function coordinateProjectionCommitted(projection, entry) {
@@ -550,20 +419,6 @@ export function createProjection(runtime, dependencies) {
     return covered;
   }
 
-  function rememberWrites(before, kind) {
-    const now = shallowSigs(document.body);
-    const changed = [...new Set([...before.keys(), ...now.keys()])].filter(
-      (id) => before.get(id) !== now.get(id) && !inChrome(elementById(id)),
-    );
-    if (!changed.length) return;
-    const attr =
-      kind === "action"
-        ? PAGE_PAINT_ATTRIBUTE.replayWrote
-        : PAGE_PAINT_ATTRIBUTE.reportWrote;
-    const prior = document.body.getAttribute(attr)?.split(" ") ?? [];
-    document.body.setAttribute(attr, [...new Set([...prior, ...changed])].join(" "));
-  }
-
   let projectionDragObserver = null;
   function watchProjectionDrag() {
     if (projectionDragObserver) return;
@@ -581,9 +436,8 @@ export function createProjection(runtime, dependencies) {
     });
   }
 
-  // Make the DOM equal the projection. A widget is the application boundary: if any of
-  // its coordinates changed, all of its surviving winners are replayed in log order so
-  // sibling units sharing an ordered container retain their collective placement.
+  // Each owner sees one complete desired composition. Baselines and winners are
+  // folded before this boundary; renderers never reset, replay or replace widgets.
   let deferredProjection = false;
   const projectionDeferred = () => deferredProjection;
 
@@ -596,194 +450,69 @@ export function createProjection(runtime, dependencies) {
     }
     projectionDragObserver?.disconnect();
     projectionDragObserver = null;
-
-    const started = [];
-    let painted = false;
-    let projection;
+    const projection = stateProjection();
     const priorProjectionMode = runtime.projectingState;
     if (outbox.some((entry) => entry.rejected && entry.projection))
       runtime.projectingState = true;
+    let painted = false;
+    const started = new Set(document.getAnimations());
     try {
-      // A baseline no action detail can state replaces a subtree: a recordless verb, or
-      // an optional authored scalar absent before its first action.
-      for (;;) {
-        projection = stateProjection();
-        for (const entry of projection.classified.values())
-          for (const id of entry.restated ?? [])
-            elementById(id)?.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
-
-        for (const [coordinate, commit] of committedProjection)
-          if (!elementById(commit.widgetId)) committedProjection.delete(coordinate);
-
+      for (const entry of projection.classified.values())
+        for (const id of entry.restated ?? [])
+          elementById(id)?.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
+      const states = widgetStates(projection);
+      for (const [widgetId, { state, entries }] of states) {
+        const widget = elementById(widgetId);
+        if (!widget) continue;
+        const key = JSON.stringify(state);
+        const commit = committedWidgets.get(widgetId);
+        const unitsChanged = entries.some(
+          ({ coordinate, unit }) =>
+            committedProjection.get(coordinate)?.unit !== elementById(unit),
+        );
+        if (commit?.widget !== widget || commit.key !== key || unitsChanged) {
+          try {
+            if (widget.renderState?.(state) === false) {
+              deferredProjection = true;
+              continue;
+            }
+            renderSettlement(widget, state);
+          } catch (error) {
+            reportPageError(
+              `<${widget.localName}> renderState threw: ${error?.message ?? error}`,
+            );
+            failSoft(widget, error);
+            renderSettlement(widget, state);
+          }
+          committedWidgets.set(widgetId, { widget, key });
+          painted = true;
+        }
         const coordinates = new Map();
         for (const entry of projection.classified.values())
-          if (!entry.terminal) coordinates.set(entry.coordinate, entry);
-        for (const [coordinate, entry] of projection.desired)
-          if (!coordinates.has(coordinate)) coordinates.set(coordinate, entry);
+          if (!entry.terminal && entry.e.widget === widgetId)
+            coordinates.set(entry.coordinate, entry);
+        for (const entry of entries) coordinates.set(entry.coordinate, entry);
         for (const [coordinate, commit] of committedProjection)
-          if (!coordinates.has(coordinate)) coordinates.set(coordinate, commit.entry);
-
-        const widgets = new Map();
-        for (const [coordinate, sample] of coordinates) {
-          if (!sample) continue;
-          const widgetId = sample.e.widget;
-          const widget = elementById(widgetId);
-          if (!widget) continue;
-          const desired = projection.desired.get(coordinate) ?? null;
-          const commit = committedProjection.get(coordinate);
-          const unit = elementById(sample.unit);
-          const clean =
-            commit?.widget === widget &&
-            commit.unit === unit &&
-            committedEvent(commit) === (desired?.e.id ?? null);
-          const states = widgets.get(widgetId) ?? [];
-          states.push({ coordinate, sample, desired, commit, clean });
-          widgets.set(widgetId, states);
-        }
-
-        let rebuilt = false;
-        for (const [widgetId, states] of widgets) {
-          if (states.every((state) => state.clean)) continue;
-          let widget = elementById(widgetId);
-          if (!widget) continue;
-
-          // A newly constructed thread widget or rebuilt descendant already carries its
-          // authored baseline. A dirty recorded widget is reset whole below: its units
-          // compose through shared containers, so restoring only one authored placement
-          // would make its index relative to still-projected siblings.
-          const removals = states.filter(
-            ({ desired, commit }) =>
-              !desired && commit?.entry && commit.widget === widget,
-          );
-          const markupOnly = removals.find(
-            ({ coordinate, commit }) =>
-              !commit.entry.spec.record ||
-              (!authoredDetails.has(coordinate) && authoredMarkup.has(widgetId)),
-          );
-          if (markupOnly) {
-            widget = rebuild(widget);
-            committedProjection.set(markupOnly.coordinate, {
-              widgetId,
-              widget,
-              unit: elementById(markupOnly.sample.unit),
-              entry: null,
-            });
-            painted = true;
-            rebuilt = true;
-            break;
-          }
-
-          if (!widget.applyAction) {
-            if (document.body.dataset.lfUpgraded !== "1") {
-              deferredProjection = true;
-              continue;
-            }
-            for (const { commit } of removals)
-              if (commit.entry.e.kind === "action")
-                painted = clearSettled(widget, commit.entry.spec.facet) || painted;
-            for (const { desired } of states) {
-              if (desired?.e.kind !== "action") continue;
-              const before = inChrome(widget) ? null : shallowSigs(document.body);
-              if (!markSettled(widget, desired.e.action)) continue;
-              if (before) rememberWrites(before, desired.e.kind);
-              painted = true;
-            }
-          } else {
-            let deferred = false;
-            // Authored records are the zero point. Restore the widget's complete authored
-            // composition before replaying every current winner in log/local order.
-            for (const statement of authoredStatements.get(widgetId)?.values() ?? []) {
-              widget = elementById(widgetId);
-              if (!widget?.applyAction) {
-                deferred = true;
-                break;
-              }
-              const priorMotion = new Set(document.getAnimations());
-              try {
-                if (widget.applyAction(statement.action, statement.detail) === false)
-                  deferred = true;
-                else clearSettled(widget, statement.spec.facet);
-              } catch (error) {
-                reportPageError(
-                  `<${widget.localName}> applyAction(${statement.action}) threw: ${error?.message ?? error}`,
-                );
-                failSoft(widget, error);
-                clearSettled(widget, statement.spec.facet);
-              }
-              if (deferred) break;
-              started.push(
-                ...document
-                  .getAnimations()
-                  .filter((animation) => !priorMotion.has(animation)),
-              );
-              painted = true;
-            }
-            if (deferred) {
-              deferredProjection = true;
-              continue;
-            }
-
-            const desired = states
-              .map((state) => state.desired)
-              .filter(Boolean)
-              .sort(compareProjected);
-            for (const entry of desired) {
-              widget = elementById(widgetId);
-              if (!widget?.applyAction) {
-                deferred = true;
-                break;
-              }
-              const before = inChrome(widget) ? null : shallowSigs(document.body);
-              const priorMotion = new Set(document.getAnimations());
-              try {
-                if (
-                  widget.applyAction(entry.e.action, entry.e.detail, entry.e) === false
-                ) {
-                  deferred = true;
-                  break;
-                }
-                if (entry.e.kind === "action") markSettled(widget, entry.e.action);
-              } catch (error) {
-                reportPageError(
-                  `<${widget.localName}> applyAction(${entry.e.action}) threw: ${error?.message ?? error}`,
-                );
-                failSoft(widget, error);
-                if (entry.e.kind === "action") markSettled(widget, entry.e.action);
-              }
-              if (before) rememberWrites(before, entry.e.kind);
-              started.push(
-                ...document
-                  .getAnimations()
-                  .filter((animation) => !priorMotion.has(animation)),
-              );
-              painted = true;
-            }
-            if (deferred) {
-              deferredProjection = true;
-              continue;
-            }
-          }
-
-          widget = elementById(widgetId);
-          if (!widget) continue;
-          for (const { coordinate, sample } of states) {
-            const desired = projection.desired.get(coordinate) ?? null;
-            committedProjection.set(coordinate, {
-              widgetId,
-              widget,
-              unit: elementById(sample.unit),
-              entry: desired,
-            });
-          }
-        }
-        if (!rebuilt) break;
+          if (commit.widgetId === widgetId && commit.entry)
+            coordinates.set(coordinate, commit.entry);
+        for (const [coordinate, sample] of coordinates)
+          committedProjection.set(coordinate, {
+            widgetId,
+            widget,
+            unit: elementById(sample.unit),
+            entry: projection.desired.get(coordinate) ?? null,
+          });
       }
-
+      for (const [coordinate, commit] of committedProjection)
+        if (!elementById(commit.widgetId)) committedProjection.delete(coordinate);
       if (painted) {
         reconcileThreads();
-        Promise.allSettled(started.map((animation) => animation.finished)).then(() =>
-          pageShifted(),
-        );
+        Promise.allSettled(
+          document
+            .getAnimations()
+            .filter((animation) => !started.has(animation))
+            .map((animation) => animation.finished),
+        ).then(() => pageShifted());
       }
       renderQuiet(document.body);
       paintStateOrigins(projection);
@@ -822,9 +551,7 @@ export function createProjection(runtime, dependencies) {
     for (const [coordinate, { unit, e, spec, value }] of projection.desired) {
       const el = elementById(unit);
       if (!el || inChrome(el)) continue;
-      const overridesSource = spec.record
-        ? value !== authoredFacets.get(coordinate)
-        : true;
+      const overridesSource = spec.record ? value !== authoredFacet(coordinate) : true;
       if (!overridesSource) continue;
       // The channels keep separate marks so provisional worker news never wears
       // the reader's color. The desired projection chooses which channel owns a
@@ -844,28 +571,21 @@ export function createProjection(runtime, dependencies) {
   }
 
   const projection = {
-    authoredDetails,
-    authoredFacets,
-    authoredMarkup,
     authoredParents,
-    authoredStatements,
-    authoredWidgets,
     captureAuthoredFacets,
     committedProjection,
     coordinateProjectionCommitted,
     domFacet,
-    markSettled,
     matchesProjectedWhen,
     paintStateOrigins,
     projectedFacet,
     projectionFromView,
     projectionDeferred,
     projectionCommitted,
-    rebuild,
     reconcileKnownState,
     reconcileState,
     releaseProjectedOutbox,
-    rememberAuthoredMarkup,
+    rememberAuthoredParents,
     resetAuthoredPage,
     requirementMatches,
     shallowSigs,

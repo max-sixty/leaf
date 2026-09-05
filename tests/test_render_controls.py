@@ -6,6 +6,7 @@ import threading
 
 import pytest
 from click.testing import CliRunner
+from interact_support import append_command
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -96,6 +97,15 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
   <lf-option id="stable-choice-b" for="control-target">Keep B</lf-option>
 </lf-options></lf-decision>
+<lf-decision id="stable-swipe-decision"><h2>Which proof should stay?</h2>
+<lf-swipe-deck id="stable-swipe">
+  <lf-swipe-pile id="stable-swipe-queue" verdict="unseen">
+    <lf-swipe-card id="stable-swipe-a"><strong>Keep the first proof</strong></lf-swipe-card>
+    <lf-swipe-card id="stable-swipe-b"><strong>Keep the second proof</strong></lf-swipe-card>
+  </lf-swipe-pile>
+  <lf-swipe-pile id="stable-swipe-pass" verdict="pass"></lf-swipe-pile>
+  <lf-swipe-pile id="stable-swipe-keep" verdict="keep"></lf-swipe-pile>
+</lf-swipe-deck></lf-decision>
 <lf-tabs id="stable-tabs">
   <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
   <lf-tab id="stable-tab-b" label="Second">Second panel.</lf-tab>
@@ -142,6 +152,13 @@ CONTROL_ARCHETYPES = (
         "name": "option-pick",
         "coverage": "lf-option > [role=checkbox]",
         "target": "#stable-choice-a .lf-pick",
+    },
+    {
+        # Classifying the penultimate card removes the decorative backing card;
+        # the verdict row must keep its place when that extra surface disappears.
+        "name": "swipe-verdict",
+        "coverage": ".lf-swipe-controls > button",
+        "target": "#stable-swipe .lf-swipe-keep",
     },
     {
         "name": "tab",
@@ -1995,7 +2012,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     # user's browser hears about another's decisions.
     def decide(*widgets):
         for widget in widgets:
-            events_model.append_event(
+            append_command(
                 d,
                 {
                     "kind": "action",
@@ -3480,10 +3497,12 @@ customElements.define("lf-quota", class extends HTMLElement {
     paint(this);
     document.getElementById("destination")?.append(this);
   }
-  applyAction(action, detail) {
-    if (action === "move") document.getElementById(detail.to)?.append(this);
-    else if (["increase", "decrease"].includes(action))
-      this.setAttribute("slots", detail.slots);
+  renderState(state) {
+    const { to, index } = state.placement.detail;
+    const parent = document.getElementById(to);
+    const rest = [...parent.children].filter(child => child.id && child !== this);
+    parent.insertBefore(this, rest[index] ?? null);
+    this.setAttribute("slots", state.capacity.value);
     paint(this);
   }
 });
@@ -3512,7 +3531,7 @@ customElements.define("lf-quota", class extends HTMLElement {
     stale, stale_errors = open_page(browser, url, context=stale_held)
     current, current_errors = open_page(browser, live_url(url), context=one_reader)
 
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "report",
@@ -3529,7 +3548,7 @@ customElements.define("lf-quota", class extends HTMLElement {
     expect(current.get_by_role("button", name="Increase")).to_have_attribute(
         "aria-disabled", "false"
     )
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "report",
@@ -3596,7 +3615,7 @@ customElements.define("lf-quota", class extends HTMLElement {
         "aria-disabled", "true"
     )
 
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",

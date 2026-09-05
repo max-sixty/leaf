@@ -3,9 +3,9 @@
  * those buttons, whose click handler first places one card optimistically and then sends
  * the same absolute action the runtime replays after reload, sync, or undo. The final
  * classification is `finish`: that one event both places its card and completes the
- * deck's Ask, so one undo restores both. The DOM is the complete verdict state: a card's
- * parent pile says whether it is unseen, passed, or kept; this module carries only the
- * live pointer gesture.
+ * deck's Ask, so one undo restores both. Complete projection supplies the ordered cards
+ * in every pile; this module places the retained nodes and carries only the live pointer
+ * gesture. A card's parent pile presents whether it is unseen, passed, or kept.
  *
  * Piles remain labeled lists in quoted exhibits and static copies. Quoted decks stop at
  * that structure: no controls, tab stops, key scope, or pointer listeners are installed.
@@ -354,28 +354,29 @@ customElements.define(
       if (this.#pointer?.id === event.pointerId) this.#restorePointer();
     };
 
-    applyAction(action, detail) {
-      if (!["swipe", "finish"].includes(action) || this.#pointer) return false;
+    renderState(state) {
+      if (this.#pointer) return false;
       const focused = document.activeElement;
       const focusedCard =
         this.#interactive &&
         focused?.localName === "lf-swipe-card" &&
         focused.closest("lf-swipe-deck") === this;
-      const card = document.getElementById(detail.card);
-      const destination = document.getElementById(detail.to);
-      if (
-        card?.localName !== "lf-swipe-card" ||
-        destination?.localName !== "lf-swipe-pile" ||
-        card.closest("lf-swipe-deck") !== this ||
-        destination.closest("lf-swipe-deck") !== this
-      )
-        return false;
-      const moved = this.#place(card, destination, detail.index);
+      const cards = this.#piles().flatMap((pile) => this.#cards(pile));
+      let moved = false;
+      for (const [id, order] of Object.entries(state.verdict.value)) {
+        const destination = document.getElementById(id);
+        if (destination?.closest("lf-swipe-deck") !== this) continue;
+        order.forEach((id, index) => {
+          const card = cards.find((candidate) => candidate.id === id);
+          if (card && this.#place(card, destination, index)) moved = true;
+        });
+      }
       this.#render();
       if (focusedCard && focused !== this.#active())
         (this.#active() ?? this.#progress).focus({ preventScroll: true });
+      else if (focused?.isConnected && document.activeElement !== focused)
+        focused.focus({ preventScroll: true });
       if (moved) layoutChanged(this);
-      return true;
     }
   },
 );

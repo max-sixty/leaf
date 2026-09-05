@@ -16,6 +16,9 @@ from render_support import (
     DECISION_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
+    GENERIC_VISUAL_LAYER,
+    GENERIC_VISUAL_PAGE,
+    GENERIC_VISUAL_WIDGETS,
     PANEL_PAGE,
     SUGGESTION_PAGE,
     _publish,
@@ -54,6 +57,12 @@ OUTCOME_ON_DECISION = {
     "action": "choose",
     "detail": {"options": ["br-steel"]},
     "generated": [],
+    "meaning": {
+        "document": {"kind": "page", "revision": 1},
+        "coordinate": ["bracket", "bracket", "selection"],
+        "depends": ["br-steel", "bracket"],
+        "answer": None,
+    },
 }
 RECEIPT_PHASES = {
     "Sent": "sent",
@@ -620,7 +629,7 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
     change_forms = page.locator("#bg-change-forms")
     expect(change_forms.locator(":scope > span")).to_have_count(3)
     expect(change_forms.locator("#bg-replace, #bg-insert, #bg-delete")).to_have_count(3)
-    expect(page.locator("#bg-changes lf-suggestion")).to_have_count(3)
+    expect(page.locator("#bg-changes lf-suggestion")).to_have_count(4)
 
     headings = page.locator("main section :is(h2, h3)").all_text_contents()
     assert [
@@ -988,7 +997,7 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
     draft.evaluate("node => node.remove()")
     assert not old_host.evaluate("node => node.isConnected")
     page.evaluate(
-        "node => document.querySelector('#bg-replace').after(node)",
+        "node => document.querySelector('#bg-editing-guide').before(node)",
         draft,
     )
     page.wait_for_function(
@@ -1749,10 +1758,11 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     Sent, Waiting for pickup, Picked up, and the standing Outcome all report a move
     already made. Their status fitting therefore keeps the circular silhouette and
     full ink, while leaving the accessibility tree as a status rather than a control
-    and showing no hover fill. The walk still arrives, because the phase is what a
-    reader listening came for. A real claim — work the reader can watch — restores the
-    same fitting's activation semantics, in the same seat, so the cluster's identity
-    survives the change of promise.
+    and showing no hover fill. Hovering the status draws a soft neutral trace to the
+    target without making the fitting respond like a control. The walk still arrives,
+    because the phase is what a reader listening came for. A real claim — work the
+    reader can watch — restores the same fitting's activation semantics, in the same
+    seat, so the cluster's identity survives the change of promise.
     """
     page, errors = open_page(browser, live_url(serve(DECISION_PAGE)))
     page_dir = serve.page_dir
@@ -1816,6 +1826,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expected_rule = resolved_color("--rule")
     expected_label_ink = resolved_color("--paper")
     expected_label_background = resolved_color("--ink")
+    target = page.locator("#jobs")
 
     def words_still():
         """The label's reveal is a 90ms transition behind a 90ms delay, so the frame the
@@ -1834,6 +1845,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             expect(marker).to_have_attribute("data-identity-probe", "kept")
         page.evaluate("() => document.activeElement.blur()")
         page.mouse.move(0, 0)
+        expect(page.locator(".lf-margin-status-trace")).to_be_hidden()
         expect(control.locator(":scope > .lf-margin-button-label")).to_be_hidden()
         words_still()
         current = face(control)
@@ -1865,6 +1877,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             key: current[key] for key in ("background", "border", "ink", "opacity")
         }
         control.hover()
+        trace_box = page.locator('.lf-margin-status-trace[data-for="jobs"]')
+        expect(trace_box).to_be_visible()
         label = control.locator(":scope > .lf-margin-button-label")
         expect(label).to_be_visible()
         words_still()
@@ -1876,6 +1890,26 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         assert hovered["wordOpacity"] == "1"
         assert hovered["wordPosition"] == "absolute"
         assert hovered["wordBackground"] != "rgba(0, 0, 0, 0)"
+        trace = control.evaluate(
+            """node => {
+              const line = getComputedStyle(node.closest('.lf-margin-item'), '::before');
+              const box = getComputedStyle(document.querySelector('.lf-margin-status-trace'));
+              return {
+                declaredWidth: box.getPropertyValue('--status-trace-w').trim(),
+                boxWidth: box.borderTopWidth,
+                boxColor: box.borderTopColor,
+                lineWidth: line.borderTopWidth,
+                lineColor: line.borderTopColor,
+              };
+            }"""
+        )
+        assert trace == {
+            "declaredWidth": "1.5px",
+            "boxWidth": trace["lineWidth"],
+            "boxColor": trace["lineColor"],
+            "lineWidth": trace["boxWidth"],
+            "lineColor": trace["boxColor"],
+        }
 
     assert_status("Sent", "just now")
     result = Axe().run(
@@ -1954,11 +1988,14 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     page.evaluate("() => document.activeElement.blur()")
     page.mouse.move(0, 0)
-    expect(page.locator("#jobs")).not_to_have_class(re.compile(r"lf-margin-target"))
+    expect(target).not_to_have_class(re.compile(r"lf-margin-target"))
+    expect(page.locator(".lf-margin-status-trace")).to_be_hidden()
     secondary.hover()
-    expect(page.locator("#jobs")).not_to_have_class(re.compile(r"lf-margin-target"))
+    expect(page.locator('.lf-margin-status-trace[data-for="jobs"]')).to_be_visible()
+    expect(target).not_to_have_class(re.compile(r"\blf-margin-target\b"))
     page.locator(".lf-receipt-primary-probe").hover()
-    expect(page.locator("#jobs")).to_have_class(re.compile(r"lf-margin-target"))
+    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+    expect(page.locator(".lf-margin-status-trace")).to_be_hidden()
     page.evaluate("() => window.lfReceiptSecondary.unregister()")
     expect(marker).to_be_visible()
 
@@ -2561,6 +2598,74 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
             "slot a target",
         ],
     }
+    assert errors == []
+    page.close()
+
+
+def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
+    """A status follows a package's surface instead of its decorated semantic part."""
+    url = serve(
+        GENERIC_VISUAL_PAGE,
+        layer_registry=GENERIC_VISUAL_LAYER,
+        layer_widgets=GENERIC_VISUAL_WIDGETS,
+    )
+    page, errors = open_page(browser, url)
+    resized(page, 1280, 720)
+    page.evaluate(
+        """async () => {
+          const {marginButton, registerMarginItem} =
+            await import('/runtime/living-margin.js');
+          const status = marginButton(document.createElement('span'), {
+            key: 'shape-status', icon: 'pickup', label: 'Picked up', behavior: 'status'
+          });
+          registerMarginItem({
+            key: 'shape-status', target: document.querySelector('#outer'),
+            controls: status
+          });
+        }"""
+    )
+    margins_laid_out(page)
+
+    status = page.locator('[data-lf-button-key="shape-status"]')
+    status.hover()
+    trace = page.locator('.lf-margin-status-trace[data-for="outer"]')
+    expect(trace).to_be_visible()
+    expect(trace).to_have_class(re.compile(r"\blf-shaped\b"))
+    assert trace.locator(".lf-margin-status-trace-shape > g > *").evaluate_all(
+        "nodes => nodes.map(node => node.localName)"
+    ) == ["rect"]
+    geometry = page.evaluate(
+        """() => {
+          const surface = document.querySelector('#outer-surface').getBoundingClientRect();
+          const trace = document.querySelector('.lf-margin-status-trace');
+          const box = trace.getBoundingClientRect();
+          const shape = trace.querySelector('rect');
+          const style = getComputedStyle(shape);
+          const swatch = document.createElement('span');
+          swatch.style.color = 'var(--status-trace-ink)';
+          document.head.append(swatch);
+          const traceInk = getComputedStyle(swatch).color;
+          swatch.remove();
+          return {
+            sameCenter: Math.abs(box.x + box.width / 2 - (surface.x + surface.width / 2)) < .5
+              && Math.abs(box.y + box.height / 2 - (surface.y + surface.height / 2)) < .5,
+            surrounds: box.width > surface.width && box.height > surface.height,
+            stroke: style.stroke,
+            traceInk,
+            fill: style.fill,
+          };
+        }"""
+    )
+    assert geometry == {
+        "sameCenter": True,
+        "surrounds": True,
+        "stroke": geometry["traceInk"],
+        "traceInk": geometry["stroke"],
+        "fill": "none",
+    }
+
+    page.mouse.move(0, 0)
+    expect(trace).to_be_hidden()
     assert errors == []
     page.close()
 

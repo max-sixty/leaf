@@ -517,16 +517,10 @@ customElements.define(
       );
     }
 
-    // {options}: exactly these are this group's picks — an empty list for no pick at
-    // all, which is how clearing travels rather than a second verb. `additions`, when
-    // present, maps the complete set of reader-authored option ids to their words.
-    // `answer` is the Done
-    // press's statement that the set is whole; empty detail, because answered is the
-    // whole of it.
-    applyAction(action, detail) {
-      if (action === "answer") return this.#answered(true);
-      if (action !== "choose") return;
-      this.#applyChoice(detail);
+    renderState(state) {
+      if (!this.#addition) return;
+      this.#applyChoice(state.selection.detail);
+      this.#answered(state.completion.value === "answer");
     }
 
     lfWord() {

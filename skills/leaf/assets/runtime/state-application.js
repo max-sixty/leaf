@@ -51,12 +51,10 @@ export function createStateApplication(dependencies) {
   // way to know which tags are in it — so each one is read once rather than on every
   // poll of a conversation that may be full of widgets.
   const markupRead = new Set();
-  // The state read installing a document, while it is. Polls and POST answers may
-  // overlap, and a document activation is the one application that cannot safely
-  // interleave: a second one would capture or replace the halfway upgraded main. Every
-  // read lets it commit before judging its own answer against the resulting version,
-  // sequence and stamp.
-  let activating = null;
+  // Polls and POST answers may overlap, but an application owns its document and
+  // newly connected thread widgets through upgrade, capture, and projection. Every
+  // read waits for that application before judging its own revision and sequence.
+  let applying = null;
 
   // Whether an answer was taken before the one the page holds. Answers cross — a read
   // held by a slow proxy or a test while a later one lands, a POST's answer beside a
@@ -93,7 +91,7 @@ export function createStateApplication(dependencies) {
     // sequence as the newer one and differ in everything the sequence does not order —
     // status, claims, the reading itself.
     if (takenBefore(state)) {
-      if (activating) await activating;
+      while (applying) await applying;
       await notifyChangedData();
       return;
     }
@@ -103,11 +101,11 @@ export function createStateApplication(dependencies) {
     // gate: that orders the server's answers, and this holds the log's order against
     // any answer at all, one a test built included.
     if (eventSeq < runtime.lastEventSeq) {
-      if (activating) await activating;
+      while (applying) await applying;
       await notifyChangedData();
       return;
     }
-    if (activating) await activating;
+    while (applying) await applying;
     if (eventSeq < runtime.lastEventSeq || takenBefore(state)) {
       await notifyChangedData();
       return;
@@ -136,12 +134,14 @@ export function createStateApplication(dependencies) {
     // buildMsgBody instantiates it synchronously once the panel builds a body.
     for (const e of nextEvents) {
       if (!e.markup || markupRead.has(e.id)) continue;
-      markupRead.add(e.id);
       // Parsed the way buildMsgBody parses it, so the tags found here are the tags that
       // will stand in the body: an inert template, one fragment at a time.
       const frozen = document.createElement("template");
       frozen.innerHTML = e.markup;
-      preparations.push(importWidgets(frozen.content));
+      // The loader shares in-flight module promises. Only completed preparation is
+      // cached here: a crossed response must join that import before it mounts or
+      // captures the same frozen widget.
+      preparations.push(importWidgets(frozen.content).then(() => markupRead.add(e.id)));
     }
     const [activation] = await Promise.all(preparations);
     if (activation?.stale) {
@@ -152,7 +152,7 @@ export function createStateApplication(dependencies) {
     // waiting, and two responses may have joined the same version-file promise before
     // either had an activation to await. Serialize again at the commit boundary, then
     // judge this candidate against the version and sequence the winner installed.
-    if (activating) await activating;
+    while (applying) await applying;
     if (eventSeq < runtime.lastEventSeq || takenBefore(state)) {
       await notifyChangedData();
       return;
@@ -215,7 +215,7 @@ export function createStateApplication(dependencies) {
       paintApproval();
       renderOthers(state);
       if (eventSeq > runtime.lastEventSeq || finishActivation) {
-        renderPanel();
+        await renderPanel();
         // Sign-off is a fact in the log, not a click this tab happens to remember, so a
         // reload (or the other tab) shows it too.
         const agentReplies = (runtime.browser.conversation?.threads ?? []).flatMap(
@@ -232,11 +232,11 @@ export function createStateApplication(dependencies) {
       // on the page by now, so an action naming one that isn't names a widget no version
       // holds, and reconciliation can retire it instead of looking for it forever.
       reconcileState();
-      // One complete tail after widget replay: replay may rebuild a projection, including
+      // One complete tail after widget rendering: it may change derived content, including
       // the row and outlet holding a local thread. Re-resolve anchors, reconcile declared
       // surfaces, then their fallbacks and receipts from that final DOM. This also repaints
       // time-dependent claim chrome on a state heartbeat with no new event.
-      renderPanel();
+      await renderPanel();
       if (finishActivation) {
         finishActivation();
         updateFab();
@@ -266,43 +266,35 @@ export function createStateApplication(dependencies) {
       accountOutbox(nextBrowser.receipts ?? []);
       // Sequence consumers render after replay, so their history and the widget's
       // standing body describe the same poll. This also fires when the event list did
-      // not grow: applyAction may have deferred while a user was typing, then become
+      // not grow: renderState may have deferred while a user was typing, then become
       // applicable on the next poll after they close the editor.
       document.dispatchEvent(new Event("lf-actions"));
       await notifyDataSubscribers();
     };
     try {
-      if (willActivate) {
-        const running = (async () => {
-          if (document.startViewTransition) {
-            document.documentElement.classList.add("lf-versioning");
-            try {
-              const transition = document.startViewTransition(apply);
-              // A skipped transition — the document hidden at the call or
-              // mid-flight, or a second transition starting — still runs the
-              // update and settles `finished` with it, but rejects `ready`,
-              // which nothing here awaits. Unhandled, that rejection reaches
-              // the page's error report as a logged fault.
-              transition.ready.catch(() => {});
-              await transition.finished;
-            } finally {
-              document.documentElement.classList.remove("lf-versioning");
-              // The transition's snapshots temporarily replace what is under a parked
-              // pointer. Ask again once the live page owns those pixels, even when no
-              // pointer move reports the change.
-              refreshHover();
-            }
-          } else await apply();
-        })();
-        activating = running;
-        try {
-          await running;
-        } finally {
-          if (activating === running) activating = null;
-        }
-      } else await apply();
+      const running = (async () => {
+        if (willActivate && document.startViewTransition) {
+          document.documentElement.classList.add("lf-versioning");
+          try {
+            const transition = document.startViewTransition(apply);
+            // Skipping the visual transition still runs the application, but rejects
+            // ready. Its finished promise remains the complete application boundary.
+            transition.ready.catch(() => {});
+            await transition.finished;
+          } finally {
+            document.documentElement.classList.remove("lf-versioning");
+            refreshHover();
+          }
+        } else await apply();
+      })();
+      applying = running;
+      try {
+        await running;
+      } finally {
+        if (applying === running) applying = null;
+      }
     } catch (error) {
-      // Candidate history is useful only while this one synchronous application is
+      // Candidate history is useful only while this one application is
       // rendering it. If any required surface refuses the state, restore the last whole
       // reading so focus, panel, and undo cannot consume a log tail the page never
       // adopted. The next poll retries the candidate from the same complete boundary.

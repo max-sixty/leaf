@@ -3257,6 +3257,86 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     page.close()
 
 
+def test_dismissing_versions_during_thread_upgrade_preserves_the_new_version(
+    browser, serve
+):
+    """Menu dismissal paints rows without overwriting an in-flight state application."""
+    url = serve(
+        INLINE_PAGE,
+        layer_registry={
+            "lf-menu-preparation": {
+                "description": "A thread widget with controlled asynchronous preparation.",
+                "type": "object",
+                "properties": {"id": {"type": "string"}},
+                "required": ["id"],
+                "additionalProperties": False,
+                "x-content": "data",
+                "x-upgrade": True,
+                "x-example": '<lf-menu-preparation id="example"><pre>Prepared</pre></lf-menu-preparation>',
+            }
+        },
+        layer_widgets={
+            "lf-menu-preparation.js": """
+import {once, settle} from '/runtime/widget-api.js';
+customElements.define('lf-menu-preparation', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    settle(new Promise(resolve => { window.finishMenuPreparation = resolve; }));
+  }
+});
+"""
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "version-question",
+            "author": "user",
+            "revision": 1,
+            "text": "Please prepare the next version.",
+        },
+    )
+    page, errors = open_page(browser, url, pin=True)
+    menu = page.locator(".lf-version-menu")
+    page.locator(".lf-version").click()
+    expect(menu).to_be_visible()
+
+    # The first read sees both the publication and the reply. Hold any crossed read
+    # so a second application cannot repair version facts corrupted by dismissal.
+    reads = []
+
+    page.route("**/api/state", lambda route: reads.append(route))
+    with page.expect_request("**/api/state"):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "parent": "version-question",
+                "author": "claude",
+                "revision": 1,
+                "text": "Preparing the update.",
+                "markup": '<lf-menu-preparation id="version-preparation"><pre>Prepared</pre></lf-menu-preparation>',
+            },
+        )
+        _publish(serve.page_dir, 2, INLINE_PAGE, "two")
+    page.wait_for_timeout(0)  # dispatch the held request's route callback
+    assert reads
+    reads[0].continue_()
+    page.wait_for_function("() => typeof window.finishMenuPreparation === 'function'")
+    expect(page.locator(".lf-version-row")).to_have_count(1)
+    try:
+        page.keyboard.press("Escape")
+        expect(menu).to_be_hidden()
+        expect(page.locator(".lf-version-row")).to_have_count(2)
+    finally:
+        page.evaluate("() => window.finishMenuPreparation()")
+    told(page)
+    expect(page.locator(".lf-version-row").last).to_contain_text("v2 (latest version)")
+    assert errors == []
+    page.close()
+
+
 def test_the_current_page_has_a_menu_local_key(browser, serve):
     """A pinned version stays where the reader put it and offers the current page as a chip. The
     keyboard reaches that chip's destination through the chooser rather than past it: g V

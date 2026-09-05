@@ -594,10 +594,11 @@ ${MARK_RULES}
      and not the mark's own "open this thread". */
   body:is(.lf-aiming, .lf-design) .lf-mark-el { cursor: default; }
   body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
-  /* A semantic SVG part keeps these classes for hit-testing and thread ownership, while
-     the chrome layer draws their shared geometry above the package's own paint. Suppress
-     only the rectangular representation; ordinary elements stay on the outline path. */
-  :is(.lf-mark-el, .lf-react-el).lf-shaped-mark { outline: none; }
+  /* A semantic visual part keeps these classes for hit-testing and thread ownership,
+     while the chrome layer draws its registered surface contour or rectangular fallback
+     above the package's own paint. Suppress only that duplicate representation;
+     ordinary anchors stay on the outline path. */
+  :is(.lf-mark-el, .lf-react-el, .lf-action-target).lf-shaped-mark { outline: none; }
   /* Keyboard access to a picture is runtime chrome beside the provider's drawing rather
      than a role written onto that drawing. Resting it is a conventional clipped control;
      focus gives it a skip-link-style face under the banner. */
@@ -1467,8 +1468,12 @@ ${MARK_RULES}
     .lf-visual-marks { display: contents; }
     .lf-visual-mark { position: absolute; display: none; pointer-events: none;
       --lf-shape-ink: var(--mark-ink); --lf-shape-stroke: 1px;
-      --lf-shape-dash: none; }
-    .lf-visual-mark.lf-visual-mark-reaction { --lf-shape-dash: 3px 2px; }
+      --lf-shape-dash: none;
+      border: var(--lf-shape-stroke) solid var(--lf-shape-ink); }
+    .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important; }
+    .lf-visual-mark.lf-visual-mark-reaction {
+      --lf-shape-dash: 3px 2px; border-style: dashed; }
+    .lf-visual-mark.lf-visual-mark-action { --lf-shape-ink: var(--accent); }
     .lf-visual-mark:is(.lf-visual-mark-hover, .lf-visual-mark-here) {
       --lf-shape-stroke: var(--here-ring-w); }
     .lf-visual-mark:is(.lf-visual-mark-pending, .lf-visual-mark-here) {

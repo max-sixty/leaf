@@ -165,6 +165,38 @@ export default [
     },
   },
   {
+    files: ["skills/leaf/scripts/leaf/render-checks/widgets.js"],
+    rules: {
+      // This core probe validates the visual-part registry itself. Keep that diagnostic
+      // out of the package facade while leaving every other probe on the public API.
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "/leaf.js",
+              message: "Import Leaf capabilities from /runtime/widget-api.js.",
+            },
+          ],
+          patterns: [
+            {
+              regex: "^/runtime/(?!widget-api\\.js$|visual-parts\\.js$)",
+              message: "Behavior and probe modules use /runtime/widget-api.js.",
+            },
+            {
+              regex: "^\\.{1,2}/(?:.*/)?runtime/",
+              message: "Behavior and probe modules use /runtime/widget-api.js.",
+            },
+            {
+              regex: "^\\.{1,2}/(?:.*/)?(?:leaf|widget-api)\\.js$",
+              message: "Do not create a relative edge to the entry or public facade.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ["skills/leaf/assets/leaf.js"],
     rules: {
       ...entryBoundary,

@@ -279,6 +279,8 @@ export function createChromeLayout({
     if (played) {
       const settled = () => {
         if (shellMotion === played) shellMotion = null;
+        // The carry changes position without another resize; the repaint's frames lay
+        // the margin's rows out along it and once more at rest (repaintMovingShell).
         scheduleShellRepaint();
       };
       played.finished.then(settled, settled);

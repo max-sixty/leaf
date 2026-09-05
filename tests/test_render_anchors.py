@@ -3232,12 +3232,9 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
 
 def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     """The list is rebuilt rather than reconciled, and an open menu defers the
-    rebuild so a version landing mid-walk can't take the focused row away. What
-    that defers has to survive the deferral: the key saying the list is current
-    was consumed before the deferral was checked, so a version published while
-    the menu stood marked the change handled and never wrote the row. The menu
-    then sat one version short for as long as nothing else was published — and
-    the poll it needed had already been and gone, so nothing was coming."""
+    rebuild so a version landing mid-walk can't take the focused row away.
+    Dismissal must apply the deferred update: unchanged state no longer repaints
+    the page, so no later state response can be relied on to rebuild the list."""
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, INLINE_PAGE, "two")
     page, errors = open_page(browser, url, pin=True)
@@ -3253,9 +3250,89 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
 
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    # And it arrives on the next poll rather than waiting on a fourth version.
+    # Dismissal applies the deferred update without another publication.
     expect(page.locator(".lf-version-row")).to_have_count(3)
     expect(page.locator(".lf-version-row").last).to_contain_text("v3 (latest version)")
+    assert errors == []
+    page.close()
+
+
+def test_dismissing_versions_during_thread_upgrade_preserves_the_new_version(
+    browser, serve
+):
+    """Menu dismissal paints rows without overwriting an in-flight state application."""
+    url = serve(
+        INLINE_PAGE,
+        layer_registry={
+            "lf-menu-preparation": {
+                "description": "A thread widget with controlled asynchronous preparation.",
+                "type": "object",
+                "properties": {"id": {"type": "string"}},
+                "required": ["id"],
+                "additionalProperties": False,
+                "x-content": "data",
+                "x-upgrade": True,
+                "x-example": '<lf-menu-preparation id="example"><pre>Prepared</pre></lf-menu-preparation>',
+            }
+        },
+        layer_widgets={
+            "lf-menu-preparation.js": """
+import {once, settle} from '/runtime/widget-api.js';
+customElements.define('lf-menu-preparation', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    settle(new Promise(resolve => { window.finishMenuPreparation = resolve; }));
+  }
+});
+"""
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "version-question",
+            "author": "user",
+            "revision": 1,
+            "text": "Please prepare the next version.",
+        },
+    )
+    page, errors = open_page(browser, url, pin=True)
+    menu = page.locator(".lf-version-menu")
+    page.locator(".lf-version").click()
+    expect(menu).to_be_visible()
+
+    # The first read sees both the publication and the reply. Hold any crossed read
+    # so a second application cannot repair version facts corrupted by dismissal.
+    reads = []
+
+    page.route("**/api/state", lambda route: reads.append(route))
+    with page.expect_request("**/api/state"):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "parent": "version-question",
+                "author": "claude",
+                "revision": 1,
+                "text": "Preparing the update.",
+                "markup": '<lf-menu-preparation id="version-preparation"><pre>Prepared</pre></lf-menu-preparation>',
+            },
+        )
+        _publish(serve.page_dir, 2, INLINE_PAGE, "two")
+    page.wait_for_timeout(0)  # dispatch the held request's route callback
+    assert reads
+    reads[0].continue_()
+    page.wait_for_function("() => typeof window.finishMenuPreparation === 'function'")
+    expect(page.locator(".lf-version-row")).to_have_count(1)
+    try:
+        page.keyboard.press("Escape")
+        expect(menu).to_be_hidden()
+        expect(page.locator(".lf-version-row")).to_have_count(2)
+    finally:
+        page.evaluate("() => window.finishMenuPreparation()")
+    told(page)
+    expect(page.locator(".lf-version-row").last).to_contain_text("v2 (latest version)")
     assert errors == []
     page.close()
 

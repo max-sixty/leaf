@@ -2156,18 +2156,27 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
             else if (r.selectorText) classes(r.selectorText).forEach(c => into.add(c));
             else if (r.cssRules) collect(r.cssRules, into); } };
         collect(sheet.cssRules, global_);
+        // A shared class may take its document face from the authored theme rather than
+        // from the runtime sheet. It is still outside this collision probe: any movement
+        // it causes in the page is that deliberate global rule, not a leaked scoped one.
+        const documentGlobal = new Set(global_);
+        for (const other of [...document.styleSheets].filter(s => s !== sheet))
+            collect(other.cssRules, documentGlobal);
+        const themed = new Set([...scoped].filter(
+            c => !global_.has(c) && documentGlobal.has(c)));
         const probe = document.createElement("div"), plain = document.createElement("div");
         // Minus the shared vocabulary: a word document level dresses on purpose
         // (lf-address, worn by the chord's own layer and by an option's corner alike)
         // is named by the scoped rule that says when to paint it, and it would answer
         // this question with the reach it was given rather than with a leak.
-        probe.className = [...scoped].filter(c => !global_.has(c)).join(" ");
+        probe.className = [...scoped]
+            .filter(c => !global_.has(c) && !themed.has(c)).join(" ");
         probe.textContent = plain.textContent = "probe";
         document.getElementById("s").append(plain, probe);
         const cs = el => { const c = getComputedStyle(el), out = {};
                            for (const p of c) out[p] = c.getPropertyValue(p); return out; };
         const a = cs(probe), b = cs(plain);
-        return { scoped: [...scoped], global: [...global_],
+        return { scoped: [...scoped], global: [...global_], themed: [...themed],
                  moved: Object.keys(a).filter(p => a[p] !== b[p]) };
     }""")
     assert "lf-live" in surface["scoped"] and len(surface["scoped"]) > 20, (
@@ -2176,6 +2185,19 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     assert surface["moved"] == [], (
         f"scoped chrome rules reached an element in the page: {surface['moved']}"
     )
+    # A second document-level face comes from the authored theme, whose shadow slice
+    # also supplies the same controls inside declared widget trees. Keep that exception
+    # as explicit as the runtime sheet's shared vocabulary below.
+    assert set(surface["themed"]) == {
+        "claude",
+        "lf-edited",
+        "lf-react-open",
+        "lf-react-palette",
+        "lf-react-strip",
+        "lf-react-trigger",
+        "lf-react-word",
+        "lf-resolve",
+    }, "the authored-theme class surface changed: widen the exception on purpose"
     # Every one of these is worn by something the runtime puts inside the page rather than
     # inside its own container — or, for lf-address, on both sides of that line at once,
     # which is the same reason: a scoped rule cannot reach the copy in the page. Except the
@@ -2232,6 +2254,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-margin-button-icon",
         "lf-margin-button-space",
         "lf-margin-button-label",
+        # The label's two lines: the role's own word, and the context under it that says
+        # which item the role is on. Both are inside the label the seam already names.
+        "lf-margin-button-label-word",
+        "lf-margin-button-context",
         "lf-margin-receipt",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.

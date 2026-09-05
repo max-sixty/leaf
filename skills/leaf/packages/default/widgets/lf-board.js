@@ -56,8 +56,11 @@ customElements.define(
 
     connectedCallback() {
       if (!once(this)) {
-        if (!quoted(this))
+        if (!quoted(this)) {
           this.#stopActions ??= watchActions(this, null, this.#paintAvailability);
+          for (const col of this.querySelectorAll(":scope > lf-column"))
+            this.#sortable(col);
+        }
         this.#observeNames();
         this.#observeMotion();
         return;
@@ -165,6 +168,10 @@ customElements.define(
       this.#stopMotion?.();
       this.#stopMotion = null;
       if (this.#grabbed) this.#cancel();
+      this.#superseded = null;
+      dragging(this, false);
+      for (const sortable of this.#sortables) sortable.destroy();
+      this.#sortables.clear();
     }
 
     #observeMotion() {

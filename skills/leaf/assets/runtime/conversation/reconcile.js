@@ -10,10 +10,12 @@ import { createReplies } from "./replies.js";
 import { createThreadCards } from "./thread-card.js";
 import { createConversationThreadList } from "./thread-list.js";
 import { createAcknowledgments } from "./acknowledgments.js";
+import { clocked } from "../presence.js";
 import { createThreadSurfaces } from "./surfaces.js";
 
 /* Conversation state and panel reconciliation. */
 export function createConversation(dependencies) {
+  const renderPanel = clocked(document.body, renderPanelNow);
   const {
     FOLD_MS,
     MARKED_ANYWHERE,
@@ -203,12 +205,12 @@ export function createConversation(dependencies) {
     threadsBox,
     waitingForPickupSince,
   });
-  function paintAcknowledgments(...args) {
+  const paintAcknowledgments = clocked(document.body, (...args) => {
     if (!threadListRuntime) return paintAcknowledgmentsUnheld(...args);
     return threadListRuntime.holdScrollPosition(() =>
       paintAcknowledgmentsUnheld(...args),
     );
-  }
+  });
 
   // A walk or a tray row travelling to a question the narrowing hid (decisions/view.js
   // goToDecision → reveal) reveals outside-in through this event, which does not bubble
@@ -363,7 +365,7 @@ export function createConversation(dependencies) {
 
   // The panel and the page marks are two views of the same threads, and the paint pass
   // reports back to the list renderThreads just reconciled — always render them as a pair.
-  function renderPanel() {
+  function renderPanelNow() {
     if (runtime.statePhase !== "ready") {
       waitingNote.textContent =
         runtime.statePhase === "offline"

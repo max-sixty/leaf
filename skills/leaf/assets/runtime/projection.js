@@ -438,8 +438,13 @@ export function createProjection(runtime, dependencies) {
 
   // Each owner sees one complete desired composition. Baselines and winners are
   // folded before this boundary; renderers never reset, replay or replace widgets.
+  let deferredProjection = false;
+  const projectionDeferred = () => deferredProjection;
+
   function reconcileState() {
+    deferredProjection = false;
     if (document.querySelector(".lf-dragging")) {
+      deferredProjection = true;
       watchProjectionDrag();
       return;
     }
@@ -467,7 +472,10 @@ export function createProjection(runtime, dependencies) {
         );
         if (commit?.widget !== widget || commit.key !== key || unitsChanged) {
           try {
-            if (widget.renderState?.(state) === false) continue;
+            if (widget.renderState?.(state) === false) {
+              deferredProjection = true;
+              continue;
+            }
             renderSettlement(widget, state);
           } catch (error) {
             reportPageError(
@@ -572,6 +580,7 @@ export function createProjection(runtime, dependencies) {
     paintStateOrigins,
     projectedFacet,
     projectionFromView,
+    projectionDeferred,
     projectionCommitted,
     reconcileKnownState,
     reconcileState,

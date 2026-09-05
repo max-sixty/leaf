@@ -80,6 +80,7 @@
 import {
   DISCLOSE,
   actionAvailable,
+  actionSequence,
   dataBody,
   once,
   offer,
@@ -570,6 +571,7 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#paintButtons();
+      this.#renderHistory(actionSequence(this, "edit"));
       if (ok) notice(`Restored ${label.toLowerCase()} — sent`);
     }
 
@@ -655,6 +657,9 @@ customElements.define(
       this.#row.replaceChildren(this.#pencil);
       this.#paintButtons();
       if (stood) this.#pencil.focus();
+      // Replay may have been held by this editor. Its close is the generic projection
+      // invalidation that lets the state feed retry the complete reading now.
+      document.dispatchEvent(new Event("lf-projection"));
     }
 
     async #commit() {
@@ -677,6 +682,7 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#paintButtons();
+      this.#renderHistory(actionSequence(this, "edit"));
       if (ok) {
         notice(`Edited “${this.id}” — sent`);
       } else {

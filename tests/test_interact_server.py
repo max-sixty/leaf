@@ -52,6 +52,7 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf import thread_context as thread_context_model
 from leaf.registry import storage as registry_storage
+from leaf.served_state import browser as served_browser
 from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
 
@@ -1106,7 +1107,6 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     assert entry["value"] == ["delivery-now"]
     assert view["document"]["projection"]["actions"] == [accepted["id"]]
     assert view["undo"][0]["event"]["id"] == accepted["id"]
-    assert view["undo"][0]["restores_desired"] is False
     assert view["coverage"] == [
         {"event": accepted, "coordinate": ["delivery", "delivery", "selection"]}
     ]
@@ -1147,29 +1147,130 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
         assert status == 200, body
 
     latest = json.loads(body)["state"]["browser"]["views"]["1"]["undo"][0]
+    assert latest["event"]["id"] == json.loads(body)["state"]["events"][-1]["id"]
     assert latest["event"]["detail"] == {"options": ["delivery-later"]}
-    assert latest["restores_desired"] is True
 
 
-def test_undo_offer_keeps_the_doors_active_page_containment(monkeypatch):
-    """A pinned view paints its own projection but admits undo against live threads."""
-    active_within = {"settled-on-live-page": ("live",)}
-    view_within = {"settled-on-pinned-view": ("pinned",)}
-    seen = []
+def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
+    """A pinned view paints its own projection but admits undo against live threads.
 
-    def record_undo_read(_event, _events, within):
-        seen.append(within)
-
-    monkeypatch.setattr(served_document, "undo_error", record_undo_read)
-    empty = projection_model.StateProjection({}, {}, {}, {}, {})
-    event = {"id": "reader-resolve", "kind": "resolve", "author": "user"}
-
-    candidates = served_document._browser_undo_candidates(
-        [event], active_within, view_within, {}, empty, empty
+    The option belonged to the answering widget only in the pinned revision.
+    Restating it under another owner cannot retract the live thread's answer.
+    Using pinned containment would reopen the reaction and incorrectly offer Undo.
+    """
+    old_page = PAGE.replace("<lf-options>", '<lf-options id="picks">')
+    old_page = old_page.replace(
+        "</section>",
+        '<lf-decision id="other-decision"><h3>Another choice</h3>'
+        '<lf-options id="other-picks"><lf-option id="other-option">'
+        "Another option</lf-option></lf-options></lf-decision></section>",
+    )
+    new_page = (
+        old_page.replace('id="flag-first"', 'id="moved-option"')
+        .replace('id="other-option"', 'id="flag-first"')
+        .replace('id="moved-option"', 'id="other-option"')
+    )
+    documents = {1: old_page, 2: new_page}
+    versions = page_dir / ".fixture-versions"
+    versions.joinpath("v1.html").write_text(old_page)
+    publish(page_dir, 1)
+    reaction = event_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "token": "ok"},
+    )
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"options": ["flag-first"], "resolves": reaction["id"]},
+            "generated": [],
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "coordinate": ["picks", "picks", "selection"],
+                "depends": ["flag-first", "picks"],
+                "answer": reaction["id"],
+            },
+        },
+    )
+    versions.joinpath("v2.html").write_text(new_page)
+    publish(page_dir, 2)
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "claude",
+            "version": 2,
+            "revision": 2,
+            "text": "Restated the option under its new owner.",
+            "restated": ["flag-first"],
+        },
     )
 
-    assert [candidate["event"] for candidate in candidates] == [event]
-    assert seen == [active_within]
+    events = event_model.read_events(page_dir)
+    registry = registry_storage.require_registry(page_dir)
+
+    def reading(active_revision):
+        return served_browser.browser_state(
+            documents, events, registry, active_revision, [], {}, {1, 2}
+        )
+
+    # The same log really does admit the reaction if read against the old page.
+    # This control makes the containment difference observable rather than nominal.
+    pinned_undo = reading(1)["views"]["1"]["undo"]
+    assert reaction["id"] in {item["event"]["id"] for item in pinned_undo}
+
+    browser = reading(2)
+    assert set(browser["views"]) == {"1", "2"}
+    for view in browser["views"].values():
+        assert reaction["id"] not in {
+            candidate["event"]["id"] for candidate in view["undo"]
+        }
+
+
+def test_undo_candidates_keep_only_standing_reader_gestures():
+    """The browser undo list follows the event fold for speech, marks, and closures."""
+    events = [
+        {"id": "c1", "kind": "comment", "author": "user", "text": "question"},
+        {
+            "id": "r1",
+            "kind": "resolve",
+            "author": "user",
+            "parent": "c1",
+        },
+        {"id": "u1", "kind": "undo", "author": "user", "undoes": "r1"},
+        {
+            "id": "r2",
+            "kind": "resolve",
+            "author": "user",
+            "parent": "c1",
+        },
+        {"id": "rx1", "kind": "comment", "author": "user", "token": "ok"},
+        {
+            "id": "rx2",
+            "kind": "comment",
+            "author": "user",
+            "token": "ok",
+        },
+        {
+            "id": "reply",
+            "kind": "reply",
+            "author": "claude",
+            "parent": "rx2",
+            "text": "answered",
+        },
+    ]
+    empty = projection_model.StateProjection({}, {}, {}, {}, {})
+    undo_reading = event_folds_model.UndoReading(events, within={})
+
+    candidates = served_document._browser_undo_candidates(
+        events, empty, empty, undo_reading=undo_reading
+    )
+
+    assert [candidate["event"]["id"] for candidate in candidates] == ["rx1", "r2"]
 
 
 def test_a_comparison_view_explains_an_unpublished_page(server, page_dir):
@@ -2615,6 +2716,161 @@ def test_the_news_stream_names_the_reading_and_speaks_on_a_change(server, page_d
     stream.close()
 
 
+def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
+    page_dir, monkeypatch
+):
+    """Several news streams share one presence observation until the page moves.
+
+    The cache is a reading cache, not a second authority: rewriting a page-owned
+    file invalidates it immediately, while a repeated quiet observation does not
+    call the neighboring-page scan again.
+    """
+    real_other_leaves = presence_model.other_leaves
+    calls = 0
+
+    def counted_other_leaves(directory):
+        nonlocal calls
+        calls += 1
+        return real_other_leaves(directory)
+
+    monkeypatch.setattr(presence_model, "other_leaves", counted_other_leaves)
+    first = presence_model.presence_reading(page_dir)
+    assert presence_model.presence_reading(page_dir) == first
+    assert calls == 1
+
+    files_model.write_json(
+        page_dir / "status.json",
+        {"state": "working", "detail": "measuring", "ts": "now"},
+    )
+    refreshed = presence_model.presence_reading(page_dir)
+    assert refreshed == first
+    assert calls == 2
+
+
+def test_unchanged_neighbor_logs_are_read_once_until_their_stamp_moves(
+    page_dir, monkeypatch
+):
+    """Neighbor presence reuses its parsed event window while its files are stable."""
+    neighbour = host_model.state_home() / "pages" / "neighbor-cache"
+    neighbour_page(neighbour, title="Cached neighbor")
+    real_read_events = presence_model.read_events
+    reads = 0
+
+    def counted_read_events(directory):
+        nonlocal reads
+        reads += 1
+        return real_read_events(directory)
+
+    monkeypatch.setattr(presence_model, "read_events", counted_read_events)
+    first = presence_model.other_leaves(page_dir)
+    second = presence_model.other_leaves(page_dir)
+    assert second == first
+    assert reads == 1
+
+    real_running_server = presence_model.running_server
+
+    def rotated_running_server(directory):
+        return {**real_running_server(directory), "url": "rotated-url"}
+
+    monkeypatch.setattr(presence_model, "running_server", rotated_running_server)
+    presence_model.other_leaves(page_dir)
+    assert reads == 2
+
+    event_model.append_event(
+        neighbour, {"kind": "comment", "author": "user", "text": "changed"}
+    )
+    presence_model.other_leaves(page_dir)
+    assert reads == 3
+
+
+def test_server_shutdown_wakes_a_long_poll_without_waiting_for_timeout(
+    page_dir, monkeypatch
+):
+    """A selector waiting for a long timeout wakes as soon as shutdown is requested."""
+    httpd = hosting_model.LeafHTTPServer(
+        ("127.0.0.1", 0), http_model.handler_for(page_dir, TOKEN)
+    )
+    waiting = threading.Event()
+    real_select = hosting_model.selectors.DefaultSelector.select
+
+    def watched_select(selector, timeout=None):
+        waiting.set()
+        return real_select(selector, timeout)
+
+    monkeypatch.setattr(
+        hosting_model.selectors.DefaultSelector, "select", watched_select
+    )
+    try:
+        thread = threading.Thread(target=httpd.serve_forever, args=(10.0,), daemon=True)
+        thread.start()
+        assert waiting.wait(timeout=1)
+        httpd.shutdown()
+        thread.join(timeout=1)
+        assert not thread.is_alive()
+    finally:
+        if thread.is_alive():
+            httpd.shutdown()
+            thread.join(timeout=1)
+        httpd.server_close()
+
+
+def test_temporary_server_close_waits_for_delayed_start(page_dir, monkeypatch):
+    """Closing after start must join a serving loop that has not been scheduled yet."""
+    server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN)
+    release = threading.Event()
+    completed_before_start = []
+    errors = []
+    serve_forever = server.httpd.serve_forever
+    wait = server.httpd._serve_done.wait
+
+    def delayed_serve():
+        release.wait()
+        serve_forever()
+
+    def release_at_shutdown(timeout=None):
+        # Hold startup until shutdown asks for completion. A completed event here
+        # lets shutdown return before the serving loop can observe its stop request.
+        completed_before_start.append(server.httpd._serve_done.is_set())
+        release.set()
+        return wait(timeout)
+
+    monkeypatch.setattr(server.httpd, "serve_forever", delayed_serve)
+    monkeypatch.setattr(server.httpd._serve_done, "wait", release_at_shutdown)
+    monkeypatch.setattr(threading, "excepthook", lambda error: errors.append(error))
+    try:
+        server.start()
+        server.close()
+    finally:
+        release.set()
+        server.close()
+    assert completed_before_start == [False]
+    assert errors == []
+    assert not server.running
+    assert server.httpd.fileno() == -1
+
+
+def test_server_can_restart_after_prompt_shutdown(page_dir):
+    """The wakeup is reusable, so a normal server restart keeps serving requests."""
+    httpd = hosting_model.LeafHTTPServer(
+        ("127.0.0.1", 0), http_model.handler_for(page_dir, TOKEN)
+    )
+    try:
+        for _ in range(2):
+            thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+            thread.start()
+            deadline = time.monotonic() + 1
+            while not thread.is_alive() and time.monotonic() < deadline:
+                time.sleep(0.001)
+            assert (
+                fetch(f"http://127.0.0.1:{httpd.server_address[1]}/api/state")[0] == 200
+            )
+            httpd.shutdown()
+            thread.join(timeout=1)
+            assert not thread.is_alive()
+    finally:
+        httpd.server_close()
+
+
 def test_a_comment_carrying_line_separators_survives_the_log(server, page_dir):
     """U+2028, U+2029 and U+0085 are legal raw in JSON strings and line breaks to
     splitlines(): unescaped, one pasted separator split an event across "lines",
@@ -3082,6 +3338,18 @@ def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
     assert not (page_dir / "service.json").exists()
 
     assert server_model.page_access(page_dir, host="fd7a:115c:a1e0::1")["bind"] == "::"
+
+
+def test_server_bind_failure_preserves_the_real_socket_error(page_dir):
+    """A failed bind closes partially initialized wake resources without masking EADDRINUSE."""
+    with socket.socket() as occupied:
+        occupied.bind(("127.0.0.1", 0))
+        occupied.listen()
+        with pytest.raises(OSError) as refused:
+            hosting_model.LeafHTTPServer(
+                occupied.getsockname(), http_model.handler_for(page_dir, TOKEN)
+            )
+    assert refused.value.errno == errno.EADDRINUSE
 
 
 def test_the_stated_host_wildcard_serves_both_families(wildcard_server):

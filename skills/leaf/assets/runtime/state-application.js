@@ -29,7 +29,6 @@ export function createStateApplication(dependencies) {
     paintApproval,
     panelIsOpen,
     prepareActivation,
-    presented,
     reconcileState,
     replaceClaimState,
     refreshHover,
@@ -63,7 +62,7 @@ export function createStateApplication(dependencies) {
   // but the reading, which is a hash with no order of its own. The server stamps each
   // answer with the moment it was taken, inside the transaction every answer is built
   // under, so this is the order they were taken in whichever order they land. Equal is
-  // not before: the heartbeat re-applies the held answer itself.
+  // not before: deferred activation may reapply the held answer itself.
   const takenBefore = (state) =>
     runtime.state !== null && state.taken < runtime.state.taken;
 
@@ -74,10 +73,6 @@ export function createStateApplication(dependencies) {
     if (!sameLayer(state.layer.generation)) return;
     if (typeof state.taken !== "number")
       throw new TypeError("state must say when it was taken");
-    // Ahead of the sequence checks below, which drop a response as state: a reading
-    // that arrives out of order still says what time it is where the timestamps are
-    // written, and that is the one thing in it that cannot be stale.
-    observeServerNow(state.now);
     // Events and source snapshots are independent authorities serialized by the same page
     // transaction but observed through overlapping responses. Their revisions form a pair,
     // not one total order: a response with an older event tail may still carry the newest
@@ -179,6 +174,9 @@ export function createStateApplication(dependencies) {
       await notifyChangedData();
       return;
     }
+    // Calibrate only an accepted reading. A delayed response carries an old clock
+    // as well as old state; rejecting its state must not rewind timestamp aging.
+    if (state !== runtime.state) observeServerNow(state.now);
     const prior = {
       runtime: Object.fromEntries(
         APPLICATION_RUNTIME_FIELDS.map((field) => [field, runtime[field]]),
@@ -207,7 +205,7 @@ export function createStateApplication(dependencies) {
       runtime.agent = state.agent || "Claude";
       restoreClaimState = replaceClaimState({
         sources: state.claims || [],
-        claimsHeld: presented(state).held,
+        presence: state,
         agentTurnClosed: state.turn_closed || null,
         claimingSession: state.claim_session || null,
       });

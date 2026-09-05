@@ -59,17 +59,7 @@ the relevant design note or in git history.
   `test_a_scope_cannot_give_one_live_key_two_meanings` to that boundary. This closes the
   one evaluation-order path the `leaf/evaluation-order` rule cannot see.
 
-- **Pin the evaluation-order rule with planted faults.** A test that feeds
-  `eslint --stdin` a cycle module with a module-scope read of a cycle binding, a call of
-  a cycle function, an IIFE call, and a bare function reference, and asserts the first
-  three are refused and the fourth allowed.
-
 - **Make the MCP bundle fail loud on an evaluation-order fault.** esbuild hoists
   cross-module `let`/`const` into `var`s, so a fault the browser throws on reads
   `undefined` in the bundle; give `test_render_mcp` a probe that would see it, or build
   the bundle in a form that keeps the dead zone.
-
-- **Fold leaf.js's narrative header into its owners.** The 200-line header still tells
-  the widget layer, actions, threads and versions story; each paragraph belongs on the
-  module that owns it, leaving leaf.js with the boot sequence and a pointer to
-  `skills/leaf/assets/CLAUDE.md`.

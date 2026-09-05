@@ -11,11 +11,6 @@ the relevant design note or in git history.
   `ship-review` at the bottom of the viewport, then fix any clipping the wider sweep
   reports.
 
-- **Offer structural authoring advice.** Add non-blocking advice to `version check`,
-  starting with pages that have two or more section headings but no `lf-toc`. Keep the
-  rules deterministic and optional; the first case is specified in
-  [the agent-usability notes](notes/agent-usability-evals.md#near-term-usability-todo).
-
 - **Establish the first agent-usability baseline.** Build the cold-authoring,
   reading-parity, and resume fixtures described in
   [the evaluation plan](notes/agent-usability-evals.md#first-executable-slice), then use

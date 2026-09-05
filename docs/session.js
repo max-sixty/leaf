@@ -269,6 +269,12 @@ const matchesWhen = (element, when = {}) =>
     );
   });
 
+const quoted = (element) => {
+  for (let parent = element.parentElement; parent; parent = parent.parentElement)
+    if (REGISTRY[parent.localName]?.["x-exhibit"]) return true;
+  return false;
+};
+
 function demoDecisions(projection, threads) {
   const standing = new Set(projection.actions);
   const withAgent = new Set(
@@ -277,26 +283,36 @@ function demoDecisions(projection, threads) {
       .map((thread) => thread.seat)
       .filter(Boolean),
   );
-  const values = {};
-  const descriptors = [];
+  const decisions = { all: [], reader: [], unanswered: [] };
+  const awaiting = {};
+  const unansweredAwaiting = {};
   for (const [tag, entry] of Object.entries(REGISTRY)) {
-    if (tag.startsWith("$") || !entry?.["x-awaits"]) continue;
+    const decision = entry?.["x-awaits"];
+    const request = entry?.["x-request"]?.decision;
+    if (tag.startsWith("$") || (!request && (!decision || decision.rollup))) continue;
     for (const element of document.querySelectorAll(tag)) {
-      if (!element.id || !matchesWhen(element, entry["x-awaits"].when)) continue;
-      const answered = (entry["x-awaits"].answers ?? []).some((verb) => {
-        const spec = entry["x-state"]?.[verb];
-        const coordinate = spec && [element.id, element.id, spec.facet];
-        return projection.entries.some(
-          (candidate) =>
-            candidate.event.widget === element.id &&
-            candidate.event.action === verb &&
-            standing.has(candidate.event.id) &&
-            JSON.stringify(candidate.coordinate) === JSON.stringify(coordinate),
-        );
-      });
-      const awaiting = !answered;
-      values[element.id] = awaiting;
-      if (!awaiting || withAgent.has(element.id)) continue;
+      if (
+        !element.id ||
+        (!request && !matchesWhen(element, decision.when)) ||
+        quoted(element)
+      )
+        continue;
+      const answered = request
+        ? events.some(
+            (event) => event.kind === "request" && event.widget === element.id,
+          )
+        : (decision.answers ?? []).some((verb) =>
+            projection.entries.some(
+              (candidate) =>
+                candidate.event.widget === element.id &&
+                candidate.event.action === verb &&
+                standing.has(candidate.event.id),
+            ),
+          );
+      const stillUnanswered = !answered;
+      const waitsOnReader = stillUnanswered && !withAgent.has(element.id);
+      awaiting[element.id] = waitsOnReader;
+      unansweredAwaiting[element.id] = stillUnanswered;
       let surface = element;
       for (let parent = element.parentElement; parent; parent = parent.parentElement) {
         if (REGISTRY[parent.localName]?.["x-decision"]) {
@@ -304,10 +320,13 @@ function demoDecisions(projection, threads) {
           break;
         }
       }
-      descriptors.push({ id: surface.id, tag: surface.localName, thread: null });
+      const description = { id: surface.id, tag: surface.localName, thread: null };
+      decisions.all.push(description);
+      if (waitsOnReader) decisions.reader.push(description);
+      if (stillUnanswered) decisions.unanswered.push(description);
     }
   }
-  return { descriptors, values };
+  return { ...decisions, awaiting, unansweredAwaiting };
 }
 
 function demoBrowser() {
@@ -345,10 +364,11 @@ function demoBrowser() {
           revision: REVISION,
           projection,
           decisions: {
-            reader: decisions.descriptors,
-            unanswered: decisions.descriptors,
-            awaiting: decisions.values,
-            unanswered_awaiting: decisions.values,
+            all: decisions.all,
+            reader: decisions.reader,
+            unanswered: decisions.unanswered,
+            awaiting: decisions.awaiting,
+            unanswered_awaiting: decisions.unansweredAwaiting,
           },
         },
         updates: [],
@@ -359,7 +379,7 @@ function demoBrowser() {
     },
     conversation: {
       projection: { entries: [], actions: [], reports: [], desired: [] },
-      decisions: { reader: [], unanswered: [], awaiting: {} },
+      decisions: { all: [], reader: [], unanswered: [], awaiting: {} },
       threads,
       done: events.filter((event) => event.kind === "done"),
     },

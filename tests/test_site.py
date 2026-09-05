@@ -603,6 +603,18 @@ def test_a_comment_lands_in_the_thread_with_its_quote(site, hosted, browser):
         page.close()
 
 
+def test_the_static_demo_counts_every_declared_ask(site, hosted, browser):
+    """The inventory includes request Decisions and excludes aggregate roll-ups."""
+    page, errors = open_page(browser, example_url(hosted, "command-hub"))
+    try:
+        decisions = page.locator(".lf-decisions")
+        expect(decisions).to_be_visible()
+        expect(decisions).to_have_text("Asks 0/5")
+        assert not errors, errors[:3]
+    finally:
+        page.close()
+
+
 def test_a_static_demo_decision_resets_on_reload(site, hosted, browser):
     """The static site offers a live tab, not a second durable Leaf implementation.
 
@@ -611,6 +623,9 @@ def test_a_static_demo_decision_resets_on_reload(site, hosted, browser):
     """
     page, errors = open_page(browser, example_url(hosted, "design-decision"))
     try:
+        decisions = page.locator(".lf-decisions")
+        expect(decisions).to_be_visible()
+        expect(decisions).to_have_text("Asks 0/2")
         chosen = (
             "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
         )
@@ -619,9 +634,11 @@ def test_a_static_demo_decision_resets_on_reload(site, hosted, browser):
             "data-lf-reader-override", "1"
         )
         assert "opt-jwt" in page.evaluate(chosen)
+        expect(decisions).to_have_text("Asks 1/2")
 
         page.reload(wait_until="load")
         page.wait_for_function(BOTH_STAMPS)
+        expect(decisions).to_have_text("Asks 0/2")
         expect(page.locator("#session-options[data-lf-reader-override]")).to_have_count(
             0
         )

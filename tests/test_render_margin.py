@@ -237,26 +237,29 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
     page.close()
 
 
+# Both pages stand still with nothing dispatched, so both give the settled reading:
+# ten frames on an untouched page report no record at all. That is a property of the
+# runtime rather than of either fixture, and a recent one — before #298 stopped
+# `dockSeats` restating every seat's offer, the same ten frames on the gallery
+# reported about 1700 records with nothing dispatched.
 HEARTBEAT_PAGES = (
     # The corpus is the widest margin the examples draw: 28 items on this viewport,
     # more than half of them docked out in the document beside their targets. It is
-    # also the one example that stands still, so it is the page the settled reading
-    # can be taken on: with no refresh dispatched at all it reports no record over the
-    # same wall time, and every record below is therefore the heartbeat's.
+    # also the page whose rows are withheld — 29 of the 31 it draws wear `lf-waiting`
+    # at this viewport — so the posture clear and the rail re-read are read here.
+    # None of the two that hang stands beside the other, so nothing is pushed.
     pytest.param(
         next(example for example in EXAMPLES if example.stem == "corpus"),
         {".lf-margin-item": 15},
-        True,
+        {"row posture", "rail width", "fold rule"},
         id="corpus",
     ),
     # The gallery draws the fittings the corpus has none of, and the writers that only
     # run for those are watched nowhere else: a reading option under an entry holding
     # several readings, and the readings whose move is made, which wear the `status`
-    # behavior on a span seat rather than a button. Its own margin never settles —
-    # measured, `render` runs about seven times a frame through `changedOffers` on an
-    # untouched gallery, and ten frames report 1764 records with nothing dispatched at
-    # all — so this page is read across the dispatch alone and the frame's writers are
-    # the corpus's reading to take.
+    # behavior on a span seat rather than a button. Every row it draws hangs, so no
+    # posture is cleared off one and the rail is not re-read; two of them stand where
+    # they would overlap, so the push measurement is read here and nowhere else.
     pytest.param(
         FEATURE_GALLERY,
         {
@@ -264,15 +267,15 @@ HEARTBEAT_PAGES = (
             ".lf-margin-reading-option": 1,
             '.lf-margin-button[data-lf-behavior="status"]': 2,
         },
-        False,
+        {"row push", "fold rule"},
         id="gallery",
     ),
 )
 
 
-@pytest.mark.parametrize("page_source, population, settles", HEARTBEAT_PAGES)
+@pytest.mark.parametrize("page_source, population, measurements", HEARTBEAT_PAGES)
 def test_an_unchanged_heartbeat_restates_no_margin_name(
-    browser, serve, page_source, population, settles
+    browser, serve, page_source, population, measurements
 ):
     """The heartbeat must not rewrite a name, state, or word it is not changing.
 
@@ -307,17 +310,16 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
 
     Half of `render` runs in a frame callback — `scheduleMarginLayout`,
     `scheduleRoving` and `scheduleButtonLabels` are its whole tail — and five
-    dispatches in one synchronous task never reach it. The corpus lets the frame
-    settle between beats and so reads the pass whole; the gallery cannot, because
-    its own margin never comes to rest. `settles` names which reading each page is
-    giving, and the probe table is asserted for reach on the settled one, so a run
-    that stopped letting the frame run could not return `[]` and look clean.
+    dispatches in one synchronous task never reach it. Each beat is therefore read
+    across a settled frame, which both pages now allow. The measurements each page
+    is expected to show are named beside its population and asserted exactly, so a
+    run that stopped letting the frame run could not return `[]` and look clean.
 
-    What remains on the settled reading is not a name being restated: each entry
-    in the probe table is a measurement that modifies the DOM to read it and puts
-    it back. Naming them here rather than filtering them keeps the account honest
-    in both directions — a new unchanged write cannot arrive unnamed, and closing
-    a probe turns this red rather than passing quietly.
+    What remains on that reading is not a name being restated: each entry in the
+    probe table is a measurement that modifies the DOM to read it and puts it back.
+    Naming them here rather than filtering them keeps the account honest in both
+    directions — a new unchanged write cannot arrive unnamed, and closing a probe
+    turns this red rather than passing quietly.
     """
     page, errors = open_page(browser, serve(page_source))
     resized(page, 1440, 900)
@@ -325,7 +327,7 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
     for selector, least in population.items():
         assert page.locator(selector).count() >= least, selector
     heartbeat = page.evaluate(
-        """async ({refreshes, settles}) => {
+        """async ({refreshes}) => {
           const frame = () => new Promise(
             resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
           const text = nodes => [...nodes].map(node => node.textContent).join('');
@@ -345,8 +347,10 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
               attributes: true, attributeOldValue: true});
           const on = record => record.target.className || record.target.nodeName;
           const hangs = value => /lf-(docked|waiting)/.test(value ?? '');
+          const pushed = value => /transform:/.test(value ?? '');
           const probes = [
-            ['margin-layout clears the docked and waiting classes off a row '
+            ['row posture',
+             'margin-layout clears the docked and waiting classes off a row '
              + 'to measure where it can hang',
              (record, pass) => record.attributeName === 'class'
                && record.target.matches('.lf-margin-item')
@@ -357,21 +361,34 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
                // the measurement. The clear moves a token off and the re-mark moves
                // it back; a name restated moves neither.
                && hangs(record.oldValue) !== hangs(pass.wrote.get(record))],
-            ['margin-layout reads the rail again once the docked rows are back in flow',
+            ['row push',
+             'margin-layout clears the push off a hanging row to measure where it '
+             + 'naturally sits, then pushes it clear of the row above again',
+             // Asked of the write for the same reason the posture is: a pushed row
+             // carries its transform across the whole pass, so reading `style` off
+             // the target would file a restated `top` from another writer here. The
+             // clear takes the transform off and the pack puts it back.
+             (record, pass) => record.attributeName === 'style'
+               && record.target.matches('.lf-margin-item')
+               && pushed(record.oldValue) !== pushed(pass.wrote.get(record))],
+            ['rail width',
+             'margin-layout reads the rail again once the docked rows are back in flow',
              record => record.attributeName === 'style'
                && record.target.matches('nav.lf-living-margin')],
-            ['controlsShownByOwner lifts the fold rule off a contributed control to '
+            ['fold rule',
+             'controlsShownByOwner lifts the fold rule off a contributed control to '
              + 'read how its owner paints it',
              record => record.attributeName === 'data-lf-button-primary'
                && record.target.matches('.lf-margin-button')],
           ];
           const probe = (record, pass) =>
-            probes.find(([, holds]) => holds(record, pass))?.[0] ?? null;
+            probes.find(([, , holds]) => holds(record, pass))?.[0] ?? null;
           const unchanged = [];
           const news = [];
           for (let i = 0; i < refreshes; i++) {
             document.dispatchEvent(new CustomEvent('lf-actions'));
-            if (settles) { await frame(); await frame(); }
+            await frame();
+            await frame();
             seen.push(...observer.takeRecords());
             const records = seen.splice(0);
             // The value each attribute carried before this pass touched it, and the
@@ -427,19 +444,19 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
             hosts: hosts.length,
           };
         }""",
-        {"refreshes": 5, "settles": settles},
+        {"refreshes": 5},
     )
     unnamed = [row for row in heartbeat["unchanged"] if row["probe"] is None]
     assert unnamed == [], unnamed
     assert heartbeat["news"] == [], heartbeat["news"]
     # The reach the readings above are worth: the nav alone would leave more than
     # half of either page's hosts, and every writer under them, unwatched, and a
-    # settled reading that stopped settling would see none of the frame's probes.
+    # reading that stopped settling would see none of the frame's measurements.
     assert heartbeat["docked"] >= heartbeat["hosts"] / 2, heartbeat
-    if settles:
-        assert {row["probe"] for row in heartbeat["unchanged"]} == set(
-            heartbeat["probes"]
-        ), heartbeat["unchanged"]
+    assert measurements <= set(heartbeat["probes"]), measurements
+    assert {row["probe"] for row in heartbeat["unchanged"]} == measurements, heartbeat[
+        "unchanged"
+    ]
     assert errors == []
     page.close()
 
@@ -458,11 +475,11 @@ def test_an_unchanged_heartbeat_re_marks_no_docked_row(browser, serve):
 
     Neither page the heartbeat reading above is taken on can state it. The corpus
     stands still, but every row it draws hangs, and the compact posture that would
-    dock them withholds them as `lf-waiting` instead; the gallery docks thirteen
-    rows, but its own margin never comes to rest, so a reading taken across a beat
-    there is not the beat's. The posture is therefore reached directly: under
-    `COVERING` a contributed row cannot hang whatever the local room, and a page
-    with one target settles.
+    dock them withholds them as `lf-waiting` instead; the gallery stands still too
+    now, but it docks no row at that viewport at all — measured, none of the
+    eighteen it draws wears `lf-docked`. The posture is therefore reached directly:
+    under `COVERING` a contributed row cannot hang whatever the local room, and a
+    page with one target settles.
 
     The guard must not cost the mark, so the narrowing is read too — the row
     arrives hanging, and it is the pass that docks it. The pass itself is counted

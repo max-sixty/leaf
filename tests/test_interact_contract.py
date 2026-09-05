@@ -3440,6 +3440,28 @@ def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, serve
     assert fetch(server + "/events.jsonl")[0] == 404
 
 
+def test_a_media_digest_can_never_change_the_bytes_behind_an_existing_name(
+    page_dir, tmp_path, monkeypatch
+):
+    """The public name's immutable meaning survives even a digest collision."""
+
+    class CollidingDigest:
+        def hexdigest(self):
+            return "a" * 64
+
+    monkeypatch.setattr(media_model.hashlib, "sha256", lambda data: CollidingDigest())
+    first = tmp_path / "first.png"
+    second = tmp_path / "second.png"
+    first.write_bytes(b"first pixels")
+    second.write_bytes(b"different pixels")
+    path = media_model.cmd_media(page_dir, [first])[0][1]
+
+    with pytest.raises(RuntimeError, match="media digest collision"):
+        media_model.cmd_media(page_dir, [second])
+
+    assert (page_dir / path.lstrip("/")).read_bytes() == first.read_bytes()
+
+
 def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):
     """A broken image is silent in the file and obvious on the page. The render gate
     would see the 404, but it runs once; this runs on every version, and whether a

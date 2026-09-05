@@ -111,6 +111,23 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(page.locator(".lf-panel")).to_be_visible()
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(3)
     expect(page.locator(".lf-details .lf-thread")).to_have_count(1)
+    expect(page.locator("#bg-thread-media")).to_contain_text(
+        "supplied by its companion thread log"
+    )
+    media_open = page.locator(
+        '.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"] .lf-message-media'
+    )
+    expect(media_open).to_be_visible()
+    url_before = page.url
+    media_open.click()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    expect(viewer).to_be_visible()
+    expect(viewer.locator("img")).to_have_attribute(
+        "src", "/media/051bee487bfb5d13.png"
+    )
+    assert page.url == url_before
+    page.keyboard.press("Escape")
+    expect(media_open).to_be_focused()
     page.locator(".lf-threads-toggle").click()
 
     page.locator(".lf-version").click()
@@ -4408,6 +4425,84 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(tray).to_be_hidden()
     page.evaluate(press, ["l", False, True])  # the same event, answered
     expect(tray).to_be_visible()
+    assert errors == []
+    page.close()
+
+
+def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
+    browser, serve
+):
+    """The reader's place has to be a place in the walk's own ordered space. The chrome is
+    appended after the whole page, so a reader standing on a thread in the panel measures
+    as past every ask there is, and a walk clamped at its edges sends both `a` and `A` to
+    the last one rather than to the first.
+
+    The route runs through the chrome all the same: a widget frozen into a reply is an ask
+    the walk visits, and a reader working its controls is standing in the space the step
+    measures. So the question is which asks the layer holds and not whether the layer is
+    chrome.
+
+    The backward press is made after walking off the reply's ask and down to the first, so
+    `landed` names a page ask. A walk that cannot read where the reader is answers from it
+    instead, and answers plausibly."""
+    url = serve(
+        leaf_page(
+            "asks over a panel",
+            """
+<h1 id="h">Open questions</h1>
+<lf-decision id="first-decision"><h2>Where should the feeders go?</h2>
+<lf-options id="first" choose>
+  <lf-option id="fi-hedge"><strong>Along the hedge</strong></lf-option>
+  <lf-option id="fi-lawn"><strong>Out on the lawn</strong></lf-option>
+</lf-options></lf-decision>
+<lf-decision id="second-decision"><h2>Who fills them?</h2>
+<lf-options id="second" choose>
+  <lf-option id="se-rota"><strong>A rota</strong></lf-option>
+  <lf-option id="se-camera"><strong>Whoever the camera calls</strong></lf-option>
+</lf-options></lf-decision>
+""",
+        ),
+        comments=2,
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "revision": 1,
+            "text": "And one for you in here.",
+            "markup": '<lf-decision id="reply-decision"><h3>Which baffle?</h3>'
+            '<lf-options id="reply-ask" choose>'
+            '<lf-option id="re-dome"><strong>A dome</strong></lf-option>'
+            '<lf-option id="re-cone"><strong>A cone</strong></lf-option>'
+            "</lf-options></lf-decision>",
+        },
+    )
+    page, errors = open_page(browser, live_url(url))
+
+    # A thread is chrome holding no ask, so the walk starts from the page.
+    page.keyboard.press("t")
+    expect(page.locator(".lf-thread").first).to_be_focused()
+    page.keyboard.press("a")
+    expect(page.locator("#first-decision")).to_be_focused()
+
+    # The reply's ask is in the route. Walking off it and back down to the first leaves
+    # `landed` on a page ask, which is what the last press below must not answer from.
+    page.keyboard.press("a")
+    expect(page.locator("#second-decision")).to_be_focused()
+    page.keyboard.press("a")
+    expect(page.locator("#reply-decision")).to_be_focused()
+    page.keyboard.press("Shift+a")
+    expect(page.locator("#second-decision")).to_be_focused()
+    page.keyboard.press("Shift+a")
+    expect(page.locator("#first-decision")).to_be_focused()
+
+    # Standing in that ask is standing in the space, so the step measures from it.
+    pick = page.locator("#reply-decision .lf-pick").first
+    pick.focus()
+    expect(pick).to_be_focused()
+    page.keyboard.press("Shift+a")
+    expect(page.locator("#second-decision")).to_be_focused()
     assert errors == []
     page.close()
 

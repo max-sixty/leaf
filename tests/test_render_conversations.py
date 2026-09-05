@@ -1,5 +1,6 @@
 """Comment-panel ordering, narrowing, and thread-motion tests."""
 
+import base64
 import re
 from copy import deepcopy
 
@@ -13,9 +14,11 @@ from leaf import render_checks as render_checks_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
+    BOTH_STAMPS,
     COVERED_TOP,
     DECISION_PAGE,
     EDGES,
+    EXAMPLE_MEDIA,
     EXAMPLES,
     FEATURE_GALLERY,
     FRAME_BY_FRAME,
@@ -42,6 +45,7 @@ from render_support import (
     ring_faults,
     rings_drawn,
     round_trip,
+    sending,
     standing_ring,
     told,
     undo,
@@ -364,6 +368,152 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     second = events_model.read_events(serve.page_dir)[-1]
     in_threads_scrollport(page, f'.lf-thread[data-id="{second["id"]}"]')
     expect(box).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
+    browser, serve
+):
+    """Every thread textarea shares one paste path, exercised through a reply.
+
+    The binary body becomes page media before its Markdown reference enters the normal
+    draft generation. Reload and Send then prove the existing durable-text path owns the
+    rest of the loop, down to the exact pixels the rendered message reads back.
+    """
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir,
+        "Can you show me the rendering fault?",
+        {"section": "how-store"},
+        "claude",
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    reply = thread.locator("textarea")
+    pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
+
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        reply.evaluate(
+            """(textarea, encoded) => {
+              const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+              const transfer = new DataTransfer();
+              transfer.items.add(new File([bytes], 'rendering.png', {type: 'image/png'}));
+              textarea.dispatchEvent(new ClipboardEvent('paste', {
+                bubbles: true,
+                cancelable: true,
+                clipboardData: transfer,
+              }));
+            }""",
+            base64.b64encode(pixels).decode(),
+        )
+
+    image_markdown = "![Pasted image](/media/051bee487bfb5d13.png)"
+    expect(reply).to_have_value("")
+    draft_image = thread.locator(".lf-composer-media img")
+    expect(draft_image).to_be_visible()
+    expect(draft_image).to_have_attribute("src", "/media/051bee487bfb5d13.png")
+    expect(thread.get_by_role("button", name="Send", exact=True)).to_have_attribute(
+        "aria-disabled", "false"
+    )
+
+    page.reload()
+    page.wait_for_function(BOTH_STAMPS)
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    reply = thread.locator("textarea")
+    expect(reply).to_have_value("")
+    expect(thread.locator(".lf-composer-media img")).to_be_visible()
+    # Mirroring compares the complete draft rather than the textarea projection. A
+    # local keystroke must therefore keep the caret where the reader put it even while
+    # hidden image Markdown rides beside the visible words.
+    reply.fill("Fault here")
+    reply.evaluate("textarea => textarea.setSelectionRange(6, 6)")
+    reply.press_sequentially("is ")
+    expect(reply).to_have_value("Fault is here")
+
+    with sending(page, "the reply containing the pasted image"):
+        thread.get_by_role("button", name="Send", exact=True).click()
+    saved = events_model.read_events(serve.page_dir)[-1]
+    assert (saved["kind"], saved["parent"], saved["text"]) == (
+        "reply",
+        root,
+        f"Fault is here\n\n{image_markdown}",
+    )
+    image = thread.locator(".lf-msg.user .lf-msg-text img")
+    expect(image).to_have_attribute("src", "/media/051bee487bfb5d13.png")
+    media_open = image.locator("xpath=..")
+    expect(media_open).to_have_attribute(
+        "data-lf-media-url", "/media/051bee487bfb5d13.png"
+    )
+    page.wait_for_function(
+        "image => image.naturalWidth > 0", arg=image.element_handle()
+    )
+    url_before = page.url
+    media_open.click()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    expect(viewer).to_be_visible()
+    assert viewer.evaluate("dialog => dialog.matches(':modal')")
+    expect(viewer.locator("img")).to_have_attribute(
+        "src", "/media/051bee487bfb5d13.png"
+    )
+    assert page.url == url_before
+    page.keyboard.press("Escape")
+    expect(viewer).to_be_hidden()
+    expect(media_open).to_be_focused()
+    assert (serve.page_dir / "media" / "051bee487bfb5d13.png").read_bytes() == pixels
+    assert errors == []
+    page.close()
+
+
+def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, serve):
+    """The compact composer reads the complete draft hidden behind its textarea.
+
+    Several images make its shelf overflow, proving the anchored box gets the same
+    horizontal thumbnail projection as the larger thread text boxes.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.locator("#p1").click(click_count=3)
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
+
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        field.evaluate(
+            """(textarea, encoded) => {
+              const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+              const transfer = new DataTransfer();
+              for (let index = 0; index < 4; index += 1) {
+                transfer.items.add(new File(
+                  [bytes], `rendering-${index}.png`, {type: 'image/png'}
+                ));
+              }
+              textarea.dispatchEvent(new ClipboardEvent('paste', {
+                bubbles: true,
+                cancelable: true,
+                clipboardData: transfer,
+              }));
+            }""",
+            base64.b64encode(pixels).decode(),
+        )
+
+    expect(field).to_have_value("")
+    shelf = page.locator(".lf-fab-bar .lf-composer-media")
+    expect(shelf.locator("img")).to_have_count(4)
+    expect(page.locator(".lf-keyline")).to_contain_text("close — draft kept")
+    layout = shelf.evaluate(
+        """element => ({
+          display: getComputedStyle(element).display,
+          overflowX: getComputedStyle(element).overflowX,
+          scrolls: element.scrollWidth > element.clientWidth,
+        })"""
+    )
+    assert layout == {"display": "flex", "overflowX": "auto", "scrolls": True}
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-composer")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -2240,6 +2390,17 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # chrome-owned margin preview.
         "lf-conversation-msg",
         "lf-say",
+        # A pasted image's writing projection and inspection control cross the same
+        # seam: widget conversation boxes live in the page, while general comments,
+        # anchored comments, and the viewer live in the chrome.
+        "lf-compose",
+        "lf-general",
+        "lf-composer-media",
+        "lf-composer-media-item",
+        "lf-composer-media-open",
+        "lf-composer-media-remove",
+        "lf-message-media",
+        "lf-media-open",
         # A standing reaction's paint on the page: the element outline, the seat in the
         # margin and the glyph in it, and the wash a copy carries as a <mark>.
         "lf-react-el",
@@ -3247,7 +3408,7 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
         # a dozen pixels puts the first card of a run a couple of pixels under the
         # heading, and a couple of pixels is the whole of an inset ring. The depth is the
         # ring's width rather than a comfortable number on purpose. Deeper, and the card
-        # itself is under the heading, which `RING_FAULTS` excuses by design — a control
+        # itself is under the heading, which `ring_faults` excuses by design — a control
         # standing under something is a fact about where it was put. What is left when the
         # card is otherwise in full view is the claim this file makes: where the control
         # can be seen, so can the ring that names it.
@@ -3810,10 +3971,10 @@ def test_a_narrowing_that_hides_the_card_the_reader_stands_in_lands_them_on_the_
 def test_a_growing_reply_keeps_its_send_in_the_list(browser, serve):
     """A reply box grows under the reader; its Send and Resolve go with it.
 
-    Landing in a reply reveals the composer with its actions. Typing eight lines then
-    grew the box past the list's foot and left the blue Send a sliver at the
-    scrollport's edge — reachable by the send key the placeholder happened to name,
-    and by nothing a pointer could find. Growth is the landing's claim made again.
+    Landing in a reply reveals the composer with its actions. Growing the box past the
+    list's foot then left the blue Send a sliver at the scrollport's edge — reachable by
+    the send key the placeholder happened to name, and by nothing a pointer could find.
+    Growth is the landing's claim made again.
 
     On a card taller than the list — the shipped example's second thread, two long
     turns and the reply — because a short card's Send never leaves the scrollport
@@ -3827,14 +3988,21 @@ def test_a_growing_reply_keeps_its_send_in_the_list(browser, serve):
     thread = card.get_attribute("data-id")
     reply = card.locator("textarea")
     reply.click()
-    for line in range(8):
+    # The card has to overrun the list, or Send never left the scrollport and the claim
+    # below is proved by nothing. How many lines that takes is a function of everything
+    # else the card is carrying — eight was enough until a strip left the card and took
+    # eleven pixels with it — so the typing asks the page rather than naming a count.
+    room = page.evaluate("() => document.querySelector('.lf-threads').clientHeight")
+    overran = False
+    for line in range(24):
         page.keyboard.type(f"line {line} of a reply that keeps growing the box")
         page.keyboard.press("Enter")
-    # Grown, the card has to overrun the list, or Send never left the scrollport and
-    # the claim below is proved by nothing.
-    room = page.evaluate("() => document.querySelector('.lf-threads').clientHeight")
-    assert card.bounding_box()["height"] > room, (
-        "a card the list can show whole never pushes its Send out; this proves nothing"
+        overran = card.bounding_box()["height"] > room
+        if overran:
+            break
+    assert overran, (
+        f"{line + 1} lines left the card at {card.bounding_box()['height']:.0f} in a "
+        f"list {room} tall, so it never pushed its Send out; this proves nothing"
     )
     in_threads_scrollport(page, f'.lf-thread[data-id="{thread}"] .lf-thread-send')
     assert errors == []

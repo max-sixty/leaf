@@ -211,8 +211,8 @@ def test_the_site_serves_the_whole_layer_a_page_decisions_for(site):
     assert set(site_idioms) <= set(registry)
 
 
-def test_every_example_is_a_complete_canonical_page_directory(site):
-    """The published artifact is directly servable by Leaf, with no static surrogate."""
+def test_every_example_keeps_its_canonical_page_record(site):
+    """Static routes are derived beside, rather than replacing, Leaf's page record."""
     for source in authored_examples():
         page_dir = site / "examples" / source.stem
         versions = example_versions(source)
@@ -265,6 +265,56 @@ def test_every_example_is_a_complete_canonical_page_directory(site):
         assert not (page_dir / "service.json").exists()
         assert not (page_dir / "preview.json").exists()
         assert not (page_dir / "versions").exists()
+
+
+def test_a_website_example_keeps_its_version_identity_and_history(
+    served_example, browser
+):
+    """The website adapter preserves the canonical server's version routes."""
+    name = "log-retention"
+    page_dir, url = served_example(name)
+    events = read_events(page_dir)
+    mappings = files_model.version_revisions(events)
+    versions = [
+        {
+            "version": version,
+            "revision": revision,
+            "url": f"/examples/{name}/versions/v{version}.html",
+        }
+        for version, revision in sorted(mappings.items())
+    ]
+    page, errors = open_page(browser, url)
+    try:
+        expect(page.locator(".lf-version")).to_have_text("v2 ▾")
+        current = page.evaluate("() => fetch('api/state').then(r => r.json())")
+        assert current["active"]["revision"] == mappings[2]
+        assert current["active"]["version"] == 2
+        assert current["active"]["url"].startswith(
+            f"/examples/{name}/revisions/r{mappings[2]}-"
+        )
+        assert current["active"]["label"] == "v2"
+        assert current["versions"] == versions
+
+        page.locator(".lf-version").click()
+        expect(page.locator(".lf-version-row")).to_have_count(2)
+        page.locator('.lf-version-diff[data-lf-version="1"]').click()
+        expect(page.locator("main .lf-ins-block")).to_have_count(3)
+
+        page.locator(".lf-version").click()
+        page.locator('.lf-version-row[data-lf-version="1"]').click()
+        page.wait_for_url(
+            re.compile(r"/examples/log-retention/versions/v1\.html(?:\?pin=)?$")
+        )
+        page.wait_for_function(BOTH_STAMPS)
+
+        expect(page.locator(".lf-version")).to_have_text("v1 ▾")
+        expect(page.locator("#ret-cost-keep")).to_have_count(0)
+        pinned = page.evaluate("() => fetch('../api/state').then(r => r.json())")
+        assert pinned["active"] == current["active"]
+        assert pinned["versions"] == versions
+        assert errors == []
+    finally:
+        page.close()
 
 
 def test_every_product_route_is_a_live_leaf(site, hosted, browser):

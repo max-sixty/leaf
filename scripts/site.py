@@ -6,13 +6,13 @@ the version checker accepts, uses root-absolute public routes, and is published 
 rewriting. The five sources become live-root directory routes, so the same runtime
 addressing used by a served Leaf applies without a site-only exception.
 
-The examples are complete Leaf page directories under examples/<name>/. The same
+The examples begin as complete Leaf page directories under examples/<name>/. The same
 preparation path that serves a local example vendors each page's selected layer,
 stamps its authored versions, applies its companion event log and data, and closes the
-finished page without claiming it for an agent. A host can therefore route each clean
-example URL through Leaf's ordinary page server instead of maintaining a second
-browser-side session implementation. Product routes remain exact authored drafts and
-continue to use the site's static session.
+finished page without claiming it for an agent. The Worker gives each browser a private
+copy of those directories and the canonical server projects their virtual routes.
+Product routes remain exact authored drafts and continue to use the site's static
+session.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.

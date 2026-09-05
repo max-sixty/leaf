@@ -102,13 +102,11 @@ export function wireGeneralBox() {
     sends: "send",
     sendBtn: generalSend,
     save: (v) => saveDraft("general", v),
-    send: async (text, raw) => {
+    send: async (text, raw, owns) => {
       const event = { kind: "comment", revision: runtime.currentRevision, text };
       if (designOn) event.about = "layer";
-      const sent = await sendDraft(
-        "general",
-        () => generalInput.value === raw,
-        (attempt) => post({ ...event, attempt }),
+      const sent = await sendDraft("general", owns, (attempt) =>
+        post({ ...event, attempt }),
       );
       if (!sent) return;
       const shouldLand = mayLandTyping(generalInput);
@@ -117,5 +115,6 @@ export function wireGeneralBox() {
     },
   });
 
+  sync();
   mirrorDraft(generalInput, sync, "general");
 }

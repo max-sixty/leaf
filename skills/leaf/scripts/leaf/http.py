@@ -30,6 +30,7 @@ from .files import (
     write_json,
 )
 from .locations import path_is_within
+from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
 from .revisioning import activate_source
@@ -503,12 +504,14 @@ class Handler(BaseHTTPRequestHandler):
         self._answer(self._post, prepare=self._read_posted)
 
     def _read_posted(self) -> tuple:
-        """The POSTed body as a dict, or the refusal it has already earned.
+        """The route's POSTed body, or the refusal it has already earned.
 
-        Reading and parsing can fail in different ways, all before an append is
-        possible. Naming those failures as final lets the outbox put the gesture back;
-        an unexpected exception remains inside `_answer` and is therefore retryable.
+        Reading and parsing can fail in different ways, all before a write is possible.
+        Each earns a deterministic refusal; an unexpected exception remains inside
+        `_answer`, where the event outbox treats it as retryable.
         """
+        if urlsplit(self.path).path == "/api/media":
+            return self._read_uploaded_media()
         try:
             body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         except (TypeError, ValueError, MemoryError):
@@ -520,6 +523,29 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(posted, dict):
             return {}, "event must be a JSON object"
         return posted, None
+
+    def _read_uploaded_media(self) -> tuple[bytes, str | None]:
+        """Read one bounded image body without allocating from an untrusted length."""
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+        except (TypeError, ValueError):
+            self.close_connection = True
+            return b"", "invalid Content-Length"
+        if length < 1:
+            self.close_connection = True
+            return b"", "image body is empty"
+        if length > MAX_MEDIA_UPLOAD_BYTES:
+            self.close_connection = True
+            return b"", "image exceeds the 10 MiB limit"
+        try:
+            body = self.rfile.read(length)
+        except (MemoryError, OSError):
+            self.close_connection = True
+            return b"", "could not read image body"
+        if len(body) != length:
+            self.close_connection = True
+            return b"", "incomplete image body"
+        return body, None
 
     def _refuse(self, error: str, status: int = 400) -> None:
         """Answer a refusal in the shape spoken by the route that produced it."""
@@ -705,11 +731,12 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"error": "not found"}, 404)
 
     def _post(self):
-        if urlsplit(self.path).path != "/api/event":
+        path = urlsplit(self.path).path
+        if path not in {"/api/event", "/api/media"}:
             self._json({"error": "not found"}, 404)
             return
-        # Preview requests have passed authentication and body preparation, so
-        # their refusal can name the attempt without writing to the real log.
+        # Preview requests have passed authentication and body preparation. An event
+        # refusal can therefore name its attempt; media uses the route's generic shape.
         if self.preview_source is not None:
             self._refuse("the preview server is read-only", 403)
             return
@@ -721,6 +748,18 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.posted_error:
             self._refuse(self.posted_error)
+            return
+        if path == "/api/media":
+            try:
+                media_path = store_uploaded_media(
+                    self.page_dir,
+                    self.posted,
+                    self.headers.get("Content-Type", ""),
+                )
+            except MediaUploadError as error:
+                self._refuse(str(error))
+                return
+            self._json({"path": media_path})
             return
         try:
             view_revision = self.requested_view_revision(header=True)

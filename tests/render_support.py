@@ -85,6 +85,7 @@ from render_cases_interaction import (
     trial_family,
 )
 from render_cases_layout import (
+    ACCENT_SWATCH,
     AIM_CURSOR,
     AIM_PAINT_PAGE,
     AIM_POINT,
@@ -108,6 +109,7 @@ from render_cases_layout import (
     FLAT_SHADOW_PAGE,
     FLOATING_PAGE,
     FOCUS_IN_PAGE,
+    HERE_SHADOW,
     IDENTIFIERS_IN_CODE_PAGE,
     LEGEND_TRUE,
     LINKED_CELLS_PAGE,
@@ -366,6 +368,7 @@ from render_harness import (
 )
 
 __all__ = (
+    "ACCENT_SWATCH",
     "ADDRESSED_PAGE",
     "ADDRESS_PAGE",
     "AIMED",
@@ -462,6 +465,7 @@ __all__ = (
     "GENERIC_VISUAL_LAYER",
     "GENERIC_VISUAL_PAGE",
     "GENERIC_VISUAL_WIDGETS",
+    "HERE_SHADOW",
     "HOLD_MOTION",
     "HOVERED",
     "IDENTIFIERS_IN_CODE_PAGE",

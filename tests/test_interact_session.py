@@ -529,6 +529,26 @@ def test_a_batch_says_what_each_kind_present_asks_of_the_agent(page_dir, capsys)
     }
 
 
+def test_a_page_vendored_before_handling_gets_the_kernel_s_sentences(page_dir, capsys):
+    """The vendored layer states nothing about handling, so the batch falls back
+    to the installed kernel's sentences rather than delivering an empty map."""
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    del registry["$events"]["handling"]
+    registry_path.write_text(json.dumps(registry))
+
+    serving(page_dir, 1)
+    session_model.cmd_status(page_dir, "waiting", "")
+    events_model.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
+    )
+
+    assert session_model.cmd_wait(page_dir) == 0
+    header = json.loads(capsys.readouterr().out.splitlines()[0])
+    kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
+    assert header["handling"] == {"comment": kernel["$events"]["handling"]["comment"]}
+
+
 def test_reopening_a_thread_reveals_its_unanswered_claim(page_dir):
     """Resolution hides thread work while reopening restores an unanswered claim."""
     comment = events_model.append_event(

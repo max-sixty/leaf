@@ -1,3 +1,5 @@
+/* This module owns widget-element construction, labels, gesture guards, deferred
+ * measurement, layout-change signalling, and control sizing. */
 import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
 

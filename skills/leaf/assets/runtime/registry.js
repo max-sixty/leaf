@@ -1,3 +1,5 @@
+/* This module owns vocabulary queries: every reading of the vendored registry another
+ * module takes goes through here rather than through a tag-name list. */
 import { runtime } from "./context.js";
 
 // The vocabulary, vendored per page: which tags a module upgrades, and which of their

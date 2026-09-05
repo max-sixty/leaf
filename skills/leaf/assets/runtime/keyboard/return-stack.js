@@ -1,3 +1,5 @@
+/* This module owns the return stack: the place a keyboard entry displaced, one frame
+ * per entry, and the Escape that pops it. */
 import { word } from "./bindings.js";
 import { focusDestination } from "../widget-elements.js";
 

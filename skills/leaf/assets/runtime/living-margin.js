@@ -1,3 +1,7 @@
+/* This module owns the page map, the compact map sheet, anchored margin threads, the
+ * design-mode exclusion of its top-layer preview, and the one aggregated Button cluster
+ * for each page target. Content modules contribute live controls and semantics through
+ * `registerMarginItem` and never place their own margin rows. */
 import {
   layoutMarginRows,
   registerMarginRow,

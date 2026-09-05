@@ -1,3 +1,6 @@
+/* This module owns the selection composer's state: the pending anchor and what it is
+ * about, whether the composer is open, its draft, and its open, hide, and close
+ * transitions. */
 export let pendingAnchor = null;
 export let pendingAbout = null;
 export let composerOpen = false;

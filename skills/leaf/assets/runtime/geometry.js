@@ -1,6 +1,7 @@
+/* This module owns the shared readings of visible boxes and clipping, and the one
+ * conversion from viewport boxes to document-positioned chrome. */
 import { uiInside } from "./passages.js";
 
-/* Shared readings of the boxes the page actually shows. */
 // Document-anchored chrome is positioned from the document origin, while the boxes it
 // follows are read in viewport coordinates. Convert once at that boundary.
 export function documentPoint(left, top) {

@@ -1,3 +1,5 @@
+/* This module owns visual and assistive announcements: the live region, and the notice
+ * that stands in the status line for a moment. */
 let publishedNotifications;
 export const announce = (...args) => publishedNotifications.announce(...args);
 export const notice = (...args) => publishedNotifications.notice(...args);

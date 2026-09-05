@@ -1,3 +1,5 @@
+/* This module owns the reaction vocabulary, reaction lists and their standing paint,
+ * sending, keyboard reaction mode, and reaction-specific undo wording. */
 import {
   iconElement,
   marginButton,

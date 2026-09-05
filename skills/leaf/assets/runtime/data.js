@@ -1,3 +1,5 @@
+/* This module owns external-data acceptance, readiness, and source-contract
+ * subscriptions. */
 import { runtime } from "./context.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { registry } from "./registry.js";

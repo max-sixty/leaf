@@ -1,3 +1,6 @@
+/* This module owns the one keydown listener and the scope walk it dispatches through:
+ * the innermost-first stack of scopes the reader stands in, the shadowing between them,
+ * and the route a command chosen off the reference takes to the same scope. */
 import {
   MODIFIER_KEYS,
   answers,

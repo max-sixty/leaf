@@ -1,3 +1,5 @@
+/* This module owns declared shadow roots, their theme slice, and the shared highlight
+ * rules. */
 import { tagsDeclaring } from "./registry.js";
 
 // The open shadow roots under some root that hold the page's own words, from what the

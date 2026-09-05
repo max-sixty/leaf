@@ -1,3 +1,6 @@
+/* This module owns scope declaration: the scopes registered against elements, their
+ * merge into one section per title, where focus stands, and whether a control claims
+ * Escape. `keys` is the door a widget declares its bindings through. */
 import {
   MODIFIER_KEYS,
   activeRows,

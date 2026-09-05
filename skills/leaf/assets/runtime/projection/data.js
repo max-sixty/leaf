@@ -1,3 +1,6 @@
+/* This module owns keyed runtime-data DOM reconciliation: `projectData` states each
+ * rendered datum's identity on its node, so a renderer replacing the node keeps the
+ * anchor. */
 import { registry } from "../registry.js";
 
 let publishedProjectData;

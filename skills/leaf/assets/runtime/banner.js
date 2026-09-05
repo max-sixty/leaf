@@ -1,3 +1,5 @@
+/* This module owns banner wording, tone, tab-icon paint, and announcing a status kind
+ * that has changed. */
 export function createBanner({
   agentName,
   ago,

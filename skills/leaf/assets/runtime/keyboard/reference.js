@@ -1,3 +1,5 @@
+/* This module owns the `?` reference: every scope the page has, gathered by title, the
+ * dialog that lists them, and the place it hands the reader back to on close. */
 import {
   bindings,
   clampedRow,

@@ -1,3 +1,5 @@
+/* This module owns conversation input discovery, focus travel into and back out of a
+ * conversation, and panel arrival. */
 import { shownBand, shownBox } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";

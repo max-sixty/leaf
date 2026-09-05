@@ -1,3 +1,5 @@
+/* This module owns reduced-motion policy, shared scroll behavior, and Web Animations
+ * playback. */
 import { runtime } from "./context.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 

@@ -1,6 +1,7 @@
+/* This module owns conversation seats rendered into the page, outside the retained
+ * Threads list. */
 import { landInConversation, SAY_BOX } from "./landing.js";
 
-/* Textual conversation views rendered outside the retained Threads list. */
 export function createInlineConversations({
   ago,
   el,

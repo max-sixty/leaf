@@ -1,3 +1,4 @@
+/* This module owns the machine-leaves tray's rows, presence words, and walk. */
 export function createLiveLeaves({
   ago,
   el,

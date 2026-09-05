@@ -1,3 +1,4 @@
+/* This module owns projection reconciliation and undo. */
 import { createAuthoredProjection } from "./projection/authored.js";
 import { createProjectionFold } from "./projection/fold.js";
 import { stateSpecs } from "./registry.js";

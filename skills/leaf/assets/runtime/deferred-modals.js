@@ -1,3 +1,5 @@
+/* This module holds authored modals and popovers outside the top layer until the first
+ * presentation boundary, then promotes the ones still open in a visible place. */
 export function createDeferredModals({ presentedAttribute }) {
   // A modal is promoted into the top layer and makes the rest of the document inert. Both
   // facts escape an ancestor boundary: hiding it with CSS alone would still disable the

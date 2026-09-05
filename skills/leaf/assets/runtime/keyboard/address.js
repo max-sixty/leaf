@@ -1,3 +1,5 @@
+/* This module owns the `g` chord: the page's direct and numbered destinations, whether
+ * the chord is armed, and the address chips painted while it stands. */
 import { labelOf, live, spell } from "./bindings.js";
 import { createAddressPlacement, MAX_NUMBERED_ADDRESSES } from "./address-placement.js";
 import { keySequence, progressStates } from "./presentation.js";

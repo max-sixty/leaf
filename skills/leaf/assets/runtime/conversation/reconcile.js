@@ -1,3 +1,5 @@
+/* This module composes panel reconciliation: it wires the conversation owners together
+ * and owns the render pass that runs them. `createConversation` is the surface. */
 import { createThreadModel } from "./model.js";
 import { createThreadFolding, createThreadSettlement } from "./folding.js";
 import { createInlineConversations } from "./inline.js";
@@ -12,7 +14,6 @@ import { createConversationThreadList } from "./thread-list.js";
 import { createAcknowledgments } from "./acknowledgments.js";
 import { createThreadSurfaces } from "./surfaces.js";
 
-/* Conversation state and panel reconciliation. */
 export function createConversation(dependencies) {
   const {
     FOLD_MS,

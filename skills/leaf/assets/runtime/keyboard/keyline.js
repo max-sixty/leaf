@@ -1,3 +1,6 @@
+/* This module owns the key line: which rows it shows for the next press, walked outward
+ * from where the reader stands, how they yield under its two-row ceiling, and the More
+ * disclosure that unfolds the rest. */
 import {
   activeRows,
   bindings,

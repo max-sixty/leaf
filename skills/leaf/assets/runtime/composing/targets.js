@@ -1,3 +1,4 @@
+/* This module owns keyboard item hints and whole-page text search. */
 import { sameAnchor } from "../anchors.js";
 import { bindings } from "../keyboard/bindings.js";
 

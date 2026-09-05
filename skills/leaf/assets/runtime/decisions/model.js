@@ -1,3 +1,5 @@
+/* This module owns request discovery, decision folding, and the semantic Decision
+ * subscription: server-projected decision state resolved onto the live DOM. */
 import { watchProjection } from "../projection-watch.js";
 
 let publishedDecisionModel;
@@ -10,7 +12,6 @@ export const openDecisions = (...args) => publishedDecisionModel.openDecisions(.
 export const watchDecisions = (...args) =>
   publishedDecisionModel.watchDecisions(...args);
 
-/* Server-projected decision state, resolved onto the browser's live DOM. */
 export function createDecisionModel({
   authoredParentOf,
   closestAcross,

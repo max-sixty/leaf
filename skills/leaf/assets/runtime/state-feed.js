@@ -1,3 +1,5 @@
+/* This module owns state reads, offline handling, heartbeat replay, event-stream
+ * wakeups, and first-read presentation scheduling and retry. */
 export function createStateFeed({
   RETRY_MS,
   SILENCE_MS,

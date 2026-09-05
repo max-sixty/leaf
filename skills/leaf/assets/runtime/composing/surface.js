@@ -1,3 +1,5 @@
+/* This module owns floating comment geometry and page-click routing: where the response
+ * bar stands, and what a press on the page reaches. */
 import { sameAnchor } from "../anchors.js";
 import { documentPoint } from "../geometry.js";
 import { targetElement, targetParts, targetSegments } from "../resolved-target.js";

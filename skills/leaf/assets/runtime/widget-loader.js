@@ -1,3 +1,5 @@
+/* This module owns registry loading, pre-upgrade passage fences, dynamic widget
+ * imports, and initial settlement. */
 import {
   MARKED_IN_PAGE,
   dress,

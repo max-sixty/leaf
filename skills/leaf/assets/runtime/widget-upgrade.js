@@ -1,3 +1,5 @@
+/* This module owns widget upgrade guards, data bodies, fail-soft rendering, and async
+ * settlement. */
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
 // One-shot guard for connectedCallback: re-connection (a parent wrapping or moving an

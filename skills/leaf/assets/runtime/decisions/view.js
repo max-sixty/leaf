@@ -1,3 +1,5 @@
+/* This module owns decision chrome, marking, the decision walk, and Ask-local
+ * contextual command projection. */
 import { shownBox, shownRect } from "../geometry.js";
 import {
   createAddressPlacement,

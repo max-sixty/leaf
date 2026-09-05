@@ -1,3 +1,6 @@
+/* This module owns the browser-state arrangements the arrival gate exercises: each
+ * names one remembered reader or tab setting, the store it lives in, and the value
+ * that stands it up. Boot publishes them as `ARRANGEMENTS` once the stores exist. */
 let publishedArrangements = [];
 export { publishedArrangements as ARRANGEMENTS };
 

@@ -1,3 +1,5 @@
+/* This module owns the vendored-generation gate, the one shared event POST, and the
+ * page-error channel that reports a broken page to its author. */
 export function createLayerClient({ currentRevision, layerGeneration, sayLine }) {
   let layerReloading = false;
   function sameLayer(generation) {

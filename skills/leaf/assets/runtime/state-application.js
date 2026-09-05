@@ -1,3 +1,5 @@
+/* This module owns stale-answer ordering, application serialization, state commit,
+ * projection, notification, outbox accounting, and rollback. */
 import { LIVE_ROOT } from "./storage.js";
 
 // What an application writes to the runtime and a refused one gives back, the three

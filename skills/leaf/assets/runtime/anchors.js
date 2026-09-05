@@ -921,7 +921,7 @@ export function createAnchors(dependencies) {
           const ranges = segments.map((seg) => rangeOf([seg]));
           reacted.set(t.root.id, ranges);
           reactions.push(...ranges);
-          const block = blockAt(segments[0].node) ?? sectionOf(t.root.anchor);
+          const block = blockAt(segments[0].node) ?? found.place;
           const root = block?.getRootNode();
           [at, before] =
             root instanceof ShadowRoot ? [root.host, true] : [block, false];
@@ -965,7 +965,7 @@ export function createAnchors(dependencies) {
       // blocks, and a design comment on a runtime part is on chrome the panel already
       // reads out — an aria-hidden injected note button would be focusable content nobody
       // is told about.
-      for (const holder of blocks.length ? blocks : [sectionOf(t.root.anchor)])
+      for (const holder of blocks.length ? blocks : [found.place])
         if (holder && !inChrome(holder))
           noted.set(holder, [...(noted.get(holder) ?? []), t.root.id]);
     }

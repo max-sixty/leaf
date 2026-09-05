@@ -116,6 +116,15 @@ CONTROL_STABILITY_PAGE = leaf_page(
     <strong>Keep every control row still</strong>
   </lf-task>
 </lf-command>
+<lf-decision id="stable-swipe-decision"><h2>Which follow-up should stay?</h2>
+<lf-swipe-deck id="stable-swipe">
+  <lf-swipe-pile id="stable-swipe-queue" verdict="unseen">
+    <lf-swipe-card id="stable-swipe-a">Keep the first follow-up.</lf-swipe-card>
+    <lf-swipe-card id="stable-swipe-b">Keep the second follow-up.</lf-swipe-card>
+  </lf-swipe-pile>
+  <lf-swipe-pile id="stable-swipe-pass" verdict="pass"></lf-swipe-pile>
+  <lf-swipe-pile id="stable-swipe-keep" verdict="keep"></lf-swipe-pile>
+</lf-swipe-deck></lf-decision>
 <lf-diff id="stable-diff"><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
@@ -189,6 +198,13 @@ CONTROL_ARCHETYPES = (
         "name": "diff-review",
         "coverage": ".lf-diff-review",
         "target": "#stable-diff .lf-diff-review",
+    },
+    {
+        # A swipe deck's two classifications share the active-card footer. A move
+        # replaces that card and updates the count without moving the other choice.
+        "name": "swipe",
+        "coverage": ":is(.lf-swipe-pass, .lf-swipe-keep)",
+        "target": "#stable-swipe .lf-swipe-pass",
     },
 )
 CONTROL_ROW_PRESS = (

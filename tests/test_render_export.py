@@ -45,6 +45,31 @@ pytestmark = pytest.mark.nightly
 
 ROOT = Path(__file__).parent.parent
 
+_PREVIEW_RESTART_ERRORS = {
+    "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "Failed to load resource: net::ERR_CONNECTION_RESET",
+    "Failed to load resource: net::ERR_EMPTY_RESPONSE",
+    "leaf: page failed to start: Failed to fetch",
+}
+_PREVIEW_RESTART_ICON_ERROR = re.compile(
+    r"TypeError: Failed to fetch\n"
+    r"    at loadIcon \(http://127\.0\.0\.1:(?P<port>\d+)"
+    r"/runtime/banner\.js:\d+:\d+\)\n"
+    r"    at startPage \(http://127\.0\.0\.1:(?P=port)/leaf\.js:\d+:\d+\)\n"
+    r"    at http://127\.0\.0\.1:(?P=port)/leaf\.js:\d+:\d+"
+)
+
+
+def assert_only_preview_restart_errors(errors):
+    """A preview restart may interrupt only its page and icon fetches."""
+    unexpected = [
+        error
+        for error in errors
+        if error not in _PREVIEW_RESTART_ERRORS
+        and _PREVIEW_RESTART_ICON_ERROR.fullmatch(error) is None
+    ]
+    assert unexpected == [], unexpected
+
 
 @pytest.fixture
 def preview_slot(tmp_path):
@@ -303,11 +328,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     assert (page_dir / "events.jsonl").stat().st_ino == inode
     assert service_model.page_claim(page_dir) is None
     assert not (page_dir / "service.json").exists()
-    assert set(automation_errors) <= {
-        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
-        "Failed to load resource: net::ERR_CONNECTION_RESET",
-        "Failed to load resource: net::ERR_EMPTY_RESPONSE",
-    }
+    assert_only_preview_restart_errors(automation_errors)
     automation.close()
 
     automation_process.send_signal(signal.SIGINT)
@@ -580,11 +601,7 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
     # A stopped/restarted service briefly refuses the browser's reconnect.
-    assert set(errors) <= {
-        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
-        "Failed to load resource: net::ERR_CONNECTION_RESET",
-        "Failed to load resource: net::ERR_EMPTY_RESPONSE",
-    }
+    assert_only_preview_restart_errors(errors)
     page.close()
 
 

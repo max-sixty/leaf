@@ -191,7 +191,10 @@ a total, idempotent `renderState(state)`; `sendAction` for recorded user state, 
 detail matching the declared browser schema; `says()` over `textContent`; `offer()` and
 `relabel()` on anything injected, with its room reserved from inside `measure` and
 `layoutChanged` called after a view swap (each helper's header under `runtime/` says
-why); `once()` in a `connectedCallback` that is safe to run after reconnection, and
+why); `keeps(node, name, value)` for any name or state a render on the `lf-actions`
+heartbeat writes, handed the boolean or count raw, since an unconditional
+`setAttribute` restates itself every two seconds on a page nobody has touched and
+`toggleAttribute` already keeps the rule for flags; `once()` in a `connectedCallback` that is safe to run after reconnection, and
 hoisted chrome removed in `disconnectedCallback` when the owner disconnects;
 `commands()` at upgrade — through `DISCLOSE(el)` over anything that folds, the runtime
 owning those commands — `quoted()` before wiring input, `actionAvailable()` for an

@@ -114,11 +114,15 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
             return {x, y, width, height};
           });
           const before = boxes();
-          const observer = new MutationObserver(() => {});
+          // Collected from the callback rather than by `takeRecords` alone: letting a
+          // frame settle passes a microtask checkpoint, which delivers the records to
+          // the callback and empties the queue a bare `takeRecords` would read.
+          const seen = [];
+          const observer = new MutationObserver(list => seen.push(...list));
           observer.observe(document.body, {subtree: true, attributes: true,
             attributeFilter: ['data-lf-button-primary', 'data-lf-button-overflow']});
           for (let i = 0; i < 5; i++) layoutMarginRows();
-          const mutations = observer.takeRecords().length;
+          const mutations = seen.length + observer.takeRecords().length;
           observer.disconnect();
           return {before, after: boxes(), mutations};
         }"""
@@ -134,6 +138,49 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
         name: after[name] - before[name] for name in ("LayoutCount", "RecalcStyleCount")
     }
     assert all(count <= 30 for count in work.values()), work
+    assert errors == []
+    page.close()
+
+
+def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
+    browser, serve
+):
+    """A chrome layout pass repacks the margin's rows; it does not restate its offers.
+
+    `syncLayout` ends in the anchor runtime's `dockSeats`, and the here-paint frame
+    ends in `syncLayout`; a margin render ends in `paintKeys`, which ends in the next
+    `paintHere`. So a `dockSeats` that restated every seat's offer closed a cycle —
+    chrome layout, margin render, paint, chrome layout — on any page carrying a
+    standing reaction, and the gallery ran a whole margin render every frame with
+    nothing dispatched and nothing on the page moving. Measured then: ~350ms of main
+    thread per frame, which is also long enough that every Playwright read of that
+    page waits on it.
+
+    The reaction seat is asserted first, because it is the ingredient the cycle needed:
+    with no seat `dockSeats` visits nothing and a page passes this without saying
+    anything. The heartbeat is the one render a settled page is allowed here, and it
+    comes every two seconds, so at most one of these frames can carry it.
+    """
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 1280, 900)
+    margins_laid_out(page)
+    assert page.locator(".lf-react-mark").count() >= 1
+
+    layouts = page.evaluate(
+        """async frames => {
+          const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+          for (let i = 0; i < 10; i++) await frame();
+          let seen = 0;
+          const count = () => { seen += 1; };
+          document.addEventListener('lf-margin-layout', count);
+          for (let i = 0; i < frames; i++) await frame();
+          document.removeEventListener('lf-margin-layout', count);
+          return seen;
+        }""",
+        30,
+    )
+
+    assert layouts <= 1, layouts
     assert errors == []
     page.close()
 
@@ -186,6 +233,378 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
     assert work["LayoutCount"] <= refreshes * 4, work
     assert work["RecalcStyleCount"] <= refreshes * 18, work
     assert geometry_reads == refreshes, geometry_reads
+    assert errors == []
+    page.close()
+
+
+# Both pages stand still with nothing dispatched, so both give the settled reading:
+# ten frames on an untouched page report no record at all. That is a property of the
+# runtime rather than of either fixture, and a recent one — before #298 stopped
+# `dockSeats` restating every seat's offer, the same ten frames on the gallery
+# reported about 1700 records with nothing dispatched.
+HEARTBEAT_PAGES = (
+    # The corpus is the widest margin the examples draw: 31 items on this viewport,
+    # more than half of them docked out in the document beside their targets. It is
+    # also the page whose rows are withheld — 29 of the 31 it draws wear `lf-waiting`
+    # at this viewport — so the posture clear and the rail re-read are read here.
+    # None of the two that hang stands beside the other, so nothing is pushed.
+    pytest.param(
+        next(example for example in EXAMPLES if example.stem == "corpus"),
+        {".lf-margin-item": 15},
+        {"row posture", "rail width", "fold rule"},
+        id="corpus",
+    ),
+    # The gallery draws the fittings the corpus has none of, and the writers that only
+    # run for those are watched nowhere else: a reading option under an entry holding
+    # several readings, and the readings whose move is made, which wear the `status`
+    # behavior on a span seat rather than a button. Every row it draws hangs, so no
+    # posture is cleared off one and the rail is not re-read; two of them stand where
+    # they would overlap, so the push measurement is read here and nowhere else.
+    pytest.param(
+        FEATURE_GALLERY,
+        {
+            ".lf-margin-item": 10,
+            ".lf-margin-reading-option": 1,
+            '.lf-margin-button[data-lf-behavior="status"]': 2,
+        },
+        {"row push", "fold rule"},
+        id="gallery",
+    ),
+)
+
+
+@pytest.mark.parametrize("page_source, population, measurements", HEARTBEAT_PAGES)
+def test_an_unchanged_heartbeat_restates_no_margin_name(
+    browser, serve, page_source, population, measurements
+):
+    """The heartbeat must not rewrite a name, state, or word it is not changing.
+
+    `render` is bound to `lf-actions`, so an unconditional write here restates
+    itself every two seconds on a page nobody has touched: the mutation stream a
+    screen reader rebuilds its buffer from, and a dirty box for whatever reads
+    next. The corpus used to restate 205 attributes and the Page-map button's
+    words on every pass.
+
+    What the pass wrote without changing anything is one reading rather than two.
+    An attribute the pass leaves carrying the value it opened with said nothing,
+    whether one writer restated it or two took turns over it — and the turns are
+    the reading a same-value predicate cannot take, because each leg differs from
+    the value before it. Both are records a reader rebuilds from, and the second
+    kind is what `leaf.js`'s disclosure watch reads as news. So `news` stays as
+    its own reading: a watched attribute that ends the pass somewhere new repaints
+    the page's keys, and that is a change rather than a restatement.
+
+    The margin is not the nav: `render` docks every host with offers beside its
+    own perch out in the document, which on both pages is more of the margin than
+    the nav holds, and `syncInlineOffers` builds another host in place wherever an
+    offer's target stands in chrome. So the watch is rooted at every host of
+    either kind, and the reach is asserted the way the population is — a run where
+    the docked hosts stopped being watched would otherwise return the same clean
+    `[]` it returns when nothing is wrong. No shipped page draws an inline host at
+    rest, so that second root is reach rather than a reading taken here.
+
+    One page cannot state the reach on its own either: the corpus draws no reading
+    option and no status reading, so the writers those two fittings reach ran
+    unwatched until the gallery was read beside it. Each page therefore names the
+    population it is here for.
+
+    Half of `render` runs in a frame callback — `scheduleMarginLayout`,
+    `scheduleRoving` and `scheduleButtonLabels` are its whole tail — and five
+    dispatches in one synchronous task never reach it. Each beat is therefore read
+    across a settled frame, which both pages now allow. The measurements each page
+    is expected to show are named beside its population and asserted exactly, so a
+    run that stopped letting the frame run could not return `[]` and look clean.
+
+    What remains on that reading is not a name being restated: each entry in the
+    probe table is a measurement that modifies the DOM to read it and puts it back.
+    Naming them here rather than filtering them keeps the account honest in both
+    directions — a new unchanged write cannot arrive unnamed, and closing a probe
+    turns this red rather than passing quietly.
+    """
+    page, errors = open_page(browser, serve(page_source))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    for selector, least in population.items():
+        assert page.locator(selector).count() >= least, selector
+    heartbeat = page.evaluate(
+        """async ({refreshes}) => {
+          const frame = () => new Promise(
+            resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+          const text = nodes => [...nodes].map(node => node.textContent).join('');
+          const hosts = [...document.querySelectorAll('.lf-margin-item'),
+            ...document.querySelectorAll(
+              'div.lf-ui[data-lf-margin-for]:not(.lf-margin-item)')];
+          const roots = [document.querySelector('nav.lf-living-margin'),
+                         document.querySelector('.lf-page-map-toggle'), ...hosts];
+          // Collected from the callback rather than by `takeRecords` alone: letting a
+          // frame settle passes a microtask checkpoint, which delivers the records to
+          // the callback and empties the queue a bare `takeRecords` would read.
+          const seen = [];
+          const observer = new MutationObserver(list => seen.push(...list));
+          for (const root of roots)
+            observer.observe(root, {subtree: true, childList: true,
+              characterData: true, characterDataOldValue: true,
+              attributes: true, attributeOldValue: true});
+          const on = record => record.target.className || record.target.nodeName;
+          const hangs = value => /lf-(docked|waiting)/.test(value ?? '');
+          const pushed = value => /transform:/.test(value ?? '');
+          const probes = [
+            ['row posture',
+             'margin-layout clears the docked and waiting classes off a row '
+             + 'to measure where it can hang',
+             (record, pass) => record.attributeName === 'class'
+               && record.target.matches('.lf-margin-item')
+               // Asked of the write rather than of the row: a docked row carries the
+               // tokens from one end of the pass to the other, so reading them off
+               // the target files every same-value `class` write on that row under
+               // this probe, including one from a writer that has nothing to do with
+               // the measurement. The clear moves a token off and the re-mark moves
+               // it back; a name restated moves neither.
+               && hangs(record.oldValue) !== hangs(pass.wrote.get(record))],
+            ['row push',
+             'margin-layout clears the push off a hanging row to measure where it '
+             + 'naturally sits, then pushes it clear of the row above again',
+             // Asked of the write for the same reason the posture is: a pushed row
+             // carries its transform across the whole pass, so reading `style` off
+             // the target would file a restated `top` from another writer here. The
+             // clear takes the transform off and the pack puts it back.
+             (record, pass) => record.attributeName === 'style'
+               && record.target.matches('.lf-margin-item')
+               && pushed(record.oldValue) !== pushed(pass.wrote.get(record))],
+            ['rail width',
+             'margin-layout reads the rail again once the docked rows are back in flow',
+             record => record.attributeName === 'style'
+               && record.target.matches('nav.lf-living-margin')],
+            ['fold rule',
+             'controlsShownByOwner lifts the fold rule off a contributed control to '
+             + 'read how its owner paints it',
+             record => record.attributeName === 'data-lf-button-primary'
+               && record.target.matches('.lf-margin-button')],
+          ];
+          const probe = (record, pass) =>
+            probes.find(([, , holds]) => holds(record, pass))?.[0] ?? null;
+          const unchanged = [];
+          const news = [];
+          for (let i = 0; i < refreshes; i++) {
+            document.dispatchEvent(new CustomEvent('lf-actions'));
+            await frame();
+            await frame();
+            seen.push(...observer.takeRecords());
+            const records = seen.splice(0);
+            // The value each attribute carried before this pass touched it, and the
+            // last write of it, so the pass can be asked what it left standing rather
+            // than what each write said.
+            const opened = new Map();
+            // What each write said, which no record carries: a record holds the value
+            // it replaced, so the next write of that attribute holds this one's
+            // result, and the last write's result is what the attribute reads now.
+            const wrote = new Map();
+            for (const record of records) {
+              if (record.type !== 'attributes') continue;
+              let byName = opened.get(record.target);
+              if (!byName) opened.set(record.target, byName = new Map());
+              let entry = byName.get(record.attributeName);
+              if (!entry)
+                byName.set(record.attributeName,
+                  entry = {opening: record.oldValue, last: null});
+              if (entry.last) wrote.set(entry.last, record.oldValue);
+              entry.last = record;
+            }
+            for (const [target, byName] of opened)
+              for (const [name, entry] of byName)
+                wrote.set(entry.last, target.getAttribute(name));
+            const pass = {wrote};
+            for (const record of records) {
+              if (record.type === 'attributes') {
+                const now = record.target.getAttribute(record.attributeName);
+                const {opening} =
+                  opened.get(record.target).get(record.attributeName);
+                if (opening === now)
+                  unchanged.push({on: on(record), wrote: record.attributeName,
+                                  said: opening, probe: probe(record, pass)});
+                if (['open', 'aria-expanded'].includes(record.attributeName)
+                    && now !== record.oldValue)
+                  news.push({on: on(record), wrote: record.attributeName,
+                             was: record.oldValue, now});
+              } else if (record.type === 'characterData') {
+                if (record.oldValue === record.target.data)
+                  unchanged.push({on: on(record), wrote: 'text',
+                                  said: record.oldValue, probe: null});
+              } else if (text(record.removedNodes) === text(record.addedNodes)
+                         && record.removedNodes.length > 0)
+                unchanged.push({on: on(record), wrote: 'children',
+                                said: text(record.addedNodes), probe: null});
+            }
+          }
+          observer.disconnect();
+          return {
+            unchanged, news,
+            probes: probes.map(([name]) => name),
+            docked: hosts.filter(host => !host.closest('nav.lf-living-margin')).length,
+            hosts: hosts.length,
+          };
+        }""",
+        {"refreshes": 5},
+    )
+    unnamed = [row for row in heartbeat["unchanged"] if row["probe"] is None]
+    assert unnamed == [], unnamed
+    assert heartbeat["news"] == [], heartbeat["news"]
+    # The reach the readings above are worth: the nav alone would leave more than
+    # half of either page's hosts, and every writer under them, unwatched, and a
+    # reading that stopped settling would see none of the frame's measurements.
+    assert heartbeat["docked"] >= heartbeat["hosts"] / 2, heartbeat
+    assert measurements <= set(heartbeat["probes"]), measurements
+    assert {row["probe"] for row in heartbeat["unchanged"]} == measurements, heartbeat[
+        "unchanged"
+    ]
+    assert errors == []
+    page.close()
+
+
+def test_an_unchanged_heartbeat_re_marks_no_docked_row(browser, serve):
+    """A row the pass leaves docked is not marked docked again.
+
+    `layoutMarginRows` reads the standing posture before it clears anything and
+    leaves a row that still cannot hang where it is, so that row skips the clear
+    and reaches the placement loop already carrying `lf-docked`. `add`
+    re-serializes `class` whether or not the token is new, and this pass runs on
+    the heartbeat through `render`'s tail, so the unguarded mark was a same-value
+    `class` write per docked row every two seconds: a record a screen reader
+    rebuilds its buffer from, for a row that did not move. Measured on this
+    fixture before the guard, five beats wrote `class` five times.
+
+    Neither page the heartbeat reading above is taken on can state it. The corpus
+    stands still, but every row it draws hangs, and the compact posture that would
+    dock them withholds them as `lf-waiting` instead; the gallery stands still too
+    now, but it docks no row at that viewport at all — measured, none of the
+    eighteen it draws wears `lf-docked`. The posture is therefore reached directly:
+    under `COVERING` a contributed row cannot hang whatever the local room, and a
+    page with one target settles.
+
+    The guard must not cost the mark, so the narrowing is read too — the row
+    arrives hanging, and it is the pass that docks it. The pass itself is counted
+    off `lf-margin-layout`, which `layoutMarginRows` dispatches after the marks:
+    a window that stopped reaching the layout would otherwise return the same
+    clean reading a guarded one does.
+    """
+    fixture = leaf_page("Docked reading", '<p id="target">Target passage</p>')
+    page, errors = open_page(browser, serve(fixture))
+    resized(page, 1440, 900)
+    page.evaluate(
+        """async () => {
+          const {offer, marginButton, registerMarginItem} =
+            await import('/runtime/widget-api.js');
+          const controls = document.createElement('span');
+          controls.append(marginButton(offer('button', ''), {
+            key: 'act', icon: 'dot', label: 'Act on the target', role: 'primary'}));
+          registerMarginItem({key: 'target', target: document.getElementById('target'),
+            controls});
+        }"""
+    )
+    margins_laid_out(page)
+    row = page.locator(".lf-margin-item")
+    expect(row).to_have_count(1)
+    expect(row).not_to_have_class(re.compile(r"lf-docked"))
+    # Inside the covering boundary, which is 840px wide.
+    resized(page, 800, 900)
+    margins_laid_out(page)
+    expect(row).to_have_class(re.compile(r"lf-docked"))
+    marks = page.evaluate(
+        """async refreshes => {
+          const frame = () => new Promise(
+            resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+          const wrote = [];
+          // The reading has to say the pass ran: a window that never reaches
+          // `layoutMarginRows` returns the same clean `[]` a guarded one does.
+          let passes = 0;
+          document.addEventListener('lf-margin-layout', () => passes++);
+          const observer = new MutationObserver(list => wrote.push(...list));
+          observer.observe(document.body, {subtree: true, attributes: true,
+            attributeOldValue: true, attributeFilter: ['class']});
+          for (let i = 0; i < refreshes; i++) {
+            document.dispatchEvent(new CustomEvent('lf-actions'));
+            await frame(); await frame();
+          }
+          wrote.push(...observer.takeRecords());
+          observer.disconnect();
+          return {passes, marks: wrote
+            .filter(record => record.target.matches('.lf-margin-item'))
+            .map(record => ({was: record.oldValue,
+                             now: record.target.getAttribute('class')}))};
+        }""",
+        5,
+    )
+    assert marks == {"passes": 5, "marks": []}, marks
+    expect(row).to_have_class(re.compile(r"lf-docked"))
+    assert errors == []
+    page.close()
+
+
+def test_an_option_proxy_writes_no_relation_its_source_has_no_writer_for(
+    browser, serve
+):
+    """A Button rebuilt from a record keeps the relation writer the record names.
+
+    `optionControlNode` builds the options group's proxy from `buttonRecord`, so a
+    declaration that stops at the call site is re-inferred there: the proxy takes
+    the disclosure default, writes `aria-expanded`, and `syncForwardedButtonState`
+    reads `null` off the source and strips it again the same pass. That is an add
+    and a remove every heartbeat, and news to the document's disclosure watch, for
+    exactly the fitting the declaration was added for — a module contributing a
+    reading whose relation another writer owns. No shipped page draws one, so the
+    seam is stated here rather than on the corpus.
+    """
+    fixture = leaf_page("Forwarded reading", '<p id="target">Target passage</p>')
+    page, errors = open_page(browser, serve(fixture))
+    resized(page, 1440, 900)
+    page.evaluate(
+        """async () => {
+          const {offer, marginButton, registerMarginItem} =
+            await import('/runtime/widget-api.js');
+          const controls = document.createElement('span');
+          controls.append(
+            marginButton(offer('button', ''), {
+              key: 'act', icon: 'dot', label: 'Act on the target', role: 'primary'
+            }),
+            // The reading whose `aria-expanded` this module owns rather than the
+            // margin: a disclosure that declares its writer away.
+            marginButton(offer('span', ''), {
+              key: 'read', icon: 'dot', label: 'Read the target',
+              behavior: 'disclosure', role: 'reading', writesRelation: false
+            }),
+          );
+          registerMarginItem({key: 'target', target: document.getElementById('target'),
+            controls});
+        }"""
+    )
+    margins_laid_out(page)
+    proxy = page.locator(".lf-margin-option-proxy")
+    expect(proxy).to_have_count(1)
+    relation = page.evaluate(
+        """refreshes => {
+          const group = document.querySelector('.lf-margin-options');
+          const records = [];
+          const observer = new MutationObserver(list => records.push(...list));
+          observer.observe(group, {subtree: true, attributes: true,
+            attributeOldValue: true, attributeFilter: ['aria-expanded']});
+          for (let i = 0; i < refreshes; i++)
+            document.dispatchEvent(new CustomEvent('lf-actions'));
+          records.push(...observer.takeRecords());
+          observer.disconnect();
+          return {
+            wrote: records.map(record => ({
+              on: record.target.className,
+              was: record.oldValue,
+              now: record.target.getAttribute('aria-expanded'),
+            })),
+            standing: document.querySelector('.lf-margin-option-proxy')
+              .getAttribute('aria-expanded'),
+          };
+        }""",
+        5,
+    )
+    assert relation["wrote"] == [], relation["wrote"]
+    assert relation["standing"] is None, relation
     assert errors == []
     page.close()
 

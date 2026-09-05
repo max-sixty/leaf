@@ -15,8 +15,9 @@ npm run dev
 ```
 
 The deploy requires a Cloudflare Workers Paid account with Containers enabled, a
-`cloudflare-deploy` GitHub environment in `max-sixty/leaf`, and a
-`CLOUDFLARE_API_TOKEN` environment secret able to deploy the Worker, container, and
-`leaf.page` custom domain. The domain already uses Cloudflare nameservers; a successful
-deployment makes the Worker the `leaf.page` origin. The workflow build is otherwise
-self-contained.
+`cloudflare-deploy` GitHub environment in `max-sixty/leaf` whose deployment branch
+policy allows only `main`, and a `CLOUDFLARE_API_TOKEN` environment secret able to
+deploy the Worker, container, and `leaf.page` custom domain. This is the same boundary
+used by Tend: manual workflow dispatches from other branches cannot read the token. The
+domain already uses Cloudflare nameservers; a successful deployment makes the Worker
+the `leaf.page` origin. The workflow build is otherwise self-contained.

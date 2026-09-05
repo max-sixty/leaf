@@ -12,8 +12,16 @@ media and data once; subsequent runs reuse that page and preserve feedback.
 `--source` accepts an authored HTML file, `--runtime` selects its Leaf checkout,
 and `--slot` names another independent copy. `--background` detaches the watcher;
 its startup output names the update log. The matching command with `--stop`
-waits for the watcher and service to stop, including an in-flight update. Ctrl-C
-stops a foreground watcher the same way.
+(including `--automation` for its default automation slot) waits for the watcher
+and server to stop, including an in-flight update. Ctrl-C stops a foreground
+watcher the same way.
+
+`--automation` runs the same watcher in the foreground through the browser
+harness's process-owned temporary server. Browser gestures still cross the real
+HTTP and event-log boundaries, but the page creates no claim or durable service.
+Automation and reader previews have distinct default slots; an explicit slot keeps
+the interaction mode it was created with so automation feedback cannot enter task
+delivery.
 
 Source, runtime, theme, registry, media and selected package edits trigger the normal
 stop, init, stamp and start lifecycle. The generation handshake reloads open

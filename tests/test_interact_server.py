@@ -2814,6 +2814,41 @@ def test_server_shutdown_wakes_a_long_poll_without_waiting_for_timeout(
         httpd.server_close()
 
 
+def test_temporary_server_close_waits_for_delayed_start(page_dir, monkeypatch):
+    """Closing after start must join a serving loop that has not been scheduled yet."""
+    server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN)
+    release = threading.Event()
+    completed_before_start = []
+    errors = []
+    serve_forever = server.httpd.serve_forever
+    wait = server.httpd._serve_done.wait
+
+    def delayed_serve():
+        release.wait()
+        serve_forever()
+
+    def release_at_shutdown(timeout=None):
+        # Hold startup until shutdown asks for completion. A completed event here
+        # lets shutdown return before the serving loop can observe its stop request.
+        completed_before_start.append(server.httpd._serve_done.is_set())
+        release.set()
+        return wait(timeout)
+
+    monkeypatch.setattr(server.httpd, "serve_forever", delayed_serve)
+    monkeypatch.setattr(server.httpd._serve_done, "wait", release_at_shutdown)
+    monkeypatch.setattr(threading, "excepthook", lambda error: errors.append(error))
+    try:
+        server.start()
+        server.close()
+    finally:
+        release.set()
+        server.close()
+    assert completed_before_start == [False]
+    assert errors == []
+    assert not server.running
+    assert server.httpd.fileno() == -1
+
+
 def test_server_can_restart_after_prompt_shutdown(page_dir):
     """The wakeup is reusable, so a normal server restart keeps serving requests."""
     httpd = hosting_model.LeafHTTPServer(

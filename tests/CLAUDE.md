@@ -78,6 +78,8 @@ log, CLI commands, vendoring, publishing, export, and server lifetime. The
 File-side fixtures live in `interact_support.py`. Browser process and page
 fixtures live in `render_harness.py`; reusable browser cases are grouped by
 interaction, layout, navigation, and widget behavior in `render_cases_*.py`.
+Both fixture modules use `TemporaryPageServer`, the same process-owned server as
+`scripts/preview.py --automation`.
 `render_support.py` reexports that surface for the test modules rather than
 owning another copy. `test_site.py` reads the built site through its served URLs.
 Product documentation tests compare the docs with the shipped vocabulary and

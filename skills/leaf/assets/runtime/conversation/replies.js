@@ -84,7 +84,7 @@ export function createReplies({
         saveDraft(draftCtx, v);
         tellDraft(draftCtx, v);
       },
-      send: async (text, raw) => {
+      send: async (text, raw, owns) => {
         // Scrolling away or leaving the window can keep the old editor's focus. Both
         // withdraw this send's continuation, while its draft and delivery still settle.
         const continuation = new AbortController();
@@ -102,7 +102,7 @@ export function createReplies({
           listening,
         );
         try {
-          const sent = await sendReply(t, text, raw, () => input.value === raw);
+          const sent = await sendReply(t, text, raw, owns);
           if (
             !sent ||
             continuation.signal.aborted ||

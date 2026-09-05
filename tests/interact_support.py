@@ -940,18 +940,18 @@ def server(page_dir):
     temporary.close()
 
 
-def fetch(url, data=None, token=TOKEN, layer=None):
+def fetch(url, data=None, token=TOKEN, layer=None, headers=None):
     """A request arriving the way a user's does: the key in the query, and a
     cookie jar to carry it onward. The live root and the runtime's later query-less
     requests are authorized by the cookie that first keyed arrival set. Pass token=None
-    for the reader who never had the link."""
+    for the reader who never had the link; headers carry route-specific metadata."""
     if token:
         url += ("&" if "?" in url else "?") + urllib.parse.urlencode({"t": token})
     opener = urllib.request.build_opener(
         urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
     )
     try:
-        headers = {}
+        request_headers = dict(headers or {})
         if data is not None and (
             token or urllib.parse.parse_qs(urllib.parse.urlsplit(url).query).get("t")
         ):
@@ -961,8 +961,8 @@ def fetch(url, data=None, token=TOKEN, layer=None):
                 )
                 with opener.open(state_url) as state:
                     layer = json.loads(state.read())["layer"]["generation"]
-            headers["Leaf-Layer"] = layer
-        request = urllib.request.Request(url, data=data, headers=headers)
+            request_headers["Leaf-Layer"] = layer
+        request = urllib.request.Request(url, data=data, headers=request_headers)
         with opener.open(request) as res:
             return res.status, res.read()
     except urllib.error.HTTPError as e:

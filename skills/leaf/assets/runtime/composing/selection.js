@@ -29,6 +29,7 @@ export function createSelectionComposer(runtime, dependencies) {
     landTyping,
     loadDraft,
     mayLandTyping,
+    notice,
     openInlineThread,
     panelIsOpen,
     paintAnchors,
@@ -64,11 +65,12 @@ export function createSelectionComposer(runtime, dependencies) {
         .filter(([, value]) => ["string", "number", "boolean"].includes(typeof value))
         .sort(([left], [right]) => left.localeCompare(right)),
     );
-  const saveComposerDraft = () =>
+  let syncComposer;
+  const saveComposerDraft = (text = syncComposer.value()) =>
     saveDraft(
       composerCtx(pendingAnchor),
       JSON.stringify({
-        text: composerInput.value,
+        text,
         anchor: pendingAnchor,
         suggest: suggestCheck.checked,
         about: pendingAbout,
@@ -97,7 +99,7 @@ export function createSelectionComposer(runtime, dependencies) {
   }
   let inFlight = null;
   let composerEpoch = 0;
-  const syncComposer = wireInput(composerInput, {
+  syncComposer = wireInput(composerInput, {
     hint: () =>
       suggestCheck.checked
         ? "Replacement text"
@@ -106,9 +108,10 @@ export function createSelectionComposer(runtime, dependencies) {
           : "Comment…",
     sends: () => (suggestCheck.checked ? "suggest" : "comment"),
     sendBtn: composerSend,
+    allowsMedia: () => !suggestCheck.checked,
     save: saveComposerDraft,
     layout: refreshFab,
-    send: async (text, raw) => {
+    send: async (text, raw, owns, visible) => {
       const anchor = structuredClone(pendingAnchor);
       const ctx = composerCtx(anchor);
       const suggestion = suggestCheck.checked;
@@ -127,7 +130,7 @@ export function createSelectionComposer(runtime, dependencies) {
         borderColor: composerStyle.borderColor,
         borderRadius: composerStyle.borderRadius,
         boxShadow: composerStyle.boxShadow,
-        text: raw,
+        text: visible,
       };
       const flight = { ctx, raw, epoch: composerEpoch };
       inFlight = flight;
@@ -135,7 +138,7 @@ export function createSelectionComposer(runtime, dependencies) {
       try {
         sent = await sendDraft(
           ctx,
-          () => composerCtx(pendingAnchor) === ctx && composerInput.value === raw,
+          () => composerCtx(pendingAnchor) === ctx && owns(),
           (attempt) => {
             const event = {
               kind: "comment",
@@ -191,8 +194,15 @@ export function createSelectionComposer(runtime, dependencies) {
   }
   function setSuggestionMode(suggest) {
     suggestCheck.checked = Boolean(suggest);
+    if (suggestCheck.checked && syncComposer.hasMedia()) {
+      suggestCheck.checked = false;
+      syncSuggestMode();
+      notice("Remove pasted images before suggesting replacement text");
+      composerInput.focus({ preventScroll: true });
+      return;
+    }
     // Entering suggestion mode seeds the box with the passage to edit in place.
-    if (suggestCheck.checked && !composerInput.value.trim() && pendingAnchor?.quote) {
+    if (suggestCheck.checked && !syncComposer.value().trim() && pendingAnchor?.quote) {
       composerInput.value = seededQuote = pendingAnchor.quote;
       syncComposer();
     }
@@ -244,7 +254,7 @@ export function createSelectionComposer(runtime, dependencies) {
     let carriedDraft = false;
     if (previousCtx !== ctx) {
       composerEpoch += 1;
-      const previousText = composerInput.value;
+      const previousText = syncComposer.value();
       const leavesFlight =
         inFlight?.ctx === previousCtx && previousText === inFlight.raw;
       composerInput.value = "";
@@ -286,7 +296,7 @@ export function createSelectionComposer(runtime, dependencies) {
     composerWatch = watchDraft(composerCtx(pendingAnchor), (value) => {
       if (value === null) return closeComposer();
       const { text, suggest, about } = JSON.parse(value);
-      if (composerInput.value !== text) {
+      if (syncComposer.value() !== text) {
         composerInput.value = text;
         // Whatever stood here is another tab's words now, not this box's machine seed.
         seededQuote = "";

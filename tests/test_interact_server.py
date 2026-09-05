@@ -22,6 +22,7 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
+    ROOT,
     TOKEN,
     append_command,
     check,
@@ -42,6 +43,7 @@ from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import leases as leases_model
+from leaf import media as media_model
 from leaf import presence as presence_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
@@ -71,6 +73,74 @@ def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page
     assert status == 200
     assert json.loads(body) == {"layer": current}
     assert event_model.read_events(page_dir) == before
+
+
+def test_a_browser_image_becomes_content_addressed_page_media(server, page_dir):
+    """A paste sends bytes once, while drafts and events carry only the stable path.
+
+    Retrying the raw upload is safe before the Markdown reference exists: identical
+    pixels return the same name and leave one file, and that exact file is what the
+    page serves back.
+    """
+    pixels = (ROOT / "examples" / "media" / "051bee487bfb5d13.png").read_bytes()
+    headers = {"Content-Type": "image/png"}
+
+    first = fetch(f"{server}/api/media", data=pixels, headers=headers)
+    second = fetch(f"{server}/api/media", data=pixels, headers=headers)
+
+    assert first == second
+    status, body = first
+    path = json.loads(body)["path"]
+    assert (status, path) == (200, "/media/051bee487bfb5d13.png")
+    assert (page_dir / path.lstrip("/")).read_bytes() == pixels
+    assert len(list((page_dir / "media").iterdir())) == 1
+    assert fetch(server + path) == (200, pixels)
+
+
+def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, page_dir):
+    """The browser door derives the file type and bounds allocation before reading.
+
+    SVG retains its author-side file door but cannot enter from a reader, a MIME label
+    cannot disguise another raster format, and an oversized declared body is rejected
+    without waiting for those bytes to arrive.
+    """
+    png = b"\x89PNG\r\n\x1a\n" + b"browser pixels"
+    refusals = [
+        (
+            {"Content-Type": "image/jpeg"},
+            png,
+            "image bytes do not match image/jpeg",
+        ),
+        (
+            {"Content-Type": "image/svg+xml"},
+            b"<svg></svg>",
+            "image type must be one of:",
+        ),
+    ]
+    for headers, body, message in refusals:
+        status, answer = fetch(f"{server}/api/media", data=body, headers=headers)
+        assert status == 400
+        assert message in json.loads(answer)["error"]
+
+    _, state = fetch(f"{server}/api/state")
+    layer = json.loads(state)["layer"]["generation"]
+    door = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc, timeout=2)
+    try:
+        door.putrequest("POST", f"/api/media?t={TOKEN}")
+        door.putheader("Leaf-Layer", layer)
+        door.putheader("Content-Length", str(media_model.MAX_MEDIA_UPLOAD_BYTES + 1))
+        door.putheader("Content-Type", "image/png")
+        door.endheaders()
+        answer = door.getresponse()
+        refusal = json.loads(answer.read())
+    finally:
+        door.close()
+    assert (answer.status, refusal) == (
+        400,
+        {"error": "image exceeds the 10 MiB limit"},
+    )
+    assert answer.getheader("Connection") == "close"
+    assert not any((page_dir / "media").iterdir())
 
 
 def test_a_visual_comment_must_name_an_authored_part(server, page_dir):

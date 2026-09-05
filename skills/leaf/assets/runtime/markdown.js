@@ -1,8 +1,11 @@
 // One safe Markdown reading for every runtime and package surface. The parser stays
 // lazy because most pages contain no Markdown supplied at runtime; callers can paint
 // escaped source immediately and await this only when their own rendering needs it.
+import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
+
 export const escapeHtml = (text) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const escapeAttribute = (text) => escapeHtml(text).replace(/"/g, "&quot;");
 
 let render = (text) => escapeHtml(text);
 let ready;
@@ -30,10 +33,20 @@ export function loadMarkdown(onError = null) {
       renderer: {
         html: (token) => escapeHtml(token.text),
         link(token) {
-          return safeUrl(token.href) ? false : this.parser.parseInline(token.tokens);
+          if (!safeUrl(token.href)) return this.parser.parseInline(token.tokens);
+          if (!isCanonicalMediaUrl(token.href)) return false;
+          // Earlier pasted drafts wrapped their image in a link to the same media path.
+          // The image renderer now owns inspection, so discard only that redundant link.
+          return this.parser.parseInline(token.tokens);
         },
         image(token) {
-          return safeUrl(token.href) ? false : escapeHtml(token.text);
+          if (!safeUrl(token.href)) return escapeHtml(token.text);
+          if (!isCanonicalMediaUrl(token.href)) return false;
+          const source = scopedMediaUrl(token.href);
+          const label = token.text || "Image";
+          let image = `<button type="button" class="lf-media-open lf-message-media" data-lf-media-url="${escapeAttribute(source)}" aria-label="View ${escapeAttribute(label)}"><img src="${escapeAttribute(source)}" alt="${escapeAttribute(token.text)}"`;
+          if (token.title) image += ` title="${escapeAttribute(token.title)}"`;
+          return image + "></button>";
         },
       },
     });

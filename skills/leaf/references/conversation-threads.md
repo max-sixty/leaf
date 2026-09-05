@@ -28,6 +28,12 @@ and conversational, answer the local thread, and keep the page as the main
 surface for evidence, comparisons, and detailed reasoning. Give the reader
 enough context to know what changed or where to look without retelling the page.
 
+A reader may paste an image into any thread text box. The composer shows a thumbnail,
+while its message carries an ordinary Markdown image at `/media/<digest>.<ext>`. Resolve
+that path beneath the absolute page directory named by the delivered batch and inspect
+the image itself before replying; alt text is a label, not evidence of what the pixels
+show.
+
 `--text` takes inline text; stdin accepts Markdown:
 
 ```bash

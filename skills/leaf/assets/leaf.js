@@ -199,6 +199,7 @@ import {
 } from "./runtime/data.js";
 import { createDeferredModals } from "./runtime/deferred-modals.js";
 import { createLayerClient } from "./runtime/layer-client.js";
+import { createMediaViewer } from "./runtime/media.js";
 import {
   CONTROL_WORD_CAP,
   DESIGN_KEY,
@@ -355,11 +356,12 @@ const { promoteDeferredModals } = createDeferredModals({
   presentedAttribute: PAGE_PAINT_ATTRIBUTE.presented,
 });
 const vendoredLayerGeneration = "__LEAF_LAYER_GENERATION__";
-const { postEvent, reportPageError, revealLayer, sameLayer } = createLayerClient({
-  currentRevision: () => runtime.currentRevision,
-  layerGeneration: vendoredLayerGeneration,
-  sayLine: (...args) => sayLine(...args),
-});
+const { postEvent, reportPageError, revealLayer, sameLayer, uploadMedia } =
+  createLayerClient({
+    currentRevision: () => runtime.currentRevision,
+    layerGeneration: vendoredLayerGeneration,
+    sayLine: (...args) => sayLine(...args),
+  });
 configureDataReporting(reportPageError);
 const { pointerAt } = createPointer();
 
@@ -944,6 +946,7 @@ helpEl.className = "lf-ui lf-help";
 helpEl.setAttribute("aria-label", "All keyboard shortcuts");
 helpEl.setAttribute("aria-modal", "true");
 helpEl.tabIndex = -1; // focused on open, so the dialog isn't silent to a screen reader
+const { dialog: mediaViewer } = createMediaViewer({ el, focused });
 const helpClose = el("button", "lf-btn lf-help-close", "Close");
 helpClose.type = "button";
 helpClose.title = "Close the shortcuts";
@@ -1021,6 +1024,7 @@ for (const [part, id] of [
   [panel, "lf-threads"],
   [fab, "lf-comment-button"],
   [composer, "lf-composer"],
+  [mediaViewer, "lf-media-viewer"],
   [helpEl, "lf-help"],
   [keylineEl, "lf-keyline"],
 ])
@@ -1046,6 +1050,7 @@ chromeRoot.append(
   aimBox,
   fabBar,
   liveEl,
+  mediaViewer,
   helpEl,
   keylineEl,
   inspectEl,
@@ -1186,6 +1191,7 @@ const { paint: paintInputs, wire: wireInput } = createInput({
   keys,
   notice,
   spell,
+  uploadMedia,
 });
 paintInputHints = paintInputs;
 
@@ -1330,6 +1336,7 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   landTyping,
   loadDraft,
   mayLandTyping,
+  notice,
   openInlineThread: (...args) =>
     conversationRuntime?.focusSurfaceThread(args[0]) ??
     livingMargin?.openInlineThread(...args) ??
@@ -1418,13 +1425,11 @@ const syncGeneral = wireInput(generalInput, {
   sends: "send",
   sendBtn: generalSend,
   save: (v) => saveDraft("general", v),
-  send: async (text, raw) => {
+  send: async (text, raw, owns) => {
     const event = { kind: "comment", revision: runtime.currentRevision, text };
     if (designOn) event.about = "layer";
-    const sent = await sendDraft(
-      "general",
-      () => generalInput.value === raw,
-      (attempt) => post({ ...event, attempt }),
+    const sent = await sendDraft("general", owns, (attempt) =>
+      post({ ...event, attempt }),
     );
     if (!sent) return;
     const shouldLand = mayLandTyping(generalInput);
@@ -3679,6 +3684,7 @@ const initialStateRead = stateFeed.beginRead();
 // The general box and reply textareas repopulate as they render; a saved composer draft
 // resurfaces visibly near the top so it isn't stranded in storage after a reload.
 generalInput.value = loadDraft("general") ?? "";
+syncGeneral();
 // The widths first, so a panel or a tray put back open is open at the width the reader
 // left it at rather than sliding to it afterwards.
 commentsEdge.restore();

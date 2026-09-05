@@ -142,7 +142,11 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
             "author": "claude",
             "agent": "Codex",
             "revision": 2,
-            "text": "The same comparison in a frozen message.",
+            "text": (
+                "The same comparison in a frozen message.\n\n"
+                "[![Pasted image](/media/051bee487bfb5d13.png)]"
+                "(/media/051bee487bfb5d13.png)"
+            ),
             "markup": (
                 '<lf-shot id="message-shot" alt="message before > after" '
                 'before="/media/051bee487bfb5d13.png" '
@@ -167,6 +171,37 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
             "() => document.body.getAttribute('data-lf-presented') === '1'"
         )
 
+        page.locator(".lf-threads-toggle").click()
+        general = page.locator(".lf-general textarea")
+        expect(general).to_be_visible()
+        with page.expect_response(
+            lambda response: response.url.endswith(f"{root}/api/media")
+        ):
+            general.evaluate(
+                """async (textarea, source) => {
+                  const pixels = await (await fetch(source)).arrayBuffer();
+                  const transfer = new DataTransfer();
+                  transfer.items.add(new File(
+                    [pixels], 'mcp-paste.png', {type: 'image/png'}
+                  ));
+                  textarea.dispatchEvent(new ClipboardEvent('paste', {
+                    bubbles: true,
+                    cancelable: true,
+                    clipboardData: transfer,
+                  }));
+                }""",
+                f"{root}/media/051bee487bfb5d13.png",
+            )
+        expect(general).to_have_value("")
+        draft_image = page.locator(".lf-general .lf-composer-media img")
+        expect(draft_image).to_have_attribute(
+            "src", f"{root}/media/051bee487bfb5d13.png"
+        )
+        page.locator(".lf-general").get_by_role(
+            "button", name="Remove pasted image 1"
+        ).click()
+        expect(page.locator(".lf-general .lf-composer-media img")).to_have_count(0)
+
         assert page.title() == "t"
         assert page.locator(".lf-banner").is_visible()
         page.wait_for_function(
@@ -178,6 +213,24 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         assert page.locator("#message-shot").get_attribute("before") == (
             f"{root}/media/051bee487bfb5d13.png"
         )
+        pasted = page.locator(".lf-msg.claude .lf-msg-text img")
+        page.wait_for_function(
+            "image => image.naturalWidth > 0", arg=pasted.element_handle()
+        )
+        assert pasted.get_attribute("src") == f"{root}/media/051bee487bfb5d13.png"
+        media_open = pasted.locator("xpath=..")
+        assert media_open.get_attribute("data-lf-media-url") == (
+            f"{root}/media/051bee487bfb5d13.png"
+        )
+        url_before = page.url
+        media_open.click()
+        viewer = page.get_by_role("dialog", name="Image preview")
+        expect(viewer).to_be_visible()
+        assert viewer.locator("img").get_attribute("src") == (
+            f"{root}/media/051bee487bfb5d13.png"
+        )
+        assert page.url == url_before
+        page.keyboard.press("Escape")
         assert page.evaluate(
             "() => performance.getEntriesByType('resource').map(r => r.name)"
         )

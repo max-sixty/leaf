@@ -31,8 +31,8 @@ dependencies; it never reaches back through the entry module or public facade.
 their direct readers;
 `runtime/deferred-modals.js` holds authored modals outside the top layer until the
 first presentation boundary;
-`runtime/layer-client.js` owns the vendored-generation gate, shared event POST,
-and page-error channel;
+`runtime/layer-client.js` owns the vendored-generation gate, shared event and media
+POSTs, and page-error channel;
 `runtime/traffic.js` owns the delivery ledger — posts and state reads issued and
 ended, and the outbox's unresolved attempts — painted on the root element as
 `data-lf-traffic` for whatever waits on the page from outside it;
@@ -48,8 +48,10 @@ by the public semantic projection watchers;
 `runtime/composing/surface.js` owns floating comment geometry and page-click routing;
 `runtime/composing/targets.js` owns keyboard item hints and whole-page text search;
 `runtime/composing/aim.js` owns modifier aim and captured presses;
-`runtime/composing/input.js` and `runtime/composing/selection.js` own shared input
-and selection-composer state;
+`runtime/composing/input.js` owns shared text input, including the thumbnail projection
+of pasted page media; `runtime/composing/selection.js` owns selection-composer state;
+`runtime/media.js` owns generated image blocks, delivery-route scoping, and the shared
+full-image viewer;
 `runtime/drawn-edge.js` owns the shared resizable boundary used by the thread panel
 and tray panels;
 `runtime/trays.js` owns the left tray edge, active tray, registration, restore, and

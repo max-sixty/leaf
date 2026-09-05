@@ -174,6 +174,13 @@ CONTROL_ARCHETYPES = (
         "coverage": ".lf-diff-review",
         "target": "#stable-diff .lf-diff-review",
     },
+    {
+        # A swipe deck's two classifications share the active-card footer. A move
+        # replaces that card and updates the count without moving the other choice.
+        "name": "swipe",
+        "coverage": ":is(.lf-swipe-pass, .lf-swipe-keep)",
+        "target": "#session-backlog-deck .lf-swipe-pass",
+    },
 )
 CONTROL_ROW_PRESS = (
     "button, summary, select, "

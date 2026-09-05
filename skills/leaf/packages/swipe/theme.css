@@ -188,7 +188,7 @@ lf-swipe-card.lf-swipe-dragging {
 .lf-swipe-pass.lf-ui,
 .lf-swipe-keep.lf-ui,
 .lf-swipe-undo.lf-ui {
-  min-height: 2.5rem;
+  min-height: max(2.5rem, var(--aim-floor));
   padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--border-2);
   border-radius: var(--r);
@@ -227,6 +227,7 @@ lf-swipe-card.lf-swipe-dragging {
 .lf-swipe-undo:focus-visible {
   outline: var(--here-ring);
   outline-offset: var(--here-ring-gap);
+  --lf-here-ring: swipe;
 }
 
 .lf-swipe-pass:disabled,

@@ -5471,6 +5471,8 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
             "section": "patch",
             "datum": '["app/handlers.py","new",81]',
             "quote": _DIFF_TAIL,
+            "source": "review-patch",
+            "data_revision": 1,
         }
     ), anchors
     assert errors == []

@@ -782,19 +782,21 @@ def test_every_vendored_stylesheet_parses(page_dir):
 
 def test_the_chrome_sheet_spells_the_runtime_s_layout_numbers():
     """A media query cannot read a custom property, so chrome.css states the covering
-    widths and the strip-taking tray as literals while the runtime lays out by the
-    constants. Held equal here rather than trusted to stay so."""
+    widths, the strip-taking tray, the width properties, and the decision stamp as
+    literals while the runtime lays out and paints by the constants. Held equal here
+    rather than trusted to stay so."""
     runtime = schema_model.ASSETS / "runtime"
     layout = (runtime / "chrome-layout.js").read_text()
     trays = (runtime / "trays.js").read_text()
+    presentation = (runtime / "presentation.js").read_text()
     sheet = (runtime / "chrome.css").read_text()
-    panel = int(
-        re.search(r"^export const PANEL_W = (\d+);", layout, re.MULTILINE).group(1)
-    )
-    tray = int(re.search(r"^const TRAY_W = (\d+);", trays, re.MULTILINE).group(1))
-    strip = re.search(
-        r"^const STRIP_TRAYS = \[(.*?)\];", trays, re.MULTILINE | re.DOTALL
-    ).group(1)
+
+    def constant(pattern, source):
+        return re.search(pattern, source, re.MULTILINE | re.DOTALL).group(1)
+
+    panel = int(constant(r"^export const PANEL_W = (\d+);", layout))
+    tray = int(constant(r"^const TRAY_W = (\d+);", trays))
+    strip = constant(r"^export const STRIP_TRAYS = \[(.*?)\];", trays)
     strip_rule = (
         "body:is("
         + ",".join(
@@ -807,6 +809,9 @@ def test_the_chrome_sheet_spells_the_runtime_s_layout_numbers():
         f"(width > {panel * 2}px)",
         f"(width <= {tray * 2}px)",
         strip_rule,
+        "var(" + constant(r'^export const PANEL_PROP = "([^"]+)";', layout) + ")",
+        "var(" + constant(r'^export const TRAY_PROP = "([^"]+)";', trays) + ")",
+        "[" + constant(r'^  decision: "([^"]+)",', presentation) + "]",
     ):
         assert spelling in sheet, f"chrome.css no longer spells {spelling}"
 

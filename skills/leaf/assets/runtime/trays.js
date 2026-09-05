@@ -29,13 +29,12 @@
 const TRAY_W = 300;
 const TRAY_MIN = 220;
 export const TRAY_COVERING = `(width <= ${TRAY_W * 2}px)`;
-// Where the standing width is written, and where the cascade reads it. Named rather than
-// spelled, because the stylesheet and the runtime's writer are two ends of one fact and
-// a property spelled twice is two facts the day one of them moves.
+// Where the standing width is written, and where the cascade reads it. chrome.css
+// spells the same name and the same covering width, and the layer test holds the two
+// spellings equal, since a stylesheet cannot read a constant.
 export const TRAY_PROP = "--lf-tray-w";
-// Which trays take their room out of the page rather than lying over it, read by the rule
-// that takes the strip and by the runtime for what the page has left — so the two cannot
-// disagree about whether the page is yielding one.
+// Which trays take their room out of the page rather than lying over it. The rule that
+// takes the strip spells this list in chrome.css, and the layer test holds the two equal.
 //
 // The leaves tray is not on the list, and that is not an inconsistency between two twins:
 // a leaf's row is a way out of this page and a decision's row is a way around it, so pressing
@@ -43,10 +42,7 @@ export const TRAY_PROP = "--lf-tray-w";
 // it — and a tray lying over the document would be hiding the very thing it just sent you
 // to. A 300px tray and a 720px column overlap on any window under about 1320px, which is
 // most of them, so this is the common case rather than the narrow one.
-const STRIP_TRAYS = ["decisions"];
-export const STRIP_TRAY_RULE = `body:is(${STRIP_TRAYS.map(
-  (tray) => `[data-lf-tray="${tray}"]`,
-).join(",")})`;
+export const STRIP_TRAYS = ["decisions"];
 
 export const TRAY_KEY = "lf-tray-up";
 

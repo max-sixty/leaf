@@ -74,7 +74,7 @@ from render_support import (
     reader_arrangements,
     resize_notice_after_last_probe,
     resized,
-    round_trip,
+    sending,
 )
 
 pytestmark = pytest.mark.nightly
@@ -238,14 +238,16 @@ def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):
 
 def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     """A navigation ends a trip the browser reports for neither kind, and the ledger
-    must say so or every later wait on this page runs its timeout out.
+    must not carry it into the next document or every later wait there runs its
+    timeout out.
 
     Accept-all is how a real sweep gets here: it answers its asks one awaited
     trip at a time, so a reload after the press lands mid-cascade and kills an
     /api/event POST that then produces no `response` and no `requestfailed`.
     The route's delay holds a post in the air so the navigation reliably lands
-    on one; the assertion is the new document's ledger holding nothing of the old
-    one's, and then `round_trip` returning on it."""
+    on one. The ledger is the document's, so what can still go wrong is the new
+    document's own first trip: the same press again has to be counted there and
+    come back, with `round_trip` returning on exactly that."""
     corpus = next(p for p in EXAMPLES if p.stem == "corpus")
     # The example itself, so the data its markup selects is laid in beside it; its
     # conversation is not, because the asks the cascade answers are the markup's.
@@ -269,11 +271,12 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     page.unroute("**/api/event")
     page.goto(url, wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
+    with sending(page, "the new document's first answer"):
+        page.locator(".lf-answer-all").first.click()
     t = _traffic(page).read()
-    assert t.sends == 0 and not t.pending, (
-        f"a trip the navigation ended is still on the new document's ledger: {t}"
+    assert t.sends >= 1 and t.acked == t.sends and not t.pending, (
+        f"the new document's first trip did not count and complete: {t}"
     )
-    round_trip(page)
 
 
 def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):

@@ -2145,7 +2145,8 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         // from the runtime sheet. It is still outside this collision probe: any movement
         // it causes in the page is that deliberate global rule, not a leaked scoped one.
         const documentGlobal = new Set(global_);
-        for (const other of [...document.styleSheets].filter(s => s !== sheet))
+        for (const other of [...document.styleSheets, ...document.adoptedStyleSheets]
+                 .filter(s => s !== sheet))
             collect(other.cssRules, documentGlobal);
         const themed = new Set([...scoped].filter(
             c => !global_.has(c) && documentGlobal.has(c)));

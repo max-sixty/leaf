@@ -66,10 +66,9 @@ export const PANEL_MIN = 320;
 // strikes — the page keeps at least what the panel takes — without putting the posture
 // itself in play.
 export const COVERING = `(width <= ${PANEL_W * 2}px)`;
-export const NON_COVERING = `(width > ${PANEL_W * 2}px)`;
-// Where each standing width is written, and where the cascade reads it. Named rather than
-// spelled, because the stylesheet and the runtime's writer are two ends of one fact
-// and a property spelled twice is two facts the day one of them moves.
+// Where each standing width is written, and where the cascade reads it. chrome.css
+// spells the same name and the same covering width, and the layer test holds the two
+// spellings equal, since a stylesheet cannot read a constant.
 export const PANEL_PROP = "--lf-panel-w";
 
 // Panel open/closed is remembered too: it survives live activation, document travel,

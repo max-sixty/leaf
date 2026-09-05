@@ -603,22 +603,20 @@ def post_event(page, url, **kwargs):
     return page.request.post(url, headers={"Leaf-Layer": generation}, **kwargs)
 
 
-# What the page has sent and how much of it has come back, counted where the traffic is:
-# outside the page, on the browser's own request and response events. The runtime posts
-# every action and comment through fetch and reads state back the same way, so one watcher
-# sees both halves and no widget has to say anything.
-#
-# Outside, because a test has no business inside the thing it is testing. This counted the
-# same five numbers by wrapping `window.fetch` in an init script, on every page of every
-# run and behind no flag — permanent surgery on the runtime under test, to learn what the
-# browser was already willing to say. These events are that willingness, and the suite
-# already reaches for their other half wherever it needs a request stopped (`page.route`),
-# so the wrapper was a hand-rolled second copy of a primitive already in use here.
+# What the page has sent and how much of it has come back, read off the ledger the
+# runtime paints for exactly this reader. The suite once counted the same numbers from
+# outside, on the browser's own request and response events, so that nothing was put
+# inside the thing under test; that watcher was a second representation of the outbox's
+# lifecycle, and it needed a protocol of its own to keep step — a post a reload killed
+# that no event reported, a waiter woken before the listeners that counted, a body read
+# with no deadline. The runtime already states readiness for this reader (`lfUpgraded`,
+# `lfApplied`, `lfPresented`); delivery is one more fact it states rather than one the
+# harness infers, and nothing is injected to obtain it.
 class Traffic:
     """One page's trips to the server, as the runtime counts them.
 
-    The runtime keeps the ledger (runtime/traffic.js) and paints it on the body as
-    `data-lf-traffic`; this reads it. `pending` is the outbox's own list of attempts with
+    The runtime keeps the ledger (runtime/traffic.js) and paints it on the root
+    element as `data-lf-traffic`; this reads it. `pending` is the outbox's own list of attempts with
     no delivery outcome yet, so a failed request stays pending while the outbox retries
     it, and a definitive refusal or a response naming the accepted attempt clears it.
     That is delivery. Whether the page then applied the returned state is a separate
@@ -633,25 +631,33 @@ class Traffic:
         self.page = page
 
     def _raw(self):
-        return self.page.evaluate("() => document.body?.dataset.lfTraffic ?? null")
+        return self.page.evaluate(
+            "() => document.documentElement.dataset.lfTraffic ?? null"
+        )
+
+    @classmethod
+    def _parse(cls, raw):
+        counts = json.loads(raw) if raw else {"pending": []}
+        return SimpleNamespace(**{key: counts.get(key, 0) for key in cls.KEYS})
 
     def read(self):
         """The ledger as one reading, every field taken from the same paint."""
-        raw = self._raw()
-        counts = json.loads(raw) if raw else {"pending": []}
-        return SimpleNamespace(**{key: counts.get(key, 0) for key in self.KEYS})
+        return self._parse(self._raw())
 
     def __getattr__(self, name):
         if name in self.KEYS:
             return getattr(self.read(), name)
         raise AttributeError(name)
 
-    def __str__(self):
-        reading = self.read()
+    @staticmethod
+    def describe(reading):
         return (
             f"sends={reading.sends} acked={reading.acked} "
             f"pending={len(reading.pending)} asked={reading.asked} heard={reading.heard}"
         )
+
+    def __str__(self):
+        return self.describe(self.read())
 
 
 def _traffic(page):
@@ -664,28 +670,33 @@ def _until(page, fact, wanted):
 
     The runtime repaints the ledger at each edge it counts, so this waits on the paint
     changing and asks the fact of each new reading — no polling interval to pick beyond
-    the frame the browser paints on, and nothing added to the page for it.
+    the frame the browser paints on, and nothing added to the page for it. One read per
+    round: the paint the fact was judged on is the one the wait watches for a change
+    from, and the failure names the last reading rather than taking another past the
+    deadline.
 
     A wait that runs out names the caller's wanted fact and prints its starting and
-    final readings. The deadline is fixed when the wait begins, so a busy page cannot
-    keep a false fact alive by repainting forever."""
+    final readings. The deadline is fixed when the wait begins, so a page that repaints
+    forever cannot keep a false fact alive."""
     traffic = _traffic(page)
-    began = str(traffic)
+    began = None
     deadline = time.monotonic() + 30
     while True:
         raw = traffic._raw()
-        reading = traffic.read()
+        reading = traffic._parse(raw)
+        if began is None:
+            began = traffic.describe(reading)
         if fact(reading):
             return
         remaining = int((deadline - time.monotonic()) * 1000)
         if remaining <= 0:
             raise AssertionError(
                 f"the page never {wanted}: the wait began on {began} and gave up on "
-                f"{traffic}"
+                f"{traffic.describe(reading)}"
             )
         try:
             page.wait_for_function(
-                "was => (document.body?.dataset.lfTraffic ?? null) !== was",
+                "was => (document.documentElement.dataset.lfTraffic ?? null) !== was",
                 arg=raw,
                 timeout=remaining,
             )
@@ -717,7 +728,9 @@ def sending(page, what):
 
     Waits for one further send to enter the wire, then for everything the page has sent
     to come back, so a log or state read behind the block is a read of this gesture.
-    `what` names the send for the failure a wait that runs out raises.
+    `what` names the send for the failure a wait that runs out raises. The ledger is the
+    document's, so a gesture that navigates cannot be enclosed here: the count it would
+    wait to grow starts over with the new document.
     """
     sends = _traffic(page).sends
     yield

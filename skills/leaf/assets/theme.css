@@ -260,7 +260,7 @@
   --status-trace-w: 1.5px;
   --status-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
   /* A keyboard address chip's box: the line box, which is a ratio of the font, plus
-     the ring drawn around it (chrome-style.js dresses one). It is a token for the
+     the ring drawn around it (chrome.css dresses one). It is a token for the
      reason the ring's width is — a box somebody else holds room for has to be read
      back in a calc, and the option that holds a column for one is in another layer's
      stylesheet entirely. Written as a number there, the column stayed at the size the
@@ -922,7 +922,7 @@ dd { margin: 0 0 8px 0; }
  * the two cannot come apart: a one-shot request that had been answered still wore the
  * full-strength border of a live one and differed only in ink, which greyscale drops and
  * a reader scanning a column of eight of them never sees. Chrome's own .lf-btn says the
- * same pair for the same reason (chrome-style.js); this reaches the controls that are
+ * same pair for the same reason (chrome.css); this reaches the controls that are
  * not one.
  *
  * The ring is the fallback rather than the rule: every control with a ring of its own

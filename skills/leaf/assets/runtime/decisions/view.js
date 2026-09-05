@@ -67,7 +67,7 @@
    3. the walk's last `landed` item;
    4. the current reading block and scroll position.
 
-   The banner is an address, not a page position, so its controls do not become the walk's
+   The chrome is an address, not a page position, so its controls do not become the walk's
    origin. `decisionStep` compares document positions rather than incrementing an index
    remembered by the walk. A panel thread walk may use log order because the list itself
    is its complete ordered space.
@@ -154,8 +154,6 @@ import {
   readableDestination,
   scrollToElement,
 } from "../anchors.js";
-import { banner } from "../banner.js";
-
 import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { panelIsOpen, setPanel } from "../chrome-layout.js";
 import { scrollBehavior } from "../motion.js";
@@ -765,6 +763,27 @@ export function markHere() {
   for (const marked of wearing) marked.setAttribute(PAGE_PAINT_ATTRIBUTE.decision, "1");
   paintActionProjections();
 }
+// The place a node puts the reader in the space this walk measures against, and null where
+// it puts them outside that space. The chrome stands over the page rather than in it, and
+// its controls are addresses the reader holds from wherever they are: a reader who pressed
+// the Asks button is standing on it, so measuring from it would send the next press back to
+// the top. The layer is also appended after the page, so once the walk clamped at its edges
+// instead of wrapping, taking any of it for a place put the reader behind every decision
+// there is. From a thread in the conversation panel, `a` and `A` both landed on the last.
+//
+// The route runs through the chrome all the same. A widget frozen into a reply is a
+// decision the walk visits, collected beside the document's, and a reader working its
+// controls is standing in the ordered space. So what decides it is membership of that
+// space: the decision a hoisted control or a tray row names (decisionPlace), or the one the
+// node stands inside. The rest of the layer names none.
+const walkPlace = (node) => {
+  const place = decisionPlace(node);
+  if (!inChrome(place)) return place;
+  const holding = allDecisions().some(
+    (decision) => decision === place || containsAcross(decision, place),
+  );
+  return holding ? place : null;
+};
 // Where the walk measures from: where the reader is standing, rather than where the walk
 // last put them. It carried an id of its own, so every walk the reader had not made with
 // this key started at the top of the page — select a paragraph and press `d` and you were
@@ -783,15 +802,17 @@ export function markHere() {
 // document to measure the decisions against, not the control the register would dispatch to.
 function decisionPosition() {
   const held = documentFocused();
-  // The banner stands over the page rather than in it, and its controls are addresses
-  // the reader holds from wherever they are. A reader who pressed the Asks button is
-  // standing on it, so measuring from it would send the next press back to the top.
-  if (held && held !== document.body && !banner.contains(held))
-    return decisionPlace(held);
+  if (held && held !== document.body) {
+    const place = walkPlace(held);
+    if (place) return place;
+  }
   const sel = getSelection();
   // A caret counts here, where the composer's reading of the selection (pageSelection)
   // wants words to quote: a click that placed one is the reader saying where they are.
-  if (sel?.focusNode && !inChrome(sel.focusNode)) return decisionPlace(sel.focusNode);
+  if (sel?.focusNode) {
+    const place = walkPlace(sel.focusNode);
+    if (place) return place;
+  }
   // A landing whose element a later version dropped is no place at all, and
   // compareDocumentPosition against a detached node answers about no document.
   return (landed?.isConnected ? landed : null) ?? readingBlock();

@@ -2122,6 +2122,25 @@ def test_codex_receipt_advances_after_page_ownership_transfers(page_dir):
     assert len(pickups) == 1 and pickups[0]["events"] == [delivered["id"]]
 
 
+def test_codex_recovery_ignores_delivery_records_from_the_previous_adapter():
+    directory = codex_model.delivery_dir("codex-thread")
+    directory.mkdir(parents=True)
+    legacy = directory / "legacy-delivery.json"
+    files_model.write_json(
+        legacy,
+        {
+            "format": "leaf-delivery-v1",
+            "delivery_id": "legacy-delivery",
+            "page": "/tmp/old-page",
+            "batch_jsonl": '{"page":"/tmp/old-page"}\n',
+        },
+    )
+
+    assert not codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert not codex_model._has_delivery_work("codex-thread")
+    assert files_model.read_json(legacy)["delivery_id"] == "legacy-delivery"
+
+
 def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     page = codex_claimed_page
     for event_id in ("first", "second"):

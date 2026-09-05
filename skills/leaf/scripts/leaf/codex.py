@@ -32,6 +32,7 @@ from .session import Watch, acknowledge, batch_data, read_watch_pass, record_pic
 QUEUE_TIMEOUT = 20
 START_TIMEOUT = 20
 ACTIVE_DELIVERY_RECOVERY_TIMEOUT = 15 * 60
+DELIVERY_EPOCH_FORMAT = "leaf-codex-delivery-v1"
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -139,6 +140,10 @@ def _epochs(session_id: str) -> list[tuple[Path, dict]]:
         (path, epoch)
         for path in sorted(directory.glob("*.json"))
         if (epoch := read_json(path)) is not None
+        # Earlier adapters stored their already-delivered batch records in this
+        # directory. A missing format is a delivery epoch written before epochs
+        # became self-describing; every other explicit format is a different record.
+        and epoch.get("format") in {None, DELIVERY_EPOCH_FORMAT}
     ]
 
 
@@ -175,6 +180,7 @@ def _append_batch(
         epoch_path = delivery_epoch_path(session_id, str(uuid.uuid4()))
         epoch_path.parent.mkdir(parents=True, exist_ok=True)
         epoch = {
+            "format": DELIVERY_EPOCH_FORMAT,
             "queue": "pending" if queue_if_new else "none",
             "queued": 0,
             "stop_offered": 0,

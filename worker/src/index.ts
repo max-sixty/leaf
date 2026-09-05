@@ -45,13 +45,14 @@ export default {
       return Response.redirect(canonical.toString(), 308);
     }
 
-    const existing = sessionFromCookie(request.headers.get("Cookie"));
+    const secure = url.protocol === "https:";
+    const existing = sessionFromCookie(request.headers.get("Cookie"), secure);
     const sessionId = existing ?? randomSessionId();
     const response = await getContainer(env.EXAMPLES, sessionId).fetch(request);
     if (existing !== null) return response;
 
     const headers = new Headers(response.headers);
-    headers.append("Set-Cookie", sessionCookie(sessionId, url.protocol === "https:"));
+    headers.append("Set-Cookie", sessionCookie(sessionId, secure));
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,

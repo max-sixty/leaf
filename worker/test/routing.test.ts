@@ -24,15 +24,17 @@ describe("website example routing", () => {
 
   it("reuses only a well-formed opaque session cookie", () => {
     const id = "01".repeat(16);
-    expect(sessionFromCookie(`theme=dark; ${SESSION_COOKIE}=${id}`)).toBe(id);
-    expect(sessionFromCookie(`${HTTP_SESSION_COOKIE}=${id}`)).toBe(id);
+    expect(sessionFromCookie(`theme=dark; ${SESSION_COOKIE}=${id}`, true)).toBe(id);
+    expect(sessionFromCookie(`${HTTP_SESSION_COOKIE}=${id}`, false)).toBe(id);
     expect(
       sessionFromCookie(
         `${HTTP_SESSION_COOKIE}=${"02".repeat(16)}; ${SESSION_COOKIE}=${id}`,
+        true,
       ),
     ).toBe(id);
-    expect(sessionFromCookie(`${SESSION_COOKIE}=not-a-session`)).toBe(null);
-    expect(sessionFromCookie(null)).toBe(null);
+    expect(sessionFromCookie(`${HTTP_SESSION_COOKIE}=${id}`, true)).toBe(null);
+    expect(sessionFromCookie(`${SESSION_COOKIE}=not-a-session`, true)).toBe(null);
+    expect(sessionFromCookie(null, true)).toBe(null);
   });
 
   it("mints transport-appropriate session cookies from 128 random bits", () => {

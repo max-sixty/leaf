@@ -15,16 +15,15 @@ export function needsExampleSlash(pathname: string): boolean {
   return EXAMPLE_WITHOUT_SLASH.test(pathname);
 }
 
-export function sessionFromCookie(cookie: string | null): string | null {
+export function sessionFromCookie(cookie: string | null, secure: boolean): string | null {
   if (cookie === null) return null;
-  let local: string | null = null;
+  const expected = secure ? SESSION_COOKIE : HTTP_SESSION_COOKIE;
   for (const item of cookie.split(";")) {
     const [name, ...value] = item.trim().split("=");
     const candidate = value.join("=");
-    if (name === SESSION_COOKIE && SESSION_ID.test(candidate)) return candidate;
-    if (name === HTTP_SESSION_COOKIE && SESSION_ID.test(candidate)) local = candidate;
+    if (name === expected && SESSION_ID.test(candidate)) return candidate;
   }
-  return local;
+  return null;
 }
 
 export function newSessionId(random: Uint8Array): string {

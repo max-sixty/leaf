@@ -704,13 +704,14 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
    * real button with a compact visible word and the full accessible name. Positioned
    * over room the input reserves, it does not make a compact row taller than its neighbours. */
   .lf-another input { flex: 1; min-width: 0; padding: 0;
-                     padding-inline-end: calc(var(--aim-floor) + var(--sp-1));
+                     padding-inline-end: calc(var(--aim-floor) + var(--sp-4));
                      border: 0; outline: none; background: transparent; color: inherit;
                      font: var(--t-4)/1.6 var(--serif); }
   .lf-another > .lf-btn { position: absolute; inset-inline-end: var(--sp-1);
                      top: 50%; transform: translateY(-50%);
                      display: flex; align-items: center; justify-content: center;
-                     width: var(--aim-floor); height: var(--aim-floor); padding: 0;
+                     min-width: var(--aim-floor); height: var(--aim-floor);
+                     padding: 0 var(--sp-1);
                      font: 600 var(--t-6)/1 var(--sans); }
   /* The leading column holds the keyboard address and the gap before the option's
    * words. The address starts at the ordinary 8px inset and takes

@@ -752,8 +752,14 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
         "data-lf-presented", "1", timeout=30000
     )
     # The reach, asserted the way the population is: an interrupted start is a fetch the
-    # runtime made itself, which no transport error names.
-    assert [error for error in errors if "Failed to fetch" in error]
+    # runtime made itself, which no transport error names — and the words are the
+    # interrupted fetch's own, so neither leg can go green on the other's.
+    if interrupted == "widgets/lf-options.js":
+        assert [
+            error for error in errors if _PREVIEW_RESTART_IMPORT_ERROR.fullmatch(error)
+        ]
+    else:
+        assert "leaf: page failed to start: Failed to fetch" in errors
     assert_only_preview_restart_errors(errors)
     page.close()
 

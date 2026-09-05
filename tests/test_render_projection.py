@@ -3693,6 +3693,77 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
     page.close()
 
 
+def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve):
+    """A later POST must join the reply's import before mounting or capturing it."""
+    host = REPLY_HOST_PAGE.replace(
+        "</main>",
+        """
+<lf-decision id="delivery"><h2>Which delivery?</h2>
+  <lf-options id="delivery-choice" choose>
+    <lf-option id="delivery-now">Now</lf-option>
+    <lf-option id="delivery-later">Later</lf-option>
+  </lf-options>
+</lf-decision></main>""",
+    )
+    url = serve(host)
+    page, errors = open_page(browser, live_url(url))
+    held = []
+    page.route("**/widgets/lf-draft.js", lambda route: held.append(route))
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "draft-question",
+            "author": "user",
+            "revision": 1,
+            "text": "Please draft this.",
+        },
+    )
+    with page.expect_request("**/widgets/lf-draft.js"):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "parent": "draft-question",
+                "author": "claude",
+                "revision": 1,
+                "text": "Edit this draft.",
+                "markup": '<lf-draft id="crossed-draft"><pre>\n    First line.\n    Second line.\n</pre></lf-draft>',
+            },
+        )
+    page.wait_for_timeout(0)  # dispatch the held request's route callback
+    assert len(held) == 1
+    with page.expect_response("**/api/event") as newer:
+        page.locator("#delivery-now").click()
+    assert newer.value.ok
+    newer.value.finished()
+    page.evaluate(ONE_FRAME)
+    assert page.locator("#crossed-draft").count() == 0
+    held[0].continue_()
+    page.unroute("**/widgets/lf-draft.js")
+    told(page)
+    page.locator(".lf-threads-toggle").click()
+    widget = page.locator("#crossed-draft")
+    original = widget.element_handle()
+    body = widget.locator(".lf-draft-body")
+    assert body.text_content() == "First line.\nSecond line."
+    widget.locator(".lf-draft-body").click()
+    widget.locator("textarea").fill("A reader's exact words.\n")
+    page.locator('[data-lf-for="crossed-draft"]').get_by_role(
+        "button", name="Save", exact=True
+    ).click()
+    round_trip(page)
+    assert body.text_content() == "A reader's exact words.\n"
+    undo(page)
+    assert body.text_content() == "First line.\nSecond line."
+    assert original.evaluate(
+        "node => node === document.getElementById('crossed-draft')"
+    )
+    expect(page.locator("#delivery-now")).to_have_attribute("chosen", "")
+    assert errors == []
+    page.close()
+
+
 def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     """A widget inside a reply exists only once the panel has rendered the log,
     which is later than everything on the page — so the replay runs at the end of

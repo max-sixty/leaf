@@ -141,12 +141,14 @@ export function createStateApplication(dependencies) {
     // buildMsgBody instantiates it synchronously once the panel builds a body.
     for (const e of nextEvents) {
       if (!e.markup || markupRead.has(e.id)) continue;
-      markupRead.add(e.id);
       // Parsed the way buildMsgBody parses it, so the tags found here are the tags that
       // will stand in the body: an inert template, one fragment at a time.
       const frozen = document.createElement("template");
       frozen.innerHTML = e.markup;
-      preparations.push(importWidgets(frozen.content));
+      // The loader shares in-flight module promises. Only completed preparation is
+      // cached here: a crossed response must join that import before it mounts or
+      // captures the same frozen widget.
+      preparations.push(importWidgets(frozen.content).then(() => markupRead.add(e.id)));
     }
     const [activation] = await Promise.all(preparations);
     if (activation?.stale) {

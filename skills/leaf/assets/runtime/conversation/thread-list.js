@@ -394,6 +394,11 @@ export function createConversationThreadList(dependencies) {
     // took that thread's node out and, with it, the question from the page's count: 2/2
     // became 1/1 while the log said nothing had changed. Hidden is a fact about this list;
     // gone is a claim about the log. Resolved threads are the disclosure's, below.
+    // Where the reader stood as this reconcile began, read before the loop: hiding a
+    // card dispatches lf-thread-hidden, and a listener answering it — a reaction list
+    // disarming — can move the focus out of the list itself. Read after the loop, that
+    // move said the reader had never been here, and the landing below was skipped.
+    const standingIn = threadsBox.contains(focused());
     let standing = null;
     const visible = new Set(shown);
     for (const t of ordered) {
@@ -449,7 +454,6 @@ export function createConversationThreadList(dependencies) {
     // answering the last one waiting on the reader is exactly that — and a removed node drops
     // focus to body, which hands the next Space to the page behind the panel. Land them on
     // the list, where Escape lands them and t/T can walk on from.
-    const standingIn = threadsBox.contains(focused());
     setChildren(threadsBox, wanted);
     // A card kept but hidden still contains the focus for a moment: the browser only
     // drops it to body at its next rendering step, after this has run. Read the hidden

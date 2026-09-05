@@ -2028,6 +2028,13 @@ def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, r
     expect(page.locator(".lf-react-open")).to_have_count(0)
     if removal == "filter":
         expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
+    # The reader lands on the list, where Escape lands them and t/T walks on from. The
+    # disarm's own focus move runs while the list is still hiding the card, so a read of
+    # where the reader stood taken after that loop said they had never been in the list,
+    # and left them on body.
+    assert page.evaluate(
+        "() => document.activeElement === document.querySelector('.lf-threads')"
+    )
     count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")
     page.wait_for_timeout(100)

@@ -19,7 +19,8 @@ Source, runtime, theme, registry, media and selected package edits trigger the n
 stop, init, stamp and start lifecycle. The generation handshake reloads open
 tabs at the same URL. Startup claims the page under the initiating host session;
 refresh restarts validate that retained claim without rediscovering ancestry
-from the detached watcher. Incompatible source/layer edits leave feedback intact and
+from the detached watcher. Lost ownership retires the watcher even when a failed
+restart left no service running. Incompatible source/layer edits leave feedback intact and
 report a refusal; the next edit retries. Changing the source identity or seeded
 history/data requires a new slot. Runtime updates preserve direct edits to the
 live page; editing both that page and its source fixture requires reconciling them.

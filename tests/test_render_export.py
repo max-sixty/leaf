@@ -19,6 +19,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import hosting as hosting_model
+from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import server as server_model
 from leaf import service as service_model
@@ -314,6 +315,15 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
             time.sleep(0.05)
         assert server_model.running_server(directory) is None
         assert service_model.page_claim(directory)["released"] is not None
+        lease = directory.with_name(f"{directory.name}.preview.lock")
+        deadline = time.monotonic() + 10
+        while leases_model.lock_is_held(lease):
+            assert time.monotonic() < deadline, (
+                "released session left its watcher alive"
+            )
+            time.sleep(0.05)
+        metadata = directory.with_name(f"{directory.name}.preview.json")
+        assert json.loads(metadata.read_text())["enabled"] is False
     finally:
         subprocess.run(
             [*command[:-1], "--stop"], check=True, capture_output=True, timeout=30

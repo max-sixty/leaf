@@ -522,10 +522,12 @@ def watch_preview(
 ) -> None:
     from leaf.event_log import flocked
     from leaf.files import read_json, write_json
+    from leaf.host import host_identity
     from leaf.hosting import cmd_stop, start_server, startup_note
     from leaf.layer import layer_inputs
     from leaf.leases import take_waiter_lease
     from leaf.server import running_server
+    from leaf.service import PageTransaction
 
     metadata, lease_path, log_path = preview_files(page)
     lease_path.parent.mkdir(parents=True, exist_ok=True)
@@ -613,6 +615,12 @@ def watch_preview(
                 time.sleep(0.25)
                 if serving and not running_server(page):
                     return  # an explicit service stop or the owning session ended
+                if not serving:
+                    # A refused restart has no service watching the claim's
+                    # lifetime. Lost ownership ends this watcher as well.
+                    with PageTransaction(page) as state:
+                        if not state.owned_by(host_identity()):
+                            return
                 current = snapshot(
                     watch_paths(source, runtime, roots, identity["seed"])
                 )

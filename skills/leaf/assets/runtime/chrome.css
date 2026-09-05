@@ -1482,8 +1482,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-fab-bar.lf-react-open > .lf-composer { display: none !important; }
   .lf-fab-bar.lf-react-open > .lf-react-palette { display: contents; }
   /* A reaction surface offers one quiet trigger. It disappears when its list opens;
-     a standing token remains visible in a closed message or page strip as the reader's
-     receipt and eraser. */
+     a standing token remains visible in a closed message strip as the reader's receipt
+     and eraser. */
   .lf-react-trigger { color: var(--muted); }
   .lf-react-trigger:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]) {
     color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
@@ -1505,7 +1505,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-react[aria-busy="true"] { opacity: .55; }
   .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
     margin-top: 6px; }
-  .lf-page-strip { padding: 8px 14px 0; }
   /* The latest agent reply keeps its React… trigger visible. Older replies expose
      theirs while the reader is in the thread; a standing mark remains visible at rest. */
   .lf-thread:not(:hover, :focus-within, .lf-focus-within)

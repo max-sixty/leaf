@@ -26,7 +26,6 @@ import { renderMargin } from "../living-margin.js";
 import { paintAcknowledgmentsNow } from "./acknowledgments.js";
 import { renderSurfaces } from "./surfaces.js";
 import { paintNarrowing, widen } from "./narrowing.js";
-import { paintPageStrip } from "./reaction-strips.js";
 
 /* Conversation state and panel reconciliation.
 
@@ -144,7 +143,6 @@ function renderPanelNow() {
   renderSurfaces(listedThreads, placedAt);
   const prepared = renderThreads(threads);
   renderConversations(listedThreads);
-  paintPageStrip(threads);
   renderMargin();
   paintAcknowledgments();
   return prepared;

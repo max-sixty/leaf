@@ -22,9 +22,13 @@ in page order. They remain visible as one complete page. The reader can press
 Ask depends on an earlier answer, publish it in the next turn instead of authoring
 every possible branch.
 
-Each option carries its own title and one consequence. When comparable facts
-help, show the same few facts across the alternatives. Put longer rationale or
-provenance in a disclosure after the Ask. Use a short option that points
+Each option carries its own title, one consequence, and the evidence needed to
+choose it. When comparable facts help, show the same few facts across the
+alternatives. For an interface or behavior choice, make the relevant interaction
+work inside each option so the reader can try every alternative before choosing.
+Hold everything except the disputed treatment constant, and include the current or
+no-treatment case as a neutral control. Put longer rationale or provenance in a
+disclosure after the Ask. Use a short option that points
 elsewhere only to select among sections or work items that already exist
 independently of the decision; do not create separate sections to hold an Ask's
 alternatives. Allow multiple picks only when several options may stand.

@@ -422,8 +422,8 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
    & > lf-option > .lf-address {
                      inset-inline-start: auto; inset-inline-end: var(--sp-2);
                      top: var(--sp-2); }
-   &:has(> lf-option > .lf-address[data-lf-ask-address])
-                     > lf-option > .lf-pick { opacity: 0; }
+   & > lf-option:has(> .lf-address[data-lf-ask-address]) > .lf-pick {
+                     opacity: 0; }
  }
 }
 /* The face is stated here, not left to a class: the mark has two shapes — a press

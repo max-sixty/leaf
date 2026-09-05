@@ -375,14 +375,18 @@ function activeDrawing() {
   };
 }
 
-function draftDrawing() {
-  if (pageComposerDrawing()) return { drawing: pageComposerDrawing(), target: null };
-  if (!composerOpen || !pendingDrawing) return null;
-  if (!pendingAnchor) return { drawing: pendingDrawing, target: null };
-  const place = pendingAt();
-  return place?.status !== "outdated" && place?.target
-    ? { drawing: pendingDrawing, target: place.target }
-    : null;
+function draftDrawings() {
+  const drawings = [];
+  const pageDrawing = pageComposerDrawing();
+  if (pageDrawing) drawings.push({ drawing: pageDrawing, target: null });
+  if (!composerOpen || !pendingDrawing) return drawings;
+  if (!pendingAnchor) drawings.push({ drawing: pendingDrawing, target: null });
+  else {
+    const place = pendingAt();
+    if (place?.status !== "outdated" && place?.target)
+      drawings.push({ drawing: pendingDrawing, target: place.target });
+  }
+  return drawings;
 }
 
 export function paintDrawings(threads = lastThreads) {
@@ -413,8 +417,7 @@ export function paintDrawings(threads = lastThreads) {
       if (active.target) nextObserved.add(active.target);
     }
   } else {
-    const draft = draftDrawing();
-    if (draft) {
+    for (const draft of draftDrawings()) {
       const painted = mark(draft.drawing, draft.target, "lf-drawing-pending");
       if (painted) {
         marks.push(painted);

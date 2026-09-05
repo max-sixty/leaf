@@ -34,7 +34,7 @@ import { elementById, inChrome } from "../passages.js";
 import { focusSurface } from "../conversation/surfaces.js";
 import { showThread } from "../conversation/landing.js";
 import { notice } from "../notifications.js";
-import { validDrawing } from "./drawing.js";
+import { paintDrawings, validDrawing } from "./drawing.js";
 
 // The floating field immediately accepts a comment on the target the reader named.
 // Pressing Tab or its ellipsis exchanges its field for the other responses in place.
@@ -285,6 +285,7 @@ function showComposer(open) {
   // this mark then becomes the durable pointer to the quoted passage. Automatic passage
   // selection leaves both readings standing until the reader enters the field.
   paintAnchors();
+  paintDrawings();
   paintHere();
 }
 
@@ -376,6 +377,7 @@ function watchComposer() {
     suggestCheck.checked = Boolean(suggest);
     syncSuggestMode();
     paintAnchors();
+    paintDrawings();
   });
 }
 // Hiding keeps the draft and closing discards it, but the mark goes down with the box

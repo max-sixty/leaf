@@ -324,6 +324,68 @@ def test_a_page_drawing_draft_repaints_in_another_tab(browser, serve, one_reader
     remote.close()
 
 
+def test_an_anchored_drawing_draft_repaints_in_another_tab(browser, serve, one_reader):
+    """The anchored composer's draft watcher repaints its stroke as well as its target
+    when another tab adds drawing geometry to the shared draft."""
+    url = serve(TARGETS_PAGE)
+    local, local_errors = open_page(browser, url, context=one_reader)
+    remote, remote_errors = open_page(browser, url, context=one_reader)
+    draw_over(remote, remote.locator("#prose"))
+    remote_path = remote.locator(".lf-drawing-pending path")
+    before = remote_path.get_attribute("d")
+
+    draw_over(
+        local,
+        local.locator("#prose"),
+        points=((0.15, 0.2), (0.45, 0.8), (0.85, 0.2)),
+    )
+
+    expect(remote.locator(".lf-drawing-pending")).to_have_count(1)
+    remote.wait_for_function(
+        "before => document.querySelector('.lf-drawing-pending path')"
+        "?.getAttribute('d') !== before",
+        arg=before,
+    )
+    assert remote_path.get_attribute("d") == local.locator(
+        ".lf-drawing-pending path"
+    ).get_attribute("d")
+    assert local_errors == []
+    assert remote_errors == []
+    local.close()
+    remote.close()
+
+
+def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
+    """The general and anchored composers are independent durable draft contexts, so
+    a new anchored stroke must not visually replace a standing page stroke."""
+    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page.evaluate("document.body.style.minHeight = '180000px'")
+    page.evaluate("scrollTo(0, 120000)")
+    point = page.evaluate(
+        """() => ({x: innerWidth - 16, y: Math.min(innerHeight - 80, 420)})"""
+    )
+    page.mouse.move(point["x"], point["y"])
+    page.keyboard.press("w")
+    page.mouse.down()
+    page.mouse.move(point["x"] - 100, point["y"] - 40, steps=8)
+    page.mouse.up()
+    expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+    page.get_by_role("button", name="Close threads").click()
+
+    draw_over(page, page.locator("#prose"))
+
+    expect(page.locator(".lf-drawing-pending")).to_have_count(2)
+    page.locator(".lf-fab-input").fill("The anchored draft.")
+    with sending(page, "the anchored drawing beside the page draft"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["anchor"] == {"section": "prose"}
+    expect(page.locator(".lf-drawing-posted")).to_have_count(1)
+    expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
 def test_a_margin_start_uses_the_item_alongside_it_as_context(browser, serve):
     """Starting beside content keeps that horizontal item's semantic anchor, so opening
     its composer or reflowing the page cannot separate the ink from what it marks."""

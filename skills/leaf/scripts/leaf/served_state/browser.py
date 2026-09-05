@@ -89,7 +89,6 @@ def browser_state(
             "updates": canonical_updates(projection, claims, threads, events),
             "undo": _browser_undo_candidates(
                 events,
-                active_within,
                 within,
                 floors,
                 projection,

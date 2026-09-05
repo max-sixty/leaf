@@ -39,13 +39,18 @@ export function clocked(owner, paint) {
   return render;
 }
 
-export async function tickClock() {
-  const pending = [];
-  for (const entry of [...clockPaints]) {
-    if (!entry.owner.isConnected) clockPaints.delete(entry);
-    else if (entry.changed()) pending.push(entry.refresh());
-  }
-  await Promise.all(pending);
+export async function tickClock(reportError) {
+  // Package paints are independent subscribers. A bad clock read or repaint must
+  // not starve later subscribers or turn a healthy state feed back into polling.
+  const settled = await Promise.allSettled(
+    [...clockPaints].map(async (entry) => {
+      if (!entry.owner.isConnected) clockPaints.delete(entry);
+      else if (entry.changed()) return entry.refresh();
+    }),
+  );
+  for (const result of settled)
+    if (result.status === "rejected")
+      reportError(`clock paint failed: ${result.reason?.message ?? result.reason}`);
 }
 
 const serverNow = () => Date.now() + clockSkew;

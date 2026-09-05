@@ -3081,6 +3081,52 @@ def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser,
     page.close()
 
 
+def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
+    browser, serve
+):
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.evaluate(
+        """async () => {
+          const {clocked, clockValue} = await import('/runtime/widget-api.js');
+          window.clockVersion = 0;
+          for (const stage of ['read', 'paint', 'async']) {
+            const paint = clocked(document.body, () => {
+              const version = clockValue(() => {
+                if (stage === 'read' && window.clockVersion)
+                  throw new Error('read broke');
+                return window.clockVersion;
+              });
+              if (!version) return;
+              if (stage === 'async') return Promise.reject(new Error('async broke'));
+              throw new Error('paint broke');
+            });
+            paint();
+          }
+          clocked(document.body, () => {
+            window.healthyClock = clockValue(() => window.clockVersion);
+          })();
+          window.clockVersion = 1;
+        }"""
+    )
+    ticked(page)
+    assert page.evaluate("window.healthyClock") == 1
+    told(page)  # Error reports legitimately change the log and cause one state read.
+    ticked(page)
+    asked = _traffic(page).asked
+    page.evaluate("window.clockVersion = 2")
+    ticked(page)
+    ticked(page)
+    assert page.evaluate("window.healthyClock") == 2
+    assert _traffic(page).asked == asked
+    assert all("clock paint failed:" in error for error in errors), errors
+    assert {e["text"] for e in sent_events(serve.page_dir) if e["kind"] == "error"} == {
+        "clock paint failed: read broke",
+        "clock paint failed: paint broke",
+        "clock paint failed: async broke",
+    }
+    page.close()
+
+
 def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
     """The data stamp proves that every asynchronous subscriber has settled.
 

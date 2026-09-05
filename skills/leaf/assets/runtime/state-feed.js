@@ -73,7 +73,7 @@ export function createStateFeed({
       document.dispatchEvent(new Event("lf-actions"));
       await notifyDataSubscribers();
     }
-    await tickClock();
+    await tickClock(reportPageError);
     document.dispatchEvent(new Event("lf-tick"));
   }
 

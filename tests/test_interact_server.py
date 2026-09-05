@@ -51,6 +51,7 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf import thread_context as thread_context_model
 from leaf.registry import storage as registry_storage
+from leaf.served_state import browser as served_browser
 from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
 
@@ -1069,25 +1070,78 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     assert latest["restores_desired"] is True
 
 
-def test_undo_offer_keeps_the_doors_active_page_containment():
-    """A pinned view paints its own projection but admits undo against live threads."""
-    active_within = {"settled-on-live-page": ("live",)}
-    view_within = {"settled-on-pinned-view": ("pinned",)}
-    empty = projection_model.StateProjection({}, {}, {}, {}, {})
-    event = {"id": "reader-resolve", "kind": "resolve", "author": "user"}
-    undo_reading = event_folds_model.UndoReading([event], active_within)
+def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
+    """A pinned view paints its own projection but admits undo against live threads.
 
-    candidates = served_document._browser_undo_candidates(
-        [event],
-        active_within,
-        view_within,
-        {},
-        empty,
-        empty,
-        undo_reading=undo_reading,
+    The option belonged to the answering widget only in the pinned revision.
+    Restating it under another owner cannot retract the live thread's answer.
+    Using pinned containment would reopen the reaction and incorrectly offer Undo.
+    """
+    old_page = PAGE.replace("<lf-options>", '<lf-options id="picks">')
+    old_page = old_page.replace(
+        "</section>",
+        '<lf-decision id="other-decision"><h3>Another choice</h3>'
+        '<lf-options id="other-picks"><lf-option id="other-option">'
+        "Another option</lf-option></lf-options></lf-decision></section>",
+    )
+    new_page = (
+        old_page.replace('id="flag-first"', 'id="moved-option"')
+        .replace('id="other-option"', 'id="flag-first"')
+        .replace('id="moved-option"', 'id="other-option"')
+    )
+    documents = {1: old_page, 2: new_page}
+    versions = page_dir / ".fixture-versions"
+    versions.joinpath("v1.html").write_text(old_page)
+    publish(page_dir, 1)
+    reaction = event_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "token": "ok"},
+    )
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"options": ["flag-first"], "resolves": reaction["id"]},
+            "generated": [],
+        },
+    )
+    versions.joinpath("v2.html").write_text(new_page)
+    publish(page_dir, 2)
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "claude",
+            "version": 2,
+            "revision": 2,
+            "text": "Restated the option under its new owner.",
+            "restated": ["flag-first"],
+        },
     )
 
-    assert [candidate["event"] for candidate in candidates] == [event]
+    events = event_model.read_events(page_dir)
+    registry = registry_storage.require_registry(page_dir)
+
+    def reading(active_revision):
+        return served_browser.browser_state(
+            documents, events, registry, active_revision, [], {}, {1, 2}
+        )
+
+    # The same log really does admit the reaction if read against the old page.
+    # This control makes the containment difference observable rather than nominal.
+    pinned_undo = reading(1)["views"]["1"]["undo"]
+    assert reaction["id"] in {item["event"]["id"] for item in pinned_undo}
+
+    browser = reading(2)
+    assert set(browser["views"]) == {"1", "2"}
+    for view in browser["views"].values():
+        assert reaction["id"] not in {
+            candidate["event"]["id"] for candidate in view["undo"]
+        }
 
 
 def test_undo_candidates_keep_only_standing_reader_gestures():
@@ -1126,7 +1180,7 @@ def test_undo_candidates_keep_only_standing_reader_gestures():
     undo_reading = event_folds_model.UndoReading(events, {})
 
     candidates = served_document._browser_undo_candidates(
-        events, {}, {}, {}, empty, empty, undo_reading=undo_reading
+        events, {}, {}, empty, empty, undo_reading=undo_reading
     )
 
     assert [candidate["event"]["id"] for candidate in candidates] == ["rx1", "r2"]
@@ -1190,7 +1244,6 @@ def test_undo_candidates_restore_another_action_on_the_same_coordinate():
 
     candidates = served_document._browser_undo_candidates(
         events,
-        {},
         {},
         {},
         document_projection,

@@ -130,7 +130,6 @@ def _standing_actions_by_coordinate(
 
 def _browser_undo_candidates(
     events: list,
-    within: dict,
     document_within: dict,
     document_floors: dict,
     document_projection: StateProjection,

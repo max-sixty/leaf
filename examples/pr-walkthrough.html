@@ -555,13 +555,13 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
 
       <section id="pr-outcome">
         <lf-ask id="pr-outcome-decision">
-          <h2>What would you report on the final revision?</h2>
+          <h2 id="pr-outcome-heading">What would you report on the final revision?</h2>
           <p id="pr-outcome-context">
             Choose the review the agent should enter on the forge. Each option states
             the disposition and the exact work, so the agent can submit it without
             translating a generic label. Digits choose a listed answer;
             <kbd>c</kbd> comments on it. Tab reaches <strong>Another option</strong>,
-            where <kbd>Enter</kbd> submits.
+            where <kbd>Enter</kbd> adds a line and <kbd>Mod+Enter</kbd> adds the answer.
           </p>
           <lf-options id="pr-outcome-choice" choose>
             <lf-option id="pr-outcome-follow-up">

@@ -216,8 +216,8 @@ export function createAnchors(dependencies) {
     return registeredVisualPart(visual, part);
   }
   function visualPartAt(visual, target) {
-    const part = registeredVisualPartAt(visual, target);
-    return part && declaredVisualParts(visual).has(part.id) ? part : null;
+    const declared = declaredVisualParts(visual);
+    return registeredVisualPartAt(visual, target, (part) => declared.has(part.id));
   }
   const visualPartLabel = (visual, part) => visualPart(visual, part)?.label ?? null;
   const declaredVisualSelector = () =>

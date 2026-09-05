@@ -95,8 +95,12 @@ export function visualParts(source) {
 export const visualPart = (source, id) =>
   visualParts(source).find((part) => part.id === id) ?? null;
 
-export function visualPartAt(source, target) {
-  const byElement = new Map(visualParts(source).map((part) => [part.element, part]));
+export function visualPartAt(source, target, admits = () => true) {
+  const byElement = new Map(
+    visualParts(source)
+      .filter(admits)
+      .map((part) => [part.element, part]),
+  );
   for (
     let current = target;
     current && current !== source;

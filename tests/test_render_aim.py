@@ -1673,6 +1673,35 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.close()
 
 
+def test_an_undeclared_nested_part_does_not_shadow_its_declared_parent(browser, serve):
+    """Authored tokens bound hit-testing, not only the event after it has chosen a hit.
+
+    The package may register more parts than this instance exposes. A hit inside one of
+    those parts still belongs to the nearest declared ancestor rather than widening to
+    the visual as a whole.
+    """
+    page, errors = open_page(
+        browser,
+        serve(
+            GENERIC_VISUAL_PAGE.replace(
+                'parts="outer inner html"', 'parts="outer html"'
+            ),
+            layer_registry=GENERIC_VISUAL_LAYER,
+            layer_widgets=GENERIC_VISUAL_WIDGETS,
+        ),
+    )
+
+    page.locator("#inner path").hover()
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "outer")
+    assert page.eval_on_selector_all(
+        ".lf-aim-shape > g > *", "nodes => nodes.map(node => node.localName)"
+    ) == ["rect"]
+    page.keyboard.up("Alt")
+    assert errors == []
+    page.close()
+
+
 def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, serve):
     """The package's update signal rebuilds a contour even when its box does not move."""
     url = serve(

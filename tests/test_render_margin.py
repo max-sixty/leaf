@@ -393,6 +393,78 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
     page.close()
 
 
+def test_an_unchanged_heartbeat_re_marks_no_docked_row(browser, serve):
+    """A row the pass leaves docked is not marked docked again.
+
+    `layoutMarginRows` reads the standing posture before it clears anything and
+    leaves a row that still cannot hang where it is, so that row skips the clear
+    and reaches the placement loop already carrying `lf-docked`. `add`
+    re-serializes `class` whether or not the token is new, and this pass runs on
+    the heartbeat through `render`'s tail, so the unguarded mark was a same-value
+    `class` write per docked row every two seconds: a record a screen reader
+    rebuilds its buffer from, for a row that did not move. Measured on this
+    fixture before the guard, five beats wrote `class` five times.
+
+    Neither page the heartbeat reading above is taken on can state it. The corpus
+    stands still, but every row it draws hangs, and the compact posture that would
+    dock them withholds them as `lf-waiting` instead; the gallery docks thirteen
+    rows, but its own margin never comes to rest, so a reading taken across a beat
+    there is not the beat's. The posture is therefore reached directly: under
+    `COVERING` a contributed row cannot hang whatever the local room, and a page
+    with one target settles.
+
+    The guard must not cost the mark, so the narrowing is read too — the row
+    arrives hanging, and it is the pass that docks it.
+    """
+    fixture = leaf_page("Docked reading", '<p id="target">Target passage</p>')
+    page, errors = open_page(browser, serve(fixture))
+    resized(page, 1440, 900)
+    page.evaluate(
+        """async () => {
+          const {offer, marginButton, registerMarginItem} =
+            await import('/runtime/widget-api.js');
+          const controls = document.createElement('span');
+          controls.append(marginButton(offer('button', ''), {
+            key: 'act', icon: 'dot', label: 'Act on the target', role: 'primary'}));
+          registerMarginItem({key: 'target', target: document.getElementById('target'),
+            controls});
+        }"""
+    )
+    margins_laid_out(page)
+    row = page.locator(".lf-margin-item")
+    expect(row).to_have_count(1)
+    expect(row).not_to_have_class(re.compile(r"lf-docked"))
+    # Inside the covering boundary, which is 840px wide.
+    resized(page, 800, 900)
+    margins_laid_out(page)
+    expect(row).to_have_class(re.compile(r"lf-docked"))
+    marks = page.evaluate(
+        """async refreshes => {
+          const frame = () => new Promise(
+            resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+          const wrote = [];
+          const observer = new MutationObserver(list => wrote.push(...list));
+          observer.observe(document.body, {subtree: true, attributes: true,
+            attributeOldValue: true, attributeFilter: ['class']});
+          for (let i = 0; i < refreshes; i++) {
+            document.dispatchEvent(new CustomEvent('lf-actions'));
+            await frame(); await frame();
+          }
+          wrote.push(...observer.takeRecords());
+          observer.disconnect();
+          return wrote
+            .filter(record => record.target.matches('.lf-margin-item'))
+            .map(record => ({was: record.oldValue,
+                             now: record.target.getAttribute('class')}));
+        }""",
+        5,
+    )
+    assert marks == [], marks
+    expect(row).to_have_class(re.compile(r"lf-docked"))
+    assert errors == []
+    page.close()
+
+
 def test_an_option_proxy_writes_no_relation_its_source_has_no_writer_for(
     browser, serve
 ):

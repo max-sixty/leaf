@@ -149,7 +149,7 @@ sequential focus navigation starting point where the blurred control stood, so
 the next Tab runs off the end of the order; `document.body.focus()` resets it.
 
 A reach case answers for the shapes it is written over, and a ring has two,
-outset and inset. `RING_FAULTS`'s cover check steps past the ring's own band
+outset and inset. `ring_faults`'s cover check steps past the ring's own band
 (`grow + w`) to ask whether a control stands behind something; a one-pixel step
 clears an outward ring and lands inside an inset one.
 `test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_box`
@@ -507,6 +507,16 @@ reports a default aborted request as a console load failure, which is why
 `refuse` uses the `aborted` cancellation reason. If a test intentionally
 produces an HTTP error, assert the enriched status-and-URL entry collected by
 `open_page` instead of filtering it out globally.
+
+A test that stops the page's own server has no way to keep the browser quiet
+about it. Bracket the span that makes the noise instead of listing what it says.
+`restarting` drops what the page said inside the block, so the reading everywhere
+else is `errors == []`, and a diagnostic the test means to produce is asserted
+inside the block that produces it. A filter stated over a whole test's output
+takes a new member every time a fetch moves, and it ends up describing the test's
+own noise. `test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back`
+pins both halves, arranging the interruption rather than waiting for a loaded
+machine to produce it.
 
 ### A repeated gesture has to let the repaint it causes land
 

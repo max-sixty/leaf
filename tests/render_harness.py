@@ -1017,6 +1017,34 @@ def watched(page):
     return errors
 
 
+@contextmanager
+def restarting(page, errors):
+    """Enclose a span in which the test stops and replaces the page's own server.
+
+    A stopped server answers no fetch, and the words the failure arrives in depend on
+    which fetch was in flight when it stopped: a bare `Failed to fetch`, a named module,
+    a stack through the icon load, one of several `net::` codes. A reading written over
+    those words needs a new member every time a fetch moves, and it ends up describing
+    the noise this test makes.
+
+    The test controls the span rather than the wording, so it reads the span. Complaints
+    inside a block belong to the restart by construction and are dropped; outside every
+    block the reading is `errors == []`. Assert any diagnostic the test means to produce
+    before leaving the block, because nothing said inside it survives.
+
+    End the block on the assertion that proves the restart landed — the new heading, the
+    new layer, the replacement server's answer — since that is what puts the interrupted
+    fetches behind the discard. The presented stamp waited for here is a settle rather
+    than that proof: a page that never reloaded still carries it.
+    """
+    mark = len(errors)
+    yield
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-presented", "1", timeout=30000
+    )
+    del errors[mark:]
+
+
 # Rendered turns, waited for with a deadline of their own.
 #
 # A frame wait is the one browser wait Playwright does not bound: `evaluate` takes no

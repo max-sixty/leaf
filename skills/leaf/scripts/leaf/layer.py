@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-from .host import config_home
+from .host import config_home, package_store
 from .locations import located, locations_overlap
 from .schema import (
     BROWSER_DIRS,
@@ -28,10 +28,23 @@ from .styles import css_syntax_errors
 from .validation.compatibility import incoming_registry
 
 
+def named_package(name: str) -> Path | None:
+    """The one directory a bare package name selects, installed or bundled.
+
+    `package install` refuses a name a bundled package already answers to, so the
+    roots collide only where a later Leaf release ships a name someone installed
+    before it existed. The installed copy wins there, because the pages selecting
+    that name were written against it. Nothing downstream asks which root
+    answered: an installed package is the same directory contract elsewhere.
+    """
+    roots = (package_store(), BUNDLED_PACKAGES)
+    return next((root / name for root in roots if (root / name).is_dir()), None)
+
+
 def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
     """Resolve recorded package selections without changing their order.
 
-    A bare name selects an optional package shipped with Leaf. Other relative paths
+    A bare name selects an installed or bundled package. Other relative paths
     are project-relative, like the implicit `.leaf/` package. A `~` path stays
     portable across the user's machines. Absolute paths are not recorded because
     `$layer.packages` is part of the page's public vendored registry.
@@ -41,13 +54,13 @@ def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
         if re.fullmatch(HTML_NAME, value):
             if value == DEFAULT_PACKAGE.name:
                 sys.exit("package 'default' is already included in every page")
-            bundled = BUNDLED_PACKAGES / value
-            if not bundled.is_dir():
+            named = named_package(value)
+            if named is None:
                 sys.exit(
-                    f"unknown bundled package {value!r}; use './{value}' for a "
-                    "project-relative package path"
+                    f"unknown package {value!r}; run `leaf package install` to add "
+                    f"it, or use './{value}' for a project-relative package path"
                 )
-            packages.append(bundled)
+            packages.append(named)
             continue
         package_path = Path(value)
         if package_path.is_absolute():

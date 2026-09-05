@@ -64,8 +64,9 @@ keep it when the product can make those frames stale.
 `vendor.py` rebuilds them — all of them by default, or the ones you name. Every
 pinned version sits in one table there, and each bundle lands in the package whose
 widget imports it: `beautiful-mermaid` in `diagram`, `pierre` in `diff`, `plot` and
-`sortable` in `default`, the rest in the kernel's own `assets/vendor/`. They divide
-by whether upstream's published file is already loadable:
+`sortable` in `default`, the rest in the kernel's own `assets/vendor/`. No widget
+imports `mcp-app`, so it lands outside them all in `skills/leaf/mcp-app/`. They
+divide by whether upstream's published file is already loadable:
 
 - Copies, where it is, so vendoring is three values: `marked`, the Markdown
   renderer for runtime-supplied text, and `sortable`, the drag library `lf-board`

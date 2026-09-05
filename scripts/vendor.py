@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Rebuild the third-party bundles a Leaf page loads.
+"""Rebuild the third-party bundles Leaf ships.
 
-The tracked files under `skills/leaf/assets/vendor/` and each package's own
-`vendor/` are payload: a page vendors them and a reader's browser runs them, and
-nothing builds them at install time.
+Nothing builds them at install time, so they are tracked. The files under
+`skills/leaf/assets/vendor/` and each package's own `vendor/` are page payload:
+`page init` copies them into a page directory and a reader's browser runs them.
+The resource under `skills/leaf/mcp-app/` is read straight from the install by
+an MCP host, so no page carries it.
 
 They arrive two ways, which is the shape of this file. Where upstream already
 publishes a file a browser can load, vendoring is three values — the package,
@@ -29,6 +31,7 @@ from typing import NamedTuple
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "skills/leaf/assets"
 PACKAGES = ROOT / "skills/leaf/packages"
+MCP_APP = ROOT / "skills/leaf/mcp-app"
 
 
 def package_vendor(package: str) -> Path:
@@ -528,7 +531,7 @@ def build_mcp_app(work: Path) -> list[Path]:
     for name in ("page",):
         entry = work / f"{name}-entry.js"
         bundle = work / f"{name}-bundle.js"
-        out = ASSETS / f"vendor/mcp-{name}-app.html"
+        out = MCP_APP / f"{name}-app.html"
         shutil.copyfile(source / f"{name}-app.js", entry)
         esbuild(
             entry.name,

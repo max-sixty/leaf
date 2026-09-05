@@ -146,4 +146,4 @@ same Codex task, and acknowledges only after durable queue acceptance.
 
 The tracked adaptive bundle is generated from `scripts/mcp-app/` by
 `scripts/vendor.py mcp-app`; do not patch the generated HTML under
-`assets/vendor/` directly.
+`skills/leaf/mcp-app/` directly.

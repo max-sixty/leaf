@@ -30,6 +30,7 @@ Claude Code and Codex install the tracked tree whole. Its main parts are:
 - `skills/leaf/assets/`: the browser runtime, registry, theme, and icon;
 - `skills/leaf/packages/`: the default and optional bundled content vocabularies,
   widgets, modules, and vendor files;
+- `skills/leaf/mcp-app/`: the MCP App resource an MCP host reads;
 - `skills/leaf/references/`: page-authoring and internal protocol references;
 - `hooks/hooks.json`: the shared host hooks.
 
@@ -76,10 +77,12 @@ itself, no generated file, no repaired state. Plugin updates may replace the
 directory wholesale, so what has to survive one belongs in the page directory
 or the state home.
 
-Files under `skills/leaf/assets/vendor/` and any package's `vendor/` —
-`default/`, `diagram/`, `diff/` today — are committed payload outputs. A bundle
-lives in the package whose widget imports it, so a page that never draws a
-diagram or a diff never vendors their renderers. Their
+Files under `skills/leaf/assets/vendor/`, any package's `vendor/` — `default/`,
+`diagram/`, `diff/` today — and `skills/leaf/mcp-app/` are committed payload
+outputs, and each sits where its consumer reads it. A bundle lives in the
+package whose widget imports it, so a page that never draws a diagram or a diff
+never vendors their renderers; the MCP App resource sits outside the layer
+because an MCP host reads it from the install rather than from a page. Their
 generators and source-version choices live under `scripts/`; follow
 `scripts/CLAUDE.md`, update or run the owning script, and do not patch a
 generated bundle directly.

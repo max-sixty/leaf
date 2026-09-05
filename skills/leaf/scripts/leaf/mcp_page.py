@@ -17,13 +17,13 @@ from .hosting import server_at
 from .http import Handler
 from .registry.contract import RegistryError
 from .registry.storage import layer_metadata
-from .schema import ASSETS, EVENTS_FILE
+from .schema import EVENTS_FILE, MCP_APP
 from .served_state.service import PageStateService
 from .server import preview_metadata, running_server
 from .structure import parse_structure
 
 PAGE_RESOURCE_URI = "ui://leaf/page/v1.html"
-PAGE_APP_RESOURCE = ASSETS / "vendor" / "mcp-page-app.html"
+PAGE_APP_RESOURCE = MCP_APP / "page-app.html"
 PAGE_FORMAT = "leaf.page/v1"
 _READY_PATH = "/mcp-ready.js"
 _READY_SCRIPT = (

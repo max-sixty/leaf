@@ -946,8 +946,9 @@ def test_a_quoted_label_holding_its_own_closer_is_refused(browser, serve):
     `A["list[str]"]` is cut at the inner bracket and the rest of the line — the
     node the edge points at included — is dropped. A reader cannot see that a box
     is missing, so the source is refused instead. The refusal is exact: a label
-    whose closer is doubled, and a pipe-delimited edge label, both reach the
-    renderer whole.
+    whose closer is doubled, a pipe-delimited edge label, and a subgraph title —
+    which the parser reads with its own end-anchored regex rather than through the
+    node patterns — all reach the renderer whole.
     """
     labels = leaf_page(
         "diagram labels",
@@ -969,6 +970,12 @@ flowchart LR
 flowchart LR
   A --&gt;|"list[str]"| B
 </pre></lf-diagram>
+<lf-diagram id="subgraph-title" parts="node:S node:A node:B"><pre>
+flowchart LR
+  subgraph S["Stage [1]"]
+    A[x] --&gt; B[y]
+  end
+</pre></lf-diagram>
 """,
     )
     page, _ = open_page(browser, serve(labels))
@@ -980,11 +987,14 @@ flowchart LR
         expect(page.locator(f"#{diagram} .lf-error")).to_contain_text(label)
         expect(page.locator(f"#{diagram} svg")).to_have_count(0)
 
-    for diagram in ("doubled-closer", "edge-label"):
+    for diagram in ("doubled-closer", "edge-label", "subgraph-title"):
         expect(page.locator(f"#{diagram} .lf-error")).to_have_count(0)
         expect(page.locator(f'#{diagram} g[data-id="B"]')).to_be_visible()
     expect(page.locator('#doubled-closer g[data-id="A"] text')).to_have_text(
         "names: list[str]"
+    )
+    expect(page.locator('#subgraph-title g[data-id="S"] text')).to_have_text(
+        "Stage [1]"
     )
     page.close()
 

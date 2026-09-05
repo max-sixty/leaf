@@ -43,13 +43,22 @@ const UNSUPPORTED_DIRECTIVE =
  * delimiter run that actually follows it, so a doubled closer (`A[["list[str]"]]`) and a
  * pipe-delimited edge label (`A -->|"list[str]"| B`) both pass through whole. */
 const QUOTED_LABEL = /"([^"\n]*)"([\])}|>/\\]*)/g;
+
+/* A subgraph title is the exception: the parser reads the whole line with its own greedy,
+ * end-anchored regex (`/^([\w-]+)\s*\[(.+)\]$/`) rather than through the node patterns,
+ * so it carries the closer whole and `subgraph S["Stage [1]"]` renders today. Scan by line
+ * so the title's line can be skipped without exempting the nodes around it. */
+const SUBGRAPH_TITLE = /^\s*subgraph\s/;
 const rejectCutLabel = (source) => {
-  for (const [, label, closer] of source.matchAll(QUOTED_LABEL))
-    if (closer && label.includes(closer))
-      throw new Error(
-        `a quoted label cannot hold ${closer}, the delimiter that closes its own ` +
-          `shape — the renderer cuts the line there: "${label}"`,
-      );
+  for (const line of source.split("\n")) {
+    if (SUBGRAPH_TITLE.test(line)) continue;
+    for (const [, label, closer] of line.matchAll(QUOTED_LABEL))
+      if (closer && label.includes(closer))
+        throw new Error(
+          `a quoted label cannot hold ${closer}, the delimiter that closes its own ` +
+            `shape — the renderer cuts the line there: "${label}"`,
+        );
+  }
 };
 
 const rejectUnsupportedSource = (source) => {

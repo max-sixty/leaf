@@ -95,6 +95,68 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_inspection_and_browser_share_retirement_and_bound_input_origins(
+    browser, serve
+):
+    """The two clients read the same accepted content and selected data revision."""
+    authored = leaf_page(
+        "construction parity",
+        '<h1 id="title">Review</h1>'
+        '<lf-suggestion id="change"><lf-old>Retry twice.</lf-old>'
+        "<lf-new>Retry three times.</lf-new></lf-suggestion>"
+        '<lf-source id="current" source="instructions"></lf-source>'
+        '<lf-source id="captured" source="instructions"></lf-source>',
+    )
+    url = live_url(serve(authored))
+    data_model.cmd_data_set(
+        serve.page_dir, "instructions", "Reviewed instructions.\n", "reviewed"
+    )
+    source = serve.page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace('id="captured"', 'id="captured" snapshot="1"')
+    )
+    data_model.cmd_data_set(serve.page_dir, "instructions", "Current instructions.\n")
+    page, errors = open_page(browser, url)
+    page.locator(".lf-sug-accept").click()
+    round_trip(page)
+    expect(page.locator("#change lf-old")).to_be_hidden()
+    expect(page.locator("#change lf-new")).to_be_visible()
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "state", str(serve.page_dir)])
+    assert result.exit_code == 0, result.output
+    inspection = json.loads(result.output)
+
+    def walk(content):
+        for node in content:
+            if isinstance(node, dict):
+                yield node
+                yield from walk(node["content"])
+
+    nodes = {
+        node["attrs"]["id"]: node
+        for node in walk(inspection["content"])
+        if "id" in node["attrs"]
+    }
+    assert [node["tag"] for node in nodes["change"]["content"]] == ["lf-new"]
+    assert nodes["change"]["content"][0]["content"] == ["Retry three times."]
+    for identity, revision, operation in (
+        ("current", 2, "data set"),
+        ("captured", 1, "capture-and-rebind"),
+    ):
+        binding = nodes[identity]["inputs"]["document"]
+        widget = page.locator(f"#{identity}")
+        expect(widget.locator("code")).to_have_text(binding["value"])
+        rendered = widget.locator("[data-lf-origin]").evaluate(
+            "node => JSON.parse(node.dataset.lfOrigin)"
+        )
+        assert {**rendered, "path": []} == binding["origin"]
+        assert rendered["revision"] == revision
+        assert rendered["data_revision"] == 2
+        assert binding["edit"]["operation"] == operation
+    assert errors == []
+    page.close()
+
+
 def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, serve):
     authored = leaf_page(
         "pull request brief",
@@ -404,7 +466,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     lines.nth(2).click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.locator(".lf-composer textarea").fill("Review this added call.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(page.locator(".lf-thread .lf-quote").first).to_have_text(
         "§ added call-tree item └─ if request.token at gateway/limits.py:40"
@@ -606,6 +668,19 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     next_unreviewed.click()
     expect(summaries.nth(2)).to_be_focused()
     expect(diff.locator("[data-line]")).to_have_count(4)
+    origins = diff.locator("[data-lf-origin]").evaluate_all(
+        "nodes => nodes.map(node => JSON.parse(node.dataset.lfOrigin))"
+    )
+    assert {tuple(origin["path"]) for origin in origins} == {
+        ("files", 1, "patch"),
+        ("files", 2, "patch"),
+    }
+    assert all(
+        origin["source"] == "review-patch"
+        and origin["input"] == "document"
+        and origin["revision"] == 2
+        for origin in origins
+    ), "lazy lines must retain the input revision that built their manifest"
 
     summaries.nth(0).focus()
     page.keyboard.press("/")
@@ -859,10 +934,10 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     the hyperlinks, and the chips are read off whichever document is standing, so the
     window holds through the swap and the digit lands in the new page — minus the
     address of a link the revision took away, which is the honest reading. The reader's
-    standing is the document's: the key line over a focused pick mark offers "1–2 toggle
-    the nth", and the swap that replaced main dropped that focus onto body, taking the
-    offer down with it — the digit then picked nothing, silently. The place is written
-    down by id before the swap and handed back after it, so the fresh mark holds the
+    standing is the document's: the Ask's "1–2 One / Two" actions remain live over a
+    focused pick mark, and the swap that replaced main dropped that focus onto body,
+    taking the offer down with it — the digit then picked nothing, silently. The place is
+    written down by id before the swap and handed back after it, so the fresh mark holds the
     focus and the digit picks, acknowledged in the banner. One revision arrives as a
     draft and the next as a stamped version, since both replace the page under the
     reader by the same door."""
@@ -885,7 +960,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     mark = page.locator("#lk-one .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()
-    assert "toggle the nth" in key_line(page)
+    assert "1–2\nOne / Two" in key_line(page)
     # A stamped version this time, which is the other way a page moves under a reader;
     # the notice names it in the banner and no toast stands in the corner.
     stamp_page(serve.page_dir, LIVE_KEYS_V3, "third")
@@ -895,7 +970,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     assert page.locator(".lf-toast").count() == 0
     # The fresh mark: main was replaced whole, so the one the reader pressed on is gone.
     expect(page.locator("#lk-one .lf-pick")).to_be_focused()
-    assert "toggle the nth" in key_line(page), "the swap took the reader's keys down"
+    assert "1–2\nOne / Two" in key_line(page), "the swap took the reader's keys down"
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
     expect(page.locator(".lf-banner-status .lf-notice")).to_have_text(
@@ -1495,7 +1570,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     """The agent channel, end to end in the browser: a `leaf report` reaches
     the open page on the next poll and paints as provisional news — the status
     attribute moves, the parent's done-fraction recounts, the element wears
-    data-lf-reported rather than the user's pending mark. Task status remains work
+    data-lf-reported rather than the reader-origin mark. Task status remains work
     state and never creates a reader request. Then the version that answers the report
     by id takes the page back: replay skips a report the note named, so the overruling
     version's own state is what renders, with no provisional mark left on it. Last, the
@@ -1517,7 +1592,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     task = page.locator("#t-parser")
     expect(task).to_have_attribute("status", "review")
     expect(task).to_have_attribute("data-lf-reported", "1")
-    expect(task).not_to_have_attribute("data-lf-pending", "1")
+    expect(task).not_to_have_attribute("data-lf-reader-override", "1")
     # The marker is paint, so the word beside it (x-paints) has to move with the
     # attribute or a reader listening is told what the page said a poll ago.
     assert "review" in task.aria_snapshot()
@@ -2752,7 +2827,7 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
         const widget = document.getElementById("sug-refill");
         const read = () => shallowSigs(document.body).get(widget.id);
         const decided = read();
-        widget.setAttribute("data-lf-pending", "probe");
+        widget.setAttribute("data-lf-reader-override", "probe");
         const painted = read();
         widget.removeAttribute("data-lf-state");
         const undecided = read();
@@ -2814,9 +2889,9 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
     page.close()
 
 
-def test_a_moved_card_wears_its_pending_state_until_honored(browser, serve):
+def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     """A move outlives its notice: the card the user moved stays visibly
-    marked as recorded-but-unwritten and its grip says so, in the tab that moved
+    marked as overriding authored placement and its grip says so, in the tab that moved
     it and in a fresh replay alike, because the runtime compares the page's state
     against the version's own snapshot rather than remembering who wrote what.
     The card the move displaced stays unmarked — the log named one card, not its
@@ -2831,12 +2906,16 @@ def test_a_moved_card_wears_its_pending_state_until_honored(browser, serve):
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
-    expect(page.locator("#card-importer")).to_have_attribute("data-lf-pending", "1")
-    expect(page.locator("#card-notes")).not_to_have_attribute("data-lf-pending", "1")
+    expect(page.locator("#card-importer")).to_have_attribute(
+        "data-lf-reader-override", "1"
+    )
+    expect(page.locator("#card-notes")).not_to_have_attribute(
+        "data-lf-reader-override", "1"
+    )
     expect(
         page.get_by_role(
             "button",
-            name="Move: Wire the importer — Done — awaiting next version",
+            name="Move: Wire the importer — Done — your move",
             exact=True,
         )
     ).to_be_visible()
@@ -2844,11 +2923,13 @@ def test_a_moved_card_wears_its_pending_state_until_honored(browser, serve):
     # A fresh tab reads the same fact from replay alone, and paints both its
     # visible outline and its durable spoken state.
     second, second_errors = open_page(browser, url)
-    expect(second.locator("#card-importer")).to_have_attribute("data-lf-pending", "1")
+    expect(second.locator("#card-importer")).to_have_attribute(
+        "data-lf-reader-override", "1"
+    )
     expect(
         second.get_by_role(
             "button",
-            name="Move: Wire the importer — Done — awaiting next version",
+            name="Move: Wire the importer — Done — your move",
             exact=True,
         )
     ).to_be_visible()
@@ -2859,16 +2940,16 @@ def test_a_moved_card_wears_its_pending_state_until_honored(browser, serve):
         == "solid"
     )
     second.evaluate("""() => {
-        window.__pendingWrites = [];
+        window.__originWrites = [];
         new MutationObserver(records => {
-            window.__pendingWrites.push(...records.map(record => record.target.id));
+            window.__originWrites.push(...records.map(record => record.target.id));
         }).observe(document.getElementById('work'), {
-            subtree: true, attributes: true, attributeFilter: ['data-lf-pending'],
+            subtree: true, attributes: true, attributeFilter: ['data-lf-reader-override'],
         });
     }""")
     ticked(second)
-    assert second.evaluate("() => window.__pendingWrites") == [], (
-        "an unchanged heartbeat rewrote the pending marks and woke the board's "
+    assert second.evaluate("() => window.__originWrites") == [], (
+        "an unchanged heartbeat rewrote the origin marks and woke the board's "
         "card-name observer"
     )
 
@@ -2885,7 +2966,7 @@ def test_a_moved_card_wears_its_pending_state_until_honored(browser, serve):
     # Absence only counts once replay has decided every action.
     third.wait_for_function("() => document.body.dataset.lfApplied === '1'")
     expect(third.locator("#card-importer")).not_to_have_attribute(
-        "data-lf-pending", "1"
+        "data-lf-reader-override", "1"
     )
     expect(
         third.get_by_role("button", name="Move: Wire the importer — Done", exact=True)
@@ -2917,7 +2998,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "Refill a feeder when its camera shows it half-empty."
     page.locator(".lf-composer textarea").fill("Half-empty by whose reading?")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
 
     inline = page.locator(".lf-margin-thread")
     expect(inline.locator(".lf-conversation-body")).to_have_text(
@@ -4529,7 +4610,7 @@ def test_a_failed_host_request_reopens_its_commands_without_changing_the_plan(
 
 def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     """An input action discharges the request live; the honoring version removes its
-    authored `needed` condition, so clearing record debt cannot turn the input back into
+    authored `needed` condition, so incorporating its state into source cannot turn the input back into
     a decision."""
     url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
@@ -4553,7 +4634,9 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     wait_for_revision(page, 2)
     expect(page.get_by_role("button", name="Asks 0/4")).to_be_visible()
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
-    expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-pending")
+    expect(page.locator("#ledger-cargo")).not_to_have_attribute(
+        "data-lf-reader-override"
+    )
     expect(page.locator("#ledger-fixture > .lf-task-meta")).not_to_contain_text(
         "privileged input"
     )
@@ -4911,7 +4994,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
     )
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Keep this branch evidence visible.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     sent = CliRunner().invoke(
         cli_model.cli,

@@ -1,8 +1,23 @@
 # Live revisions and reader state
 
 Read this before changing a page that has already been handed over, proposing a
-rewrite, using a reader-owned draft, or carrying standing reader state into
-markup.
+rewrite, or using a reader-owned draft.
+
+## Read before editing
+
+Run `leaf page state <page>` and read its `content` tree. Each node joins its
+effective words, attributes, standing state, and data inputs with their origin.
+`content_source` names the active file, mutable `edit_file`, and vocabulary file.
+An authored node's `source` gives its line and column; `edit` identifies who can change it.
+The tree is a reading, so effective content may differ from authored HTML. Look up
+the node's `vocabulary` tag in the shared vocabulary file when needed.
+
+When `edit.matches_active` is false, the candidate in `index.html` differs from
+the live revision. Its source locations still refer to the active file; reconcile
+the candidate by stable id and content before editing. `inputs` names external
+values and their mutation route: `data set` for live inputs, `capture-and-rebind`
+for pinned inputs. Inspect frozen thread content with
+`leaf page state <page> --thread <id>`; change it through its conversation.
 
 ## Revisions and reader-owned words
 
@@ -18,31 +33,38 @@ reader has nothing to weigh: write the true thing straight and name the correcti
 in the version note. Suggest wording the reader could reasonably prefer as it
 stands.
 
-Use `lf-draft` for a passage whose wording belongs to the reader. Carry their
-submitted words verbatim into the next revision. A draft never sits inside a
-suggestion, and a suggestion does not propose a widget's state.
+Use `lf-draft` for a passage whose wording belongs to the reader. Their submitted
+words remain effective across revisions. A draft never sits inside a suggestion,
+and a suggestion does not propose a widget's state.
 
 ## Honor reader state
 
-The event log outranks authored markup. The server projects every standing action
-and the browser replays that view onto later revisions, but the source must
-eventually record the decision so the page reads correctly without the log:
+The event log preserves reader choices, generated options, moves, edits, and
+suggestion outcomes across revisions. Leave their authored inputs unchanged
+unless the content needs revision. Copying projected state into markup is
+optional; the page directory and standalone export already preserve it.
 
-- Mark every picked option `chosen`.
-- Carry an option a reader wrote in the group's last cell into the group as an
-  ordinary option, preserving each id key and its words from the `choose` action's
-  `detail.additions` map. It is already a recorded choice, not a comment thread. If
-  it needs discussion, carry it first and open a separate thread anchored to it.
-- Replace an accepted suggestion with `lf-new`; replace a rejected one with
-  `lf-old`, retaining ids on surviving passages.
-- Carry a reader edit verbatim.
-- Carry a worker report into markup, or mark the element `overruled` with the
-  reason in the version note.
+When incorporating a decided suggestion into surrounding prose, retain its
+surviving branch and ids. A reader-generated option can become an ordinary
+authored option under its owning group; retain its event-supplied id and words.
+Its effective id can also anchor a separate clarification thread directly.
+
+Worker reports remain provisional until adjudicated. Write the reported state
+into markup to absorb a report, or mark its element `overruled` and explain why
+in the version note. An unrelated revision may leave the report standing.
 
 To deliberately replace state established by an action, put `restated` on the
 rewritten element and explain why in the version note. Without `restated`, replay
-restores the user's state and `version check` refuses a conflicting version. Do
-not carry a gesture withdrawn by an `undo` event.
+restores the user's state and `version check` refuses a conflicting version.
+Read the current projection before editing; an `undo` withdraws its named gesture.
+
+## Make changes easy to find
+
+Before handing over a changed page, compare it with the last version handed to
+the reader. Make its material additions and changes clear in the page itself.
+For example, options added for this turn can carry a final `<lf-chip>new this
+turn</lf-chip>` in their chip row. The marker is temporary; remove it from the
+next handed-over revision.
 
 ## Keep the current page current
 

@@ -120,21 +120,17 @@ class _PassageParser(HTMLParser):
     standing text per element whose registry entry records a verb as the body
     (`rewritten_bodies`): their words stand in the authored body's place, because
     replay writes exactly that into the DOM. Without either, the reading is the
-    version as authored — every slot pending, every body Claude's.
+    version as authored — every slot pending, every body Claude's. `additions`
+    supplies the standing generated children from the same projection. They pass
+    through the ordinary element reading at the end of their declared owner,
+    including retirement, ancestry, and the fences around opaque widgets."""
 
-    close() deliberately does not unwind the stack. An element still open at EOF
-    would lose its `_close` work — the x-says tail, a `gone` verdict — but those
-    attach only to lf-* elements, and every path into this reading is gated on
-    `structure_errors`, which refuses any lf-* left open (versions at check and
-    publish, thread fragments at their own door, prev_html by the published-note
-    filter). The tags legitimately open at EOF (p, li, body, html) lose nothing
-    in `_close`. A guard here would defend a state no gated input reaches."""
-
-    def __init__(self, registry=None, decided=None, rewrites=None):
+    def __init__(self, registry=None, decided=None, rewrites=None, additions=None):
         super().__init__(convert_charrefs=True)
         self.registry = registry or {}
         self.decided = decided or {}
         self.rewrites = rewrites or {}
+        self.additions = additions or {}
         self.text = ""
         self.owner = []  # per character: the tuple of enclosing ids
         self.fences = set()  # indices a quote may not span
@@ -195,6 +191,16 @@ class _PassageParser(HTMLParser):
     def _close(self, frame: dict) -> None:
         """Everything an element's end does, whether it was written or inferred — an
         omitted </p> inside a widget still ends what the element was saying."""
+        if additions := self.additions.get(frame["id"]):
+            # The owner has just left the stack. Restore it while its declared
+            # generated children pass through the ordinary passage rules, so
+            # ancestry, retirement, text blocks, and widget fences stay shared.
+            self.stack.append(frame)
+            for child in additions:
+                self.handle_starttag(child["tag"], [("id", child["id"])])
+                self.handle_data(child["text"])
+                self.handle_endtag(child["tag"])
+            self.stack.pop()
         if not frame["skip"]:
             self._said(frame, frame["tail"])
         if frame["fenced"]:
@@ -368,8 +374,10 @@ class Passages(NamedTuple):
     enclosing: dict  # id → the ids enclosing it, outermost first, itself last
 
 
-def page_passages(html: str, registry=None, decided=None, rewrites=None) -> Passages:
-    parser = _PassageParser(registry, decided, rewrites)
+def page_passages(
+    html: str, registry=None, decided=None, rewrites=None, additions=None
+) -> Passages:
+    parser = _PassageParser(registry, decided, rewrites, additions)
     parser.feed(html)
     parser.close()
     return Passages(

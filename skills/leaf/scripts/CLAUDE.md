@@ -14,6 +14,8 @@ The main owners are:
 - `locations`: filesystem path identity, containment, and overlap;
 - `page`: vendored page guidance;
 - `agent_state`: the agent-facing folded page-state reading;
+- `document_reading`: the shared document, projection, and decision reading;
+- `construction`: effective document content with source, state, and data origins;
 - `transcript`: raw-event selection and the human-facing Markdown export;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
 - `event_endpoint` and `event_contracts`: browser-event admission, retry

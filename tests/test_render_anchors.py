@@ -255,7 +255,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "In flight"
     page.locator(".lf-composer textarea").fill("this column's name is wrong")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     thread = page.locator(".lf-thread .lf-quote").first
@@ -330,7 +330,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve
         expect(page.locator(".lf-fab-input")).to_be_visible()
         page.locator(".lf-fab-input").click()
         page.locator(".lf-composer textarea").fill(f"fence {index}")
-        page.keyboard.press("Enter")
+        page.keyboard.press("ControlOrMeta+Enter")
         expect(page.locator(".lf-thread")).to_have_count(index)
         actual_anchor = [
             event["anchor"]
@@ -444,7 +444,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     expect(page.locator(".lf-composer")).to_be_visible()
     assert composer_quote(page)["text"].strip("“”") == "Heated bird bath"
     page.locator(".lf-composer textarea").fill("call it the bath, not the bird bath")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     thread = page.locator(".lf-thread .lf-quote").first
@@ -652,19 +652,24 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     page.keyboard.press("s")
     target = page.locator(".lf-target-hint").first
     expect(target).to_be_visible()
-    target_key = target.evaluate(
-        """el => { const s = getComputedStyle(el);
-          return Object.fromEntries(["min-width", "height", "padding", "box-sizing",
-            "border-top-width", "border-top-style", "border-radius", "font-family",
-            "font-size", "line-height", "text-align"]
-            .map(p => [p, s.getPropertyValue(p)])); }"""
+    # The standing paint can replace the hint layer between browser round trips. Read
+    # the one rendered face in one task so geometry and emphasis cannot come from two
+    # successive hint elements.
+    target_face = page.evaluate(
+        """() => { const s = getComputedStyle(
+          document.querySelector('.lf-target-hint'));
+          return {
+            key: Object.fromEntries(
+              ["min-width", "height", "padding", "box-sizing", "border-top-width",
+               "border-top-style", "border-radius", "font-family", "font-size",
+               "line-height", "text-align"]
+              .map(p => [p, s.getPropertyValue(p)])),
+            emphasis: {
+              border: s.borderTopColor, ground: s.backgroundColor, ink: s.color},
+          }; }"""
     )
-    assert target_key == option_key
-    target_emphasis = target.evaluate(
-        """el => { const s = getComputedStyle(el); return {
-          border: s.borderTopColor, ground: s.backgroundColor, ink: s.color}; }"""
-    )
-    assert target_emphasis == option_emphasis
+    assert target_face["key"] == option_key
+    assert target_face["emphasis"] == option_emphasis
     assert errors == []
     page.close()
 
@@ -935,7 +940,7 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     # to a UTF-8 file. A half character fails there, reported to the reader as an offline
     # server, and no retry can ever succeed.
     page.locator(".lf-composer textarea").fill("a comment on the capped passage")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("""() => document.querySelectorAll('.lf-thread').length === 1
         || document.querySelector('.lf-notice').classList.contains('show')""")
     assert page.locator(".lf-thread").count() == 1, (
@@ -2550,7 +2555,7 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
 
     # And the anchor that posts says the same thing, since the mark is drawn from it.
     page.locator(".lf-composer textarea").fill("The whole of it.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
     expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
@@ -2593,7 +2598,7 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
     assert painted > 12000, f"the mark under the composer covers {painted} characters"
 
     page.locator(".lf-composer textarea").fill("All of it.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
     # The posted anchor resolves on the ordinary pass too, which is the one that would
@@ -2762,7 +2767,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
     )
     _publish(serve.page_dir, 2, second, "New route and map")
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
-    assert page.locator("main .lf-margin-action-icon").count() >= 2
+    assert page.locator("main .lf-margin-button-icon").count() >= 2
     expect(page.locator("#decoration-icon[data-lf-gen]")).to_have_count(1)
 
     compare_with(page, 1)
@@ -3585,7 +3590,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.locator(".lf-fab-input").fill("Review the whole added line.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     inline = page.locator("lf-diff .lf-diff-thread-outlet")
     expect(inline).to_have_count(1)
@@ -3675,7 +3680,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(page.locator("#lf-composer-quote")).to_contain_text("“request.token.id”")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     page.locator(".lf-fab-input").fill("Review this expression.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(page.locator(".lf-thread .lf-quote").nth(1)).to_have_text(
         "app.py · new line 2 · “request.token.id”"

@@ -489,14 +489,43 @@ def read_data(page_dir: Path) -> dict:
     return read_data_store(page_dir)
 
 
-def _fragment_spec(registry: dict, contract: str) -> dict | None:
-    """The optional contract-owned split-delivery coordinate."""
-    return (
+def data_fragments(value, contract: str, registry: dict) -> dict | None:
+    """The split-delivery coordinate of this validated value's manifest branch.
+
+    A contract may admit both an inline value and a manifest. Its fragment
+    declaration applies only to an object carrying the declared item array.
+    """
+    spec = (
         registry.get("$data", {})
         .get("contracts", {})
         .get(contract, {})
         .get("fragments")
     )
+    return (
+        spec
+        if spec is not None
+        and isinstance(value, dict)
+        and isinstance(value.get(spec["items"]), list)
+        else None
+    )
+
+
+def data_manifest(value, contract: str, registry: dict):
+    """Keep a contract's manifest while leaving large payloads at their source.
+
+    Both browser delivery and agent inspection use this projection. It never
+    mutates its input and returns the original value when there is no split.
+    """
+    spec = data_fragments(value, contract, registry)
+    if spec is None:
+        return value
+    return {
+        **value,
+        spec["items"]: [
+            {key: item for key, item in record.items() if key != spec["value"]}
+            for record in value[spec["items"]]
+        ],
+    }
 
 
 def browser_data(page_dir: Path, registry: dict | None) -> dict:
@@ -506,8 +535,6 @@ def browser_data(page_dir: Path, registry: dict | None) -> dict:
     each item as a separately delivered fragment; page state carries the surrounding
     manifest and the fragment door reads the omitted value from that same store.
     """
-    # read_data returns a fresh JSON decoding, so this projection can remove payloads
-    # in place without copying a potentially very large diff a second time.
     stored = read_data(page_dir)
     # State remains readable when an older page's frozen vocabulary no longer
     # validates against this layer. Without a trustworthy fragment declaration,
@@ -517,19 +544,11 @@ def browser_data(page_dir: Path, registry: dict | None) -> dict:
         return stored
     for source_store in stored["sources"].values():
         source_store.pop("revisions", None)
-        spec = _fragment_spec(registry, source_store["contract"])
-        if spec is None:
-            continue
         for snapshot in [source_store, *source_store.get("snapshots", {}).values()]:
-            value = snapshot.get("value")
-            if not isinstance(value, dict):
-                continue
-            items = value.get(spec["items"])
-            if not isinstance(items, list):
-                continue
-            for item in items:
-                if isinstance(item, dict):
-                    item.pop(spec["value"], None)
+            if "value" in snapshot:
+                snapshot["value"] = data_manifest(
+                    snapshot["value"], source_store["contract"], registry
+                )
     return stored
 
 
@@ -552,21 +571,16 @@ def read_data_fragment(
     source_store = stored["sources"].get(source)
     if source_store is None:
         raise DataError(f"unknown data source {source!r}")
-    spec = _fragment_spec(registry, source_store["contract"])
-    if spec is None:
-        raise DataError(
-            f"data source {source!r} contract {source_store['contract']!r} "
-            "does not declare fragments"
-        )
     selected = source_store
     if snapshot_id is not None:
         selected = source_store.get("snapshots", {}).get(snapshot_id)
         if selected is None:
             raise DataError(f"data source {source!r} has no snapshot {snapshot_id!r}")
     value = selected.get("value")
-    items = value.get(spec["items"]) if isinstance(value, dict) else None
-    if not isinstance(items, list):
+    spec = data_fragments(value, source_store["contract"], registry)
+    if spec is None:
         raise DataError(f"data source {source!r} has no fragmented value")
+    items = value[spec["items"]]
     matches = [
         item
         for item in items

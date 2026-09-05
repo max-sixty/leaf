@@ -111,12 +111,10 @@ OVER_WORDS = """(el, id) => {
 # below it as its own border, so measured from the border box, the last cell of every
 # group would sit one pixel apart from the rest while the page shows them level.
 #
-# The gutter the chip stands in comes back with it, because where the chip belongs is a
-# relation to the boxes either side of it rather than a number. The cell's own start is
-# one side and the prose opens at the column the option pads to, so `opens` is read where
-# the theme spends it. Written as the number it came to, the reading would have to be
-# re-pinned every time either neighbour moved, and a re-pinned number proves only that
-# somebody ran the test.
+# The option's width and the opening of its prose come back with the chip, because where
+# the chip belongs is a relation rather than a pinned number. A compact row keeps its
+# address before that opening; a titled card puts it after the opening in the trailing
+# header-state slot. Both keep it inside the cell and off the authored words.
 INSIDE_ITS_OPTION = """el => {
     const chip = el.getBoundingClientRect();
     const opt = el.parentElement.getBoundingClientRect();
@@ -127,6 +125,7 @@ INSIDE_ITS_OPTION = """el => {
     const above = parseFloat(s.paddingTop), below = parseFloat(s.paddingBottom);
     const words = top + above + (bottom - top - above - below) / 2;
     return {x: chip.x - left, ends: chip.right - left,
+            width: opt.right - parseFloat(s.borderRightWidth) - left,
             y: chip.y - top, past: chip.bottom - bottom,
             level: (chip.y + chip.height / 2) - words,
             opens: parseFloat(s.paddingInlineStart)};
@@ -392,7 +391,7 @@ FOOTED_PAGE = leaf_page(
         for i in range(9)
     ),
 )
-# c's three destinations on one page: prose to select, a visual to click (no words to
+# c's three destinations on one page: prose to select, a visual to target (no words to
 # quote, so it anchors on the element), and the page itself with neither in hand.
 TARGETS_PAGE = leaf_page(
     "targets",
@@ -976,7 +975,10 @@ customElements.define('lf-feed', class extends HTMLElement {
       const row = document.createElement('p');
       row.append(value, offer('button', 'inspect', 'Inspect'));
       return row;
-    }, {snapshot});
+    }, {
+      snapshot,
+      originOf: (_row, index) => ({...snapshot.origin, path: [index, 'value']}),
+    });
   }
 });
 """

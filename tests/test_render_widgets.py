@@ -12,6 +12,7 @@ from leaf import render_checks as render_checks_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
+    ADDRESS_PAGE,
     ALL_DECISIONS_IN_ORDER,
     ASK_IN_A_CARD_PAGE,
     ASKS_IN_A_ROW_PAGE,
@@ -1187,7 +1188,7 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
     expect(
         board.get_by_role(
             "button",
-            name="Move: Squirrel baffle — Done — awaiting next version",
+            name="Move: Squirrel baffle — Done — your move",
             exact=True,
         )
     ).to_be_visible()
@@ -1200,7 +1201,7 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         '- list "Done":\n'
         "  - listitem:\n"
         "    - strong: Squirrel baffle\n"
-        "    - 'button \"Move: Squirrel baffle — Done — awaiting next version\"': ⠿"
+        "    - 'button \"Move: Squirrel baffle — Done — your move\"': ⠿"
     )
     assert errors == []
     page.close()
@@ -1631,7 +1632,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     box = "el => [el.offsetLeft, el.offsetTop, el.offsetWidth, el.offsetHeight]"
     before = accept.evaluate(box)
     # The verb is discovery chrome; at rest the Button is the canonical circle.
-    expect(accept.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(accept.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "check"
     )
 
@@ -1646,7 +1647,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(accept).to_have_count(0)
     undo_button = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(undo_button.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(undo_button.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
     receipt = row.locator(".lf-sug-receipt")
@@ -2223,7 +2224,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # replay here rather than by a press, which is the only place that path is driven.
     row = second.locator("[data-lf-for='sug-refill']")
     accepted = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(accepted.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(accepted.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
     expect(row.locator(".lf-sug-receipt")).to_have_text("Accepted", use_inner_text=True)
@@ -2407,15 +2408,15 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     the context and evidence are long: on the shipped corpus at 1200x900 the heading stood
     at 54px and the focused pick ran from 847 to 1107 in a 900px window, so the reader was
     told to look at one thing while standing on another they could not see, and their next
-    Enter would have worked it. The picks are the next Tab stops instead, which is what a
+    Space would have worked it. The picks are the next Tab stops instead, which is what a
     stop at `tabindex: -1` on the region buys: it keeps its place in document order and
     everything inside the decision comes after it.
     """
     page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
-    # Short enough that the decision's first pick falls past the foot of the window once
-    # the decision's opening is at its head, which is the shape the fault has: the walk
-    # cannot both show the question and stand the reader on its answer.
-    resized(page, 900, 300)
+    # Short enough that even the pick in the card's compact header falls past the foot of
+    # the window once the decision's opening is at its head, which is the shape the fault
+    # has: the walk cannot both show the question and stand the reader on its answer.
+    resized(page, 900, 230)
 
     # The options really do begin below context, and enough page follows the region for
     # aligning its start to be possible. Without either condition, centring the inner
@@ -2474,12 +2475,14 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
         "the arrival did not leave the Decision's context above its options"
     )
 
-    # Tab remains the complementary route into the widget's local controls. Read after
-    # the landing above, because a Tab onto a control below the fold scrolls to it and
-    # would take the arrival's own geometry with it.
+    # Tab remains the complementary route into the widget's controls. Read after the
+    # landing above, because a Tab onto a control below the fold scrolls to it and would
+    # take the arrival's own geometry with it. The Ask action context remains the same.
     page.keyboard.press("Tab")
     expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_count(0)
+    expect(
+        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
 
     # And nothing of the borrowed stop is left behind: PAGE_PAINT_ATTRIBUTES is the whole
     # of what the runtime may leave on an author's element, and `tabindex` is not in it.
@@ -2516,6 +2519,12 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
     page.keyboard.press("a")
     expect(page.locator("#sug-refill")).to_be_focused()
     assert "1–2\nAccept / Reject" in key_line(page)
+    expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_have_attribute(
+        "aria-keyshortcuts", "1"
+    )
+    expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-reject")).to_have_attribute(
+        "aria-keyshortcuts", "2"
+    )
     page.keyboard.press("2")
     round_trip(page)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
@@ -2524,8 +2533,10 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
     page.close()
 
 
-def test_ask_option_addresses_keep_the_widget_s_own_card_placement(browser, serve):
-    """Ask and local-scope digits name one stable place on each option card."""
+def test_ask_option_addresses_stay_one_projection_when_focus_enters_a_card(
+    browser, serve
+):
+    """Tab keeps the Ask's address projection on the same option-card faces."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     resized(page, 900, 900)
 
@@ -2540,39 +2551,56 @@ def test_ask_option_addresses_keep_the_widget_s_own_card_placement(browser, serv
     )
 
     page.keyboard.press("Tab")
-    local = page.locator("#live-question > lf-option > .lf-address")
-    expect(local).to_have_text(["1", "2"])
-    local_centers = local.evaluate_all(
+    focused = page.locator(
+        "#live-question > lf-option > .lf-address[data-lf-ask-address]"
+    )
+    expect(focused).to_have_text(["1", "2"])
+    focused_centers = focused.evaluate_all(
         """nodes => nodes.map(node => {
           const box = node.getBoundingClientRect();
           return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY};
         })"""
     )
-    assert len(ask_centers) == len(local_centers) == 2
-    for ask_point, local_point in zip(ask_centers, local_centers, strict=True):
-        assert ask_point["x"] == pytest.approx(local_point["x"], abs=0.5)
-        assert ask_point["y"] == pytest.approx(local_point["y"], abs=0.5)
+    assert len(ask_centers) == len(focused_centers) == 2
+    for ask_point, focused_point in zip(ask_centers, focused_centers, strict=True):
+        assert ask_point["x"] == pytest.approx(focused_point["x"], abs=0.5)
+        assert ask_point["y"] == pytest.approx(focused_point["y"], abs=0.5)
 
     assert errors == []
     page.close()
 
 
 def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
-    """A clamped action chip yields to the legend that explains its digit."""
-    page, errors = open_page(browser, serve(DECISION_WITH_CONTEXT_PAGE))
+    """A row address that reaches the key line yields to the legend naming its digit."""
+    page, errors = open_page(browser, serve(ADDRESS_PAGE))
     resized(page, 900, 520)
 
+    # The first Ask uses titled cards, whose trailing addresses cannot meet the leading
+    # key line. Step to the compact row Ask, where both occupy the leading edge.
     page.keyboard.press("a")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    page.keyboard.press("a")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     expect(
-        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator("#rows > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_text(["1", "2"])
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
-    page.keyboard.press("k")
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
-    page.keyboard.press("k")
+    # Put the second row's address one pixel into the key line's band. The first stays a
+    # row above it, so a placement pass that reserves the legend keeps one and removes
+    # the other. Calculate the scroll from their current boxes rather than pinning the
+    # fixture to today's spacing.
+    page.evaluate(
+        """() => {
+          const addresses = document.querySelectorAll(
+            '#rows > lf-option > .lf-address[data-lf-ask-address]'
+          );
+          const last = addresses[addresses.length - 1].getBoundingClientRect();
+          const line = document.querySelector('.lf-keyline').getBoundingClientRect();
+          scrollTo(0, scrollY + last.top - line.top - 1);
+        }"""
+    )
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     expect(
-        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator("#rows > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_count(1)
     geometry = page.evaluate(
         """() => {
@@ -4639,7 +4667,7 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
     assert flat["cut"], f"the words selected are inside the box already: {flat}"
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.locator(".lf-composer textarea").fill("Unwrapped, this line runs off the box.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
     page.locator("lf-diff .lf-diff-wrap").click()
@@ -4650,7 +4678,7 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
     )
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.locator(".lf-composer textarea").fill("Wrapped, the same words are on screen.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
     anchors = [

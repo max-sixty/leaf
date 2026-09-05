@@ -5,7 +5,6 @@ from typing import NamedTuple
 
 from leaf.data import empty_data, read_data_store
 from leaf.data_contracts import data_binding_errors, measurement_lag
-from leaf.projection import record_lag, state_projection
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry
 from leaf.schema import VENDORED_FILES
@@ -39,7 +38,6 @@ from leaf.validation.markup import (
 )
 from leaf.validation.source_history import (
     RevisionReading,
-    TransitionReading,
     continuity_errors,
     revision_reading,
     transition_errors,
@@ -218,36 +216,18 @@ def _presentation_errors(page_dir: Path, parser) -> tuple[int, list[str]]:
 
 
 def _source_advice(
-    events: list,
     parser,
     registry: dict | None,
     stored_data: dict,
     revision: RevisionReading,
-    transition: TransitionReading,
     dropped_ids: list[str],
 ) -> list[str]:
     """Report non-blocking drift after every error-producing phase has run."""
-    current_projection = state_projection(
-        events,
-        parser.by_id,
-        transition.words,
-        registry or {},
-        revision.active or 0,
-    )
     return [
         *(
             [f"ids dropped from revision r{revision.predecessor}: {dropped_ids}"]
             if dropped_ids
             else []
-        ),
-        *(
-            f"record behind the log: {line}"
-            for line in record_lag(
-                current_projection,
-                parser.by_id,
-                transition.words,
-                registry or {},
-            )
         ),
         *(
             f"measurement behind its source: {line}"
@@ -303,12 +283,10 @@ def check_source(
     column, presentation_errors = _presentation_errors(page_dir, parser)
     errors.extend(presentation_errors)
     advice = _source_advice(
-        events,
         parser,
         registry,
         stored_data,
         revision,
-        transition,
         dropped_advice,
     )
     return SourceCheck(

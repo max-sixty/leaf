@@ -803,9 +803,11 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-        expect(page.locator(".lf-decisions")).to_be_visible()
-        expect(page.locator(".lf-decisions")).to_have_text("Asks 1/1")
-        expect(page.locator(".lf-decisions")).to_have_attribute("data-lf-complete", "")
+        decisions = page.locator(".lf-decisions")
+        expect(decisions).to_be_visible()
+        expect(decisions).to_have_text("Asks 1/1")
+        expect(decisions).to_have_attribute("data-lf-complete", "")
+        expect(decisions).to_have_attribute("aria-expanded", "false")
         expect(page.locator(".lf-decisions-panel")).to_be_hidden()
         expect(page.locator(".lf-panel")).to_be_visible()
         expect(page.locator("button.lf-decisions-row")).to_have_count(0)
@@ -1109,13 +1111,12 @@ def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
     assert "r2 already took that back" in result.output
 
 
-def test_a_decision_not_yet_honored_wears_the_pending_mark(browser, serve):
-    """One pass, every widget alike: a decided-and-unhonored state wears
-    data-lf-pending, driven by the registry's x-state rather than remembered per
-    widget — choose had its mark, edit its tint, and move had nothing, which is
-    how a dragged card's fate stayed invisible once the notice faded. The mark
-    clears the moment a version carries the decision, and the diff stays quiet
-    about an honored move: the user's own drag is not news to them."""
+def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
+    browser, serve
+):
+    """Moves and edits retain their reader origin across unrelated revisions.
+    Incorporating that state into source clears the override outline, and the
+    diff stays quiet about the reader's own move."""
     page, errors = open_page(browser, live_url(serve(JOURNEY_V1)))
 
     # A real drag — the pointer path, where the gesture gate and the poll meet.
@@ -1127,7 +1128,7 @@ def test_a_decision_not_yet_honored_wears_the_pending_mark(browser, serve):
         dest["x"] + dest["width"] / 2, dest["y"] + dest["height"] / 2, steps=15
     )
     page.mouse.up()
-    expect(page.locator("#card-x[data-lf-pending]")).to_have_count(1)
+    expect(page.locator("#card-x[data-lf-reader-override]")).to_have_count(1)
 
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
@@ -1135,26 +1136,31 @@ def test_a_decision_not_yet_honored_wears_the_pending_mark(browser, serve):
     page.locator(".lf-draft-controls[data-lf-for='draft-ops']").get_by_role(
         "button", name="Save"
     ).click()
-    expect(page.locator("#draft-ops[data-lf-pending]")).to_have_count(1)
+    expect(page.locator("#draft-ops[data-lf-reader-override]")).to_have_count(1)
 
-    # Both actions must be in the log before the honoring version publishes, and the
+    # Both actions must be in the log before the next version publishes, and the
     # page is what says so: it sent them, and counts what has come back.
     d = serve.page_dir
     round_trip(page)
 
+    _publish(d, 2, JOURNEY_V2, "revise unrelated prose")
+    wait_for_revision(page, 2)
+    expect(page.locator("#card-x[data-lf-reader-override]")).to_have_count(1)
+    expect(page.locator("#draft-ops[data-lf-reader-override]")).to_have_count(1)
+
     _publish(
         d,
-        2,
+        3,
         _card_done(_draft_says(JOURNEY_V2, DRAFT_EDITED)),
         "honors the move and the edit",
     )
-    wait_for_revision(page, 2)
+    wait_for_revision(page, 3)
     page.wait_for_function("() => document.querySelector('.lf-banner') !== null")
-    # A poll has run once the status text resolves, so the pending pass has too.
+    # A poll has run once the status text resolves, so the origin pass has too.
     page.wait_for_function(
         "() => !document.querySelector('.lf-status-text').textContent.startsWith('Connecting')"
     )
-    expect(page.locator("[data-lf-pending]")).to_have_count(0)
+    expect(page.locator("[data-lf-reader-override]")).to_have_count(0)
 
     # The diff's state half is quiet about the honored move: base state is the
     # base markup plus the fold as of it, which already has the card in Done.
@@ -1439,7 +1445,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Still anchored?")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
 
     expect(page.locator(".lf-thread")).to_have_count(3)
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
@@ -2571,11 +2577,20 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
     }, "authored prose, projected data, and runtime apparatus became conflated"
 
     api = page.locator('[data-lf-datum="api"]')
+    origin = {
+        "input": "rows",
+        "source": "deployments",
+        "contract": "deployment-rows",
+        "revision": 1,
+        "data_revision": 1,
+        "path": [0, "value"],
+    }
+    assert api.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == origin
     api.click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Which readiness check is this?")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
@@ -2607,6 +2622,12 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
     )
     expect(page.locator(".lf-thread .lf-quote")).to_contain_text("Ready")
     expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Outdated")
+    assert api.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == {
+        **origin,
+        "revision": 2,
+        "data_revision": 2,
+        "path": [1, "value"],
+    }, "the source coordinate must follow construction order, not the datum key"
     expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
         re.compile(r"\bdetached\b")
     )
@@ -2788,6 +2809,15 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     expect(page.locator("lf-source figcaption")).to_have_text(
         f"{long_label} · lines 1–3"
     )
+    origin = {
+        "input": "document",
+        "source": "leaf-skill",
+        "contract": "text-document",
+        "revision": 1,
+        "data_revision": 1,
+    }
+    datum = page.locator('[data-lf-datum="document"]')
+    assert datum.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == origin
     expect(page.locator("lf-source code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
     )
@@ -2799,6 +2829,11 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
 
     data_model.cmd_data_set(serve.page_dir, "leaf-skill", "Current instructions.\n")
     expect(page.locator("lf-source code")).to_have_text("Current instructions.\n")
+    assert datum.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == {
+        **origin,
+        "revision": 2,
+        "data_revision": 2,
+    }
     current = (serve.page_dir / ".fixture-versions" / "v1.html").read_text()
     _publish(
         serve.page_dir,
@@ -2842,7 +2877,7 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert composer_quote(page)["text"].strip("“”") == "Original instructions."
     page.locator(".lf-composer textarea").fill("Keep this exact source.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
     assert comment["anchor"]["section"] == "skill-source"
@@ -2859,6 +2894,9 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     copy = browser.new_page()
     copy_errors = watched(copy)
     copy.goto(out.as_uri(), wait_until="load")
+    assert copy.locator('[data-lf-datum="document"]').evaluate(
+        "node => JSON.parse(node.dataset.lfOrigin)"
+    ) == {**origin, "data_revision": 3, "snapshot": "1"}
     expect(copy.locator('[data-lf-datum="document"] code')).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
     )

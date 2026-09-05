@@ -172,14 +172,22 @@ module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
 
+`x-visual` makes a rendered picture one stable Comment target. The value `whole` uses
+the widget's authored id. `{parts: ATTR}` also lets the module map tokens from the named
+attribute to current rendered boxes through `lfVisualPartAt(target)` and
+`lfVisualPart(part)`. The returned element supplies mark, travel, and aim geometry: SVG
+parts lend their painted primitives, while other elements use their shown box. The package
+owns the stable mapping; core owns the Comment gestures, keyboard proxies, and paint.
+
 A widget that can be an Ask calls `registerDecisionActions(source, read, answer)` once
 at upgrade. `read` returns its current ordered `{control, label, address?}` actions;
 `answer` returns the concise current answer the Asks tray shows after the Decision is
 answered. Call the returned `update()` after replacing controls or changing their
-availability. `address` may name an address face the widget already positions for its
-local scope, so the Ask and local projections align; otherwise core paints at the visible
-control. The core gives the first nine actions contextual numeric keys and paints chips
-only for actions currently in view. Contribute the controls that actually answer,
+availability. `address` may name an empty address face the widget positions; core writes
+its current route binding, so the widget does not keep a second numeric map. Otherwise
+core paints at the visible control. The core gives the first nine actions contextual
+numeric keys and paints chips only for actions currently in view. Contribute the controls
+that actually answer,
 advance, or revise the Ask rather than scanning all offered descendants: evidence inside
 an option is not an answer, and shared-margin Buttons may sit outside the source. The
 control's own click remains the one activation path.
@@ -441,13 +449,21 @@ this.stopWatching = watchData(this, "builds", (snapshot) => render(snapshot));
 ```
 
 The callback receives `null` before the host has supplied a current value, otherwise a
-clone of `{source, contract, revision, updated, value}`. `revision` identifies the write
+clone of `{source, contract, revision, updated, value, origin}`. `revision` identifies the write
 of that source value, so a renderer can distinguish two writes even when their wall
 clock timestamps coincide. A selected capture additionally carries
 `snapshot`, `label`, and optional `lines`; a captured current value may carry its label
 and line range. It runs immediately and again when Leaf asks subscribers to restate its
 view. Return the cleanup function from the element's disconnect path. The callback must
 state the whole rendering and remain idempotent.
+
+`origin` identifies the declared `input`, concrete `source`, `contract`, selected source
+`revision`, and accepted store `data_revision`, plus `snapshot` when pinned. Passing
+`{snapshot}` to `projectData` supplies this default origin. When the emitter knows the
+exact JSON coordinate within the source value, its `originOf(record, index)` returns
+`{...snapshot.origin, path: [...]}`;
+path segments are object keys or array indices. A formatted or parsed record may only
+name its whole input. This identifies construction inputs, not an inverse edit mapping.
 
 Render the value with `projectData(root, records, keyOf, render, options)`. The root is an
 id-bearing authored seat and owns the projection's children. `keyOf` returns a stable
@@ -472,6 +488,12 @@ error; it does not make later state
 reads repeat the same page-wide failure. A rejection from the callback's first run is
 stronger: Leaf drops that subscription, so the callback is not asked to restate again
 until the element is reconnected.
+
+Leaf records the default origin or `originOf(record, index)` result as JSON in
+`data-lf-origin` on each datum; a null origin removes any previous provenance. Derived records outside the data
+store can instead name their contributing widget seats as `{derived: [{widget: id}]}`.
+Export retains these origins with the rendering. Leaf never infers them from displayed
+text or datum keys.
 
 `navigateToDatum(widget, attribute, key, messages)` follows an `x-refers` attribute to
 another projection and travels to its opaque datum key. Leaf resolves declared shadow

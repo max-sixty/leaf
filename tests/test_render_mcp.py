@@ -207,7 +207,7 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         page.locator(".lf-fab-input").click()
         page.locator(".lf-composer textarea").fill("Delivered through the MCP page.")
         with page.expect_response(lambda response: response.url.endswith("/api/event")):
-            page.keyboard.press("Enter")
+            page.keyboard.press("ControlOrMeta+Enter")
 
         saved = read_events(page_dir)[-1]
         assert saved["text"] == "Delivered through the MCP page."

@@ -71,7 +71,7 @@ export function createDataProjection({
     records,
     keyOf,
     render,
-    { nested = false, labelOf = null, snapshot } = {},
+    { nested = false, labelOf = null, snapshot, originOf = null } = {},
   ) {
     if (!(root instanceof Element))
       throw new TypeError("projectData root must be an element");
@@ -107,6 +107,8 @@ export function createDataProjection({
       else delete node.dataset.lfSourceRevision;
     };
     stampBasis(root);
+    if (originOf !== null && typeof originOf !== "function")
+      throw new TypeError("projectData originOf must be a function or null");
 
     const prior = new Map();
     const projected = nested ? projectedDescendants(root) : [...root.children];
@@ -172,6 +174,16 @@ export function createDataProjection({
       node.dataset.lfProjection = root.id;
       node.dataset.lfDatum = key;
       stampBasis(node);
+      // The emitter knows which input it transformed. Keep that construction fact,
+      // never recover a source path by interpreting its opaque key or displayed words.
+      const origin = (originOf ? originOf(record, index) : snapshot?.origin) ?? null;
+      if (origin !== null) {
+        if (typeof origin !== "object" || Array.isArray(origin))
+          throw new TypeError(
+            `projectData(${root.id}) origin ${index} must be an object`,
+          );
+        node.dataset.lfOrigin = JSON.stringify(origin);
+      } else delete node.dataset.lfOrigin;
       wanted.push(node);
       index++;
     }
@@ -184,6 +196,7 @@ export function createDataProjection({
           delete node.dataset.lfDatum;
           delete node.dataset.lfSource;
           delete node.dataset.lfSourceRevision;
+          delete node.dataset.lfOrigin;
           const label = node.dataset.lfDatumLabel;
           if (label !== undefined) {
             if (node.getAttribute("aria-description") === label)

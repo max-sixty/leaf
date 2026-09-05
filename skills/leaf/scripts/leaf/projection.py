@@ -501,10 +501,10 @@ def folded_facet(e: dict, spec: dict):
 def page_projection(html: str, events: list, registry: dict, upto):
     """Project one page's markup and log window through one construction.
 
-    `record_lag`, `page state`, and the passage readings used by `leaf comment`
-    and `version check` therefore cannot drift on declarations, floors, or the
-    window. The parser and spoken reading travel with the projection for callers
-    that compare it with authored markup."""
+    Document inspection and the passage readings used by `leaf comment` and
+    `version check` share declarations, floors, and the log window. The parser
+    and spoken reading travel with the projection for callers that need its
+    authored construction."""
     parser = parse_structure(html)
     spk = spoken(html, registry)
     return (
@@ -527,6 +527,30 @@ def rewritten_bodies(actions: dict) -> dict:
     }
 
 
+def generated_children(desired: dict, authored_ids: set) -> dict:
+    """Owner id → declared children supplied by its current winning event.
+
+    The event carries the complete generated set. An authored element with the
+    same id already supplies that construction and keeps its authored content.
+    """
+    children = {}
+    for (_widget, unit, _facet), (event, spec) in sorted(
+        desired.items(), key=lambda item: item[1][0]["seq"]
+    ):
+        if creates := spec.get("creates"):
+            children.setdefault(unit, []).extend(
+                {
+                    "id": identity,
+                    "tag": creates["child"],
+                    "text": text,
+                    "event": event,
+                }
+                for identity, text in event["detail"].get(creates["field"], {}).items()
+                if identity not in authored_ids
+            )
+    return children
+
+
 def retirement_outcomes(actions: dict, registry: dict) -> dict:
     """widget id → the accept/reject its action projection leaves standing.
 
@@ -545,51 +569,3 @@ def retirement_outcomes(actions: dict, registry: dict) -> dict:
         for (_widget, unit, _facet), (e, _) in actions.items()
         if e["action"] in deciding
     }
-
-
-def record_lag_entries(projection: StateProjection, byid, spk, registry: dict) -> list:
-    """Coordinates whose markup lags the user's standing state — the record debt a
-    log-less reader would miss. Advice, never errors: a version is free to stay
-    silent (replay resolves it), but references/authoring-revisions.md's "Honor
-    reader state" obligation needs a feedback loop, and a finished page's final
-    version is the page that has
-    to read right without the log. One comparison, rendered twice: `record_lag`
-    speaks it, `page state` ships it — the same entries, so the advice a check
-    prints and the debt an agent queries cannot disagree."""
-    entries = []
-    for coordinate in sorted(projection.desired):
-        widget, unit, facet = coordinate
-        e, spec = projection.desired[coordinate]
-        if unit not in byid:
-            continue
-        f_cur = markup_facet(unit, spec, byid, spk, registry)
-        f_log = folded_facet(e, spec)
-        if f_cur is NO_RECORD or f_cur == f_log:
-            continue
-        entries.append(
-            {
-                "widget": widget,
-                "unit": unit,
-                "facet": facet,
-                "channel": e["kind"],
-                "action": e["action"],
-                "log": f_log,
-                "markup": f_cur,
-            }
-        )
-    return entries
-
-
-def record_lag(
-    projection: StateProjection, byid: dict, spk: dict, registry: dict
-) -> list:
-    """`record_lag_entries` as advice lines, for check and the transcript."""
-    lag = []
-    for n in record_lag_entries(projection, byid, spk, registry):
-        who = "the log records" if n["channel"] == "action" else "a report records"
-        lag.append(
-            f"`{n['unit']}` ({n['facet']} facet): {who} {n['action']} → "
-            f"{n['log']!r}; "
-            f"the markup still shows {n['markup']!r}"
-        )
-    return lag

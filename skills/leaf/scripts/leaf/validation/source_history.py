@@ -143,10 +143,11 @@ def continuity_errors(
             and unit.get("parent") == widget["tag"]
         )
 
-    uncarried = sorted(
+    misplaced = sorted(
         identity
         for identity, widget_id, child_tag in generated
-        if not carried_by_sender(identity, widget_id, child_tag)
+        if identity in parser.ids
+        and not carried_by_sender(identity, widget_id, child_tag)
     )
     dropped_advice = sorted(gone - protected)
     if dropped:
@@ -155,11 +156,10 @@ def continuity_errors(
             "index.html (unresolved threads, standing state, or widget "
             f"retirement still need them): {dropped}"
         )
-    if uncarried:
+    if misplaced:
         errors.append(
-            "reader-generated ids in standing state but absent as direct children "
-            "of their sending widgets in index.html (carry them into the owning "
-            f"widget before continuing): {uncarried}"
+            "authored reader-generated ids must be direct children of their "
+            f"sending widgets with the declared child tag: {misplaced}"
         )
     return errors, dropped_advice
 

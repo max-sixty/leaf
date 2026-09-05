@@ -57,8 +57,9 @@ A page directory holds:
                          earlier values without retaining those values,
                          and may retain immutable captures selected by document
                          versions or frozen threads. Initialized as the empty revision
-                         0 store. Agent page state names this file and its revision but
-                         does not copy its values. Browser state normally carries the
+                         0 store. Agent page state names this file and its revision,
+                         joining selected values to their bound widget inputs.
+                         Browser state normally carries the
                          validated values; for a contract-declared fragment field it
                          carries only the surrounding manifest, and `/api/data` reads
                          one keyed payload from this same revision on demand. No split
@@ -112,14 +113,41 @@ A page directory holds:
                          Keeping provenance outside the disposable page lets
                          ownership discovery survive a page moving between sessions
 
-`leaf page state` is an on-demand semantic index over these authorities. Its
+`leaf page state` is an on-demand reading of these authorities. Its
 `layer` object, shared with `/api/state`, reports the vendored generation,
 fingerprint, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
 error. `active.file` names the immutable revision the live root actually
 shows when one exists; `data.file` always names a readable JSON store. `event_seq`
 is the last event folded into the snapshot and can be passed to `leaf events
---after`; it is distinct from the acknowledgement cursor. Agents read the active
-HTML and data files, `registry.json`, and exact thread selections from the event
-log when they need raw content; the state projection does not duplicate document
-bodies, data values, or thread messages.
+--after`; it is distinct from the acknowledgement cursor.
+
+`content` joins the authored tree with standing state and declared data inputs.
+It includes ordinary HTML and content in disclosures or inactive tabs. An authored node
+keeps its `tag`, effective `attrs` and `content`, and `source` line and column.
+`content_source` supplies their shared immutable `file`, `revision`, mutable
+`edit_file`, `matches_active`, and vocabulary-file path. A node's `vocabulary`
+is its tag key in that file. A standing event supplies its exact `state` and origin;
+`authored` preserves the input it replaced. An opaque widget exposes its authored
+source and vocabulary entry rather than claiming to reproduce its rendered text.
+
+Each node's `edit` identifies its mutation owner. A source edit carries its stable
+id when present and `matches_active`; the target file is inherited from
+`content_source.edit_file`. Source locations apply to that mutable file only when
+it matches the active revision. Reconcile a rejected candidate by id and content
+before editing. Generated children name their originating event and the widget in
+which their markup can be authored. `leaf page state <page> --thread <id>` selects
+one thread's current messages and frozen markup under `content`. Its
+`content_source` names the conversation, thread, and vocabulary file; message
+identities locate the frozen source. Edits continue that conversation instead of
+rewriting events or restating page state. Default thread entries stay compact.
+
+Widget `inputs` join each binding to its selected value or captured snapshot,
+contract, source id, data revision, and mutation route. Fragmented contracts expose
+the manifest plus the exact `data.json` file, path, and revision for their payload.
+Live inputs declare `edit.operation: "data set"`; pinned inputs declare
+`"capture-and-rebind"`, since the source update alone leaves the selected capture
+unchanged. A pinned input in frozen markup declares `"capture-and-reply"` and its
+thread: a new message presents the replacement capture. The compact `elements`, `state`,
+and lifecycle indexes remain available for machine queries. Exact thread history
+belongs to `leaf events --thread`, and the page's `registry.json` owns the vocabulary.

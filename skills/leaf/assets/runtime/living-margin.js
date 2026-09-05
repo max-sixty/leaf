@@ -15,11 +15,16 @@ const KINDS = {
   change: { label: "Change", icon: "change", priority: 0 },
   comment: { label: "Thread", icon: "comment", priority: 1 },
   decision: { label: "Ask", icon: "question", priority: 2 },
+  // `standing` is the one indication the document already carries. The other three are
+  // an agent's report on a move still being made; an Outcome is the page map's reading
+  // of a recorded `action` event, with the decided state applied in the same file. A
+  // medium that cannot stand behind a provisional claim — a copy — reads that apart.
   outcome: {
     label: "Outcome",
     icon: "check",
     priority: 3,
     indication: true,
+    standing: true,
     state: "settled",
   },
   sent: {
@@ -52,10 +57,10 @@ const KINDS = {
 // reconnect while a live version replaces the authored document.
 const offeredItems = new Set();
 const offerListeners = new Set();
-const ACTION_TONES = new Set(["neutral", "positive", "negative"]);
-const ACTION_BEHAVIORS = new Set(["action", "disclosure", "options", "receipt"]);
-const ACTION_STATES = new Set(["idle", "engaged", "busy", "failed", "settled"]);
-const ACTION_ROLES = new Set([
+const BUTTON_TONES = new Set(["neutral", "positive", "negative"]);
+const BUTTON_BEHAVIORS = new Set(["action", "disclosure", "status"]);
+const BUTTON_STATES = new Set(["idle", "engaged", "busy", "failed", "settled"]);
+const BUTTON_ROLES = new Set([
   "complete",
   "escape",
   "primary",
@@ -118,7 +123,7 @@ const ICONS = {
   waiting: '<circle cx="8" cy="8" r="5"/><path d="M8 5v3.25l2 1.25"/>',
 };
 
-export function iconElement(icon, className = "lf-margin-action-icon") {
+export function iconElement(icon, className = "lf-margin-button-icon") {
   if (!ICONS[icon]) throw new TypeError(`Unknown Leaf icon: ${icon}`);
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 16 16");
@@ -135,20 +140,18 @@ const changedOffers = () => {
 };
 
 const visibleButtonLabel = ({ behavior, label }) =>
-  (behavior !== "disclosure" && behavior !== "options") || label.endsWith("…")
-    ? label
-    : `${label}…`;
+  behavior !== "disclosure" || label.endsWith("…") ? label : `${label}…`;
 
 function buttonRecord(control) {
   const record = control?.[BUTTON_RECORD];
-  if (!record) throw new TypeError("A contributed Button must use marginAction");
+  if (!record) throw new TypeError("A contributed Button must use marginButton");
   return record;
 }
 
 function marginControls(controls) {
   if (!(controls instanceof Element)) return [];
-  if (controls.matches(".lf-margin-action")) return [controls];
-  return [...controls.querySelectorAll(".lf-margin-action")];
+  if (controls.matches(".lf-margin-button")) return [controls];
+  return [...controls.querySelectorAll(".lf-margin-button")];
 }
 
 function validateMarginControls(offered) {
@@ -188,57 +191,66 @@ function syncForwardedButtonState(projection, source) {
 // every Button-shaped fitting keeps one stable accessible name. Native `title`
 // bubbles would repeat the word on a different timer and with a different face, so
 // this anatomy owns its only visual presentation too.
-export function marginAction(
+export function marginButton(
   control,
   {
     glyph = null,
     icon = null,
     key,
     label,
+    context = null,
     behavior = "action",
+    standing = false,
     tone = "neutral",
     role = "primary",
     state = "idle",
   },
 ) {
   if (!(control instanceof Element))
-    throw new TypeError("A margin action needs an Element control");
-  if (!String(key ?? "").trim()) throw new TypeError("A margin action needs a key");
+    throw new TypeError("A margin Button needs an Element control");
+  if (!String(key ?? "").trim()) throw new TypeError("A margin Button needs a key");
   if (Boolean(String(glyph ?? "").trim()) === Boolean(icon))
-    throw new TypeError("A margin action needs exactly one glyph or icon");
-  if (!String(label ?? "").trim()) throw new TypeError("A margin action needs a label");
-  if (!ACTION_TONES.has(tone))
-    throw new TypeError(`Unknown margin-action tone: ${tone}`);
-  if (!ACTION_BEHAVIORS.has(behavior))
-    throw new TypeError(`Unknown margin-action behavior: ${behavior}`);
-  if (!ACTION_ROLES.has(role))
-    throw new TypeError(`Unknown margin-action role: ${role}`);
+    throw new TypeError("A margin Button needs exactly one glyph or icon");
+  if (!String(label ?? "").trim()) throw new TypeError("A margin Button needs a label");
+  if (!BUTTON_TONES.has(tone)) throw new TypeError(`Unknown Button tone: ${tone}`);
+  if (!BUTTON_BEHAVIORS.has(behavior))
+    throw new TypeError(`Unknown Button behavior: ${behavior}`);
+  if (!BUTTON_ROLES.has(role)) throw new TypeError(`Unknown Button role: ${role}`);
   const record = control[BUTTON_RECORD] ?? {};
   Object.assign(record, {
     key: String(key),
     glyph: glyph == null ? null : String(glyph),
     icon,
     label: String(label),
+    context: String(context ?? "").trim() || null,
     behavior,
+    standing: behavior === "status" && standing === true,
     tone,
     role,
     state,
   });
   control[BUTTON_RECORD] = record;
 
-  control.classList.add("lf-margin-action");
+  control.classList.add("lf-margin-button");
   control.removeAttribute("title");
   control.dataset.lfButtonKey = record.key;
   control.dataset.lfBehavior = record.behavior;
+  // Which of a status's two sources this one has. The behavior answers the question
+  // every other reader asks — whether this is a press — and both sources answer it the
+  // same way, so the durability is a second declaration rather than a fifth behavior.
+  // A copy is what needs it: Sent, Waiting for pickup and Picked up are news about a
+  // move an agent is still making and a file has nothing standing behind them, while a
+  // standing Outcome is the record of a decision the same file already carries.
+  control.toggleAttribute("data-lf-standing", record.standing);
   control.dataset.lfTone = record.tone;
   control.dataset.lfRole = record.role;
-  control.dataset.lfOffer = behavior === "receipt" ? "" : "button";
-  marginActionState(control, state);
-  const opens = behavior === "disclosure" || behavior === "options";
+  control.dataset.lfOffer = behavior === "status" ? "" : "button";
+  marginButtonState(control, state);
+  const opens = behavior === "disclosure";
   if (opens && !control.hasAttribute("aria-expanded"))
     control.setAttribute("aria-expanded", "false");
   if (!opens) control.removeAttribute("aria-expanded");
-  if (behavior === "receipt") {
+  if (behavior === "status") {
     control.setAttribute("role", "status");
     control.tabIndex = -1;
   } else if (!(control instanceof HTMLButtonElement)) {
@@ -249,18 +261,18 @@ export function marginAction(
     control.removeAttribute("tabindex");
   }
   let glyphNode = control.querySelector(
-    ":scope > :is(.lf-margin-action-glyph, .lf-margin-action-icon)",
+    ":scope > :is(.lf-margin-button-glyph, .lf-margin-button-icon)",
   );
-  let spaceNode = control.querySelector(":scope > .lf-margin-action-space");
-  let labelNode = control.querySelector(":scope > .lf-margin-action-label");
+  let spaceNode = control.querySelector(":scope > .lf-margin-button-space");
+  let labelNode = control.querySelector(":scope > .lf-margin-button-label");
   if (icon) {
     if (!(glyphNode instanceof SVGSVGElement) || glyphNode.dataset.lfIcon !== icon)
       glyphNode = iconElement(icon);
   } else {
     if (!(glyphNode instanceof HTMLSpanElement))
       glyphNode = document.createElement("span");
-    if (glyphNode.className !== "lf-margin-action-glyph")
-      glyphNode.className = "lf-margin-action-glyph";
+    if (glyphNode.className !== "lf-margin-button-glyph")
+      glyphNode.className = "lf-margin-button-glyph";
     if (glyphNode.hasAttribute("data-lf-icon"))
       glyphNode.removeAttribute("data-lf-icon");
     if (glyphNode.textContent !== glyph) glyphNode.textContent = glyph;
@@ -269,15 +281,39 @@ export function marginAction(
   if (!labelNode) labelNode = document.createElement("span");
   if (glyphNode.getAttribute("aria-hidden") !== "true")
     glyphNode.setAttribute("aria-hidden", "true");
-  if (spaceNode.className !== "lf-margin-action-space")
-    spaceNode.className = "lf-margin-action-space";
+  if (spaceNode.className !== "lf-margin-button-space")
+    spaceNode.className = "lf-margin-button-space";
   if (spaceNode.getAttribute("aria-hidden") !== "true")
     spaceNode.setAttribute("aria-hidden", "true");
   if (spaceNode.textContent !== " ") spaceNode.textContent = " ";
-  if (labelNode.className !== "lf-margin-action-label")
-    labelNode.className = "lf-margin-action-label";
+  if (labelNode.className !== "lf-margin-button-label")
+    labelNode.className = "lf-margin-button-label";
+  if (labelNode.getAttribute("aria-hidden") !== "true")
+    labelNode.setAttribute("aria-hidden", "true");
   const visibleLabel = visibleButtonLabel(record);
-  if (labelNode.textContent !== visibleLabel) labelNode.textContent = visibleLabel;
+  let labelWord = labelNode.querySelector(":scope > .lf-margin-button-label-word");
+  let contextNode = labelNode.querySelector(":scope > .lf-margin-button-context");
+  if (!labelWord) labelWord = document.createElement("span");
+  if (labelWord.className !== "lf-margin-button-label-word")
+    labelWord.className = "lf-margin-button-label-word";
+  if (labelWord.textContent !== visibleLabel) labelWord.textContent = visibleLabel;
+  if (record.context && !contextNode) contextNode = document.createElement("span");
+  if (!record.context) {
+    contextNode?.remove();
+    contextNode = null;
+  }
+  if (contextNode) {
+    if (contextNode.className !== "lf-margin-button-context")
+      contextNode.className = "lf-margin-button-context";
+    if (contextNode.textContent !== record.context)
+      contextNode.textContent = record.context;
+  }
+  const labelParts = [labelWord, ...(contextNode ? [contextNode] : [])];
+  if (
+    labelNode.childNodes.length !== labelParts.length ||
+    labelParts.some((node, index) => labelNode.childNodes[index] !== node)
+  )
+    labelNode.replaceChildren(...labelParts);
   // A reading with several members adds one retained count badge. It remains part of
   // the same hit target, so a heartbeat between pointerdown and pointerup must preserve
   // it along with the icon and label.
@@ -293,7 +329,7 @@ export function marginAction(
   return control;
 }
 
-function syncActionCount(control, count) {
+function syncButtonCount(control, count) {
   let badge = control.querySelector(":scope > .lf-margin-count");
   if (count <= 1) {
     badge?.remove();
@@ -307,11 +343,10 @@ function syncActionCount(control, count) {
   if (control.lastChild !== badge) control.append(badge);
 }
 
-export function marginActionState(control, state) {
-  if (!(control instanceof Element) || !control.classList.contains("lf-margin-action"))
-    throw new TypeError("A margin-action state needs a margin action");
-  if (!ACTION_STATES.has(state))
-    throw new TypeError(`Unknown margin-action state: ${state}`);
+export function marginButtonState(control, state) {
+  if (!(control instanceof Element) || !control.classList.contains("lf-margin-button"))
+    throw new TypeError("A Button state needs a margin Button");
+  if (!BUTTON_STATES.has(state)) throw new TypeError(`Unknown Button state: ${state}`);
   buttonRecord(control).state = state;
   control.dataset.lfState = state;
   if (state === "busy") control.setAttribute("aria-busy", "true");
@@ -337,7 +372,7 @@ export function registerMarginItem({
     throw new TypeError("A margin item's state must be a string or function");
   if (subject != null && typeof subject !== "string" && typeof subject !== "function")
     throw new TypeError("A margin item's subject must be a string or function");
-  if (typeof state === "string" && !ACTION_STATES.has(state))
+  if (typeof state === "string" && !BUTTON_STATES.has(state))
     throw new TypeError(`Unknown margin-item state: ${state}`);
   if (controls instanceof Element) controls.classList.add("lf-margin-contribution");
   const offered = {
@@ -451,6 +486,7 @@ function comesBefore(left, right) {
 
 export function createLivingMargin(dependencies) {
   const {
+    ago,
     anchorLabel,
     acknowledgments,
     announce,
@@ -479,6 +515,7 @@ export function createLivingMargin(dependencies) {
     panelIsOpen,
     paintKeys,
     placedAt,
+    PRESS,
     quietSince,
     renderMarginThread,
     says,
@@ -723,12 +760,12 @@ export function createLivingMargin(dependencies) {
   };
   const offerState = (offered) => {
     const state = typeof offered.state === "function" ? offered.state() : offered.state;
-    if (!ACTION_STATES.has(state))
+    if (!BUTTON_STATES.has(state))
       throw new TypeError(`Unknown margin-item state: ${state}`);
     return state;
   };
   // One target has one lifecycle reading. Failure outranks work in flight, which
-  // outranks an open interaction; a settled receipt and the ordinary idle state never
+  // outranks an open interaction; a settled status and the ordinary idle state never
   // force peers open. Generated acknowledgment readings join through the same state
   // axis rather than a second engagement flag.
   const entryState = (entry) => {
@@ -946,8 +983,20 @@ export function createLivingMargin(dependencies) {
     );
   }
 
-  const readingBehavior = (face) => (face.indication ? "receipt" : "disclosure");
+  const readingBehavior = (face) => (face.indication ? "status" : "disclosure");
 
+  function readingContext(choice) {
+    if (choice?.items.length !== 1) return null;
+    return choice.items[0].context ?? null;
+  }
+
+  // A reading wears two promises over its life — a Button while there is something to
+  // open, a status once the move is made — and only one element may carry both, or the
+  // seat moves under a reader standing in it. A <button> cannot stop being one, so the
+  // seat is a span and `marginButton` writes whichever promise the reading now makes.
+  // What the platform then does not supply is the press, which the margin's own scope
+  // declares (margin.press) rather than a listener here: a key the register does not
+  // hold is a key no surface can promise.
   const readingControl = (className) => offer("span", className);
 
   function syncThreadRelation(control, isThread) {
@@ -1069,6 +1118,7 @@ export function createLivingMargin(dependencies) {
   }
 
   function acknowledgmentFace(receipt) {
+    const age = ago(receipt.ts);
     if (receipt.phase === "active") {
       const turnClosed =
         receipt.session && receipt.session === claimState().claimingSession
@@ -1080,12 +1130,20 @@ export function createLivingMargin(dependencies) {
         text: ["Active", receipt.detail, quiet ? "quiet" : null]
           .filter(Boolean)
           .join(" · "),
+        context: [age && `Checked in ${age}`, receipt.detail]
+          .filter(Boolean)
+          .join(" · "),
       };
     }
-    if (receipt.phase === "picked_up") return { kind: "pickup", text: "Picked up" };
+    if (receipt.phase === "picked_up")
+      return { kind: "pickup", text: "Picked up", context: age };
     if (waitingForPickupSince(receipt.ts))
-      return { kind: "waiting", text: "Waiting for pickup" };
-    return { kind: "sent", text: "Sent" };
+      return {
+        kind: "waiting",
+        text: "Waiting for pickup",
+        context: age && `Sent ${age}`,
+      };
+    return { kind: "sent", text: "Sent", context: age };
   }
 
   function collectEntries() {
@@ -1142,6 +1200,7 @@ export function createLivingMargin(dependencies) {
         id: receipt ? `acknowledgment:${receipt.id}` : `outcome:${coordinate}`,
         text: trimmed(face ? `${face.text} · ${account}` : account),
         ...(face ? { acknowledgmentFace: KINDS[face.kind] } : {}),
+        ...(face?.context ? { context: face.context } : {}),
         activate: () => revealTarget(target, `${face?.text ?? "Outcome"}: ${account}`),
       });
     }
@@ -1179,11 +1238,15 @@ export function createLivingMargin(dependencies) {
         ]
           .filter(Boolean)
           .join(" · ");
+        const age = ago(update.ts);
         add(groups, target, {
           kind: "activity",
           id: `activity:${update.id}`,
           text: trimmed(account),
           acknowledgmentFace: KINDS.activity,
+          context: [age && `Checked in ${age}`, update.text]
+            .filter(Boolean)
+            .join(" · "),
           activate: () => revealTarget(target, account),
         });
       }
@@ -1365,7 +1428,7 @@ export function createLivingMargin(dependencies) {
 
   function clusterButtons(host) {
     if (!host) return [];
-    return [...host.querySelectorAll(".lf-margin-action")].filter(
+    return [...host.querySelectorAll(".lf-margin-button")].filter(
       (button) =>
         !button.disabled &&
         button.getAttribute("aria-disabled") !== "true" &&
@@ -1524,11 +1587,11 @@ export function createLivingMargin(dependencies) {
 
   // The rail holds one tab stop: the way in from the page, not the reading position,
   // which the walk, the numbered addresses, and the pointer all reach without it. A
-  // receipt reports a move already made, so the stop passes to the nearest marker that
+  // status reports a move already made, so the stop passes to the nearest marker that
   // still offers a press.
   function holdTabStop(next) {
     const available = availableRows();
-    const acts = (row) => row.dataset.lfBehavior !== "receipt";
+    const acts = (row) => row.dataset.lfBehavior !== "status";
     let stop = next;
     if (stop && !acts(stop)) {
       const at = available.indexOf(stop);
@@ -1592,18 +1655,18 @@ export function createLivingMargin(dependencies) {
 
   let marginKeysAvailable = false;
   const marginKeys = [
+    // The seat a reading holds is a span, so the platform's own activation is not under
+    // it. Declared here rather than answered by a listener on the control: this is the
+    // register's whole bargain — the line and the reference draw the key off the same row
+    // the press is matched against, so neither can promise what the other does not do.
+    // Only the span-shaped readings, because a native Button in this cluster answers its
+    // own press and a second answer here would be two meanings for one key.
     {
-      id: "margin.activate",
-      keys: ["Enter", " "],
-      does: "Activate this page-map Button",
-      line: "activate Button",
-      when: () => {
-        const active = focused();
-        return (
-          active?.matches?.('.lf-margin-action[role="button"]') &&
-          !(active instanceof HTMLButtonElement)
-        );
-      },
+      id: "margin.press",
+      keys: PRESS,
+      does: "Work the focused Button",
+      line: "work this Button",
+      when: () => focused()?.matches?.('.lf-margin-button[role="button"]'),
       run: () => focused().click(),
     },
     {
@@ -1616,7 +1679,7 @@ export function createLivingMargin(dependencies) {
         const active = focused();
         const host = closestAcross(active, "[data-lf-margin-for]");
         return (
-          active?.matches?.(".lf-margin-action") && clusterButtons(host).length > 1
+          active?.matches?.(".lf-margin-button") && clusterButtons(host).length > 1
         );
       },
       run: stepClusterButtons,
@@ -1666,18 +1729,20 @@ export function createLivingMargin(dependencies) {
     row.lfEntry = entry;
     row.hidden = markerKinds.length === 0 || Boolean(primary);
     row.dataset.lfKinds = markerKinds.map(({ kind }) => kind).join(" ");
-    marginAction(row, {
+    marginButton(row, {
       key: `reading:${choice?.key ?? "none"}`,
       icon: face.icon,
       label,
+      context: readingContext(choice),
       behavior,
+      standing: face.standing === true,
       role: "reading",
       state: readingState(choice),
     });
-    row.onclick = behavior === "receipt" ? null : pressMarker;
+    row.onclick = behavior === "status" ? null : pressMarker;
     syncThreadRelation(row, markerNeedsPreview(entry));
     row.removeAttribute("aria-pressed");
-    syncActionCount(row, markerCount);
+    syncButtonCount(row, markerCount);
     if (row.lfTakeFocus) {
       delete row.lfTakeFocus;
       (row.hidden ? document.body : row).focus({ preventScroll: true });
@@ -1729,10 +1794,11 @@ export function createLivingMargin(dependencies) {
       controlProxies.set(control, node);
     }
     const record = buttonRecord(control);
-    marginAction(node, {
+    marginButton(node, {
       key: `${record.key}:proxy`,
       ...(record.icon ? { icon: record.icon } : { glyph: record.glyph }),
       label: record.label,
+      context: record.context,
       behavior: record.behavior,
       tone: record.tone,
       role: record.role,
@@ -1758,11 +1824,13 @@ export function createLivingMargin(dependencies) {
     const behavior = readingBehavior(face);
     const count = choice.items.length;
     const label = count > 1 ? `${face.label}s` : face.label;
-    marginAction(node, {
+    marginButton(node, {
       key: `reading:${choice.key}`,
       icon: face.icon,
       label,
+      context: readingContext(choice),
       behavior,
+      standing: face.standing === true,
       role: "reading",
       state: readingState(choice),
     });
@@ -1774,9 +1842,9 @@ export function createLivingMargin(dependencies) {
       "aria-label",
       `${label} for ${entry.title}${count > 1 ? `, ${count} items` : ""}`,
     );
-    syncActionCount(node, count);
+    syncButtonCount(node, count);
     node.onclick =
-      behavior === "receipt"
+      behavior === "status"
         ? null
         : () => {
             if (node.lfChoice.kind !== "comment") {
@@ -1849,7 +1917,7 @@ export function createLivingMargin(dependencies) {
         spill.type = "button";
         spillButtons.set(entry.key, spill);
       }
-      marginAction(spill, {
+      marginButton(spill, {
         key: "all-options",
         icon: "all",
         label: `Show ${hidden} more in Page map`,
@@ -2016,7 +2084,7 @@ export function createLivingMargin(dependencies) {
     left.bottom > right.top;
 
   function placeButtonLabel(control) {
-    const label = control.querySelector(":scope > .lf-margin-action-label");
+    const label = control.querySelector(":scope > .lf-margin-button-label");
     if (!label || !control.checkVisibility()) return;
     const buttonBox = control.getBoundingClientRect();
     const labelBox = label.getBoundingClientRect();
@@ -2025,7 +2093,7 @@ export function createLivingMargin(dependencies) {
       Math.min(buttonBox.right - labelBox.width, innerWidth - 4 - labelBox.width),
     );
     const cluster = control.closest(".lf-margin-item") ?? control.parentElement;
-    const clusterButtons = [...(cluster?.querySelectorAll(".lf-margin-action") ?? [])]
+    const clusterButtons = [...(cluster?.querySelectorAll(".lf-margin-button") ?? [])]
       .filter((candidate) => candidate.checkVisibility())
       .map((candidate) => candidate.getBoundingClientRect());
     const clusterLeft = Math.min(...clusterButtons.map((box) => box.left));
@@ -2038,7 +2106,7 @@ export function createLivingMargin(dependencies) {
       labelRect("before", clusterLeft - 6 - labelBox.width, centered, labelBox),
     ];
     const blockers = [
-      ...[...document.querySelectorAll(".lf-margin-action")].filter(
+      ...[...document.querySelectorAll(".lf-margin-button")].filter(
         (candidate) => candidate !== control && candidate.checkVisibility(),
       ),
       ...document.querySelectorAll(".lf-banner, .lf-keyline"),
@@ -2067,7 +2135,7 @@ export function createLivingMargin(dependencies) {
     labelPlacementFrame = requestAnimationFrame(() => {
       labelPlacementFrame = 0;
       for (const control of document.querySelectorAll(
-        '.lf-margin-action:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])',
+        '.lf-margin-button:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])',
       ))
         placeButtonLabel(control);
     });
@@ -2160,7 +2228,7 @@ export function createLivingMargin(dependencies) {
         host = el("div", "lf-ui lf-margin-item");
         host.dataset.lfGen = "1";
         host.setAttribute("role", "group");
-        marker = marginAction(readingControl("lf-margin-marker"), {
+        marker = marginButton(readingControl("lf-margin-marker"), {
           key: "reading",
           icon: "dot",
           label: "Open page details",
@@ -2170,11 +2238,11 @@ export function createLivingMargin(dependencies) {
         keys(host, "In the page map", marginKeys, () => marginKeysAvailable);
         host.lfEntry = entry;
         rows.set(entry.key, marker);
-        more = marginAction(offer("button", "lf-margin-more"), {
+        more = marginButton(offer("button", "lf-margin-more"), {
           key: "options",
           icon: "more",
           label: "More options",
-          behavior: "options",
+          behavior: "disclosure",
           role: "overflow",
         });
         options = el("div", "lf-margin-options");
@@ -2189,7 +2257,7 @@ export function createLivingMargin(dependencies) {
           });
         };
         host.addEventListener("focusin", (event) => {
-          const control = event.target.closest?.(".lf-margin-action");
+          const control = event.target.closest?.(".lf-margin-button");
           if (
             settlingOptionsFocus ||
             suppressingOptionsArrival ||
@@ -2218,11 +2286,9 @@ export function createLivingMargin(dependencies) {
         const takePointerOwnership = (event) => {
           const control = document
             .elementFromPoint(event.clientX, event.clientY)
-            ?.closest?.(".lf-margin-action");
+            ?.closest?.(".lf-margin-button");
           hoveredHost =
-            control &&
-            host.contains(control) &&
-            control.dataset.lfBehavior !== "receipt"
+            control && host.contains(control) && control.dataset.lfBehavior !== "status"
               ? host
               : null;
           refreshHighlight();

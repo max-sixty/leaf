@@ -119,15 +119,15 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     page.keyboard.up("Alt")
 
     # The chord already names Comment, so the durable composer is the focused field
-    # beside the note. It grows in place and Enter submits it.
+    # beside the note. It grows in place, Enter adds a line, and Mod+Enter submits it.
     field = open_compact_comment(page, "why here")
     assert page.evaluate(DRAFT_MARK) == "logout-frequency"
     one_line = field.bounding_box()["height"]
-    page.keyboard.press("Shift+Enter")
+    page.keyboard.press("Enter")
     page.keyboard.type("because every active session must end before support continues")
     assert field.bounding_box()["height"] > one_line
     expect(page.locator(".lf-composer")).to_have_css("display", "contents")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment"
@@ -177,7 +177,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
           requestAnimationFrame(renderAgain);
         }"""
     )
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
     ghost = page.locator(".lf-thread-transition")
@@ -1144,7 +1144,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     composer_input.click()
     expect(composer_input).to_be_focused()
     composer_input.fill("the ring reads too heavy")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     events = events_model.read_events(serve.page_dir)
     posted = [e for e in events if e["kind"] == "comment"]
@@ -1253,21 +1253,21 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
         re.compile(r"^layer · Accept .* · lf-suggestion · sug-refill$")
     )
     assert page.locator("#sug-refill").get_attribute("aria-busy") is None, (
-        "the margin action started while Design mode was opening its comment"
+        "the margin Button action started while Design mode was opening its comment"
     )
     round_trip(page)
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action" and event["widget"] == "sug-refill"
-    ], "the margin action reached the durable log despite Design mode"
+    ], "the margin Button action reached the durable log despite Design mode"
     assert errors == []
     page.close()
 
     # The same hoist exists inside frozen markup in a conversation. Its target belongs
     # to that conversation document, so the margin owner hands Design mode the exact
     # element rather than making it reconstruct ownership from a diagnostic id or path.
-    url = serve(leaf_page("inline margin action", '<h1 id="h">Review</h1>'))
+    url = serve(leaf_page("inline margin Button action", '<h1 id="h">Review</h1>'))
     events_model.append_event(
         serve.page_dir,
         {
@@ -1311,7 +1311,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
         event
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action" and event["widget"] == "reply-suggestion"
-    ], "the inline margin action reached the durable log despite Design mode"
+    ], "the inline margin Button action reached the durable log despite Design mode"
     assert errors == []
     page.close()
 
@@ -1334,7 +1334,7 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     expect(page.locator("#lf-composer-quote")).to_have_text(f"layer · {said} · banner")
     expect(page.locator(".lf-panel")).to_be_hidden()
     page.locator(".lf-composer textarea").fill("reads dim against the wash")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     posted = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
@@ -1630,6 +1630,97 @@ def test_a_visual_part_aim_follows_its_drawn_svg_shape(browser, serve):
     page.close()
 
 
+def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
+    """A posted comment keeps the same semantic geometry the aim promised.
+
+    The diamond's diagonal contour must change while the empty bounding-box corners do
+    not. A CSS outline on the returned group produces the opposite result.
+    """
+    from PIL import Image, ImageChops
+
+    diamond_page = PART_DIAGRAM_PAGE.replace("S[Start request]", "S{Start request}", 1)
+    page, errors = open_page(browser, serve(diamond_page))
+    diamond = page.locator('#flow g[data-id="S"]')
+    expect(diamond).to_be_visible()
+    box = diamond.bounding_box()
+    clip = {
+        "x": math.floor(box["x"]),
+        "y": math.floor(box["y"]),
+        "width": math.floor(box["width"]),
+        "height": math.floor(box["height"]),
+    }
+    quiet = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "diamond-comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this branch explicit.",
+            "anchor": {"section": "flow", "visual": "node:S"},
+        },
+    )
+    told(page)
+    expect(diamond).to_have_class(re.compile(r"\blf-mark-el\b"))
+    painted = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+    delta = ImageChops.difference(quiet, painted)
+    changed = [max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3)]
+    width, height = delta.size
+
+    def ratio(where):
+        pixels = [
+            changed[y * width + x]
+            for y in range(height)
+            for x in range(width)
+            if where(x / width, y / height)
+        ]
+        return sum(pixels) / len(pixels)
+
+    diagonal = ratio(lambda x, y: 0.45 < abs(x - 0.5) + abs(y - 0.5) < 0.55)
+    corners = ratio(lambda x, y: abs(x - 0.5) + abs(y - 0.5) > 0.8)
+    assert diagonal > 0.08, f"only {diagonal:.0%} of the diamond contour changed"
+    assert corners < 0.03, f"the empty corners changed by {corners:.0%}"
+
+    offset = page.evaluate(
+        """() => {
+          const source = document.querySelector('#flow g[data-id="S"]').getBoundingClientRect();
+          const mark = document.querySelector('.lf-visual-mark').getBoundingClientRect();
+          return [mark.left - source.left, mark.top - source.top,
+                  mark.right - source.right, mark.bottom - source.bottom];
+        }"""
+    )
+    page.evaluate(
+        """() => {
+          window.__lfStandingContour = document.querySelector(
+            '.lf-visual-mark-shape > g > *'
+          );
+        }"""
+    )
+    page.evaluate("() => scrollBy(0, 80)")
+    page.wait_for_function(
+        """(before) => {
+          const source = document.querySelector('#flow g[data-id="S"]').getBoundingClientRect();
+          const mark = document.querySelector('.lf-visual-mark').getBoundingClientRect();
+          const after = [mark.left - source.left, mark.top - source.top,
+                         mark.right - source.right, mark.bottom - source.bottom];
+          return after.every((value, index) => Math.abs(value - before[index]) < 0.5);
+        }""",
+        arg=offset,
+    )
+    page.evaluate(
+        "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
+    )
+    assert page.evaluate(
+        """() => window.__lfStandingContour === document.querySelector(
+          '.lf-visual-mark-shape > g > *'
+        )"""
+    )
+    assert errors == []
+    page.close()
+
+
 def test_a_rounded_diagram_part_aim_has_room_to_cover_the_shape_edge(browser, serve):
     """A contour's paint viewport includes the outside half of its stroke.
 
@@ -1673,16 +1764,16 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     diagram = page.locator("#flow")
 
     unlisted = diagram.locator('g[data-id="U"]')
-    unlisted.click()
+    unlisted.click(modifiers=["Alt"])
     expect(diagram).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     page.keyboard.press("Escape")
 
     start = diagram.locator('g[data-id="S"]')
-    start.click()
+    start.click(modifiers=["Alt"])
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     page.locator(".lf-composer textarea").fill("name the retry path here")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
     posted = [
@@ -1724,7 +1815,7 @@ def test_design_mode_treats_a_renderer_node_as_part_of_its_widget(browser, serve
     page.locator(".lf-composer textarea").fill(
         "the diagram needs a stronger affordance"
     )
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     posted = [
         event
@@ -1787,7 +1878,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     aim(state)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Queued")
     page.locator(".lf-composer textarea").fill("how long does it sit here")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     # The trip ends when the page has heard back what it sent, which is before it has
     # drawn what came back. Applying the comment repaints this diagram's marks and hangs
@@ -1827,7 +1918,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
 
     aim(entity)
     page.locator(".lf-composer textarea").fill("one runner or many")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     # The same gap as above, read from the other side. The trip ends on what the page has
     # sent, and a post the browser has not reported yet is not pending, so a trip taken on

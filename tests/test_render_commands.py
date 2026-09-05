@@ -556,7 +556,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     assert shown_frames(page) == ["before"]
     button = page.get_by_role("button", name="Show after — the navigation rail")
     expect(page.locator(".lf-margin-item").filter(has=button)).to_be_visible()
-    expect(button.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(button.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "compare-before"
     )
     button_bounds = button.bounding_box()
@@ -571,7 +571,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     button = page.get_by_role("button", name="Show before — the navigation rail")
     expect(button).to_be_focused()
     assert "show before" in key_line(page)
-    expect(button.locator(".lf-margin-action-icon")).to_have_attribute(
+    expect(button.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "compare-after"
     )
     assert button.bounding_box() == button_bounds
@@ -988,7 +988,7 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
     than letting uv find whatever project the cwd sits in. Running it from an
     unrelated directory exercises that.
 
-    The version under it carries a diagram body that doesn't parse — a shape the
+    The version under it carries a diagram body the renderer refuses — a shape the
     static lint cannot reach, since it validates the element and never the
     notation inside it. The widget fails soft and the browser half is what sees
     the error box, which is why the gate is worth its couple of seconds."""
@@ -1010,4 +1010,4 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         )
         assert run.returncode == 1, run.stdout + run.stderr
         # "needs Playwright" here would mean the shim dispatched the plain `uv run`.
-        assert "failed soft" in run.stderr and "Parse error" in run.stderr
+        assert "failed soft" in run.stderr and "Invalid mermaid header" in run.stderr

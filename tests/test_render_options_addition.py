@@ -74,7 +74,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert card_field.evaluate(typography) == card_words.evaluate(typography)
     assert abs(card_field.bounding_box()["x"] - card_words.bounding_box()["x"]) < 0.5
 
-    expect(add).to_have_text("↵")
+    expect(add).to_have_text("Add")
     expect(add).to_have_css("opacity", "0.55")
     field.fill("Portrait sketch")
     expect(add).to_have_css("opacity", "1")
@@ -95,10 +95,10 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     page.close()
 
 
-def test_enter_keeps_another_option_separate_from_a_clarification_thread(
+def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     browser, serve
 ):
-    """The add-option field is not replaced by an exact-section conversation."""
+    """The add form stays in Tab order while c opens a clarification thread."""
     url = serve(DECISION_WITH_CONTEXT_PAGE)
     events_model.append_event(
         serve.page_dir,
@@ -117,14 +117,15 @@ def test_enter_keeps_another_option_separate_from_a_clarification_thread(
     expect(mark).to_be_focused()
     expect(page.locator("#storage-options > .lf-conversation")).to_have_count(0)
 
+    # Enter is not navigation from a checkbox. It neither chooses the option nor enters
+    # the add field; the field is an ordinary later stop in the Tab order.
     page.keyboard.press("Enter")
-    expect(page.locator("#storage-options > .lf-another input")).to_be_focused()
-    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
-    page.keyboard.press("Escape")
     expect(mark).to_be_focused()
+    expect(page.locator("#storage-options > .lf-another input")).not_to_be_focused()
+    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
-    # c keeps its page-wide meaning: it comments on the focused option instead of being a
-    # second spelling for adding an answer. Its own Escape restores the same mark too.
+    # c keeps its page-wide meaning: it comments on the focused option rather than adding
+    # an answer. Its own Escape restores the same mark.
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator("#storage-options > .lf-another input")).not_to_be_focused()

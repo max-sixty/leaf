@@ -202,7 +202,7 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     )
     expect(option).not_to_have_attribute("chosen", "")
     page.locator(".lf-composer textarea").fill("The sample option needs less padding.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     design_comment = [
         event
@@ -577,9 +577,11 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
 
 
 def test_keys_answer_a_question_from_its_marks(browser, serve):
-    """At Ask focus a digit picks outright; one Tab enters marks, where ↑/↓ walk the
-    options clamping at the ends. Each option wears its digit while the Ask or one of
-    its marks holds keyboard focus, so nothing appears on a page nobody is answering."""
+    """The Ask's digits stay live while a mark adds only its control-local keys.
+
+    One Tab enters the marks, where ↑/↓ walk the options and clamp at the ends.
+    Moving focus does not replace the Ask's numeric action context with a widget copy.
+    """
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
     nums = page.locator("#live-question > lf-option > .lf-address")
     expect(nums.first).to_be_hidden()
@@ -593,8 +595,17 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
+    expect(
+        page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
     expect(nums.first).to_be_visible()
     expect(nums.nth(1)).to_have_text("2")
+    assert marks.first.get_attribute("aria-keyshortcuts") == (
+        "ArrowUp ArrowDown Space 1"
+    )
+    assert marks.nth(1).get_attribute("aria-keyshortcuts") == (
+        "ArrowUp ArrowDown Space 2"
+    )
 
     page.keyboard.press("ArrowUp")
     expect(marks.first).to_be_focused()
@@ -627,11 +638,11 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
     as a failure: a clipped element still reports its whole box and still answers
     `to_be_visible`, and a chip drawn over words breaks no rule anybody had written.
 
-    So the cell holds a column for it, and this asks the two questions that column
+    So the cell holds a place for it, and this asks the two questions that place
     answers — does any ancestor cut it, is it on anybody's words — in both forms,
-    stepped through with the key that reaches them, since the room inside a cell is
-    exactly what differed: cards padded clear of their corners, rows with none to
-    spare.
+    stepped through with the key that reaches them. Rows reserve a leading gutter;
+    titled cards share their trailing header-state slot with the same Ask-owned address
+    that temporarily replaces status.
 
     How far down the column it stands is each form's own answer, so each is asked for the
     fact it states rather than for one number covering both. A card's digit rides at the
@@ -641,17 +652,14 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
     the gate read was the number the theme stated, and the claim beside it, that a row's
     digit is level with its words, was checked by nothing.
 
-    How far in it stands is the whole group's, and it is asked as the relation it is: the
-    gutter reads cell edge, digit, then prose, so the digit is measured against those two
-    neighbours and against the other form's seat. Pinned as the number the gutter came to,
-    the reading broke twice over a neighbour it was never about — once when a status rule
-    took the head of the column and the digit moved along behind it, and again when that
-    rule left and it moved back."""
+    How far in it stands is each form's own relation: edge, digit, then prose for a row;
+    prose opening, then digit, then edge for a card. The two forms deliberately no longer
+    claim one rail, while every option within a form still claims one stable seat."""
     page, errors = open_page(browser, serve(ADDRESS_PAGE))
-    seats = {}
+    seats = {"card": {}, "row": {}}
     for options, sitting in [
-        (["c-heater", "c-cable", "c-hand"], "in the corner"),
-        (["r-now", "r-later"], "centred"),
+        (["c-heater", "c-cable", "c-hand"], "card"),
+        (["r-now", "r-later"], "row"),
     ]:
         page.keyboard.press("a")
         # The arrival stands on the decision; the digits are drawn once a mark holds the
@@ -663,27 +671,30 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
             cut = chip.evaluate(CLIPPED_BY)
             assert cut is None, f"{id_}'s digit is cut: {cut}"
             # Never on the hairline the outer corner would have shared with the cells
-            # around it, and never in either neighbour's room: the option's gutter opens
-            # at the cell's own start, and its words open at the column the option pads
-            # to. Read the row form here as well as the cards above; both reserve
-            # address, then prose in the same leading gutter.
+            # around it, and never in either neighbour's room. Rows put the address in
+            # the leading gutter; cards put it in their trailing header-state slot.
             sits = chip.evaluate(INSIDE_ITS_OPTION)
-            assert 0 < sits["x"] < sits["ends"] < sits["opens"], (
-                f"{id_}'s digit runs {sits['x']}…{sits['ends']} in a gutter that starts "
-                f"at its cell's own edge and whose words open at {sits['opens']}, so the "
-                "gutter is holding one of the two in the other's room"
-            )
-            seats.setdefault(round(sits["x"], 1), []).append(id_)
-            if sitting == "in the corner":
+            if sitting == "card":
+                assert 0 < sits["opens"] < sits["x"] < sits["ends"] < sits["width"], (
+                    f"{id_}'s digit runs {sits['x']}…{sits['ends']} in a card whose "
+                    f"words open at {sits['opens']} and whose far edge is "
+                    f"{sits['width']}, so it is not in the trailing state slot"
+                )
                 assert round(sits["y"]) == 8, (
                     f"{id_}'s digit sits {sits['y']} down from its option's top, not in "
-                    "the corner of the column its card reserves"
+                    "the card's header-state corner"
                 )
             else:
+                assert 0 < sits["x"] < sits["ends"] < sits["opens"], (
+                    f"{id_}'s digit runs {sits['x']}…{sits['ends']} in a row whose "
+                    f"words open at {sits['opens']}, so its leading gutter is holding "
+                    "one of the two in the other's room"
+                )
                 assert abs(sits["level"]) <= 0.5, (
                     f"{id_}'s digit is {sits['level']}px off the middle of its row's own "
                     "words"
                 )
+            seats[sitting].setdefault(round(sits["x"], 1), []).append(id_)
             assert sits["past"] <= 0, (
                 f"{id_}'s digit hangs past its own option and onto the next"
             )
@@ -691,9 +702,9 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
             # only right for as long as the column the theme reserves is.
             on = chip.evaluate(OVER_WORDS, id_)
             assert on is None, f"{id_}'s digit is drawn over the words “{on}”"
-    # One column, in both forms: a card's cell and a row's are the two shapes whose room
-    # differed, and a seat each would read as a straight rail down neither.
-    assert len(seats) == 1, f"the digits stand at more than one column: {seats}"
+    assert all(len(form) == 1 for form in seats.values()), (
+        f"the digits move between seats within one form: {seats}"
+    )
     assert errors == []
     page.close()
 
@@ -775,7 +786,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     # the search reads around it — one range per segment, not one spanning the lot.
     # Across both options, so a Choose button falls in the middle of the passage rather
     # than after it — where a single range spanning the whole thing would swallow it.
-    chrome = page.locator("#opts .lf-ui").first.text_content().strip()
+    chrome = page.locator("#opts .lf-pick").first.text_content().strip()
     assert chrome, "this assertion needs the widget to have rendered chrome inside it"
     page.evaluate("""() => {
         const r = document.createRange();
@@ -792,7 +803,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
 
     # A diagram has no text to quote, so its anchor is the element and its mark is an
     # outline. That one the anchor pass really does take down, so it has to be redrawn.
-    page.locator("#fig svg").click()
+    page.locator("#fig svg").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
     page.locator("#fig.lf-mark-el.lf-pending").wait_for()
     assert not composer_quote(page)["shown"], (
@@ -818,16 +829,15 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         "the figure kept a thread's outline over no thread"
     )
 
-    # A drag across the caption ends with the click's target inside the figure, but the
-    # selection is what the reader picked: the one decider ranks the quote above the
-    # element anchor, so the composer carries the caption's words rather than § fig.
+    # A drag across the caption remains a native selection, so the composer carries the
+    # caption's words rather than the enclosing figure's element anchor.
     cap = page.locator("#fig figcaption").bounding_box()
     y = cap["y"] + cap["height"] / 2
     select(page, (cap["x"] + 2, y), (cap["x"] + cap["width"] - 2, y))
     page.locator(".lf-fab-input").click()
     wait_for_pending_mark(page)
     assert "specimen" in pending_text(page), (
-        "the click's visual find outranked the selection the drag made"
+        "the visual containing the drag replaced its selected passage"
     )
     assert page.locator("#fig.lf-pending").count() == 0, (
         "the figure got the element outline over a live selection"
@@ -1596,7 +1606,7 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
         "() => document.querySelector('.lf-composer').style.display === 'contents'"
     )
     page.locator(".lf-composer textarea").fill("Too short.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator("#p2 .lf-mark-note")).to_have_count(1)
     c4 = [e for e in events_model.read_events(d) if e.get("kind") == "comment"][-1][
         "id"
@@ -2529,10 +2539,18 @@ def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
         == ["pressed", "neutral", "neutral"] * 4
     )
 
-    def sequence_geometry(locator):
-        return locator.evaluate(
-            """sequence => {
+    def sequence_geometry():
+        # Chord progress repaints the key line. Read only a sequence that is standing,
+        # and capture its whole box in that same browser task rather than retaining the
+        # element across the paint that replaces it.
+        return page.wait_for_function(
+            """() => {
+              const sequence = document.querySelector(
+                '.lf-keyline .lf-key[data-lf-commands~="navigation.link"]'
+                + ' > .lf-key-sequence');
+              if (!sequence) return false;
               const box = sequence.getBoundingClientRect();
+              if (!box.width || !box.height) return false;
               return {
                 width: box.width,
                 height: box.height,
@@ -2542,15 +2560,18 @@ def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
                 }),
               };
             }"""
-        )
+        ).json_value()
 
     def link_geometry():
-        return page.locator(CHIPS).evaluate_all(
-            """chips => chips.filter(chip => {
+        return page.wait_for_function(
+            """() => {
+              const chips = [...document.querySelectorAll('.lf-addresses > .lf-address')]
+                .filter(chip => {
                 const keys = [...chip.querySelectorAll('kbd')].map(key => key.textContent);
                 return keys[0] === 'g' && keys[1] === 'h';
-              })
-              .map(chip => {
+              });
+              if (chips.length !== 2) return false;
+              const geometry = chips.map(chip => {
                 const box = chip.getBoundingClientRect();
                 return {
                   text: chip.textContent,
@@ -2563,10 +2584,15 @@ def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
                     return {left: at.left - box.left, width: at.width, height: at.height};
                   }),
                 };
-              })"""
-        )
+              });
+              return geometry.every(
+                item => item.width && item.height
+                  && item.keys.every(key => key.width && key.height))
+                ? geometry : false;
+            }"""
+        ).json_value()
 
-    initial_legend_geometry = sequence_geometry(legend)
+    initial_legend_geometry = sequence_geometry()
     initial_link_geometry = link_geometry()
     assert len(initial_link_geometry) == 2
 
@@ -2585,7 +2611,7 @@ def test_numbered_addresses_show_progress_on_complete_routes_without_moving(
         )
         == ["pressed", "pressed", "neutral"] * 2
     )
-    assert sequence_geometry(legend) == initial_legend_geometry, (
+    assert sequence_geometry() == initial_legend_geometry, (
         "the key-line chord moved its keys when h became pressed"
     )
     assert link_geometry() == initial_link_geometry, (
@@ -2823,6 +2849,74 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.close()
 
 
+def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
+    """Each Ask digit is a distinct command when invoked without a keydown."""
+    page, errors = open_page(browser, serve(DECISIONS_PAGE))
+
+    page.keyboard.press("a")
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+
+    first = page.locator('.lf-help-command[data-lf-command="decision.activate-1"]')
+    second = page.locator('.lf-help-command[data-lf-command="decision.activate-2"]')
+    expect(first).to_have_text("Activate the “Keep the store” action")
+    expect(second).to_have_text("Activate the “Signed tokens” action")
+    expect(
+        page.locator('.lf-help-command[data-lf-command="decision.activate-nth"]')
+    ).to_have_count(0)
+
+    second.click()
+    expect(page.locator("#lq-token")).to_have_attribute("chosen", "")
+    expect(page.locator("#lq-keep")).not_to_have_attribute("chosen", "")
+    round_trip(page)
+
+    assert errors == []
+    page.close()
+
+
+def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
+    """A widget can replace its action controls without defining another keymap."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "draft ask",
+                """
+<h1 id="h">Release note</h1>
+<lf-decision id="note-decision"><h2>How should the note read?</h2>
+  <lf-draft id="note" needed><pre>Keep this text editable.</pre></lf-draft>
+</lf-decision>
+""",
+            )
+        ),
+    )
+
+    page.keyboard.press("a")
+    expect(page.locator("#note-decision")).to_be_focused()
+    assert "1\nEdit" in key_line(page)
+
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    edit = page.locator('.lf-help-command[data-lf-command="decision.activate-1"]')
+    expect(edit).to_have_text("Activate the “Edit…” action")
+    edit.click()
+    expect(page.locator("#note textarea")).to_be_focused()
+
+    save = page.locator(".lf-draft-controls [data-lf-button-key='save']")
+    save.focus()
+    expect(save).to_be_focused()
+    page.keyboard.press("?")
+    assert "1–2\nSave / Cancel" in key_line(page)
+    page.keyboard.press("?")
+    cancel = page.locator('.lf-help-command[data-lf-command="decision.activate-2"]')
+    expect(cancel).to_have_text("Activate the “Cancel” action")
+    cancel.click()
+    expect(page.locator("#note textarea")).to_have_count(0)
+
+    assert errors == []
+    page.close()
+
+
 def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve):
     """The same declarations that paint help expose their active keys through ARIA."""
     page, errors = open_page(browser, serve(DECISIONS_PAGE))
@@ -2837,13 +2931,11 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
 
     page.keyboard.press("a")
     mark = page.locator("#live-question .lf-pick").first
-    shortcuts = mark.get_attribute("aria-keyshortcuts").split()
-    assert {"1", "2", "Enter", "ArrowUp", "ArrowDown", "Space"} <= set(shortcuts), (
-        shortcuts
-    )
+    expect(mark).to_have_attribute("aria-keyshortcuts", "ArrowUp ArrowDown Space 1")
 
     page.keyboard.press("?")
     page.keyboard.press("?")
+    expect(mark).to_have_attribute("aria-keyshortcuts", "ArrowUp ArrowDown Space")
     expect(
         page.locator(
             ".lf-help tr", has_text="Next ask this page is waiting on you for"
@@ -3886,13 +3978,13 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
         "placeholder", re.compile(r" · c$")
     )
     expect(reply).to_have_attribute("placeholder", "Reply")
-    # Space is control activation, not a character shortcut. Offered buttons retain
-    # both native-button keys and advertise both from the same register while letters,
-    # digits, and punctuation are off.
+    # Space is checkbox activation, not a character shortcut. The option's local
+    # navigation and activation remain available while letters, digits, and punctuation
+    # are off.
     mark = page.locator("#live-question .lf-pick").first
     mark.focus()
     shortcuts = mark.get_attribute("aria-keyshortcuts").split()
-    assert {"Enter", "Space"} <= set(shortcuts), shortcuts
+    assert shortcuts == ["ArrowUp", "ArrowDown", "Space"], shortcuts
     page.keyboard.press("Space")
     expect(page.locator("#lq-keep")).to_have_attribute("chosen", "")
 
@@ -5030,7 +5122,9 @@ def test_the_other_response_row_can_turn_the_compact_field_into_a_suggestion(
     expect(box).not_to_be_focused()
     page.keyboard.press("c")
     expect(box).to_be_focused()
-    expect(box).to_have_attribute("placeholder", re.compile(r"^Comment… .*⏎$"))
+    expect(box).to_have_attribute(
+        "placeholder", re.compile(r"^Comment… .*(⌘⏎|Ctrl\+⏎)$")
+    )
 
     page.keyboard.press("Tab")
     choices = page.locator(".lf-fab-bar")
@@ -5042,12 +5136,16 @@ def test_the_other_response_row_can_turn_the_compact_field_into_a_suggestion(
 
     page.keyboard.press("Enter")
     expect(box).to_be_focused()
-    expect(box).to_have_attribute("placeholder", re.compile(r"^Replacement text .*⏎$"))
+    expect(box).to_have_attribute(
+        "placeholder", re.compile(r"^Replacement text .*(⌘⏎|Ctrl\+⏎)$")
+    )
     expect(box).to_have_value(
         re.compile("A paragraph carrying bold text and emphasis inside it")
     )
     page.evaluate(RENDERED)
-    expect(box).to_have_attribute("placeholder", re.compile(r"^Replacement text .*⏎$"))
+    expect(box).to_have_attribute(
+        "placeholder", re.compile(r"^Replacement text .*(⌘⏎|Ctrl\+⏎)$")
+    )
     assert errors == []
     page.close()
 
@@ -5159,9 +5257,9 @@ def test_the_key_line_names_the_selected_comment_and_its_other_responses(
     expect(field).to_have_value("?")
     page.keyboard.press("Escape")
 
-    # A visual follows the same contract, but its accessible field name identifies the
-    # item rather than a quoted passage.
-    page.locator("#fig svg").click()
+    # An explicit visual target follows the same contract, but its accessible field name
+    # identifies the item rather than a quoted passage.
+    page.locator("#fig svg").click(modifiers=["Alt"])
     expect(field).to_be_focused()
     expect(field).to_have_attribute("aria-label", re.compile("figure"))
     expect(line).to_contain_text("other responses")
@@ -5224,7 +5322,7 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
 
 
 def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser, serve):
-    """Anchored Enter sends; the other durable editors retain Mod+Enter."""
+    """Every durable editor inserts a newline with Enter and sends with Mod+Enter."""
     html = TARGETS_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
@@ -5252,6 +5350,10 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     )
     field.fill("Send through the compact control.")
     page.keyboard.press("Enter")
+    assert page.locator("body").get_attribute("data-composer-shortcut-clicks") is None
+    expect(field).to_have_value("Send through the compact control.\n")
+    expect(field).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator("body")).to_have_attribute("data-composer-shortcut-clicks", "1")
     expect(composer).to_be_hidden()
 
@@ -5588,9 +5690,9 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
 
 
 def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
-    """Focus supplies an element anchor. `c` read the 💬 alone, which only a
-    selection or a click on a visual ever raises, so a reader working from the keys
-    had two destinations where the pointer had three: a quote, or the whole page. A
+    """Focus supplies an element anchor. `c` once read the 💬 alone, so a reader
+    working from the keys had two destinations where explicit pointer targeting had
+    three: an item, a quote, or the whole page. A
     focused link put them on an option and the box that opened still said "Comment on the
     page" — the ⌥ aim's "the item under the pointer" with no twin for the cursor.
 
@@ -5599,7 +5701,7 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     Below a decision it is the innermost item, which is the aim's own reading — so a focused
     link speaks for the paragraph holding it, no id of its own being what an anchor needs.
 
-    One box either way: `openOnItem` writes `{section: item.id}`, which is the anchor a
+    One box either way: `commentOnTarget` writes `{section: item.id}`, which is the anchor a
     widget's own conversation seat collects, so a remark made here lands in that seat's
     conversation rather than beside it. Reaching for the seat directly instead was five
     questions — escaping an author's id, whether the box can take focus, which box when

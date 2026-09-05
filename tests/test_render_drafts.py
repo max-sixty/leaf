@@ -95,7 +95,7 @@ def test_page_round_trip(browser, serve):
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.wait_for_selector(".lf-composer", state="visible")
     page.locator(".lf-composer textarea").fill("Is 0041 idempotent?")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_selector(".lf-margin-thread")
     # The anchor pass painted the passage — a range in the highlight registry, not an
     # element, so there is no selector for it.
@@ -974,7 +974,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
 
     page.locator(".lf-threads-toggle").click()
@@ -1015,7 +1015,7 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the filtered comment send")
     if later_selection:
         page.locator("#p2").click(click_count=3)
@@ -1059,7 +1059,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     # below answers with the note the page opened on, and the reply this test is about is
     # looked for under an id no thread wears.
     with sending(page, "the comment the reply follows"):
-        page.keyboard.press("Enter")
+        page.keyboard.press("ControlOrMeta+Enter")
 
     sent = events_model.read_events(serve.page_dir)[-1]
     reply = page.locator(
@@ -1111,7 +1111,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("The first remark.")
 
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
 
     # The reader picks out their next passage while the first send is still in the wire.
@@ -1905,7 +1905,7 @@ def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, ser
     newer = "  A newer selection comment remains in the composer.  "
     compose(page, "#p3", old)
     box = page.locator(".lf-composer textarea")
-    page.keyboard.press("Enter")
+    page.keyboard.press("ControlOrMeta+Enter")
     _until(page, lambda traffic: traffic.sends == 1, "held the selection comment")
     box.fill(newer)
 
@@ -1985,7 +1985,7 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_r
 
     sent = "The point is buried, and the paragraph after it repeats it."
     first.locator(".lf-composer textarea").fill(sent)
-    first.keyboard.press("Enter")
+    first.keyboard.press("ControlOrMeta+Enter")
     round_trip(first)
     expect(second.locator(".lf-composer")).to_be_hidden()
     said = [
@@ -2095,7 +2095,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
         "Changes · 3 edits"
     )
     expect(draft.locator(".lf-draft-history > summary")).to_be_focused()
-    expect(draft).to_have_attribute("data-lf-pending", "1")
+    expect(draft).to_have_attribute("data-lf-reader-override", "1")
 
     events = [
         json.loads(line)
@@ -2801,11 +2801,21 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
     )
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
     line = page.locator(".lf-keyline")
+    # The door is a go-to destination rather than a bare letter, so the line names it
+    # once the chord is armed. The word that must not be anywhere is read behind that
+    # arrival, so the absence is taken off a line the press has already repainted.
+    page.keyboard.press("g")
     expect(line).to_contain_text("versions")
     expect(line).not_to_contain_text("mark changes")
+    page.keyboard.press("Escape")
     page.keyboard.press("=")
     expect(page.locator(".lf-version-menu")).to_be_hidden()
     expect(page.locator(".lf-ins-block")).to_have_count(0)
+    page.keyboard.press("g")
+    expect(line).to_contain_text("versions")
+    page.keyboard.press("Shift+v")
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    page.keyboard.press("Escape")
 
     # The door, and it marks the same passage the key used to.
     compare_with(page)

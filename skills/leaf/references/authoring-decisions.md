@@ -37,13 +37,10 @@ the group's ordinary `choose` action, with `detail.additions` mapping the comple
 set of reader-added option ids to their words. In a thread the reply box already owns
 free-form words, so the group carries no add cell of its own.
 
-Carry each added option into the next authored version with its event-supplied id
-and words, and mark the standing pick `chosen`. That is when the generated option
-becomes an ordinary authored option. If you need clarification, first carry it,
-then open a separate exact-section thread anchored to that option; do not turn the
-add gesture itself into a conversation. The standing `choose` action answers the live
-Decision immediately; the later authored version makes that answer self-contained
-without the log. An unrelated version cannot erase it.
+The standing `choose` action answers the Decision immediately and preserves
+generated options across revisions. If an added option needs clarification,
+open a separate exact-section thread anchored to its event-supplied id. When
+editing that option's markup, follow `authoring-revisions.md`'s reader-state rules.
 
 An ask must name itself without context outside the ask. Begin `lf-decision` with
 one ordinary heading, then include any introduction or evidence and the

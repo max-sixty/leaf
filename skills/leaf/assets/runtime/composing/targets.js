@@ -9,7 +9,7 @@ const HINT_KEYS = [..."asdfghjklqwertyuiopzxcvbnm"];
 const HINT_INDENT = 10;
 
 export function createTargetSelection({
-  selectResponseTarget,
+  commentOnTarget,
   aimTargets,
   allButTheReference,
   anchoringIsReady,
@@ -50,30 +50,81 @@ export function createTargetSelection({
 
   const clips = () => new Map();
   const covered = () => banner.getBoundingClientRect().bottom;
-  // Where the page stops being reachable at the foot: the key line's top, or the window's
-  // own foot when no line is drawn. The banner above is always rendered and the line is
-  // not — a coarse pointer is shown none, and an empty one takes itself down — so a zero
-  // box read as a top of 0 says the whole window is covered, and `visible` then answers
-  // false for every box on screen. That is `s` naming no items and `/` painting no match,
-  // with nothing on screen saying why.
-  const bottomCovered = () => {
+  const overlaps = (a, b) =>
+    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const rect = (left, top, right, bottom, sourceTop = top) =>
+    right > left && bottom > top
+      ? {
+          left,
+          top,
+          right,
+          bottom,
+          width: right - left,
+          height: bottom - top,
+          clippedTop: sourceTop < top,
+        }
+      : null;
+  // The largest visible rectangle left after viewport chrome is subtracted. The banner
+  // spans the window and clips one edge. The key line is a bottom band in one horizontal
+  // lane, so a target crossing that lane keeps the larger of the space above, before, or
+  // after it. Treating the line's top as a scalar dropped a target merely because some
+  // other part of its box stood behind unrelated chrome on the left.
+  //
+  // A coarse pointer is shown no line, and an empty one takes itself down. A zero box must
+  // therefore answer with the viewport foot rather than a top of 0, or `s` names no items
+  // and `/` paints no match with nothing on screen saying why.
+  function visibleRect(box, sourceTop = box?.top) {
+    if (!box) return null;
+    const shown = rect(
+      Math.max(box.left, 0),
+      Math.max(box.top, covered()),
+      Math.min(box.right, innerWidth),
+      Math.min(box.bottom, innerHeight),
+      sourceTop,
+    );
+    if (!shown) return null;
     const line = keyline.getBoundingClientRect();
-    return line.height ? line.top : innerHeight;
-  };
-  const visible = (box) =>
-    box &&
-    (box.width ?? box.right - box.left) > 0 &&
-    (box.height ?? box.bottom - box.top) > 0 &&
-    box.right > 0 &&
-    box.left < innerWidth &&
-    box.bottom > covered() &&
-    box.top < bottomCovered();
+    const band = {
+      left: line.left,
+      top: line.top,
+      right: line.right,
+      bottom: innerHeight,
+    };
+    if (!line.height || !overlaps(shown, band)) return shown;
+    return (
+      [
+        rect(
+          shown.left,
+          shown.top,
+          shown.right,
+          Math.min(shown.bottom, band.top),
+          sourceTop,
+        ),
+        rect(
+          shown.left,
+          shown.top,
+          Math.min(shown.right, band.left),
+          shown.bottom,
+          sourceTop,
+        ),
+        rect(
+          Math.max(shown.left, band.right),
+          shown.top,
+          shown.right,
+          shown.bottom,
+          sourceTop,
+        ),
+      ]
+        .filter(Boolean)
+        .sort((a, b) => b.width * b.height - a.width * a.height)[0] ?? null
+    );
+  }
   // A fixed sheet can cover a page box without clipping it. Hints live above the chrome,
   // so geometry alone would put a key on the thread panel for a card hidden behind it.
   // Ask the rendered stack at the hint's corner; pointer-events:none keeps an existing
   // hint from answering this question itself.
   const exposed = (box) => {
-    if (!visible(box)) return false;
+    if (!box) return false;
     const x = Math.max(0, Math.min(innerWidth - 1, box.left + 1));
     const y = Math.max(covered(), Math.min(innerHeight - 1, box.top + 1));
     return !inChrome(document.elementFromPoint(x, y));
@@ -91,18 +142,8 @@ export function createTargetSelection({
     const left = Math.max(box.left, clip.left, 0);
     const top = Math.max(box.top, clip.top, covered());
     const right = Math.min(box.right, clip.right, innerWidth);
-    const bottom = Math.min(box.bottom, clip.bottom, bottomCovered());
-    return right > left && bottom > top
-      ? {
-          left,
-          top,
-          right,
-          bottom,
-          width: right - left,
-          height: bottom - top,
-          clippedTop: box.top < top,
-        }
-      : null;
+    const bottom = Math.min(box.bottom, clip.bottom, innerHeight);
+    return visibleRect({ left, top, right, bottom }, box.top);
   }
 
   function firstShown(range, owner, cache) {
@@ -138,7 +179,10 @@ export function createTargetSelection({
     const targets = aimTargets()
       .filter(({ element }) => !inChrome(element))
       .filter(targetShown)
-      .map((target) => ({ ...target, rect: shownRect(target.element, cache) }))
+      .map((target) => ({
+        ...target,
+        rect: visibleRect(shownRect(target.element, cache)),
+      }))
       .filter(({ rect }) => exposed(rect))
       .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
     // Direct aiming chooses the innermost stable item under the pointer. When an
@@ -296,7 +340,7 @@ export function createTargetSelection({
   function choose(target) {
     setOpen(false);
     document.body.focus({ preventScroll: true });
-    selectResponseTarget(target);
+    commentOnTarget(target);
     announce(`Selected ${target.label}. Choose a response.`);
   }
 
@@ -374,11 +418,9 @@ export function createTargetSelection({
     return chip;
   }
 
-  const overlaps = (a, b) =>
-    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-  const movedBy = (box, top) => ({
-    left: box.left,
-    right: box.right,
+  const movedTo = (box, left, top) => ({
+    left,
+    right: left + box.width,
     top,
     bottom: top + box.height,
     width: box.width,
@@ -387,31 +429,60 @@ export function createTargetSelection({
   // Nested items can begin at exactly the same corner. Hints are the only route to their
   // targets, so keep every one and step later faces down (or up at the key line) until
   // each is legible. Read every face before moving one, keeping the pass to one layout.
-  function spreadHints(chips) {
+  function spreadHints(hints) {
     const gap = 2;
-    const measured = chips.map((chip) => [chip, chip.getBoundingClientRect()]);
+    const measured = hints.map(({ chip, target }) => {
+      const start = chip.getBoundingClientRect();
+      const line = keyline.getBoundingClientRect();
+      const lineBand = {
+        left: line.left,
+        top: line.top,
+        right: line.right,
+        bottom: innerHeight,
+      };
+      // Keep the established top-left/nesting placement unless it puts the face back
+      // over a band already subtracted from its target. A surviving rectangle on the
+      // line's right has a direct horizontal seat; a piece too narrow for the face is
+      // moved above the band in the pass below.
+      const rightSeat = Math.max(target.left, line.right);
+      const canSitRight = rightSeat + start.width <= target.right;
+      const left =
+        line.height && overlaps(start, lineBand) && canSitRight
+          ? rightSeat
+          : start.left;
+      return [chip, movedTo(start, left, start.top), start, lineBand];
+    });
     const placed = [];
-    for (const [chip, start] of measured) {
-      let box = start;
+    for (const [chip, seated, start, lineBand] of measured) {
+      let box = seated;
       for (
         let collisions = placed.filter((other) => overlaps(box, other));
         collisions.length;
         collisions = placed.filter((other) => overlaps(box, other))
       )
-        box = movedBy(box, Math.max(...collisions.map((other) => other.bottom)) + gap);
-      if (box.bottom > bottomCovered()) {
-        box = start;
+        box = movedTo(
+          box,
+          box.left,
+          Math.max(...collisions.map((other) => other.bottom)) + gap,
+        );
+      const meetsLine = lineBand.bottom > lineBand.top && overlaps(box, lineBand);
+      if (meetsLine || box.bottom > innerHeight) {
+        const upperEdge = meetsLine ? lineBand.top : innerHeight;
+        box = movedTo(box, box.left, upperEdge - gap - box.height);
         for (
           let collisions = placed.filter((other) => overlaps(box, other));
           collisions.length;
           collisions = placed.filter((other) => overlaps(box, other))
         )
-          box = movedBy(
+          box = movedTo(
             box,
+            box.left,
             Math.min(...collisions.map((other) => other.top)) - gap - box.height,
           );
       }
+      const sideShift = box.left - start.left;
       const shift = box.top - start.top;
+      if (sideShift) chip.style.left = `${parseFloat(chip.style.left) + sideShift}px`;
       if (shift) chip.style.top = `${parseFloat(chip.style.top) + shift}px`;
       placed.push(box);
     }
@@ -435,19 +506,23 @@ export function createTargetSelection({
       hintActive = still;
     }
     const drawn = [];
+    const hints = [];
     const drawnTargets = new Set();
     if (!searching) {
       const cache = clips();
       for (const target of candidates) {
         if (!target.code.startsWith(prefix)) continue;
         if (!targetShown(target)) continue;
-        const rect = refreshed ? target.rect : shownRect(target.element, cache);
+        const rect = refreshed
+          ? target.rect
+          : visibleRect(shownRect(target.element, cache));
         if (!exposed(rect)) continue;
         const chip = hintChip(target);
         chip.style.left = `${Math.max(10, rect.left + target.nesting * HINT_INDENT)}px`;
-        chip.style.top = `${Math.min(bottomCovered() - 10, Math.max(covered(), rect.top))}px`;
+        chip.style.top = `${Math.max(covered(), rect.top)}px`;
         if (rect.clippedTop || rect.top < covered()) chip.classList.add("lf-in");
         drawn.push(chip);
+        hints.push({ chip, target: rect });
         drawnTargets.add(target);
       }
     } else if (matches[active]) {
@@ -467,7 +542,7 @@ export function createTargetSelection({
     }
     if (!refreshed && heard && !drawnTargets.has(heard)) hintActive = -1;
     selectionLayer.replaceChildren(...drawn);
-    if (!searching) spreadHints(drawn);
+    if (!searching) spreadHints(hints);
   }
 
   selectionInput.addEventListener("input", search);

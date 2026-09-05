@@ -227,9 +227,9 @@ catalog.</p>
       <p class="lede" id="heat-lede">
         You sent me the meter readings, the thermostat log, and the survey the installer
         left behind. This is what they say together. A chart has no words to select, so
-        click one and the comment lands on the whole picture — say which number you want
-        and I will put it in the next version. After the survey of where it leaves, I
-        ask which measure to book first.
+        Alt-click one and the comment lands on the whole picture — say which number you
+        want and I will put it in the next version. After the survey of where it leaves,
+        I ask which measure to book first.
       </p>
 
       <section id="heat-years-section">
@@ -1042,8 +1042,9 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
           <p id="pr-outcome-context">
             Choose the review the agent should enter on the forge. Each option states
             the disposition and the exact work, so the agent can submit it without
-            translating a generic label. With an option focused, <kbd>Enter</kbd> writes
-            another answer; <kbd>c</kbd> comments on that option instead.
+            translating a generic label. Digits choose a listed answer;
+            <kbd>c</kbd> comments on it. Tab reaches <strong>Another option</strong>,
+            where <kbd>Enter</kbd> submits.
           </p>
           <lf-options id="pr-outcome-choice" choose>
             <lf-option id="pr-outcome-follow-up">
@@ -1815,19 +1816,20 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-clusters">
         <p class="eyebrow bg-feature-elements">
-          Action Button · Disclosure Button · Options Button · Reaction Button
+          Action · Disclosure · Button-shaped status · Lifecycle state
         </p>
         <h2 id="bg-clusters-heading">
           <strong>Buttons</strong
-          ><span class="bg-feature-detail">: actions, disclosures, and states</span>
+          ><span class="bg-feature-detail">: action, disclosure, and status</span>
         </h2>
         <p id="bg-buttons-line">
           <strong>One shared target.</strong> Use the
           <lf-suggestion id="bg-crowded"
             ><lf-old>courtyard</lf-old><lf-new>covered terrace</lf-new></lf-suggestion
           >
-          for the practice session. Accept and Reject act immediately; Thread opens its
-          conversation; reaction marks show settled verdicts; and ⋯ exposes the group.
+          for the practice session. Accept and Reject act immediately; Thread and ⋯
+          disclose more; reaction marks are settled actions. Delivery statuses below
+          report what already happened without offering another press.
         </p>
       </section>
 
@@ -2053,7 +2055,8 @@ run, baseline, candidate
           </h3>
           <p id="bg-diagrams-guide">
             Diagram nodes keep their authored shapes and can use Leaf’s semantic color
-            tokens. Alt-click a declared node to comment on that box alone.
+            tokens. A plain click leaves the drawing alone. Alt-click a declared node to
+            comment on that box alone, or press <kbd>s</kbd> to choose the same target.
           </p>
           <lf-diagram
             id="bg-diagram"
@@ -2266,6 +2269,18 @@ gallery/
           To ask for a refinement, comment on the sample that shows it and say what
           should change. Plain experiment clicks do not request implementation work.
         </p>
+        <details id="bg-construction-reading">
+          <summary>Inspect the page and find what to edit</summary>
+          <p id="bg-construction-guide">
+            Move the card, submit a draft, or add an option above. Run
+            <code>leaf page state PAGE</code> against this preview's page directory. Its
+            content keeps your exact words, selected options, and card order; source
+            locations and edit routes distinguish authored content from reader decisions
+            and captured data. Change unrelated source wording and inspect again: those
+            reader choices survive without copying them into HTML. Use
+            <code>--thread ID</code> to inspect a frozen conversation.
+          </p>
+        </details>
       </section>
 </lf-tab>
 

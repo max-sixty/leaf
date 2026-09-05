@@ -21,7 +21,12 @@ from .event_log import (
 from .events import undo_error
 from .files import list_revisions, revision_path, version_revisions
 from .passages import active_enclosing
-from .projection import page_projection, retirement_outcomes, rewritten_bodies
+from .projection import (
+    generated_children,
+    page_projection,
+    retirement_outcomes,
+    rewritten_bodies,
+)
 from .registry.contract import RegistryError
 from .registry.reactions import reaction_tokens
 from .registry.storage import load_registry
@@ -212,7 +217,7 @@ class _TransactionValidation:
         html = revision_path(self.page_dir, self.event["revision"]).read_text(
             encoding="utf-8"
         )
-        projection, _, _ = page_projection(
+        projection, parser, _ = page_projection(
             html, self.events, registry, self.event["revision"]
         )
         try:
@@ -225,6 +230,7 @@ class _TransactionValidation:
                 rewritten_bodies(projection.actions),
                 prefix=anchor.get("prefix") if "prefix" in anchor else None,
                 suffix=anchor.get("suffix") if "suffix" in anchor else None,
+                additions=generated_children(projection.desired, parser.ids),
             )
         except ValueError as error:
             return event_rejection(

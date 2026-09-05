@@ -759,10 +759,23 @@ customElements.define(
     projectManifest() {
       projectData(
         this,
-        (this.manifestEntries ?? []).flatMap(({ lines }) => lines),
+        (this.manifestEntries ?? []).flatMap(({ lines }, index) =>
+          lines.map((line) => ({
+            ...line,
+            origin: {
+              ...this.manifestSnapshot.origin,
+              path: ["files", index, "patch"],
+            },
+          })),
+        ),
         lineKey,
         ({ node }) => node,
-        { nested: true, labelOf: lineLabel, snapshot: this.manifestSnapshot },
+        {
+          nested: true,
+          labelOf: lineLabel,
+          snapshot: this.manifestSnapshot,
+          originOf: ({ origin }) => origin,
+        },
       );
     }
 

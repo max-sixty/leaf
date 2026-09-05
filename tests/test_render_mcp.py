@@ -554,8 +554,34 @@ def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_del
         )
 
         app.locator("#comment-page").click()
-        app.locator("#comment").fill("Explain the migration boundary.")
-        app.locator("#send").click()
+        comment = app.locator("#comment")
+        expect(comment).to_have_attribute(
+            "aria-keyshortcuts", "Meta+Enter Control+Enter"
+        )
+        assert comment.get_attribute("placeholder") in {
+            "Comment on this page · ⌘⏎",
+            "Comment on this page · Ctrl+⏎",
+        }
+        assert app.locator("#send").get_attribute("title") in {
+            "Send comment (⌘⏎)",
+            "Send comment (Ctrl+⏎)",
+        }
+        comment.fill("Explain the migration boundary.")
+        comment.press("Enter")
+        comment.type("Keep both layers.")
+        comment.press("Shift+Enter")
+        comment.type("Preserve both histories.")
+        expect(comment).to_have_value(
+            "Explain the migration boundary.\n"
+            "Keep both layers.\n"
+            "Preserve both histories."
+        )
+        assert not [
+            call
+            for call in page.evaluate("window.calls")
+            if call["method"] == "tools/call"
+        ]
+        comment.press("ControlOrMeta+Enter")
         page.wait_for_function(
             "() => window.calls.filter(call => call.method === 'tools/call').length === 1"
         )

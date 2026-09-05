@@ -73,6 +73,29 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_a_website_example_says_no_agent_will_respond(browser, serve):
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page("Website example", "<h1>Website example</h1>"),
+            website_example={"install_url": "/#install"},
+        ),
+    )
+    try:
+        status = page.locator(".lf-banner .lf-status-text")
+        expect(status).to_have_text(
+            "This is an example on the Leaf website. No agent will respond. "
+            "Install Leaf"
+        )
+        expect(status.locator("a")).to_have_attribute("href", "/#install")
+        expect(page.locator(".lf-banner .lf-dot")).to_have_class(
+            re.compile(r"^lf-dot\s*$")
+        )
+        assert errors == []
+    finally:
+        page.close()
+
+
 def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     preview = {
         "kind": "example",

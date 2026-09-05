@@ -221,6 +221,9 @@ lf-chip, .lf-chips span {
 lf-options { display: block; margin: 14px 0; --lf-joined: 0;
              container-type: inline-size; }
 lf-option { display: block; position: relative; }
+/* The submitted draft keeps its line breaks when it becomes an option. Restrict this to
+ * generated options: authored markup carries formatting whitespace around its prose. */
+lf-option[data-lf-added] { white-space: pre-wrap; }
 /* The card dressing is the titled form's, said so rather than painted on every option
  * and reset by the row form: a reset is a guard reading state another rule wrote, and
  * the row form carried four of them for dressing no row ever showed. The same sentence
@@ -738,7 +741,7 @@ lf-options > .lf-done > .lf-address { position: absolute;
    * scoped to :not([settled]) this rule left a reader who had Tabbed into it with
    * nothing on screen saying where they were. */
   lf-options[choose]:not(:where([data-lf-exhibit]) *)
-    > .lf-another:has(input:is(:focus-visible, .lf-focus-visible)) {
+    > .lf-another:has(textarea:is(:focus-visible, .lf-focus-visible)) {
       outline: var(--here-ring); --lf-here-ring: options-row;
       outline-offset: calc(-1 * var(--here-ring-w));
   }
@@ -747,13 +750,13 @@ lf-options > .lf-done > .lf-address { position: absolute;
   /* The field holds the option before it is recorded, so its words use the document's
    * face just as they will after the module turns them into an lf-option. Add remains a
    * real button with a compact visible word and the full accessible name. Positioned
-   * over room the input reserves, hiding its empty state changes paint rather than layout. */
-  .lf-another input { flex: 1; min-width: 0; padding: 0;
+   * over room the textarea reserves, hiding its empty state changes paint rather than layout. */
+  .lf-another textarea { flex: 1; min-width: 0; padding: 0;
                      padding-inline-end: calc(var(--aim-floor) + var(--sp-4));
                      border: 0; outline: none; background: transparent; color: inherit;
-                     font: var(--t-4)/1.6 var(--serif); }
+                     font: var(--t-4)/1.6 var(--serif); resize: none; }
   .lf-another > .lf-btn { position: absolute; inset-inline-end: var(--sp-1);
-                     top: 50%; transform: translateY(-50%);
+                     inset-block-end: var(--sp-1);
                      display: flex; align-items: center; justify-content: center;
                      min-width: var(--aim-floor); height: var(--aim-floor);
                      padding: 0 var(--sp-1);
@@ -839,11 +842,11 @@ lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > stron
                      > :is(lf-option, .lf-another) {
                      padding-inline-start: calc(var(--lf-address-col) + var(--lf-pick-col)); }
 /* A row's table spacing holds its prose off the mark column. The form has no anonymous
- * table cell to supply that space, so its input takes the same named gap. Matching the
+ * table cell to supply that space, so its textarea takes the same named gap. Matching the
  * option's vertical inset makes the draft and the option it becomes one stable row. */
 lf-options:not(:has(> lf-option > strong)) > .lf-another:not([hidden]) {
                      gap: 0; padding-block: 5px; padding-inline-end: var(--lf-row-gap); }
-lf-options:not(:has(> lf-option > strong)) > .lf-another input {
+lf-options:not(:has(> lf-option > strong)) > .lf-another textarea {
                      margin-inline-start: var(--lf-row-gap); }
 /* A cramped row still has three cells: its words, the block reference, and the mark.
  * Separate-border spacing also puts one gap outside each end, and those two empty gaps

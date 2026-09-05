@@ -8,6 +8,7 @@ import {
   sendDraft,
   notice,
   watchDraft,
+  wireInput,
   wrote,
 } from "/runtime/widget-api.js";
 
@@ -23,7 +24,7 @@ export class OptionAddition {
   #form = null;
   #input = null;
   #add = null;
-  #adding = false;
+  #syncInput = () => {};
   #stopDraftWatch = null;
 
   constructor(host, { offered, available, commit }) {
@@ -41,7 +42,7 @@ export class OptionAddition {
       this.#stopDraftWatch = watchDraft(this.#context, (value) => {
         if (!this.#form.isConnected) return this.disconnect();
         this.#input.value = value ?? "";
-        this.#sync();
+        this.#syncInput();
       });
     }
   }
@@ -56,41 +57,37 @@ export class OptionAddition {
   }
 
   refresh() {
-    if (this.#form) this.#sync();
+    if (this.#form) this.#syncInput();
   }
 
   #buildForm() {
     this.#form = offer("form", "lf-another");
-    this.#input = offer("input");
-    this.#input.type = "text";
-    this.#input.placeholder = ANOTHER;
+    this.#input = offer("textarea");
+    this.#input.rows = 1;
     this.#input.setAttribute("aria-label", ANOTHER);
     this.#add = offer("button", "lf-btn", "Add");
-    this.#add.type = "submit";
     this.#add.setAttribute("aria-label", "Add option");
     this.#input.value = loadDraft(this.#context) ?? "";
-    this.#input.addEventListener("input", () => {
-      this.remember(this.#picked());
-      this.#sync();
-    });
-    this.#form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      void this.#submit();
-    });
     this.#form.append(this.#input, this.#add);
+    this.#syncInput = wireInput(this.#input, {
+      hint: ANOTHER,
+      sends: "add option",
+      sendBtn: this.#add,
+      allowsMedia: null,
+      busy: () => !this.available(),
+      layout: this.#paintEmpty,
+      save: () => this.remember(this.#picked()),
+      send: (text, _raw, owns) => this.#submit(text, owns),
+    });
     this.#host.append(this.#form);
-    this.#sync();
+    this.#syncInput();
   }
 
-  #sync() {
+  #paintEmpty = () => {
     const empty = !this.#input.value.trim();
-    const disabled = this.#adding || !this.available() || empty;
     if (empty && focused() === this.#add) this.#input.focus();
     this.#add.toggleAttribute("data-lf-empty", empty);
-    this.#add.setAttribute("aria-disabled", String(disabled));
-    if (this.#adding) this.#add.setAttribute("aria-busy", "true");
-    else this.#add.removeAttribute("aria-busy");
-  }
+  };
 
   #picked() {
     return new Set(this.#host.querySelectorAll(":scope > lf-option[chosen]"));
@@ -124,34 +121,19 @@ export class OptionAddition {
     };
   }
 
-  async #submit() {
-    if (this.#adding || !this.available()) return;
-    const raw = this.#input.value;
-    const text = raw.trim();
-    if (!text) return notice("Nothing to add — the field is empty");
-    this.#adding = true;
-    this.#sync();
-    try {
-      const accepted = await sendDraft(
-        this.#context,
-        () => this.#input.value === raw,
-        (attempt, payload) => {
-          const id = `${this.#host.id}-option-${attempt}`;
-          const standing = this.#draftChoice(payload);
-          const additions = { ...(standing.additions ?? {}), [id]: text };
-          const picked = new Set(
-            this.#host.hasAttribute("multiple") ? standing.options : [],
-          );
-          picked.add(id);
-          const detail = { options: [...picked], additions };
-          return this.#commit(detail, attempt);
-        },
+  async #submit(text, owns) {
+    const accepted = await sendDraft(this.#context, owns, (attempt, payload) => {
+      const id = `${this.#host.id}-option-${attempt}`;
+      const standing = this.#draftChoice(payload);
+      const additions = { ...(standing.additions ?? {}), [id]: text };
+      const picked = new Set(
+        this.#host.hasAttribute("multiple") ? standing.options : [],
       );
-      if (accepted) notice(`Added “${text}” — sent`);
-    } finally {
-      this.#adding = false;
-      this.#sync();
-    }
+      picked.add(id);
+      const detail = { options: [...picked], additions };
+      return this.#commit(detail, attempt);
+    });
+    if (accepted) notice(`Added “${text}” — sent`);
   }
 
   #additions() {

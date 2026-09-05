@@ -119,10 +119,10 @@ export function wireInput(
   };
   inputPaints.set(ta, paint);
   const repaint = () => {
+    sendBtn.title = `${sendBtn.textContent.trim()} (${sendKeys})`;
     if (focused() === ta) paintInputs();
     else paint();
   };
-  sendBtn.title = `${sendBtn.textContent.trim()} (${sendKeys})`;
   if (altBtn) altBtn.title = altBtn.textContent;
   let sending = false;
   let uploading = false;

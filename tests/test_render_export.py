@@ -93,6 +93,12 @@ def test_the_restart_reading_accepts_only_observed_restart_diagnostics():
                 "leaf: page failed to start: Failed to fetch dynamically imported "
                 "module: http://127.0.0.1:43925/widgets/lf-swipe-deck.js"
             ),
+            (
+                "TypeError: Failed to fetch\n"
+                "    at loadIcon (http://127.0.0.1:43925/runtime/banner.js:71:22)\n"
+                "    at startPage (http://127.0.0.1:43925/leaf.js:3880:5)\n"
+                "    at http://127.0.0.1:43925/leaf.js:3899:1"
+            ),
         ]
     )
     for refused in (
@@ -103,6 +109,12 @@ def test_the_restart_reading_accepts_only_observed_restart_diagnostics():
         "leaf: registry failed to load (500)",
         "leaf: page failed to start: SyntaxError: Unexpected token '<'",
         "TypeError: page.querySelector(...) is null",
+        (
+            "TypeError: Failed to fetch\n"
+            "    at loadIcon (http://127.0.0.1:43925/runtime/banner.js:71:22)\n"
+            "    at startPage (http://127.0.0.1:43926/leaf.js:3880:5)\n"
+            "    at http://127.0.0.1:43926/leaf.js:3899:1"
+        ),
     ):
         with pytest.raises(AssertionError):
             assert_only_preview_restart_errors([refused])

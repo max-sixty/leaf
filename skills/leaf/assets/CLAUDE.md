@@ -466,8 +466,9 @@ that adds the capability.
 
 Directional category walks use the category's letter, with case stating direction:
 lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
-walks open asks. Keep these as single-key presses rather than prefix sequences; a walk
-is often repeated or held. While the reader stands anywhere in an Ask, its widget's
+walks open asks. Both walks clamp at their first and last items. Keep these as single-key
+presses rather than prefix sequences; a walk is often repeated or held. While the reader
+stands anywhere in an Ask, its widget's
 ordered actions keep a canonical binding where they declare one and otherwise take the
 next free `1`–`9`. Core projects that exact list into the key line and visible control
 chips. Each action is a command route; that route is the one

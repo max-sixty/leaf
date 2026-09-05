@@ -90,7 +90,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
         "Threads",
         "version picker",
         "Map",
-        "all keyboard shortcuts",
+        "All keyboard shortcuts",
         "All leaves",
     ):
         expect(guide).to_contain_text(surface)
@@ -4579,7 +4579,9 @@ def test_the_resting_key_line_names_the_presses_that_say_something_back(browser,
     help_el = page.locator(".lf-help")
     expect(help_el).to_be_visible()
     expect(help_el).to_contain_text("Search all the text on the page")
-    expect(help_el).to_contain_text("Choose a visible item by hint, to comment on or react to")
+    expect(help_el).to_contain_text(
+        "Choose a visible item by hint, to comment on or react to"
+    )
     expect(help_el).to_contain_text("Move 60% of a page down")
     expect(help_el).to_contain_text("Move 60% of a page up")
     assert errors == []

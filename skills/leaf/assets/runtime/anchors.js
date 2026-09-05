@@ -231,7 +231,7 @@ export function createAnchors(dependencies) {
   const parentAcross = (element) =>
     element?.parentElement ?? element?.getRootNode()?.host ?? null;
   const outermostAcross = (element, selector) => {
-    for (let parent = parentAcross(element); parent; ) {
+    for (let parent = parentAcross(element); parent;) {
       const outer = closestAcross(parent, selector);
       if (!outer) break;
       element = outer;

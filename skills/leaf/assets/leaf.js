@@ -18,7 +18,7 @@
  * was made on, without the page's author having to copy it into the next one by
  * hand. When a version does mean to overrule one — the content the decision was
  * about got rewritten — `version check` makes the author say so (see restatement_errors in
- * the leaf.validation package); it is never inferred from the markup's silence. Widgets opt in via an
+ * the leaf.validation package); it is never inferred from the markup's silence. Widgets opt in via a
  * renderState(state) method stating an absolute value, so a reload keeps the
  * user's drag and a second tab follows along live.
  *

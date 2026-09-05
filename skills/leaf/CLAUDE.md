@@ -1708,9 +1708,11 @@ belongs to the name alone. Painted beside the phase, the same words read as prog
 rather than position.
 
 Hover or focus on any interactive fitting illuminates its exact target, including a
-cluster displaced by packing. Hovering a status shows its label without lifting it or
-claiming its target; a numbered Page-map arrival may still focus it and illuminate the
-target deliberately. Labels stay inside the viewport without moving the fitting.
+cluster displaced by packing. Hovering a status shows its label and connects it to the
+target with a softer neutral trace, without lifting the fitting or borrowing the accent
+ring that promises interaction. A numbered Page-map arrival may still focus it and
+illuminate the target deliberately. Labels stay inside the viewport without moving the
+fitting.
 Dense and narrow-screen tests must exercise that association and activate an excess
 action through Page map; counting hidden DOM nodes is not evidence of reachability.
 

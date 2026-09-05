@@ -744,6 +744,14 @@ ${MARK_RULES}
        response bar, and inspect in their ordinary order within it. */
     :is(.lf-page-paint, .lf-target-paint) { z-index: 8890; }
     .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: 9060; }
+    .lf-margin-status-trace { position: absolute; display: none; pointer-events: none;
+      box-sizing: border-box; border: var(--status-trace-w) solid var(--status-trace-ink);
+      --lf-shape-ink: var(--status-trace-ink); --lf-shape-stroke: var(--status-trace-w);
+      --lf-shape-dash: none; }
+    .lf-margin-status-trace.lf-shaped {
+      border: 0; border-radius: 0 !important; background: none; }
+    .lf-margin-status-trace-shape {
+      display: block; width: 100%; height: 100%; overflow: hidden; }
     .lf-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
       display: flex;
       align-items: center; gap: 10px;

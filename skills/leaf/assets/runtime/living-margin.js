@@ -524,6 +524,7 @@ export function createLivingMargin(dependencies) {
     setPanel,
     showThread,
     stateProjection,
+    traceTarget,
     threadPanel,
     threadClaimed,
     threads,
@@ -738,9 +739,11 @@ export function createLivingMargin(dependencies) {
   let forcedInlineKey = null;
   let expandedOptionsKey = null;
   let hoveredHost = null;
+  let hoveredBehavior = null;
   let settlingOptionsFocus = false;
   let suppressingOptionsArrival = false;
   let highlighted = null;
+  let highlightedBehavior = null;
   let rovingFrame = 0;
   let sheetCloseOwnsFocus = false;
   let sheetFrom = null;
@@ -2278,6 +2281,7 @@ export function createLivingMargin(dependencies) {
           // A new keyboard destination outranks a pointer parked on the previous
           // target. Real pointer movement can take ownership back without a press.
           hoveredHost = null;
+          hoveredBehavior = null;
           refreshHighlight();
         });
         host.addEventListener("focusout", () =>
@@ -2287,15 +2291,16 @@ export function createLivingMargin(dependencies) {
           const control = document
             .elementFromPoint(event.clientX, event.clientY)
             ?.closest?.(".lf-margin-button");
-          hoveredHost =
-            control && host.contains(control) && control.dataset.lfBehavior !== "status"
-              ? host
-              : null;
+          hoveredHost = control && host.contains(control) ? host : null;
+          hoveredBehavior = hoveredHost ? control.dataset.lfBehavior : null;
           refreshHighlight();
         };
         host.addEventListener("pointermove", takePointerOwnership);
         host.addEventListener("pointerleave", () => {
-          if (hoveredHost === host) hoveredHost = null;
+          if (hoveredHost === host) {
+            hoveredHost = null;
+            hoveredBehavior = null;
+          }
           refreshHighlight();
         });
         host.addEventListener("focusout", (event) => {
@@ -2470,23 +2475,30 @@ export function createLivingMargin(dependencies) {
     return node;
   }
 
-  function highlight(target) {
-    if (highlighted === target) return;
+  function highlight(target, behavior = null) {
+    if (highlighted === target && highlightedBehavior === behavior) return;
     highlighted?.classList.remove("lf-margin-target");
     highlighted = target;
-    highlighted?.classList.add("lf-margin-target");
+    highlightedBehavior = target ? behavior : null;
+    traceTarget(behavior === "status" ? target : null);
+    if (target && behavior !== "status") target.classList.add("lf-margin-target");
   }
 
   function refreshHighlight() {
     const active = focused();
     const focusedHost = closestAcross(active, "[data-lf-margin-for]");
-    const key =
-      (hoveredHost?.isConnected ? hoveredHost.lfEntry?.key : null) ??
-      focusedHost?.lfEntry?.key ??
+    const pointerHost = hoveredHost?.isConnected ? hoveredHost : null;
+    const source =
+      pointerHost ??
+      focusedHost ??
       (preview.contains(active) || preview.matches(":popover-open")
-        ? previewEntry?.key
+        ? hosts.get(previewEntry?.key)
         : null);
-    highlight(pageMapEntries.find((entry) => entry.key === key)?.target ?? null);
+    highlight(
+      pageMapEntries.find((entry) => entry.key === source?.lfEntry?.key)?.target ??
+        null,
+      source === pointerHost ? hoveredBehavior : null,
+    );
   }
 
   function showPreview(entry, button, retry = true) {

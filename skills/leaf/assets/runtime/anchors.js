@@ -76,6 +76,7 @@ export function createAnchors(dependencies) {
     inChrome,
     inUi,
     inspectEl,
+    marginTraceBox,
     offer,
     pageQueryAll,
     pageScroller,
@@ -707,7 +708,13 @@ export function createAnchors(dependencies) {
   let pendingOutline = []; // the elements the open draft outlines, owned by nobody else
   let actionOutline = []; // the visual target whose action bar is standing
   const visualTargets = new Map();
-  const targetPaint = createTargetPaint({ aimBox, el, inChrome, visualMarkLayer });
+  const targetPaint = createTargetPaint({
+    aimBox,
+    el,
+    inChrome,
+    marginTraceBox,
+    visualMarkLayer,
+  });
   // What the pointer would take, in whichever arming stands — the ⌥ aim's item, or design
   // mode's target: the element, and the control's word where the pointer is on one — and
   // null when neither is armed. One answer for the box, the cursor and the name.
@@ -1638,6 +1645,10 @@ export function createAnchors(dependencies) {
     isMarked: (id) => marked.has(id),
     placedAt: (id) => placed.get(id),
     refreshAim,
+    traceTarget: (target) => {
+      const part = target ? visualAt(target, { unclaimed: false })?.part : null;
+      targetPaint.traceTarget(target, part?.element === target ? part.surface : target);
+    },
     dockSeats,
     paintAnchors,
     fragmentId,

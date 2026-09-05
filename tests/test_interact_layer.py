@@ -758,6 +758,25 @@ def test_init_vendors_the_layer(page_dir):
     }
 
 
+def test_init_does_not_vendor_the_mcp_app_resource(page_dir):
+    """The MCP App resource is delivery surface, not layer payload.
+
+    An MCP host reads it from the install over the tool transport, so a page
+    directory has no use for it. It sat in `assets/vendor/` once, and
+    `compose_layer` copied that whole directory into every page: 396KB, about
+    38% of what a page vendored. The check compares bytes, since the regression
+    is the file landing under a layer root under any name.
+    """
+    resources = [path for path in schema_model.MCP_APP.iterdir() if path.is_file()]
+    assert resources, "no MCP App resource to keep out of a page"
+    vendored = {
+        path.read_bytes(): path for path in page_dir.rglob("*") if path.is_file()
+    }
+    for resource in resources:
+        landed = vendored.get(resource.read_bytes())
+        assert landed is None, f"{resource.name} was vendored as {landed}"
+
+
 def _css_parse_errors(nodes):
     """Every parse-error token in a tinycss2 reading, at any depth."""
     errors = []

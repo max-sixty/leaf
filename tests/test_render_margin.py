@@ -182,6 +182,62 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
     page.close()
 
 
+def test_an_unchanged_heartbeat_restates_no_margin_name(browser, serve):
+    """The heartbeat must not rewrite a name, state, or word it is not changing.
+
+    `render` is bound to `lf-actions`, so an unconditional write here restates
+    itself every two seconds on a page nobody has touched: the mutation stream a
+    screen reader rebuilds its buffer from, and a dirty box for whatever reads
+    next. The corpus used to restate 205 attributes and the Page-map button's
+    words on every pass. A record is a restatement only when the node already
+    carried the value being written, so a real change is still free — as is the
+    one attribute two writers disagree over, `aria-expanded` on a marker, which
+    `marginButton` defaults and `syncThreadRelation` then strips because the
+    marker opens no thread. That is a seam between two writers rather than a
+    writer restating itself, and it needs an answer about what a thread-less
+    disclosure should announce before it can be closed here.
+    """
+    corpus = next(example for example in EXAMPLES if example.stem == "corpus")
+    page, errors = open_page(browser, serve(corpus))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    assert page.locator(".lf-margin-item").count() >= 15
+    restated = page.evaluate(
+        """refreshes => {
+          const text = nodes => [...nodes].map(node => node.textContent).join('');
+          const observer = new MutationObserver(() => {});
+          for (const root of [document.querySelector('nav.lf-living-margin'),
+                              document.querySelector('.lf-page-map-toggle')])
+            observer.observe(root, {subtree: true, childList: true,
+              characterData: true, characterDataOldValue: true,
+              attributes: true, attributeOldValue: true});
+          for (let i = 0; i < refreshes; i++)
+            document.dispatchEvent(new CustomEvent('lf-actions'));
+          const records = observer.takeRecords();
+          observer.disconnect();
+          const said = record => {
+            const on = record.target.className || record.target.nodeName;
+            if (record.type === 'attributes')
+              return record.oldValue !== null && record.oldValue ===
+                record.target.getAttribute(record.attributeName)
+                ? {on, wrote: record.attributeName, said: record.oldValue}
+                : null;
+            if (record.type === 'characterData')
+              return record.oldValue === record.target.data
+                ? {on, wrote: 'text', said: record.oldValue} : null;
+            return text(record.removedNodes) === text(record.addedNodes)
+              && record.removedNodes.length > 0
+              ? {on, wrote: 'children', said: text(record.addedNodes)} : null;
+          };
+          return records.map(said).filter(Boolean);
+        }""",
+        5,
+    )
+    assert restated == [], restated
+    assert errors == []
+    page.close()
+
+
 def test_an_unchanged_compact_margin_keeps_the_reader_at_the_document_end(
     browser, serve
 ):

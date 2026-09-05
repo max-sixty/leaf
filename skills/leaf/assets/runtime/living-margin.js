@@ -185,6 +185,20 @@ function syncForwardedButtonState(projection, source) {
   }
 }
 
+// The margin's renders are bound to the `lf-actions` heartbeat, so a write that
+// restates what the node already says restates it every two seconds on a page nobody
+// has touched: the mutation stream a screen reader rebuilds its buffer from, and a
+// fresh dirty box for whatever reads next. `toggleAttribute` keeps that rule for the
+// flags by construction and several readings below keep it inline; these two are the
+// same rule for the names, states, and words that have no such door.
+function keeps(node, name, value) {
+  if (node && node.getAttribute(name) !== value) node.setAttribute(name, value);
+}
+
+function keepsHidden(node, hidden) {
+  if (node && node.hidden !== hidden) node.hidden = hidden;
+}
+
 // One Button grammar for every gesture in a target's RHS cluster. Contributors keep
 // their verbs and events; the margin owns the behavior and anatomy that make the
 // controls one family. The visible word stays in the DOM as a transient label, so
@@ -231,10 +245,11 @@ export function marginButton(
   });
   control[BUTTON_RECORD] = record;
 
-  control.classList.add("lf-margin-button");
+  if (!control.classList.contains("lf-margin-button"))
+    control.classList.add("lf-margin-button");
   control.removeAttribute("title");
-  control.dataset.lfButtonKey = record.key;
-  control.dataset.lfBehavior = record.behavior;
+  keeps(control, "data-lf-button-key", record.key);
+  keeps(control, "data-lf-behavior", record.behavior);
   // Which of a status's two sources this one has. The behavior answers the question
   // every other reader asks — whether this is a press — and both sources answer it the
   // same way, so the durability is a second declaration rather than a fifth behavior.
@@ -242,19 +257,19 @@ export function marginButton(
   // move an agent is still making and a file has nothing standing behind them, while a
   // standing Outcome is the record of a decision the same file already carries.
   control.toggleAttribute("data-lf-standing", record.standing);
-  control.dataset.lfTone = record.tone;
-  control.dataset.lfRole = record.role;
-  control.dataset.lfOffer = behavior === "status" ? "" : "button";
+  keeps(control, "data-lf-tone", record.tone);
+  keeps(control, "data-lf-role", record.role);
+  keeps(control, "data-lf-offer", behavior === "status" ? "" : "button");
   marginButtonState(control, state);
   const opens = behavior === "disclosure";
   if (opens && !control.hasAttribute("aria-expanded"))
     control.setAttribute("aria-expanded", "false");
   if (!opens) control.removeAttribute("aria-expanded");
   if (behavior === "status") {
-    control.setAttribute("role", "status");
+    keeps(control, "role", "status");
     control.tabIndex = -1;
   } else if (!(control instanceof HTMLButtonElement)) {
-    control.setAttribute("role", "button");
+    keeps(control, "role", "button");
     if (control.tabIndex < 0) control.tabIndex = 0;
   } else if (control.getAttribute("role") === "status") {
     control.removeAttribute("role");
@@ -348,7 +363,7 @@ export function marginButtonState(control, state) {
     throw new TypeError("A Button state needs a margin Button");
   if (!BUTTON_STATES.has(state)) throw new TypeError(`Unknown Button state: ${state}`);
   buttonRecord(control).state = state;
-  control.dataset.lfState = state;
+  keeps(control, "data-lf-state", state);
   if (state === "busy") control.setAttribute("aria-busy", "true");
   else control.removeAttribute("aria-busy");
   return control;
@@ -1002,9 +1017,8 @@ export function createLivingMargin(dependencies) {
     }
     const opensBeside =
       !panelIsOpen() && (threadBeside() || forcedInlineKey === control.lfEntry?.key);
-    control.setAttribute("aria-controls", opensBeside ? preview.id : threadPanel.id);
-    if (opensBeside)
-      control.setAttribute("aria-expanded", String(previewButton === control));
+    keeps(control, "aria-controls", opensBeside ? preview.id : threadPanel.id);
+    if (opensBeside) keeps(control, "aria-expanded", String(previewButton === control));
     else control.removeAttribute("aria-expanded");
   }
   let postureFrame = 0;
@@ -1720,8 +1734,8 @@ export function createLivingMargin(dependencies) {
     const choice = primaryReading(entry);
     const behavior = readingBehavior(face);
     row.lfEntry = entry;
-    row.hidden = markerKinds.length === 0 || Boolean(primary);
-    row.dataset.lfKinds = markerKinds.map(({ kind }) => kind).join(" ");
+    keepsHidden(row, markerKinds.length === 0 || Boolean(primary));
+    keeps(row, "data-lf-kinds", markerKinds.map(({ kind }) => kind).join(" "));
     marginButton(row, {
       key: `reading:${choice?.key ?? "none"}`,
       icon: face.icon,
@@ -1918,9 +1932,9 @@ export function createLivingMargin(dependencies) {
         role: "overflow",
         state: "idle",
       });
-      spill.dataset.lfSpillCount = String(hidden);
+      keeps(spill, "data-lf-spill-count", String(hidden));
       spill.lfFirstSpilledOption = unique[visibleCapacity];
-      spill.setAttribute("aria-label", `Show ${hidden} more in Page map`);
+      keeps(spill, "aria-label", `Show ${hidden} more in Page map`);
       spill.onclick = () => openSheet(entry, { invoker: spill, focusSpill: true });
       wanted.push(spill);
     } else if (spill) {
@@ -1934,11 +1948,12 @@ export function createLivingMargin(dependencies) {
         group.insertBefore(child, group.children[position] ?? null);
     });
     group.lfEntry = entry;
-    group.setAttribute(
+    keeps(
+      group,
       "aria-label",
       `${entryEngaged(entry) ? "Actions" : "More options"} for ${entry.title}`,
     );
-    group.hidden = !optionsOpen || wanted.length === 0;
+    keepsHidden(group, !optionsOpen || wanted.length === 0);
   }
 
   function syncControls(host, marker, more, options, entry) {
@@ -1961,12 +1976,12 @@ export function createLivingMargin(dependencies) {
     const optionsOpen =
       secondaries > 0 &&
       (!hasOptions || expandedOptionsKey === entry.key || entryEngaged(entry));
-    more.hidden = !hasOptions || optionsOpen;
+    keepsHidden(more, !hasOptions || optionsOpen);
     more.lfEntry = entry;
-    more.setAttribute("aria-label", `More options for ${entry.title}`);
-    more.setAttribute("aria-expanded", String(optionsOpen));
+    keeps(more, "aria-label", `More options for ${entry.title}`);
+    keeps(more, "aria-expanded", String(optionsOpen));
     host.toggleAttribute("data-lf-options-open", optionsOpen);
-    host.dataset.lfState = entryState(entry);
+    keeps(host, "data-lf-state", entryState(entry));
     // Replacing a focused proxy fires focusout synchronously. The render already owns
     // the resulting cluster state and transfers focus below, so do not let that event
     // start a nested render against the same child list.
@@ -2327,8 +2342,8 @@ export function createLivingMargin(dependencies) {
       } else updateMarginRow(host, markerOptions(host));
       host.lfEntry = entry;
       host.lfTarget = entry.target;
-      host.dataset.lfMarginFor = entry.target.id || entry.key;
-      host.setAttribute("aria-label", `Page actions for ${entry.title}`);
+      keeps(host, "data-lf-margin-for", entry.target.id || entry.key);
+      keeps(host, "aria-label", `Page actions for ${entry.title}`);
       marker.lfEntry = entry;
       const primary = syncControls(host, marker, more, options, entry);
       if (entry.offers.length) {
@@ -2363,13 +2378,13 @@ export function createLivingMargin(dependencies) {
     pageMapEntries.forEach((entry, index) => {
       const marker = rows.get(entry.key);
       const name = markerName(entry, index, pageMapEntries.length, positions[index]);
-      if (marker?.getAttribute("aria-label") !== name)
-        marker?.setAttribute("aria-label", name);
+      keeps(marker, "aria-label", name);
     });
-    mapButton.hidden = pageMapEntries.length === 0;
-    mapButton.textContent = `Map (${pageMapEntries.length})`;
-    nav.hidden = pageMapEntries.length === 0;
-    nav.setAttribute("aria-label", `Page map, ${pageMapEntries.length} locations`);
+    const mapSays = `Map (${pageMapEntries.length})`;
+    keepsHidden(mapButton, pageMapEntries.length === 0);
+    if (mapButton.textContent !== mapSays) mapButton.textContent = mapSays;
+    keepsHidden(nav, pageMapEntries.length === 0);
+    keeps(nav, "aria-label", `Page map, ${pageMapEntries.length} locations`);
     if (sheet.open) renderSheet();
     if (previewEntry) {
       const fresh = pageMapEntries.find((entry) => entry.key === previewEntry.key);

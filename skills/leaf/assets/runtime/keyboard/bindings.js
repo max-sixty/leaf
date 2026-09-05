@@ -98,6 +98,8 @@
    and the visible surfaces change together. */
 // Which platform's spelling, and which modifier is the chord's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
+import { readerStore } from "../storage.js";
+
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 // How a key is spelled, in one column. The line said "esc" where the overlay said "Esc"
@@ -172,11 +174,16 @@ export const word = (cell) => (typeof cell === "function" ? cell() : cell);
 // character-only shortcuts. Keep that preference inside the binding vocabulary so the
 // dispatcher and every projection lose the same keys together. Shift still produces a
 // character and does not exempt a shortcut; Mod and Alt make it a modified command.
-let characterShortcuts = () => true;
-export const configureBindings = ({ characterShortcuts: enabled }) => {
-  characterShortcuts = enabled;
-};
-export const characterBinding = (binding) => {
+// A reader preference, not page state: it follows them across Leaf pages, while the
+// visible More button keeps the setting reachable when its own `?` shortcut is off.
+export const CHARACTER_SHORTCUTS_KEY = "lf-character-shortcuts";
+let characterShortcutsOn = readerStore.get(CHARACTER_SHORTCUTS_KEY) !== "0";
+export const characterShortcuts = () => characterShortcutsOn;
+export function setCharacterShortcuts(on) {
+  characterShortcutsOn = on;
+  readerStore.set(CHARACTER_SHORTCUTS_KEY, on ? null : "0");
+}
+const characterBinding = (binding) => {
   const { key, mods } = parsed(binding);
   // Space activates native and offered buttons; it is not the letter/number/punctuation
   // shortcut the preference promises to silence.
@@ -210,7 +217,7 @@ export const commandPresentations = (row, active = bindings(row)) => {
 // answer. Three rows existed only to carry a partner key — `u`, `k` and `]`, each
 // invisible on both surfaces and reachable only through a sibling's hand-typed spelling —
 // and folded into the rows that name them when this replaced those labels.
-export function decisionName(row, where = "the command register") {
+function decisionName(row, where = "the command register") {
   const value = word(row.decision);
   const name = typeof value === "string" ? value.trim() : "";
   if (!name)

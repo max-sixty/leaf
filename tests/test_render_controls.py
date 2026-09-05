@@ -3150,12 +3150,6 @@ def test_a_sheet_lifts_the_key_line_only_when_its_foot_reaches_the_same_lane(
 ):
     """The key line clears the panel foot when their rendered rectangles meet.
 
-    That foot is two rows once the page offers
-    reactions: the general composer, and the page's own reaction strip above it. A lift
-    measured off the composer alone put the line's More on the strip's ellipsis — 8.8px
-    of clear space between two things to press, and the reader aiming at the reaction
-    got the keyboard reference.
-
     A covering panel is not itself a collision: at the screenshot's 783px width its
     footer occupies the right lane while a focused composer's shorter key line fits in
     the left. The old breakpoint proxy still lifted the line by the footer's full height,
@@ -3167,7 +3161,6 @@ def test_a_sheet_lifts_the_key_line_only_when_its_foot_reaches_the_same_lane(
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
-    expect(page.locator(".lf-page-strip .lf-react-trigger")).to_be_visible()
 
     def boxes():
         return page.evaluate("""() => {
@@ -3179,8 +3172,7 @@ def test_a_sheet_lifts_the_key_line_only_when_its_foot_reaches_the_same_lane(
             const list = document.querySelector(".lf-threads");
             const style = getComputedStyle(list);
             return {keyline: rect(".lf-keyline"), foot: rect(".lf-panel-foot"),
-                    general: rect(".lf-general"), list: rect(".lf-threads"),
-                    trigger: rect(".lf-page-strip .lf-react-trigger"),
+                    list: rect(".lf-threads"),
                     viewportHeight: innerHeight,
                     listInlinePad: list.style.paddingBottom,
                     listPad: parseFloat(style.paddingBottom),
@@ -3188,16 +3180,8 @@ def test_a_sheet_lifts_the_key_line_only_when_its_foot_reaches_the_same_lane(
         }""")
 
     covering = boxes()
-    # The foot is taller than its composer, or the lift below would be the same
-    # measurement either way and the test would prove nothing.
-    assert covering["foot"]["height"] > covering["general"]["height"] + 1, (
-        f"the panel's foot carried no strip to be lifted over: {covering}"
-    )
     assert covering["keyline"]["bottom"] <= covering["foot"]["top"], (
         f"the key line stood on the sheet's foot: {covering}"
-    )
-    assert covering["keyline"]["bottom"] <= covering["trigger"]["top"], (
-        f"the key line stood on the page's reaction strip: {covering}"
     )
     # The line reaches back over the list, so the list reserves at least as much of its
     # own end as the line stands on — spent the wheel's way and the walk's way both.
@@ -4002,7 +3986,7 @@ RING_WALKS = (
     # nothing and the pair covers a menu of any length this corpus can hold.
     ("the versions menu", ("g", "Shift+v", "ArrowUp", "ArrowUp"), ("corpus",)),
     ("the reference", ("?", "?"), ("corpus",)),
-    ("design mode", ("i",), ("corpus",)),
+    ("design mode", ("l",), ("corpus",)),
     # A Thread card and the compact Page-map sheet are the two layers a Tab walk of the
     # page cannot open for itself. The card is a press on a Thread Button; the sheet is a
     # press on a Map control the wide posture does not draw at all, so its walk asks for

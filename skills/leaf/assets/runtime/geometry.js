@@ -1,6 +1,6 @@
 /* This module owns the shared readings of visible boxes and clipping, and the one
  * conversion from viewport boxes to document-positioned chrome. */
-import { uiInside } from "./passages.js";
+import { uiInside } from "./shadow.js";
 
 /* Shared readings of the boxes the page actually shows.
 

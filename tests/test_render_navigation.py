@@ -220,7 +220,7 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     option = page.locator("#bg-choice-street")
     option_box = option.bounding_box()
     assert option_box is not None
-    page.keyboard.press("i")
+    page.keyboard.press("l")
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
     page.mouse.click(
         option_box["x"] + option_box["width"] / 2,
@@ -3698,8 +3698,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
           const { commands } = await import('/runtime/widget-api.js');
           const { activeRows, answers: bindingAnswers, canonicalBinding } =
             await import('/runtime/keyboard/bindings.js');
-          const { createReturnStack } =
-            await import('/runtime/keyboard/return-stack.js');
+          const { invoke } = await import('/runtime/keyboard/return-stack.js');
           const { paintKeys } = await import('/runtime/keyboard/scopes.js');
           const declare = (id, rows) => {
             const button = document.createElement('button');
@@ -3747,13 +3746,8 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             return {declaration, paints};
           };
           const malformedFrame = () => {
-            const stack = createReturnStack({
-              focused: () => document.body,
-              paintHere: () => {},
-              readingBlock: () => document.querySelector('main'),
-            });
             try {
-              stack.invoke(
+              invoke(
                 {id: 'test.bad-frame', returnFrame: () => ({active: () => true})},
                 'F8',
                 () => {},

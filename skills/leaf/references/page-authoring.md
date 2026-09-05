@@ -103,8 +103,10 @@ page width.
 Give each section, major block, and widget item a stable, meaningful `id` at the
 tightest semantic boundary a reader can distinguish. Where a sole child fills a
 transparent wrapper, let the child carry the pair's one id.
-Threads and reading position attach to those ids across versions. Keep an id
-where its passage survives, and stay out of the `lf-` prefix: it is the runtime's
+Threads and reading position attach to those ids across versions, and so does a
+reader comparing this version with an earlier one: the id is how the comparison
+finds what the block said before, so a rewritten paragraph keeps the id it had.
+Stay out of the `lf-` prefix: it is the runtime's
 namespace for ids and for classes alike, and `data-lf-` is the same for
 attributes. `version check` refuses all three, including a name the runtime does
 not write today — the namespace is reserved, not the list of names in it.

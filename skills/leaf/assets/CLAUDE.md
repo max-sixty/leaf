@@ -2,7 +2,7 @@
 
 This file holds the contracts that cross the browser runtime's modules: what boots in
 which order, what the server and the page each own, the registry's grains, the
-layer-wide UI laws, the rows `leaf.js` still composes itself, what a copy or print
+layer-wide UI laws, the page's own rows (`keyboard/page.js`), what a copy or print
 keeps, the render gates, and how to work on the runtime. Everything one module
 owns is stated in that module's header comment, and the map below names the owner of
 each concern, so read the header before changing the module. Page-authoring commands
@@ -19,14 +19,41 @@ current one.
 
 ## Runtime ownership
 
-`leaf.js` is the boot-only browser entry module: it composes the runtime owners and
-starts the page, but exports no capability. The HTTP boundary places the vendored
+`leaf.js` is the boot-only browser entry module: every owner is a module that exports
+its capability and imports what it needs, and `leaf.js` imports them and runs the boot
+sequence (Startup and presentation, below). It exports no capability and no owner
+imports it back. The HTTP boundary places the vendored
 `runtime/bootstrap.js` before loadable resources, with an exact CSP hash; it can
 show startup failure and hear a replacement server even if the module graph or
 stylesheet never loads. `runtime/widget-api.js` is the one public
 helper surface for behavior modules and reexports capabilities directly from their
-runtime owners. An owner may publish a factory-built capability after boot wires its
-dependencies; it never reaches back through the entry module or public facade.
+runtime owners; an owner never reaches back through the entry module or public facade.
+
+The owners form one import cycle, which fixes what a module body may touch as it
+evaluates: its own declarations, a module the cycle does not reach (the
+`leaf/evaluation-order` rule in `eslint.config.mjs` computes that set from the import
+graph; `context.js`, `registry.js`, `widget-elements.js`, `keyboard/scopes.js` are
+examples), and a function declaration of another owner — referenced, never called,
+since the callee's own imports may not have evaluated yet. A read of another owner's
+part is a mount step under `runtime/chrome.js`'s `mountChrome`, and a value read from
+one is asked for at use. The register (`keyboard/scopes.js`) stays outside the cycle
+because it owns the repaint frame (`paintHere`) and `leaf.js`, not the register,
+imports `standing.js` and registers its painting as the first boot step. The page's
+own scope list is built on first use (`keyboard/page.js`: `pageScopes`) because its
+members are other owners' constants. Evaluation order is fixed by the import graph
+and the same on every page, so a read that breaks this is no error until an unrelated
+import edge reorders the walk, and then an uncaught `ReferenceError` at boot on every
+page. The browser gate is the guarantee (`leaf version check --render` and the
+everyday smoke test read page errors); the lint rule is the early, line-precise word:
+it refuses a module-scope read of a cycle binding or call of a cycle function, over the
+whole runtime directory whenever a runtime file is committed, and it does not see a
+callback another module runs during evaluation.
+`runtime/chrome.js` owns the chrome's root, the order its parts stack in, and
+`mountChrome`, the one step that puts them in the document and wires what needs them
+there;
+`runtime/standing.js` owns the one repaint of where the reader stands, in the order
+the geometry demands;
+`runtime/icons.js` owns the layer's icon table;
 `runtime/context.js` owns the mutable facts shared across the browser layers and
 their direct readers;
 `runtime/deferred-modals.js` holds authored modals outside the top layer until the
@@ -51,7 +78,7 @@ by the public semantic projection watchers;
 `runtime/composing/input.js` and `runtime/composing/selection.js` own shared input
 and selection-composer state;
 `runtime/drawn-edge.js` owns the shared resizable boundary used by the thread panel
-and tray panels;
+and tray panels, landing a new width through `chrome-layout.js`'s `landEdge`;
 `runtime/trays.js` owns the left tray edge, active tray, registration, restore, and
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
@@ -76,8 +103,10 @@ platform; `return-stack.js` what a keyboard entry owes on the way back out;
 `reference.js` the complete listing behind `?`; `address.js` the go-to chord;
 `address-placement.js` the one-digit address vocabulary and its placement pass;
 `presentation.js` how a chord row's presses are shown;
-`runtime/keyboard/disclosure.js` owns the shared disclosure bindings;
-`runtime/notifications.js` owns visual and assistive announcements;
+`runtime/keyboard/disclosure.js` owns the shared disclosure bindings and the
+disclosure watch; `runtime/keyboard/page.js` owns the page's own scopes and rows;
+`runtime/notifications.js` owns visual and assistive announcements and the notice
+element the banner seats;
 `runtime/arrangements.js` owns the browser-state arrangements the arrival gate exercises;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
 `runtime/presence.js` owns claim freshness and attendance judgment;
@@ -98,13 +127,14 @@ report, and work-claim feeds;
 `runtime/version.js` owns version travel whole: the chooser control, its menu and the
 newest-version chip, its `g V` destination row and the menu's local `v` scope, forced
 live activation,
-version-comparison state, marks and chooser paint, version document loading,
+version-comparison state, its marks and chooser paint, the earlier reading a
+marked block discloses, version document loading,
 authored-root replacement, the persisted semantic reading landmarks carried across that
 replacement, and the page-block reading directional walks start from;
 `runtime/widget-upgrade.js` owns widget upgrade guards, data bodies, fail-soft
 rendering, and async settlement;
-`runtime/widget-elements.js` owns widget-element construction, labels, gesture
-guards, deferred measurement, layout-change signalling, and control sizing;
+`runtime/widget-elements.js` owns widget-element construction, the response control's
+anatomy (`responseAction`), labels, gesture guards, deferred measurement, layout-change signalling, and control sizing;
 `runtime/registry.js` owns vocabulary queries;
 `runtime/scrolling.js` owns the document scroller identity, relative scroller moves,
 fixed-surface wheel forwarding, and the gutter its bar takes;
@@ -128,8 +158,10 @@ states, and page repaint caused by shell motion or reflow;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow and the containing block a
 scroller owes what it scrolls;
-`runtime/shadow.js` owns declared shadow roots, their theme slice, and shared
-highlight rules;
+`runtime/shadow.js` owns declared shadow roots, their theme slice, shared
+highlight rules, the parent walk that crosses a root, and the chrome question
+(`uiInside`, `inUi`: which layer a node stands in); `runtime/shadow-stage.js`
+owns the stage an x-shadow widget renders into;
 `runtime/widget-loader.js` owns registry loading, pre-upgrade passage fences,
 dynamic widget imports, and initial settlement;
 `runtime/storage.js` owns page addressing and browser-backed stores;
@@ -154,21 +186,20 @@ and panel arrival;
 `runtime/conversation/narrowing.js` owns comment-panel search and waiting-on-reader
 filter state;
 `runtime/conversation/placement.js` owns document-order grouping;
-`runtime/conversation/reaction-strips.js` owns the panel's message and page reaction
-surfaces;
+`runtime/conversation/reaction-strips.js` owns the panel's message reaction surfaces;
 `runtime/conversation/surfaces.js` owns registry-declared widget outlets and the set of
 threads they claim from the living-margin fallback;
 `runtime/conversation/thread-card.js` owns retained panel thread cards, their quote
 state, and their reply, resolve, and reopen controls;
 `runtime/conversation/thread-list.js` owns retained panel list reconciliation;
 `runtime/conversation/acknowledgments.js` owns growing acknowledgment receipts and live claim seats; and
-`runtime/conversation/reconcile.js` composes panel reconciliation;
+`runtime/conversation/reconcile.js` composes panel reconciliation and
+`runtime/conversation/panel.js` builds the panel's parts;
 `runtime/projection/authored.js` owns typed authored initial values and anchor
 parentage; `runtime/projection/data.js` owns keyed runtime-data DOM
 reconciliation; `runtime/projection/fold.js` adapts canonical action and report state
 to live DOM nodes and the local outbox;
-`runtime/projection.js` owns projection reconciliation and undo. The entry module
-composes their mutually dependent callbacks.
+`runtime/projection.js` owns projection reconciliation and undo.
 
 The widget layer loads the vendored
 registry, imports modules declared by `x-upgrade`, renders registry-declared
@@ -216,15 +247,21 @@ does not remember where a decision walk last landed.
 
 Startup order is load-bearing:
 
-1. Begin the first state read without applying its answer.
-2. Fetch and validate the registry.
-3. Index passage fences and authored parent identities before upgrade changes the DOM.
-4. Import the modules declared by `x-upgrade` for the tags this document
+1. Register the standing painter into the register's repaint frame, adopt the chrome
+   and marks sheets, and mount the chrome (`mountChrome`: the banner's arrangement,
+   the parts into the document, the banner's reservations, then every owner's wiring
+   of another owner's part).
+2. Begin the first state read without applying its answer.
+3. Restore the reader's arrangement from storage, and let focus go to the page.
+4. Fetch and validate the registry.
+5. Index passage fences and authored parent identities before upgrade changes the DOM.
+6. Import the modules declared by `x-upgrade` for the tags this document
    contains, and no others.
-5. Wait for module settlement, then run the shared dressing passes.
-6. Capture authored record facets from the upgraded, authored state.
-7. Mark `body` `data-lf-upgraded="1"`.
-8. Apply the prepared state answer, reconcile it, and present the page.
+7. Wait for module settlement, then run the shared dressing passes.
+8. Capture authored record facets from the upgraded, authored state.
+9. Mark `body` `data-lf-upgraded="1"`.
+10. Start the state feed; its first answer is applied, reconciled, and presents the
+    page.
 
 Authored HTML paints immediately on every page. Its prose, ordinary links, scrolling,
 and layout remain usable while widgets upgrade and the first state read is pending.
@@ -451,7 +488,7 @@ Document every inconsistency the survey exposes in the task handoff. If the rule
 here do not settle one, escalate it to the user before choosing locally; the
 absence of a dispatch conflict does not make a binding precise.
 
-### Page scope rows (leaf.js)
+### Page scope rows (keyboard/page.js)
 
 The register owns capabilities, not controls. Every capability the chrome offers
 has a row, and each control that reaches one is named by `control`; a
@@ -591,8 +628,8 @@ asserting one widget's exported implementation.
 `leaf version check <page> --render` is the browser contract. It re-vendors
 before loading, runs both color schemes, waits for the runtime's actual readiness
 and finite motion boundary, reads screen and print, and reapplies standing state.
-A local browser check is required after changing `leaf.js`, a widget module, the
-registry, or the theme.
+A local browser check is required after changing `leaf.js`, a runtime owner, a widget
+module, the registry, or the theme.
 
 The named JavaScript exports in `leaf/render-checks/index.js`, invoked by
 `leaf/render_checks.py` and composed by `leaf/render_gate/`, each answer one failure
@@ -626,7 +663,7 @@ been removed. `render-checks/init.js` installs the pre-navigation window-error c
 | `replayOverrides` | the log, not conflicting authored markup, determines projected state |
 | `relativeReplays` | rendering each complete widget state twice changes nothing |
 
-`standingState` and `shallowSigs` are published by their projection owner through the
+`standingState` and `shallowSigs` are exported by their projection owner through the
 widget API for these gates. Keep their
 readings aligned with the runtime's projection and authored-state definitions.
 Do not create a test-only interpretation of a widget's state.
@@ -661,8 +698,10 @@ animation can expose the behavior.
 
 ## Working on the runtime
 
-Run `node --check skills/leaf/assets/leaf.js`, formatting, and a
-focused real-browser test while iterating. Before handing over a runtime or theme
+Run `node --check` on the module, formatting, and a focused real-browser test while
+iterating. A module that reads another owner as it evaluates parses and lints clean and
+fails only in the browser, as `Cannot access X before initialization` at boot; the
+rule and its remedies are under Runtime ownership above. Before handing over a runtime or theme
 change, run the relevant full browser file or `leaf version check --render` on
 the affected example. `node --check` cannot validate browser bindings, computed
 layout, or reconciliation; the layer tests parse every vendored stylesheet.

@@ -6,22 +6,13 @@ the version checker accepts, uses root-absolute public routes, and is published 
 rewriting. The five sources become live-root directory routes, so the same runtime
 addressing used by a served Leaf applies without a site-only exception.
 
-The examples are the files in the tree too, and they are live. A static build
-materializes the version addresses that Leaf's live server resolves from revision
-records; the one thing it hasn't got is the process behind /api/state,
-/api/event, and /api/news. So the build lays one vendored layer at the site's root,
-where a page's absolute /theme.css and /leaf.js resolve, and puts each current example
-at examples/<name>/. Earlier immutable versions remain under that page's versions/,
-and every published example gets the same revision and version markers as a document
-served by Leaf. Product routes remain exact authored drafts and the static session
-supplies their revision identity. Authored HTML paints before this site's JavaScript
-arrives, as it does on a served Leaf page. `docs/session.js`, loaded in front of the
-runtime by `docs/leaf.js`, answers the five API paths in the reader's tab. Every control
-on the page is then the shipped one, working — the banner, the thread panel, a board
-that takes a drag and holds it. The half no host can supply is the agent at the other
-end: the page reports itself unattended and the banner says so in the runtime's own
-words. `docs/sitenote.js` states that boundary above an example; product routes use the
-same session and runtime without the example label.
+The examples are complete Leaf page directories under examples/<name>/. The same
+preparation path that serves a local example vendors each page's selected layer,
+stamps its authored versions, applies its companion event log and data, and closes the
+finished page without claiming it for an agent. A host can therefore route each clean
+example URL through Leaf's ordinary page server instead of maintaining a second
+browser-side session implementation. Product routes remain exact authored drafts and
+continue to use the site's static session.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
@@ -42,10 +33,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from example_data import data_operations, example_versions
-from leaf.event_log import read_events
-from leaf.files import revision_path, version_revisions
-from leaf.http import runtime_document
+from preview import prepare
 
 ROOT = Path(__file__).resolve().parent.parent
 LEAF = ROOT / "bin" / "leaf"
@@ -228,102 +216,15 @@ def publish_pages(out: Path, env: dict) -> None:
         publish_product_pages(page, out, env)
 
         for source in example_sources():
-            # The temporary page is reused only for its vendored layer. Reset its
-            # authored history so every independently published example starts at
-            # r1/v1, then let the real stamp boundary create the immutable revisions.
-            revisions = page / "revisions"
-            revisions.mkdir(exist_ok=True)
-            for old in revisions.iterdir():
-                old.unlink()
-            log = page / "events.jsonl"
-            log.write_text("", encoding="utf-8")
-            # The data door validates a source against the page's markup, and the
-            # current version is the one that has to bind it, so the newest version
-            # goes in before the stamping loop below walks back to the oldest.
-            (page / "index.html").write_text(
-                source.read_text(encoding="utf-8"), encoding="utf-8"
-            )
-            # External data is complete replaceable source state, not a log. The
-            # temporary page is reused for the corpus, so remove the prior example's
-            # sources before setting this one's through the same validating door a
-            # host uses.
-            data_file = page / "data.json"
-            data_file.unlink(missing_ok=True)
-            for operation in data_operations(source):
-                if operation["kind"] == "set":
-                    args = ["data", "set", str(page), operation["source"]]
-                    if operation["capture_label"] is not None:
-                        args.extend(("--capture-label", operation["capture_label"]))
-                    leaf(env, *args, input_text=json.dumps(operation["value"]))
-                    continue
-                args = [
-                    "data",
-                    "capture",
-                    str(page),
-                    operation["source"],
-                    "--file",
-                    str(operation["input_file"]),
-                    "--format",
-                    operation["format"],
-                ]
-                if operation["label"] is not None:
-                    args.extend(("--label", operation["label"]))
-                if operation["lines"] is not None:
-                    args.extend(("--lines", operation["lines"]))
-                leaf(env, *args)
-            # The example's companion log, where it ships one (examples/CLAUDE.md).
-            # Written rather than appended, because one page directory serves every
-            # example here and an appended seed would hand the next one the last one's
-            # thread. Laid after the first stamp and before any later one, so a revised
-            # example's exchange reads in the order it happened, and before the check,
-            # so what the gate reads is what the reader gets — an id resolving a
-            # comment is a claim about this log.
-            seed = source.with_suffix(".jsonl")
-            seed_text = seed.read_text(encoding="utf-8") if seed.exists() else ""
-            # Each authored version through the real stamp boundary, oldest first, so a
-            # revised example has the same stamped history as a served page. The build
-            # below publishes prior documents at their immutable addresses and the
-            # current document at the page root.
-            for order, authored in enumerate(example_versions(source)):
-                (page / "index.html").write_text(
-                    authored.read_text(encoding="utf-8"), encoding="utf-8"
-                )
-                leaf(
-                    env,
-                    "version",
-                    "stamp",
-                    str(page),
-                    "--text",
-                    "As published" if authored == source else "Earlier draft",
-                )
-                if order == 0 and seed_text:
-                    with log.open("a", encoding="utf-8") as event_log:
-                        event_log.write(seed_text)
             published = out / "examples" / source.stem
-            published.mkdir(parents=True)
-            mapped = sorted(version_revisions(read_events(page)).items())
-            prior_versions = mapped[:-1]
-            if prior_versions:
-                (published / "versions").mkdir(parents=True)
-            for version, revision in prior_versions:
-                markup = revision_path(page, revision).read_text(encoding="utf-8")
-                document = runtime_document(markup, revision, version)
-                (published / "versions" / f"v{version}.html").write_bytes(document)
-            version, revision = mapped[-1]
-            markup = revision_path(page, revision).read_text(encoding="utf-8")
-            (published / "index.html").write_bytes(
-                runtime_document(markup, revision, version)
-            )
-            # The thread the page opens on. A served page hands its log to the browser
-            # through /api/state, which is `docs/session.js`'s answer here. The static
-            # output keeps that seed beside its materialized version addresses, and the
-            # session puts it in the runtime's first answer.
-            (published / "events.jsonl").write_text(seed_text, encoding="utf-8")
-            (published / "data.json").write_text(
-                data_file.read_text(encoding="utf-8")
-                if data_file.exists()
-                else json.dumps({"revision": 0, "sources": {}}) + "\n",
-                encoding="utf-8",
+            prepare(
+                source,
+                published,
+                LEAF,
+                ROOT,
+                env=env,
+                final_status="idle",
+                current_note="As published",
             )
             print(f"  {source.stem}")
 
@@ -344,6 +245,7 @@ def build(out: Path, *, verify_links: bool = True) -> None:
     # the session's claim — and a build runs neither.
     env = {k: v for k, v in os.environ.items() if not k.startswith("LEAF_")}
     env.pop("CLAUDE_CODE_SESSION_ID", None)
+    env.pop("CODEX_THREAD_ID", None)
     with tempfile.TemporaryDirectory() as config_home:
         env["XDG_CONFIG_HOME"] = config_home
         publish_pages(out, env)

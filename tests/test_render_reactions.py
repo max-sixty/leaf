@@ -1,4 +1,4 @@
-"""Reactions: one-press tokens on a passage, an item, a reply, or the page."""
+"""Reactions: one-press tokens on a passage, an item, or a reply."""
 
 import json
 import re
@@ -28,7 +28,6 @@ from render_support import (
     select,
     sending,
     told,
-    undo,
     watched,
 )
 
@@ -228,14 +227,6 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(0)
-    # The panel's page row shows it standing nowhere: it is on a passage, not the page.
-    assert (
-        page.evaluate(
-            "() => document.querySelectorAll('.lf-page-strip [aria-pressed=\"true\"]').length"
-        )
-        == 0
-    )
-
     # The bar raised on the same passage again says the token stands, and pressing it
     # there is the same take-back as the glyph's. The panel closed first: open, it takes
     # the margin, the seat docks into the paragraph's own line, and a drag to the
@@ -381,21 +372,6 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         item.locator('.lf-react[data-token="ok"]'),
         open_margin_reactions,
         MARGIN_STATE_WITNESS,
-    )
-    page.keyboard.press("Escape")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    strip = page.locator(".lf-page-strip")
-
-    def open_page_reactions():
-        strip.locator(".lf-react-trigger").click()
-        expect(strip.locator(".lf-react:visible")).to_have_count(6)
-
-    open_page_reactions()
-    assert_selected_face(
-        strip.locator('.lf-react[data-token="ok"]'),
-        open_page_reactions,
-        "button => button.querySelector('.lf-react-word').checkVisibility()",
     )
     assert errors == []
     page.close()
@@ -551,25 +527,10 @@ def test_tab_changes_the_compact_bar_in_place_and_r_still_needs_a_target(
     expect(page.locator(".lf-panel")).to_be_hidden()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
-    # Page-wide reactions remain explicit inside Threads instead of being r's fallback.
+    # Opening Threads does not add an unanchored reaction target.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page_strip = page.locator(".lf-page-strip")
-    expect(page_strip.locator(".lf-react:visible")).to_have_count(0)
-    page_strip.locator(".lf-react-trigger").click()
-    expect(page_strip.locator(".lf-react:visible")).to_have_count(6)
-    page_strip.locator('.lf-react[data-token="more"]').click()
-    round_trip(page)
-    sent = events_model.read_events(serve.page_dir)[-1]
-    assert sent["token"] == "more" and "anchor" not in sent, sent
-    expect(page.locator(".lf-panel")).to_be_visible()
-    expect(
-        page.locator('.lf-page-strip .lf-react[data-token="more"]')
-    ).to_have_attribute("aria-pressed", "true")
-    undo(page)
-    expect(
-        page.locator('.lf-page-strip .lf-react[data-token="more"]')
-    ).to_have_attribute("aria-pressed", "false")
+    expect(page.locator(".lf-panel-foot .lf-react-strip")).to_have_count(0)
     assert errors == []
     page.close()
 
@@ -1001,9 +962,9 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
 ):
     """A covered composer cannot retain an invisible typing destination.
 
-    The panel can leave a usable page strip, no strip, or less room than the response
-    controls occupy. Resizing through those postures preserves the draft, withdraws its
-    unavailable surface, and hands the keyboard to the visible conversation workspace.
+    The panel can leave usable room beside it or cover the response controls at narrower
+    widths. Resizing between those postures preserves the draft, withdraws its unavailable
+    surface, and hands the keyboard to the visible conversation workspace.
     """
     page, errors = open_page(browser, serve(PANEL_PAGE))
     initial_events = events_model.read_events(serve.page_dir)

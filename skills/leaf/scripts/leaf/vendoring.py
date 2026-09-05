@@ -274,13 +274,14 @@ def _stamp_layer(
         **({"producer": producer} if producer else {}),
     }
     top_files = composition.top_files
-    runtime = top_files["leaf.js"]
-    top_files["leaf.js"] = runtime.replace(
+    directory_files = composition.directory_files
+    client = directory_files["runtime"]["layer-client.js"]
+    directory_files["runtime"]["layer-client.js"] = client.replace(
         LAYER_PLACEHOLDER, json.dumps(generation).encode()
     )
     # The registry makes the theme and modules live, so it commits last.
     top_files["registry.json"] = json_bytes(incoming)
-    return _VendoredLayer(top_files, composition.directory_files)
+    return _VendoredLayer(top_files, directory_files)
 
 
 def _checked_destinations(page_dir: Path, layer: _VendoredLayer) -> set[Path]:

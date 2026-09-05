@@ -66,6 +66,7 @@ def leaf(
     runtime: Path,
     *args,
     check: bool = True,
+    env: dict[str, str] | None = None,
     input_text: str | None = None,
     show_output: bool = False,
 ) -> None:
@@ -73,6 +74,7 @@ def leaf(
     result = subprocess.run(
         [str(launcher), *args],
         cwd=runtime,
+        env=env,
         check=False,
         input=input_text,
         stdout=None if show_output else subprocess.PIPE,
@@ -85,7 +87,12 @@ def leaf(
 
 
 def seed_data(
-    operations: list[dict], page: Path, launcher: Path, runtime: Path
+    operations: list[dict],
+    page: Path,
+    launcher: Path,
+    runtime: Path,
+    *,
+    env: dict[str, str] | None = None,
 ) -> None:
     """Apply each page-bound data operation shipped beside an example."""
     for operation in operations:
@@ -97,6 +104,7 @@ def seed_data(
                 launcher,
                 runtime,
                 *args,
+                env=env,
                 input_text=json.dumps(operation["value"]),
             )
             continue
@@ -114,7 +122,7 @@ def seed_data(
             args.extend(("--label", operation["label"]))
         if operation["lines"] is not None:
             args.extend(("--lines", operation["lines"]))
-        leaf(launcher, runtime, *args)
+        leaf(launcher, runtime, *args, env=env)
 
 
 def seed_log(source: Path, page: Path) -> None:
@@ -264,11 +272,20 @@ def authored_source(
     )
 
 
-def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> tuple[int, int]:
+def prepare(
+    source: Path,
+    page: Path,
+    launcher: Path,
+    runtime: Path,
+    *,
+    env: dict[str, str] | None = None,
+    final_status: str = "waiting",
+    current_note: str = "Draft as authored",
+) -> tuple[int, int]:
     """Build one page from the selected runtime and the source's fixtures."""
     packages = source_packages(source)
     selection_args = [arg for package in packages for arg in ("--package", package)]
-    leaf(launcher, runtime, "page", "init", *selection_args, str(page))
+    leaf(launcher, runtime, "page", "init", *selection_args, str(page), env=env)
     # The data door validates a source against the page's markup, and the current
     # version is the one that has to bind it, so the newest version goes in first and
     # the loop below walks back to the oldest and stamps forward from there.
@@ -279,7 +296,7 @@ def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> tuple[in
     if media.is_dir():
         shutil.copytree(media, page / "media", dirs_exist_ok=True)
     operations = data_operations(source)
-    seed_data(operations, page, launcher, runtime)
+    seed_data(operations, page, launcher, runtime, env=env)
     # Each authored version in order, through the real stamp boundary, so a revised
     # example arrives with the chooser, the marks and the notes a reader travels by.
     versions = example_versions(source)
@@ -296,16 +313,15 @@ def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> tuple[in
             # A reader's words, not the checkout's: the note is the menu's subtitle, and
             # a filename "as it stands in the tree" read as developer jargon to a reviewer.
             "--text",
-            "Draft as authored" if order == len(versions) - 1 else "Earlier draft",
+            current_note if order == len(versions) - 1 else "Earlier draft",
+            env=env,
         )
         if order == 0:
             seed_log(source, page)
     acknowledge_log(source, page)
-    # The handoff a delivered page gets: `page init` leaves a "Writing the page" claim,
-    # which nothing here ever closes, so the banner read "Claude is working" over a
-    # finished draft for a quarter of an hour and a reviewer took it for a version on
-    # its way. Waiting is the reader's move, which is what a preview asks for.
-    leaf(launcher, runtime, "status", str(page), "waiting")
+    # The handoff a prepared page gets. A local preview waits for its reader; a
+    # published example is already finished and has no agent on the other end.
+    leaf(launcher, runtime, "status", str(page), final_status, env=env)
     return len({operation["source"] for operation in operations}), len(versions)
 
 

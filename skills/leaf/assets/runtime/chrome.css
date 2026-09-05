@@ -809,11 +809,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     border: 0; border-radius: 0 !important; background: none; }
   .lf-margin-status-trace-shape {
     display: block; width: 100%; height: 100%; overflow: hidden; }
-  /* The banner, the key line and the panel's head are apparatus, not words the page says:
-     a drag that starts in a paragraph and ends past the top of the window swept "All
-     leaves (6) · Asks 0/2 · v1" into the copy. Messages and quotes stay selectable — a
-     reply is words the reader may want. */
-  .lf-banner, .lf-keyline, .lf-panel-head { user-select: none; -webkit-user-select: none; }
   .lf-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
     display: flex;
     align-items: center; gap: 10px;
@@ -1170,6 +1165,11 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-edge:hover::before, .lf-edge:is(:focus-visible, .lf-focus-visible)::before { opacity: 1; }
   .lf-edge:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: edge; }
   .lf-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
+  /* The banner, the key line and the panel's head are apparatus, not words the page says:
+     a drag that starts in a paragraph and ends past the top of the window swept "All
+     leaves (6) · Asks 0/2 · v1" into the copy. Messages and quotes stay selectable — a
+     reply is words the reader may want. */
+  .lf-banner, .lf-keyline, .lf-panel-head { user-select: none; -webkit-user-select: none; }
   /* The narrowing row, under the head and above the list it narrows. Standing rather
      than raised by a key or a count, for the reason every other control here stands:
      a row that arrives at the eighth thread moves the list under the reader at the

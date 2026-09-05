@@ -708,7 +708,7 @@ function targetPath(target) {
   const prefix = root instanceof ShadowRoot ? `${targetPath(root.host)}/shadow/` : "";
   if (target.id) return `${prefix}id:${target.id}`;
   const steps = [];
-  for (let node = target; node; ) {
+  for (let node = target; node;) {
     const parent =
       node.parentElement ??
       (node.parentNode instanceof ShadowRoot ? node.parentNode : null);
@@ -736,7 +736,7 @@ function comesBefore(left, right) {
   // tree from a later target inside one of its nested shadow hosts.
   const ancestry = (target) => {
     const chain = [];
-    for (let node = target; node; ) {
+    for (let node = target; node;) {
       chain.push(node);
       node =
         node.assignedSlot ?? node.parentElement ?? node.getRootNode()?.host ?? null;

@@ -90,7 +90,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
         "Threads",
         "version picker",
         "Map",
-        "all keyboard shortcuts",
+        "All keyboard shortcuts",
         "All leaves",
     ):
         expect(guide).to_contain_text(surface)

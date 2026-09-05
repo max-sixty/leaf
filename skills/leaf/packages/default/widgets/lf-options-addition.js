@@ -1,6 +1,7 @@
 /* The option the author did not list: its durable words, the complete choice bound
  * to that draft generation, and the generated option nodes replay reconstructs. */
 import {
+  focused,
   loadDraft,
   offer,
   saveDraft,
@@ -84,6 +85,7 @@ export class OptionAddition {
   #sync() {
     const empty = !this.#input.value.trim();
     const disabled = this.#adding || !this.available() || empty;
+    if (empty && focused() === this.#add) this.#input.focus();
     this.#add.toggleAttribute("data-lf-empty", empty);
     this.#add.setAttribute("aria-disabled", String(disabled));
     if (this.#adding) this.#add.setAttribute("aria-busy", "true");

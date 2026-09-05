@@ -5,12 +5,6 @@ the relevant design note or in git history.
 
 ## Now
 
-- **Cover every focus indicator.** Extend
-  `test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` so accent
-  `box-shadow` focus rings take part in its geometry sweep. Recheck `corpus` and
-  `ship-review` at the bottom of the viewport, then fix any clipping the wider sweep
-  reports.
-
 - **Establish the first agent-usability baseline.** Build the cold-authoring,
   reading-parity, and resume fixtures described in
   [the evaluation plan](notes/agent-usability-evals.md#first-executable-slice), then use

@@ -2215,6 +2215,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-margin-button-icon",
         "lf-margin-button-space",
         "lf-margin-button-label",
+        # The label's two lines: the role's own word, and the context under it that says
+        # which item the role is on. Both are inside the label the seam already names.
+        "lf-margin-button-label-word",
+        "lf-margin-button-context",
         "lf-margin-receipt",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.

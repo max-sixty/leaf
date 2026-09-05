@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Serve the published examples through Leaf's canonical HTTP handler.
 
 The Cloudflare Worker selects one container filesystem per browser session. This
@@ -11,7 +10,7 @@ from __future__ import annotations
 
 import os
 import re
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -27,7 +26,7 @@ EXAMPLE_PRESENTATION = {"install_url": "/#install"}
 EXAMPLE_ROUTE = re.compile(r"^/examples/(?P<slug>[a-z0-9-]+)(?P<inside>/.*)?$")
 
 
-@lru_cache(maxsize=None)
+@cache
 def page_binding(page_dir: Path) -> tuple[EventEndpoint, dict, str, dict | None]:
     """Read immutable delivery metadata once per published page and process."""
     return (
@@ -51,8 +50,7 @@ def with_sitenote(document: bytes, page_root: str) -> bytes:
     line, column = scripts[0]["position"]
     offset = sum(len(part) + 1 for part in source.split("\n")[: line - 1]) + column
     site_script = (
-        f'<script type="module" src="{page_root}/sitenote.js" '
-        'data-lf-site></script>'
+        f'<script type="module" src="{page_root}/sitenote.js" data-lf-site></script>'
     )
     return (source[:offset] + site_script + source[offset:]).encode()
 
@@ -97,7 +95,7 @@ class WebsiteExampleHandler(Handler):
         self.bootstrap = bootstrap
         self.preview = preview
         self.example = EXAMPLE_PRESENTATION
-        self.page_root = f'/examples/{match.group("slug")}'
+        self.page_root = f"/examples/{match.group('slug')}"
         inside = match.group("inside") or "/"
         self.path = inside + (f"?{external.query}" if external.query else "")
         return True

@@ -117,8 +117,8 @@ export function createConversationThreadList(dependencies) {
   let activeHold = null;
   const contentTop = (card) => card.getBoundingClientRect().top + threadsBox.scrollTop;
   // The box a card can hold the list's place by, or null where it can hold nothing: a
-  // fold renames its node out of .lf-thread on the way out, a narrowing takes one off
-  // the list, and a closed disclosure leaves one connected with no box to measure. One
+  // fold renames its node out of .lf-thread on the way out, a narrowing hides one, and
+  // a closed disclosure leaves one connected with no box to measure. One
   // statement of it, so what takes a hold and what corrects one cannot disagree over
   // which cards are still standing.
   const heldBox = (card) => {
@@ -325,8 +325,15 @@ export function createConversationThreadList(dependencies) {
       // list entirely and rebuilt under the disclosure below.
       const node = t.resolved ? foldOut(t) : threadNode(t, grow);
       if (!node) continue;
+      const hiding = !visible.has(t) && !node.hidden;
       node.hidden = !visible.has(t);
       if (node.hidden) {
+        // Hidden is removal to everything that was standing in the card — a reaction
+        // list open on one of its messages most of all, since its digits are live keys.
+        if (hiding)
+          document.dispatchEvent(
+            new CustomEvent("lf-thread-hidden", { detail: { node } }),
+          );
         wanted.push(node);
         continue;
       }

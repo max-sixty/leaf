@@ -69,21 +69,6 @@ export function createReplies({
       sends: "send",
       sendBtn: send,
       busy: () => replyBusy(t.root.id),
-      // A box growing under the reader pushes its own Send and Resolve below the list's
-      // foot: eight lines of reply left the blue button a sliver at the scrollport's edge,
-      // reachable only by the send key the placeholder happened to name. Landing reveals
-      // the composer with its actions (revealConversation); growth is the same claim made
-      // again, and only while the reader is in the box — a draft mirrored from another
-      // tab must not scroll a list they are reading elsewhere in. Instant, not smooth:
-      // a line typed while the last line's glide is still running lands the list where
-      // that glide was going, two lines short of the box it is now.
-      layout: () => {
-        if (focused() !== input) return;
-        const held = input.closest(
-          ".lf-thread, .lf-conversation-thread, .lf-conversation",
-        );
-        if (held) revealConversation(held, input, "instant");
-      },
       // localStorage notifies other tabs but skips this document. Page, margin, and panel
       // reply boxes are views of one draft here, so they take the same bus directly.
       // Other draft kinds still have one view per document.
@@ -125,6 +110,21 @@ export function createReplies({
       },
     });
     sync();
+    // A box growing under the reader pushes its own Send and Resolve below the list's
+    // foot: eight lines of reply left the blue button a sliver at the scrollport's edge,
+    // reachable only by the send key the placeholder happened to name. Landing reveals
+    // the composer with its actions (revealConversation); growth is the same claim made
+    // again. On the reader's own keystrokes and nothing else: a send settling after they
+    // scrolled away, or a draft mirrored from another tab, must not pull the list back.
+    // Instant, not smooth — a line typed while the last line's glide is still running
+    // lands the list where that glide was going, two lines short of the box it is now.
+    input.addEventListener("input", () => {
+      if (focused() !== input) return;
+      const held = input.closest(
+        ".lf-thread, .lf-conversation-thread, .lf-conversation",
+      );
+      if (held) revealConversation(held, input, "instant");
+    });
     mirrorDraft(input, sync, draftCtx);
     mirrorReplyFlight(input, sync, t.root.id);
     return sync;

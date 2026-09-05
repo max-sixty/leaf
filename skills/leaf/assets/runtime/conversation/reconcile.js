@@ -210,6 +210,14 @@ export function createConversation(dependencies) {
     );
   }
 
+  // A walk or a tray row travelling to a question the narrowing hid (decisions/view.js
+  // goToDecision → reveal) reveals outside-in through this event, which does not bubble
+  // — it is dispatched on each ancestor, this list among them; the list answers as the
+  // panel's own showThread does, by letting the narrowing go. Synchronous, so the focus
+  // the traveller lands next finds a card with a box.
+  threadsBox.addEventListener("lf-reveal", (event) => {
+    if (event.detail?.target?.closest?.(".lf-thread[hidden]")) narrowing.widen();
+  });
   const narrowing = createConversationNarrowing({
     anchorLabel,
     awaitsReader,

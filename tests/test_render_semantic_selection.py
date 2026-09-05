@@ -446,7 +446,7 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     )
     expect(select_command.locator("kbd")).to_have_text("s")
     expect(select_command.get_by_role("button")).to_have_text(
-        "Comment on a visible item, chosen by hint"
+        "Choose a visible item by hint, to comment on or react to"
     )
     page.keyboard.press("Escape")
     page.keyboard.press("/")
@@ -528,7 +528,7 @@ def test_slash_stays_native_in_text_entry_and_searches_the_scope_in_front(
     expect(thread_search).to_be_focused()
     expect(page.locator(".lf-target-search")).to_be_hidden()
     page.keyboard.type("Comment 1")
-    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     assert errors == []
     page.close()
 

@@ -231,7 +231,7 @@ export function createAnchors(dependencies) {
   const parentAcross = (element) =>
     element?.parentElement ?? element?.getRootNode()?.host ?? null;
   const outermostAcross = (element, selector) => {
-    for (let parent = parentAcross(element); parent;) {
+    for (let parent = parentAcross(element); parent; ) {
       const outer = closestAcross(parent, selector);
       if (!outer) break;
       element = outer;
@@ -845,11 +845,12 @@ export function createAnchors(dependencies) {
       note.lfThreads = threadIds;
       note.onclick = () => {
         setPanel(true);
-        const id = note.lfThreads.find((threadId) =>
-          threadsBox.querySelector(`:scope > .lf-thread[data-id="${threadId}"]`),
-        );
-        const thread =
-          id && threadsBox.querySelector(`:scope > .lf-thread[data-id="${id}"]`);
+        const shown = (threadId) =>
+          threadsBox.querySelector(
+            `:scope > .lf-thread[data-id="${threadId}"]:not([hidden])`,
+          );
+        const id = note.lfThreads.find(shown);
+        const thread = id && shown(id);
         if (!thread) return;
         thread.focus({ preventScroll: true });
         scrollToThread(id);

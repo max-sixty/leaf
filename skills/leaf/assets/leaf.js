@@ -1031,8 +1031,8 @@ helpEl.setAttribute("aria-modal", "true");
 helpEl.tabIndex = -1; // focused on open, so the dialog isn't silent to a screen reader
 const helpClose = el("button", "lf-btn lf-help-close", "Close");
 helpClose.type = "button";
-helpClose.title = "Close keyboard reference";
-helpClose.setAttribute("aria-label", "Close keyboard reference");
+helpClose.title = "Close the shortcuts";
+helpClose.setAttribute("aria-label", "Close the shortcuts");
 // The key line — the register's short rendering. Its fact chips are aria-hidden (the spoken
 // copies are placeholders, announcements, and the reference); More is a real button because
 // a visible door to the complete list should be a door every reader can work.
@@ -1687,7 +1687,7 @@ function workspaceControlRoute(control) {
   if (thread) {
     const id = thread.dataset.id;
     return () =>
-      [...panel.querySelectorAll(".lf-thread[data-id]")].find(
+      [...panel.querySelectorAll(".lf-thread[data-id]:not([hidden])")].find(
         (row) => row.dataset.id === id,
       ) ?? null;
   }
@@ -2831,7 +2831,7 @@ const PAGE = {
     {
       id: "selection.open",
       keys: ["s"],
-      does: "Comment on a visible item, chosen by hint",
+      does: "Choose a visible item by hint, to comment on or react to",
       line: "select item",
       // Once a target is in hand, its actions own the two short-line slots. Escape clears
       // it, while this projection-only gate leaves s live to replace the target and keeps
@@ -3029,10 +3029,10 @@ function paintCoreControls() {
   helpClose.textContent = returningToMore ? "Back to more shortcuts" : "Close";
   helpClose.dataset.lfKeyTitle = returningToMore
     ? "Back to more shortcuts"
-    : "Close keyboard reference";
+    : "Close the shortcuts";
   helpClose.setAttribute(
     "aria-label",
-    returningToMore ? "Back to more shortcuts" : "Close keyboard reference",
+    returningToMore ? "Back to more shortcuts" : "Close the shortcuts",
   );
   const controlShortcut = (scope, row) =>
     [...(word(scope.chordPrefix ?? scope.chord) ?? []), labelOf(row)]

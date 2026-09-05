@@ -3829,8 +3829,19 @@ def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serv
         browser, serve(next(p for p in EXAMPLES if p.stem == "log-retention"))
     )
     resized(page, 1440, 900)
+    margins_laid_out(page)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first
     rest = marker.bounding_box()["x"]
+    # Every margin layout the page makes, timestamped, and the carry's end from the
+    # animation itself: the fact to consume is a layout after the column came to
+    # rest, not a number of frames.
+    page.evaluate(
+        """() => {
+          window.__lfLayouts = [];
+          document.addEventListener('lf-margin-layout',
+            () => window.__lfLayouts.push(performance.now()));
+        }"""
+    )
     for close in ("Close threads", "toggle", "Escape"):
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
@@ -3845,16 +3856,22 @@ def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serv
         # placement is the one the body's resize laid out two frames into the move,
         # and finishing the carry before that frame would settle the column first
         # and read a page the reader never sees.
+        page.evaluate(
+            """() => {
+              window.__lfCarryEnd = null;
+              const carries = document.querySelector('body > main').getAnimations();
+              if (!carries.length) { window.__lfCarryEnd = performance.now(); return; }
+              Promise.all(carries.map(carry => carry.finished)).then(
+                () => { window.__lfCarryEnd = performance.now(); });
+            }"""
+        )
         page.wait_for_function(
             "() => !document.querySelector('.lf-panel').classList.contains('open')"
         )
         page.wait_for_function(
-            "() => document.querySelector('body > main').getAnimations().length === 0"
-        )
-        # Two frames: the carry's settle schedules its own frame, and the read must
-        # follow it rather than run the layout for it (margins_laid_out would).
-        page.evaluate(
-            "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+            "() => window.__lfCarryEnd !== null"
+            " && window.__lfLayouts.some(t => t >= window.__lfCarryEnd)",
+            timeout=5000,
         )
         landed = marker.bounding_box()["x"]
         assert landed == pytest.approx(rest, abs=1), (

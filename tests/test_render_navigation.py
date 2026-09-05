@@ -90,7 +90,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
         "Threads",
         "version picker",
         "Map",
-        "keyboard reference",
+        "all keyboard shortcuts",
         "All leaves",
     ):
         expect(guide).to_contain_text(surface)
@@ -1274,7 +1274,9 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
 
     # Standing in a comment while writing back to it is still standing in it: the reply
     # box is inside the thread, and knowing which passage it is on is worth most there.
-    page.locator(".lf-threads > .lf-thread:not([hidden])").first.locator("textarea").focus()
+    page.locator(".lf-threads > .lf-thread:not([hidden])").first.locator(
+        "textarea"
+    ).focus()
     wait_standing(page, "bold text")
 
     # And leaving the panel takes it down. A mark that outlived the reader's attention
@@ -4577,7 +4579,7 @@ def test_the_resting_key_line_names_the_presses_that_say_something_back(browser,
     help_el = page.locator(".lf-help")
     expect(help_el).to_be_visible()
     expect(help_el).to_contain_text("Search all the text on the page")
-    expect(help_el).to_contain_text("Comment on a visible item, chosen by hint")
+    expect(help_el).to_contain_text("Choose a visible item by hint, to comment on or react to")
     expect(help_el).to_contain_text("Move 60% of a page down")
     expect(help_el).to_contain_text("Move 60% of a page up")
     assert errors == []

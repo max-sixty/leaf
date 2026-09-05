@@ -1012,7 +1012,7 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     assert page.locator("#job-mounts .lf-pick").evaluate(hidden) == "0px"
     assert page.locator("#br-steel .lf-pick").evaluate(hidden) == "0px"
     assert page.locator("#job-mounts .lf-pick").evaluate(dot) == "visible"
-    assert page.locator("#br-steel .lf-pick").evaluate(dot) == "hidden"
+    assert page.locator("#br-steel .lf-pick").evaluate(dot) == "visible"
 
     page.locator("#br-steel").click()
     expect(page.locator("#br-steel .lf-pick")).to_have_text("selected")
@@ -1083,8 +1083,9 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
         "a card group asking 'which of these' draws no empty boxes, so the reader has "
         "nothing to count and no sign a second pick is on offer"
     )
-    assert page.locator("#br-steel .lf-pick").evaluate(dot) == "hidden", (
-        "a single-choice titled card repeats the group's offer with a radio in every cell"
+    assert page.locator("#br-steel .lf-pick").evaluate(dot) == "visible", (
+        "a single-choice titled card hides its empty ring, so a reader who has not "
+        "hovered sees nothing on it that looks like a control"
     )
 
     # Paint, not metrics: the open controls occupy the same header slot in both arities.

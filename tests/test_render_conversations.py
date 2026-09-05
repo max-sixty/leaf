@@ -1149,9 +1149,11 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     expect(page.locator(".lf-thread")).to_have_count(2)
 
     page.locator(".lf-needs").click()
-    expect(page.locator(".lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{asked}"]')).to_have_count(1)
-    expect(page.locator(f'.lf-thread[data-id="{answered}"]')).to_have_count(0)
+    expect(
+        page.locator(f'.lf-thread[data-id="{answered}"]:not([hidden])')
+    ).to_have_count(0)
 
     listeners = page.evaluate("() => ({...window.__replyListeners})")
     find = page.locator(".lf-find-box")
@@ -1187,14 +1189,16 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     page.locator("#backend-sqlite").click()
     round_trip(page)
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
-    expect(page.locator(f'.lf-thread[data-id="{answered}"]')).to_have_count(0)
+    expect(
+        page.locator(f'.lf-thread[data-id="{answered}"]:not([hidden])')
+    ).to_have_count(0)
 
     reply = page.locator(f'.lf-thread[data-id="{asked}"] textarea')
     reply.fill("SQLite should own it.")
     page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-send').click()
     round_trip(page)
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you")
-    expect(page.locator(".lf-thread")).to_have_count(0)
+    expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
     assert errors == []
     page.close()
 
@@ -3759,6 +3763,37 @@ def test_a_growing_reply_keeps_its_send_in_the_list(browser, serve):
     for line in range(8):
         page.keyboard.type(f"line {line} of a reply that keeps growing the box")
         page.keyboard.press("Enter")
+    # Grown, the card has to overrun the list, or Send never left the scrollport and
+    # the claim below is proved by nothing.
+    room = page.evaluate("() => document.querySelector('.lf-threads').clientHeight")
+    assert card.bounding_box()["height"] > room, (
+        "a card the list can show whole never pushes its Send out; this proves nothing"
+    )
     in_threads_scrollport(page, f'.lf-thread[data-id="{thread}"] .lf-thread-send')
+    assert errors == []
+    page.close()
+
+
+def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve):
+    """A card the narrowing hid keeps its node, so the `a` walk can still name the
+    question in it — and arriving there has to show it, the way showThread does:
+    focus on a card with no box is a no-op and the announcement would say "1 of 2"
+    over a list that shows something else."""
+    page, errors = open_page(
+        browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
+    )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    question = page.locator(".lf-panel lf-options[choose]").first
+    card = question.locator("xpath=ancestor::*[contains(@class, 'lf-thread')][1]")
+    page.fill(".lf-find-box", "stay blocked")
+    expect(card).to_have_attribute("hidden", "")
+    page.locator(".lf-threads").focus()
+    page.keyboard.press("a")
+    expect(card).not_to_have_attribute("hidden", "")
+    expect(page.locator(".lf-find-box")).to_have_value("")
+    assert page.evaluate(
+        "() => document.activeElement.closest('.lf-thread') !== null"
+    ), "the walk landed outside the card it named"
     assert errors == []
     page.close()

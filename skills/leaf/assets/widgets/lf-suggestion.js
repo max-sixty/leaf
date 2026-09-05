@@ -486,9 +486,7 @@ customElements.define(
           this.#renderControls(label);
           this.#margin?.update();
         }
-        notice(
-          `${outcome === "accept" ? "Accepted" : "Rejected"} “${label}” — recorded`,
-        );
+        notice(`${outcome === "accept" ? "Accepted" : "Rejected"} “${label}” — sent`);
         return true;
       });
       this.#inFlight(sent, label);

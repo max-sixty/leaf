@@ -15,7 +15,8 @@ name nothing new, so pickup is idempotent. It never rewrites `status.json` and
 therefore cannot claim the agent has begun work, replace an existing claim, or
 make one interaction borrow another's page-wide status.
 
-The browser projects one acknowledgment on each unsettled reader move. On the page it
+The browser projects one acknowledgment per subject and unit, for the newest unsettled
+reader move on it (a tick and the Done press that followed are one). On the page it
 reuses the subject's existing Target Button; the full thread panel and widgets frozen
 into conversation chrome use a compact local row because they have no page edge.
 Append is **Sent**; a `pickup` naming that move is **Picked up**; a later explicit

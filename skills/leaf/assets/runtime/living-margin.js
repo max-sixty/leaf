@@ -511,6 +511,8 @@ export function createLivingMargin(dependencies) {
     versionBtn,
     waitingForPickupSince,
   } = dependencies;
+  // The Button the reader is standing on, or null off one: the press row's words read it.
+  const focusedButtonBehavior = () => focused()?.[BUTTON_RECORD]?.behavior ?? null;
 
   const nav = el("nav", "lf-ui lf-living-margin");
   // Every live page can gain an anchored comment, including one made entirely of prose.
@@ -1654,18 +1656,22 @@ export function createLivingMargin(dependencies) {
       // Button" over a Change reading promised something, and Enter there scrolls to a
       // paragraph already on screen. A reading's press goes to what it points at; a
       // disclosure's opens or closes it; an action's does the verb on its face.
+      // Read off the standing Button, and only where there is one: the reference
+      // lists this row's sentence from anywhere on the page.
       does: () => {
-        const record = buttonRecord(focused());
-        if (record.behavior === "disclosure")
+        const behavior = focusedButtonBehavior();
+        if (behavior === "disclosure")
           return "Open or close what the focused Button holds";
-        if (record.behavior === "action") return "Press the focused Button";
-        return "Go to what the focused Button points at";
+        if (behavior === "action") return "Press the focused Button";
+        if (behavior) return "Go to what the focused Button points at";
+        return "Work the focused Button";
       },
       line: () => {
-        const record = buttonRecord(focused());
-        if (record.behavior === "disclosure") return "open / close";
-        if (record.behavior === "action") return "press";
-        return "go to it";
+        const behavior = focusedButtonBehavior();
+        if (behavior === "disclosure") return "open / close";
+        if (behavior === "action") return "press";
+        if (behavior) return "go to it";
+        return "work this Button";
       },
       when: () => focused()?.matches?.('.lf-margin-button[role="button"]'),
       run: () => focused().click(),
@@ -2427,9 +2433,10 @@ export function createLivingMargin(dependencies) {
     const focusedItem = focusedNode?.dataset.lfMarginItem ?? null;
     const threadItems = entry.items.filter((item) => item.kind === "comment");
     const targetHeading = entry.target?.querySelector(":scope > strong")?.textContent;
-    // One thread's card is headed by the passage the thread quotes, as the panel heads
-    // it: a card headed "aside · The fallback cookie is read-only…" over a comment on
-    // the aside's last sentence was a third name for one thread, and the least exact.
+    // A target with a heading is named by it. One without — an aside, a paragraph —
+    // and holding one thread is headed by the passage that thread quotes, as the panel
+    // heads it: a card headed "aside · The fallback cookie is read-only…" over a comment
+    // on the aside's last sentence was a third name for one thread, and the least exact.
     const quoted =
       threadItems.length === 1 && threadItems[0].thread?.root.anchor
         ? anchorLabel(
@@ -2437,7 +2444,7 @@ export function createLivingMargin(dependencies) {
             threadItems[0].thread.root.about,
           )
         : null;
-    const title = trimmed(quoted || targetHeading || entry.title, 72);
+    const title = trimmed(targetHeading || quoted || entry.title, 72);
     preview.setAttribute("data-lf-thread", "");
     preview.setAttribute("aria-label", `Thread for ${title}`);
     previewTitle.textContent = title;

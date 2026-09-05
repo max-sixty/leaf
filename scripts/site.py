@@ -27,9 +27,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from functools import partial
 from html.parser import HTMLParser
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -42,14 +40,12 @@ EXAMPLES = ROOT / "examples"
 INTERNAL_EXAMPLES = {"corpus"}
 OUT = (
     ROOT / ".tmp" / "site"
-)  # gitignored; the workflow uploads it as the Pages artifact
+)  # gitignored; both the Worker asset binding and its container image consume it
+WRANGLER = ROOT / "worker" / "node_modules" / ".bin" / "wrangler"
 
-# The one layer name the site changes on the way past. /leaf.js is the door a page and every
-# widget module import comes through, and on this site that door is `docs/leaf.js` — the
-# runtime with a session in front of it — so the vendored runtime is published beside it
-# under the name that file imports. Everything else in the page directory keeps its name,
-# and nothing here lists what that is: the layer is whatever `page init` wrote, so a file
-# it gains is a file the site serves rather than one it silently leaves behind.
+# Product documents share one static layer at the site root. Their /leaf.js adapter
+# imports the unmodified vendored entry under this name. Published examples carry their
+# own complete layers and never enter that adapter.
 RUNTIME = "runtime.js"
 
 PRODUCT_ROUTES = {
@@ -80,13 +76,6 @@ class Links(HTMLParser):
                 self.found += [
                     c.strip().split()[0] for c in value.split(",") if c.strip()
                 ]
-
-
-class QuietPreview(SimpleHTTPRequestHandler):
-    """Serve the local catalog without logging every module a full page imports."""
-
-    def log_message(self, *args):
-        pass
 
 
 def local_targets(html: str) -> list[str]:
@@ -260,15 +249,14 @@ def main() -> None:
     build(OUT)
     print(f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT}")
     if sys.argv[1:] == ["--serve"]:
-        handler = partial(QuietPreview, directory=str(OUT))
-        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-        print(f"Preview: http://127.0.0.1:{server.server_address[1]}/examples/")
-        try:
-            server.serve_forever()
-        except KeyboardInterrupt:
-            pass
-        finally:
-            server.server_close()
+        if not WRANGLER.is_file():
+            sys.exit("website dependencies are missing; run `npm ci --prefix worker`")
+        print("Preview: http://127.0.0.1:8787/examples/")
+        result = subprocess.run(
+            [str(WRANGLER), "dev"], cwd=ROOT / "worker", check=False
+        )
+        if result.returncode:
+            sys.exit(result.returncode)
 
 
 if __name__ == "__main__":

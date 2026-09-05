@@ -1,39 +1,18 @@
-/* The session a leaf page has when nothing is serving it.
+/* The local session used only by the product site's static Leaf documents.
  *
- * A page directory is files plus a process. The files a static host serves perfectly —
- * the vendored layer sits at this site's root, and every example under /examples is the
- * file in the tree — and the process answers five paths: GET /api/state, which hands
- * the page the log and who is behind it; GET /api/data, which delivers one split source
- * payload; GET /api/view, which projects one exact read; POST /api/event, which appends;
- * and GET /api/news, a stream on which the page hears that the log has moved. So that is
- * what this is: those five paths, answered in the
- * tab.
+ * These informational pages use Leaf's runtime and controls but have no durable record
+ * or agent. This adapter answers Leaf's five request paths inside the tab so those
+ * controls remain an ephemeral exhibit. It does not validate events or claim to be the
+ * canonical server.
  *
- * Which makes the pages on this site live rather than pictures of live ones. Every
- * control is the shipped runtime's own — the banner and its counts, the thread panel,
- * the quote marks in the margin, and a board that takes a drag for this tab's visit —
- * because the runtime is loaded unmodified beside this file and cannot tell the
- * difference. What it can't have is the other half of the loop: no agent reads this log,
- * so a comment is recorded and answered by nobody.
- *
- * The banner says so in the runtime's own words, which is what `unattended` below is for:
- * this page reports that nobody is behind it and the chrome states the consequence,
- * where a page that wrote itself a claim could only then talk the reader out of it. A
- * published example also wears that boundary in a label above the document
- * (`docs/sitenote.js`). And the demo replies once, in the panel, because a reader who has
- * just typed into a box deserves the answer where they typed rather than where they
- * stopped reading ten minutes ago.
- *
- * Nothing here validates what the runtime posts. The server's door is strict because it
- * guards a record an agent will act on and a machine anything on the network can reach;
- * this log is one reader's own, in one tab, written by the one script on the page, and a
- * second copy of that door would be a second thing to keep in step with the first.
+ * Published examples deliberately do not enter this file. The website Worker routes
+ * them to complete page directories behind Leaf's ordinary Python state, projection,
+ * validation, event log, and news stream.
  */
 
-// The builder injects the same identity markers as Leaf's HTTP server. That lets the
-// current example keep its page-root URL while immutable historical versions retain
-// their versions/vN.html addresses. Product documents are live drafts, so the static
-// session supplies their revision marker and leaves their version unset.
+// Product documents are live drafts, so the static session supplies their revision
+// marker and leaves their version unset. The version-aware shape remains the runtime's
+// contract even though these product pages do not stamp versions.
 const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
 const PAGE_ROOT = new URL(
   VERSION_PATH.test(location.pathname) ? "../" : "./",
@@ -100,18 +79,17 @@ const AGENT = "The demo";
 // Said once, to the first comment this reader writes, and not again — every comment
 // after it is the same person who has now been told, and the same sentence under each of
 // them reads as a machine talking rather than as an answer. Held here rather than read
-// off the log, which on an example that ships a thread already holds replies that are
-// none of this file's.
+// off the log, which is input state rather than this adapter's lifecycle.
 let answered = false;
 
 const ANSWER = `This demo has no agent, so nobody will read your comment.
 
 [Install Leaf](/#install) to get replies from your agent.`;
 
-// What the page opens on, for an example that ships a thread beside it: the log the
-// build laid in the page directory, which a served page would hand over on the first
-// poll. `sessionReady` puts it in the first answer while its file read overlaps runtime
-// startup. A page with no thread to open on has no file here, and the 404 is that answer.
+// What the product document opens on: the log the build laid beside it, which a served
+// page would hand over on the first poll. `sessionReady` puts it in the first answer
+// while its file read overlaps runtime startup. Today's product logs are empty; keeping
+// the file door makes that an input rather than a hard-coded special case.
 //
 // A reload deliberately starts again from this seed. Without the Python server there is
 // no durable authority to replay; browser storage would turn this illustrative session
@@ -407,9 +385,7 @@ function demoBrowser() {
 // goes blank the day it starts reading one.
 const state = () => ({
   layer: REGISTRY.$layer,
-  // A product route is a live draft. Built examples carry their version identity;
-  // historical documents retain their own addresses and the current document stands at
-  // the page root.
+  // A product route is a live draft; the current document stands at the page root.
   active: {
     revision: REVISION,
     version: VERSION,

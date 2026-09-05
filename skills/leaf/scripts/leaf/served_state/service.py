@@ -26,11 +26,13 @@ class PageStateService:
         preview_source: dict | None = None,
         layer_identity: dict | None = None,
         preview: dict | None = None,
+        example: dict | None = None,
     ):
         self.page_dir = page_dir
         self.preview_source = preview_source
         self.layer_identity = layer_identity
         self.preview = preview
+        self.example = example
 
     def _full_state(
         self,
@@ -50,6 +52,7 @@ class PageStateService:
             events,
             layer_identity=self.layer_identity,
             preview=self.preview,
+            example=self.example,
             source_error=source_error,
             view_revision=view_revision,
             active_override=active_override,

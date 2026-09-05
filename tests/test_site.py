@@ -45,6 +45,11 @@ EXAMPLES = ROOT / "examples"
 _spec = importlib.util.spec_from_file_location("site", ROOT / "scripts" / "site.py")
 site_build = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(site_build)
+_server_spec = importlib.util.spec_from_file_location(
+    "website_server", ROOT / "worker" / "server.py"
+)
+website_server = importlib.util.module_from_spec(_server_spec)
+_server_spec.loader.exec_module(website_server)
 
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
@@ -107,19 +112,27 @@ def hosted(site):
 
 @pytest.fixture
 def served_example(site, tmp_path):
-    """Serve disposable copies of published examples through Leaf's real backend."""
-    servers = []
+    """Serve one browser's disposable pages through the website's real backend."""
+    session_site = tmp_path / "site"
+    examples = session_site / "examples"
+    examples.mkdir(parents=True)
+    shutil.copy2(site / "sitenote.js", session_site / "sitenote.js")
+    httpd = hosting_model.server_at(
+        "127.0.0.1", 0, website_server.handler_for(examples)
+    )
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    origin = f"http://127.0.0.1:{httpd.server_address[1]}"
 
     def serve(name):
-        page_dir = tmp_path / f"{len(servers)}-{name}"
+        page_dir = examples / name
         shutil.copytree(site / "examples" / name, page_dir)
-        server = hosting_model.TemporaryPageServer(page_dir).start()
-        servers.append(server)
-        return page_dir, server.url
+        return page_dir, f"{origin}/examples/{name}/"
 
     yield serve
-    for server in reversed(servers):
-        server.close()
+    httpd.shutdown()
+    httpd.server_close()
+    thread.join(timeout=2)
 
 
 def product_url(hosted, name):
@@ -402,7 +415,10 @@ def test_every_example_stands_as_a_live_page(served_example, browser):
                 opened(page, errors, url)
             newest = len(example_versions(source))
             expect(page.locator(".lf-banner .lf-version")).to_have_text(f"v{newest} ▾")
-            expect(page.locator(".lf-status-text")).to_have_text("Leaf closed")
+            expect(page.locator(".lf-status-text")).to_have_text(
+                "This is an example on the Leaf website. No agent will respond. "
+                "Install Leaf"
+            )
             assert not errors, f"{source.name}: {errors[:3]}"
 
     finally:
@@ -474,11 +490,24 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     page_dir, url = served_example("design-decision")
     page, errors = open_page(browser, url)
     try:
-        expect(page.locator(".lf-banner .lf-status-text")).to_have_text("Leaf closed")
+        expect(page.locator(".lf-banner .lf-status-text")).to_have_text(
+            "This is an example on the Leaf website. No agent will respond. "
+            "Install Leaf"
+        )
+        expect(page.locator(".lf-banner .lf-status-text a")).to_have_attribute(
+            "href", "/#install"
+        )
+        expect(page.locator("main > .sitenote")).to_contain_text(
+            "Try its controls in a private, temporary copy for this browser."
+        )
+        assert page.locator("main > .sitenote a").evaluate_all(
+            "links => links.map(link => link.getAttribute('href'))"
+        ) == ["/", "/examples/", "/#install"]
         expect(page.locator(".lf-banner .lf-dot")).to_have_class(
             re.compile(r"^lf-dot\s*$")
         )
-        state = page.evaluate("() => fetch('/api/state').then(r => r.json())")
+        state = page.evaluate("() => fetch('api/state').then(r => r.json())")
+        assert state["example"] == {"install_url": "/#install"}
         assert state["claims"] == []
         assert state["host"] is None
         assert state["session_alive"] is None
@@ -687,11 +716,11 @@ def test_the_page_backend_answers_the_exact_projection_path(served_example, brow
     try:
         answer = page.evaluate(
             """async () => {
-              const state = await fetch('/api/state').then(response => response.json());
+              const state = await fetch('api/state').then(response => response.json());
               const revision = state.active.revision;
               const through = state.browser.basis.through_seq;
               const response = await fetch(
-                `/api/view?revision=${revision}&through_seq=${through}`,
+                `api/view?revision=${revision}&through_seq=${through}`,
               );
               return {status: response.status, through, body: await response.json()};
             }"""

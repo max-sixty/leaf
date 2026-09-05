@@ -35,7 +35,9 @@ gh secret set CLOUDFLARE_API_TOKEN \
   --repo max-sixty/leaf --env cloudflare-deploy
 ```
 
-Create the token from Cloudflare's **Edit Cloudflare Workers** template, restricted to
-the account and the `leaf.page` zone. The deploy workflow verifies the public
+Create the token from Cloudflare's **Edit Cloudflare Workers** template, restrict it to
+the account and the `leaf.page` zone, and add **Workers Containers: Edit** at the
+account level. The stock template does not necessarily include the separate Containers
+permission. The deploy workflow verifies the public
 `/examples/design-decision/api/state` response after Wrangler returns because a
 Containers rollout can finish after the Worker itself becomes active.

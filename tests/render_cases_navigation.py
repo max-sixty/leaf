@@ -963,19 +963,19 @@ customElements.define('lf-feed', class extends HTMLElement {
       this.stopWatching = watchData(
         this,
         'rows',
-        snapshot => this.show(snapshot?.value ?? []),
+        snapshot => this.show(snapshot?.value ?? [], snapshot?.origin),
       );
   }
   disconnectedCallback() {
     this.stopWatching?.();
     this.stopWatching = null;
   }
-  show(rows) {
+  show(rows, origin) {
     projectData(this, rows, row => row.key, ({value}) => {
       const row = document.createElement('p');
       row.append(value, offer('button', 'inspect', 'Inspect'));
       return row;
-    });
+    }, {originOf: (_row, index) => ({...origin, path: [index, 'value']})});
   }
 });
 """

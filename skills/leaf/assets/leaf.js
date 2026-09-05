@@ -3442,7 +3442,7 @@ const {
   domFacet,
   markSettled,
   matchesProjectedWhen,
-  paintPending,
+  paintStateOrigins,
   projectedFacet,
   projectionFromView,
   projectionCommitted,

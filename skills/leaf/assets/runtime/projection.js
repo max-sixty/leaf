@@ -773,7 +773,7 @@ export function createProjection(runtime, dependencies) {
         );
       }
       renderQuiet(document.body);
-      paintPending(projection);
+      paintStateOrigins(projection);
       document.body.setAttribute(
         PAGE_PAINT_ATTRIBUTE.applied,
         String(projectionCoverage(projection)),
@@ -797,30 +797,28 @@ export function createProjection(runtime, dependencies) {
     return true;
   }
 
-  // data-lf-pending: this element's decided state differs from what the version's
-  // markup arrived showing — the record is behind the log. It clears when a
-  // version carries the decision (the two agree again) or a retraction hands the
-  // state back to the author. A decided suggestion has no record form to agree
-  // with (honoring retires the wrapper), so it stays marked while the wrapper
-  // stands.
-  function paintPending(projection) {
+  // Mark effective state supplied by the log instead of authored markup. These
+  // outlines describe its origin; processing and completion belong to work
+  // receipts. A decided suggestion remains reader-owned while its wrapper stands.
+  function paintStateOrigins(projection) {
     const marks = new Map(
-      [PAGE_PAINT_ATTRIBUTE.pending, PAGE_PAINT_ATTRIBUTE.reported].map((attr) => [
-        attr,
-        new Set(),
-      ]),
+      [PAGE_PAINT_ATTRIBUTE.readerOverride, PAGE_PAINT_ATTRIBUTE.reported].map(
+        (attr) => [attr, new Set()],
+      ),
     );
     for (const [coordinate, { unit, e, spec, value }] of projection.desired) {
       const el = elementById(unit);
       if (!el || inChrome(el)) continue;
-      const behind = spec.record ? value !== authoredFacets.get(coordinate) : true;
-      if (!behind) continue;
+      const overridesSource = spec.record
+        ? value !== authoredFacets.get(coordinate)
+        : true;
+      if (!overridesSource) continue;
       // The channels keep separate marks so provisional worker news never wears
       // the reader's color. The desired projection chooses which channel owns a
       // coordinate; independent facets can still leave both marks on one unit.
       const attr =
         e.kind === "action"
-          ? PAGE_PAINT_ATTRIBUTE.pending
+          ? PAGE_PAINT_ATTRIBUTE.readerOverride
           : PAGE_PAINT_ATTRIBUTE.reported;
       marks.get(attr).add(el);
     }
@@ -845,7 +843,7 @@ export function createProjection(runtime, dependencies) {
     domFacet,
     markSettled,
     matchesProjectedWhen,
-    paintPending,
+    paintStateOrigins,
     projectedFacet,
     projectionFromView,
     projectionCommitted,

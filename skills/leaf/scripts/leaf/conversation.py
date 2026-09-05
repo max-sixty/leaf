@@ -17,6 +17,7 @@ from leaf.files import (
 from leaf.host import message_identity
 from leaf.leases import contract_writer
 from leaf.projection import (
+    generated_children,
     markup_facet,
     page_projection,
     retirement_outcomes,
@@ -121,7 +122,7 @@ def cmd_comment(
         if quote or section or part:
             html = revision_path(page_dir, revision).read_text(encoding="utf-8")
             registry = require_registry(page_dir)
-            projection, _, _ = page_projection(html, events, registry, revision)
+            projection, parser, _ = page_projection(html, events, registry, revision)
             decided = retirement_outcomes(projection.actions, registry)
             edited = rewritten_bodies(projection.actions)
             try:
@@ -133,6 +134,7 @@ def cmd_comment(
                     decided,
                     edited,
                     part,
+                    additions=generated_children(projection.desired, parser.ids),
                 )
             except ValueError as err:
                 sys.exit(f"can't anchor in revision r{revision}: {err}")

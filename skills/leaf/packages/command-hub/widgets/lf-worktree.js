@@ -180,6 +180,12 @@ customElements.define(
         [record],
         ({ id }) => id,
         (next, prior) => renderDatum(this, next, prior),
+        {
+          originOf: () =>
+            snapshot
+              ? { ...snapshot.origin, ...(present ? { path: [this.id] } : {}) }
+              : null,
+        },
       );
     }
   },

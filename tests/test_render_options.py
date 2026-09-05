@@ -908,7 +908,7 @@ def test_one_band_says_where_the_reader_is_standing(browser, serve):
 def test_a_pick_keeps_the_group_frame_visually_stable(browser, serve):
     """Pending state does not become a transient second border around options.
 
-    The projection still carries `data-lf-pending`; the selected row's check and tint
+    The projection still carries `data-lf-reader-override`; the selected row's check and tint
     show the choice while the group's permanent frame stays visually unchanged.
     """
     page, errors = open_page(browser, serve(SPECIMEN_PAGE))
@@ -917,7 +917,7 @@ def test_a_pick_keeps_the_group_frame_visually_stable(browser, serve):
     before = group.evaluate(frame)
     mark = page.locator("#l-stage .lf-pick")
     mark.click()
-    expect(group).to_have_attribute("data-lf-pending", "1")
+    expect(group).to_have_attribute("data-lf-reader-override", "1")
     expect(page.locator("#l-stage")).to_have_attribute("chosen", "")
     assert group.evaluate(frame) == before
     assert errors == []
@@ -1218,8 +1218,8 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
     )
 
     page, errors = open_page(browser, url)
-    expect(page.locator("#outer")).not_to_have_attribute("data-lf-pending", "1")
-    expect(page.locator("#inner")).not_to_have_attribute("data-lf-pending", "1")
+    expect(page.locator("#outer")).not_to_have_attribute("data-lf-reader-override", "1")
+    expect(page.locator("#inner")).not_to_have_attribute("data-lf-reader-override", "1")
     expect(page.locator("#out-drill")).to_have_attribute("chosen", "")
     expect(page.locator("#in-now")).to_have_attribute("chosen", "")
     assert errors == []

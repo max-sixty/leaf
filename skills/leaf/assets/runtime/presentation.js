@@ -21,7 +21,7 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   applied: "data-lf-applied",
   reading: "data-lf-reading",
   dataRevision: "data-lf-data-revision",
-  pending: "data-lf-pending",
+  readerOverride: "data-lf-reader-override",
   presented: "data-lf-presented",
   reported: "data-lf-reported",
   upgraded: "data-lf-upgraded",
@@ -442,12 +442,11 @@ export function renderSaid(root) {
 //
 // Its two neighbours in that vocabulary stay silent, and the line between them is what
 // the paint is the only copy of. A retraction is one: nothing else on the page says the
-// decision was undone. data-lf-pending and data-lf-reported are not — each marks a state
+// decision was undone. data-lf-reader-override and data-lf-reported are not — each marks a state
 // whose substance is already in the control and receipt's visual and semantic state (a
-// check, tint, and visible "Accepted") or the status this pass speaks, and adds only that no version
-// carries it yet. Saying that
-// on every decided element for the rest of the session would be a second sentence about
-// every one of them, for a fact no reader is owed the way they are owed a retraction.
+// check, tint, and visible "Accepted") or the status this pass speaks. The outline
+// identifies the state as a reader override or provisional report; work receipts
+// separately state whether the agent has processed it.
 function quietFacts(el) {
   const words = el.hasAttribute(PAGE_PAINT_ATTRIBUTE.restated)
     ? ["rewritten since your decision"]

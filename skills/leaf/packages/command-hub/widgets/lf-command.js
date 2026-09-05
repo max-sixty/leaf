@@ -397,6 +397,13 @@ function renderStopped(snapshot) {
         );
         return item;
       },
+      {
+        originOf: (goal) => ({
+          derived: [goal.element.id, ...descendants(plan, goal.element.id)].map(
+            (widget) => ({ widget }),
+          ),
+        }),
+      },
     );
   } else box.querySelector(":scope > ol")?.remove();
   return true;
@@ -499,7 +506,9 @@ customElements.define(
       this.#observer = new MutationObserver((changes) => {
         if (
           changes.some((change) => {
-            if (["data-lf-held", "data-lf-pending"].includes(change.attributeName))
+            if (
+              ["data-lf-held", "data-lf-reader-override"].includes(change.attributeName)
+            )
               return true;
             return Boolean(commandRole(change.target));
           })

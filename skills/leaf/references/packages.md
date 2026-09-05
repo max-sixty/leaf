@@ -493,13 +493,20 @@ this.stopWatching = watchData(this, "builds", (snapshot) => {
 ```
 
 The callback receives `null` before the host has supplied a current value, otherwise a
-clone of `{contract, revision, updated, value}`. `revision` is the data revision that
-wrote that source value, so a renderer can distinguish two writes even when their wall
+clone of `{contract, revision, updated, value, origin}`. `revision` is the data revision
+that wrote that source value, so a renderer can distinguish two writes even when their wall
 clock timestamps coincide. A selected capture additionally carries
 `snapshot`, `label`, and optional `lines`; a captured current value may carry its label
 and line range. It runs immediately and again when Leaf asks subscribers to restate its
 view. Return the cleanup function from the element's disconnect path. The callback must
 state the whole rendering and remain idempotent.
+
+`origin` identifies the declared `input`, concrete `source`, `contract`, selected source
+`revision`, and accepted store `data_revision`, plus `snapshot` when pinned. Pass it to
+`projectData` with `originOf: () => snapshot?.origin`. When the emitter knows the exact
+JSON coordinate within the source value, return `{...snapshot.origin, path: [...]}`;
+path segments are object keys or array indices. A formatted or parsed record may only
+name its whole input. This identifies construction inputs, not an inverse edit mapping.
 
 Render the value with `projectData(root, records, keyOf, render)`. The root is an
 id-bearing authored seat and owns the projection's children. `keyOf` returns a stable
@@ -518,6 +525,12 @@ rejection is reported as that subscriber's page error; it does not make later st
 reads repeat the same page-wide failure. A rejection from the callback's first run is
 stronger: Leaf drops that subscription, so the callback is not asked to restate again
 until the element is reconnected.
+
+`originOf(record, index)` records those inputs as JSON in `data-lf-origin` on each
+datum; a null origin removes any previous provenance. Derived records outside the data
+store can instead name their contributing widget seats as `{derived: [{widget: id}]}`.
+Export retains these origins with the rendering. Leaf never infers them from displayed
+text or datum keys.
 
 `navigateToDatum(widget, attribute, key, messages)` follows an `x-refers` attribute to
 another projection and travels to its opaque datum key. Leaf resolves declared shadow

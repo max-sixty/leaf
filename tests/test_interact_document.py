@@ -60,6 +60,238 @@ def test_check_accepts_a_valid_page(page_dir):
     assert result.exit_code == 0, result.output
 
 
+def construction_nodes(content):
+    """Index the emitted construction without reading its source files again."""
+    nodes = {}
+    for node in content:
+        if isinstance(node, dict):
+            if identity := node["attrs"].get("id"):
+                nodes[identity] = node
+            nodes.update(construction_nodes(node["content"]))
+    return nodes
+
+
+def test_page_inspection_preserves_exact_reader_state_and_its_edit_routes(page_dir):
+    markup = PAGE.replace(
+        "</main>",
+        OPTIONS.format(
+            a=" chosen", b="", chip="", shim="Keep the shim.", stage="Stage it."
+        )
+        + '<lf-draft id="summary"><pre>Ship on Friday.</pre></lf-draft>'
+        + _board([X, Y], [])
+        + '<p id="explanation"><strong>Keep</strong> <em>spaces</em>.</p></main>',
+    )
+    fixture_version_path(page_dir, 1).write_text(markup)
+    publish(page_dir)
+    actions = [
+        (
+            "g1",
+            "choose",
+            {"options": ["o-reader"], "additions": {"o-reader": "Try a canary."}},
+        ),
+        ("summary", "edit", {"text": "  Ship after migration.\n\nKeep  two spaces.\n"}),
+        ("b1", "move", {"card": "card-y", "to": "c-done", "index": 0}),
+        ("b1", "move", {"card": "card-x", "to": "c-done", "index": 0}),
+    ]
+    for widget, action, detail in actions:
+        events_model.append_event(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": widget,
+                "action": action,
+                "detail": detail,
+            },
+        )
+    state = state_json(page_dir)
+    nodes = construction_nodes(state["content"])
+    draft = nodes["summary"]
+    assert draft["content"] == [actions[1][2]["text"]]
+    assert draft["authored"]["content"][0]["content"] == ["Ship on Friday."]
+    assert draft["edit"]["override_requires"] == "restate"
+    assert state["content_source"]["file"] == str(page_dir / state["active"]["file"])
+    assert state["content_source"]["edit_file"] == str(page_dir / "index.html")
+    assert nodes["o-reader"]["content"] == ["Try a canary."]
+    assert "chosen" in nodes["o-reader"]["attrs"]
+    assert nodes["o-reader"]["source"]["kind"] == "action"
+    assert nodes["o-reader"]["edit"]["owner"] == "g1"
+    assert "line" not in nodes["o-reader"]["source"]
+    assert "authored" not in nodes["o-reader"]
+    assert "chosen" in nodes["o-shim"]["authored"]["attrs"]
+    assert "chosen" not in nodes["o-shim"]["attrs"]
+    assert nodes["o-shim"]["authority"] == nodes["o-reader"]["authority"]
+    for identity in ("g1", "o-stage"):
+        assert "authored" not in nodes[identity]
+        assert "authority" not in nodes[identity]
+    assert [n["attrs"]["id"] for n in nodes["c-done"]["content"]] == [
+        "card-x",
+        "card-y",
+    ]
+    assert nodes["card-x"]["authored"]["placement"] == {"parent": "c-todo"}
+    assert nodes["explanation"]["content"][1] == " "
+
+    # A successor uses the emitted source address to change unrelated wording.
+    # Reader state remains effective without transcribing any of it into HTML.
+    target = nodes["explanation"]["edit"]
+    assert target["matches_active"]
+    path = Path(state["content_source"]["edit_file"])
+    path.write_text(
+        path.read_text().replace("<strong>Keep</strong>", "<strong>Preserve</strong>")
+    )
+    revised = state_json(page_dir)
+    again = construction_nodes(revised["content"])
+    assert revised["source"]["live"], revised["source"]["error"]
+    assert again["summary"]["content"] == draft["content"]
+    assert "chosen" in again["o-reader"]["attrs"]
+    assert again["explanation"]["content"][0]["content"] == ["Preserve"]
+
+    # Rejected source must not lend its lines to the still-live construction.
+    path.write_text(
+        "\n\n" + path.read_text().replace('id="explanation"', 'id="summary"')
+    )
+    rejected = state_json(page_dir)
+    current = construction_nodes(rejected["content"])
+    assert not rejected["source"]["live"]
+    assert rejected["active"] == revised["active"]
+    assert current["summary"]["content"] == draft["content"]
+    assert "line" not in current["summary"]["edit"]
+    assert current["summary"]["source"]["line"] == again["summary"]["source"]["line"]
+
+
+def test_page_inspection_binds_current_and_captured_data_to_their_construction(
+    page_dir,
+):
+    declare_data_input(
+        page_dir,
+        "builds",
+        {"type": "array", "items": {"type": "string"}},
+        snapshot=True,
+    )
+    runner = CliRunner()
+    captured = runner.invoke(
+        cli_model.cli,
+        ["data", "set", str(page_dir), "builds", "--capture-label", "reviewed"],
+        input='["passing"]',
+    )
+    assert captured.exit_code == 0, captured.output
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text()
+        .replace('id="test-data"', 'id="test-data" snapshot="1"')
+        .replace(
+            "</main>",
+            '<lf-test-data id="live-builds" source="builds"></lf-test-data></main>',
+        )
+    )
+    state_json(page_dir)
+    updated = runner.invoke(
+        cli_model.cli, ["data", "set", str(page_dir), "builds"], input='["failing"]'
+    )
+    assert updated.exit_code == 0, updated.output
+    nodes = construction_nodes(state_json(page_dir)["content"])
+    pinned = nodes["test-data"]["inputs"]["data"]
+    live = nodes["live-builds"]["inputs"]["data"]
+    assert pinned["value"] == ["passing"]
+    assert live["value"] == ["failing"]
+    assert pinned["origin"]["revision"] == 1
+    assert live["origin"]["revision"] == 2
+    assert pinned["origin"]["data_revision"] == live["origin"]["data_revision"] == 2
+    assert pinned["edit"]["pinned"] and not live["edit"]["pinned"]
+    assert pinned["edit"]["source"] == "builds"
+    assert pinned["edit"]["snapshot_attribute"] == "snapshot"
+    assert pinned["edit"]["operation"] == "capture-and-rebind"
+    assert live["edit"]["operation"] == "data set"
+
+
+@pytest.mark.parametrize(
+    "outcome,words",
+    [("accept", "Use the new wording."), ("reject", "Keep the old wording.")],
+)
+def test_page_inspection_retires_idless_slots_and_reads_frozen_construction(
+    page_dir, outcome, words
+):
+    markup = '<lf-suggestion id="wording"><lf-old>Keep the old wording.</lf-old><lf-new>Use the new wording.</lf-new></lf-suggestion>'
+    fixture_version_path(page_dir, 1).write_text(
+        PAGE.replace("</main>", markup + "</main>")
+    )
+    publish(page_dir)
+    decide(page_dir, outcome, widget="wording")
+    nodes = construction_nodes(state_json(page_dir)["content"])
+    assert [child["content"] for child in nodes["wording"]["content"]] == [[words]]
+    root = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "revision": 1,
+            "text": "Choose a route.",
+            "markup": 'Before <lf-options id="frozen" choose><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options> after.',
+        },
+    )
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "frozen",
+            "action": "choose",
+            "detail": {"options": ["second"]},
+        },
+    )
+    runner = CliRunner()
+    result = runner.invoke(
+        cli_model.cli, ["page", "state", str(page_dir), "--thread", root["id"]]
+    )
+    assert result.exit_code == 0, result.output
+    reading = json.loads(result.output)
+    assert reading["selection"] == {"kind": "thread", "id": root["id"]}
+    [message] = reading["content"]
+    assert message["text"] == "Choose a route."
+    assert message["content"][0] == "Before "
+    assert message["content"][-1] == " after."
+    frozen = construction_nodes(message["content"])
+    assert "chosen" in frozen["second"]["attrs"]
+    assert frozen["frozen"]["edit"] == {"kind": "conversation", "thread": root["id"]}
+    assert message["source"]["event"] == root["id"]
+    refused = runner.invoke(
+        cli_model.cli, ["page", "state", str(page_dir), "--thread", "missing"]
+    )
+    assert refused.exit_code != 0 and "unknown thread" in refused.output
+
+
+def test_page_inspection_routes_frozen_captures_to_a_new_reply(page_dir):
+    publish(page_dir)
+    root = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "revision": 1,
+            "text": "The reviewed instructions and their current replacement.",
+            "markup": '<lf-source id="reviewed" source="instructions" snapshot="1"></lf-source>'
+            '<lf-source id="current" source="instructions"></lf-source>',
+        },
+    )
+    data_model.cmd_data_set(page_dir, "instructions", "Reviewed wording.", "reviewed")
+    data_model.cmd_data_set(page_dir, "instructions", "Current wording.")
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "state", str(page_dir), "--thread", root["id"]]
+    )
+    assert result.exit_code == 0, result.output
+    [message] = json.loads(result.output)["content"]
+    nodes = construction_nodes(message["content"])
+    pinned = nodes["reviewed"]["inputs"]["document"]
+    current = nodes["current"]["inputs"]["document"]
+    assert pinned["value"] == "Reviewed wording."
+    assert pinned["edit"]["operation"] == "capture-and-reply"
+    assert pinned["edit"]["thread"] == root["id"]
+    assert current["value"] == "Current wording."
+    assert current["edit"]["operation"] == "data set"
+
+
 def test_version_descriptors_scan_the_revision_directory_once(tmp_path, monkeypatch):
     """Mapped revisions define history from one directory snapshot."""
     (tmp_path / "revisions").mkdir()
@@ -1591,12 +1823,12 @@ def test_a_version_may_not_quietly_contradict_a_standing_report(page_dir):
     publish(page_dir)
     assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
 
-    # Blessed silence: markup unchanged, the report keeps painting — and the
-    # passing run says so in the record-debt register.
+    # Unchanged markup leaves the report provisional without a copying warning.
     _tasks_version(page_dir, 2, "active")
     silent = check(page_dir, version=2)
     assert silent.exit_code == 0
-    assert "a report records status → 'review'" in silent.output
+    assert "record behind the log" not in silent.output
+    assert state_json(page_dir)["updates"][0]["disposition"] == "effective"
 
     # Honoring: writing the reported state.
     _tasks_version(page_dir, 2, "review")
@@ -1910,7 +2142,7 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
     )
     assert check(page_dir).exit_code == 0
 
-    # The record the next version owes: the picked card marked, nothing else.
+    # A version may also incorporate the standing pick into authored markup.
     write(2, a=" chosen")
     assert check(page_dir, version=2).exit_code == 0, (
         "marking the pick is not a rewrite"
@@ -1959,8 +2191,8 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
 
 
 def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
-    """An option generated by the reader becomes ordinary authored markup in the
-    next version, but the standing choice continues to carry its id and words in
+    """An option generated by the reader survives without authored markup.
+    The standing choice continues to carry its id and words in
     ``additions`` even after the reader picks a different option.  That mapped
     coordinate is therefore as live as an id named directly by ``options``:
     removing or silently rewriting it is refused until a version explicitly
@@ -2023,10 +2255,12 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
         },
     )
 
+    assert state_json(page_dir)["state"][0]["detail"]["additions"] == {
+        added: "Use the reader's route."
+    }
     write(2, added_words=None)
-    removed = check(page_dir, version=2)
-    assert removed.exit_code == 1
-    assert "reader-generated ids" in removed.output and added in removed.output
+    unchanged = check(page_dir, version=2)
+    assert unchanged.exit_code == 0, unchanged.output
 
     # Reusing the id elsewhere is not carrying the generated option. Neither an
     # ordinary element elsewhere in the document nor a nested element inside the
@@ -2223,11 +2457,9 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
     assert check(page_dir, version=4).exit_code == 0, check(page_dir, version=4).output
 
 
-def test_check_reports_record_lag_without_erroring(page_dir):
-    """Silence is blessed — replay resolves it — but a log-less reader sees only
-    the markup, so `version check` says where it lags the log, as advice on a passing
-    run. `leaf transcript` says the same to stderr, where the debt stops being
-    fixable."""
+def test_reader_state_survives_without_source_copying(page_dir):
+    """An unchanged authored choice needs no transcription into a later revision.
+    Validation stays quiet while state and the transcript preserve the answer."""
 
     def write(version, a=""):
         opts = OPTIONS.format(
@@ -2254,17 +2486,21 @@ def test_check_reports_record_lag_without_erroring(page_dir):
     write(2)
     result = check(page_dir, version=2)
     assert result.exit_code == 0
-    assert "record behind the log" in result.output
-    assert "g1" in result.output and "o-shim" in result.output
+    assert "record behind the log" not in result.output
+    state = state_json(page_dir)
+    assert state["state"][0]["detail"] == {"options": ["o-shim"]}
+    assert state["decisions"] == []
 
-    # Honored, the debt is gone and so is the advice.
+    # Explicit incorporation is permitted but unnecessary for correctness.
     write(2, a=" chosen")
     result = check(page_dir, version=2)
     assert result.exit_code == 0
     assert "record behind the log" not in result.output
 
     result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
-    assert "record behind the log" in result.output  # CliRunner folds stderr in
+    assert result.exit_code == 0, result.output
+    assert "record behind the log" not in result.output
+    assert "g1" in result.output and "o-shim" in result.output
 
 
 def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
@@ -2332,38 +2568,10 @@ def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
     assert "is not a 'date-time'" in malformed.output
 
 
-def test_record_lag_uses_the_version_being_checked(page_dir):
-    """A pinned version does not owe state from an action made on a later one."""
-    opts = OPTIONS.format(
-        a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
-    )
-    for version in (1, 2):
-        (page_dir / ".fixture-versions" / f"v{version}.html").write_text(
-            PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
-        )
-        publish(page_dir, version)
-    events_model.append_event(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 2,
-            "widget": "g1",
-            "action": "choose",
-            "detail": {"options": ["o-stage"]},
-            "generated": [],
-        },
-    )
-
-    result = check(page_dir, version=1)
-    assert result.exit_code == 0, result.output
-    assert "record behind the log" not in result.output
-
-
 def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir):
     """The file-side facet is the runtime's same ownership reading. An inner chosen
-    option is not part of the outer group's record, so an outer log choice that matches
-    its own authored option carries no phantom lag."""
+    option is not part of the outer group's record; a nested decision does not
+    change the outer reader choice."""
     nested = """<lf-decision id="outer-decision"><h3>Which outer choices?</h3>
   <lf-options id="outer" choose multiple>
     <lf-option id="outer-a" chosen><strong>Outer A</strong>
@@ -2400,7 +2608,7 @@ def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir)
 
 def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     """`page state` is /api/state folded for the agent: the banner's decision list,
-    the standing state replay paints, and record_lag's advice, as one queryable
+    the standing state replay paints, as one queryable
     object — the position a session picking up a standing page would otherwise
     re-derive from the raw log."""
     opts = OPTIONS.format(
@@ -2432,7 +2640,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         {"id": "g1-decision", "tag": "lf-decision", "thread": None}
     ]
     assert {"g1", "o-shim", "o-stage"} <= {el["id"] for el in state["elements"]}
-    assert state["state"] == [] and state["lag"] == []
+    assert state["state"] == []
 
     events_model.append_event(
         page_dir,
@@ -2461,17 +2669,6 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             # page's two documents the decision was made in, and `asks` above has
             # carried it exactly this way all along.
             "thread": None,
-        }
-    ]
-    assert state["lag"] == [
-        {
-            "widget": "g1",
-            "unit": "g1",
-            "facet": "selection",
-            "channel": "action",
-            "action": "choose",
-            "log": ["o-shim"],
-            "markup": [],
         }
     ]
     assert state["pending"] == 1 and state["unacked"] == 1
@@ -3343,7 +3540,7 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
 
 def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page_dir):
     """A report remains live for later absorption, but the reader's action is
-    the desired state and the only record debt on their shared coordinate."""
+    the effective state on their shared coordinate."""
     registry = json.loads((page_dir / "registry.json").read_text())
     options = registry["lf-options"]
     options["properties"]["overruled"] = {"type": "boolean"}
@@ -3389,17 +3586,6 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
     report = next(update for update in state["updates"] if update["source"] == "report")
     assert report["detail"] == {"options": ["o-stage"]}
     assert report["disposition"] == "standing"
-    assert state["lag"] == [
-        {
-            "widget": "g1",
-            "unit": "g1",
-            "facet": "selection",
-            "channel": "action",
-            "action": "choose",
-            "log": ["o-shim"],
-            "markup": [],
-        }
-    ]
 
 
 def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
@@ -3637,17 +3823,6 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "disposition": "effective",
         }
     ]
-    assert state["lag"] == [
-        {
-            "widget": "t-parser",
-            "unit": "t-parser",
-            "facet": "status",
-            "channel": "report",
-            "action": "status",
-            "log": "done",
-            "markup": "review",
-        }
-    ]
     # The absorbing version writes the status and its note names the report.
     (page_dir / ".fixture-versions" / "v2.html").write_text(
         PAGE.replace(
@@ -3690,7 +3865,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "disposition": "settled",
         }
     ]
-    assert state["lag"] == [] and state["decisions"] == []
+    assert state["decisions"] == []
 
 
 def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
@@ -3885,13 +4060,13 @@ def _linear(hex_colour):
 
 def _oklab(rgb):
     r, g, b = rgb
-    long = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b) ** (1 / 3)
+    lms_l = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b) ** (1 / 3)
     m = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b) ** (1 / 3)
     s = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b) ** (1 / 3)
     return (
-        0.2104542553 * long + 0.7936177850 * m - 0.0040720468 * s,
-        1.9779984951 * long - 2.4285922050 * m + 0.4505937099 * s,
-        0.0259040371 * long + 0.7827717662 * m - 0.8086757660 * s,
+        0.2104542553 * lms_l + 0.7936177850 * m - 0.0040720468 * s,
+        1.9779984951 * lms_l - 2.4285922050 * m + 0.4505937099 * s,
+        0.0259040371 * lms_l + 0.7827717662 * m - 0.8086757660 * s,
     )
 
 
@@ -3960,4 +4135,83 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
         seen = min((_apart(a, b), a, b) for a, b in pairs)
         assert seen[0] >= 15.0, (
             f"{scheme}: {seen[1]} and {seen[2]} are {seen[0]:.1f} apart"
+        )
+
+
+def test_page_inspection_places_cards_among_identified_siblings(page_dir):
+    """A layer can add idless column content without changing card indexes."""
+    registry_file = page_dir / "registry.json"
+    registry = json.loads(registry_file.read_text())
+    registry["lf-chip"]["x-parent"].append("lf-column")
+    registry_file.write_text(json.dumps(registry))
+    board = (
+        '<lf-board id="reading-board">'
+        '<lf-column id="reading-todo" label="To do">'
+        '<lf-card id="reading-a">A</lf-card></lf-column>'
+        '<lf-column id="reading-done" label="Done">'
+        "<lf-chip>Already reviewed</lf-chip>"
+        '<lf-card id="reading-b">B</lf-card></lf-column></lf-board>'
+    )
+    (page_dir / "index.html").write_text(before_choice(PAGE, board))
+    initial = state_json(page_dir)
+    assert initial["source"]["live"], initial["source"]["error"]
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": initial["active"]["revision"],
+            "widget": "reading-board",
+            "action": "move",
+            "detail": {"card": "reading-a", "to": "reading-done", "index": 0},
+        },
+    )
+    nodes = construction_nodes(state_json(page_dir)["content"])
+    assert [
+        (child["tag"], child["attrs"].get("id"))
+        for child in nodes["reading-done"]["content"]
+    ] == [("lf-chip", None), ("lf-card", "reading-a"), ("lf-card", "reading-b")]
+
+
+def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
+    page_dir,
+):
+    """A declared split does not turn the contract's inline text into a manifest."""
+    (page_dir / "index.html").write_text(
+        before_choice(
+            PAGE,
+            '<lf-diff id="reading-diff" source="reading-patch"><pre></pre></lf-diff>',
+        )
+    )
+    initial = state_json(page_dir)
+    assert initial["source"]["live"], initial["source"]["error"]
+    patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"
+    file = {
+        "key": "a.py",
+        "path": "a.py",
+        "kind": "patch",
+        "additions": 1,
+        "deletions": 1,
+        "patch": patch,
+    }
+    manifest = {"files": [file]}
+    for value in (patch, manifest, patch):
+        written = CliRunner().invoke(
+            cli_model.cli,
+            ["data", "set", str(page_dir), "reading-patch"],
+            input=json.dumps(value),
+        )
+        assert written.exit_code == 0, written.output
+        node = construction_nodes(state_json(page_dir)["content"])["reading-diff"]
+        reading = node["inputs"]["document"]
+        if isinstance(value, str):
+            assert reading["value"] == patch
+            assert "fragments" not in reading
+        else:
+            assert reading["value"] == {
+                "files": [{key: field for key, field in file.items() if key != "patch"}]
+            }
+            assert reading["fragments"]["path"] == ["sources", "reading-patch", "value"]
+        assert (
+            data_model.read_data(page_dir)["sources"]["reading-patch"]["value"] == value
         )

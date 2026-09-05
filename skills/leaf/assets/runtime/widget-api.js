@@ -9,6 +9,7 @@ export {
   openDecisions,
   watchDecisions,
 } from "./decisions/model.js";
+export { registerVisualParts } from "./visual-parts.js";
 export { conversationBox } from "./conversation/box.js";
 export { conversationInput, landInConversation } from "./conversation/landing.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";

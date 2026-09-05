@@ -758,7 +758,9 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
     suggestion. Holding the first replay makes the dangerous interval deterministic:
     discussion stays available, but the stale count, row, and bulk action stay withheld.
     Opening Threads during that interval replaces the remembered tray, and replay leaves
-    the current workspace standing while it paints the accepted state directly.
+    the current workspace standing while it paints the accepted state directly. The one
+    ask is answered by then, so its control comes back as completed progress rather than
+    as a tray the reader did not ask for.
     """
     url = serve(SHORT_SUGGESTION)
     events_model.append_event(

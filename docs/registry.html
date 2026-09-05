@@ -613,18 +613,25 @@
               <details class="reference-more">
                 <summary aria-label="Full x-visual contract">Full contract</summary>
                 <p>
-                  <code>whole</code> anchors the picture on the authored widget.
-                  <code>{parts: ATTR}</code> lets its module map tokens from ATTR to
-                  stable generated parts through <code>lfVisualPartAt(target)</code> and
-                  <code>lfVisualPart(part)</code>, which returns
-                  <code>{element, label}</code>. The returned element is the semantic
-                  target for marks, travel, and aim. Marks and aim follow a returned SVG
-                  element's painted primitives; other elements use the shown box.
-                  Targeting a mapped part stores its token as
-                  <code>anchor.visual</code> while the widget remains the semantic seat.
-                  A missing token or provider detaches on replay rather than widening to
-                  the whole picture. The render gate requires both provider methods on
-                  every matching instance.
+                  <code>whole</code> anchors the picture on the authored widget. For
+                  <code>{parts: ATTR}</code>, its module calls
+                  <code>registerVisualParts(source, read)</code> once;
+                  <code>read</code> returns the complete current
+                  <code>{id, element, label, surface?}</code> inventory. Core admits
+                  only ids authored in ATTR and derives token lookup and deepest-part
+                  hit testing from that inventory. <code>surface</code> defaults to
+                  <code>element</code> and may name one descendant whose native paint
+                  excludes decoration from the contour. It changes paint only:
+                  <code>element</code> remains the semantic hit and travel target. Marks
+                  and aim follow an SVG surface's painted geometry primitives; a surface
+                  with none, and every other element, uses the shown box. Targeting a
+                  mapped part stores its id as <code>anchor.visual</code> while the
+                  widget remains the semantic seat. A missing token or registration
+                  detaches on replay rather than widening to the whole picture. The
+                  registration's <code>update()</code> signals any rendering or geometry
+                  change, including an in-place attribute or style change. The render
+                  gate validates every record and requires each authored token to
+                  resolve.
                 </p>
               </details>
             </div>

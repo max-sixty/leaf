@@ -166,7 +166,11 @@ export function clippedRect(box, item, clips) {
   // resolves the thread panel itself, and the panel measured through body's band came
   // back wholly clipped away, so a mode whose row promises a click on the chrome drew
   // nothing over the chrome.
-  for (let a = item; a; a = a.parentElement) {
+  // Cross an open shadow boundary through its host. A package surface rendered in a
+  // declared shadow stage is still clipped by that host and by the page containers
+  // outside it; stopping at the ShadowRoot would let chrome paint where the package
+  // itself cannot.
+  for (let a = item; a; a = a.parentElement ?? a.getRootNode()?.host ?? null) {
     let c = clips.get(a);
     if (c === undefined)
       clips.set(

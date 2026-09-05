@@ -649,19 +649,24 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     page.keyboard.press("s")
     target = page.locator(".lf-target-hint").first
     expect(target).to_be_visible()
-    target_key = target.evaluate(
-        """el => { const s = getComputedStyle(el);
-          return Object.fromEntries(["min-width", "height", "padding", "box-sizing",
-            "border-top-width", "border-top-style", "border-radius", "font-family",
-            "font-size", "line-height", "text-align"]
-            .map(p => [p, s.getPropertyValue(p)])); }"""
+    # The standing paint can replace the hint layer between browser round trips. Read
+    # the one rendered face in one task so geometry and emphasis cannot come from two
+    # successive hint elements.
+    target_face = page.evaluate(
+        """() => { const s = getComputedStyle(
+          document.querySelector('.lf-target-hint'));
+          return {
+            key: Object.fromEntries(
+              ["min-width", "height", "padding", "box-sizing", "border-top-width",
+               "border-top-style", "border-radius", "font-family", "font-size",
+               "line-height", "text-align"]
+              .map(p => [p, s.getPropertyValue(p)])),
+            emphasis: {
+              border: s.borderTopColor, ground: s.backgroundColor, ink: s.color},
+          }; }"""
     )
-    assert target_key == option_key
-    target_emphasis = target.evaluate(
-        """el => { const s = getComputedStyle(el); return {
-          border: s.borderTopColor, ground: s.backgroundColor, ink: s.color}; }"""
-    )
-    assert target_emphasis == option_emphasis
+    assert target_face["key"] == option_key
+    assert target_face["emphasis"] == option_emphasis
     assert errors == []
     page.close()
 

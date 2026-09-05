@@ -5,6 +5,7 @@ import {
   quoted,
   textNodesUnder,
 } from "/runtime/widget-api.js";
+import { visualPartProblems } from "/runtime/visual-parts.js";
 import { openRoots } from "./open-roots.js";
 
 export const failSoftErrors = () =>
@@ -94,19 +95,21 @@ export const missingUpgrades = (widgets) =>
         entry["x-upgrade"] && document.querySelector(tag) && !customElements.get(tag),
     )
     .map(([tag]) => tag);
-export const missingVisualProviders = (widgets) =>
+export const invalidVisualProviders = (widgets) =>
   Object.entries(widgets)
     .filter(([, entry]) => entry["x-visual"] && typeof entry["x-visual"] === "object")
-    .flatMap(([tag]) =>
-      [...document.querySelectorAll(tag)].map((el) => ({
-        tag,
-        id: el.id,
-        missing: ["lfVisualPart", "lfVisualPartAt"].filter(
-          (name) => typeof el[name] !== "function",
-        ),
-      })),
+    .flatMap(([tag, entry]) =>
+      [...document.querySelectorAll(tag)].map((el) => {
+        const attribute = entry["x-visual"].parts;
+        const declared = (el.getAttribute(attribute) ?? "")
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean);
+        const problems = visualPartProblems(el, declared);
+        return { tag, id: el.id, problems };
+      }),
     )
-    .filter((instance) => instance.missing.length);
+    .filter((instance) => instance.problems.length);
 export const undeclaredShadowRoots = (registry) => [
   ...new Set(
     [...document.querySelectorAll("*")]

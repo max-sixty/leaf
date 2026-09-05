@@ -194,13 +194,6 @@ module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
 
-`x-visual` makes a rendered picture one stable Comment target. The value `whole` uses
-the widget's authored id. `{parts: ATTR}` also lets the module map tokens from the named
-attribute to current rendered boxes through `lfVisualPartAt(target)` and
-`lfVisualPart(part)`. The returned element supplies mark, travel, and aim geometry: SVG
-parts lend their painted primitives, while other elements use their shown box. The package
-owns the stable mapping; core owns the Comment gestures, keyboard proxies, and paint.
-
 A widget contributes each capability once with `commands(source, title, rows, options)`.
 The dispatcher, key line, `?` reference, `aria-keyshortcuts`, and Ask projection all
 consume those same live rows. Set a row or route's `decision` to its concise, non-empty
@@ -234,6 +227,20 @@ Ask set calls `watchDecisions(owner, callback)`. It invokes `callback(openDecisi
 immediately, invokes it again after a complete decision projection reconciles, binds the
 subscription lifetime to `owner`, and returns an explicit cleanup function. Packages do
 not listen to Leaf's internal `lf-actions` invalidation event.
+
+`x-visual` exposes stable Comment targets on a rendered picture. The value `whole` uses
+the widget's authored id. A widget declaring `{parts: ATTR}` calls
+`registerVisualParts(source, read)` once at upgrade. `read` returns the complete current
+inventory as `{id, element, label, surface?}` records. Leaf admits the ids authored in
+ATTR, derives token lookup and deepest-part hit testing from that one inventory, and
+keeps the authored widget as the durable comment seat. `surface` defaults to `element`;
+use a descendant only when decoration inside a compound part should not contribute to
+its contour. It changes paint only: `element` remains the semantic hit and travel target.
+SVG surfaces follow their painted geometry primitives; a surface with none, and every
+other element, uses the shown box. Call the returned `update()` after any rendering or
+geometry change, including in-place attribute or style changes. The render gate validates
+every record and requires each authored token to resolve. The package owns the stable
+mapping; core owns the explicit Comment gestures, keyboard proxies, and paint.
 
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical

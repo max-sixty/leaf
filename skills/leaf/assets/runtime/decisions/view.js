@@ -155,7 +155,8 @@ export function createDecisionView({
     if (openTray("decisions")) renderDecisions(all, unanswered);
     for (const { btn, label, n } of blanketAnswers(decisions)) {
       showNews(btn, Boolean(n));
-      btn.textContent = `${label} all (${n})`;
+      const said = `${label} all (${n})`;
+      if (btn.textContent !== said) btn.textContent = said;
     }
     // The a/A row stands on this list, so the surfaces reading it are repainted
     // where it changes — the rule showFab and showTray already keep for the words

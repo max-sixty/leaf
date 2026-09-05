@@ -615,7 +615,13 @@ export function createAnchors(dependencies) {
   // it threw the reading away and left the decisions tray naming the question by its raw id.
   function itemSays(item) {
     if (!item) return "";
-    const whole = quoteFrom(textNodesUnder(item));
+    // A module that names its own kind (x-word) may name its own words too: a rewrite's
+    // slots read `courtyardcovered terrace` as text nodes, and `courtyard → covered
+    // terrace` is what the page shows. Asked the same way as the word, and falling
+    // back the same way for a tag that has not upgraded or answers nothing.
+    const own =
+      registry[item.localName]?.["x-word"] === "module" ? item.lfSays?.() : "";
+    const whole = own || quoteFrom(textNodesUnder(item));
     if ([...whole].length <= ITEM_SAYS_CAP) return whole;
     const short = cut(whole, 0, ITEM_SAYS_CAP);
     const at = short.lastIndexOf(" ");
@@ -962,11 +968,12 @@ export function createAnchors(dependencies) {
       note.lfThreads = threadIds;
       note.onclick = () => {
         setPanel(true);
-        const id = note.lfThreads.find((threadId) =>
-          threadsBox.querySelector(`:scope > .lf-thread[data-id="${threadId}"]`),
-        );
-        const thread =
-          id && threadsBox.querySelector(`:scope > .lf-thread[data-id="${id}"]`);
+        const shown = (threadId) =>
+          threadsBox.querySelector(
+            `:scope > .lf-thread[data-id="${threadId}"]:not([hidden])`,
+          );
+        const id = note.lfThreads.find(shown);
+        const thread = id && shown(id);
         if (!thread) return;
         thread.focus({ preventScroll: true });
         scrollToThread(id);

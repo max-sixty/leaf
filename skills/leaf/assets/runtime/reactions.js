@@ -476,6 +476,12 @@ export function createReactions({
   document.addEventListener("lf-button-options-closed", () => {
     if (reactArmed && reactSurface === marginSurface) setReact(false);
   });
+  // A card the panel's narrowing hid keeps its node (thread-list.js), so a list open on
+  // one of its messages is still connected and still armed; the card going out of sight
+  // is the removal it always was to the reader.
+  document.addEventListener("lf-thread-hidden", (event) => {
+    if (reactArmed && event.detail.node.contains(reactSurface)) setReact(false);
+  });
 
   function responseChoices(surface) {
     if (!surface) return [];

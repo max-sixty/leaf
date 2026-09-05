@@ -19,7 +19,8 @@ its evidence.
 
 Delivery acceptance is a different fact from work. Pickup never rewrites
 `status.json` and cannot claim the agent has begun work or replace an existing
-claim. The browser projects one acknowledgment on each unsettled reader move,
+claim. The browser projects one acknowledgment per subject and unit, for the newest
+unsettled reader move on it (a tick and the Done press that followed are one),
 on the subject's existing Target Button or a compact local row: append is
 **Sent**, then **Waiting for pickup** after the short grace; a `pickup` naming
 the move is **Picked up**; a later `status … --on` claim on the same subject is

@@ -576,7 +576,7 @@ customElements.define(
       this.removeAttribute("aria-busy");
       this.#paintButtons();
       this.#renderHistory(actionSequence(this, "edit"));
-      if (ok) notice(`Restored ${label.toLowerCase()} — recorded`);
+      if (ok) notice(`Restored ${label.toLowerCase()} — sent`);
     }
 
     #open(seed, at) {
@@ -688,7 +688,7 @@ customElements.define(
       this.#paintButtons();
       this.#renderHistory(actionSequence(this, "edit"));
       if (ok) {
-        notice(`Edited “${this.id}” — recorded`);
+        notice(`Edited “${this.id}” — sent`);
       } else {
         const standing = loadEdit(this.id);
         // Null means the same shared generation was settled by the other tab while

@@ -204,7 +204,7 @@ customElements.define(
             ? `Chose “${name}”`
             : `Dropped “${name}”`;
         sendAction(this, "choose", this.#addition.detailFor(next)).then((ok) => {
-          if (ok) notice(`${said} — recorded`);
+          if (ok) notice(`${said} — sent`);
         });
       });
     }
@@ -242,6 +242,11 @@ customElements.define(
     // the pressed control's own line holds still.
     #doneRow() {
       this.#done = offer("button", "lf-btn lf-done", "Done");
+      // The Ask address's own slot, as each option row has one. Without it the projection
+      // hung the chip at the button's corner, half outside the group's frame.
+      const address = offer("span", "lf-address");
+      address.setAttribute("aria-hidden", "true");
+      this.#done.prepend(address);
       this.#done.setAttribute("aria-label", "Done: my picks here are complete");
       this.#done.setAttribute("aria-pressed", "false");
       this.#done.onclick = () => this.#answer();
@@ -263,7 +268,7 @@ customElements.define(
         // Usually replay has painted the accepted answer already. Repeat the absolute
         // paint for a partial render, but never over a same-read undo of this action.
         if (actionStands(accepted)) this.#answered(true);
-        notice("Marked answered — recorded");
+        notice("Marked answered — sent");
         return true;
       });
       this.#sending(sent);
@@ -401,6 +406,7 @@ customElements.define(
           keys: [],
           control: this.#done,
           decision: "Done",
+          address: this.#done.querySelector(":scope > .lf-address"),
           does: "Finish choosing options",
           line: "done",
           run: () => this.#done.click(),

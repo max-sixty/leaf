@@ -228,6 +228,12 @@ export function createDecisionView({
   function sayAsks(completed, total) {
     const said = `Asks ${completed}/${total}`;
     if (decisionsBtn.textContent !== said) decisionsBtn.textContent = said;
+    // The fraction alone does not say which way it counts — a blind drive read 1/2 as
+    // "one open" until Done turned it into 2/2 — so the tooltip spells the numerator.
+    const title = total
+      ? `${completed} of ${total} asks answered — show or hide the list`
+      : "Show or hide this page's asks";
+    if (decisionsBtn.title !== title) decisionsBtn.title = title;
   }
   // The banner's reading of that one list. Refreshed from every signal that can change
   // it: a widget saying it has just taken an answer (lf-answered, which is also when the
@@ -363,7 +369,7 @@ export function createDecisionView({
           const to = route.find((candidate) => candidate.id === decision.id);
           if (to) goToDecision(to, route);
         };
-        keys(row, "In the asks tray", [
+        keys(row, "In the Asks tray", [
           {
             id: "decision.open",
             keys: PRESS,

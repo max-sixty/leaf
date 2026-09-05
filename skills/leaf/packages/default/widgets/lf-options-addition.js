@@ -147,7 +147,7 @@ export class OptionAddition {
           return this.#commit(detail, attempt);
         },
       );
-      if (accepted) notice(`Added “${text}” — recorded`);
+      if (accepted) notice(`Added “${text}” — sent`);
     } finally {
       this.#adding = false;
       this.#sync();

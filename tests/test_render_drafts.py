@@ -1458,7 +1458,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     refuse(held[0])
     first.unroute("**/api/event")
     round_trip(first)
-    expect(first.locator(".lf-notice")).to_contain_text("Message recorded")
+    expect(first.locator(".lf-notice")).to_contain_text("Message sent")
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]

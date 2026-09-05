@@ -52,12 +52,12 @@ export function createConversationBox({ post, renderPanel, notice, wireInput }) 
       save: (value) => saveDraft(ctx, value),
       send: async (text, raw) => {
         if (!(await sendComment(text, raw))) return;
-        notice("Message recorded");
+        notice("Message sent");
       },
       altSend: hold
         ? async (text, raw) => {
             if (!(await sendComment(text, raw, true))) return;
-            notice("Message recorded — goal paused");
+            notice("Message sent — goal paused");
           }
         : null,
     });

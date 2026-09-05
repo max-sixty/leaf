@@ -2983,6 +2983,9 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(page.locator(".lf-general textarea")).to_have_attribute(
         "aria-keyshortcuts", "Meta+Enter Control+Enter"
     )
+    expect(page.locator("#live-question .lf-another textarea")).to_have_attribute(
+        "aria-keyshortcuts", "Meta+Enter Control+Enter"
+    )
     assert page.locator(".lf-version-menu").get_attribute("aria-keyshortcuts") is None
 
     page.keyboard.press("a")
@@ -5280,6 +5283,8 @@ def test_the_other_response_row_can_turn_the_compact_field_into_a_suggestion(
     expect(box).to_have_attribute(
         "placeholder", re.compile(r"^Comment… .*(⌘⏎|Ctrl\+⏎)$")
     )
+    send = page.locator(".lf-composer-row > button")
+    expect(send).to_have_attribute("title", re.compile(r"^Comment \((⌘⏎|Ctrl\+⏎)\)$"))
 
     page.keyboard.press("Tab")
     choices = page.locator(".lf-fab-bar")
@@ -5294,6 +5299,7 @@ def test_the_other_response_row_can_turn_the_compact_field_into_a_suggestion(
     expect(box).to_have_attribute(
         "placeholder", re.compile(r"^Replacement text .*(⌘⏎|Ctrl\+⏎)$")
     )
+    expect(send).to_have_attribute("title", re.compile(r"^Suggest \((⌘⏎|Ctrl\+⏎)\)$"))
     expect(box).to_have_value(
         re.compile("A paragraph carrying bold text and emphasis inside it")
     )

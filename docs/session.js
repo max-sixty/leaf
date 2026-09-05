@@ -1,51 +1,39 @@
-/* The session a leaf page has when nothing is serving it.
+/* The local session used only by the product site's static Leaf documents.
  *
- * A page directory is files plus a process. The files a static host serves perfectly —
- * the vendored layer sits at this site's root, and every example under /examples is the
- * file in the tree — and the process answers five paths: GET /api/state, which hands
- * the page the log and who is behind it; GET /api/data, which delivers one split source
- * payload; GET /api/view, which projects one exact read; POST /api/event, which appends;
- * and GET /api/news, a stream on which the page hears that the log has moved. So that is
- * what this is: those five paths, answered in the
- * tab.
+ * These informational pages use Leaf's runtime and controls but have no durable record
+ * or agent. This adapter answers Leaf's five request paths inside the tab so those
+ * controls remain an ephemeral exhibit. It does not validate events or claim to be the
+ * canonical server.
  *
- * Which makes the pages on this site live rather than pictures of live ones. Every
- * control is the shipped runtime's own — the banner and its counts, the thread panel,
- * the quote marks in the margin, and a board that takes a drag for this tab's visit —
- * because the runtime is loaded unmodified beside this file and cannot tell the
- * difference. What it can't have is the other half of the loop: no agent reads this log,
- * so a comment is recorded and answered by nobody.
- *
- * The banner says so in the runtime's own words, which is what `unattended` below is for:
- * this page reports that nobody is behind it and the chrome states the consequence,
- * where a page that wrote itself a claim could only then talk the reader out of it. A
- * published example also wears that boundary in a label above the document
- * (`docs/sitenote.js`). And the demo replies once, in the panel, because a reader who has
- * just typed into a box deserves the answer where they typed rather than where they
- * stopped reading ten minutes ago.
- *
- * Nothing here validates what the runtime posts. The server's door is strict because it
- * guards a record an agent will act on and a machine anything on the network can reach;
- * this log is one reader's own, in one tab, written by the one script on the page, and a
- * second copy of that door would be a second thing to keep in step with the first.
+ * Published examples deliberately do not enter this file. The website Worker routes
+ * them to complete page directories behind Leaf's ordinary Python state, projection,
+ * validation, event log, and news stream.
  */
 
-// The current example keeps its authored source at the page-root URL, while the build
-// materializes historical versions with the same identity markers as Leaf's HTTP
-// server. The event-backed version map is the shared authority for both: this session
-// derives the root document's identity from it, checks any built marker against it, and
-// installs the markers before the runtime loads. Product documents have no version
-// map, so they remain revision-one drafts.
+// Product documents are live drafts, so the static session supplies their revision
+// marker and leaves their version unset. The version-aware shape remains the runtime's
+// contract even though these product pages do not stamp versions.
 const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
-const PATH_VERSION = Number(location.pathname.match(VERSION_PATH)?.[1]) || null;
 const PAGE_ROOT = new URL(
   VERSION_PATH.test(location.pathname) ? "../" : "./",
   location.href,
 ).pathname;
 const DOCUMENT_URL = location.pathname;
-let REVISION;
-let VERSION;
-let VERSIONS;
+const revisionMarker =
+  document.querySelector('meta[name="lf-revision"][data-lf-runtime]') ??
+  Object.assign(document.createElement("meta"), {
+    name: "lf-revision",
+    content: "1",
+  });
+if (!revisionMarker.isConnected) {
+  revisionMarker.dataset.lfRuntime = "";
+  document.head.append(revisionMarker);
+}
+const REVISION = Number(revisionMarker.content);
+const versionMarker = document.querySelector(
+  'meta[name="lf-version"][data-lf-runtime]',
+);
+const VERSION = versionMarker ? Number(versionMarker.content) : null;
 const realFetch = window.fetch.bind(window);
 
 async function requireFile(path) {
@@ -54,25 +42,10 @@ async function requireFile(path) {
   return response;
 }
 
-function installIdentity(name, value) {
-  const selector = `meta[name="${name}"][data-lf-runtime]`;
-  let marker = document.querySelector(selector);
-  if (marker && Number(marker.content) !== value)
-    throw new Error(
-      `${DOCUMENT_URL} says ${name} ${marker.content}, but its version log says ${value}`,
-    );
-  if (!marker) {
-    marker = document.createElement("meta");
-    marker.name = name;
-    marker.dataset.lfRuntime = "";
-    document.head.append(marker);
-  }
-  marker.content = String(value);
-}
-
-// Begin every file read together. Document identity comes from the event-backed version
-// map, so this module waits for the shared seed before returning to the boot module; the
-// runtime then reads the markers and API responder from one settled session.
+// Begin every file read before installing the runtime. The local API below awaits this
+// one readiness promise only when the runtime asks for state, leaving its module graph
+// and the page's widget imports free to load alongside the static seed. These files are
+// the complete static session; a missing one is a broken product-page deployment.
 let REGISTRY;
 let LAYER;
 let DATA;
@@ -96,26 +69,7 @@ const sessionReady = Promise.all([
   LAYER = registry.$layer.generation;
   DATA = data;
   events = seededEvents;
-  VERSIONS = events
-    .filter((event) => event.kind === "note")
-    .sort((left, right) => left.version - right.version)
-    .map((event) => ({
-      version: event.version,
-      revision: event.revision,
-      url: `${PAGE_ROOT}versions/v${event.version}.html`,
-    }));
-  const active =
-    PATH_VERSION === null
-      ? VERSIONS.at(-1)
-      : VERSIONS.find((candidate) => candidate.version === PATH_VERSION);
-  if (PATH_VERSION !== null && !active)
-    throw new Error(`${DOCUMENT_URL} has no event-backed version mapping`);
-  REVISION = active?.revision ?? 1;
-  VERSION = active?.version ?? null;
-  installIdentity("lf-revision", REVISION);
-  if (VERSION !== null) installIdentity("lf-version", VERSION);
 });
-await sessionReady;
 
 // The name a reply in the panel wears, and nothing else. It is not the name of anyone
 // behind the page — nobody is — so the banner never speaks it: `unattended` below is what
@@ -129,18 +83,17 @@ const AGENT = "The demo";
 // Said once, to the first comment this reader writes, and not again — every comment
 // after it is the same person who has now been told, and the same sentence under each of
 // them reads as a machine talking rather than as an answer. Held here rather than read
-// off the log, which on an example that ships a thread already holds replies that are
-// none of this file's.
+// off the log, which is input state rather than this adapter's lifecycle.
 let answered = false;
 
 const ANSWER = `This demo has no agent, so nobody will read your comment.
 
 [Install Leaf](/#install) to get replies from your agent.`;
 
-// What the page opens on, for an example that ships a thread beside it: the log the
-// build laid in the page directory, which a served page would hand over on the first
-// poll. `sessionReady` puts it in the first answer while its file read overlaps runtime
-// startup. A page with no thread to open on has no file here, and the 404 is that answer.
+// What the product document opens on: the log the build laid beside it, which a served
+// page would hand over on the first poll. `sessionReady` puts it in the first answer
+// while its file read overlaps runtime startup. Today's product logs are empty; keeping
+// the file door makes that an input rather than a hard-coded special case.
 //
 // A reload deliberately starts again from this seed. Without the Python server there is
 // no durable authority to replay; browser storage would turn this illustrative session
@@ -194,7 +147,7 @@ const valueOf = (event) => {
   return value ?? null;
 };
 
-function demoProjection(revision = REVISION) {
+function demoProjection() {
   const withdrawn = new Set(
     events.filter((event) => event.undoes).map((event) => event.undoes),
   );
@@ -202,7 +155,6 @@ function demoProjection(revision = REVISION) {
   const actions = new Map();
   const reports = new Map();
   for (const event of events) {
-    if (event.revision > revision) continue;
     if (!["action", "report"].includes(event.kind)) continue;
     const coordinate = coordinateOf(event);
     if (!coordinate) continue;
@@ -368,8 +320,8 @@ function demoAsks(projection, threads) {
   return { ...asks, awaiting, unansweredAwaiting };
 }
 
-function demoBrowser(revision = REVISION) {
-  const projection = demoProjection(revision);
+function demoBrowser() {
+  const projection = demoProjection();
   const threads = demoThreads();
   const asks = demoAsks(projection, threads);
   const throughSeq = events.at(-1)?.seq ?? 0;
@@ -397,10 +349,10 @@ function demoBrowser(revision = REVISION) {
   return {
     basis: { through_seq: throughSeq },
     views: {
-      [revision]: {
-        basis: { revision, through_seq: throughSeq },
+      [REVISION]: {
+        basis: { revision: REVISION, through_seq: throughSeq },
         document: {
-          revision,
+          revision: REVISION,
           projection,
           asks: {
             all: asks.all,
@@ -437,9 +389,7 @@ function demoBrowser(revision = REVISION) {
 // goes blank the day it starts reading one.
 const state = () => ({
   layer: REGISTRY.$layer,
-  // A product route is a live draft. Built examples carry their version identity;
-  // historical documents retain their own addresses and the current document stands at
-  // the page root.
+  // A product route is a live draft; the current document stands at the page root.
   active: {
     revision: REVISION,
     version: VERSION,
@@ -447,7 +397,10 @@ const state = () => ({
     label: VERSION === null ? "Draft" : `v${VERSION}`,
     activated_at: null,
   },
-  versions: VERSIONS,
+  versions:
+    VERSION === null
+      ? []
+      : [{ version: VERSION, revision: REVISION, url: DOCUMENT_URL }],
   source_error: null,
   // Nobody is behind this page and nobody is coming, which the runtime has a word for
   // and reads before it weighs anything else. Everything below it is then the honest
@@ -552,15 +505,12 @@ window.fetch = async (input, init) => {
     });
   }
   if (url.pathname === "/api/view") {
-    const current = demoBrowser();
+    const browser = demoBrowser();
     const revision = Number(url.searchParams.get("revision"));
     const throughSeq = Number(url.searchParams.get("through_seq"));
-    const knownRevision =
-      revision === REVISION ||
-      VERSIONS.some((candidate) => candidate.revision === revision);
-    if (!knownRevision || throughSeq !== current.basis.through_seq)
+    if (revision !== REVISION || throughSeq !== browser.basis.through_seq)
       return json({ error: "the static exhibit holds no such projection" }, 400);
-    return json({ browser: demoBrowser(revision) });
+    return json({ browser });
   }
   if (url.pathname === "/api/event") {
     const event = JSON.parse(init.body);

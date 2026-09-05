@@ -3,6 +3,7 @@
 from .layer import (
     _required_layer_declarations,
     _validate_event_contracts,
+    _validate_event_handling,
     _validate_layer_declarations,
 )
 from .state import (
@@ -24,6 +25,7 @@ def validate_registry(registry: dict, source) -> dict:
         registry, path
     )
     _validate_event_contracts(kinds, path)
+    _validate_event_handling(registry["$events"], kinds, path)
     _validate_layer_declarations(registry, path, names, paths, tones, data, tokens)
     widgets = _widget_entries(registry, path)
     _validate_widget_schemas(widgets, path)

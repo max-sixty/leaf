@@ -12,14 +12,20 @@ The import takes <lf-num source="import-latency"
   at="2026-08-27T09:00:00Z" via="uv run bench-import">184 ms</lf-num> at p95.
 ```
 
-Set that source after every run with `leaf data set PAGE import-latency`, then pin
-`at` to that write's `updated` instant. The element's words and `at` remain part of the
-authored version; the replaceable source is only the freshness channel. If its `updated`
-instant moves past `at`, `version check` advises that the pinned number needs another
-look. `leaf data set` stamps `updated` at wall-clock, so an `at` naming when the
-measurement itself ran is already behind the write that recorded it and reads as stale
-the moment it is authored. This detects a rerun the version missed, not a measurement
-that is merely old. Use one source id for one stable measurement definition.
+The number and its `at` are part of the authored version; the source is only the
+freshness channel. After every run:
+
+1. Run the measurement.
+2. Record it with `leaf data set PAGE import-latency`. The command stamps the
+   source's `updated` instant at wall-clock and prints it.
+3. Write that printed `updated` instant into `at`, not the time the measurement
+   itself ran; an earlier instant is already behind the write and reads as stale
+   the moment it is authored.
+
+If the source's `updated` instant later moves past `at`, `version check` advises
+that the pinned number needs another look. This detects a rerun the version
+missed, not a measurement that is merely old. Use one source id for one stable
+measurement definition.
 
 ## Interactive and visual evidence
 
@@ -33,11 +39,11 @@ Flowcharts accept Mermaid's classic node shapes. Unstyled nodes already use Leaf
 accent surface. Use `classDef` only for nodes that need to stand apart from that
 baseline, and copy the whole `fill`/`stroke`/`color` set from the registry entry, such
 as `fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. Beautiful Mermaid also
-honors `stroke-width`; other properties are ignored. Inspect every rendered flowchart:
-Beautiful Mermaid can interpret an unknown or malformed line as a node, or render only
-the valid part of a malformed statement, instead of reporting an error.
-`version check --render` detects renderer failures, not this silent partial output. Use
-`lf-chart` for
+honors `stroke-width`; other properties are ignored. The widget refuses the
+`click`, `accTitle`, and `accDescr` directives, which the renderer would draw as
+nodes; a malformed statement it does not recognise can still render as a node or
+only in part, and `version check --render` reports renderer failures, not that
+partial output, so look at each flowchart once. Use `lf-chart` for
 quantities that need Leaf's data-first chart vocabulary: a comparison across a few
 categories, a run over time, a ranking, a composition, or two numbers against each
 other. The diagram renderer is 1.5MB, so `lf-diagram` travels in the `diagram`

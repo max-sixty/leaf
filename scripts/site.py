@@ -312,7 +312,7 @@ def publish_pages(out: Path, env: dict) -> None:
                     "stamp",
                     str(page),
                     "--text",
-                    f"{authored.name}, as published",
+                    "As published" if authored == source else "Earlier draft",
                 )
                 if order == 0 and seed_text:
                     with log.open("a", encoding="utf-8") as event_log:

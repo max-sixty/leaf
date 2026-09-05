@@ -941,13 +941,13 @@ const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
 const helpEl = document.createElement("dialog");
 helpEl.className = "lf-ui lf-help";
-helpEl.setAttribute("aria-label", "Keyboard reference");
+helpEl.setAttribute("aria-label", "All keyboard shortcuts");
 helpEl.setAttribute("aria-modal", "true");
 helpEl.tabIndex = -1; // focused on open, so the dialog isn't silent to a screen reader
 const helpClose = el("button", "lf-btn lf-help-close", "Close");
 helpClose.type = "button";
-helpClose.title = "Close keyboard reference";
-helpClose.setAttribute("aria-label", "Close keyboard reference");
+helpClose.title = "Close the shortcuts";
+helpClose.setAttribute("aria-label", "Close the shortcuts");
 // The key line — the register's short rendering. Its fact chips are aria-hidden (the spoken
 // copies are placeholders, announcements, and the reference); More is a real button because
 // a visible door to the complete list should be a door every reader can work.
@@ -1602,7 +1602,7 @@ function workspaceControlRoute(control) {
   if (thread) {
     const id = thread.dataset.id;
     return () =>
-      [...panel.querySelectorAll(".lf-thread[data-id]")].find(
+      [...panel.querySelectorAll(".lf-thread[data-id]:not([hidden])")].find(
         (row) => row.dataset.id === id,
       ) ?? null;
   }
@@ -1792,12 +1792,15 @@ function rung() {
   // Whichever tray holds the edge, named by the rung so the reader is told what the
   // press will take rather than being told "close the tray" over two of them.
   const tray = currentTray();
-  if (tray)
+  if (tray) {
+    // The tray's key is the runtime's; the reader knows the strip by the banner's word.
+    const word = tray === "decisions" ? "asks" : tray;
     return {
-      says: `close ${tray}`,
-      does: `Close the ${tray} tray`,
+      says: `close ${word}`,
+      does: `Close the ${word} tray`,
       out: () => showTray(null),
     };
+  }
   // A narrowing is a layer of the panel the way a tray is a layer of the page: the
   // reader put it on, and the list in front of them is not the whole of the conversation
   // until it comes off. So it unwinds before the panel does, and from wherever they are
@@ -2152,7 +2155,7 @@ const HELP = {
       id: "reference.command.next",
       keys: ["ArrowDown"],
       does: "Choose the next command",
-      line: "next command",
+      line: "choose next",
       repeat: true,
       runFromReference: false,
       // The list is built before search receives focus, so physical liveness is false at
@@ -2165,7 +2168,7 @@ const HELP = {
       id: "reference.command.previous",
       keys: ["ArrowUp"],
       does: "Choose the previous command",
-      line: "previous command",
+      line: "choose previous",
       repeat: true,
       runFromReference: false,
       referenceWhen: () => true,
@@ -2176,7 +2179,7 @@ const HELP = {
       id: "reference.command.run",
       keys: ["Enter"],
       does: "Run the chosen command",
-      line: "run command",
+      line: "run",
       runFromReference: false,
       referenceWhen: () => true,
       when: () => reference.onCommandRail,
@@ -2249,8 +2252,11 @@ const COMPOSER = {
     {
       id: "composer.close",
       keys: ["Escape"],
-      does: "Close the composer, keeping the draft",
-      line: "close — draft kept",
+      does: () =>
+        fabInput.value.trim()
+          ? "Close the composer, keeping the draft"
+          : "Close the composer",
+      line: () => (fabInput.value.trim() ? "close — draft kept" : "close"),
       promoteEscape: false,
       run: dismissFab,
     },
@@ -2671,7 +2677,7 @@ const REFERENCE = {
   runFromReference: false,
   keys: ["?"],
   does: () =>
-    keyline?.expanded ? "The complete keyboard reference" : "More keyboard shortcuts",
+    keyline?.expanded ? "All keyboard shortcuts" : "More keyboard shortcuts",
   line: () => (keyline?.expanded ? "all shortcuts" : "more"),
   control: keylineMore,
   run: () => keylineMore.click(),
@@ -2740,7 +2746,7 @@ const PAGE = {
     {
       id: "selection.open",
       keys: ["s"],
-      does: "Select a visible item by hint",
+      does: "Choose a visible item by hint, to comment on or react to",
       line: "select item",
       // Once a target is in hand, its actions own the two short-line slots. Escape clears
       // it, while this projection-only gate leaves s live to replace the target and keeps
@@ -2938,10 +2944,10 @@ function paintCoreControls() {
   helpClose.textContent = returningToMore ? "Back to more shortcuts" : "Close";
   helpClose.dataset.lfKeyTitle = returningToMore
     ? "Back to more shortcuts"
-    : "Close keyboard reference";
+    : "Close the shortcuts";
   helpClose.setAttribute(
     "aria-label",
-    returningToMore ? "Back to more shortcuts" : "Close keyboard reference",
+    returningToMore ? "Back to more shortcuts" : "Close the shortcuts",
   );
   const controlShortcut = (scope, row) =>
     [...(word(scope.chordPrefix ?? scope.chord) ?? []), labelOf(row)]
@@ -3544,7 +3550,6 @@ livingMargin = createLivingMargin({
   ago,
   anchorLabel,
   acknowledgments: () => runtime.browser?.acknowledgments ?? [],
-  announce,
   blockAt,
   chromeRoot,
   claimState: workClaimState,

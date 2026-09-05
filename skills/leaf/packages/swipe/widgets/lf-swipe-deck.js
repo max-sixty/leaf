@@ -145,16 +145,6 @@ customElements.define(
             when: () => this.#canSwipe(),
             run: () => this.#keep.click(),
           },
-          {
-            id: "swipe.undo-last",
-            keys: [],
-            control: this.#undo,
-            decision: "Undo last swipe",
-            does: "Undo the final swipe and reopen the deck",
-            line: "undo last swipe",
-            when: () => Boolean(undoableAction(this, "finish")),
-            run: () => this.#undo.click(),
-          },
         ],
         {
           answer: () =>

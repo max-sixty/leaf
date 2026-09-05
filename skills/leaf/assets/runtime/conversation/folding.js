@@ -1,3 +1,6 @@
+/* This module owns the shared Resolve/Reopen controls and resolution-fold state and
+ * motion; the settlement controls share the outbox across the panel and inline
+ * views. */
 import { outbox } from "../outbox.js";
 import { measure, reserve } from "../widget-elements.js";
 

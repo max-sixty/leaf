@@ -599,7 +599,7 @@ DECISION_WITH_CONTEXT_PAGE = leaf_page(
 
 # An ask that cannot declare an arrival region of its own: the change is a phrase inside a
 # sentence, and what explains it is that sentence and the heading over it. One ask, so the
-# walk's wrap comes back to it and a second press can be asked what it does to a page the
+# clamped walk stays on it and a second press can be asked what it does to a page the
 # reader has already adjusted.
 SUGGESTION_IN_CONTEXT_PAGE = leaf_page(
     "suggestion with context",

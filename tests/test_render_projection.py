@@ -1075,7 +1075,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
     expect(page.locator(".lf-banner-status .lf-notice")).to_have_text(
-        "Chose “Two” — recorded"
+        "Chose “Two” — sent"
     )
     round_trip(page)
     assert errors == []
@@ -4259,7 +4259,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(decisions).to_have_text("Asks 2/2")
     expect(decisions).to_have_attribute("data-lf-complete", "")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
-    expect(page.locator(".lf-notice")).to_have_text("Marked answered — recorded")
+    expect(page.locator(".lf-notice")).to_have_text("Marked answered — sent")
     # Said once, by the log's answer. An `answered` attribute on the group said it
     # again in the author's namespace, where the entry admits nothing undeclared and no
     # version could ever have carried a record of a thread verb — invisible to every
@@ -4590,7 +4590,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     a pair the widget picks. A widget row is nearer than the runtime's disclosure scope
     and `lineRows` keeps only the keys the nearer row names, so a head binding Enter and
     Space alone took the arrow off both surfaces while the arrow went on opening the
-    tree — the shape `skills/leaf/CLAUDE.md` names as one promise rather than two.
+    tree — the shape `skills/leaf/assets/CLAUDE.md` names as one promise rather than two.
 
     Both surfaces of that promise, because a row naming the wrong keys names them wrongly
     on both — the line the reader sees and the `aria-keyshortcuts` a listener is read —

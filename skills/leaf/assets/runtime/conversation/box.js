@@ -1,3 +1,5 @@
+/* This module owns page-seated first-message boxes: the conversation a widget declares
+ * through `x-conversation`, built by `conversationBox`. */
 import { runtime } from "../context.js";
 import { loadDraft, saveDraft, sendDraft, watchDraft } from "../drafts.js";
 import { inChrome } from "../passages.js";
@@ -50,12 +52,12 @@ export function createConversationBox({ post, renderPanel, notice, wireInput }) 
       save: (value) => saveDraft(ctx, value),
       send: async (text, raw) => {
         if (!(await sendComment(text, raw))) return;
-        notice("Message recorded");
+        notice("Message sent");
       },
       altSend: hold
         ? async (text, raw) => {
             if (!(await sendComment(text, raw, true))) return;
-            notice("Message recorded — goal paused");
+            notice("Message sent — goal paused");
           }
         : null,
     });

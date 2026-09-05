@@ -225,7 +225,7 @@ export function createReference({
     if (open) {
       helpEl.textContent = "";
       const head = el("div", "lf-help-head");
-      head.append(el("div", "lf-help-title", "Keyboard commands"), helpClose);
+      head.append(el("div", "lf-help-title", "All keyboard shortcuts"), helpClose);
       helpEl.append(head);
       const search = document.createElement("input");
       search.type = "search";
@@ -270,7 +270,7 @@ export function createReference({
       const results = el("div", "lf-help-results");
       results.id = "lf-help-results";
       results.setAttribute("role", "grid");
-      results.setAttribute("aria-label", "Keyboard commands");
+      results.setAttribute("aria-label", "All keyboard shortcuts");
       search.setAttribute("aria-controls", results.id);
       const emptyRow = document.createElement("div");
       emptyRow.setAttribute("role", "row");
@@ -484,9 +484,13 @@ export function createReference({
           shown += sectionShown;
         }
         emptyRow.hidden = shown !== 0;
+        // The hint's verbs are the rows' (HELP in leaf.js: "choose next", "run"), since the
+        // short key line has no slot for the arrow rows and this head is where a reader
+        // in the search box learns them. Two spellings of one press — "choose" here,
+        // "next command" on the line — were two registers.
         meta.textContent = query
-          ? `${shown} of ${total} commands · ↑↓ choose · Enter run`
-          : `${total} commands · ↑↓ choose · Enter run`;
+          ? `${shown} of ${total} commands · ↑↓ choose · ⏎ run`
+          : `${total} commands · ↑↓ choose · ⏎ run`;
         keepOneCommandReachable();
       };
       search.addEventListener("input", filter);
@@ -574,7 +578,7 @@ export function createReference({
     next.closest("tr").scrollIntoView({ block: "nearest" });
     const key = next.closest("tr").querySelector("kbd").textContent;
     helpEl.querySelector(".lf-help-meta").textContent =
-      `${next.textContent} · ${key} · Enter run`;
+      `${next.textContent} · ${key} · ⏎ run`;
   }
   function runSelected() {
     if (!onCommandRail()) return false;

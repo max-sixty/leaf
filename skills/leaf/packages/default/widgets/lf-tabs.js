@@ -83,6 +83,9 @@ customElements.define(
           keys: PRESS,
           does: "Open the focused tab",
           line: "open the tab",
+          // The tab already open has nothing for this press to do, so the line does not
+          // name it there; the walk beside it is what moves.
+          when: () => document.activeElement?.getAttribute("aria-selected") !== "true",
           run: () => document.activeElement.click(),
         },
         {

@@ -10,7 +10,12 @@
 
    Neither is stored. A remembered narrowing greets a returning reader with part of a
    conversation and nothing on screen saying why. `ARRANGEMENTS` is for what the page
-   restores; a look at a list is not one. */
+   restores; a look at a list is not one.
+
+   Neither takes a card out of the document. An open thread the narrowing hides keeps
+   its node, `hidden`: a widget an agent sent in a reply is instantiated once, in that
+   card, and the banner's Asks count, the tray's rows and the `a`/`A` walk all find it
+   by id. `openThreads` and the `t`/`T` walk read only the cards that show. */
 export function createConversationNarrowing(dependencies) {
   const {
     anchorLabel,
@@ -81,8 +86,19 @@ export function createConversationNarrowing(dependencies) {
     const waiting = open.filter(awaitsReader).length;
     needsBtn.textContent = waiting ? `Waiting on you (${waiting})` : "Waiting on you";
     // Pressable while it stands pressed, so the reader can always let it go; dead only when
-    // there is nothing for it to show and it is not the thing hiding the list.
+    // there is nothing for it to show and it is not the thing hiding the list. A dead
+    // control reads as a status until it says why — a blind drive took "Waiting on you",
+    // greyed, for a verdict on the thread it had just written.
     needsBtn.disabled = !needsYou && !waiting;
+    // Through the key-title seat the core controls paint from (paintCoreControls), which
+    // appends the binding while the row is live; written to `title` directly it was read
+    // once as the base and the control went on saying " (w)".
+    needsBtn.dataset.lfKeyTitle = needsYou
+      ? "Show every thread again"
+      : waiting
+        ? "Show only the threads waiting on you"
+        : "Nothing is waiting on you";
+    needsBtn.title = needsBtn.dataset.lfKeyTitle;
   }
 
   // Re-render the list alone, for the one change that is the panel's own rather than the

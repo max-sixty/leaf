@@ -274,6 +274,7 @@ import { keeps, keepsHidden } from "./widget-elements.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { landInConversation } from "./conversation/landing.js";
 import { clocked } from "./presence.js";
+import { notice } from "./notifications.js";
 
 const KINDS = {
   action: { label: "Action", icon: "dot", priority: -1 },
@@ -765,7 +766,6 @@ export function createLivingMargin(dependencies) {
     ago,
     anchorLabel,
     acknowledgments,
-    announce,
     blockAt,
     chromeRoot,
     claimState,
@@ -808,6 +808,8 @@ export function createLivingMargin(dependencies) {
     versionBtn,
     waitingForPickupSince,
   } = dependencies;
+  // The Button the reader is standing on, or null off one: the press row's words read it.
+  const focusedButtonBehavior = () => focused()?.[BUTTON_RECORD]?.behavior ?? null;
 
   const nav = el("nav", "lf-ui lf-living-margin");
   // Every live page can gain an anchored comment, including one made entirely of prose.
@@ -1595,10 +1597,13 @@ export function createLivingMargin(dependencies) {
       .sort((left, right) => comesBefore(left.target, right.target));
   }
 
+  // The account goes to the banner's notice slot rather than to the live region alone:
+  // a Change Button's target is usually already on screen, so the scroll moves nothing
+  // and a press that only announced was, to a sighted reader, a press that did nothing.
   function revealTarget(target, account) {
     if (!target?.isConnected) return;
     scrollToElement(target, scrollBehavior(), "nearest");
-    announce(account);
+    notice(account);
   }
 
   function markerOptions(row) {
@@ -1946,8 +1951,27 @@ export function createLivingMargin(dependencies) {
     {
       id: "margin.press",
       keys: PRESS,
-      does: "Work the focused Button",
-      line: "work this Button",
+      // Said for the Button under the reader, not for Buttons in general: "work this
+      // Button" over a Change reading promised something, and Enter there scrolls to a
+      // paragraph already on screen. A reading's press goes to what it points at; a
+      // disclosure's opens or closes it; an action's does the verb on its face.
+      // Read off the standing Button, and only where there is one: the reference
+      // lists this row's sentence from anywhere on the page.
+      does: () => {
+        const behavior = focusedButtonBehavior();
+        if (behavior === "disclosure")
+          return "Open or close what the focused Button holds";
+        if (behavior === "action") return "Press the focused Button";
+        if (behavior) return "Go to what the focused Button points at";
+        return "Work the focused Button";
+      },
+      line: () => {
+        const behavior = focusedButtonBehavior();
+        if (behavior === "disclosure") return "open / close";
+        if (behavior === "action") return "press";
+        if (behavior) return "go to it";
+        return "work this Button";
+      },
       when: () => focused()?.matches?.('.lf-margin-button[role="button"]'),
       run: () => focused().click(),
     },
@@ -2716,7 +2740,18 @@ export function createLivingMargin(dependencies) {
     const focusedItem = focusedNode?.dataset.lfMarginItem ?? null;
     const threadItems = entry.items.filter((item) => item.kind === "comment");
     const targetHeading = entry.target?.querySelector(":scope > strong")?.textContent;
-    const title = trimmed(targetHeading || entry.title, 72);
+    // A target with a heading is named by it. One without — an aside, a paragraph —
+    // and holding one thread is headed by the passage that thread quotes, as the panel
+    // heads it: a card headed "aside · The fallback cookie is read-only…" over a comment
+    // on the aside's last sentence was a third name for one thread, and the least exact.
+    const quoted =
+      threadItems.length === 1 && threadItems[0].thread?.root.anchor
+        ? anchorLabel(
+            threadItems[0].thread.root.anchor,
+            threadItems[0].thread.root.about,
+          )
+        : null;
+    const title = trimmed(targetHeading || quoted || entry.title, 72);
     keeps(preview, "data-lf-thread", "");
     keeps(preview, "aria-label", `Thread for ${title}`);
     previewTitle.textContent = title;

@@ -231,15 +231,7 @@ def list_fixture_versions(page_dir):
 
 @pytest.fixture
 def page_dir(tmp_path, monkeypatch, clone_initialized_page):
-    """A page with the default, Command Hub, diagram and diff vocabularies and a v1.
-
-    Owns command-level files without starting a browser, and clones its ordinary
-    initialized layer the same way `serve` does: runtime and vendor files are immutable
-    fixture inputs and may be shared; state, contracts, theme, and modules remain
-    private. Tests of initialization, re-vendoring, or a custom overlay still cross the
-    real `page init` boundary, which keeps a failure at the file/CLI boundary apart from
-    one in the served runtime.
-    """
+    """A page with the default, Command Hub, diagram and diff vocabularies and a v1."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     d = tmp_path / "page"
 

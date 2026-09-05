@@ -1,3 +1,5 @@
+/* This module owns banner wording, tone, tab-icon paint, and announcing a status kind
+ * that has changed. */
 import { clocked } from "./presence.js";
 
 export function createBanner({

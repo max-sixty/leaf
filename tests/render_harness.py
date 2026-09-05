@@ -79,14 +79,7 @@ EXAMPLE_MEDIA = ROOT / "examples" / "media"
 
 
 def leaf_page(title: str, body: str, *, head: str = "") -> str:
-    """A complete page carrying the presentation boundary every fixture shares.
-
-    It supplies the same language, charset, CSP, theme, module, and main-content shell
-    to every specimen. Keep raw documents only when source structure is the subject:
-    lint fixtures, malformed markup, tokenizer input, line-number assertions, or a
-    document whose missing boundary is the condition under test. A shared shell must not
-    repair the malformed case a test is meant to present.
-    """
+    """A complete page carrying the presentation boundary every fixture shares."""
     extra_head = f"{head}\n" if head else ""
     return f"""<!doctype html>
 <html lang="en">
@@ -788,8 +781,7 @@ def _server_reading(page):
 def told(page):
     """Wait until the page has taken in everything the server now holds.
 
-    Use it after the test writes a version, event, status, or lease that the browser
-    learns by reading. Letting `expect` absorb the page's next read instead hides which
+    Letting `expect` absorb the page's next read instead hides which
     mechanism supplied the wait and spends its timeout budget on transport rather than
     on the assertion.
     """

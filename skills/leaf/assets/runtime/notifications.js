@@ -24,7 +24,7 @@ export function createNotifications({ liveEl, noticeEl }) {
     setTimeout(() => (liveEl.textContent = msg), 30);
   }
 
-  // The acknowledgement of a gesture ("Moved to Done — recorded"), an arrival ("Updated
+  // The acknowledgement of a gesture ("Moved to Done — sent"), an arrival ("Updated
   // to v3"), a refusal ("Nothing to send — the box is empty"): the corner the reader
   // already watches for the page's state, rather than that corner and a toast at the
   // opposite one. A sentence that is also a button for four seconds is a target the

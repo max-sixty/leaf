@@ -81,3 +81,12 @@ Relocation is not revision: moving unchanged content needs neither a suggestion
 nor `restated`. Keep a decision live while it is being applied, and settle it
 only after the work no longer revisits it. Keep a section live while the reader
 is still commenting there.
+
+When several workstreams are live at once, use one `lf-tabs`. Keep the shared
+title and lede before it, and put the current workstream first: ordering makes it
+the default for a reader with no saved panel or reading position, and a saved
+panel or restored position takes precedence. Context an earlier run still owes
+the current one goes in a collapsed `<details>` inside the relevant tab, with any
+passage whose id anchors an open thread or holds a standing decision. Threads,
+asks, versions, and sign-off still cover the whole page, so none of that runtime
+chrome belongs inside a tab.

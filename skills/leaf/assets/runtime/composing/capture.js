@@ -1,3 +1,5 @@
+/* This module owns selection capture and snapping: the anchor a selection makes, and
+ * the selection the page hands back to the reader. */
 export function createSelectionCapture({
   anchoringIsReady,
   blockOf,

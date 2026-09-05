@@ -56,9 +56,9 @@ const landingTarget = (held, control) => {
     : control;
 };
 
-export function revealConversation(held, control) {
+export function revealConversation(held, control, behavior = scrollBehavior()) {
   landingTarget(held, control).scrollIntoView({
-    behavior: scrollBehavior(),
+    behavior,
     block: "nearest",
   });
 }
@@ -246,8 +246,14 @@ export function createPanelLanding({
     if (pressedPointer === null) land(standing());
   });
 
-  const listNode = (id) =>
-    threadsBox.querySelector(`.lf-thread[data-id="${id}"], .lf-msg[data-mid="${id}"]`);
+  // Shown, not merely standing: a card the narrowing hid keeps its node (thread-list.js),
+  // and a destination in one is as unreachable as a destination with no node at all.
+  const listNode = (id) => {
+    const node = threadsBox.querySelector(
+      `.lf-thread[data-id="${id}"], .lf-msg[data-mid="${id}"]`,
+    );
+    return node?.closest(".lf-thread[hidden]") ? null : node;
+  };
 
   // Direct navigation reveals what was requested, including a message's interactive
   // controls or a resolved thread. A thread arrives ready for a reply; a message keeps

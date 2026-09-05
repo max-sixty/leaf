@@ -37,20 +37,15 @@ path is `${CLAUDE_SKILL_DIR}/../../bin/leaf`, and Claude Code also puts it on
 incomplete. A checkout keeps it at `bin/leaf`.
 
 1. Run `leaf page init <page>`. Optional shapes need their packages named here:
-   use `diagram` for Mermaid, `diff` for a unified diff, and `swipe` for rapid
-   pass-or-keep triage — for example,
+   `diagram` for Mermaid, `diff` for a unified diff, and `swipe` for rapid
+   pass-or-keep triage, as in
    `leaf page init --package diagram --package diff <page>`. Re-running `page init`
    with the selection adds it to a page already written.
-2. Read `references/page-authoring.md`, including its selective `registry.json`
-   queries. Read `references/authoring-decisions.md` while authoring a new,
-   unanswered ask or sign-off; read `references/authoring-revisions.md` before
-   changing a handed-over page, proposing a rewrite, using a reader-owned draft,
-   or revising standing state. Read
-   `references/authoring-evidence.md` only for measured, visual, source, or media
-   evidence. Write `<page>/index.html` using only the registry's vocabulary. A
-   valid save becomes the active immutable revision; an invalid save leaves the
-   last valid revision live and reports its diagnostic in page state and the
-   browser.
+2. Read `references/page-authoring.md`, then the authoring reference each part of
+   the page needs (listed under "Author a version" below). Write
+   `<page>/index.html` using only the registry's vocabulary. A valid save becomes
+   the active immutable revision; an invalid save leaves the last valid revision
+   live and reports its diagnostic in page state and the browser.
 3. Match the handoff ceremony to the page's intended lifetime, regardless of
    its shape or whether it asks a question:
    - For a quick page that will be revised or dropped after an immediate
@@ -63,70 +58,44 @@ incomplete. A checkout keeps it at `bin/leaf`.
      reaches the user.
    - A page declaring `<meta name="lf-review" content="sign-off">` is a record,
      whatever else it looks like: work will rely on the approval, and sign-off is
-     offered only on a stamped version. Give it the record's ceremony above
-     before its URL first reaches the user.
+     offered only on a stamped version. Give it the record's ceremony before its
+     URL first reaches the user.
    - If a later stamp turns a quick page into a record, run that review before
      the stamp.
 4. Read `references/conversation-loop.md` and exactly one host contract:
    `references/host-claude-code.md` or `references/host-codex.md`. Set the page's
-   handoff status as the conversation reference defines.
-5. Use the presentation and delivery path defined by that host contract. Both
-   hosts use the full browser page by default; Codex can open it beside the task
-   in its browser pane. Retain the exact keyed URL. Inline MCP Apps are an
-   explicit experimental route with a reduced fallback.
-6. Name the available gesture and finish the turn. Send the exact URL for a
+   status as the conversation reference defines, and hand over by the route the
+   host contract defines. Both hosts use the full browser page by default; retain
+   the exact keyed URL. Inline MCP Apps are an explicit experimental route with a
+   reduced fallback.
+5. Name the available gesture and finish the turn. Send the exact URL for a
    browser handoff; for an MCP App, name the review and report the observed mode
    or that rendering remains unverified.
 
 When input arrives, read `references/event-batches.md` before processing it and
-`references/conversation-threads.md` when a thread needs work. A
-`leaf-delivery` element names a Codex delivery payload: read its `path` and
-process every entry in `batches`; each carries its page, URL, thread context, and
-events. All batches for one page carry its current URL when the pointer is offered.
-If an at-least-once retry arrives after that path was completed, read the same
-filename under its sibling `history/` directory. The same delivery id may return
-after more input joins its active turn,
-so reread the payload and apply the page-and-sequence retry rule. The detached
-adapter owns acknowledgement. Read
-`references/page-checkpoints.md` before stamping or ending. Edit only
+`references/conversation-threads.md` when a thread needs work; in Codex the
+delivery arrives as a `leaf-delivery` element, which `references/host-codex.md`
+owns. Read `references/page-checkpoints.md` before stamping or ending. Edit only
 `index.html`; Leaf alone writes immutable revisions and public version mappings.
 
 ## Page contract
 
 Unless the user specifies the page's form or depth, a Leaf is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
-state, or offers one move, so the reader can grasp it at a glance and continue.
-This gives the page the pace of browsing a visual feed; disclosures keep
-supporting detail available without putting it in that path. A quick-decision
-page puts its first Ask in the initial viewport. The Ask carries the short shared
-premise and alternatives it needs. A record or system page may expose the whole
-state and put each Ask where that state makes it answerable.
-
-The visible page follows the subject's shape rather than a report outline.
-`references/page-authoring.md` owns the concrete choices and reading-cost review.
-Prose connects the shapes, so keep it short. The page's `registry.json` is the
-authority for the vendored vocabulary and theme; query only the entries the page
-needs.
+state, or offers one move, so the reader can grasp it at a glance and continue;
+disclosures keep supporting detail available without putting it in that path. A
+quick-decision page puts its first Ask in the initial viewport, with the short
+shared premise and alternatives it needs. A record or system page may expose the
+whole state and put each Ask where that state makes it answerable. The visible
+page follows the subject's shape rather than a report outline;
+`references/page-authoring.md` owns the concrete choices.
 
 A page states what is true now, not how it got there. Correct a wrong figure in
-place and drop a superseded claim rather than narrating its withdrawal — the
-`version stamp` changelog and the event log carry the history, so the column does
-not have to.
-
-Packages may also carry guidance for roles involved in the page. `leaf page
-guidance <page>` lists the available audiences, and `leaf page guidance <page>
-<audience>` prints one guide. Read the assigned audience before acting in that
-role. List the page's audiences and read `author` guidance when it is available.
-
-A decision keeps its control beside the evidence it turns on. Write related,
-independently answerable Asks as ordinary `lf-decision` elements in page order,
-so the complete page remains visible. The reader can press `a` to enter the Ask
-walk and `1`–`9` to answer the current Ask. Publish a dependent Ask after the prior
-answer instead of showing branches the reader cannot decide yet. A page that needs
-approval declares sign-off; an informative page does not. Save freely as the subject
-changes and stamp meaningful checkpoints. Use status detail for progress between
-revisions. Keep the waiter alive while work continues so comments can affect the next
-step.
+place and drop a superseded claim rather than narrating its withdrawal; the
+`version stamp` changelog and the event log carry the history. Save freely as
+the subject changes and stamp meaningful checkpoints. Use status detail for
+progress between revisions. Keep the waiter alive while work continues so
+comments can affect the next step.
 
 ## Conditional references
 
@@ -148,7 +117,8 @@ so a phase does not depend on discovering a chain of references.
 - `references/conversation-loop.md`: before a page handoff or working status.
 - `references/host-claude-code.md`: before the first handoff in Claude Code or
   recovery of its direct wait loop.
-- `references/host-codex.md`: before the first handoff in Codex.
+- `references/host-codex.md`: before the first handoff in Codex, and for the
+  delivery payload its later turns receive.
 
 ### Continue after input
 

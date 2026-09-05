@@ -1431,8 +1431,8 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
 def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     """a lands on the authored question and exposes the deck's own bindings there.
 
-    The last classification both places its card and closes the Ask, so one undo
-    reopens the question with that card back in the queue.
+    The last classification both places its card and closes the Ask, so z reopens the
+    question with that card back in the queue.
     """
     page, errors = open_page(browser, serve(SWIPE_PAGE))
     decision = page.locator("#session-triage-decision")
@@ -1447,11 +1447,9 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     expect(pass_reference.locator(".lf-key-sequence")).to_have_attribute(
         "aria-label", "ArrowLeft"
     )
-    undo_reference = page.locator('.lf-help tr[data-lf-command="swipe.undo-last"]')
-    expect(undo_reference.locator("kbd")).to_have_text("Undo last swipe")
-    expect(undo_reference.locator(".lf-key-sequence")).to_have_attribute(
-        "aria-label", "Undo last swipe"
-    )
+    expect(
+        page.locator('.lf-help tr[data-lf-command="swipe.undo-last"]')
+    ).to_have_count(0)
     page.keyboard.press("Escape")
 
     page.keyboard.press("a")
@@ -1484,8 +1482,8 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
         page.keyboard.press(binding)
     round_trip(page)
     expect(page.locator(".lf-decisions")).to_have_text("Asks 1/1")
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text("1")
-    assert "1\nUndo last swipe" in key_line(page)
+    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_count(0)
+    assert "Undo last swipe" not in key_line(page)
     assert [event["action"] for event in actions(serve.page_dir)] == [
         "swipe",
         "swipe",
@@ -1503,18 +1501,13 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     expect(row).to_be_focused()
     expect(row.locator(".lf-decisions-answer")).to_have_text("3 kept · 3 passed")
     page.keyboard.press("Enter")
-    assert "1\nUndo last swipe" in key_line(page)
-
-    # At strip width the tray and the chosen Ask can remain visible together. If the
-    # window then narrows until that same tray covers the page, its nearer keyboard
-    # scope must remove the already-painted package action address. Widening restores
-    # the same canonical route; no package-specific repaint owns either transition.
-    resized(page, 420, 900)
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_count(0)
-    resized(page, 1200, 900)
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text("1")
+    assert "Undo last swipe" not in key_line(page)
 
     page.keyboard.press("1")
+    expect(page.locator("#session-pass > #swipe-d")).to_have_count(1)
+    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/1")
+
+    page.keyboard.press("z")
     round_trip(page)
     expect(page.locator("#session-queue > #swipe-d")).to_have_count(1)
     expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
@@ -2593,7 +2586,7 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     control = page.locator(f"[data-lf-for='sug'] .lf-sug-{outcome}")
     (unfolded_button(control) if folded else control).click()
     expect(page.locator(".lf-notice")).to_have_text(
-        f"{verb} “Retry three times.” — recorded"
+        f"{verb} “Retry three times.” — sent"
     )
     assert errors == []
     page.close()
@@ -3090,9 +3083,8 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     """t/T step the open threads; a/A step the things the page is waiting on the reader
     for. The category letter stays under one finger: lowercase advances and Shift goes
     back. Both walks repeat when held because walking often takes several presses.
-    It wraps rather than clamping, because a decision leaves the list as soon as it is
-    answered — forward is the direction with somewhere to go, and one key that stopped
-    at the last one would strand the reader there.
+    Both clamp at the ends like every other one-dimensional list, so another press keeps
+    the reader on the edge instead of jumping across the page.
 
     The landing is marked on the ask and stands the reader on it, which is the same
     element the scroll has just brought to the top of the window — a walk that landed the
@@ -3103,9 +3095,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     decisions = page.locator(".lf-decisions")
     expect(decisions).to_have_text("Asks 1/5")
     walked = []
-    for i, expected in enumerate(
-        [*DECISIONS_IN_ORDER, DECISIONS_IN_ORDER[0]]
-    ):  # one past the end: it wraps
+    for expected in [*DECISIONS_IN_ORDER, DECISIONS_IN_ORDER[-1]]:
         page.keyboard.press("a")
         # The ring is painted from the focus, in the frame after the press, so waiting
         # for it on the decision this press stepped to is both the wait and the assertion —
@@ -3129,12 +3119,12 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         "lf-decision ",
     ], f"the walk landed on something else: {walked}"
 
-    # And back, from where the last press left them: A wraps at this end too, and the
-    # step off a suggestion is measured from the suggestion rather than from the ✓ Accept
-    # holding the focus — that row is hoisted out into the page margin as a sibling of the
-    # block it decides, so a walk reading it where it hangs would step back onto the
-    # change the reader is standing on.
-    for i, expected in enumerate(reversed(DECISIONS_IN_ORDER)):
+    # And back, including one press past the first edge. The step off a suggestion is
+    # measured from the suggestion rather than from the ✓ Accept holding the focus —
+    # that row is hoisted out into the page margin as a sibling of the block it decides,
+    # so a walk reading it where it hangs would step back onto the change the reader is
+    # standing on.
+    for expected in [*reversed(DECISIONS_IN_ORDER[:-1]), DECISIONS_IN_ORDER[0]]:
         page.keyboard.press("Shift+a")
         expect(page.locator(f"#{expected}[data-lf-decision]")).to_have_count(1)
         expect(page.locator(STANDING_DECISION)).to_have_count(1)
@@ -3804,7 +3794,7 @@ def test_an_ask_already_in_front_of_the_reader_is_not_travelled_to(browser, serv
     # it answered from the nudge that came before this press. The sentinel makes it take a
     # fresh sample and then hold, which is the window a travel would appear in.
     page.evaluate("() => { document.querySelector('.lf-live').textContent = ''; }")
-    page.keyboard.press("a")  # one ask, so the walk wraps back round to it
+    page.keyboard.press("a")  # one ask, so the clamped walk stays on it
     expect(page.locator(".lf-live")).to_have_text(re.compile(r"waiting on you"))
     expect(page.locator("#sc-sug")).to_be_focused()
     page.evaluate("() => { window.__lfScroll = -1; }")

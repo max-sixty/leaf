@@ -12,7 +12,7 @@ from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
 
 from leaf.files import read_json
-from leaf.schema import ELEMENT_ID, EXTENSION_SCHEMA, GUIDANCE_SCHEMA
+from leaf.schema import ASSETS, ELEMENT_ID, EXTENSION_SCHEMA, GUIDANCE_SCHEMA
 
 FORMAT_CHECKER = FormatChecker()
 RFC3339_DATE_TIME = re.compile(
@@ -78,6 +78,22 @@ CREATED_CHILDREN_DETAIL_SCHEMA = {
     "propertyNames": {"pattern": f"^{ELEMENT_ID}$"},
     "additionalProperties": {"type": "string", "minLength": 1},
 }
+
+
+def handling(batch: list[dict], registry: dict | None) -> dict:
+    """What the layer asks of the agent for each event kind in a batch, keyed by
+    kind, read off the vendored `$events.handling`. A project layer restates a
+    kind's sentence merge-patch style, so the batch carries the rule the page
+    was vendored with. A page vendored before the member existed states nothing,
+    so it takes the installed kernel's sentences, which instruct the installed
+    CLI either way. A kind no layer describes is absent rather than empty."""
+    declared = (registry or {}).get("$events", {}).get("handling")
+    if declared is None:
+        declared = read_registry_entries(ASSETS / "registry.json")["$events"][
+            "handling"
+        ]
+    kinds = dict.fromkeys(event.get("kind") for event in batch)
+    return {kind: declared[kind] for kind in kinds if kind in declared}
 
 
 def created_children(event: dict, spec: dict) -> dict:

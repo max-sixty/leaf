@@ -486,9 +486,7 @@ customElements.define(
           this.#renderControls(label);
           this.#margin?.update();
         }
-        notice(
-          `${outcome === "accept" ? "Accepted" : "Rejected"} “${label}” — recorded`,
-        );
+        notice(`${outcome === "accept" ? "Accepted" : "Rejected"} “${label}” — sent`);
         return true;
       });
       this.#inFlight(sent, label);
@@ -698,6 +696,13 @@ customElements.define(
       const cut = this.querySelector(":scope > lf-old");
       const put = this.querySelector(":scope > lf-new");
       return cut && put ? "rewrite" : put ? "insertion" : "deletion";
+    }
+
+    // Its words, for the same askers: the slots' text nodes run together away from the
+    // strike and insert paint, and a thread on a rewrite was quoted as
+    // "courtyardcovered terrace".
+    lfSays() {
+      return this.#subject();
     }
 
     renderState(state) {

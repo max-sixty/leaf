@@ -101,6 +101,7 @@ import {
   clearDraft,
   watchDraft,
   alignText,
+  alignedNodes,
   watchActions,
   reachedForWords,
 } from "/runtime/widget-api.js";
@@ -446,13 +447,7 @@ customElements.define(
         alignment = alignText(before, after);
         if (cache) this.#alignments.set(key, alignment);
       }
-      for (const run of alignment) {
-        const node = document.createElement(
-          run.kind === "delete" ? "del" : run.kind === "insert" ? "ins" : "span",
-        );
-        node.textContent = run.text;
-        line.append(node);
-      }
+      line.append(...alignedNodes(alignment));
       if (!line.childNodes.length) line.textContent = "Empty";
       return line;
     }

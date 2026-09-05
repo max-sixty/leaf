@@ -53,6 +53,13 @@ OUTCOME_ON_DECISION = {
     "widget": "bracket",
     "action": "choose",
     "detail": {"options": ["br-steel"]},
+    "generated": [],
+    "meaning": {
+        "document": {"kind": "page", "revision": 1},
+        "coordinate": ["bracket", "bracket", "selection"],
+        "depends": ["br-steel", "bracket"],
+        "answer": None,
+    },
 }
 RECEIPT_PHASES = {
     "Sent": "sent",

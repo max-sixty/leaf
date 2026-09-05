@@ -453,6 +453,12 @@ SETTLED_EDIT = {
     "widget": "d-settled",
     "action": "edit",
     "detail": {"text": "The sample workshop is in the green room."},
+    "meaning": {
+        "document": {"kind": "page", "revision": 1},
+        "coordinate": ["d-settled", "d-settled", "body"],
+        "depends": ["d-settled"],
+        "answer": None,
+    },
 }
 OPEN_EDIT = {
     "kind": "action",
@@ -461,6 +467,12 @@ OPEN_EDIT = {
     "widget": "d-open",
     "action": "edit",
     "detail": {"text": "The sample workshop is in the red room."},
+    "meaning": {
+        "document": {"kind": "page", "revision": 1},
+        "coordinate": ["d-open", "d-open", "body"],
+        "depends": ["d-open"],
+        "answer": None,
+    },
 }
 
 
@@ -571,6 +583,12 @@ AGENT_ACCEPT = {
     "widget": "sug-refill",
     "action": "accept",
     "detail": {},
+    "meaning": {
+        "document": {"kind": "page", "revision": 1},
+        "coordinate": ["sug-refill", "sug-refill", "settlement"],
+        "depends": ["sug-refill"],
+        "answer": None,
+    },
 }
 
 

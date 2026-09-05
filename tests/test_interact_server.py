@@ -3602,7 +3602,7 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     publisher = threading.Thread(target=run_stamp)
     publisher.start()
     assert entered.wait(5)
-    writer = threading.Thread(target=lambda: event_model.append_event(page_dir, action))
+    writer = threading.Thread(target=lambda: append_command(page_dir, action))
     writer.start()
     time.sleep(0.05)
     assert writer.is_alive(), "the browser writer crossed the checked snapshot"

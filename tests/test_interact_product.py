@@ -18,6 +18,7 @@ from interact_support import (
     SHIPPED_PACKAGES,
     _report,
     _tasks_version,
+    append_command,
     check,
     comment,
     fetch,
@@ -972,7 +973,7 @@ def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
         "detail": {"options": ["flag-first"]},
     }
     if not pick_after_proposal:
-        events_model.append_event(page_dir, pick)
+        append_command(page_dir, pick)
     proposal = events_model.append_event(
         page_dir,
         {
@@ -985,7 +986,7 @@ def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
         },
     )
     if pick_after_proposal:
-        events_model.append_event(page_dir, pick)
+        append_command(page_dir, pick)
 
     (page_dir / ".fixture-versions" / "v2.html").write_text(
         asking.replace("</main>", "<p>Unrelated update.</p>\n</main>")

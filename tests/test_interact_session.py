@@ -1039,7 +1039,7 @@ def test_a_page_decision_that_settles_a_thread_carries_its_conversation(
     _settling_page(page_dir)
     session_model.cmd_ack(page_dir, 1)  # c1 delivered; its words are the
     capsys.readouterr()  # envelope's to carry from here
-    events_model.append_event(page_dir, dict(SETTLING_ACCEPT))
+    append_command(page_dir, dict(SETTLING_ACCEPT))
     # The action door accepts this event, so the shape is the product's own.
     events = events_model.read_events(page_dir)
     assert (
@@ -1060,7 +1060,7 @@ def test_an_undo_of_a_page_decision_carries_the_thread_it_reopens(page_dir, caps
     """Withdrawing that gesture reopens the conversation, so the delivery owes
     the same reading the accept did."""
     _settling_page(page_dir)
-    accepted = events_model.append_event(page_dir, dict(SETTLING_ACCEPT))
+    accepted = append_command(page_dir, dict(SETTLING_ACCEPT))
     session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
     capsys.readouterr()
     events_model.append_event(
@@ -1080,7 +1080,7 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
     what the answer rested on all change the same conversation without naming it
     directly. Exact history and live delivery use one Leaf-owned membership join."""
     _settling_page(page_dir)
-    accepted = events_model.append_event(page_dir, dict(SETTLING_ACCEPT))
+    accepted = append_command(page_dir, dict(SETTLING_ACCEPT))
     session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
     capsys.readouterr()
 

@@ -131,10 +131,11 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
             "widget": "picks",
             "action": "choose",
             "detail": {"options": ["flag-first"], "resolves": "c1"},
+            "generated": [],
             "meaning": {
                 "document": {"kind": "page", "revision": 1},
                 "coordinate": ["picks", "picks", "selection"],
-                "depends": ["picks", "flag-first"],
+                "depends": ["flag-first", "picks"],
                 "answer": "c1",
             },
         },

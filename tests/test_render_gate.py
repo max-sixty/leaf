@@ -303,6 +303,12 @@ def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
                 "widget": "sug-rewrite",
                 "action": "accept",
                 "detail": {},
+                "meaning": {
+                    "document": {"kind": "page", "revision": 1},
+                    "coordinate": ["sug-rewrite", "sug-rewrite", "settlement"],
+                    "depends": ["sug-rewrite"],
+                    "answer": None,
+                },
             }
         ],
     )

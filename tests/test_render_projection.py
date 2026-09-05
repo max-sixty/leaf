@@ -2385,7 +2385,7 @@ customElements.define("lf-piece", class extends HTMLElement {
             "detail": {"pinned": "yes"},
         },
     ):
-        events_model.append_event(serve.page_dir, event)
+        append_command(serve.page_dir, event)
 
     page, errors = open_page(browser, url)
     expect(page.locator("#zone-b > #piece")).to_have_count(1)
@@ -2761,7 +2761,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
             super().do_GET()
             if page_read and not landed:
                 landed.append(self.headers["Referer"])
-                events_model.append_event(serve.page_dir, settle)
+                append_command(serve.page_dir, settle)
                 arrived.set()
 
     httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), TheLogArrivesLate)

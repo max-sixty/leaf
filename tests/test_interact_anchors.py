@@ -243,6 +243,110 @@ def test_a_comment_may_name_a_declared_visual_part(page_dir):
     assert "--part needs --section" in unseated.output
 
 
+def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
+    """The reply and replacement anchor are one durable act. The raw opening keeps
+    where the question was asked, while every current-state reading follows the new
+    visual part and releases the old element from version retention."""
+    v1 = PAGE.replace(
+        '<lf-diagram id="flow">',
+        '<p id="old-wording">The retry starts here.</p>'
+        '<lf-diagram id="flow" parts="node:A node:B">',
+    )
+    (page_dir / ".fixture-versions" / "v1.html").write_text(v1)
+    published(page_dir)
+    root = json.loads(
+        comment(
+            page_dir,
+            "--quote",
+            "The retry starts here.",
+            "--text",
+            "Should this move onto the diagram?",
+        ).output
+    )
+    v2 = v1.replace("The retry starts here.", "The prose no longer names the retry.")
+    (page_dir / ".fixture-versions" / "v2.html").write_text(v2)
+    revised = stamp(page_dir, 2, "moved the retry into the diagram")
+    assert revised.exit_code == 0, revised.output
+
+    moved = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            "--json",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--section",
+            "flow",
+            "--part",
+            "node:A",
+            "--text",
+            "I moved the retry into this node and reattached the thread.",
+        ],
+    )
+    assert moved.exit_code == 0, moved.output
+    reply = json.loads(moved.output)
+    current = {"section": "flow", "visual": "node:A"}
+    assert (reply["revision"], reply["anchor"]) == (2, current)
+
+    events = events_model.read_events(page_dir)
+    original = next(event for event in events if event["id"] == root["id"])
+    assert original["anchor"]["section"] == "old-wording"
+    assert original["anchor"]["quote"] == "The retry starts here."
+    assert original["anchor"] != current
+    assert state_json(page_dir)["threads"] == [
+        {"id": root["id"], "anchor": current, "resolved": None}
+    ]
+    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    assert transcript.exit_code == 0, transcript.output
+    assert "> § flow · node:A" in transcript.output
+
+    v3 = v2.replace('<p id="old-wording">The prose no longer names the retry.</p>', "")
+    (page_dir / ".fixture-versions" / "v3.html").write_text(v3)
+    checked = check(page_dir, 3)
+    assert checked.exit_code == 0, checked.output
+
+
+def test_a_reply_refuses_to_move_a_held_command_goal(page_dir):
+    """A hold's exact-section anchor is part of the command request's meaning, not
+    merely the thread's placement, so a later reply cannot silently retarget it."""
+    v1 = PAGE.replace(
+        "</section>",
+        '<lf-tasks id="work"><lf-task id="held-goal" status="active" talk>'
+        "<strong>Held goal</strong></lf-task></lf-tasks></section>",
+    )
+    (page_dir / ".fixture-versions" / "v1.html").write_text(v1)
+    published(page_dir)
+    root = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Pause here.",
+            "anchor": {"section": "held-goal"},
+            "holds": "held-goal",
+        },
+    )
+
+    moved = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--section",
+            "backfill-first",
+            "--text",
+            "Move this hold.",
+        ],
+    )
+
+    assert moved.exit_code != 0
+    assert "holds the command goal" in moved.output
+
+
 def test_a_version_keeps_each_declared_visual_part_addressable(page_dir):
     parted = PAGE.replace(
         '<lf-diagram id="flow">',

@@ -191,7 +191,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
             for thread in threads.values()
             if conversation_model.bare_reaction(thread)
             and not thread["resolved"]
-            and thread["root"].get("anchor")
+            and thread["anchor"]
         ]
         conversations = [
             thread
@@ -201,7 +201,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         anchored = [
             thread["root"]
             for thread in conversations
-            if not thread["resolved"] and thread["root"].get("anchor")
+            if not thread["resolved"] and thread["anchor"]
         ]
         # The thread node first, because it arrives whether or not the quote found a
         # home — a stranded one renders wearing `detached`. Waiting on the mark here
@@ -223,7 +223,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
                     "button", name="Reopen", exact=True, include_hidden=True
                 )
             ).to_have_count(1)
-            anchor = thread["root"].get("anchor")
+            anchor = thread["anchor"]
             if anchor and anchor["section"] not in open_targets:
                 item = page.locator(f'[data-lf-margin-for="{anchor["section"]}"]')
                 expect(

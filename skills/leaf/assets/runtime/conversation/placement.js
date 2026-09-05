@@ -39,9 +39,7 @@ const inPage = (el) => {
 };
 
 const threadPlace = (t) =>
-  inPage(
-    placedAt(t.root.id)?.element ?? (t.root.anchor ? sectionOf(t.root.anchor) : null),
-  );
+  inPage(placedAt(t.root.id)?.element ?? (t.anchor ? sectionOf(t.anchor) : null));
 
 // Which of two elements the reader reaches first. `compareDocumentPosition` answers for
 // a containing element too — a section reaches the reader before the paragraph inside it
@@ -99,7 +97,7 @@ function headingFor(place, outline) {
 export function groupFor(t, outline) {
   const place = threadPlace(t);
   if (!place)
-    return t.root.anchor
+    return t.anchor
       ? { key: "gone", label: "No longer in this version" }
       : { key: "page", label: "About the page as a whole" };
   if (inChrome(place))

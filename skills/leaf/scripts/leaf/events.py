@@ -182,7 +182,12 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
         if e["kind"] == "comment":
             message = dict(e)
             messages[e["id"]] = message
-            thread = {"root": message, "msgs": [message], "resolved": None}
+            thread = {
+                "root": message,
+                "anchor": message.get("anchor"),
+                "msgs": [message],
+                "resolved": None,
+            }
             threads[e["id"]] = thread
             thread_for[e["id"]] = thread
             continue
@@ -213,12 +218,19 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             # already been read.
             thread = thread_for.get(e["parent"])
             if thread is None:
-                thread = {"root": e, "msgs": [], "resolved": None}
+                thread = {
+                    "root": e,
+                    "anchor": e.get("anchor"),
+                    "msgs": [],
+                    "resolved": None,
+                }
                 threads[e["parent"]] = thread
                 thread_for[e["parent"]] = thread
             message = dict(e)
             messages[e["id"]] = message
             thread["msgs"].append(message)
+            if "anchor" in e:
+                thread["anchor"] = e["anchor"]
             thread_for[e["id"]] = thread
         # A resolve names a message rather than opening one, so a conversation the log
         # lost whole — no reply of its own survived either — leaves it nothing to close.
@@ -234,7 +246,7 @@ def anchored_ids(events: list, within: dict) -> set:
     answered is a mark and not a thread, so it holds no id: a reaction never
     gates a version, and its anchor re-resolves or detaches like a comment's."""
     return {
-        (t["root"].get("anchor") or {}).get("section")
+        (t["anchor"] or {}).get("section")
         for t in build_threads(events, within).values()
         if not t["resolved"] and not bare_reaction(t)
     } - {None}
@@ -276,7 +288,7 @@ def seat_root(thread: dict) -> str | None:
     A reply whose root the log lost is its own root and carries no anchor, so it seats
     nowhere. No cell on the page shows it either."""
     root = thread["root"]
-    anchor = root.get("anchor")
+    anchor = thread["anchor"]
     if root.get("about") or not anchor or len(anchor) != 1:
         return None
     return anchor.get("section")

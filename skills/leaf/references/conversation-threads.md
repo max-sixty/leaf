@@ -41,6 +41,23 @@ leaf reply <page> --to <thread-id> --text "…"
 leaf reply <page> --to <thread-id> < reply.md
 ```
 
+When the change that answers a comment also removes or replaces its passage, move
+the open thread onto the current result in the same reply. Use the same target forms
+as `leaf comment`; for a diagram, prefer its declared stable visual part:
+
+```bash
+leaf reply <page> --to <thread-id> --quote "<new passage>" --text "Updated this and moved the thread to the result."
+leaf reply <page> --to <thread-id> --section <element-id> --text "Updated this and moved the thread here."
+leaf reply <page> --to <thread-id> --section <diagram-id> --part node:<source-id> --text "Updated this node and moved the thread here."
+```
+
+The reply records the active revision and validated replacement anchor atomically.
+The opening comment keeps its original anchor in `leaf events --thread`, while the
+panel, transcript, and `page state` expose the replacement as the thread's current
+location. Do this only when the new target is the same subject after the change; open
+a new thread for a different subject. Held command-goal threads cannot move, and a
+version-response thread cannot take a reply.
+
 Fragment links such as `[the decision](#decision)` take the reader to page
 content. `--markup` adds a validated widget after reply text; its ids must be new.
 An ordinary reply answers the thread without adding it to the outstanding Ask

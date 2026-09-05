@@ -2,7 +2,8 @@
 
 This file holds the contracts that cross the browser runtime's modules: what boots in
 which order, what the server and the page each own, the registry's grains, the
-layer-wide UI laws, and the rows `leaf.js` still composes itself. Everything one module
+layer-wide UI laws, the rows `leaf.js` still composes itself, what a copy or print
+keeps, the render gates, and how to work on the runtime. Everything one module
 owns is stated in that module's header comment, and the map below names the owner of
 each concern, so read the header before changing the module. Page-authoring commands
 and markup rules live in `references/page-authoring.md`; package authoring lives in
@@ -70,7 +71,14 @@ sending, keyboard mode, and reaction-specific undo wording;
 `runtime/data.js` owns external-data acceptance, readiness, and source-contract
 subscriptions;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;
-`runtime/keyboard/` owns keyboard binding vocabulary and scoped interaction;
+`runtime/keyboard/` owns keyboard binding vocabulary and scoped interaction:
+`bindings.js` the spelling, parsing, row fields, and checks; `scopes.js` where a group
+of rows applies; `dispatch.js` which scope answers a press and what it owes the
+platform; `return-stack.js` what a keyboard entry owes on the way back out;
+`keyline.js` the short help at the foot of the page and its More control;
+`reference.js` the complete listing behind `?`; `address.js` the go-to chord;
+`address-placement.js` the one-digit address vocabulary and its placement pass;
+`presentation.js` how a chord row's presses are shown;
 `runtime/keyboard/disclosure.js` owns the shared disclosure bindings;
 `runtime/notifications.js` owns visual and assistive announcements;
 `runtime/arrangements.js` owns the browser-state arrangements the arrival gate exercises;
@@ -109,6 +117,14 @@ of the containing-block chain for document-positioned chrome. It also keeps page
 paint below covering workspaces and paint for chrome targets above them.
 `runtime/marks.css` is the marks' sheet, adopted by the document and by every shadow
 stage;
+`assets/theme.css` is the default theme: tokens, element styles, class idioms, and the
+element-widgets CSS alone renders, with the shadow slice widgets adopt; a package's
+`theme.css` is appended after it;
+`runtime/resolved-target.js` owns the canonical result of resolving a durable anchor
+into the current document;
+`runtime/target-paint.js` owns element-target paint in the chrome layer;
+`runtime/visual-parts.js` owns the package-declared semantic parts of a rendered
+visual;
 `runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, the document
 room left after the panel and trays, the final-layout column motion between workspace
 states, and page repaint caused by shell motion or reflow;
@@ -172,7 +188,7 @@ Each mutable fact has one writer:
 | authored widget state | markup after widget upgrade, before projection | `captureAuthoredFacets` reads typed initial values; `rememberAuthoredParents` preserves pre-upgrade anchor parentage |
 | external data | the latest accepted page data revision | `receiveState` replaces current values and retained captures; `watchData` delivers the authored current-or-snapshot selection to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
-| version shown by the live document | the latest mapped revision accepted at the activation boundary | `activateVersion` advances `currentVersion`; a public version address derives the version number from its URL |
+| version shown by the live document | the latest mapped revision accepted at the activation boundary | `activateRevision` advances `runtime.currentRevision`; a public version address derives the version number from its URL |
 | accepted history | the server event log | `receiveState` replaces `events` after a complete read |
 | the reading the page has applied | the server's `/api/state` answer | `receiveState` writes `runtime.reading` and paints `data-lf-reading` |
 | unresolved browser work | the ordered `outbox` | `post` adds, `accountOutbox` and `releaseProjectedOutbox` remove |
@@ -243,8 +259,10 @@ event schema refuses it.
 
 ## Authoritative projection
 
-An `x-state` verb may also declare `requires`, a prerequisite over the standing
-decision projection `x-awaits` already defines. Its target is the sender or its
+The projection's inputs, coordinate, and views are `runtime/projection/fold.js`'s;
+Python derives the durable side (below). What both must honor: an `x-state` verb may
+declare `requires`, a prerequisite over the standing decision projection that
+`x-awaits` defines. Its target is the sender or its
 declared parent, and `awaiting` states whether that decision must be open or closed.
 `actionAvailable` paints and guards the action, `sendAction` checks at the common
 browser door, and POST evaluates the same declaration from the authoritative log
@@ -308,11 +326,13 @@ later version does not revive retracted state. Python's projection uses
 containment, not a global id lookup, when deciding which detailed parts an action
 rests on.
 
-Authored state in a later version must answer an originating open
-Decision, or change the declared answer when the Decision was already answered; a reader
-action in the log cannot substitute for that revision. Only then may the agent
-resolve the original thread. Threads owns the reader-facing clarification; the
-page's Decision remains the proposal with the agent rather than counting both.
+A Decision the reader answers with a request for change is answered by a version, not
+a reply (`runtime/decisions/model.js` reads the seat): authored state in a later
+version must answer an originating open Decision, or change the declared answer when
+the Decision was already answered; a reader action in the log cannot substitute for
+that revision. Only then may the agent resolve the thread that carried the request.
+Threads owns the reader-facing clarification; the page's Decision remains the proposal
+with the agent rather than counting both.
 
 ## The widget vocabulary stays open
 
@@ -419,18 +439,6 @@ all enumerable labels in the control's current font and sets a minimum width.
 Re-measure after changing type tokens; avoid numeric reservations where the
 possible words are available.
 
-A workspace covering the page is drawn over it and never shown modally: the `<dialog>`
-it is built on is only ever `show()`n. Modality makes the rest of the document inert,
-and covering is the posture in which the page most needs to stay live — the banner
-toggle that opened the workspace is how it closes, the toggle beside it is the other
-workspace this one replaces, and the strip of page still showing beside a covering
-sheet is still page a hint can name. What modality would have carried is already owned
-elsewhere: the covering sheet's scroll lock is the stylesheet's, and Escape is the
-ladder's. The surfaces that really are modes of the page — the keyboard reference and
-the page map sheet — keep `showModal()` and the backdrop that comes with it. Opening a
-`<dialog>` runs the browser's focusing steps at either spelling, so a caller that means
-to leave the reader where they were has to put the focus back.
-
 ## Keyboard, focus, and navigation
 
 One register defines every runtime and widget key. A row binds keys, states what
@@ -474,7 +482,7 @@ down/up by 60 pixels; `d`/`u` move 60% of
 the reading page. Both follow the active region, share a quick glide, and jump under
 reduced motion. Native Space stays with the platform and focused controls. Other letters come
 from words the surface says: `w` narrows to threads waiting on the reader, while the
-[Go-to chord](#go-to-chord) uses case to separate complete destinations from numbered
+the Go-to chord (`keyboard/address.js`) uses case to separate complete destinations from numbered
 lists. A key spelling something nothing on screen says is a key nobody reaches for twice.
 Approval spends no fixed page letter: its visible button stays in the Tab order and takes
 native Enter or Space, while the Ask-local list gives it a contextual binding. In particular,
@@ -555,16 +563,6 @@ pick, a ✓, a mark — an answered decision on its explicit review arrival, and
 innermost item everywhere else, which is the ⌥ aim's own reading. It answers nothing
 in ordinary chrome, where a reader is working on the page rather than standing in it.
 
-## Chrome, conversations, and text input
-
-The skip link stands outside `.lf-chrome`, and it has to: it is the layer's route in
-from the top of the document, and tab order is document order while the chrome is
-last. It is prepended to the body, rests transparent as the comment note does — every
-reading that asks whether a box is on screen asks `opacityProperty` — and carries the
-offer marker, so paper and a copy drop it with every other injected control. It takes
-no register row — a control is a route to a capability rather than a capability of its
-own, and this one's design is to be found by the first Tab rather than advertised.
-
 ## Standalone copies and print
 
 `version export` produces the already-upgraded DOM, drops scripts, and marks the
@@ -580,13 +578,6 @@ Widget affordances fall into three groups:
   page words.
 - Module-specific visual affordances guarded by live script exist only under
   `html:not(.lf-copy)`.
-
-A report has two seats — a thread's own `.lf-receipt` line, and a margin reading
-`marginButton` has given the `status` behavior. Both are live-session information:
-Sent, Waiting for pickup, and Picked up report a move an agent is still making, and a
-file has nothing behind that claim. A copy drops both seats rather than turning
-provisional news into a statement. The durable action remains applied in the widget's
-serialized state; the page map does not add another record for the copy to carry.
 
 Projected data is a fourth question with a different answer: a copy keeps the current
 `projectData` rendering, including its projection and datum labels, but loses the

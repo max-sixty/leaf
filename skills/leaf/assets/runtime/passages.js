@@ -251,7 +251,8 @@ export function createPassages(dependencies) {
   // insides, which is what a reading of one widget needs: the panel holding a widget an
   // agent sent in a reply is itself `.lf-ui`, so asked the unbounded way every child of
   // such a widget answers yes, and the widget reads as having nothing of its own left.
-  // The text readings took the same seam (quotable, authored); it is stated once here so
+  // The text readings took the same seam (quotable, shownParts, settledAway, authored);
+  // it is stated once here so
   // that what a mark may hang on, what a settlement has emptied, and what a quote may
   // name cannot come apart.
   const uiInside = (el, within) => {

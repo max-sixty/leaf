@@ -1,4 +1,4 @@
-/* The one door for a complete server state, and what a refused application gives back.
+/* Applying a complete server state, and what a refused application gives back.
 
    `receiveState` is the only door for a complete server state. Three callers use it: a
    read of `GET /api/state`, an accepted POST answer, and a deferred version activation

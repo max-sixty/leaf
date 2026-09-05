@@ -15,10 +15,11 @@
  * idempotency key for one user gesture, not for a payload shape or a button. Under the
  * server's append lock:
  *
- * - the first accepted attempt appends one event; - an exact concurrent request or retry
- * returns that event; - the same attempt with a different payload is refused; - a
- * completed refusal leaves no durable receipt, so the same attempt may be evaluated
- * again after the state that caused the refusal changes.
+ * - the first accepted attempt appends one event;
+ * - an exact concurrent request or retry returns that event;
+ * - the same attempt with a different payload is refused;
+ * - a completed refusal leaves no durable receipt, so the same attempt may be
+ *   evaluated again after the state that caused the refusal changes.
  *
  * The browser sends through `post`. It rejects reuse of an attempt already present in
  * this tab's `outbox`, appends one entry, stages an optimistic recorded action when
@@ -28,9 +29,10 @@
  *
  * Each entry separates three facts:
  *
- * - `answered`: the server definitively accepted or refused the request; - `readEvent`:
- * a complete state read contained the accepted attempt; - `projection`: the local
- * semantic coordinate and absolute recorded value that the widget already painted.
+ * - `answered`: the server definitively accepted or refused the request;
+ * - `readEvent`: a complete state read contained the accepted attempt;
+ * - `projection`: the local semantic coordinate and absolute recorded value that the
+ *   widget already painted.
  *
  * Acceptance and application are not the same fact. A successful POST must include state
  * containing the event minted for the attempt. `deliver` then knows the request was

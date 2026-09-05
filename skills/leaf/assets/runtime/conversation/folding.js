@@ -1,7 +1,7 @@
 import { outbox } from "../outbox.js";
 import { measure, reserve } from "../widget-elements.js";
 
-/* Settlement controls share the outbox across panel and inline views.
+/* Resolve and Reopen, in the panel and inline.
 
    Panel and inline settlement controls read pending work from the outbox. Their busy
    labels reserve their width, keep focus, and prevent another submission while the

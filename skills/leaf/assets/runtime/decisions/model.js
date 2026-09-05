@@ -42,7 +42,8 @@
    question the widget holds no state for, and refusing a pick over the reader's own
    remark would refuse them the answer they were asked for. The version-response resolve
    gate is another. Where the reader is standing preserves that reading first, then widens
-   through `allDecisions` for answered-review routes; Standing somewhere owns it. Frozen
+   through `allDecisions` for answered-review routes; `decisions/view.js` owns that
+   reading (`standingIn`). Frozen
    thread markup seats no conversation of its own, so only an action answers there. A
    `rollup` instance is an aggregate-only owner: it awaits when any nearest local decision
    or child roll-up awaits, but it never enters the visible list. The standing projection

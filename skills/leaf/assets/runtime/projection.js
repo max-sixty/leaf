@@ -63,7 +63,10 @@ export const undoableAction = (...args) => publishedProjection.undoableAction(..
    hold stay uncommitted until a later wakeup. A widget ending that gesture dispatches
    `lf-projection` on `document`; the state feed coalesces retries into a microtask so
    the gesture stages its local action before correction runs. Throwing reports a page
-   error and fails soft; the layer still renders declared settlement marks.
+   error and fails soft; the layer still renders declared settlement marks. `renderState`
+   writes only attributes represented by declared record forms on authored elements;
+   generated chrome may use platform attributes and `data-*` state. Returning success
+   while writing undeclared author-namespace attributes breaks the file/DOM comparison.
 
    `watchProjectionDrag` waits for the last `.lf-dragging` marker to clear, then
    reconciles, releases eligible outbox entries, repaints keys, and dispatches

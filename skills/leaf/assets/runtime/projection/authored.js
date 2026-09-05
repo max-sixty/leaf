@@ -17,13 +17,14 @@ import { recordedWidgetSelector, stateSpecs } from "../registry.js";
    come from those same values, collapsing body whitespace and omitting position indexes
    only where origin/diff checks require those comparisons.
 
-   | Record kind | Complete initial value |
-   | --- | --- |
-   | `attribute` | sorted owned ids carrying the declared attribute |
-   | `value` | the attribute string, or `null` when absent |
-   | `position` | ordered id lists per container; an individual widget also names its containing id/index |
-   | `body` | uncollapsed authored words from `textNodesUnder` |
-   | no record | `null` for a widget facet; an empty unit map otherwise |
+   The complete initial value, by record kind:
+
+   - `attribute`: sorted owned ids carrying the declared attribute;
+   - `value`: the attribute string, or `null` when absent;
+   - `position`: ordered id lists per container; an individual widget also names its
+     containing id and index;
+   - `body`: uncollapsed authored words from `textNodesUnder`;
+   - no record: `null` for a widget facet, an empty unit map otherwise.
 
    Ownership of record members stops at `recordedOwner`, the nearest widget with a
    declared record. A custom outer container must not capture or restore a nested

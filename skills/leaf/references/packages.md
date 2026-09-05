@@ -229,7 +229,8 @@ free contextual `1` through `9`, while one keeps its canonical binding, such as
 `ArrowLeft`. Each action keeps its command id as an exact route; that route is the one
 binding-to-control identity used by dispatch, the reference, the key line, its address,
 and `aria-keyshortcuts`. `address` may name an empty face a widget already positions; core
-writes the resolved binding there, so the package does not keep a second key map.
+writes the resolved binding there, so the package does not keep a second key map. Do
+not maintain a second Ask-control list.
 Otherwise core paints the binding at the visible control. Routes let one parameterized
 row contribute distinct controls and bindings. The control's own `click()` remains the
 single activation path.

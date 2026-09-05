@@ -1,4 +1,4 @@
-/* The one visible surface for a moment's news, and the live region that hears it.
+/* Notices and announcements.
 
    News arriving without the reader's send gesture may show a notice and count but does
    not move focus or scroll the panel. `notice` is the one visible surface for a

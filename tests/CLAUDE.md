@@ -355,8 +355,9 @@ position, put the element on screen first — `scroll_into_view_if_needed()` say
 out loud — and read the baseline after that.
 
 Nothing should be injected into the page merely to make ordinary observation easier.
-Traffic is read off the delivery ledger the runtime itself paints on the body
-(`data-lf-traffic`, runtime/traffic.js). Network conditions come from `page.route`. `watched` listens to the browser's error surfaces.
+Traffic is read off the delivery ledger the runtime itself paints on the root element
+(`data-lf-traffic`, runtime/traffic.js). Network conditions come from `page.route`.
+`watched` listens to the browser's error surfaces.
 `primed` lets a render or export call create its own page while the test attaches
 those external controls before navigation. These mechanisms exercise the runtime a
 reader receives.

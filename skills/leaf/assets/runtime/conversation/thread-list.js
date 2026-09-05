@@ -50,7 +50,7 @@
    Reserved room only reaches a control that lands in it, and a press lands nowhere:
    the browser focuses the card under the pointer and scrolls nothing. So the thread
    list lands a thread that takes the focus, whoever moved it, and that is the row the
-   ownership table carries. Without it a list nudged a dozen pixels leaves the first
+   ownership map in skills/leaf/CLAUDE.md carries. Without it a list nudged a dozen pixels leaves the first
    card of a run under its own stuck heading by the width of an inset ring, which is a
    card with three sides. A press lands when it is over rather than as focus arrives,
    because focus arrives on the way down and the press may be the start of a drag

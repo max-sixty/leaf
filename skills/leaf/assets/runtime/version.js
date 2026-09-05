@@ -12,7 +12,8 @@
  * `prepareActivation` fetches the revision a state names ahead of the commit that
  * installs it; the arrival landing; the menu readings the composing surface and the
  * margin take (`closeVersionMenu`, `versionMenuIsOpen`, `comparisonBase`,
- * `comparisonChanges`); and `readingBlock`, the block the decision walk starts from.
+ * `comparisonChanges`); and `readingBlock`, the block the decision walk and the
+ * keyboard reference start from.
  *
  * One surface owns each destination. The version control opens the complete version list
  * with notes and comparison controls. There are no separate older/newer page keys. A
@@ -72,7 +73,8 @@
  * activation, and a selection may refer to words the new version replaced. The saved
  * decision landmark preserves directional continuity without claiming the reader still
  * stands there. A live activation is the other case: the reader's own standing carries
- * across it (see "Startup and presentation"), so the next press means what it meant
+ * across it (the startup order in skills/leaf/CLAUDE.md), so the next press means what
+ * it meant
  * before the swap.
  *
  * A layer also owes a way out at all, over the same page the way in is live on.

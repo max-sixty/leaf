@@ -1,5 +1,5 @@
-/* The living margin: one projected cluster of Buttons per page target, the thread card
-   and Page map sheet that open from it, and the map's own way back out.
+/* The living margin: the thread card and Page map sheet that open from a target's
+   Buttons, and the map's own way back out.
 
    The right margin has one projected cluster per page target. Leaf calls its repeated
    fitting a Button: like a coat button, it is one consistent piece attached to the

@@ -1,5 +1,5 @@
-/* The key line: short help at the foot of the page, and the More control that leads from
-   it to the reference.
+/* The key line at the foot of the page, and the More control that leads from it to the
+   reference.
 
    The key line is short help, not the keyboard reference. It walks outward from the
    reader's innermost scope and drops bindings shadowed there. The ordinary shortlist is

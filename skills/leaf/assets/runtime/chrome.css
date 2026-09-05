@@ -37,10 +37,11 @@
    no second carrier, while the band also has the washed cell and the address chips.
 
    Every rule that draws the ring names it in `--lf-here-ring`, in the same declaration
-   (theme.css carries why). Whether a box wears a ring is the outline's answer; the name
-   says which rule drew it, so nothing re-runs the layer's selectors to find that out. The
-   property is registered non-inheriting, so a name means the box rather than each of its
-   words.
+   (theme.css carries why). Whether a box wears a ring is the paint's answer — the
+   outline's, or the shadow's where the box draws the band as `var(--here-shadow)`
+   instead; the name says which rule drew it, so nothing re-runs the layer's selectors to
+   find that out. The property is registered non-inheriting, so a name means the box
+   rather than each of its words.
 
    The ring is drawn outside the box it names, so wherever the reader can be standing,
    something has to have kept room for it. Two rules cover every case, and which one
@@ -1444,10 +1445,16 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     color: var(--ink-2); font-weight: 400; line-height: 1.3;
     padding-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
     box-shadow: 0 2px 8px var(--shade); }
+  /* The bar keeps one silhouette through every state it has, so the here ring is cast
+     as a shadow beside the lift rather than drawn as an outline the corner would have
+     to be re-stated for. It is still the layer's band (--here-shadow, theme.css), and
+     the name goes with it: this rule takes the outline off the pressables the bar holds,
+     so without one they would credit the floor's `pressable` for a ring the floor is no
+     longer drawing. */
   .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
-    outline: none;
+    outline: none; --lf-here-ring: response-control;
     border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent),
+    box-shadow: var(--here-shadow) color-mix(in srgb, var(--accent) 25%, transparent),
       0 2px 8px var(--shade); }
   /* The field takes the size its words want. A short note is the one-line pill; a
      longer one widens to a readable measure before it wraps, then grows down as far as
@@ -1801,8 +1808,11 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-target-hint .lf-spent + .lf-lit { padding: 0 3px; margin-left: -3px;
     border-radius: 3px; background: var(--accent); color: var(--card); }
   .lf-targets > .lf-target-hint.lf-in { transform: translate(-50%, 0); }
+  /* The hint the keyboard is browsing is where the reader is standing in this mode, so
+     it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
+     focus has no outline state to hang it on. */
   .lf-targets > .lf-target-hint.lf-current { font-weight: 700;
-    box-shadow: 0 0 0 2px var(--accent); }
+    --lf-here-ring: target-hint; box-shadow: var(--here-shadow) var(--accent); }
   /* Search has one active result, painted as a quiet wash rather than a second native
      selection. The real Selection is made only on Enter, when the ordinary comment
      surface takes over. One inset line survives over both light and dark authored fills

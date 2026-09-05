@@ -15,7 +15,7 @@
  * than the words under it would be a second column to read, and there is one
  * thing here to read. Nothing in it changes metrics on hover or on the current
  * page — a nav that reflows under the pointer is the one gesture a nav exists
- * for, thrown away (see "The page holds still under the user's aim"). */
+ * for, thrown away (skills/leaf/assets/CLAUDE.md, "Layout and motion"). */
 nav.sitenav { display: flex; flex-wrap: wrap; align-items: baseline;
               gap: var(--sp-2) var(--sp-3); margin: 0 0 40px;
               padding-bottom: 10px; border-bottom: 1px solid var(--rule);

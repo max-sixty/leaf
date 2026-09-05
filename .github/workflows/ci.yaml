@@ -67,6 +67,8 @@ jobs:
       - name: 📂 Checkout code
         uses: actions/checkout@v7
 
+      - uses: astral-sh/setup-uv@v7
+
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
@@ -75,6 +77,9 @@ jobs:
 
       - run: npm ci
         working-directory: worker
+
+      - name: 🖼 Build site
+        run: uv run scripts/site.py
 
       - run: npm run typecheck
         working-directory: worker

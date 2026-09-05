@@ -9,8 +9,9 @@ file, that an example served here is a working page rather than a picture of one
 and that a site claiming to ride the theme's tokens actually changes colour when
 the theme's palette does.
 
-Every page is reached over HTTP: product sources now name the same root layer and
-module as the examples, so file:// is no longer a second supported document mode.
+Every page is reached over HTTP: product sources use the site's root layer, while each
+example uses its page-scoped vendored layer through the canonical server. file:// is no
+longer a second supported document mode for either one.
 """
 
 import hashlib

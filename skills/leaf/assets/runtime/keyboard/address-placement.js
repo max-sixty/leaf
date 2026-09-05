@@ -11,12 +11,15 @@
    `scrollend`. Chips live in runtime chrome rather than authored markup. They sit above
    their targets and move inside the viewport below the banner before overlapping chips
    are removed. */
+import { banner } from "../banner.js";
+import { keylineEl } from "./keyline.js";
+import { startsAt } from "../geometry.js";
 export const MAX_NUMBERED_ADDRESSES = 9;
 
 const overlaps = (a, b) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
-export function createAddressPlacement({ banner, keylineEl, startsAt }) {
+export function addressPlacement() {
   const clips = new Map();
   const covered = banner.getBoundingClientRect().bottom;
   const kept = [keylineEl.getBoundingClientRect()];

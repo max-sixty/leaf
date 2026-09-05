@@ -45,60 +45,61 @@ export function writePastedMedia(text, paths) {
   return text + separator + images;
 }
 
-export function createMediaViewer({ el, focused }) {
-  const dialog = document.createElement("dialog");
-  dialog.className = "lf-ui lf-media-viewer";
-  dialog.setAttribute("aria-modal", "true");
-  dialog.setAttribute("aria-labelledby", "lf-media-viewer-title");
-  const head = el("div", "lf-media-viewer-head");
-  const title = el("strong", "", "Image preview");
-  title.id = "lf-media-viewer-title";
-  const close = el("button", "lf-btn", "Close");
-  close.type = "button";
-  close.onclick = () => dialog.close();
-  head.append(title, close);
-  const stage = el("div", "lf-media-viewer-stage");
-  const image = document.createElement("img");
-  stage.append(image);
-  dialog.append(head, stage);
+export const mediaViewer = document.createElement("dialog");
+mediaViewer.className = "lf-ui lf-media-viewer";
+mediaViewer.setAttribute("aria-modal", "true");
+mediaViewer.setAttribute("aria-labelledby", "lf-media-viewer-title");
+const head = document.createElement("div");
+head.className = "lf-media-viewer-head";
+const title = document.createElement("strong");
+title.textContent = "Image preview";
+title.id = "lf-media-viewer-title";
+const close = document.createElement("button");
+close.className = "lf-btn";
+close.textContent = "Close";
+close.type = "button";
+close.onclick = () => mediaViewer.close();
+head.append(title, close);
+const stage = document.createElement("div");
+stage.className = "lf-media-viewer-stage";
+const image = document.createElement("img");
+stage.append(image);
+mediaViewer.append(head, stage);
 
-  let origin = null;
-  const open = (url, alt = "Pasted image", from = focused()) => {
-    origin = from;
-    image.src = url;
-    image.alt = alt;
-    if (!dialog.open) dialog.showModal();
-    close.focus({ preventScroll: true });
-  };
-  dialog.addEventListener("close", () => {
-    image.removeAttribute("src");
-    if (origin?.isConnected) origin.focus({ preventScroll: true });
-    origin = null;
-  });
-  dialog.addEventListener("mousedown", (event) => {
-    if (event.target !== dialog) return;
-    const box = dialog.getBoundingClientRect();
-    if (
-      event.clientX < box.left ||
-      event.clientX > box.right ||
-      event.clientY < box.top ||
-      event.clientY > box.bottom
-    ) {
-      event.preventDefault();
-      dialog.close();
-    }
-  });
-  document.addEventListener("click", (event) => {
-    const trigger = event
-      .composedPath()
-      .find((node) => node?.matches?.(".lf-media-open[data-lf-media-url]"));
-    if (trigger)
-      open(
-        trigger.dataset.lfMediaUrl,
-        trigger.querySelector("img")?.alt || "Pasted image",
-        trigger,
-      );
-  });
-
-  return { dialog, open };
-}
+let origin = null;
+const open = (url, alt, from) => {
+  origin = from;
+  image.src = url;
+  image.alt = alt;
+  if (!mediaViewer.open) mediaViewer.showModal();
+  close.focus({ preventScroll: true });
+};
+mediaViewer.addEventListener("close", () => {
+  image.removeAttribute("src");
+  if (origin?.isConnected) origin.focus({ preventScroll: true });
+  origin = null;
+});
+mediaViewer.addEventListener("mousedown", (event) => {
+  if (event.target !== mediaViewer) return;
+  const box = mediaViewer.getBoundingClientRect();
+  if (
+    event.clientX < box.left ||
+    event.clientX > box.right ||
+    event.clientY < box.top ||
+    event.clientY > box.bottom
+  ) {
+    event.preventDefault();
+    mediaViewer.close();
+  }
+});
+document.addEventListener("click", (event) => {
+  const trigger = event
+    .composedPath()
+    .find((node) => node?.matches?.(".lf-media-open[data-lf-media-url]"));
+  if (trigger)
+    open(
+      trigger.dataset.lfMediaUrl,
+      trigger.querySelector("img")?.alt || "Pasted image",
+      trigger,
+    );
+});

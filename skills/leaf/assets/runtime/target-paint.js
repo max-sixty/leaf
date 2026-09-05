@@ -7,6 +7,15 @@
  * change rebuilds it. */
 
 import { clippedRect, documentPoint, shownBox } from "./geometry.js";
+import { el } from "./widget-elements.js";
+import { aimBox } from "./composing/aim.js";
+import { marginTraceBox } from "./living-margin.js";
+import { inChrome } from "./passages.js";
+
+// Persistent paint for semantic visual parts. target-paint.js owns these pointer-inert
+// projections and keeps every anchored state above the package drawing.
+export const visualMarkLayer = el("div", "lf-ui lf-visual-marks");
+visualMarkLayer.setAttribute("aria-hidden", "true");
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const SHAPE_STROKE_ROOM = 2;
@@ -159,252 +168,238 @@ function placement(surface, shaped) {
   return { rect, shapeKey };
 }
 
-export function createTargetPaint({
-  aimBox,
-  el,
-  inChrome,
-  marginTraceBox,
-  visualMarkLayer,
-}) {
-  const aimShape = document.createElementNS(SVG_NS, "svg");
-  aimShape.classList.add("lf-aim-shape");
-  aimShape.setAttribute("aria-hidden", "true");
-  aimBox.append(aimShape);
-  const aimMaskId = "lf-runtime-aim-shape-mask";
-  const marginTraceShape = document.createElementNS(SVG_NS, "svg");
-  marginTraceShape.classList.add("lf-margin-status-trace-shape");
-  marginTraceShape.setAttribute("aria-hidden", "true");
-  marginTraceBox.append(marginTraceShape);
-  let targets = new Map();
-  const overlays = new Map();
-  let traceElement = null;
-  let traceSurface = null;
-  let traceGeometry = null;
-  let traceShapeKey = "";
-  let placementFrame = 0;
-  let geometryFrame = 0;
-  let geometryDirty = false;
+const aimShape = document.createElementNS(SVG_NS, "svg");
+aimShape.classList.add("lf-aim-shape");
+aimShape.setAttribute("aria-hidden", "true");
+const aimMaskId = "lf-runtime-aim-shape-mask";
+const marginTraceShape = document.createElementNS(SVG_NS, "svg");
+marginTraceShape.classList.add("lf-margin-status-trace-shape");
+marginTraceShape.setAttribute("aria-hidden", "true");
+let targets = new Map();
+const overlays = new Map();
+let traceElement = null;
+let traceSurface = null;
+let traceGeometry = null;
+let traceShapeKey = "";
+let placementFrame = 0;
+let geometryFrame = 0;
+let geometryDirty = false;
 
-  function clearAim() {
-    aimBox.style.display = "none";
-    aimBox.classList.remove("lf-shaped");
-    aimShape.replaceChildren();
-    aimBox.removeAttribute("data-for");
-    delete aimBox.dataset.lfPaintPlane;
+export function clearAim() {
+  aimBox.style.display = "none";
+  aimBox.classList.remove("lf-shaped");
+  aimShape.replaceChildren();
+  aimBox.removeAttribute("data-for");
+  delete aimBox.dataset.lfPaintPlane;
+}
+
+export function paintAim(element, surface = null) {
+  const geometry = surface ? paintGeometry(surface) : null;
+  const placed = element && placement(surface ?? element, Boolean(geometry));
+  if (!placed) {
+    clearAim();
+    return null;
   }
+  const { rect } = placed;
+  const shaped = paintShape(aimShape, geometry, rect, {
+    maskId: aimMaskId,
+    veil: true,
+  });
+  aimBox.classList.toggle("lf-shaped", shaped);
+  if (!shaped) aimShape.replaceChildren();
+  aimBox.setAttribute("data-for", element.id);
+  aimBox.dataset.lfPaintPlane = inChrome(element) ? "chrome" : "page";
+  const at = documentPoint(rect.left, rect.top);
+  Object.assign(aimBox.style, {
+    display: "block",
+    left: `${at.left}px`,
+    top: `${at.top}px`,
+    width: `${rect.right - rect.left}px`,
+    height: `${rect.bottom - rect.top}px`,
+    borderRadius: getComputedStyle(surface ?? element).borderRadius,
+  });
+  return rect;
+}
 
-  function paintAim(element, surface = null) {
-    const geometry = surface ? paintGeometry(surface) : null;
-    const placed = element && placement(surface ?? element, Boolean(geometry));
-    if (!placed) {
-      clearAim();
-      return null;
-    }
-    const { rect } = placed;
-    const shaped = paintShape(aimShape, geometry, rect, {
-      maskId: aimMaskId,
-      veil: true,
-    });
-    aimBox.classList.toggle("lf-shaped", shaped);
-    if (!shaped) aimShape.replaceChildren();
-    aimBox.setAttribute("data-for", element.id);
-    aimBox.dataset.lfPaintPlane = inChrome(element) ? "chrome" : "page";
-    const at = documentPoint(rect.left, rect.top);
-    Object.assign(aimBox.style, {
-      display: "block",
-      left: `${at.left}px`,
-      top: `${at.top}px`,
-      width: `${rect.right - rect.left}px`,
-      height: `${rect.bottom - rect.top}px`,
-      borderRadius: getComputedStyle(surface ?? element).borderRadius,
-    });
-    return rect;
-  }
+function clearTrace() {
+  traceElement = null;
+  traceSurface = null;
+  traceGeometry = null;
+  traceShapeKey = "";
+  marginTraceBox.style.display = "none";
+  marginTraceBox.classList.remove("lf-shaped");
+  marginTraceShape.replaceChildren();
+  marginTraceBox.removeAttribute("data-for");
+  delete marginTraceBox.dataset.lfPaintPlane;
+}
 
-  function clearTrace() {
-    traceElement = null;
-    traceSurface = null;
-    traceGeometry = null;
-    traceShapeKey = "";
-    marginTraceBox.style.display = "none";
-    marginTraceBox.classList.remove("lf-shaped");
-    marginTraceShape.replaceChildren();
-    marginTraceBox.removeAttribute("data-for");
-    delete marginTraceBox.dataset.lfPaintPlane;
-  }
-
-  function paintTrace(
-    element = traceElement,
-    surface = traceSurface,
-    rebuildGeometry = true,
+function drawTrace(
+  element = traceElement,
+  surface = traceSurface,
+  rebuildGeometry = true,
+) {
+  if (
+    !(element instanceof Element) ||
+    !(surface instanceof Element) ||
+    !element.isConnected ||
+    !surface.isConnected
   ) {
-    if (
-      !(element instanceof Element) ||
-      !(surface instanceof Element) ||
-      !element.isConnected ||
-      !surface.isConnected
-    ) {
-      clearTrace();
-      return;
+    clearTrace();
+    return;
+  }
+  const changed = element !== traceElement || surface !== traceSurface;
+  const geometry = changed || rebuildGeometry ? paintGeometry(surface) : traceGeometry;
+  const placed = placement(surface, Boolean(geometry));
+  traceElement = element;
+  traceSurface = surface;
+  traceGeometry = geometry;
+  if (!placed) {
+    marginTraceBox.style.display = "none";
+    return;
+  }
+  const { rect, shapeKey } = placed;
+  let shaped = Boolean(geometry);
+  if (shaped && (changed || rebuildGeometry || shapeKey !== traceShapeKey))
+    shaped = paintShape(marginTraceShape, geometry, rect);
+  if (!shaped) marginTraceShape.replaceChildren();
+  traceShapeKey = shaped ? shapeKey : "";
+  marginTraceBox.classList.toggle("lf-shaped", shaped);
+  if (element.id) marginTraceBox.setAttribute("data-for", element.id);
+  else marginTraceBox.removeAttribute("data-for");
+  marginTraceBox.dataset.lfPaintPlane = inChrome(element) ? "chrome" : "page";
+  const at = documentPoint(rect.left, rect.top);
+  Object.assign(marginTraceBox.style, {
+    display: "block",
+    left: `${at.left}px`,
+    top: `${at.top}px`,
+    width: `${rect.right - rect.left}px`,
+    height: `${rect.bottom - rect.top}px`,
+    borderRadius: shaped ? "0" : getComputedStyle(surface).borderRadius,
+  });
+}
+
+export function paintTrace(element, surface = element) {
+  if (!element) {
+    clearTrace();
+    return;
+  }
+  drawTrace(element, surface, element !== traceElement || surface !== traceSurface);
+}
+
+function syncStates() {
+  for (const [element, { overlay }] of overlays) {
+    const states = targets.get(element)?.states ?? new Set();
+    for (const [state, className] of Object.entries(STATE_CLASSES))
+      overlay.classList.toggle(className, states.has(state));
+  }
+}
+
+function paintTargets(rebuildGeometry = true) {
+  for (const element of [...overlays.keys()])
+    if (!targets.has(element)) {
+      element.classList.remove(SHAPED);
+      overlays.get(element).overlay.remove();
+      overlays.delete(element);
     }
-    const changed = element !== traceElement || surface !== traceSurface;
+
+  for (const [element, target] of targets) {
+    let record = overlays.get(element);
     const geometry =
-      changed || rebuildGeometry ? paintGeometry(surface) : traceGeometry;
-    const placed = placement(surface, Boolean(geometry));
-    traceElement = element;
-    traceSurface = surface;
-    traceGeometry = geometry;
+      rebuildGeometry || !record ? paintGeometry(target.surface) : record.geometry;
+    const placed = placement(target.surface, Boolean(geometry));
     if (!placed) {
-      marginTraceBox.style.display = "none";
-      return;
+      element.classList.remove(SHAPED);
+      if (record) {
+        record.geometry = geometry;
+        record.shapeKey = "";
+        record.overlay.style.display = "none";
+      }
+      continue;
     }
+    if (!record) {
+      const overlay = el("div", "lf-ui lf-visual-mark lf-target-paint");
+      const shape = document.createElementNS(SVG_NS, "svg");
+      shape.classList.add("lf-visual-mark-shape");
+      overlay.append(shape);
+      visualMarkLayer.append(overlay);
+      record = { overlay, shape, geometry: null, shapeKey: "" };
+      overlays.set(element, record);
+    }
+    const { overlay, shape } = record;
     const { rect, shapeKey } = placed;
-    let shaped = Boolean(geometry);
-    if (shaped && (changed || rebuildGeometry || shapeKey !== traceShapeKey))
-      shaped = paintShape(marginTraceShape, geometry, rect);
-    if (!shaped) marginTraceShape.replaceChildren();
-    traceShapeKey = shaped ? shapeKey : "";
-    marginTraceBox.classList.toggle("lf-shaped", shaped);
-    if (element.id) marginTraceBox.setAttribute("data-for", element.id);
-    else marginTraceBox.removeAttribute("data-for");
-    marginTraceBox.dataset.lfPaintPlane = inChrome(element) ? "chrome" : "page";
+    element.classList.add(SHAPED);
+    overlay.classList.toggle("lf-shaped", Boolean(geometry));
+    if (
+      rebuildGeometry ||
+      record.geometry !== geometry ||
+      record.shapeKey !== shapeKey
+    ) {
+      if (geometry) paintShape(shape, geometry, rect);
+      else shape.replaceChildren();
+      record.geometry = geometry;
+      record.shapeKey = shapeKey;
+    }
+    overlay.dataset.lfPaintPlane = inChrome(element) ? "chrome" : "page";
     const at = documentPoint(rect.left, rect.top);
-    Object.assign(marginTraceBox.style, {
+    Object.assign(overlay.style, {
       display: "block",
       left: `${at.left}px`,
       top: `${at.top}px`,
       width: `${rect.right - rect.left}px`,
       height: `${rect.bottom - rect.top}px`,
-      borderRadius: shaped ? "0" : getComputedStyle(surface).borderRadius,
+      borderRadius: geometry ? "0" : getComputedStyle(target.surface).borderRadius,
     });
   }
+  syncStates();
+}
 
-  function traceTarget(element, surface = element) {
-    if (!element) {
-      clearTrace();
-      return;
-    }
-    paintTrace(element, surface, element !== traceElement || surface !== traceSurface);
-  }
-
-  function syncStates() {
-    for (const [element, { overlay }] of overlays) {
-      const states = targets.get(element)?.states ?? new Set();
-      for (const [state, className] of Object.entries(STATE_CLASSES))
-        overlay.classList.toggle(className, states.has(state));
-    }
-  }
-
-  function paintTargets(rebuildGeometry = true) {
-    for (const element of [...overlays.keys()])
-      if (!targets.has(element)) {
-        element.classList.remove(SHAPED);
-        overlays.get(element).overlay.remove();
-        overlays.delete(element);
-      }
-
-    for (const [element, target] of targets) {
-      let record = overlays.get(element);
-      const geometry =
-        rebuildGeometry || !record ? paintGeometry(target.surface) : record.geometry;
-      const placed = placement(target.surface, Boolean(geometry));
-      if (!placed) {
-        element.classList.remove(SHAPED);
-        if (record) {
-          record.geometry = geometry;
-          record.shapeKey = "";
-          record.overlay.style.display = "none";
-        }
-        continue;
-      }
-      if (!record) {
-        const overlay = el("div", "lf-ui lf-visual-mark lf-target-paint");
-        const shape = document.createElementNS(SVG_NS, "svg");
-        shape.classList.add("lf-visual-mark-shape");
-        overlay.append(shape);
-        visualMarkLayer.append(overlay);
-        record = { overlay, shape, geometry: null, shapeKey: "" };
-        overlays.set(element, record);
-      }
-      const { overlay, shape } = record;
-      const { rect, shapeKey } = placed;
-      element.classList.add(SHAPED);
-      overlay.classList.toggle("lf-shaped", Boolean(geometry));
-      if (
-        rebuildGeometry ||
-        record.geometry !== geometry ||
-        record.shapeKey !== shapeKey
-      ) {
-        if (geometry) paintShape(shape, geometry, rect);
-        else shape.replaceChildren();
-        record.geometry = geometry;
-        record.shapeKey = shapeKey;
-      }
-      overlay.dataset.lfPaintPlane = inChrome(element) ? "chrome" : "page";
-      const at = documentPoint(rect.left, rect.top);
-      Object.assign(overlay.style, {
-        display: "block",
-        left: `${at.left}px`,
-        top: `${at.top}px`,
-        width: `${rect.right - rect.left}px`,
-        height: `${rect.bottom - rect.top}px`,
-        borderRadius: geometry ? "0" : getComputedStyle(target.surface).borderRadius,
-      });
-    }
-    syncStates();
-  }
-
-  function setTargets(next) {
-    const nextTargets = new Map(
-      [...next]
-        .filter((target) => target.states?.size)
-        .map((target) => [target.element, target]),
+export function setTargets(next) {
+  const nextTargets = new Map(
+    [...next]
+      .filter((target) => target.states?.size)
+      .map((target) => [target.element, target]),
+  );
+  const identitiesChanged =
+    nextTargets.size !== targets.size ||
+    [...nextTargets].some(
+      ([element, target]) => targets.get(element)?.surface !== target.surface,
     );
-    const identitiesChanged =
-      nextTargets.size !== targets.size ||
-      [...nextTargets].some(
-        ([element, target]) => targets.get(element)?.surface !== target.surface,
-      );
-    targets = nextTargets;
-    const traceNeedsGeometry = geometryDirty;
-    const rebuild = identitiesChanged || traceNeedsGeometry;
-    if (rebuild && geometryFrame) cancelAnimationFrame(geometryFrame);
-    if (rebuild && placementFrame) cancelAnimationFrame(placementFrame);
-    if (rebuild) geometryFrame = placementFrame = 0;
-    geometryDirty = false;
-    paintTargets(rebuild);
-    if (traceElement) paintTrace(traceElement, traceSurface, traceNeedsGeometry);
-  }
+  targets = nextTargets;
+  const traceNeedsGeometry = geometryDirty;
+  const rebuild = identitiesChanged || traceNeedsGeometry;
+  if (rebuild && geometryFrame) cancelAnimationFrame(geometryFrame);
+  if (rebuild && placementFrame) cancelAnimationFrame(placementFrame);
+  if (rebuild) geometryFrame = placementFrame = 0;
+  geometryDirty = false;
+  paintTargets(rebuild);
+  if (traceElement) drawTrace(traceElement, traceSurface, traceNeedsGeometry);
+}
 
-  function shifted() {
-    if (placementFrame || geometryFrame || (!targets.size && !traceElement)) return;
-    placementFrame = requestAnimationFrame(() => {
-      placementFrame = 0;
-      paintTargets(false);
-      if (traceElement) paintTrace(traceElement, traceSurface, false);
-    });
-  }
-
-  function geometryChanged() {
-    geometryDirty = true;
-    if (placementFrame) cancelAnimationFrame(placementFrame);
+export function shifted() {
+  if (placementFrame || geometryFrame || (!targets.size && !traceElement)) return;
+  placementFrame = requestAnimationFrame(() => {
     placementFrame = 0;
-    if (geometryFrame || (!targets.size && !traceElement)) return;
-    geometryFrame = requestAnimationFrame(() => {
-      geometryFrame = 0;
-      if (!geometryDirty) return;
-      geometryDirty = false;
-      paintTargets(true);
-      if (traceElement) paintTrace(traceElement, traceSurface, true);
-    });
-  }
+    paintTargets(false);
+    if (traceElement) drawTrace(traceElement, traceSurface, false);
+  });
+}
 
-  return {
-    clearAim,
-    geometryChanged,
-    paintAim,
-    setTargets,
-    shifted,
-    traceTarget,
-  };
+export function geometryChanged() {
+  geometryDirty = true;
+  if (placementFrame) cancelAnimationFrame(placementFrame);
+  placementFrame = 0;
+  if (geometryFrame || (!targets.size && !traceElement)) return;
+  geometryFrame = requestAnimationFrame(() => {
+    geometryFrame = 0;
+    if (!geometryDirty) return;
+    geometryDirty = false;
+    paintTargets(true);
+    if (traceElement) drawTrace(traceElement, traceSurface, true);
+  });
+}
+
+// The shapes into the aim's and the margin's boxes; mounted from chrome.js.
+export function mountTargetPaint() {
+  aimBox.append(aimShape);
+  marginTraceBox.append(marginTraceShape);
 }

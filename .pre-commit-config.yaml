@@ -56,6 +56,15 @@ repos:
     hooks:
       - id: eslint
         args: [--max-warnings=0]
+      # The evaluation-order rule's verdict on an unchanged runtime module can change
+      # when another module's imports do, so a staged runtime file lints the whole
+      # directory.
+      - id: eslint
+        alias: eslint-runtime
+        name: eslint (the runtime cycle)
+        files: ^skills/leaf/assets/runtime/
+        pass_filenames: false
+        args: [--max-warnings=0, skills/leaf/assets/runtime]
   - repo: https://github.com/adhtruong/mirrors-typos
     rev: v1.48.0
     hooks:

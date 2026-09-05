@@ -104,6 +104,8 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   traffic: "data-lf-traffic",
 });
 export const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
+export const pagePresented = () =>
+  document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 
 // A word for a reader listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed after the element's leading title,
@@ -211,7 +213,7 @@ function clearExternalLink(link, state) {
   state.note?.remove();
   externalLinkState.delete(link);
 }
-export function renderExternalLinks(root) {
+function renderExternalLinks(root) {
   const links = [...(root.matches?.("a") ? [root] : []), ...root.querySelectorAll("a")];
   for (const link of links) {
     // SVG links share this selector but not the HTML anchor API, and they have no
@@ -438,9 +440,9 @@ export function markDeclared(root, painted) {
 // compose rather than race. The pass runs after the upgrades, so a module that rebuilds
 // its own body can't wipe a span put there first.
 //
-// The theme's pseudo rules stay, as the rendering a page carrying no script at all still
-// gets (docs/how-it-works.html is one); they stand down where this pass has been, asked
-// by :has(), so the two are never both on. The span is data-lf-gen and not .lf-ui: the
+// The theme's pseudo rules stay as the no-script fallback; they stand down where this
+// pass has been, asked by :has(), so the two are never both on. The span is data-lf-gen
+// and not .lf-ui: the
 // diff parses the base version unupgraded and must not read it as text that version
 // lacked, and the user must be able to quote it.
 //

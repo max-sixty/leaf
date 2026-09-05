@@ -699,6 +699,30 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   outline: var(--here-ring); --lf-here-ring: visual-target;
   outline-offset: calc(-1 * var(--here-ring-w)); }
 .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
+/* What the block said in the base version, folded open inside the block itself
+   (version.js). It stands on paper inside the wash the mark lays down, because the wash
+   says "these are the words now" and this is the one thing on the page that is not:
+   sharing the tint would put the version being read and the version it replaced on one
+   surface. The rule down its inside edge is the quotation gutter lf-specimen uses, for
+   the same reason — the page is exhibiting words rather than speaking them.
+
+   `overflow: hidden` is the fold's, not the layout's: the room goes in and comes back at
+   FOLD_MS, and text spilling its own closing box is the jump the motion is there to
+   prevent. The box takes its width from what it holds, capped at the block's: a
+   paragraph fills the measure, and the head alone — which is the whole reading where the
+   base version had nothing here — is a short line rather than a bar of empty paper.
+
+   Only <del>: this reading carries no insertions, the block above being where they
+   are. It wears the tinted, struck pair a draft's history paints, so a removal looks
+   the same whichever of the two surfaces the reader met first. */
+.lf-earlier { display: block; overflow: hidden; margin-block-start: 10px;
+  width: max-content; max-width: 100%;
+  padding: 6px 0 6px 12px; border-inline-start: 2px solid var(--rule);
+  background: var(--paper); border-radius: 2px; }
+.lf-earlier-head { display: block; margin-block-end: 3px;
+  font: 500 var(--t-6)/1.2 var(--sans); letter-spacing: .02em; color: var(--muted); }
+.lf-earlier-body { display: block; color: var(--ink-2); }
+.lf-earlier-body del { background: var(--del-tint); color: var(--danger-ink); }
 /* The unanswered decision the reader is standing in (markHere), worn by the decision rather than
    by whichever of its controls holds the focus — they are standing in the whole thing,
    however they got there. Unanswered and not open: a widget whose own seat is
@@ -1487,8 +1511,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-fab-bar.lf-react-open > .lf-composer { display: none !important; }
   .lf-fab-bar.lf-react-open > .lf-react-palette { display: contents; }
   /* A reaction surface offers one quiet trigger. It disappears when its list opens;
-     a standing token remains visible in a closed message or page strip as the reader's
-     receipt and eraser. */
+     a standing token remains visible in a closed message strip as the reader's receipt
+     and eraser. */
   .lf-react-trigger { color: var(--muted); }
   .lf-react-trigger:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]) {
     color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
@@ -1510,7 +1534,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-react[aria-busy="true"] { opacity: .55; }
   .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
     margin-top: 6px; }
-  .lf-page-strip { padding: 8px 14px 0; }
   /* The latest agent reply keeps its React… trigger visible. Older replies expose
      theirs while the reader is in the thread; a standing mark remains visible at rest. */
   .lf-thread:not(:hover, :focus-within, .lf-focus-within)

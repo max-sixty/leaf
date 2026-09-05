@@ -1,13 +1,34 @@
-/* Lossless, language-aware alignment of whole-text states. */
+/* Lossless, language-aware alignment of whole-text states, and the one rendering of an
+ * alignment.
+ *
+ * Two surfaces explain how a text came to say what it says: a draft's own history, and
+ * the version comparison's earlier reading of a block. A reader who meets one has to
+ * recognise the other, so the runs and the elements they become are stated together
+ * here rather than once per surface. Only the paint stays with each surface's sheet,
+ * because that is the part that has to differ — a widget's rendering is reached by its
+ * package's theme and a shadow slice, the comparison's by the comment layer's own
+ * stylesheet. */
 
 // One lossless text alignment for every widget that needs to explain a sequence of
-// whole-text states. Segmenter keeps words and punctuation in the language-aware
-// units this runtime already assumes; a linear-space Hirschberg walk supplies the
-// ordered shared spine. Its quadratic *time* is capped: after stripping a common
-// prefix and suffix, a very large divergent middle is one replacement instead of a
-// page-freezing attempt at fine-grained alignment. Joining same+delete reconstructs
-// `before`, and joining same+insert reconstructs `after`, exactly.
+// whole-text states. Segmenter keeps the language-aware units this runtime already
+// assumes; a linear-space Hirschberg walk supplies the ordered shared spine. Its
+// quadratic *time* is capped: after stripping a common prefix and suffix, a very large
+// divergent middle is one replacement instead of a page-freezing attempt at fine-grained
+// alignment. Joining same+delete reconstructs `before`, and joining same+insert
+// reconstructs `after`, exactly.
+//
+// The unit is the caller's, because the two texts it holds decide what a difference
+// between them can mean. Successive edits of one draft differ by words, and words are
+// the smallest thing that says where. Two versions of a paragraph differ by having been
+// rewritten, and a word walk over a rewrite matches every "the" and "a" it passes: the
+// spine it finds is real and the reading it produces is shredded — two texts interleaved
+// a word at a time, which no reader can follow and no screen reader can speak. Sentences
+// are what a rewrite works in, so a sentence walk marks a rewritten sentence whole and
+// leaves a surviving one alone.
 export const textUnits = new Intl.Segmenter(undefined, { granularity: "word" });
+export const sentenceUnits = new Intl.Segmenter(undefined, {
+  granularity: "sentence",
+});
 const ALIGN_CELLS = 1_000_000;
 
 function lcsRow(left, lo, hi, right, rlo, rhi, reverse) {
@@ -58,9 +79,9 @@ function lcsMatches(left, lo, hi, right, rlo, rhi, matches) {
   lcsMatches(left, middle, hi, right, rlo + split, rhi, matches);
 }
 
-export function alignText(before, after) {
-  const left = [...textUnits.segment(before)].map((part) => part.segment);
-  const right = [...textUnits.segment(after)].map((part) => part.segment);
+export function alignText(before, after, units = textUnits) {
+  const left = [...units.segment(before)].map((part) => part.segment);
+  const right = [...units.segment(after)].map((part) => part.segment);
   const runs = [];
   const push = (kind, text) => {
     if (!text) return;
@@ -104,4 +125,17 @@ export function alignText(before, after) {
   push("insert", right.slice(j, rightEnd).join(""));
   push("same", left.slice(leftEnd).join(""));
   return runs;
+}
+
+// The alignment as elements: `same` is plain text, what the later text dropped is a
+// <del>, what it gained an <ins>. Semantic rather than classed, so a copy of the passage
+// and a reader hearing it keep the two apart with no stylesheet.
+export function alignedNodes(runs) {
+  return runs.map((run) => {
+    const node = document.createElement(
+      run.kind === "delete" ? "del" : run.kind === "insert" ? "ins" : "span",
+    );
+    node.textContent = run.text;
+    return node;
+  });
 }

@@ -89,12 +89,11 @@ html.lf-copy lf-gloss > .lf-gloss-popover::after { content: ")"; }
  * renders the value as real text (renderSaid, in a span carrying data-lf-said),
  * because a pseudo-element paints glyphs that live in no text node — a user
  * can read them and can never select or comment on them. The pseudo-element
- * stays as the same words for a page carrying no script at all
- * (docs/how-it-works.html renders the whole vocabulary that way) and stands down
- * where the runtime got there, asked by :has() and placed later in the cascade,
- * so the two are never both on. A word the theme puts in front of a value stays
- * a pseudo either way ("quoted ·"): that one is the theme's word about the
- * page's, and only the page's is worth quoting. There is one of those left. The
+ * stays as the same words for a page carrying no script at all and stands down where
+ * the runtime got there, asked by :has() and placed later in the cascade, so the two
+ * are never both on. A word the theme puts in front of a value stays a pseudo either
+ * way ("quoted ·"): that one is the theme's word about the page's, and only the page's
+ * is worth quoting. There is one of those left. The
  * other went with the attribute it named: the theme wrote "effort" in front of
  * `effort` because it knew the name, and a decision's facets are the author's to
  * name, so they are markup (lf-chip) rather than an attribute rendered into text.
@@ -401,9 +400,8 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
  *
  * What the tag bought that the marker does not is the page that never runs the runtime,
  * where nothing paints the mark and a quoted group would keep the whole offer. No shipped
- * page is that page: the two carrying no script at all (docs/index.html and
- * docs/how-it-works.html) stage specimens whose groups never declare `choose`, which is
- * what all ten rules key on. A copy and paper are already out by the guards above. */
+ * page is that page. No shipped authored page does: each reaches the runtime through
+ * its Leaf scaffold. A copy and paper are already out by the guards above. */
 @media screen {
  :where(html:not(.lf-copy)) {
   lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option { cursor: pointer;

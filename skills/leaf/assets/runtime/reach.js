@@ -107,7 +107,7 @@ export function reachScrollers(root) {
 // Which of the candidates has something out of sight right now. Both directions, because
 // a reader who widens the window is owed the stop's removal as much as its arrival: a box
 // that fits carries nothing to scroll to, and a tab stop on it is a press that goes
-// nowhere. Cheap enough for the layout writer — the set is what declared it may scroll,
+// nowhere. Cheap enough for chrome-layout.js — the set is what declared it may scroll,
 // which on the corpus is single digits — and it writes only `tabIndex`, which moves no box
 // (the rule syncLayout keeps).
 const reachSizes = new ResizeObserver(() => paintReach());

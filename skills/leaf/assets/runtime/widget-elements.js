@@ -43,6 +43,32 @@
    than recording a choice while the reader operates nested evidence. */
 import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
+import { shownBox } from "./geometry.js";
+import { iconElement } from "./icons.js";
+
+// A scroll target can sit inside a collapsed container — a closed <details>, an
+// inactive tab. Opening what the platform owns (details) and letting a container
+// widget open what it owns (the lf-reveal event; lf-tabs listens) gives the
+// target geometry before the scroll. Called before every scroll-to-content.
+export function reveal(el) {
+  const chain = [];
+  for (let a = el; a; a = a.parentElement ?? a.getRootNode()?.host ?? null)
+    chain.push(a);
+  // Reveal outside-in so an inner widget has geometry when it handles the signal.
+  for (const a of chain.reverse()) {
+    if (a.tagName === "DETAILS" && !a.open) a.open = true;
+    a.dispatchEvent(new CustomEvent("lf-reveal", { detail: { target: el } }));
+  }
+}
+
+// The one way the layer makes an element: a tag, its classes, and the words it starts
+// with.
+export function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
 
 // How a widget collapses content it may need to show again (lf-tabs' inactive
 // panels, a settled lf-options' cards): hidden="until-found", so find-in-page
@@ -74,6 +100,14 @@ export function keepsHidden(node, hidden) {
   if (node && node.hidden !== hidden) node.hidden = hidden;
 }
 
+// The reader's hand on a widget, in the layer's own word: a drag the log has not taken
+// yet. The class is half of keyboard/page.js's `unaccountedGesture`, so taking it up or
+// putting it down moves core's `z` row — a row no widget declares, and therefore the one
+// no widget would think to repaint. So the paint is owed here, where the class is
+// written, rather than by whoever remembers. Coalesced to a frame like every paint, which
+// is what lets it stand for everything else the same gesture moved: the widget's own
+// rows where the grab is a press on an already-focused grip and no focus event fires,
+// and a send the drop states after this returns.
 export const dragging = (el, on) => {
   el.classList.toggle("lf-dragging", on);
   paintKeys();
@@ -85,67 +119,60 @@ export const LAYOUT = "lf-layout";
 export const layoutChanged = (el) =>
   el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
 
-let publishedMeasure;
-export { publishedMeasure as measure };
-
-export function createMeasurements({ shownBox }) {
-  // A number a widget can only read off a box the browser has laid out. Three ship: the
-  // room a pick mark's word will need, the room a card keeps clear of its grip, the width
-  // of a roster's state column. Every one is measured rather than stated for the same
-  // reason — the face this page is actually set in, which no constant names across two
-  // platforms — and every one reads 0 where there is no box to read.
-  //
-  // A widget upgrades wherever the runtime connects it, and not every one of those places
-  // is drawn. A message body is built for every comment the log carries and connected
-  // whether or not the reader has opened the panel, and a shut panel is `display: none`:
-  // every box beneath it is zero. `once` then refuses the second upgrade that would put
-  // it right, and the body is cached for the life of the tab and never rebuilt — so a
-  // zero taken there is indistinguishable from a measurement and stands for good. A pick
-  // column collapsed to nothing, a grip drawn over the card's own title.
-  //
-  // So the module states the measurement and the runtime takes it: now, where there is
-  // something to read, and otherwise the first time there is. ResizeObserver is the
-  // browser's own answer to "this has a box now", and the one that answers it wherever
-  // the element sits — a message scrolled past the panel's own fold has been laid out
-  // just the same, which is the question an IntersectionObserver would get wrong.
-  //
-  // The observation ends at the reading it was waiting for, so what a measurement writes
-  // cannot return through what triggered it: after the unobserve there is no second
-  // delivery to the element that was just written.
-  const measurements = new WeakMap();
-  const drawn = (el) => {
-    const box = shownBox(el);
-    return Boolean(box.width || box.height);
-  };
-  const unmeasured = new ResizeObserver((entries) => {
-    const taking = [];
-    for (const { target } of entries) {
-      if (!drawn(target)) continue;
-      unmeasured.unobserve(target);
-      taking.push(measurements.get(target));
-      measurements.delete(target);
-    }
-    // Every one released before any of them is taken: a measurement writes room its own
-    // widget spends, which resizes it, and a widget still observed when that happens is a
-    // second delivery inside the round that wrote it.
-    for (const take of taking) take();
-  });
-  function measure(el, take) {
-    // `shownBox`, not this element's own rect: a `display: contents` wrapper draws no box
-    // of its own and never will, and its contents are what the measurement is about. Asked
-    // the narrow way it would wait forever, holding the take and the observation with it.
-    if (drawn(el)) {
-      // A wait already standing for this element is over: it was waiting for the box
-      // this reading just found. Left standing it would deliver a second reading of
-      // the same number, which is harmless and still a claim that nothing was read.
-      if (measurements.delete(el)) unmeasured.unobserve(el);
-      return take();
-    }
-    measurements.set(el, take);
-    unmeasured.observe(el);
+// A number a widget can only read off a box the browser has laid out. Three ship: the
+// room a pick mark's word will need, the room a card keeps clear of its grip, the width
+// of a roster's state column. Every one is measured rather than stated for the same
+// reason — the face this page is actually set in, which no constant names across two
+// platforms — and every one reads 0 where there is no box to read.
+//
+// A widget upgrades wherever the runtime connects it, and not every one of those places
+// is drawn. A message body is built for every comment the log carries and connected
+// whether or not the reader has opened the panel, and a shut panel is `display: none`:
+// every box beneath it is zero. `once` then refuses the second upgrade that would put
+// it right, and the body is cached for the life of the tab and never rebuilt — so a
+// zero taken there is indistinguishable from a measurement and stands for good. A pick
+// column collapsed to nothing, a grip drawn over the card's own title.
+//
+// So the module states the measurement and the runtime takes it: now, where there is
+// something to read, and otherwise the first time there is. ResizeObserver is the
+// browser's own answer to "this has a box now", and the one that answers it wherever
+// the element sits — a message scrolled past the panel's own fold has been laid out
+// just the same, which is the question an IntersectionObserver would get wrong.
+//
+// The observation ends at the reading it was waiting for, so what a measurement writes
+// cannot return through what triggered it: after the unobserve there is no second
+// delivery to the element that was just written.
+const measurements = new WeakMap();
+const drawn = (el) => {
+  const box = shownBox(el);
+  return Boolean(box.width || box.height);
+};
+const unmeasured = new ResizeObserver((entries) => {
+  const taking = [];
+  for (const { target } of entries) {
+    if (!drawn(target)) continue;
+    unmeasured.unobserve(target);
+    taking.push(measurements.get(target));
+    measurements.delete(target);
   }
-
-  publishedMeasure = measure;
+  // Every one released before any of them is taken: a measurement writes room its own
+  // widget spends, which resizes it, and a widget still observed when that happens is a
+  // second delivery inside the round that wrote it.
+  for (const take of taking) take();
+});
+export function measure(el, take) {
+  // `shownBox`, not this element's own rect: a `display: contents` wrapper draws no box
+  // of its own and never will, and its contents are what the measurement is about. Asked
+  // the narrow way it would wait forever, holding the take and the observation with it.
+  if (drawn(el)) {
+    // A wait already standing for this element is over: it was waiting for the box
+    // this reading just found. Left standing it would deliver a second reading of
+    // the same number, which is harmless and still a claim that nothing was read.
+    if (measurements.delete(el)) unmeasured.unobserve(el);
+    return take();
+  }
+  measurements.set(el, take);
+  unmeasured.observe(el);
 }
 
 // Mention, not use: a widget inside one the registry marks x-exhibit is quoted
@@ -365,20 +392,18 @@ export function reachedForWords(el) {
   return !!sel && !sel.isCollapsed && el.contains(sel.focusNode);
 }
 
-export function installReachedForWordsGuard() {
-  document.addEventListener(
-    "click",
-    (ev) => {
-      if (ev.detail === 0) return;
-      const control = ev.target.closest?.("[data-lf-offer]");
-      if (control && reachedForWords(control)) {
-        ev.stopPropagation();
-        ev.preventDefault();
-      }
-    },
-    true,
-  );
-}
+document.addEventListener(
+  "click",
+  (ev) => {
+    if (ev.detail === 0) return;
+    const control = ev.target.closest?.("[data-lf-offer]");
+    if (control && reachedForWords(control)) {
+      ev.stopPropagation();
+      ev.preventDefault();
+    }
+  },
+  true,
+);
 
 // A control's label, and which kind of word it is. Most are things to do — "Save",
 // "choose", a grip — and go with the rest of the UI on paper, out of reach of a
@@ -487,4 +512,38 @@ export function reserve(control, labels) {
   control.style.minWidth = Math.ceil(widest) + "px";
   if (held && document.activeElement !== control)
     control.focus({ preventScroll: true });
+}
+
+// The anchored response bar has one control grammar of its own. Its buttons share the
+// field's type, border, height, and floating elevation without claiming to be target-
+// margin Buttons. The repeated anatomy lets Comment, Suggest, and package reactions
+// change vocabulary without each inventing a button shape.
+export function responseAction(
+  control,
+  { glyph = null, icon = null, label, behavior = "action", collapse = false },
+) {
+  if (Boolean(String(glyph ?? "").trim()) === Boolean(icon))
+    throw new TypeError("A response action needs exactly one glyph or icon");
+  control.classList.add("lf-response-control", "lf-response-action");
+  control.dataset.lfBehavior = behavior;
+  control.toggleAttribute("data-lf-collapse", collapse);
+  if (behavior !== "action" && !control.hasAttribute("aria-expanded"))
+    control.setAttribute("aria-expanded", "false");
+  if (behavior === "action") control.removeAttribute("aria-expanded");
+  const glyphNode = icon ? iconElement(icon) : document.createElement("span");
+  if (!icon) {
+    glyphNode.className = "lf-response-action-glyph";
+    glyphNode.setAttribute("aria-hidden", "true");
+    glyphNode.textContent = glyph;
+  }
+  const spaceNode = document.createElement("span");
+  spaceNode.className = "lf-response-action-space";
+  spaceNode.setAttribute("aria-hidden", "true");
+  spaceNode.textContent = " ";
+  const labelNode = document.createElement("span");
+  labelNode.className = "lf-response-action-label";
+  labelNode.textContent = label;
+  control.replaceChildren(glyphNode, spaceNode, labelNode);
+  if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
+  return control;
 }

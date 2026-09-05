@@ -193,9 +193,7 @@ const valueOf = (event) => {
 
 function demoProjection(revision = REVISION) {
   const withdrawn = new Set(
-    events
-      .filter((event) => event.undoes && event.revision <= revision)
-      .map((event) => event.undoes),
+    events.filter((event) => event.undoes).map((event) => event.undoes),
   );
   const entries = [];
   const actions = new Map();

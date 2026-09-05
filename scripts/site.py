@@ -6,13 +6,14 @@ the version checker accepts, uses root-absolute public routes, and is published 
 rewriting. The five sources become live-root directory routes, so the same runtime
 addressing used by a served Leaf applies without a site-only exception.
 
-The examples are complete Leaf page directories under examples/<name>/. The same
+The examples begin as complete Leaf page directories under examples/<name>/. The same
 preparation path that serves a local example vendors each page's selected layer,
 stamps its authored versions, applies its companion event log and data, and closes the
-finished page without claiming it for an agent. A host can therefore route each clean
-example URL through Leaf's ordinary page server instead of maintaining a second
-browser-side session implementation. Product routes remain exact authored drafts and
-continue to use the site's static session.
+finished page without claiming it for an agent. The build then materializes the
+version documents that Leaf's server normally projects at virtual routes, because a
+static host cannot synthesize them. The mutable source, immutable revisions, and
+event-backed mappings remain the record those generated routes come from. Product
+routes remain exact authored drafts and continue to use the site's static session.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
@@ -33,6 +34,14 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from leaf.event_log import read_events
+from leaf.files import (
+    published_versions,
+    revision_path,
+    version_name,
+    version_revisions,
+)
+from leaf.http import runtime_document
 from preview import prepare
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -188,6 +197,23 @@ def publish_product_pages(page: Path, out: Path, env: dict) -> None:
         (target.parent / "events.jsonl").write_text("", encoding="utf-8")
 
 
+def publish_static_versions(page: Path) -> None:
+    """Materialize Leaf's virtual version documents for a static host."""
+    events = read_events(page)
+    mappings = version_revisions(events)
+    versions = published_versions(page, events)
+    if not versions:
+        sys.exit(f"{page.name} has no stamped version to publish")
+    routes = page / "versions"
+    routes.mkdir()
+    for version in versions:
+        revision = mappings[version]
+        source = revision_path(page, revision).read_text(encoding="utf-8")
+        (routes / version_name(version)).write_bytes(
+            runtime_document(source, revision, version)
+        )
+
+
 def publish_pages(out: Path, env: dict) -> None:
     """The site's vendored layer, product documents, and authored examples."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -226,6 +252,7 @@ def publish_pages(out: Path, env: dict) -> None:
                 final_status="idle",
                 current_note="As published",
             )
+            publish_static_versions(published)
             print(f"  {source.stem}")
 
 

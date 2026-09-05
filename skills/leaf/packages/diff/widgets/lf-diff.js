@@ -216,7 +216,7 @@ function fileRow(row) {
 }
 
 function reviewButton(entry, changed) {
-  const button = offer("button", "lf-diff-review");
+  const button = offer("button", "lf-btn lf-diff-review");
   button.addEventListener("click", () => changed(entry, !entry.reviewed));
   return button;
 }
@@ -252,7 +252,7 @@ function reviewTools(host) {
   const progress = document.createElement("span");
   progress.className = "lf-diff-progress";
   progress.dataset.lfGen = "1";
-  const next = offer("button", "lf-diff-next", "Next unreviewed");
+  const next = offer("button", "lf-btn lf-diff-next", "Next unreviewed");
   next.addEventListener("click", () => settle(host.nextUnreviewed()));
   const wrap = wrapSwitch();
   tools.append(label, progress, wrap.node, next);

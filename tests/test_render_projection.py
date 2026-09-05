@@ -360,6 +360,21 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     ).evaluate("el => getComputedStyle(el).backgroundColor")
     expect(group.locator(":scope > summary")).to_have_count(1)
     expect(group).not_to_have_attribute("open", "")
+    # Ordinary buttons keep the same ink on tinted document and shadow surfaces.
+    colors = []
+    for control in (".lf-call-toggle", ".lf-diff-next", ".lf-diff-review"):
+        colors.append(
+            page.locator(control).first.evaluate("""button => {
+            const parent = button.parentElement;
+            const prior = parent.style.color;
+            const before = getComputedStyle(button).color;
+            parent.style.color = 'rgb(200, 0, 100)';
+            const tinted = getComputedStyle(button).color;
+            parent.style.color = prior;
+            return [before, tinted];
+        }""")
+        )
+    assert len({color for pair in colors for color in pair}) == 1, colors
     widget.locator(".lf-call-toggle").click()
     expect(group).to_have_attribute("open", "")
     expect(widget.locator(".lf-call-toggle")).to_have_text("Collapse all")
@@ -5328,9 +5343,7 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
     stated once beside the hand it withdraws, so a request that is finished cannot go on
     looking like one that is waiting.
 
-    And the ring, which is this page's job to prove because the request press is the
-    layer's example of a control no widget rings: the shared rule is a fallback, and a
-    fallback that nothing ever falls back to is a rule that was never tested."""
+    The request also uses the ordinary button focus ring, reached by keyboard."""
     page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     face = """el => { const cs = getComputedStyle(el);
         return {cursor: cs.cursor, opacity: cs.opacity,
@@ -5355,8 +5368,7 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
     ready = live.evaluate(face)
     assert ready["cursor"] == "pointer" and float(ready["opacity"]) == 1
 
-    # The ring the shared rule draws, on the one control the layer leaves to it. Reached
-    # by a real Tab, because :focus-visible is a fact about how focus arrived.
+    # Reach the ordinary button ring by Tab: :focus-visible depends on how focus arrived.
     live.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
@@ -5366,7 +5378,7 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
                      cs.getPropertyValue('--here-ring-w').trim(),
                      cs.getPropertyValue('--lf-here-ring').trim()]; }"""
     )
-    assert ring == ["solid", ring[2], ring[2], "pressable"], (
+    assert ring == ["solid", ring[2], ring[2], "btn"], (
         f"a request press wears no here ring from the layer's shared rule: {ring}"
     )
 

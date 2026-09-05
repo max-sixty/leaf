@@ -5,16 +5,15 @@
    cluster's room and dock with it when necessary; they do not claim permanent rail
    width. A thread-local `r` opens the conversation-owned row on the latest agent
    message. With none of those targets, it shows “Select something to react to” and
-   opens nothing. Page-wide reactions remain an explicit `React…` trigger above the
-   panel's general comment box. `REACT` claims the keyboard while a list is open. Arrow keys
-   wrap through every visible Button in the target's shared cluster, including its
-   primary actions and Page-map overflow; floating and message-local rows walk their own
-   choices. Tab and Shift-Tab follow that same order. The Page-map dialog remains part
-   of the response's target context but owns its native keyboard walk and Escape while
-   open. Closing it restores its exact opener; selecting overflow presses the original
-   Button before its temporary target is released. Enter or Space presses the focused
-   choice, digits remain optional reaction accelerators in declaration order, and a
-   stray key closes the list before keeping its ordinary meaning.
+   opens nothing. `REACT` claims the keyboard while a list is open. Arrow keys wrap
+   through every visible Button in the target's shared cluster, including its primary
+   actions and Page-map overflow; floating and message-local rows walk their own choices.
+   Tab and Shift-Tab follow that same order. The Page-map dialog remains part of the
+   response's target context but owns its native keyboard walk and Escape while open.
+   Closing it restores its exact opener; selecting overflow presses the original Button
+   before its temporary target is released. Enter or Space presses the focused choice,
+   digits remain optional reaction accelerators in declaration order, and a stray key
+   closes the list before keeping its ordinary meaning.
 
    The `r` key unfolds this same cluster's secondary Button group for a page selection
    or item and shows the declared reaction Buttons together within the six-fitting
@@ -261,7 +260,7 @@ export async function sendReaction(event, pill, where) {
 // The react press opens one surface's list. `r` uses the latest agent reply in the
 // thread the reader is standing in, an already raised bar, or the item holding focus.
 // A page with none of those has no reaction target: it says what is missing and leaves
-// Threads alone. Page-wide reactions remain an explicit surface inside that panel.
+// Threads alone.
 let reactArmed = false;
 let reactRaised = false;
 // Whether this raise is what unfolded the target's cluster, and so whether putting the

@@ -67,11 +67,7 @@ export const generalRow = el("div", "lf-general");
 export const generalInput = document.createElement("textarea");
 const generalSend = el("button", "lf-btn primary", "Send");
 generalRow.append(generalInput, generalSend);
-// The panel's foot: everything standing below the scrolling thread list. The general
-// box is what it holds at rest, and the page's own reaction strip joins it above that
-// box when the registry offers reactions. One box rather than two siblings, because the
-// chrome treats the whole painted foot as one obstacle when it actually meets the key
-// line; measuring the composer alone stood the line on the strip's pills.
+// The panel's foot: the general box below the scrolling thread list.
 export const panelFoot = el("div", "lf-panel-foot");
 panelFoot.append(generalRow);
 panel.append(panelHead, findRow, threadsBox, panelFoot);

@@ -186,8 +186,7 @@ and panel arrival;
 `runtime/conversation/narrowing.js` owns comment-panel search and waiting-on-reader
 filter state;
 `runtime/conversation/placement.js` owns document-order grouping;
-`runtime/conversation/reaction-strips.js` owns the panel's message and page reaction
-surfaces;
+`runtime/conversation/reaction-strips.js` owns the panel's message reaction surfaces;
 `runtime/conversation/surfaces.js` owns registry-declared widget outlets and the set of
 threads they claim from the living-margin fallback;
 `runtime/conversation/thread-card.js` owns retained panel thread cards, their quote

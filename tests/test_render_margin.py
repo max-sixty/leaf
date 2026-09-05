@@ -114,7 +114,7 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
           observer.observe(document.body, {subtree: true, attributes: true,
             attributeFilter: ['data-lf-button-primary', 'data-lf-button-overflow']});
           for (let i = 0; i < 5; i++) layoutMarginRows();
-          const mutations = observer.takeRecords().length;
+          const mutations = seen.length + observer.takeRecords().length;
           observer.disconnect();
           return {before, after: boxes(), mutations};
         }"""
@@ -293,15 +293,19 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
               characterData: true, characterDataOldValue: true,
               attributes: true, attributeOldValue: true});
           const on = record => record.target.className || record.target.nodeName;
+          const hangs = value => /lf-(docked|waiting)/.test(value ?? '');
           const probes = [
             ['margin-layout clears the docked and waiting classes off a row '
              + 'to measure where it can hang',
-             record => record.attributeName === 'class'
+             (record, pass) => record.attributeName === 'class'
                && record.target.matches('.lf-margin-item')
-               // The tokens have to be in play: a clear that finds neither of them
-               // standing moves nothing, so it is a name restated rather than a probe.
-               && /lf-(docked|waiting)/.test(
-                    `${record.oldValue} ${record.target.className}`)],
+               // Asked of the write rather than of the row: a docked row carries the
+               // tokens from one end of the pass to the other, so reading them off
+               // the target files every same-value `class` write on that row under
+               // this probe, including one from a writer that has nothing to do with
+               // the measurement. The clear moves a token off and the re-mark moves
+               // it back; a name restated moves neither.
+               && hangs(record.oldValue) !== hangs(pass.wrote.get(record))],
             ['margin-layout reads the rail again once the docked rows are back in flow',
              record => record.attributeName === 'style'
                && record.target.matches('nav.lf-living-margin')],
@@ -310,8 +314,8 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
              record => record.attributeName === 'data-lf-button-primary'
                && record.target.matches('.lf-margin-button')],
           ];
-          const probe = record =>
-            probes.find(([, holds]) => holds(record))?.[0] ?? null;
+          const probe = (record, pass) =>
+            probes.find(([, holds]) => holds(record, pass))?.[0] ?? null;
           const unchanged = [];
           const news = [];
           for (let i = 0; i < refreshes; i++) {
@@ -319,23 +323,37 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(
             if (settles) { await frame(); await frame(); }
             seen.push(...observer.takeRecords());
             const records = seen.splice(0);
-            // The value each attribute carried before this pass touched it, so the
-            // pass can be asked what it left standing rather than what each write said.
+            // The value each attribute carried before this pass touched it, and the
+            // last write of it, so the pass can be asked what it left standing rather
+            // than what each write said.
             const opened = new Map();
+            // What each write said, which no record carries: a record holds the value
+            // it replaced, so the next write of that attribute holds this one's
+            // result, and the last write's result is what the attribute reads now.
+            const wrote = new Map();
             for (const record of records) {
               if (record.type !== 'attributes') continue;
               let byName = opened.get(record.target);
               if (!byName) opened.set(record.target, byName = new Map());
-              if (!byName.has(record.attributeName))
-                byName.set(record.attributeName, record.oldValue);
+              let entry = byName.get(record.attributeName);
+              if (!entry)
+                byName.set(record.attributeName,
+                  entry = {opening: record.oldValue, last: null});
+              if (entry.last) wrote.set(entry.last, record.oldValue);
+              entry.last = record;
             }
+            for (const [target, byName] of opened)
+              for (const [name, entry] of byName)
+                wrote.set(entry.last, target.getAttribute(name));
+            const pass = {wrote};
             for (const record of records) {
               if (record.type === 'attributes') {
                 const now = record.target.getAttribute(record.attributeName);
-                const opening = opened.get(record.target).get(record.attributeName);
+                const {opening} =
+                  opened.get(record.target).get(record.attributeName);
                 if (opening === now)
                   unchanged.push({on: on(record), wrote: record.attributeName,
-                                  said: opening, probe: probe(record)});
+                                  said: opening, probe: probe(record, pass)});
                 if (['open', 'aria-expanded'].includes(record.attributeName)
                     && now !== record.oldValue)
                   news.push({on: on(record), wrote: record.attributeName,

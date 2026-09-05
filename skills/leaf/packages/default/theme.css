@@ -596,9 +596,9 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid; background: var(--card);
     border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
-    /* Pending is still durable state in the projection, but its generic green outline
-     * would be a second exterior border around this already-framed control. The selected
-     * row itself shows the standing choice; keep the frame visually stable. */
+    /* The reader-origin outline would be a second exterior border around this already-
+     * framed control. The joined control already shows the effective choice and its
+     * state origin remains in the projection; keep the frame visually stable. */
     &[data-lf-reader-override] { outline: none; }
     /* The joined group draws a frame, so it says so, like every box that draws one
      * (--lf-frame, theme.css). Its cells declare their own; this covers what stands

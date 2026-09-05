@@ -12,9 +12,19 @@ import { createReplies } from "./replies.js";
 import { createThreadCards } from "./thread-card.js";
 import { createConversationThreadList } from "./thread-list.js";
 import { createAcknowledgments } from "./acknowledgments.js";
+import { clocked } from "../presence.js";
 import { createThreadSurfaces } from "./surfaces.js";
 
+/* Conversation state and panel reconciliation.
+
+   The thread list reconciles nodes rather than rebuilding them. `setChildren` preserves
+   existing message, reply, and textarea nodes when the same event still stands.
+   Applying a state must not discard a reader's caret, focus, reply text, or disclosure
+   state. Reconciliation preserves node identity; the list's own hold, rather than the
+   browser's scroll anchoring, preserves viewport position. Tests pin the thread's box
+   rather than a particular scroll offset. */
 export function createConversation(dependencies) {
+  const renderPanel = clocked(document.body, renderPanelNow);
   const {
     FOLD_MS,
     MARKED_ANYWHERE,
@@ -201,12 +211,12 @@ export function createConversation(dependencies) {
     threadsBox,
     waitingForPickupSince,
   });
-  function paintAcknowledgments(...args) {
+  const paintAcknowledgments = clocked(document.body, (...args) => {
     if (!threadListRuntime) return paintAcknowledgmentsUnheld(...args);
     return threadListRuntime.holdScrollPosition(() =>
       paintAcknowledgmentsUnheld(...args),
     );
-  }
+  });
 
   const narrowing = createConversationNarrowing({
     anchorLabel,
@@ -353,7 +363,7 @@ export function createConversation(dependencies) {
 
   // The panel and the page marks are two views of the same threads, and the paint pass
   // reports back to the list renderThreads just reconciled — always render them as a pair.
-  function renderPanel() {
+  function renderPanelNow() {
     if (runtime.statePhase !== "ready") {
       waitingNote.textContent =
         runtime.statePhase === "offline"

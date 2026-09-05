@@ -3,6 +3,8 @@
  * one answer about progress and workers. */
 import {
   PRESS,
+  clocked,
+  clockValue,
   conversationBox,
   declarationFor,
   itemWord,
@@ -324,13 +326,15 @@ function renderHeader(snapshot) {
 }
 
 function age(goal) {
-  if (!goal.stoppedAt) return "age unknown";
-  const at = new Date(goal.stoppedAt).getTime();
-  if (!Number.isFinite(at)) return "age unknown";
-  const minutes = Math.max(0, Math.floor((Date.now() - at) / 60000));
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
+  return clockValue((now) => {
+    if (!goal.stoppedAt) return "age unknown";
+    const at = new Date(goal.stoppedAt).getTime();
+    if (!Number.isFinite(at)) return "age unknown";
+    const minutes = Math.max(0, Math.floor((now - at) / 60000));
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
+  });
 }
 
 function renderStopped(snapshot) {
@@ -475,7 +479,17 @@ function renderFleet(snapshot) {
   return true;
 }
 
+const timedRenders = new WeakMap();
 function render(plan) {
+  if (!timedRenders.has(plan))
+    timedRenders.set(
+      plan,
+      clocked(plan, () => paint(plan)),
+    );
+  return timedRenders.get(plan)();
+}
+
+function paint(plan) {
   const restoreFocus = projectionFocus(plan);
   const snapshot = commandSnapshot(plan);
   // This marker is the renderer's generic relation hook. It covers workers at every
@@ -519,6 +533,7 @@ customElements.define(
     }
 
     disconnectedCallback() {
+      timedRenders.get(this)?.stop();
       this.#stop?.();
       this.#stop = null;
       this.#observer?.disconnect();

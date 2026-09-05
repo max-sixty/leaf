@@ -9,8 +9,90 @@
  * whether any action is unresolved. An accepted entry may remain here after its caller is
  * answered: delivery can be certain while applying the response's state failed locally.
  * A second pending map used to mirror part of the same lifecycle and then needed a
- * protocol of its own to agree with the send queue and the reads. */
+ * protocol of its own to agree with the send queue and the reads.
+ *
+ * Every browser event receives an `attempt` before its first POST. The attempt is the
+ * idempotency key for one user gesture, not for a payload shape or a button. Under the
+ * server's append lock:
+ *
+ * - the first accepted attempt appends one event;
+ * - an exact concurrent request or retry returns that event;
+ * - the same attempt with a different payload is refused;
+ * - a completed refusal leaves no durable receipt, so the same attempt may be
+ *   evaluated again after the state that caused the refusal changes.
+ *
+ * The browser sends through `post`. It rejects reuse of an attempt already present in
+ * this tab's `outbox`, appends one entry, stages an optimistic recorded action when
+ * appropriate, repaints key availability, and starts `drainOutbox`. There is one queue
+ * and one delivery loop. Entries send in browser gesture order because the log order is
+ * part of the user's statement.
+ *
+ * Each entry separates three facts:
+ *
+ * - `answered`: the server definitively accepted or refused the request;
+ * - `readEvent`: a complete state read contained the accepted attempt;
+ * - `projection`: the local semantic coordinate and absolute recorded value that the
+ *   widget already painted.
+ *
+ * Acceptance and application are not the same fact. A successful POST must include state
+ * containing the event minted for the attempt. `deliver` then knows the request was
+ * accepted and may open the queue for the next entry. The caller of a successful comment
+ * waits until `receiveState` has either rendered that response or reported the local
+ * render error, because its continuation opens the complete conversation view and may
+ * focus the reply box the response creates.
+ *
+ * An accepted action stays in the outbox until a complete applied state contains its
+ * attempt and `committedProjection` proves the authoritative coordinate now represented
+ * by the DOM. If applying the POST's state throws, the caller still receives the
+ * accepted event and the queue advances, but the entry keeps replay and undo held until
+ * a later poll applies a complete state. Do not resend an accepted event because its
+ * rendering failed.
+ *
+ * A press whose result has not changed the DOM waits for the log. Recordless settlements
+ * and completion presses do not enter the optimistic overlay. The control may say
+ * `aria-busy` while the request is pending, but it must not paint the accepted outcome
+ * before the server accepts it. A recorded toggle that the next gesture computes from
+ * must paint before the next gesture, so the next absolute detail includes the state the
+ * reader just chose.
+ *
+ * `deliver` races the POST against `entry.read`. A poll can account for an attempt whose
+ * POST response was lost, and the accepted POST state can account for it without another
+ * GET. Transport errors, undecodable answers, and incomplete answers retry the same
+ * attempt after `RETRY_MS`. A response with `final: true` and `ok: false` is a
+ * definitive refusal only when it names this attempt, or omits an attempt. A
+ * layer-generation refusal reloads instead of retrying a body under the wrong
+ * vocabulary.
+ *
+ * On refusal, `drainOutbox` marks a recorded action `rejected`. It immediately stops
+ * contributing an optimistic winner, then `reconcileKnownState` restores the coordinate
+ * from the last complete authoritative state. The entry remains until
+ * `localCoordinateCommitted` proves the optimistic token no longer represents the DOM.
+ * Delivery may continue while that correction waits for a live drag or editor to finish.
+ *
+ * `accountOutbox` runs only after `receiveState` has installed and rendered a complete
+ * state. It links receipt events to entries, resolves readers waiting on those events,
+ * removes non-action entries whose delivery is complete, and calls
+ * `releaseProjectedOutbox` for actions. Never remove an action merely because a POST
+ * returned 200 or because an attempt appears in a receipt list that failed partway
+ * through rendering.
+ *
+ * `unaccountedGesture` is true while undo is in flight, the outbox is nonempty, or a
+ * widget is visibly dragging. Navigation and undo both consult it. Navigating would
+ * destroy unresolved local work; undo cannot choose a stable last gesture while an
+ * earlier gesture is unresolved.
+ *
+ * `actionStands` answers whether one accepted action is still the reader's winner for
+ * its semantic coordinate. It treats a newly accepted event as standing when the tab has
+ * not yet installed an event list containing its id, then asks the installed projection
+ * once an authoritative receipt contains it. Modules use this after a send whose visible
+ * choreography depends on whether the accepted action survived later events. */
+import { pendingTraffic } from "./traffic.js";
+
 export const outbox = [];
+
+// The delivery ledger's reading of this list: every attempt still without an outcome.
+const unresolved = () =>
+  outbox.filter((entry) => !entry.answered).map((entry) => entry.event.attempt);
 
 let publishedOutbox;
 export const actionAvailable = (...args) => publishedOutbox.actionAvailable(...args);
@@ -223,6 +305,7 @@ export function createOutbox(runtime, dependencies) {
         if (!entry) break;
         const { answer, settled } = await deliver(entry);
         entry.answered = true;
+        pendingTraffic(unresolved());
         entry.rejected = !answer && entry.event.kind === "action";
         if (entry.event.kind !== "action" && (!answer || entry.readEvent))
           removeOutbox(entry);
@@ -285,7 +368,11 @@ export function createOutbox(runtime, dependencies) {
         projection: null,
       };
       outbox.push(entry);
+      pendingTraffic(unresolved());
       stageOutboxAction(entry);
+      // Staging commits the widget's optimistic coordinate. Its consumers need
+      // that reading now, even while the POST is still waiting for a response.
+      if (entry.projection) document.dispatchEvent(new Event("lf-actions"));
     });
     paintKeys();
     void drainOutbox();

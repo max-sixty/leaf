@@ -1,5 +1,11 @@
-/* This module owns widget upgrade guards, data bodies, fail-soft rendering, and async
- * settlement. */
+/* The upgrade lifecycle every behavior module shares.
+
+   A module defines its custom element once and makes `connectedCallback` safe to run
+   after reconnection, using `once(el)` for generated chrome so reconnecting does not
+   duplicate it. An upgrade whose work is async registers its promise with `settle`, so
+   the runtime can hold the view restore and first anchor pass until the page's
+   geometry has settled; a failed upgrade becomes a visible error box (`failSoft`)
+   rather than a blank page. */
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
 // One-shot guard for connectedCallback: re-connection (a parent wrapping or moving an
@@ -19,7 +25,10 @@ export function once(el) {
 // and note anchors all point one line off.
 export const dataBody = (el) => el.querySelector(":scope > pre").textContent;
 
-// A failed upgrade becomes a visible error box rather than a blank page.
+// A failed upgrade becomes a visible error box rather than a blank page. A widget failure
+// may failSoft its own element so the rest of the page and Threads remain usable, but it
+// does not convert a partial state read into a committed one (reportPageError,
+// layer-client.js, is the page-level evidence every failure reports through).
 export function failSoft(el, err, source) {
   const box = document.createElement("div");
   box.className = "lf-error";

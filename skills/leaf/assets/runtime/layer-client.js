@@ -1,5 +1,20 @@
-/* This module owns the vendored-generation gate, the one shared event POST, and the
- * page-error channel that reports a broken page to its author. */
+/* The vendored-generation gate, the one door events post through, and the page's error
+   channel to the agent.
+
+   A vendored runtime and registry are one generation. The runtime contains the
+   `"__LEAF_LAYER_GENERATION__"` placeholder and the registry carries the same epoch
+   after `page init`. `sameLayer` checks every successful state read and POST response.
+   If the server speaks a newer layer, the tab reloads before it reads or posts again. Do
+   not let one generation interpret another generation's registry or events.
+
+   `reportPageError` is the common runtime error surface. A widget failure may `failSoft`
+   its own element so the rest of the page and Threads remain usable, but it does not
+   convert a partial state read into a committed one. The window error listener, module
+   load failures, and render gate all report through the same page-level evidence. Do not
+   catch an error merely to stamp readiness or continue accounting for outbox attempts. */
+
+import { countTraffic } from "./traffic.js";
+
 export function createLayerClient({ currentRevision, layerGeneration, sayLine }) {
   let layerReloading = false;
   function sameLayer(generation) {
@@ -25,17 +40,23 @@ export function createLayerClient({ currentRevision, layerGeneration, sayLine })
   // for both. Whether a send waits on the one before it belongs to the caller.
   const postEvent = async (event) => {
     await layerReady;
-    const response = await fetch("/api/event", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Leaf-Layer": layerGeneration,
-        ...(currentRevision() && {
-          "Leaf-View-Revision": String(currentRevision()),
-        }),
-      },
-      body: JSON.stringify(event),
-    });
+    countTraffic("sends");
+    let response;
+    try {
+      response = await fetch("/api/event", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Leaf-Layer": layerGeneration,
+          ...(currentRevision() && {
+            "Leaf-View-Revision": String(currentRevision()),
+          }),
+        },
+        body: JSON.stringify(event),
+      });
+    } finally {
+      countTraffic("acked");
+    }
     const responseGeneration = response.headers.get("Leaf-Layer");
     if (response.ok && responseGeneration && !sameLayer(responseGeneration))
       return null;

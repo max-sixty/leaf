@@ -278,8 +278,9 @@ element on screen first (`scroll_into_view_if_needed()`) and read the baseline
 after that.
 
 Nothing should be injected into the page merely to make ordinary observation
-easier. Traffic comes from Playwright's request, response, and request-failure
-events. Network conditions come from `page.route`. `watched` listens to the
+easier. Traffic is read off the delivery ledger the runtime itself paints on the root
+element (`data-lf-traffic`, `runtime/traffic.js`). Network conditions come from
+`page.route`. `watched` listens to the
 browser's error surfaces. `primed` lets a render or export call create its own
 page while the test attaches those external controls before navigation.
 
@@ -351,8 +352,10 @@ different result.
 
 The causal helpers:
 
-- `Traffic` observes the page's lifetime request traffic from outside the
-  runtime, tracking event attempts separately from physical requests.
+- `Traffic` reads the runtime's own delivery ledger: posts to `/api/event` issued
+  and ended, reads of `/api/state` asked and heard, and the outbox's attempts with
+  no outcome yet. It counts attempts, so a retry is a second send. The ledger is
+  the document's: a navigation starts it over with the page that carries it.
 - `round_trip(page)` waits until every event attempt sent by that page has a
   definitive outcome. A request failure alone is not final because the page may
   retry the same attempt.
@@ -434,8 +437,8 @@ window derived from that product constant plus scheduling room. Do not invent a
 generic sleep for absence assertions.
 
 When a wait times out, its message must say what evidence was missing. `_until`
-includes the starting and final `Traffic` counters. Its deadline is fixed when
-the wait begins, so a busy response stream cannot extend it. New causal helpers
+includes the starting and final `Traffic` readings. Its deadline is fixed when
+the wait begins, so a page that repaints its ledger forever cannot extend it. New causal helpers
 need the same useful failure output and bounded-progress property.
 
 ## State races are arrangements, not probabilities
@@ -544,6 +547,12 @@ Do not substitute frame counts or quiet windows for these distinctions. Ask
 whether the claim concerns the settled state, one frame, the order of frames, or
 the exact turn of a write, then choose the smallest observation that can
 preserve it.
+
+The movement tests ask both paths that can shift a target: press a control and
+compare the rest of its line, and let news arrive and compare all persistent
+chrome controls. A pixel diff is required for borders, outlines, and shadows that
+can paint outside unchanged rectangles; box comparisons alone cannot see those
+changes.
 
 ## Make a green test non-vacuous
 

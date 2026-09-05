@@ -1,4 +1,36 @@
-/* The server's durable projection, adapted to live DOM nodes plus the local outbox. */
+/* The server's durable projection, adapted to live DOM nodes plus the local outbox.
+
+   The DOM is a projection of three ordered inputs:
+
+   1. the authored state captured from this version;
+   2. standing actions and reports in the server's transaction-consistent browser view;
+   3. surviving optimistic recorded actions in the outbox.
+
+   The semantic coordinate is `JSON.stringify([ownerWidgetId, unitId, facet])`. `x-state`
+   and `x-report` declare the fold unit, facet, detail schema, and optional record form
+   for every verb. `unitOf` finds the unit from the declaration. No core consumer
+   branches on a widget tag or verb to determine state identity.
+
+   The browser's `stateProjection` is a DOM adapter. It resolves those declared
+   coordinates back to current widget modules and overlays unresolved local records. It
+   does not derive retractions, settlements, thread structure, decisions, updates, or
+   undo eligibility from raw events. Winners on independent coordinates still compose in
+   event order through `compareProjected`.
+
+   The two durable channels share the coordinate model but retain their meaning:
+
+   - `x-state` records the reader's actions. The latest surviving action wins its
+     coordinate.
+   - `x-report` records provisional agent or worker state. Reports remain live until a
+     version note answers their event ids.
+   - A reader action wins over a live report on the same coordinate. Different facets on
+     the same unit remain independent.
+
+   `stateProjection` is uncached because registry declarations resolve through the live
+   DOM. Thread construction and revision activation can introduce new nodes. Its result
+   has four views: `actions`, `reports`, `classified`, and `desired`. Add a browser
+   consumer to one of these views or extend the Python wire view instead of building
+   another fold over raw `events`. */
 export function createProjectionFold(runtime, dependencies) {
   const { COLLAPSE, authoredStates, domFacet, elementById, outbox } = dependencies;
   const { registry } = runtime;

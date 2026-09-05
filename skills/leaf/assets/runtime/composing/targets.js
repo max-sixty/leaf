@@ -5,6 +5,32 @@ import { bindings } from "../keyboard/bindings.js";
 // Keyboard item selection and whole-page text search. `s` opens a viewport-local map of
 // the same stable items and visual parts Alt-click reaches, then raises their general
 // response actions; `/` opens the page's text search directly or from that map.
+//
+// The short, viewport-local hints form a prefix-free tree over one alphabet. Most
+// targets cost one letter; only the tail branches when the viewport holds more targets
+// than the alphabet. Unlike `g` addresses, these hints are ephemeral and make no promise
+// across a scroll or revision. They are the whole route, so none may be dropped because
+// its chip collides. Each chip begins at its target's visible top-left corner. A target
+// whose visible box is strictly smaller and fully enclosed by another target steps its
+// chip right once per enclosing box. If that position crosses the key-line band and the
+// target has visible room beside it, the chip moves into that room; otherwise it moves
+// above the band. An ancestor and descendant with the same visible box name one target:
+// the innermost remains, matching direct aim. Equal boxes outside one containment chain
+// stay at the same depth, and the collision pass separates their chips without inventing
+// a hierarchy or moving them beyond the viewport foot. Membership is fixed for the
+// length of a scroll and re-read once it settles, so a target arriving mid-scroll is
+// named at rest rather than on the frame it appears.
+//
+// Tab and Shift-Tab walk the visible target map and announce each item. Enter chooses
+// the last one announced. A viewport change that removes or renames that target clears
+// the announced choice before Enter can act on it.
+//
+// `/` opens a real search input over the whole page reading, either directly from the
+// page or from the visible item hints. Tab walks repeated occurrences and Enter makes a
+// native browser Selection from the active match. Escape returns to the surface that
+// opened search: the page after a direct `/`, or the visible hints after `s` then `/`.
+// The mode keeps `?` available and claims the rest of the page's keyboard while it
+// stands.
 
 const HINT_KEYS = [..."asdfghjklqwertyuiopzxcvbnm"];
 const HINT_INDENT = 10;
@@ -444,8 +470,11 @@ export function createTargetSelection({
       // Keep the established top-left/nesting placement unless it puts the face back
       // over a band already subtracted from its target. A surviving rectangle on the
       // line's right has a direct horizontal seat; a piece too narrow for the face is
-      // moved above the band in the pass below.
-      const rightSeat = Math.max(target.left, line.right);
+      // moved above the band in the pass below. The seat clears the line's edge by the
+      // same gap a face keeps from another face, which is also what keeps it clear at
+      // all: a left written back in CSS pixels lands on the layout engine's 1/64px
+      // grid, so a face seated flush on the edge can round a step back under the line.
+      const rightSeat = Math.max(target.left, line.right + gap);
       const canSitRight = rightSeat + start.width <= target.right;
       const left =
         line.height && overlaps(start, lineBand) && canSitRight
@@ -494,6 +523,7 @@ export function createTargetSelection({
       if (selectionLayer.childElementCount) selectionLayer.replaceChildren();
       return;
     }
+    const wasActive = hintActive >= 0;
     const refreshed = !searching && !prefix && !scrolling;
     const heard = hinted()[hintActive];
     if (refreshed) {
@@ -542,6 +572,8 @@ export function createTargetSelection({
         }
     }
     if (!refreshed && heard && !drawnTargets.has(heard)) hintActive = -1;
+    // The key line was painted before geometry retired the browsed hint.
+    if (wasActive && hintActive < 0) paintHere();
     selectionLayer.replaceChildren(...drawn);
     if (!searching) spreadHints(hints);
   }

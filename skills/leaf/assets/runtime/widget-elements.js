@@ -1,5 +1,46 @@
-/* This module owns widget-element construction, labels, gesture guards, deferred
- * measurement, layout-change signalling, and control sizing. */
+/* The chrome a widget injects, the words it labels, and the room it measures.
+
+   A behavior module builds injected controls with `offer`, and uses `relabel` when a
+   control's label is also one of the page's words. It reserves a control's room from
+   inside `measure`: a widget upgrades wherever the runtime connects it, and a shut
+   panel is `display: none`, where every word measures zero and the floor the press
+   needs is nothing at all. It calls `layoutChanged(el)` after view state rearranges
+   descendants without resizing its outer box — `ResizeObserver` already covers size
+   changes, and geometry consumers listen to this signal instead of watching every DOM
+   mutation.
+
+   A control is built by `offer` as the corresponding native element, so activation,
+   disabled state, focus, and accessibility stay the browser's. The explicit
+   `selectableOffer` exception is for a page word whose text must remain selectable,
+   such as a tab name or chosen option; its widget owns the complete keyboard pattern.
+   Both constructors mark generated chrome consistently. The shared drag guard
+   (`reachedForWords`) distinguishes a click from the mouseup ending an active text
+   selection by comparing the selection's focus end with the release. It does not
+   suppress a press merely because an older selection contains the control or because
+   the pointer landed beside selected text.
+
+   Paint that promises a gesture — the pointer hand above all — hangs on how a press is
+   spelled, never on a control class alone. Export takes the role off and leaves the
+   class, so a hand hung on the class is a hand a file cannot answer. The layer's own
+   spelling is the value `offer` writes into `data-lf-offer`: the tag or role for a
+   press it built, the empty string for the rest of the chrome a widget makes. The
+   theme's one pressable rule reads that value, and the marker outlives the role — a
+   press carrying page words becomes a span in a copy and keeps its words — so the copy
+   clears the value where it strips the role, and the promise leaves with the thing
+   that could have answered it. A guard in the theme would not do: it would have to be
+   written twice, once for the document and once for the slice a declared shadow tree
+   renders under, where `html:not(.lf-copy)` matches nothing at all.
+
+   A control that keeps its shape in a copy keeps its name too, and the name needs a
+   role that admits one: a glyph whose word is collapsed away is an `img` with a text
+   alternative, not a bare span wearing `aria-label`.
+
+   `worksInside` decides whether a container gesture may take a click. It treats
+   platform interactive elements as their own controls and uses `x-parent` to
+   distinguish a container's declared member widgets from nested widgets that own their
+   own interaction. Containers may name their own generated apparatus as an exception.
+   The general answer fails closed: declining one ambiguous container gesture is safer
+   than recording a choice while the reader operates nested evidence. */
 import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
 
@@ -12,6 +53,26 @@ import { paintKeys } from "./keyboard/scopes.js";
 // which the theme hides itself; the widget still collapses and reopens, ⌘F
 // just can't see in.
 export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
+
+// A render bound to the `lf-actions` heartbeat runs every two seconds on a page nobody
+// has touched, so a write that restates what the node already says restates it at that
+// rate: the mutation stream a screen reader rebuilds its buffer from, a fresh dirty box
+// for whatever reads next, and — for the attributes the document's disclosure watch
+// reads — a repaint of every key on the page. `toggleAttribute` keeps that rule for the
+// flags by construction; these two are the same rule for the names, states, and words
+// that have no such door.
+// The comparison is against what the attribute would read back as, not what the caller
+// held: `getAttribute` answers with a string and `setAttribute` stringifies, so a
+// boolean or a count compared raw is never equal to the attribute already standing and
+// rewrites on every pass — the defect this closes, wearing the shape of the guard.
+export function keeps(node, name, value) {
+  const said = String(value);
+  if (node && node.getAttribute(name) !== said) node.setAttribute(name, said);
+}
+
+export function keepsHidden(node, hidden) {
+  if (node && node.hidden !== hidden) node.hidden = hidden;
+}
 
 export const dragging = (el, on) => {
   el.classList.toggle("lf-dragging", on);
@@ -218,7 +279,9 @@ export function worksInside(node, container) {
 // and one of them going missing is invisible until something breaks.
 //
 // Native controls are the ordinary case. A widget gets their activation, disabled state,
-// focus behavior, and platform accessibility contract without Leaf recreating any of it.
+// focus behavior, and platform accessibility contract without Leaf recreating any of it:
+// ordinary buttons and links need no Leaf activation binding, and a `selectableOffer`
+// registers its widget-specific keys.
 export function offer(tag, cls, label) {
   const node = document.createElement(tag);
   if (node instanceof HTMLButtonElement) node.type = "button";

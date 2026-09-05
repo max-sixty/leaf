@@ -26,7 +26,101 @@
  * it silently falls back in exactly the medium (a copy, mailed on) that has no
  * server to ask. Charter and Iowan Old Style ship on macOS, Georgia everywhere
  * else; each is a screen serif with a large x-height, which is the property that
- * matters at 17px. */
+ * matters at 17px.
+ *
+ * The stylesheet uses declarations as open selectors too. A box that draws a frame
+ * declares `--lf-frame: 1` in the rule that draws it. Style queries use that custom
+ * property to trim child margins and to bound wide content. A project box then receives
+ * the same behavior without joining a tag list. `main` hands wide room back to its
+ * contents explicitly because it is the outer page frame.
+ *
+ * `main` declares `--lf-column: 1` in the same rule, claiming that its `max-width` is
+ * the readable column. The file lint measures every fixed pixel width against that
+ * number, so a package or page setting a column of its own claims it in the rule that
+ * sets it; a width with no claim beside it is a width and nothing more.
+ *
+ * Where the fact belongs to the registry rather than to the rule that draws the box,
+ * `markDeclared` paints it and the selector reads the paint. The lists that ask whether
+ * a suggestion slot or a variant holds block content invert HTML's phrasing content,
+ * which answers "block" for every custom element, so they exclude `[data-lf-inline]`
+ * rather than the tags that declare `x-inline`. The affordance rules that draw a choose
+ * group as a control exclude the descendants of `[data-lf-exhibit]` for the same reason,
+ * asking in CSS the question `quoted()` asks in JavaScript. A tag name in a shared list
+ * is a closed vocabulary wherever it appears, and one layer's tag written into another
+ * layer's stylesheet is that plus a leak.
+ *
+ * Live pages reserve conversation room at the wide layout's existing floors, so the
+ * first comment and the last resolution leave the document column in place.
+ * `--thread-card-floor` bounds an inline card when the remaining margin is too narrow;
+ * the card then covers the page rather than becoming an unreadable sliver. */
+
+/* Ordinary action controls use `.lf-btn`, whose shared theme rules also enter declared
+   shadow trees. Packages may set placement and density, but keep its shape, border,
+   hover, and disabled treatment. Margin Buttons, reaction chips, and status labels retain
+   their own forms.
+
+   Typography is presentation, not passage permission. A chip or code annotation may look
+   like apparatus and still be a page word the reader can quote.
+
+   Which question a floor asks belongs to the posture it grants. A floor asking how much
+   room is left beside a panel or tray is a container query on `lf-shell`: 1152 and 1416
+   for the sidebar and sidenote strips, 1208 and 1472 for the thread's beside posture. The
+   living margin's 900 asks the window instead, because it is half of a pair — `@media
+   screen and (max-width: 899px)` stops drawing the margin at all, and a marker's presence
+   is not something a container can be asked about without the answer depending on the
+   strip the marker is asking for. Both halves of such a pair ask the same medium, or a
+   panel narrowing `body` under the floor withdraws the strip while the window keeps the
+   markers on screen with nothing reserved for them.
+
+   Text may break at any character needed to keep the page inside its column.
+   `overflow-wrap` is inherited from the page. Any token that must remain one unit, such
+   as a small badge or key chip, declares `white-space: nowrap` locally. Test long
+   identifiers and paths, not only ordinary prose.
+
+   A wide widget reads the room declared by `x-wide`:
+
+   - `box` fills the available box and clamps its contents there;
+   - `drawing` may size from its source up to the room available to it.
+
+   `markDeclared` exposes this declaration and CSS computes room after chrome strips and
+   claimed margins. A drawing inside a framed box uses that box's room, not the outer
+   page's. Size the widget's box with `contain: inline-size` where its contents would
+   otherwise make the box itself wider.
+
+   Every box that frames authored block flow declares `--lf-frame: 1` where the frame is
+   drawn. The declaration may belong to a nested-state selector or a generated internal
+   box rather than the tag's base rule. Widgets with `x-content: prose` or `items` can
+   admit authored flow; data-only, empty, and inline widgets do not automatically owe a
+   frame declaration.
+
+   The shared style query trims the outer margins of the first and last non-generated
+   children inside a frame. It ignores `GENERATED` because a positioned pick mark or
+   clipped spoken word must not become the visible content edge. A transparent wrapper
+   that lets a grandchild's margin collapse through it declares the frame at the wrapper
+   level only when it is the boundary responsible for that flow.
+
+   Put a layout grant in a selector strong enough to override the withheld base rule. Put
+   a standalone-only affordance guard in `:where(html:not(.lf-copy))` so the guard does
+   not add specificity to every rule inside it.
+
+   The live-page scrolling and chrome reservations stay under the live guard. A copy with
+   no panel uses an ordinary centered document and must not retain room for absent runtime
+   furniture.
+
+   Print asks a stricter question than export because nothing on paper is interactive.
+   `data-lf-offer` identifies injected controls to remove, while `data-lf-said` preserves
+   a decision word the page speaks through a control and `data-lf-echo` a name a control
+   copies off the row it routes to. What the two word markers keep is the word and not the
+   shape: a control that survives paper gives up its ground, corner, border, underline,
+   marker and pointer hand, because nothing on a sheet can answer the press they promise.
+   Colour stays, being part of what the control says.
+
+   Paper opens what a page puts behind a gesture, for the same reason: a settled group's
+   cards, an inactive tab's panel, and a shut `<details>` all print open. A page that
+   means a disclosure to stay shut on paper says so in its own stylesheet. `paperWords`
+   compares the screen and print readings across the whole page. `coveredWords` runs again
+   in print. A wrong offer/said declaration is fixed where the label is created, not by
+   naming its widget in print CSS. */
 
 :root {
   color-scheme: light dark;
@@ -166,7 +260,7 @@
   --status-trace-w: 1.5px;
   --status-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
   /* A keyboard address chip's box: the line box, which is a ratio of the font, plus
-     the ring drawn around it (chrome-style.js dresses one). It is a token for the
+     the ring drawn around it (chrome.css dresses one). It is a token for the
      reason the ring's width is — a box somebody else holds room for has to be read
      back in a calc, and the option that holds a column for one is in another layer's
      stylesheet entirely. Written as a number there, the column stayed at the size the
@@ -828,7 +922,7 @@ dd { margin: 0 0 8px 0; }
  * the two cannot come apart: a one-shot request that had been answered still wore the
  * full-strength border of a live one and differed only in ink, which greyscale drops and
  * a reader scanning a column of eight of them never sees. Chrome's own .lf-btn says the
- * same pair for the same reason (chrome-style.js); this reaches the controls that are
+ * same pair for the same reason (chrome.css); this reaches the controls that are
  * not one.
  *
  * The ring is the fallback rather than the rule: every control with a ring of its own
@@ -1228,11 +1322,11 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-react[aria-busy="true"] { opacity: .55; }
 .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
           margin-top: 6px; }
-.lf-react-palette > .lf-react:not([aria-pressed="true"]) { color: var(--muted);
+.lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]) { color: var(--muted);
           border-color: transparent; background: transparent; }
-.lf-react-palette > .lf-react:not([aria-pressed="true"]):is(:hover, :focus-visible,
+.lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]):is(:hover, :focus-visible,
           .lf-focus-visible, [aria-busy="true"]),
-.lf-react-open .lf-react-palette > .lf-react:not([aria-pressed="true"]) {
+.lf-react-open .lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]) {
           color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
 /* Where a subject has no page edge of its own, one receipt grows beneath the reader
    move it acknowledges: Sent, Picked up, then Active when an explicit work claim names

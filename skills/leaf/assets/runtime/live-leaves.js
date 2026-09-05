@@ -1,4 +1,6 @@
 /* This module owns the machine-leaves tray's rows, presence words, and walk. */
+import { clocked } from "./presence.js";
+
 export function createLiveLeaves({
   ago,
   el,
@@ -23,6 +25,7 @@ export function createLiveLeaves({
   // reader is already on — is not worth a control.
   const leavesOffered = () =>
     pagePresented() && (others.length > 0 || openTray("leaves"));
+  const paintLeavesOffer = () => showNews(othersBtn, leavesOffered());
 
   // The tray's own scope. The walk is the tray's rather than the page's, because ArrowUp
   // and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the
@@ -134,7 +137,7 @@ export function createLiveLeaves({
     const said = `All leaves (${wanted.length})`;
     if (othersBtn.textContent !== said) othersBtn.textContent = said;
     // While the panel stands its button stands too, whatever the count just did.
-    showNews(othersBtn, leavesOffered());
+    paintLeavesOffer();
     let anchor = null; // the row before this one, so order holds without rebuilding
     for (const { key, title, entry } of wanted) {
       let row = othersRows.get(key);
@@ -192,5 +195,10 @@ export function createLiveLeaves({
       paintKeys();
   }
 
-  return { leavesOffered, othersLinks, renderOthers };
+  return {
+    leavesOffered,
+    paintLeavesOffer,
+    othersLinks,
+    renderOthers: clocked(document.body, renderOthers),
+  };
 }

@@ -12,7 +12,80 @@
  * `prepareActivation` fetches the revision a state names ahead of the commit that
  * installs it; the arrival landing; the menu readings the composing surface and the
  * margin take (`closeVersionMenu`, `versionMenuIsOpen`, `comparisonBase`,
- * `comparisonChanges`); and `readingBlock`, the block the decision walk starts from.
+ * `comparisonChanges`); and `readingBlock`, the block the decision walk and the
+ * keyboard reference start from.
+ *
+ * One surface owns each destination. The version control opens the complete version list
+ * with notes and comparison controls. There are no separate older/newer page keys. A
+ * comparison base is the focused row in the menu; opening the menu lands on the current
+ * base, and walking to the version being read clears the comparison because it has no
+ * earlier base to mark against.
+ *
+ * The live root follows the newest version without navigating. It begins fetching as
+ * soon as a state read announces the version, but `midComposition` or an open version
+ * menu defers activation and leaves the newest-version chip visible. Ending the
+ * composition releases the version on the next heartbeat; pressing the chip is an
+ * explicit override and still keeps the live address. `goActive` is the one door for
+ * that in-place newest-version request and for the way back to the live address from a
+ * pinned document; `goVersion` is the door to an older public version.
+ *
+ * An older version is historical rather than live: choosing one navigates to its virtual
+ * version address with `?pin`, and it stays at the revision it was pinned at while
+ * offering the newest-version chip. The view record carries reading position and the
+ * decision-walk landmark across that document navigation. Focus and a selection do not
+ * cross to a new document. On live activation, runtime-chrome nodes and their focus
+ * survive; authored-main nodes are replaced, so the semantic landmark—not a DOM node—is
+ * the continuity guarantee.
+ *
+ * The served page root is a stable live document. Its first response projects the latest
+ * immutable revision and carries a runtime-only version marker. On a later state read,
+ * `prepareActivation` fetches the next mapped revision in the background
+ * (`revisionDocuments`). `activateRevision` replaces the authored head declarations,
+ * root attributes, and `body > main`; runs the same fence, parent, dressing, settlement,
+ * and authored-facet passes as startup; reconciles the log; and restores the semantic
+ * reading landmark and the reader's standing. That standing is written down by id before
+ * the swap — the nearest element carrying one, and the control within it by kind and
+ * position — and handed back after it: the same control where the revision kept it, its
+ * owner where the revision kept only that, and nothing where it kept neither. A chord
+ * armed before the swap is the runtime's and holds through it; its chips are read off
+ * the document standing afterwards. The gestures `midComposition` names — item hints, a
+ * reaction list, page search, a drag or grab — defer the activation instead. The chrome,
+ * browser document, module globals, panel, and address remain standing.
+ *
+ * That activation is one presentation boundary. Its async work runs in a
+ * `startViewTransition` update callback where the platform supplies one, including for
+ * reduced motion (whose transition duration collapses in the theme). Concurrent state
+ * responses serialize behind the active application; none may capture or replace a
+ * half-upgraded main. A runtime without the API applies the same ordered boundary
+ * without animation. If activation fails after advancing the document, reload the stable
+ * root rather than leaving a mixed version. A layer-generation change always reloads:
+ * soft activation is only valid within one vendored contract.
+ *
+ * `captureView` stores a passage-based reading landmark, correction within the block,
+ * and the last decision landmark. `restoreView` resolves the landmark after upgrade and
+ * corrects the scroll from the rendered box. A URL fragment outranks the saved view on a
+ * fresh navigation; the saved view outranks a leftover fragment on reload or back
+ * navigation. `landArrival` applies that ranking only after final page geometry is
+ * available.
+ *
+ * Focus and selection are not restored across document travel. Restoring focus onto a
+ * control the reader never stood on would change the next Space from page scroll to
+ * activation, and a selection may refer to words the new version replaced. The saved
+ * decision landmark preserves directional continuity without claiming the reader still
+ * stands there. A live activation is the other case: the reader's own standing carries
+ * across it (the startup order in skills/leaf/assets/CLAUDE.md), so the next press means what
+ * it meant
+ * before the swap.
+ *
+ * A layer also owes a way out at all, over the same page the way in is live on.
+ * `versionsOffered` (there is a menu) answers for the destination, the mode standing over
+ * the page, and the button; `versionsToWalk` (there is somewhere to step) answers for the
+ * menu's own scope. One predicate for both left `g V` opening a menu on a page whose way
+ * out no scope was live over. Where the platform owns the dismissal the mode's own rows
+ * still have to be live over the same page, since a mode with no live row is a claim the
+ * surfaces never hear. A section merges the rows of every scope sharing its title, so a
+ * contributor the page hasn't got must bring none — `merge` drops it — or the two
+ * capabilities cannot differ in liveness under one heading.
  */
 import { runtime } from "./context.js";
 import { designOn } from "./design.js";
@@ -42,8 +115,9 @@ import { settle, settling } from "./widget-upgrade.js";
 // properties that page-local styles read. The live document also paints its own facts
 // onto those same two elements. The authored share is remembered at import, before the
 // boot module has run a line: no runtime module writes the document at its own top
-// level, and the runtime's stylesheet and the banner's icon link come later from the
-// boot module. An activation can then replace exactly that share without erasing the
+// level, the runtime's stylesheets are adopted rather than written into the head, and
+// the banner's icon link comes later from the boot module. An activation can then
+// replace exactly that share without erasing the
 // presentation, layout, and mode facts the surviving runtime owns.
 const authoredAttributes = (root) =>
   new Map([...root.attributes].map(({ name, value }) => [name, value]));
@@ -103,7 +177,6 @@ export function createVersion({
   showNews,
   stateCoordinate,
   stateSignoff,
-  style,
   syncLayout,
 }) {
   // ---------- the version chooser ----------
@@ -219,6 +292,7 @@ export function createVersion({
     // reference's restore puts them when it hands the menu back, and moving them off it
     // would undo the whole point of the exemption.
     if (open && !versionMenu.contains(document.activeElement)) focusVersionRow();
+    if (!open) renderVersionMenu();
     paintHere();
   });
   // The press is the popover's declared invoker rather than a click handler that toggles by
@@ -489,6 +563,38 @@ export function createVersion({
       return [row, press];
     });
   }
+  function renderVersionMenu() {
+    // Dismissal can land while state application awaits a thread widget's upgrade.
+    // Read its rendered facts without reinstalling an older accepted state.
+    const notes = runtime.browser?.version_notes ?? {};
+    const key =
+      runtime.active === null
+        ? ""
+        : JSON.stringify([
+            runtime.active,
+            runtime.versions,
+            notes,
+            runtime.currentRevision,
+            runtime.currentStamp,
+            runtime.currentLabel,
+          ]);
+    // Rebuilt rather than reconciled: this runs only when the versions or their notes
+    // actually changed, which on a page's whole life is a handful of times, and the
+    // menu is only ever read while it is open — where a rebuild would take the focused
+    // row out from under a walk. So an open menu defers the rebuild, and the key is
+    // what the built list holds rather than what the last poll saw: consuming it here
+    // and skipping the build inside would mark the change handled and leave that
+    // version out of the menu until some later one happened along. A version arriving
+    // under an open menu is the new-version chip's news; the list catches up on the
+    // toggle that closes it, using the currently rendered version facts.
+    if (key !== lastVersionsKey && !versionMenuIsOpen()) {
+      lastVersionsKey = key;
+      versionMenu.replaceChildren(
+        ...(runtime.active === null ? [] : menuRows(runtime, notes)),
+      );
+    }
+  }
+
   // `null` is the page before its first state. A rendering is a function of its argument
   // and the three current-document facts on `runtime`, so state application rolls a
   // refused candidate back by painting the last accepted state again.
@@ -517,31 +623,7 @@ export function createVersion({
       versionsWalkable = walkable;
       paintKeys();
     }
-    const notes = runtime.browser?.version_notes ?? {};
-    const key =
-      state === null
-        ? ""
-        : JSON.stringify([
-            state.active,
-            state.versions,
-            notes,
-            runtime.currentRevision,
-            runtime.currentStamp,
-            runtime.currentLabel,
-          ]);
-    // Rebuilt rather than reconciled: this runs only when the versions or their notes
-    // actually changed, which on a page's whole life is a handful of times, and the
-    // menu is only ever read while it is open — where a rebuild would take the focused
-    // row out from under a walk. So an open menu defers the rebuild, and the key is
-    // what the built list holds rather than what the last poll saw: consuming it here
-    // and skipping the build inside would mark the change handled and leave that
-    // version out of the menu until some later one happened along. A version arriving
-    // under an open menu is the new-version chip's news; the list catches up on the
-    // next poll after it closes.
-    if (key !== lastVersionsKey && !versionMenuIsOpen()) {
-      lastVersionsKey = key;
-      versionMenu.replaceChildren(...(state === null ? [] : menuRows(state, notes)));
-    }
+    renderVersionMenu();
     paintDiff(); // the label may change even when an open menu defers its new rows
     // The keyboard reaches the chip through the chooser rather than past it — g V opens the
     // menu, and its local v takes the current page; the banner spells that motion
@@ -913,14 +995,15 @@ export function createVersion({
     return next;
   }
 
+  // The chrome's sheets are adopted, not head nodes, so they cascade after everything
+  // the head holds whatever order it is written in; the authored share goes at the end.
   function activateHead(doc, revision) {
     for (const node of authoredHeadNodes) node.remove();
-    const runtimeStyle = style;
     const next = new Set();
     for (const node of doc.head.children) {
       if (!versionedHeadNode(node)) continue;
       const imported = document.importNode(node, true);
-      document.head.insertBefore(imported, runtimeStyle);
+      document.head.append(imported);
       next.add(imported);
     }
     authoredHeadNodes = next;
@@ -929,7 +1012,7 @@ export function createVersion({
       marker = document.createElement("meta");
       marker.name = "lf-revision";
       marker.dataset.lfRuntime = "1";
-      document.head.insertBefore(marker, runtimeStyle);
+      document.head.append(marker);
     }
     marker.content = String(revision.revision);
     stateSignoff(doc.querySelector('meta[name="lf-review"]')?.content === "sign-off");

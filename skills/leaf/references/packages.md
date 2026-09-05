@@ -184,12 +184,22 @@ completed attribute or trust the browser's optimistic item count. Re-vendoring m
 preserve the completion condition for every recorded action.
 
 A CSS-only widget is an entry and a theme rule. One with behavior takes a module.
-`assets/CLAUDE.md` in the skill directory defines what the module owes:
-a total, idempotent `renderState(state)`, `says()` over `textContent`, `offer()` and `relabel()` on anything
-injected, `commands()` at upgrade — through `DISCLOSE(el)` over anything that folds, the
-runtime owning those commands — `quoted()` before wiring input, `actionAvailable()` for
-an x-state verb with `requires`, and durable state in attributes because export drops
-the scripts. `/runtime/widget-api.js` is the whole Leaf API a behavior module gets.
+`/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
+only that public helper surface, and does not reach into the runtime's private owners,
+query private chrome, or duplicate a runtime helper inside itself. What the module owes:
+a total, idempotent `renderState(state)`; `sendAction` for recorded user state, with a
+detail matching the declared browser schema; `says()` over `textContent`; `offer()` and
+`relabel()` on anything injected, with its room reserved from inside `measure` and
+`layoutChanged` called after a view swap (each helper's header under `runtime/` says
+why); `keeps(node, name, value)` for any name or state a render on the `lf-actions`
+heartbeat writes, handed the boolean or count raw, since an unconditional
+`setAttribute` restates itself every two seconds on a page nobody has touched and
+`toggleAttribute` already keeps the rule for flags; `once()` in a `connectedCallback` that is safe to run after reconnection, and
+hoisted chrome removed in `disconnectedCallback` when the owner disconnects;
+`commands()` at upgrade — through `DISCLOSE(el)` over anything that folds, the runtime
+owning those commands — `quoted()` before wiring input, `actionAvailable()` for an
+x-state verb with `requires`, and durable state in attributes because export drops the
+scripts.
 `renderState` receives every declared facet, including the initial values an undo
 returns to. Widget facets are `{action, value, detail}`: `action` is null for authored
 state; `value` is the typed record value or a recordless outcome verb (null means
@@ -198,7 +208,9 @@ Non-widget facets contain `units`, keyed by unit id, and position facets also co
 `value`, a map from container id to the complete ordered ids it holds. Missing
 recordless units are undecided. Render the final composition and keep independent
 nested widgets mounted; never recreate the owner to restore an initial state.
-Return false only while a live edit prevents rendering. Optional recorded scalar
+Return false only while a live edit prevents rendering. When the edit closes,
+dispatch `lf-projection` on `document` so Leaf retries deferred state after the
+gesture has finished staging its local action. Optional recorded scalar
 attributes have a null initial value and must be removed when that value returns.
 
 The widget still owns its implementation: supporting modules can sit beside its entry
@@ -220,7 +232,8 @@ free contextual `1` through `9`, while one keeps its canonical binding, such as
 `ArrowLeft`. Each action keeps its command id as an exact route; that route is the one
 binding-to-control identity used by dispatch, the reference, the key line, its address,
 and `aria-keyshortcuts`. `address` may name an empty face a widget already positions; core
-writes the resolved binding there, so the package does not keep a second key map.
+writes the resolved binding there, so the package does not keep a second key map. Do
+not maintain a second Ask-control list.
 Otherwise core paints the binding at the visible control. Routes let one parameterized
 row contribute distinct controls and bindings. The control's own `click()` remains the
 single activation path.
@@ -343,7 +356,10 @@ server-projected seat, ordered `{request, receipt}` attempts, latest attempt, an
 `ready`, `pending`, or `completed` phase. A failed receipt makes the seat ready again;
 a successful receipt completes it. A page holder gets a new seat in a new authored
 revision, while a holder in frozen thread markup keeps one seat for that document's
-whole lifetime.
+whole lifetime. Requests are not replayable state and are not undoable; project them
+through that watcher instead of joining raw history or inventing a pending store.
+`watchHistory` remains the audit-log surface for widgets that intentionally render
+events themselves.
 
 ```js
 const stop = watchRequestLifecycle(this, (lifecycle) => render(lifecycle));
@@ -515,12 +531,23 @@ clone of `{source, contract, revision, updated, value, origin}`. `revision` iden
 of that source value, so a renderer can distinguish two writes even when their wall
 clock timestamps coincide. A selected capture additionally carries
 `snapshot`, `label`, and optional `lines`; a captured current value may carry its label
-and line range. It runs immediately and again when Leaf asks subscribers to restate its
-view. Return the cleanup function from the element's disconnect path. The callback must
+and line range. It runs immediately and again when that source revision changes.
+Return the cleanup function from the element's disconnect path. The callback must
 state the whole rendering and remain idempotent.
 
+Time readings made synchronously in `watchData`, `watchActions`, `watchUpdates`, and
+`watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`
+and `quietSince` refresh the callback only when their result changes. For another
+rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the
+calibrated server-now value in milliseconds. For a paint outside these
+subscriptions, wrap it with `clocked(element, paint)` and call the returned function
+where state changes; call its `.stop()` on disconnect. Time reads after an `await`
+belong in a separate synchronous `clocked` paint. The timer does not reapply state or
+redeliver unchanged data to keep a timestamp current.
+
 `origin` identifies the declared `input`, concrete `source`, `contract`, selected source
-`revision`, and accepted store `data_revision`, plus `snapshot` when pinned. Passing
+`revision`, and the accepted store's `data_revision` at delivery, plus `snapshot` when
+pinned. An unchanged source keeps that origin when another source changes. Passing
 `{snapshot}` to `projectData` supplies this default origin. When the emitter knows the
 exact JSON coordinate within the source value, its `originOf(record, index)` returns
 `{...snapshot.origin, path: [...]}`;

@@ -1,6 +1,19 @@
-/* This module owns scope declaration: the scopes registered against elements, their
- * merge into one section per title, where focus stands, and whether a control claims
- * Escape. `keys` is the door a widget declares its bindings through. */
+/* Scopes: where a group of rows applies, registered against an element and gathered by
+   title for the surfaces that project them.
+
+   Standing in a surface is where focus is, not merely that the surface is open. A tray's
+   or panel's own button lives in the banner, so opening by pointer leaves the reader
+   outside it, and a key, a Tab or a click on its contents is what puts them in. Inside a
+   text box the letter is a character, Enter writes a newline, and arrows move the caret.
+   The typing scope claims those text-editing keys, so a reader reaches a surface's
+   letters and walks from its list rather than from its composer.
+
+   Core registers scopes through internal `keys(el, title, rows)`; package widgets receive
+   the same register as `commands(el, title, rows)` in `connectedCallback`. A module
+   loaded on a page with no instance must contribute no scope or help section. Runtime
+   scopes live in `SCOPES`; `merge` is the only function that gathers scope sections.
+   Preserve the order of that list because the dispatcher and key line walk inward to
+   outward while the full reference groups the same scopes for reading. */
 import {
   MODIFIER_KEYS,
   activeRows,

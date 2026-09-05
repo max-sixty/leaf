@@ -2,6 +2,10 @@
  * Threads list. */
 import { landInConversation, SAY_BOX } from "./landing.js";
 
+/* Textual conversation views rendered outside the retained Threads list.
+
+   A page marker uses an already-open panel; with the panel closed, other comments open
+   inline where the layout has room and use the panel at narrower widths. */
 export function createInlineConversations({
   ago,
   el,

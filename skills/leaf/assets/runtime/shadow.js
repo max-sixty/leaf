@@ -78,37 +78,9 @@ async function readShadowRules() {
   shadowRules = found.map((match) => match[1]).join("\n");
 }
 
-/* A marked passage is painted, not wrapped (see paintAnchors), so its rules reach it
-   through the highlight registry — which styles glyphs, so the underline stands in for
-   a border. The active visual is an element paint from the same pass. Both are stated
-   once and installed twice: in the document and in every declared shadow root, where
-   document rules cannot reach.
+import marksSheet from "./marks.css" with { type: "css" };
 
-   Every name here carries an ink line, and the wash alone is never the mark. The washes
-   are what the hue affords rather than what a floor asks: --mark composites to 1.13:1
-   over the light paper and 1.34:1 over the dark, and --dfd1ed cannot reach 1.5:1 against
-   --paper at any alpha at all — opaque it stands at 1.38:1. So what the reader sees a
-   mark by is the line, at 9.0:1 light and 6.2:1 dark, exactly as the element anchors
-   next door are seen by their hairline (.lf-mark-el, chrome-style.js). The wash then
-   only has to separate one mark from another, which is a job it can do at 1.1:1.
-
-   lf-react was the one name with no line, and it was the faintest wash of the set: a
-   reacted passage stood at 1.08:1 over the light paper, which is a mark nobody sees.
-   Dashed against the comment's solid, the pair the element anchors already draw
-   (.lf-mark-el solid, .lf-react-el dashed) — same relation, said on glyphs. */
-export const MARK_RULES = `
-  ::highlight(lf-mark) { background-color: var(--mark);
-    text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
-  ::highlight(lf-mark-hover) { background-color: var(--mark-hover); }
-  ::highlight(lf-mark-here) {
-    background-color: var(--mark-strong);
-    text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
-  ::highlight(lf-pending) { background-color: color-mix(in srgb, var(--accent) 20%, transparent);
-    text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
-  ::highlight(lf-react) { background-color: var(--react);
-    text-decoration: underline 2px dashed var(--mark-ink); text-underline-offset: 3px; }
-  .lf-action-target { outline: 1px solid var(--accent); outline-offset: -1px;
-    cursor: pointer; }`;
+export { marksSheet };
 
 // The stage an x-shadow widget renders into. A module never calls attachShadow itself,
 // because the marks the runtime paints come from a registry that is the document's while
@@ -130,12 +102,7 @@ let publishedShadowStage;
 export const shadowStage = (...args) => publishedShadowStage(...args);
 
 export function createShadowStage(watchDisclosures, watchExternalLinks, setChildren) {
-  let markSheet;
   publishedShadowStage = function stageShadow(host, nodes) {
-    if (!markSheet) {
-      markSheet = new CSSStyleSheet();
-      markSheet.replaceSync(MARK_RULES);
-    }
     // serializable, because a copy is rendered DOM with the scripts dropped and a shadow
     // root is in no element's outerHTML: exported without this, a diff leaves an empty
     // element where its lines were, which is the one medium that cannot be re-rendered
@@ -143,7 +110,7 @@ export function createShadowStage(watchDisclosures, watchExternalLinks, setChild
     // the browser rebuilds on open, with nothing running.
     const root =
       host.shadowRoot ?? host.attachShadow({ mode: "open", serializable: true });
-    root.adoptedStyleSheets = [markSheet];
+    root.adoptedStyleSheets = [marksSheet];
     // A root is the one place the key line's watch cannot reach on its own: a `toggle`
     // from inside one is not composed, and a MutationObserver does not cross the
     // boundary either.

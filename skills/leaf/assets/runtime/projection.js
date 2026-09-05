@@ -9,7 +9,105 @@ export const standingState = (...args) => publishedProjection.standingState(...a
 export const withdraw = (...args) => publishedProjection.withdraw(...args);
 export const undoableAction = (...args) => publishedProjection.undoableAction(...args);
 
-/* Declaration-driven state projection and reconciliation. */
+/* Declaration-driven state projection and reconciliation: the DOM's one checkpoint of
+   what it represents, the optimistic overlay of unresolved gestures, the reconciliation
+   every complete state goes through, and undo.
+
+   A recorded action may be optimistic because its gesture has already changed the DOM.
+   Drag and edit are examples. `stageOutboxAction` gives that local value the same
+   semantic coordinate as the server view and commits it on the exact widget and unit
+   nodes that carry it. The browser projection adapter overlays all surviving recorded
+   outbox actions after authoritative winners in `outboxOrder`. Until a complete read
+   accounts for an attempt, its local winner outranks any older log winner on the same
+   coordinate.
+
+   `committedProjection` is not a second state authority. It is a checkpoint of what node
+   identities and semantic winner the DOM currently represents. Each entry records the
+   widget node, unit node, and projected entry for one coordinate. Node identity matters
+   because a revision activation or thread reconciliation may replace a node without
+   changing an event id. A coordinate with no winner is committed when its authored
+   baseline stands.
+
+   `projectionCommitted` compares the desired coordinate with that checkpoint. Terminal
+   events count as committed because this version has no applicable state to paint. The
+   server supplies coverage records and `projectionCoverage` checks their coordinates
+   against DOM commits for `data-lf-applied`: superseded actions and answered reports are
+   covered when the coordinate that represents them is committed, and an undo is covered
+   when its target's coordinate has moved to the prior winner or authored baseline.
+
+   `reconcileKnownState` protects the wakeups that follow a state application — focus,
+   undo, draft settlement, and later asynchronous work (state-application.js). It permits
+   reconciliation only from the last complete sequence, or from the authored-only initial
+   state before any events have been installed. A read that brought nothing is allowed
+   to retry a deferred correction against that known state. It must not project a newer
+   candidate whose surrounding render failed.
+
+   `reconcileState` delivers one complete facet map through `renderState(state)`.
+   `widgetStates` starts with typed authored values, overlays the server's desired
+   winners and unresolved local gestures, and composes ordered containers entirely in
+   memory. No reset actions, baseline replay, or cloned subtree reconstruction occur.
+
+   Each widget facet has `{action, value, detail}`. `action` is the winning verb, or
+   `null` for authored state. `value` is the typed record value, or the winning verb
+   (with `null` meaning undecided) for a recordless facet. `detail` preserves the winning
+   event's detail, including generated child labels; the authored detail contains the
+   declared record field. A facet with a non-widget unit has `units`, mapping each
+   standing unit to that same facet shape. Its `value` maps container ids to complete
+   ordered id lists for a position record, and is an empty object for recordless units.
+   Missing recordless units are undecided. Widget-absolute position records retain their
+   containing id as `value` and their final index in the declared detail field; ordering
+   across those owners is composed together.
+
+   Render every declared facet, including null/empty values, while retaining the widget
+   and independent child widgets. Repeating a complete state must change nothing. Return
+   `false` only while a live gesture prevents safe rendering; the coordinate and outbox
+   hold stay uncommitted until a later wakeup. A widget ending that gesture dispatches
+   `lf-projection` on `document`; the state feed coalesces retries into a microtask so
+   the gesture stages its local action before correction runs. Throwing reports a page
+   error and fails soft; the layer still renders declared settlement marks. `renderState`
+   writes only attributes represented by declared record forms on authored elements;
+   generated chrome may use platform attributes and `data-*` state. Returning success
+   while writing undeclared author-namespace attributes breaks the file/DOM comparison.
+
+   `watchProjectionDrag` waits for the last `.lf-dragging` marker to clear, then
+   reconciles, releases eligible outbox entries, repaints keys, and dispatches
+   `lf-actions`. Do not let a read or the heartbeat fight the pointer by applying
+   projection during a drag.
+
+   `shallowSigs` reads authored tags, individual attributes, and placement. The render
+   gate temporarily renders the authored state and surviving decisions from earlier
+   revisions, intersects their writes with the author's changed facts, then restores
+   current state. New actions on this revision cannot contradict its authoring. No
+   per-render DOM write history is kept. Text has the passage and restatement checks.
+
+   An `undo` event names the event it withdraws. Every fold drops that gesture (Python's
+   `taken_back`, the browser's `withdraw`); the log stays append-only. `undoable` walks
+   the whole authoritative log newest first, selects a standing user gesture, and offers
+   an action only on the version where that action was made. Thread resolution is not
+   version-scoped. Undo has no tab-local stack.
+
+   `canUndoAction` requires a mounted authored owner with a complete renderer or generic
+   retirement semantics. Undo selects a different complete projection; the same renderer
+   handles it without replacing the owner, its independent children, or their controls.
+
+   `renderSettlement` and `renderRetired` are layer responsibilities. The registry's
+   `x-parent` and `x-retired-when` declarations identify the holder and slots; the
+   complete facet's winning action paints the outcome, and its null baseline clears it. A
+   module may render the same marks as part of its animation choreography.
+
+   `paintStateOrigins` compares each desired record with its authored facet. It paints
+   `data-lf-reader-override` for reader actions and `data-lf-reported` for reports only
+   while the log differs from this version's authored state. Recordless decisions retain
+   the reader-origin mark while their holder remains in the document. These marks
+   describe origin, not unfinished work; receipts own processing and completion. They are
+   renderings of the projection, never inputs to it.
+
+   `shallowSigs` excludes exactly those attributes and reads only id-bearing elements
+   accepted by the bounded `authored` predicate. Generated elements are absent; generated
+   parents and siblings contribute neither the `in=` id nor sibling position. An authored
+   widget inside conversation chrome remains visible because its widget frame bounds that
+   predicate. A widget's own `data-lf-*` state remains visible to replay and to the
+   render gate. */
 export function createProjection(runtime, dependencies) {
   const {
     COLLAPSE,
@@ -439,8 +537,13 @@ export function createProjection(runtime, dependencies) {
 
   // Each owner sees one complete desired composition. Baselines and winners are
   // folded before this boundary; renderers never reset, replay or replace widgets.
+  let deferredProjection = false;
+  const projectionDeferred = () => deferredProjection;
+
   function reconcileState() {
+    deferredProjection = false;
     if (document.querySelector(".lf-dragging")) {
+      deferredProjection = true;
       watchProjectionDrag();
       return;
     }
@@ -468,7 +571,10 @@ export function createProjection(runtime, dependencies) {
         );
         if (commit?.widget !== widget || commit.key !== key || unitsChanged) {
           try {
-            if (widget.renderState?.(state) === false) continue;
+            if (widget.renderState?.(state) === false) {
+              deferredProjection = true;
+              continue;
+            }
             renderSettlement(widget, state);
           } catch (error) {
             reportPageError(
@@ -573,6 +679,7 @@ export function createProjection(runtime, dependencies) {
     paintStateOrigins,
     projectedFacet,
     projectionFromView,
+    projectionDeferred,
     projectionCommitted,
     reconcileKnownState,
     reconcileState,

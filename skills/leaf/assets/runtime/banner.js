@@ -1,5 +1,7 @@
 /* This module owns banner wording, tone, tab-icon paint, and announcing a status kind
  * that has changed. */
+import { clocked } from "./presence.js";
+
 export function createBanner({
   agentName,
   ago,
@@ -269,5 +271,10 @@ export function createBanner({
     showStatus(kind, TONE[kind], ...line);
   }
 
-  return { loadIcon, renderStatus, sayLine, toneFor };
+  return {
+    loadIcon,
+    renderStatus: clocked(document.body, renderStatus),
+    sayLine,
+    toneFor,
+  };
 }

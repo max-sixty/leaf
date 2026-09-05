@@ -10,6 +10,7 @@ import threading
 from pathlib import Path
 
 import pytest
+import tinycss2
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
@@ -757,6 +758,64 @@ def test_init_vendors_the_layer(page_dir):
     }
 
 
+def _css_parse_errors(nodes):
+    """Every parse-error token in a tinycss2 reading, at any depth."""
+    errors = []
+    for node in nodes:
+        if node.type == "error":
+            errors.append(f"{node.source_line}:{node.source_column} {node.message}")
+        errors.extend(_css_parse_errors(getattr(node, "content", None) or []))
+    return errors
+
+
+def test_every_vendored_stylesheet_parses(page_dir):
+    """The chrome's sheet was a JavaScript template literal, which `node --check` accepts
+    with a body a backtick has cut short and the browser then refuses whole. As files,
+    the gate's own CSS parser reads them, and an error token anywhere is the finding."""
+    for name in ["theme.css", "runtime/chrome.css", "runtime/marks.css"]:
+        rules = tinycss2.parse_stylesheet(
+            (page_dir / name).read_text(), skip_comments=True, skip_whitespace=True
+        )
+        assert rules, f"{name} is empty"
+        assert not _css_parse_errors(rules), f"{name}: {_css_parse_errors(rules)}"
+
+
+def test_the_chrome_sheet_spells_the_runtime_s_layout_numbers():
+    """A media query cannot read a custom property, so chrome.css states the covering
+    widths, the strip-taking tray, the width properties, and the decision stamp as
+    literals while the runtime lays out and paints by the constants. Held equal here
+    rather than trusted to stay so."""
+    runtime = schema_model.ASSETS / "runtime"
+    layout = (runtime / "chrome-layout.js").read_text()
+    trays = (runtime / "trays.js").read_text()
+    presentation = (runtime / "presentation.js").read_text()
+    sheet = (runtime / "chrome.css").read_text()
+
+    def constant(pattern, source):
+        return re.search(pattern, source, re.MULTILINE | re.DOTALL).group(1)
+
+    panel = int(constant(r"^export const PANEL_W = (\d+);", layout))
+    tray = int(constant(r"^const TRAY_W = (\d+);", trays))
+    strip = constant(r"^export const STRIP_TRAYS = \[(.*?)\];", trays)
+    strip_rule = (
+        "body:is("
+        + ",".join(
+            f'[data-lf-tray="{name}"]' for name in re.findall(r'"([a-z-]+)"', strip)
+        )
+        + ")"
+    )
+    for spelling in (
+        f"(width <= {panel * 2}px)",
+        f"(width > {panel * 2}px)",
+        f"(width <= {tray * 2}px)",
+        strip_rule,
+        "var(" + constant(r'^export const PANEL_PROP = "([^"]+)";', layout) + ")",
+        "var(" + constant(r'^export const TRAY_PROP = "([^"]+)";', trays) + ")",
+        "[" + constant(r'^  decision: "([^"]+)",', presentation) + "]",
+    ):
+        assert spelling in sheet, f"chrome.css no longer spells {spelling}"
+
+
 def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(tmp_path):
     """The stable identity follows bytes while generation still invalidates old tabs."""
     runner = CliRunner()
@@ -1060,7 +1119,7 @@ def test_init_user_layer_applies(tmp_path, monkeypatch):
     assert vendored_theme.endswith(custom_theme)
     assert (d / "widgets" / "lf-foo.js").read_text() == "// user widget"
     assert (d / "widgets" / "lf-tabs.js").is_file()  # shipped modules still vendored
-    assert (d / "runtime" / "chrome-style.js").is_file()
+    assert (d / "runtime" / "chrome.css").is_file()
 
 
 def test_init_project_layer_wins(tmp_path, monkeypatch):
@@ -2290,11 +2349,15 @@ def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
     )
     result = check(page)
     assert result.exit_code == 0, result.output
-    rendered = runner.invoke(
-        cli_model.cli,
-        ["version", "check", str(page), "--render"],
+    # Rendering owns a Playwright loop; a session browser may already own this
+    # process's loop when the full suite reaches this CLI integration.
+    rendered = subprocess.run(
+        [*LEAF_COMMAND, "version", "check", str(page), "--render"],
+        capture_output=True,
+        text=True,
+        check=False,
     )
-    assert rendered.exit_code == 0, rendered.output
+    assert rendered.returncode == 0, rendered.stdout + rendered.stderr
 
 
 def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):

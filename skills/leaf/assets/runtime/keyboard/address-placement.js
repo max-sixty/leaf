@@ -1,7 +1,16 @@
-// The one-digit address vocabulary and the placement pass shared by every surface that
-// paints it. A visible address may move back inside the viewport, but it yields wherever
-// that move would cover the key line or another address. The route still works when its
-// face cannot be drawn, so omission is safer than an ambiguous stack of digits.
+/* The one-digit address vocabulary and the placement pass shared by every surface that
+   paints it. A visible address may move back inside the viewport, but it yields wherever
+   that move would cover the key line or another address. The route still works when its
+   face cannot be drawn, so omission is safer than an ambiguous stack of digits.
+
+   Numbered addresses are capped at nine per list. Tabs, links, and folds keep the first
+   nine document members, so those identities do not change as the reader scrolls and an
+   off-screen member within that prefix remains reachable. Page-map locations instead
+   number the visible window from one; their complete searchable identity lives in the
+   Page map sheet. That window stays fixed during a scroll and is read again at
+   `scrollend`. Chips live in runtime chrome rather than authored markup. They sit above
+   their targets and move inside the viewport below the banner before overlapping chips
+   are removed. */
 export const MAX_NUMBERED_ADDRESSES = 9;
 
 const overlaps = (a, b) =>

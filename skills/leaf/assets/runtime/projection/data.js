@@ -1,6 +1,54 @@
-/* This module owns keyed runtime-data DOM reconciliation: `projectData` states each
- * rendered datum's identity on its node, so a renderer replacing the node keeps the
- * anchor. */
+/* Projected data: the third kind of page word, and the seat that holds it.
+
+   The page has three kinds of visible words:
+
+   - authored prose is in both `says` and `wrote`;
+   - runtime apparatus is in neither reading;
+   - projected external or derived data is in `says` and not in `wrote`.
+
+   The last kind is a projection, not another source of truth. An id-bearing element in
+   the version is its seat. `projectData(seat, records, keyOf, render, options)` owns
+   that seat's children, labels each rendered element with the seat id
+   (`data-lf-projection`) and its record's stable key (`data-lf-datum`), and marks it
+   generated. With `{nested: true}` it labels descendants a renderer already placed
+   without reconciling their layout. An optional `labelOf(record, index)` supplies the
+   human coordinate thread chrome reads; core never interprets the opaque key. When
+   records came from `watchData`, the `snapshot` option carries that delivery's source id
+   and revision, including across asynchronous rendering. Leaf stamps the seat and each
+   datum with that provenance. Records remain the caller's input; the DOM never becomes
+   another record store.
+
+   The watcher constructs `origin` from the accepted source binding. `projectData` reads
+   it from the supplied snapshot; emitters override `originOf` only to add a source-value
+   path where construction knows that coordinate. The helper writes `data-lf-origin`
+   beside each datum and clears it when an origin or nested datum retires. The package
+   reference owns the origin fields; no reading infers them from a datum key or rendered
+   text.
+
+   Keys identify facts, not renderings or display strings. They are non-empty strings,
+   unique within one projection, and must remain with the same logical datum across
+   refreshes. `render` receives the prior element for the key and may update it in place;
+   returning a replacement is also valid. Reconciliation retains nodes already in their
+   place and schedules the shared anchor pass after synchronous projection work.
+
+   A selection wholly inside a derived datum captures `{section, datum, quote}`. A datum
+   projected from `watchData` also captures `{source, data_revision}`. Within that source
+   revision, resolution looks only for the key under its section. If the original words
+   still stand, Leaf marks them. If their display changes, Leaf outlines the same datum
+   and keeps the old quote in the thread. A current-source replacement makes the
+   placement outdated: the thread keeps its section context and remains in the panel, but
+   it does not mark or attach to a datum from the new revision. An authored snapshot
+   remains exact. A missing or duplicate key detaches rather than guessing. Selections
+   crossing datum boundaries remain ordinary quote anchors because they name a passage,
+   not one fact.
+
+   `data-lf-projection`, `data-lf-datum`, `data-lf-origin`, `data-lf-source`,
+   `data-lf-source-revision`, and `data-lf-gen` are written by `projectData`, never
+   authored in a version. A custom widget joins through the helper alone; no consumer
+   names its tag. Export preserves the rendered elements and their labels as a snapshot,
+   while dropping the scripts that could refresh them. Print preserves the same readable
+   words. Neither medium claims that the snapshot remains live. */
+
 import { registry } from "../registry.js";
 
 let publishedProjectData;

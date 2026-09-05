@@ -1,5 +1,41 @@
-/* This module owns the `?` reference: every scope the page has, gathered by title, the
- * dialog that lists them, and the place it hands the reader back to on close. */
+/* The keyboard reference: the complete listing behind `?`, the mode that owns the
+   keyboard while it stands, and the character-shortcut preference it keeps.
+
+   A true mode may own the keyboard. An armed address chord and the open reference claim
+   the relevant keys through their scope. A longer-lived menu keeps the reference
+   available through `allButTheReference`. Closing the reference restores the shared
+   captured `helpOrigin`, so the reader returns to the control or reading place that
+   opened it. A modal dialog clears the top layer's auto popovers on its way in, so the
+   reference notes the ones it was opened over and stands them back up before that restore
+   — the overlay that says what a menu's keys are cannot be what takes the menu away. It
+   stands each one back up from that layer's own invoker — `lfInvoker`, the link a layer
+   declares because the platform's own runs one way only — so the layer's way out survives
+   the round trip too.
+
+   The reference lists every live capability the page has, grouped by scope, and filters
+   those rows by normalized key, action, line word, and scope text. Search is a projection
+   of the same gathered rows rather than another binding index. Computed ranges count
+   current members. A declaration must survive `merge` with its `when`, `at`, `claims`,
+   and rows intact so the reference does not advertise a scope the current page cannot
+   enter.
+
+   The reference is a complete keyboard layer. Its registered Tab row cycles through the
+   close control, search field, and actual overflow regions without letting focus enter
+   the page behind it. Escape and the close control share one registered row. Closing
+   restores the element that opened it and keeps an already expanded shortcut shelf open.
+   Restoration waits one frame only when that element is the temporarily removed More
+   control.
+
+   The reference also owns the persistent character-shortcut preference. Turning it off
+   removes unmodified and Shift-only letter, number, and punctuation bindings from
+   dispatch, the key line, the reference, tooltips, address labels, placeholders, and
+   `aria-keyshortcuts` in one projection. Space is activation, not a character shortcut,
+   and remains live. The native More button and its Enter activation are the route back to
+   the setting; do not make the setting depend on the character key it disables.
+
+   An overlay may become stale while open. If a row goes dead, its dispatch no longer
+   runs. A newly live row may wait until the reference is reopened. Do not rebuild a
+   focused help surface under the reader merely to keep it live to the latest poll. */
 import {
   bindings,
   clampedRow,

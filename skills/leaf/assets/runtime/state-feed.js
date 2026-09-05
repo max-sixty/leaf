@@ -1,12 +1,29 @@
-/* This module owns state reads, offline handling, heartbeat replay, event-stream
- * wakeups, and first-read presentation scheduling and retry. */
+/* The page's ear: the state reads, the news stream that says when to ask, the heartbeat
+   that re-applies what the page holds, and the phase the answers leave it in.
+
+   `statePhase` distinguishes `waiting`, `ready`, and `offline`. An empty `events` array
+   while waiting means the log has not been read; it does not mean there are no comments.
+   A restored or newly opened panel keeps its general composer usable and shows a loading
+   state until that distinction resolves.
+
+   A failed fetch is a complete offline answer for interaction: the authored page is the
+   best state available when no log can be reached, so fixed status chrome reports the
+   loss and its controls may activate. A successful response with malformed state is not
+   an offline answer. Parsing or rendering errors pass to the recovery boundary and leave
+   the candidate sequence unresolved; authored content stays readable while
+   state-dependent controls remain unavailable. */
+
+import { countTraffic } from "./traffic.js";
+import { tickClock } from "./presence.js";
+
 export function createStateFeed({
   RETRY_MS,
   SILENCE_MS,
   TICK_MS,
   notifyDataSubscribers,
-  outbox,
   paintKeys,
+  prepareActivation,
+  projectionDeferred,
   panelIsOpen,
   receiveState,
   reconcileKnownState,
@@ -26,27 +43,34 @@ export function createStateFeed({
   // for that would stop hearing. The page would then go silent for a reason none of its
   // news is about, which is a wedge rather than a delay: nothing else would ever ask.
   async function readState() {
-    let res;
+    countTraffic("asked");
     try {
-      const revision = runtime.currentRevision;
-      res = await fetch("/api/state", {
-        headers: Number.isInteger(revision)
-          ? { "Leaf-View-Revision": String(revision) }
-          : {},
-      });
-    } catch {
-      // Network absence is a completed answer: there is no log to replay, so the offline
-      // authored page is honest. A successful but malformed response is different — let
-      // JSON or processing errors escape so the caller retains the recovery boundary.
-      return null;
+      let res;
+      try {
+        const revision = runtime.currentRevision;
+        res = await fetch("/api/state", {
+          headers: Number.isInteger(revision)
+            ? { "Leaf-View-Revision": String(revision) }
+            : {},
+        });
+      } catch {
+        // Network absence is a completed answer: there is no log to replay, so the
+        // offline authored page is honest. A successful but malformed response is
+        // different — let JSON or processing errors escape so the caller retains the
+        // recovery boundary.
+        return null;
+      }
+      const responseGeneration = res?.ok && res.headers.get("Leaf-Layer");
+      if (responseGeneration && !sameLayer(responseGeneration)) return null;
+      // A refusal is not state: the server answers a missing key with error-shaped JSON
+      // at 403. A live server refusing the key and a dead one both leave the page
+      // unreachable from here, and the terminal link is the recourse for both.
+      if (!res?.ok) return null;
+      return await res.json();
+    } finally {
+      // Heard once the read has ended whichever way: the body in hand, or nothing.
+      countTraffic("heard");
     }
-    const responseGeneration = res?.ok && res.headers.get("Leaf-Layer");
-    if (responseGeneration && !sameLayer(responseGeneration)) return null;
-    // A refusal is not state: the server answers a missing key with error-shaped JSON at
-    // 403. A live server refusing the key and a dead one both leave the page unreachable
-    // from here, and the terminal link is the recourse for both.
-    if (!res?.ok) return null;
-    return res.json();
   }
 
   // Start a read without leaving a rejection unobserved while widget startup continues.
@@ -60,37 +84,20 @@ export function createStateFeed({
     );
   }
 
-  // Whether the page's last read ended in a whole reading applied. Two things turn on
-  // it. The heartbeat is a re-application of the reading the page holds, and a page whose
-  // reads are failing must not re-apply: its last complete reading is what replay and
-  // undo are still standing on. And a read that failed is asked again on the tick — the
-  // stream says when the page has moved and cannot say it twice, so a wake-up the page
-  // could not act on would otherwise be lost, leaving it under an offline banner until
-  // something else happened to the page. That is the spacing a failed exchange has
-  // always had, the outbox's included; a healthy page still never asks without news.
+  // Failed reads retry on the clock: a news wake-up says that state changed, but
+  // cannot guarantee its read succeeded. Healthy pages ask only when news moves.
   let readAnswered = false;
 
-  // What the page owes itself when nothing arrived, and the sequence consumers still hear
-  // it. A read that brought nothing changes no history, so they re-render what they already
-  // held — but anything of theirs that reads a clock rather than the log has to keep moving,
-  // and a dead server is exactly when it matters: the banner says the server is gone while a
-  // roster row froze its "last heard 4m ago" at the moment the answers stopped, which is the
-  // authored freshness this widget layer exists to replace, produced by the layer itself. A
-  // first failed read has no projection to claim. Once a complete read has installed one,
-  // though, a tick is still the wake-up for a correction a live editor deferred; a
-  // definitively refused local action has the same authored correction even when no read has
-  // succeeded yet. Never project a newer event list whose surrounding state threw before
-  // lastEventSeq advanced.
+  // The clock has no state to replay. Only an explicitly deferred projection needs
+  // another attempt; time-dependent paints remember their own displayed readings.
   async function tick() {
-    const refusedCorrection = outbox.some((entry) => entry.answered && entry.rejected);
-    if (
-      (runtime.statePhase === "ready" || refusedCorrection) &&
-      reconcileKnownState() &&
-      releaseProjectedOutbox()
-    )
-      paintKeys();
-    document.dispatchEvent(new Event("lf-actions"));
-    await notifyDataSubscribers();
+    if (projectionDeferred() && reconcileKnownState()) {
+      if (releaseProjectedOutbox()) paintKeys();
+      document.dispatchEvent(new Event("lf-actions"));
+      await notifyDataSubscribers();
+    }
+    await tickClock(reportPageError);
+    document.dispatchEvent(new Event("lf-tick"));
   }
 
   // What the page does with an answer that brought no state.
@@ -117,30 +124,43 @@ export function createStateFeed({
     readAnswered = true;
   }
 
-  // The heartbeat: everything a poll did, with the fetch taken out of it.
-  //
-  // A poll that brought nothing still re-applied the state the page already held, and the
-  // runtime has a lot hanging off that — a clock ageing toward a threshold, a claim going
-  // quiet, a receipt, an activation a live editor deferred and nothing else will ask
-  // about again. None of those needed the network; they rode it because a request was the
-  // only thing that happened regularly, which made a round trip the page's clock.
-  //
-  // Re-applying the held reading is deliberately the whole of it rather than a list of the
-  // jobs that need re-running. That list is not knowable by reading the code — the first
-  // attempt at this enumerated it, found three by breaking them, and still missed one —
-  // and it would have to be maintained by everyone who adds a fourth.
-  function heartbeat() {
-    if (runtime.statePhase !== "ready" || !runtime.state) return;
-    void receiveState(runtime.state).catch((error) => {
-      // What the page holds cannot be re-applied, so what it holds is no longer a
-      // whole reading: the next tick reads afresh rather than failing the same way
-      // every two seconds for the rest of the page's life.
+  async function heartbeat() {
+    try {
+      if (
+        runtime.statePhase === "ready" &&
+        runtime.state &&
+        runtime.state.active.revision > runtime.currentRevision
+      ) {
+        const activation = await prepareActivation(runtime.state);
+        if (activation?.activates()) await receiveState(runtime.state);
+      }
+      await tick();
+    } catch (error) {
       readAnswered = false;
       reportPageError(`tick failed: ${error?.message ?? error}`);
-    });
+    }
   }
 
   function start(present, initialRead = beginRead()) {
+    // A package-owned surface may hold replay while it is open. Its completion is a
+    // projection invalidation, so retry the already applied reading immediately instead
+    // of waiting for the clock's deferred-work heartbeat. The event is intentionally
+    // generic: the state feed does not know which widget held the projection.
+    let projectionQueued = false;
+    const retryProjection = () => {
+      if (projectionQueued) return;
+      projectionQueued = true;
+      // A close can precede the gesture's outbox entry in the same call stack.
+      // Let that producer finish before replaying the resulting composition.
+      queueMicrotask(() => {
+        projectionQueued = false;
+        if (!projectionDeferred()) return;
+        void tick().catch((error) =>
+          reportPageError(`tick failed: ${error?.message ?? error}`),
+        );
+      });
+    };
+    document.addEventListener("lf-projection", retryProjection);
     const readAndPresent = async () => {
       try {
         await readAndApply(initialRead);
@@ -239,13 +259,9 @@ export function createStateFeed({
     // holds a reading for the stream's first word to be compared with, so an unchanged
     // page is not asked for twice.
     readAndPresent().finally(() => {
-      // Two mechanisms now, where there was one. The heartbeat is local and keeps its
-      // cadence whatever the network is doing; the news arrives when there is news. They
-      // were the same timer for as long as a request was the only thing that happened
-      // regularly, which made a round trip the page's clock and put every local job on
-      // the far side of it.
+      // One shared clock serves temporal paint, deferred work, and failed reads.
       setInterval(() => {
-        if (readAnswered) heartbeat();
+        if (readAnswered) void heartbeat();
         else void ask();
         // A presentation that failed is retried here as the poll retried it, since
         // a quiet page may see no read to chain it onto.

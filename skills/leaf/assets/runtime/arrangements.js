@@ -1,6 +1,7 @@
-/* This module owns the browser-state arrangements the arrival gate exercises: each
- * names one remembered reader or tab setting, the store it lives in, and the value
- * that stands it up. Boot publishes them as `ARRANGEMENTS` once the stores exist. */
+/* `ARRANGEMENTS` declares each stored runtime arrangement the render suite must visit,
+   and supplies one for each persisted tray. Add a new remembered surface here when the
+   surface is introduced. */
+
 let publishedArrangements = [];
 export { publishedArrangements as ARRANGEMENTS };
 

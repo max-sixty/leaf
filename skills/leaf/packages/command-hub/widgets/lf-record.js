@@ -104,15 +104,15 @@ customElements.define(
   "lf-record",
   class extends HTMLElement {
     #stop = null;
+    #signature = null;
 
     connectedCallback() {
       if (!once(this) && this.#stop) return;
-      let signature = null;
       this.#stop = watchHistory(this, (events) => {
         const relevant = events.filter((event) => kinds.has(event.kind));
         const next = JSON.stringify(relevant);
-        if (next === signature) return;
-        signature = next;
+        if (next === this.#signature) return;
+        this.#signature = next;
         const list = document.createElement("ol");
         list.dataset.lfGen = "1";
         if (relevant.length)

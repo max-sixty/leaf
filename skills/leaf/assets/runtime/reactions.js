@@ -1,5 +1,31 @@
-/* This module owns the reaction vocabulary, reaction lists and their standing paint,
- * sending, keyboard reaction mode, and reaction-specific undo wording. */
+/* The response bar's reaction row and the standing tokens a strip or circle wears.
+
+   For a page target, `r` contributes Comment, Suggest where available, and the reaction
+   Buttons to that target's existing Button options. Those temporary Buttons borrow the
+   cluster's room and dock with it when necessary; they do not claim permanent rail
+   width. A thread-local `r` opens the conversation-owned row on the latest agent
+   message. With none of those targets, it shows “Select something to react to” and
+   opens nothing. Page-wide reactions remain an explicit ellipsis above the panel's
+   general comment box. `REACT` claims the keyboard while a list is open. Arrow keys
+   wrap through every visible Button in the target's shared cluster, including its
+   primary actions and Page-map overflow; floating and message-local rows walk their own
+   choices. Tab and Shift-Tab follow that same order. The Page-map dialog remains part
+   of the response's target context but owns its native keyboard walk and Escape while
+   open. Closing it restores its exact opener; selecting overflow presses the original
+   Button before its temporary target is released. Enter or Space presses the focused
+   choice, digits remain optional reaction accelerators in declaration order, and a
+   stray key closes the list before keeping its ordinary meaning.
+
+   The `r` key unfolds this same cluster's secondary Button group for a page selection
+   or item and shows the declared reaction Buttons together within the six-fitting
+   budget. Comment and Suggest retain their separate `c` and compact response-bar routes
+   rather than displacing reactions from the mode that explicitly asked for them. The
+   digit register and visible choices therefore name the same complete set. The choices
+   do not widen the rail or open a separate palette below the target. The compact
+   response bar's Tab state stays in that bar. Conversation reactions remain in their
+   conversation-owned strip. The event still carries its durable authored anchor, while
+   the temporary item resolves selected text to the first rendered block, matching the
+   target where replay later seats its standing reaction. */
 import {
   iconElement,
   marginButton,

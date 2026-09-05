@@ -1,6 +1,13 @@
-/* This module owns the selection composer's state: the pending anchor and what it is
- * about, whether the composer is open, its draft, and its open, hide, and close
- * transitions. */
+/* The selection composer: the response bar's field bound to a passage's draft.
+
+   The selection composer keeps its passage painted after an explicit Comment gesture
+   moves focus into the textarea. Automatic passage selection leaves the native
+   selection in place. Its `.lf-composer` wrapper contributes state and draft machinery
+   through `display: contents`; only `.lf-fab-input` draws. `showComposer` states the
+   whole visible outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`;
+   `openComposer`'s `focus` option decides focus independently. Outside clicks and
+   Escape hide without discarding words. A successful send or an explicit draft close
+   discards the local record. */
 export let pendingAnchor = null;
 export let pendingAbout = null;
 export let composerOpen = false;

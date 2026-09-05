@@ -1,6 +1,50 @@
-/* This module owns the key line: which rows it shows for the next press, walked outward
- * from where the reader stands, how they yield under its two-row ceiling, and the More
- * disclosure that unfolds the rest. */
+/* The key line at the foot of the page, and the More control that leads from it to the
+   reference.
+
+   The key line is short help, not the keyboard reference. It walks outward from the
+   reader's innermost scope and drops bindings shadowed there. The ordinary shortlist is
+   the first live row, then a promotable Escape or the next row. At rest on the page that
+   is `c` and `r`, the two presses that say something back, beside the More control.
+   Search, item selection and reading-page movement are ordinary rows ranked below them,
+   named by the shelf and the reference: a glance that spends its room on ways of finding
+   something to act on never names the act, and scrolling is the one capability no page
+   has to advertise. Ranking is a row's place in its scope, so moving the row is how the
+   line's order changes. An active chord instead shows every live row in its scope, so
+   computed bindings, ranges, and capability filtering are the same ones dispatch and the
+   reference use. Each destination row keeps its complete chord: already pressed keys take
+   the accent face and pending keys keep the ordinary face. Changing progress changes only
+   those faces, not the sequence's keys or geometry. A mode's Escape or back row remains a
+   separate control rather than appearing as a destination chord. `lineWhen` may hide only
+   an ordinary hint without changing the command's liveness or its place in the reference.
+   Hint chips are `aria-hidden` because placeholders and live announcements carry the same
+   facts for assistive technology.
+
+   The compact line wraps when chord rows need the room. Ordinary hints yield from the end
+   on a window too narrow for them, but active chord rows do not; More is the one control
+   that always survives.
+
+   `syncLayout` reserves the line's footprint only in a scroll region whose horizontal
+   span meets it. Each reservation is the band from the line's top to that region's own
+   foot: the window for the document and trays, and the thread list's rendered bottom at
+   the top of the complete panel foot. The line's height, inset, any lift and the device's
+   safe area are therefore one measurement off the rendered box rather than four numbers
+   to keep in step. Over a covering thread panel, the line starts at its ordinary bottom
+   inset and rises above the panel foot only when their rendered rectangles collide; a
+   thread list in another lane keeps its stylesheet inset and reserves nothing for the
+   line. A coarse pointer is drawn no line at all — there is no keyboard to advertise, and
+   every hint would name a key the reader cannot press — so the footprint is zero and
+   nothing reserves room for it. The line and its chips take no pointer events; the More
+   control does, because it is the only pointer route to the reference and so to the
+   character-shortcut preference, which cannot be made to depend on the character key it
+   turns off.
+
+   The accessible More control and its `?` binding share one progressive route. The first
+   activation unfolds additional current-scene rows into a shelf capped at two lines; the
+   second opens the complete reference. Escape returns through those layers, and another
+   command folds the shelf before it runs. Expansion and contraction are announced because
+   the revealed hint chips themselves remain visual. When there is no additional current
+   row, the first activation opens the reference directly. The native control also opens
+   it directly when character shortcuts are off. */
 import {
   activeRows,
   bindings,
@@ -29,12 +73,6 @@ export function createKeyline({
   stack,
 }) {
   // ---------- the key line ----------
-  // What the next press does, walked outward from where the reader stands. Locality supplies
-  // the ordinary shortlist: the same innermost-first scope order the dispatcher uses. An
-  // active chord is already a
-  // compact reference to one mode, so every live row in that scope is shown. More unfolds the
-  // remaining ordinary scene before opening the complete reference.
-  //
   // The rows the line shows, innermost scope first: the ones carrying a word for it. Each
   // keeps only bindings no nearer scope has named, so an inner meaning wins while a grouped
   // row's other presses remain visible — for example, a numbered hyperlink address replaces

@@ -1,4 +1,20 @@
-/* Conversation message rendering, caching, and printed anchor labels. */
+/* Conversation message rendering, caching, and printed anchor labels.
+
+   Messages render from Markdown after escaping raw HTML. Literal text such as a
+   generic type remains text and cannot inject markup. A widget in an event's
+   gate-validated `markup` is instantiated once in the panel; inline conversation seats
+   show a textual projection with a link to that reply's controls in Threads.
+
+   An agent message edit is a later event folded onto the original message id. The
+   panel and an inline conversation update the existing message node and show
+   `edited`; the text wrapper alone is replaced. The message's cached markup nodes stay
+   connected because their widget state and authored baseline belong to the original
+   event, not to the prose revision.
+
+   Fragment links in messages use the browser's `hidden="until-found"` behavior to
+   reveal authored disclosures and tabs. `paintAnchors` marks a link detached when this
+   version no longer has the id and refuses its press. A thread outlives its version,
+   but a fragment target may not. */
 import { loadMarkdown, renderMarkdown } from "../markdown.js";
 
 export function createConversationMessages(dependencies) {

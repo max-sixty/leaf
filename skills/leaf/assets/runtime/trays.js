@@ -1,3 +1,20 @@
+// The left side holds one tray at a time. `showTray` owns `trayUp` and renders the
+// complete outcome for leaves and asks. The leaves tray overlays the document because its
+// rows leave the page. The asks tray takes a strip because its rows travel within the
+// page and the reader must keep the target visible. Both entry controls call the same
+// tray setter.
+//
+// `restoreTray` runs after all declarations exist and after the first projection can
+// populate state-dependent rows. It calls its supplied `beforeOpen` policy to retire
+// Threads, then presents the remembered tray directly without replaying opening motion.
+//
+// A handle lives inside the region it draws, so a drawn region must not be its own scroll
+// container: a scroller clips a handle straddling its border and carries it away with the
+// content. A tray is a shell holding a `.lf-tray-list`, and every tray list reserves the
+// key line's room where their horizontal spans meet. Wide content reads the shell's CSS
+// value directly; there is no observed measurement loop or second number system to
+// reconcile during a transition.
+
 // The trays' edge, on the left, and everything said above said again for it: the width
 // it stands at until the reader moves it, how narrow they may draw it, and the window
 // under which a tray covers the page rather than standing beside it. The same bargain at
@@ -12,13 +29,12 @@
 const TRAY_W = 300;
 const TRAY_MIN = 220;
 export const TRAY_COVERING = `(width <= ${TRAY_W * 2}px)`;
-// Where the standing width is written, and where the cascade reads it. Named rather than
-// spelled, because the stylesheet and the runtime's writer are two ends of one fact and
-// a property spelled twice is two facts the day one of them moves.
+// Where the standing width is written, and where the cascade reads it. chrome.css
+// spells the same name and the same covering width, and the layer test holds the two
+// spellings equal, since a stylesheet cannot read a constant.
 export const TRAY_PROP = "--lf-tray-w";
-// Which trays take their room out of the page rather than lying over it, read by the rule
-// that takes the strip and by the runtime for what the page has left — so the two cannot
-// disagree about whether the page is yielding one.
+// Which trays take their room out of the page rather than lying over it. The rule that
+// takes the strip spells this list in chrome.css, and the layer test holds the two equal.
 //
 // The leaves tray is not on the list, and that is not an inconsistency between two twins:
 // a leaf's row is a way out of this page and a decision's row is a way around it, so pressing
@@ -26,10 +42,7 @@ export const TRAY_PROP = "--lf-tray-w";
 // it — and a tray lying over the document would be hiding the very thing it just sent you
 // to. A 300px tray and a 720px column overlap on any window under about 1320px, which is
 // most of them, so this is the common case rather than the narrow one.
-const STRIP_TRAYS = ["decisions"];
-export const STRIP_TRAY_RULE = `body:is(${STRIP_TRAYS.map(
-  (tray) => `[data-lf-tray="${tray}"]`,
-).join(",")})`;
+export const STRIP_TRAYS = ["decisions"];
 
 export const TRAY_KEY = "lf-tray-up";
 
@@ -47,6 +60,7 @@ export function createTrays({
   PRESS,
   readerStore,
   renderDecisions,
+  paintLeavesOffer,
   syncLayout,
   trayChanged,
   walkRows,
@@ -190,7 +204,7 @@ export function createTrays({
     btn.onclick = () => showTray(openTray(key) ? null : key);
     btn.setAttribute("aria-expanded", "false");
   }
-  trayIs("leaves", othersPanel, othersBtn);
+  trayIs("leaves", othersPanel, othersBtn, paintLeavesOffer);
   trayIs("decisions", decisionsPanel, decisionsBtn, renderDecisions);
   const trayNames = Object.freeze([...trays.keys()]);
 

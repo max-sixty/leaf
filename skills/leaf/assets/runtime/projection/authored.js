@@ -4,6 +4,35 @@
  * restoration statement is retained. */
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
 
+/* The authored initial condition, read once after upgrade and before projection.
+   These typed values are inputs to the complete widget projection; no cloned DOM,
+   inverse action, or restoration statement is retained.
+
+   `rememberAuthoredParents` records parent identities before imports for anchor
+   ownership. `captureAuthoredFacets` runs after upgrade because widgets may arrange
+   authored state in `connectedCallback`. It records typed initial values before
+   projection changes them. The first server answer stays buffered until these initial
+   readings exist. Frozen thread widgets use the same boundary: the list connects them,
+   waits for their registered upgrades, and captures initial values before the state
+   application projects any winners. Concurrent applications wait for this whole
+   boundary.
+
+   `authoredStates` holds the one typed initial condition per owner. Comparison readings
+   come from those same values, collapsing body whitespace and omitting position indexes
+   only where origin/diff checks require those comparisons.
+
+   The complete initial value, by record kind:
+
+   - `attribute`: sorted owned ids carrying the declared attribute;
+   - `value`: the attribute string, or `null` when absent;
+   - `position`: ordered id lists per container; an individual widget also names its
+     containing id and index;
+   - `body`: uncollapsed authored words from `textNodesUnder`;
+   - no record: `null` for a widget facet, an empty unit map otherwise.
+
+   Ownership of record members stops at `recordedOwner`, the nearest widget with a
+   declared record. A custom outer container must not capture or restore a nested
+   recorded widget's members. */
 export function createAuthoredProjection({ COLLAPSE, quoteFrom, textNodesUnder }) {
   const authoredStates = new Map();
   const authoredParents = new WeakMap();

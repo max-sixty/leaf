@@ -110,16 +110,6 @@ not write today — the namespace is reserved, not the list of names in it.
 A code block, table, figure, or aside that a reader will point at as a whole also
 needs a tight id, either on itself or on its immediate semantic container.
 
-Use one `lf-tabs` when several workstreams are live at once. Keep the shared
-title and lede before it, and put the current workstream first: ordering makes it
-the default for a reader with no saved panel or reading position. Remove earlier
-runs when the current work no longer depends on them. If their context is still
-needed, keep only that context in a collapsed `<details>` inside the relevant
-tab, and keep with it any passage whose id anchors an open thread or holds a
-standing decision. A saved panel or restored position takes precedence. Threads,
-asks, versions, and sign-off still cover the whole page, so none of that runtime
-chrome belongs inside a tab.
-
 ## Reading cost
 
 Open words are read; collapsed words are there when the reader wants them. What
@@ -153,11 +143,10 @@ claim they could doubt, and drop the journey once the conclusion replaces it.
 
 ## Pre-handover review
 
-Every source activation runs the deterministic markup check. For a quick page
-put up for reaction, that check is the whole gate, and the URL goes out as soon
-as it passes. A finished record takes the browser gate once before its URL first
-reaches the user; a quick page that a stamp turns into a record takes it before
-that stamp:
+The main skill's handoff ceremony decides which page takes this review: a
+finished record before its URL first reaches the user, and a quick page before
+the stamp that turns it into one. Every source activation already runs the
+deterministic markup check; this review adds the browser gate and a reading:
 
 ```bash
 leaf version check <page> --render

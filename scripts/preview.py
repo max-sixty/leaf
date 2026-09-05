@@ -293,12 +293,19 @@ def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> tuple[in
             "version",
             "stamp",
             str(page),
+            # A reader's words, not the checkout's: the note is the menu's subtitle, and
+            # a filename "as it stands in the tree" read as developer jargon to a reviewer.
             "--text",
-            f"{version.name}, as it stands in the tree",
+            "Current draft" if order == len(versions) - 1 else "Earlier draft",
         )
         if order == 0:
             seed_log(source, page)
     acknowledge_log(source, page)
+    # The handoff a delivered page gets: `page init` leaves a "Writing the page" claim,
+    # which nothing here ever closes, so the banner read "Claude is working" over a
+    # finished draft for a quarter of an hour and a reviewer took it for a version on
+    # its way. Waiting is the reader's move, which is what a preview asks for.
+    leaf(launcher, runtime, "status", str(page), "waiting")
     return len({operation["source"] for operation in operations}), len(versions)
 
 

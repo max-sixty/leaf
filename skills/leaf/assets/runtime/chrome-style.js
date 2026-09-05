@@ -513,8 +513,16 @@ ${MARK_RULES}
      paper where the burnt orange it replaced cleared 3.4, so this reads as an annotation
      where a saturated 2px rectangle read as a validation error. It takes the element's own
      corner radius rather than restating one, which is what the radius here used to
-     override. */
-  .lf-mark-el { outline: 1px solid var(--mark-ink); outline-offset: -1px; cursor: pointer; }
+     override.
+     The wash is the text mark's (::highlight(lf-mark) in shadow.js), laid as a gradient
+     image so it tints whatever paper the box already has — an aside's grey, a card's
+     white — rather than replacing it. The hairline alone was a thin dark rectangle
+     around a paragraph, which is also what a focus ring is, and a keyboard reader who
+     had just left the thread could not tell "has a thread" from "still standing here".
+     A comment's mark is a wash wherever it lands, on glyphs or on a box; the line is the
+     part that says which. */
+  .lf-mark-el { outline: 1px solid var(--mark-ink); outline-offset: -1px; cursor: pointer;
+    background-image: linear-gradient(var(--mark), var(--mark)); }
   /* A standing reaction on an element: the same hairline, dashed — a mark fainter than a
      comment's, as the wash on a reacted passage is fainter than a comment's (--react in
      theme.css, ::highlight below). No hand, since nothing opens on a press here: the
@@ -587,7 +595,8 @@ ${MARK_RULES}
      while the chrome layer draws its registered surface contour or rectangular fallback
      above the package's own paint. Suppress only that duplicate representation;
      ordinary anchors stay on the outline path. */
-  :is(.lf-mark-el, .lf-react-el, .lf-action-target).lf-shaped-mark { outline: none; }
+  :is(.lf-mark-el, .lf-react-el, .lf-action-target).lf-shaped-mark { outline: none;
+    background-image: none; }
   /* Keyboard access to a picture is runtime chrome beside the provider's drawing rather
      than a role written onto that drawing. Resting it is a conventional clipped control;
      focus gives it a skip-link-style face under the banner. */
@@ -1400,7 +1409,7 @@ ${MARK_RULES}
     .lf-fab-bar.lf-react-open { flex-wrap: wrap; }
     .lf-fab-bar.lf-react-open > .lf-composer { display: none !important; }
     .lf-fab-bar.lf-react-open > .lf-react-palette { display: contents; }
-    /* A reaction surface offers one quiet ellipsis. It disappears when its list opens;
+    /* A reaction surface offers one quiet trigger. It disappears when its list opens;
        a standing token remains visible in a closed message or page strip as the reader's
        receipt and eraser. */
     .lf-react-trigger { color: var(--muted); }

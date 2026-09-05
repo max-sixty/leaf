@@ -10,6 +10,7 @@ import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { landInConversation } from "./conversation/landing.js";
 import { clocked } from "./presence.js";
+import { notice } from "./notifications.js";
 
 const KINDS = {
   action: { label: "Action", icon: "dot", priority: -1 },
@@ -470,7 +471,6 @@ export function createLivingMargin(dependencies) {
     ago,
     anchorLabel,
     acknowledgments,
-    announce,
     blockAt,
     chromeRoot,
     claimState,
@@ -1303,10 +1303,13 @@ export function createLivingMargin(dependencies) {
       .sort((left, right) => comesBefore(left.target, right.target));
   }
 
+  // The account goes to the banner's notice slot rather than to the live region alone:
+  // a Change Button's target is usually already on screen, so the scroll moves nothing
+  // and a press that only announced was, to a sighted reader, a press that did nothing.
   function revealTarget(target, account) {
     if (!target?.isConnected) return;
     scrollToElement(target, scrollBehavior(), "nearest");
-    announce(account);
+    notice(account);
   }
 
   function markerOptions(row) {

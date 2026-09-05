@@ -155,7 +155,10 @@ export function createReactions({
     const trigger = offer(
       "button",
       floatingResponses ? "lf-react-trigger" : "lf-pill lf-react-trigger",
-      floatingResponses ? "" : "…",
+      // The strip's trigger is a disclosure and wears the register's verb with the
+      // margin's own "…" suffix (visibleButtonLabel): a bare "…" under a reply was a
+      // control nobody could name without hovering it.
+      floatingResponses ? "" : "React…",
     );
     if (floatingResponses)
       responseAction(trigger, {

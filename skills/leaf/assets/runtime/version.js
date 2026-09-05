@@ -371,6 +371,19 @@ export function createVersion({
         when: () => atVersionBoundary(0),
         run: closeVersionMenu,
       },
+      // A pointer-opened menu closes on the platform's own Escape, and the line said
+      // nothing about it: the page's Escape rung stands down under an open popover
+      // (browserDismissesTopLayer) and the return frame only exists for a keyboard entry.
+      // The row names the press; RETURN stands nearer in the scope order and takes the key
+      // whenever a frame is live, so "back" and "close" never print together.
+      {
+        id: "version.close",
+        keys: ["Escape"],
+        does: "Close the versions menu",
+        line: "close",
+        native: true,
+        run: closeVersionMenu,
+      },
     ],
   };
 

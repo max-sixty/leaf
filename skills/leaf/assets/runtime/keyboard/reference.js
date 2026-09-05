@@ -446,9 +446,13 @@ export function createReference({
           shown += sectionShown;
         }
         emptyRow.hidden = shown !== 0;
+        // The hint's verbs are the rows' (HELP in leaf.js: "choose next", "run"), since the
+        // short key line has no slot for the arrow rows and this head is where a reader
+        // in the search box learns them. Two spellings of one press — "choose" here,
+        // "next command" on the line — were two registers.
         meta.textContent = query
-          ? `${shown} of ${total} commands · ↑↓ choose · Enter run`
-          : `${total} commands · ↑↓ choose · Enter run`;
+          ? `${shown} of ${total} commands · ↑↓ choose · ⏎ run`
+          : `${total} commands · ↑↓ choose · ⏎ run`;
         keepOneCommandReachable();
       };
       search.addEventListener("input", filter);
@@ -536,7 +540,7 @@ export function createReference({
     next.closest("tr").scrollIntoView({ block: "nearest" });
     const key = next.closest("tr").querySelector("kbd").textContent;
     helpEl.querySelector(".lf-help-meta").textContent =
-      `${next.textContent} · ${key} · Enter run`;
+      `${next.textContent} · ${key} · ⏎ run`;
   }
   function runSelected() {
     if (!onCommandRail()) return false;

@@ -1245,9 +1245,9 @@ and element parts; `renderThreads`, page movement, and a version transition's en
 refresh the reading when content moves under a stationary pointer.
 
 `paintHover` paints both kinds of anchor, as `paintStanding` does. `::highlight`
-paints glyphs, so a box takes no wash; the element mark says the same rank in the
-property it has, one weight up from the posted hairline
-(`.lf-mark-el.lf-mark-hover`). Without that, an element-anchored comment answered
+paints glyphs, so a box wears the posted wash as a background image instead
+(`.lf-mark-el`) and says the hover rank in the property it has, one weight up from
+the posted hairline (`.lf-mark-el.lf-mark-hover`). Without that, an element-anchored comment answered
 the pointer with nothing at all — which from the panel, where there is no page
 cursor to change, reads as a broken hover rather than as a passage with no words.
 
@@ -1317,8 +1317,8 @@ that target's existing Button options. Those temporary Buttons borrow the cluste
 and dock with it when necessary; they do not claim permanent rail width. A thread-local
 `r` opens the conversation-owned row on the latest agent message.
 With none of those targets, it shows “Select something to react to” and opens
-nothing. Page-wide reactions remain an explicit ellipsis above the panel's general
-comment box. `REACT` claims the keyboard while a list is open. Arrow keys wrap through
+nothing. Page-wide reactions remain an explicit `React…` trigger above the panel's
+general comment box. `REACT` claims the keyboard while a list is open. Arrow keys wrap through
 every visible Button in the target's shared cluster, including its primary actions and
 Page-map overflow; floating and message-local rows walk their own choices. Tab and
 Shift-Tab follow that same order. The Page-map dialog remains part of the response's
@@ -1334,12 +1334,12 @@ in declaration order, and a stray key closes the list before keeping its ordinar
 threads only; a card shows its turns and its root, so a thread that grew out of a
 reaction opens on the mark, whose body `conversation/messages.js` writes as the
 glyph and its word. `paintReactStrips` puts one reaction surface under each agent
-message and marks the latest one `lf-open`, which keeps its ellipsis visible and
-makes it the thread's `r` target. Older ellipses appear while the reader is in the
-thread. A closed surface shows only standing tokens, pressed and wearing their
-word; opening it replaces the ellipsis with the complete list. `paintPageStrip`
+message and marks the latest one `lf-open`, which keeps its `React…` trigger visible
+and makes it the thread's `r` target. Older triggers appear while the reader is in
+the thread. A closed surface shows only standing tokens, pressed and wearing their
+word; opening it replaces the trigger with the complete list. `paintPageStrip`
 builds the explicit page-wide surface above the general box. A token press closes
-the list and returns focus to the ellipsis; any standing mark remains visible as
+the list and returns focus to the trigger; any standing mark remains visible as
 its own eraser.
 `awaitsReader` first reads any standing local `x-awaits` or `x-request.decision`
 Decision carried anywhere in the unresolved thread; a later plain turn does not hide

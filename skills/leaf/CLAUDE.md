@@ -37,7 +37,7 @@ first presentation boundary;
 `runtime/layer-client.js` owns the vendored-generation gate, shared event POST,
 and page-error channel;
 `runtime/traffic.js` owns the delivery ledger — posts and state reads issued and
-ended, and the outbox's unresolved attempts — painted on the body as
+ended, and the outbox's unresolved attempts — painted on the root element as
 `data-lf-traffic` for whatever waits on the page from outside it;
 `runtime/requests.js` owns typed one-shot request availability, sending, and the
 server-projected request lifecycle watcher;

@@ -285,8 +285,8 @@ def seat_root(thread: dict) -> str | None:
     the widget's words rather than standing in the box it offers, and the reader can
     see the difference — one is a note on a phrase, the other is the cell.
 
-    A reply whose root the log lost is its own root and carries no anchor, so it seats
-    nowhere. No cell on the page shows it either."""
+    A reply whose root the log lost is its own root, so the thread seats where the
+    thread's latest anchor points, and nowhere at all when no message carried one."""
     root = thread["root"]
     anchor = thread["anchor"]
     if root.get("about") or not anchor or len(anchor) != 1:

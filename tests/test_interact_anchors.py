@@ -347,6 +347,44 @@ def test_a_reply_refuses_to_move_a_held_command_goal(page_dir):
     assert "holds the command goal" in moved.output
 
 
+def test_a_moving_reply_activates_the_revision_before_validating_markup(page_dir):
+    """Anchor capture activates the edited source. Reply markup must then validate
+    against that same revision, or it can take an id the newly live page already owns
+    and leave the append-only log incompatible with every later version check."""
+    published(page_dir)
+    root = json.loads(
+        comment(page_dir, "--section", "flow", "--text", "Move this when fixed.").output
+    )
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            "</section>", '<p id="answer">The revised answer.</p></section>'
+        )
+    )
+
+    moved = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--section",
+            "answer",
+            "--text",
+            "Moved this to the revised answer.",
+            "--markup",
+            '<lf-diagram id="answer"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+        ],
+    )
+
+    assert moved.exit_code != 0
+    assert "reply widget ids already taken" in moved.output and "answer" in moved.output
+    assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
+    checked = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+    assert checked.exit_code == 0, checked.output
+
+
 def test_a_version_keeps_each_declared_visual_part_addressable(page_dir):
     parted = PAGE.replace(
         '<lf-diagram id="flow">',

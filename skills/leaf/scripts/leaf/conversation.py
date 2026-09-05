@@ -202,6 +202,11 @@ def cmd_reply(
                 f"thread {root_id!r} holds the command goal named by its opening "
                 "comment, so its anchor cannot be moved"
             )
+        revision, anchor = (
+            _current_anchor(page_dir, events, quote, section, part)
+            if moving
+            else (None, None)
+        )
         fragment = check_markup(page_dir, "reply", markup, events) if markup else None
         if awaits and fragment:
             registry = require_registry(page_dir)
@@ -230,7 +235,6 @@ def cmd_reply(
         if markup:
             event["markup"] = markup
         if moving:
-            revision, anchor = _current_anchor(page_dir, events, quote, section, part)
             event["revision"] = revision
             event["anchor"] = anchor
         return page.append_event(event)

@@ -1133,10 +1133,11 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
                      outline-offset: 3px; border-radius: 2px; }
 
 /* Effective state supplied by the reader log instead of authored input — a moved
-   card, an edited draft, a pick the source did not mark. The runtime compares the
-   log's fold with each widget's captured authored facets in one shared pass. Green,
-   the reader's color: the outline says who constructed the visible state; work
-   receipts separately say whether anything remains to process or complete. */
+   card, an edited draft, a pick the source did not mark. For recorded state, the
+   runtime compares the log's fold with captured authored facets in one shared pass;
+   a recordless decision remains reader-supplied while its holder stands. Green, the
+   reader's color: the outline says who constructed the visible state; work receipts
+   separately say whether anything remains to process or complete. */
 [data-lf-reader-override] { outline: 2px solid color-mix(in srgb, var(--ok) 82%, transparent);
                     outline-offset: 3px; border-radius: 2px; }
 

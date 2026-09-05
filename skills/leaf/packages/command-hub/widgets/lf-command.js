@@ -6,13 +6,14 @@ import {
   conversationBox,
   declarationFor,
   itemWord,
-  keys,
+  commands,
   matchesWhen,
   offer,
   once,
   projectData,
   relabel,
   selectableOffer,
+  watchDecisions,
 } from "/runtime/widget-api.js";
 import {
   closestCommandRole,
@@ -85,7 +86,7 @@ function viewButton(label, view, open, cls = "") {
   relabel(node, label, { says: true });
   node.dataset.lfView = view;
   node.addEventListener("click", open);
-  keys(node, "On a command view", [
+  commands(node, "On a command view", [
     {
       id: "command.open-view",
       keys: PRESS,
@@ -496,15 +497,12 @@ function render(plan) {
 customElements.define(
   "lf-command",
   class extends HTMLElement {
-    #events;
     #observer;
+    #stop;
 
     connectedCallback() {
       once(this);
-      this.#events = new AbortController();
-      document.addEventListener("lf-actions", () => render(this), {
-        signal: this.#events.signal,
-      });
+      this.#stop = watchDecisions(this, () => render(this));
       this.#observer = new MutationObserver((changes) => {
         if (
           changes.some((change) => {
@@ -518,12 +516,11 @@ customElements.define(
           render(this);
       });
       this.#observer.observe(this, { attributes: true, subtree: true });
-      render(this);
     }
 
     disconnectedCallback() {
-      this.#events?.abort();
-      this.#events = null;
+      this.#stop?.();
+      this.#stop = null;
       this.#observer?.disconnect();
       this.#observer = null;
     }

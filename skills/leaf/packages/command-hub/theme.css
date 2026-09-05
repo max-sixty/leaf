@@ -137,10 +137,7 @@ lf-operation { position: relative; display: block; padding: var(--sp-3) 5.5rem v
   border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper);
   --lf-frame: 1; }
 lf-operation[data-lf-requested] { background: color-mix(in srgb, var(--accent) 7%, var(--paper)); }
-.lf-operation-press { position: absolute; top: var(--sp-3); right: var(--sp-3); padding: 3px 8px;
-  border: 1px solid var(--rule); border-radius: 999px; color: var(--accent);
-  white-space: nowrap; }
-.lf-operation-press[aria-disabled="true"] { color: var(--muted); cursor: default; }
+.lf-operation-press { position: absolute; top: var(--sp-3); right: var(--sp-3); }
 .lf-operation-status { grid-column: 1 / -1; color: var(--muted); font: var(--t-6) var(--sans); }
 .lf-operation-status[data-status="failed"] { color: var(--danger-ink); }
 .lf-operation-status[data-status="succeeded"] { color: var(--ok-ink); }

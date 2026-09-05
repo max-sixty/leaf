@@ -32,10 +32,12 @@ first presentation boundary;
 and page-error channel;
 `runtime/requests.js` owns typed one-shot request availability, sending, and the
 server-projected request lifecycle watcher;
-`runtime/decisions/model.js` owns request discovery and folding;
-`runtime/decisions/actions.js` owns widgets' exact ordered action contribution;
+`runtime/decisions/model.js` owns request discovery, folding, and the semantic Decision
+subscription;
 `runtime/decisions/view.js` owns decision chrome, marking, the decision walk, and
-Ask-local numeric action projection;
+Ask-local contextual command projection;
+`runtime/projection-watch.js` owns the lifetime-bound invalidation subscription shared
+by the public semantic projection watchers;
 `runtime/composing/capture.js` owns selection capture and snapping;
 `runtime/composing/surface.js` owns floating comment geometry and page-click routing;
 `runtime/composing/targets.js` owns keyboard item hints and whole-page text search;
@@ -466,7 +468,12 @@ projections. `x-awaits.answers` says which actions actually close the decision;
 orthogonal actions do not, and neither does a conversation standing in the widget's
 declared `x-conversation` seat — that takes the decision off the reader's list without
 answering it, which is why this gate reads the projection with no seats in
-it. An answer or thread-completion verb cannot require its own awaiting value, or
+it. An answer with a position record may declare
+`completion: {empty: {within, when}}`: POST applies the candidate position to the
+authoritative holder relation and admits it only when the one matching item container
+inside the answering widget is empty. The same predicate decides whether a standing
+record answers the Decision, so no private completion flag can diverge from the durable
+arrangement. An answer or thread-completion verb cannot require its own awaiting value, or
 an aggregate parent's awaiting value, to be false: either prerequisite is circular
 while the decision stands. `x-awaits.rollup` carries the logical OR of its nearest
 local decisions and child roll-ups in Python; the aggregate owner never originates
@@ -683,10 +690,11 @@ downstream code sees private status storage.
 
 `actionSequence` traverses the classified events in the installed server view,
 then returns structured clones so modules cannot mutate the reading.
-`updateSequence` filters the server-normalized update feed. `watchActions` and
-`watchUpdates` subscribe the two public readings to `lf-actions` and invoke the
-callback immediately. The same rendering function therefore handles a module
-connected before the first state and one constructed by a later thread reconcile.
+`updateSequence` filters the server-normalized update feed. `watchActions`,
+`watchUpdates`, and `watchDecisions` subscribe their public semantic readings to the
+runtime's projection invalidation and invoke the callback immediately. The same
+rendering function therefore handles a module connected before the first state and one
+constructed by a later thread reconcile.
 
 `lf-actions` fires after a complete state has reconciled, including a read whose
 event list did not grow and the heartbeat's re-application of the state the page
@@ -735,6 +743,7 @@ The extension keys describe general behavior:
 | --- | --- |
 | `x-upgrade` | import this tag's module |
 | `x-content` | the element contains prose, items, data, or no authored content |
+| `x-children` | fixed item roles: exactly one direct child for every value of a required child enum |
 | `x-inline` | the widget stands in an inline run |
 | `x-measured` | authored scalar words are pinned at an instant to one live data input; checks compare that instant with the source's latest update |
 | `x-says` | named attributes are visible words at declared edges |
@@ -859,7 +868,13 @@ minimum obligations:
 - Read authored or user-facing words with `says`, never raw `textContent`.
 - Build injected controls with `offer`. Use `relabel` when a control's label is
   also one of the page's words.
-- Register keys with `keys(el, title, rows)` during upgrade, not at module load.
+- Register capabilities with `commands(el, title, rows)` during upgrade, not at module
+  load. Set `decision` to the concise action name and add `control` to the same row or
+  route when that control answers or advances the containing Ask; call `paintKeys` when
+  its liveness or computed fields change. Do not maintain a second Ask-control list.
+- Subscribe to the page-wide open Ask projection with `watchDecisions(el, callback)`
+  only when a package needs that reading. It invokes immediately, returns cleanup, and
+  keeps packages off the internal `lf-actions` signal.
 - Call `quoted(el)` before wiring module-specific gestures. `sendAction` also
   refuses actions on an exhibited widget at the layer door.
 - A visual declaring `{parts: ATTR}` calls `registerVisualParts(source, read)` once.
@@ -1036,6 +1051,11 @@ boundaries remain ordinary quote anchors because they name a passage, not one fa
 consumer names its tag. Export preserves the rendered elements and their labels as a
 snapshot, while dropping the scripts that could refresh them. Print preserves the same
 readable words. Neither medium claims that the snapshot remains live.
+
+Ordinary action controls use `.lf-btn`, whose shared theme rules also enter
+declared shadow trees. Packages may set placement and density, but keep its
+shape, border, hover, and disabled treatment. Margin Buttons, reaction chips,
+and status labels retain their own forms.
 
 The three visual voices are prose, apparatus, and evidence. Body prose uses the
 serif; labels, controls, and annotations embedded in evidence use the sans; and
@@ -2072,7 +2092,7 @@ thread, for example—does not push another frame, so Escape still returns throu
 entry that opened the surface.
 
 The register owns capabilities, not controls. Every capability the chrome offers
-has a row, and each control that reaches one names its key through `also`; a
+has a row, and each control that reaches one is named by `control`; a
 control is a route to a capability rather than a capability of its own, so a
 second route needs no second row. A run heading in the thread panel presses the
 page to where that run is about. That travel is a capability, just as `w` and `/`
@@ -2086,10 +2106,12 @@ Directional category walks use the category's letter, with case stating directio
 lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
 walks open asks. Keep these as single-key presses rather than prefix sequences; a walk
 is often repeated or held. While the reader stands anywhere in an Ask, its widget's
-ordered actions take `1`–`9`; the core projects that exact list into the key line and
-visible control chips. Each numbered action is a command route; that route is the one
+ordered actions keep a canonical binding where they declare one and otherwise take the
+next free `1`–`9`. Core projects that exact list into the key line and visible control
+chips. Each action is a command route; that route is the one
 binding-to-control identity used by dispatch, the reference, the key line, its address,
-and `aria-keyshortcuts`. Tab walks the real controls without replacing that action map;
+and `aria-keyshortcuts`; core does not mint a second identity for the projection. Tab
+walks the real controls without replacing that action map;
 a control's scope adds only its native or local mechanics. `j`/`k` scroll
 down/up by 60 pixels; `d`/`u` move 60% of
 the reading page. Both follow the active region, share a quick glide, and jump under
@@ -2098,7 +2120,7 @@ from words the surface says: `w` narrows to threads waiting on the reader, while
 [Go-to chord](#go-to-chord) uses case to separate complete destinations from numbered
 lists. A key spelling something nothing on screen says is a key nobody reaches for twice.
 Approval spends no fixed page letter: its visible button stays in the Tab order and takes
-native Enter or Space, while the Ask-local list gives it a contextual number. In particular,
+native Enter or Space, while the Ask-local list gives it a contextual binding. In particular,
 a conditional chord mnemonic must not share its final key
 with a page action, or a dead destination can fall through into a different operation.
 
@@ -2169,8 +2191,9 @@ them in. Inside a text box the letter is a character, Enter writes a newline, an
 arrows move the caret. The typing scope claims those text-editing keys, so a reader
 reaches a surface's letters and walks from its list rather than from its composer.
 
-Widgets register through `keys(el, title, rows)` in
-`connectedCallback`. A module loaded on a page with no instance must contribute
+Core registers scopes through internal `keys(el, title, rows)`; package widgets receive
+the same register as `commands(el, title, rows)` in `connectedCallback`. A module loaded
+on a page with no instance must contribute
 no scope or help section. Runtime scopes live in `SCOPES`; `merge` is the only
 function that gathers scope sections. Preserve the order of that list because
 the dispatcher and key line walk inward to outward while the full reference
@@ -2179,6 +2202,16 @@ groups the same scopes for reading.
 A row has these meanings:
 
 - `keys` is a binding or computed list of bindings.
+- `label` optionally overrides the compact keycap in the command's own scope. A keyless
+  Decision command falls back to its `decision` action name in the complete reference.
+  An Ask instead shows the resolved binding beside that separate action name, so an
+  inline hint always says what the reader actually presses.
+- `control` is the visible element that activates the capability. `decision` is a
+  non-empty action-name string or a function returning one; it includes that command in
+  its containing Ask. The row may carry an existing `address` and has zero or one live
+  binding. A keyless decision command receives its contextual number from the Ask
+  projection. Routes may carry the same fields when one row describes a parameterized
+  family of controls.
 - `does` is the sentence for the press, or a function when the current state
   changes the sentence.
 - `when` says whether the capability exists. When a destination surface is available
@@ -2567,12 +2600,12 @@ key it disables.
 
 `aria-keyshortcuts` is another projection of the register. Element scopes expose
 their currently available rows, including the scope's capability gate, and a
-row's `also` control exposes the key that duplicates it. `Mod` expands to both
+row's `control` exposes the key that duplicates it. `Mod` expands to both
 Meta and Control because the dispatcher accepts both. The attribute cannot express a
-sequential chord: spaces separate alternatives. An `also` control in a chord scope
-therefore omits it and exposes the complete route through its title and the keyboard
-reference. Call `paintKeys` when a state change moves row liveness so this projection
-and the visible surfaces change together.
+sequential chord: spaces separate alternatives. An associated `control` in a chord
+scope therefore omits `aria-keyshortcuts` and exposes the complete route through its
+title and the keyboard reference. Call `paintKeys` when a state change moves row
+liveness so this projection and the visible surfaces change together.
 
 An overlay may become stale while open. If a row goes dead, its dispatch no
 longer runs. A newly live row may wait until the reference is reopened. Do not
@@ -2639,15 +2672,16 @@ Decision rows come from every active local `x-awaits` source and holder declarin
 `x-request.decision`, answered or open, not from a list of decision tags. Where a source
 is nested in an `x-decision` region, the row names the region: its heading, context, and
 evidence are the decision the reader is being sent to, while the source remains the
-owner of the answer. `itemSays` supplies each row's own label and the widget's
-decision-action registration supplies its current answer. Selecting a tray row travels
-through the same decision-arrival function as `a` and `A`, so the panel and directional
-walk agree about focus, reveal, arrival placement, and `landed`; only the tray's list is
-wider, preserving answered routes for review and revision.
+owner of the answer. `itemSays` supplies each row's own label and the owned command
+scope's `options.answer` supplies its current answer. Selecting a tray row travels through
+the same decision-arrival function as `a` and `A`, so the panel and directional walk agree
+about focus, reveal, arrival placement, and `landed`; only the tray's list is wider,
+preserving answered routes for review and revision.
 
 An arrival stands the reader on the decision, which is the element the scroll has just
 aligned and the one the ring names. The widget's contributed actions are addressable
-there as `1`–`9`; its controls remain the next Tab stops, a stop at `tabindex: -1`
+there by their declared bindings, with `1`–`9` as the default; its controls remain the
+next Tab stops, a stop at `tabindex: -1`
 keeping its place in document order. Landing the answering control
 instead puts them as far down the decision as its context and evidence are long, off
 the screen the same gesture arranged. A decision a page styles boxless has nothing to

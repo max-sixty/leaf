@@ -1102,6 +1102,48 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
     page.close()
 
 
+def test_only_addressed_cards_yield_their_header_state_to_the_ask(browser, serve):
+    """An Ask address replaces only the state control on the card that owns it.
+
+    A package may contribute more actions than the nine contextual number bindings.
+    The remaining cards still need their checkboxes: hiding every sibling as soon as
+    one address exists erases both the unaddressed action and the group's multiple-choice
+    arity from those cards.
+    """
+    options = "".join(
+        f'<lf-option id="route-{index}"><strong>Route {index}</strong>'
+        f"<p>Technical argument {index}.</p></lf-option>"
+        for index in range(1, 11)
+    )
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "ten routes",
+                '<h1 id="h">Ten routes</h1>'
+                '<lf-decision id="routes-decision"><h2>Which routes survive?</h2>'
+                f'<lf-options id="routes" choose multiple>{options}</lf-options>'
+                "</lf-decision>",
+            )
+        ),
+    )
+    resized(page, 900, 1200)
+
+    page.keyboard.press("a")
+    expect(
+        page.locator("#routes > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_count(9)
+    opacity = "el => getComputedStyle(el).opacity"
+    for index in range(1, 10):
+        assert page.locator(f"#route-{index} > .lf-pick").evaluate(opacity) == "0"
+    assert page.locator("#route-10 > .lf-pick").evaluate(opacity) == "1", (
+        "the unaddressed tenth action lost its visible checkbox to a sibling's address"
+    )
+
+    assert errors == []
+    page.close()
+
+
 def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
     """An option's content model is prose, so a question nests inside another question's
     option — the theme's argument-row form lists `lf-options` among the block content it
@@ -1126,6 +1168,30 @@ def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
     # its options: the mark on #out-drill is the outer question's, not the inner one's.
     assert page.locator("#out-drill > .lf-pick").evaluate(corner) < 0.5
     assert page.locator("#out-keys > .lf-pick").evaluate(corner) < 0.5
+    assert errors == []
+    page.close()
+
+
+def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve):
+    """An Ask projects commands from its Decision source, but containment alone does
+    not confer ownership: a second Decision may stand inside an option as evidence.
+
+    The outer Ask must therefore expose only its two choices. Otherwise both numbered
+    command sets collide when the reader navigates there, and the inner question either
+    breaks the key line or lends its answers to the wrong Ask.
+    """
+    page, errors = open_page(browser, serve(NESTED_DECISION_PAGE))
+    page.keyboard.press("a")
+
+    expect(page.locator("#outer-decision")).to_be_focused()
+    outer_hints = page.locator("#outer > lf-option > .lf-address")
+    expect(outer_hints).to_have_text(["1", "2"])
+    expect(outer_hints.first).to_be_visible()
+    expect(page.locator("#inner > lf-option > .lf-address").first).to_be_hidden()
+
+    page.keyboard.press("2")
+    expect(page.locator("#out-keys")).to_have_attribute("chosen", "")
+    expect(page.locator("#inner > lf-option[chosen]")).to_have_count(0)
     assert errors == []
     page.close()
 

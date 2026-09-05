@@ -457,6 +457,10 @@ export function createSelectionSurface({
   let selectionDragged = false;
   let selectionRangeDuringPress = null;
   let selectionPressPoint = null;
+  // A widget may turn a press over page words into a different gesture after pointerdown.
+  // `preventDefault` on its bubbling pointermove is the shared claim boundary: the
+  // selection surface must not restore the range it captured before that claim.
+  let selectionGestureClaimed = false;
   let actionPress = false;
   let targetActivation = false;
   let fabInputTakingFocus = false;
@@ -503,6 +507,7 @@ export function createSelectionSurface({
       pointerSelecting = primaryPointerPressed && pageWords(ev.target);
       selectionDragged = false;
       selectionRangeDuringPress = null;
+      selectionGestureClaimed = false;
       selectionPressPoint = pointerSelecting ? { x: ev.clientX, y: ev.clientY } : null;
       // Read here, ahead of the browser's own collapse, so the first crossing this press
       // makes is measured against what the line already says rather than against nothing.
@@ -516,6 +521,10 @@ export function createSelectionSurface({
   );
   document.addEventListener("pointermove", (ev) => {
     if (!pointerSelecting || !selectionPressPoint) return;
+    if (ev.defaultPrevented) {
+      selectionGestureClaimed = true;
+      return;
+    }
     selectionDragged ||=
       Math.hypot(
         ev.clientX - selectionPressPoint.x,
@@ -542,6 +551,7 @@ export function createSelectionSurface({
     if (primaryPointerPressed) scheduleSelectionUpdate();
     primaryPointerPressed = false;
     pointerSelecting = false;
+    selectionGestureClaimed = false;
     setTimeout(() => {
       actionPress = false;
     });
@@ -573,6 +583,13 @@ export function createSelectionSurface({
   document.addEventListener("mouseup", (ev) => {
     primaryPointerPressed = false;
     pointerSelecting = false;
+    const gestureClaimed = selectionGestureClaimed;
+    selectionGestureClaimed = false;
+    if (gestureClaimed) {
+      selectionRangeDuringPress = null;
+      scheduleSelectionUpdate();
+      return;
+    }
     if (actionPress) return;
     if (!pageWords(ev.target) && !pageSelection()) return;
     const selection = pageSelection();

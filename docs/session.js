@@ -30,36 +30,43 @@
  * second copy of that door would be a second thing to keep in step with the first.
  */
 
-// The builder injects the same identity markers as Leaf's HTTP server. That lets the
-// current example keep its page-root URL while immutable historical versions retain
-// their versions/vN.html addresses. Product documents are live drafts, so the static
-// session supplies their revision marker and leaves their version unset.
+// The current example keeps its authored source at the page-root URL, while the build
+// materializes historical versions with the same identity markers as Leaf's HTTP
+// server. The event-backed version map is the shared authority for both: this session
+// derives the root document's identity from it, checks any built marker against it, and
+// installs the markers before the runtime loads. Product documents have no version
+// map, so they remain revision-one drafts.
 const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
+const PATH_VERSION = Number(location.pathname.match(VERSION_PATH)?.[1]) || null;
 const PAGE_ROOT = new URL(
   VERSION_PATH.test(location.pathname) ? "../" : "./",
   location.href,
 ).pathname;
 const DOCUMENT_URL = location.pathname;
-const revisionMarker =
-  document.querySelector('meta[name="lf-revision"][data-lf-runtime]') ??
-  Object.assign(document.createElement("meta"), {
-    name: "lf-revision",
-    content: "1",
-  });
-if (!revisionMarker.isConnected) {
-  revisionMarker.dataset.lfRuntime = "";
-  document.head.append(revisionMarker);
-}
-const REVISION = Number(revisionMarker.content);
-const versionMarker = document.querySelector(
-  'meta[name="lf-version"][data-lf-runtime]',
-);
-const VERSION = versionMarker ? Number(versionMarker.content) : null;
+let REVISION;
+let VERSION;
+let VERSIONS;
 const realFetch = window.fetch.bind(window);
 
-// Begin every file read before installing the runtime. The local API below awaits this
-// one readiness promise only when the runtime asks for state, leaving its module graph
-// and the page's widget imports free to load alongside the static seed.
+function installIdentity(name, value) {
+  const selector = `meta[name="${name}"][data-lf-runtime]`;
+  let marker = document.querySelector(selector);
+  if (marker && Number(marker.content) !== value)
+    throw new Error(
+      `${DOCUMENT_URL} says ${name} ${marker.content}, but its version log says ${value}`,
+    );
+  if (!marker) {
+    marker = document.createElement("meta");
+    marker.name = name;
+    marker.dataset.lfRuntime = "";
+    document.head.append(marker);
+  }
+  marker.content = String(value);
+}
+
+// Begin every file read together. Document identity comes from the event-backed version
+// map, so this module waits for the shared seed before returning to the boot module; the
+// runtime then reads the markers and API responder from one settled session.
 let REGISTRY;
 let LAYER;
 let DATA;
@@ -86,7 +93,26 @@ const sessionReady = Promise.all([
   LAYER = registry.$layer.generation;
   DATA = data;
   events = seededEvents;
+  VERSIONS = events
+    .filter((event) => event.kind === "note")
+    .sort((left, right) => left.version - right.version)
+    .map((event) => ({
+      version: event.version,
+      revision: event.revision,
+      url: `${PAGE_ROOT}versions/v${event.version}.html`,
+    }));
+  const active =
+    PATH_VERSION === null
+      ? VERSIONS.at(-1)
+      : VERSIONS.find((candidate) => candidate.version === PATH_VERSION);
+  if (PATH_VERSION !== null && !active)
+    throw new Error(`${DOCUMENT_URL} has no event-backed version mapping`);
+  REVISION = active?.revision ?? 1;
+  VERSION = active?.version ?? null;
+  installIdentity("lf-revision", REVISION);
+  if (VERSION !== null) installIdentity("lf-version", VERSION);
 });
+await sessionReady;
 
 // The name a reply in the panel wears, and nothing else. It is not the name of anyone
 // behind the page — nobody is — so the banner never speaks it: `unattended` below is what
@@ -165,14 +191,17 @@ const valueOf = (event) => {
   return value ?? null;
 };
 
-function demoProjection() {
+function demoProjection(revision = REVISION) {
   const withdrawn = new Set(
-    events.filter((event) => event.undoes).map((event) => event.undoes),
+    events
+      .filter((event) => event.undoes && event.revision <= revision)
+      .map((event) => event.undoes),
   );
   const entries = [];
   const actions = new Map();
   const reports = new Map();
   for (const event of events) {
+    if (event.revision > revision) continue;
     if (!["action", "report"].includes(event.kind)) continue;
     const coordinate = coordinateOf(event);
     if (!coordinate) continue;
@@ -338,8 +367,8 @@ function demoDecisions(projection, threads) {
   return { ...decisions, awaiting, unansweredAwaiting };
 }
 
-function demoBrowser() {
-  const projection = demoProjection();
+function demoBrowser(revision = REVISION) {
+  const projection = demoProjection(revision);
   const threads = demoThreads();
   const decisions = demoDecisions(projection, threads);
   const throughSeq = events.at(-1)?.seq ?? 0;
@@ -367,10 +396,10 @@ function demoBrowser() {
   return {
     basis: { through_seq: throughSeq },
     views: {
-      [REVISION]: {
-        basis: { revision: REVISION, through_seq: throughSeq },
+      [revision]: {
+        basis: { revision, through_seq: throughSeq },
         document: {
-          revision: REVISION,
+          revision,
           projection,
           decisions: {
             all: decisions.all,
@@ -417,10 +446,7 @@ const state = () => ({
     label: VERSION === null ? "Draft" : `v${VERSION}`,
     activated_at: null,
   },
-  versions:
-    VERSION === null
-      ? []
-      : [{ version: VERSION, revision: REVISION, url: DOCUMENT_URL }],
+  versions: VERSIONS,
   source_error: null,
   // Nobody is behind this page and nobody is coming, which the runtime has a word for
   // and reads before it weighs anything else. Everything below it is then the honest
@@ -525,12 +551,15 @@ window.fetch = async (input, init) => {
     });
   }
   if (url.pathname === "/api/view") {
-    const browser = demoBrowser();
+    const current = demoBrowser();
     const revision = Number(url.searchParams.get("revision"));
     const throughSeq = Number(url.searchParams.get("through_seq"));
-    if (revision !== REVISION || throughSeq !== browser.basis.through_seq)
+    const knownRevision =
+      revision === REVISION ||
+      VERSIONS.some((candidate) => candidate.revision === revision);
+    if (!knownRevision || throughSeq !== current.basis.through_seq)
       return json({ error: "the static exhibit holds no such projection" }, 400);
-    return json({ browser });
+    return json({ browser: demoBrowser(revision) });
   }
   if (url.pathname === "/api/event") {
     const event = JSON.parse(init.body);

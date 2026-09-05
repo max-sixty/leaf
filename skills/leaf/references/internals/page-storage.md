@@ -13,9 +13,11 @@ A page directory holds:
                          active revision.
     /versions/v1.html…   virtual public addresses. Each `note` event maps a version to
                          its immutable revision, and the server renders that revision
-                         at the stable version URL. No second HTML copy is stored.
-                         A pinned version therefore never moves while later source saves
-                         become live.
+                         at the stable version URL. No second HTML copy is stored in the
+                         durable page record. A static-site build may materialize the
+                         same responses beside a copied record as disposable delivery
+                         output; those files are never an authority. A pinned version
+                         therefore never moves while later source saves become live.
     leaf.js              the browser entry, served at /leaf.js
     theme.css            tokens, element styles, class idioms, element-widget CSS
     registry.json        the widget vocabulary: JSON Schema per lf-* tag, plus the

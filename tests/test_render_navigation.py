@@ -1391,7 +1391,8 @@ def test_the_pointer_over_a_comment_lights_the_passage_it_is_about(browser, serv
     # from its neighbour. The floor is 4, against a just noticeable difference near 2.3
     # and the palette's own 6.4 and 6.5 in light, 7.4 and 7.2 in dark.
     ramp = page.evaluate("""() => {
-        const rules = [...document.styleSheets].flatMap(s => {
+        // The marks' rules are adopted, not linked (runtime/marks.css).
+        const rules = [...document.styleSheets, ...document.adoptedStyleSheets].flatMap(s => {
             try { return [...s.cssRules] } catch { return [] }
         });
         const probe = document.createElement('div');

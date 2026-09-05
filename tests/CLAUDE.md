@@ -355,8 +355,9 @@ position, put the element on screen first — `scroll_into_view_if_needed()` say
 out loud — and read the baseline after that.
 
 Nothing should be injected into the page merely to make ordinary observation easier.
-Traffic comes from Playwright's request, response, and request-failure events. Network
-conditions come from `page.route`. `watched` listens to the browser's error surfaces.
+Traffic is read off the delivery ledger the runtime itself paints on the root element
+(`data-lf-traffic`, runtime/traffic.js). Network conditions come from `page.route`.
+`watched` listens to the browser's error surfaces.
 `primed` lets a render or export call create its own page while the test attaches
 those external controls before navigation. These mechanisms exercise the runtime a
 reader receives.
@@ -444,8 +445,10 @@ frame, even if the gesture continues to a different result.
 
 The main causal helpers are:
 
-- `Traffic` observes the page's lifetime request traffic from outside the runtime.
-  It tracks event attempts separately from physical requests and includes reloads.
+- `Traffic` reads the runtime's own delivery ledger: posts to `/api/event` issued and
+  ended, reads of `/api/state` asked and heard, and the outbox's attempts with no
+  outcome yet. It counts attempts, so a retry is a second send. The ledger is the
+  document's: a navigation starts it over with the page that carries it.
 - `round_trip(page)` waits until every event attempt sent by that page has a
   definitive outcome: an accepted or final refusal response, or a state response
   containing the attempt. A request failure alone is not final because the page may
@@ -560,10 +563,10 @@ derived from that product constant plus scheduling room. Do not invent a generic
 sleep for absence assertions.
 
 When a wait times out, its message must say what evidence was missing. `_until`
-includes the starting and final `Traffic` counters, which distinguishes a stuck event
+includes the starting and final `Traffic` readings, which distinguishes a stuck event
 from a page that stopped communicating. Its deadline is fixed when the wait begins:
-responses may wake the check, but a busy response stream cannot extend the deadline
-and keep a false delivery fact alive forever. New causal helpers need similarly useful
+repaints of the ledger wake the check, but a page that repaints forever cannot extend
+the deadline and keep a false delivery fact alive. New causal helpers need similarly useful
 failure output and the same bounded-progress property.
 
 ## State races are arrangements, not probabilities
@@ -705,6 +708,14 @@ the first animation frame may arrive after the whole quiet window, and a pair of
 samples can both precede the transition. Ask whether the claim concerns the settled
 state, one frame, the order of frames, or the exact turn of a write, then choose the
 smallest observation that can preserve it.
+
+The movement tests ask both paths that can shift a target:
+
+- press a control and compare the rest of its line;
+- let news arrive and compare all persistent chrome controls.
+
+A pixel diff is required for borders, outlines, and shadows that can paint
+outside unchanged rectangles. Box comparisons alone cannot see those changes.
 
 ## Make a green test non-vacuous
 

@@ -1,3 +1,102 @@
+/* The decision view: where the reader is standing, the ring that says so, the Asks tray's
+   rows, and the walks and arrivals that move between decisions.
+
+   Focus is the reader's current place. `focused` follows it through declared shadow
+   roots. A native label activation may pass through `body` or a focusable container
+   between the pointer press and the control's focus; Leaf treats that interval as one
+   logical standing without changing DOM focus or preventing label text selection.
+   `documentFocused` retargets the logical standing to its document host. Painted focus
+   readings use one of those two functions; CSS reads the matching `.lf-focus`,
+   `.lf-focus-visible`, and `.lf-focus-within` projections. A key ends the pointer
+   interval and restores physical focus before dispatch. Code that acts on physical focus
+   otherwise reads `document.activeElement` directly. `markHere` paints one `--here-ring`
+   around the semantic decision or control that contains focus. The ring is derived on
+   each paint; it does not store the decision walk's position.
+
+   The ring is therefore paintable on a decision the `a`/`A` ask walk will not step to.
+   The tray does list it: the walk is a worklist, while the tray is the complete route
+   through the active Ask inventory. The Escape rung still reads focus rather than either
+   list, so the way out is the one it always has.
+
+   Working a decision and standing in one are different facts, and `markHere`'s ring
+   answers the second. A reader who tabbed to a link inside a question has named something
+   more particular than the question, so a press there means the link's own block; reading
+   the ring instead overrode what they named, and made the same markup answer differently
+   according to whether its question was still open. The two agree wherever the reader is
+   working the decision, which is every arrival the decision walk makes.
+
+   `standingConversation` (conversation/landing.js) is the exception, and covers all three
+   containers that hold a conversation the reader can stand in: the panel's thread, a
+   conversation seated on the page, and each thread inside that seat. It asks for the box
+   rather than for the container's class, because a resolved thread is built by the same
+   function and wears the same class while having no box to reach, and a collapsed one
+   answers the same honest way.
+
+   `landed` stores where the decision walk last arrived. This is distinct from focus:
+   clicking elsewhere removes the focus-derived ring without erasing either the walk's
+   useful continuation point or the answer progress in the banner.
+
+   `shownParts` supplies ring targets when a page styles a decision with `display:
+   contents`. A normal boxed decision wears one outline on its own box. Hoisted controls
+   use the same ring token through the shared pill rule.
+
+   Decision rows come from every active local `x-awaits` source and holder declaring
+   `x-request.decision`, answered or open, not from a list of decision tags. Where a
+   source is nested in an `x-decision` region, the row names the region: its heading,
+   context, and evidence are the decision the reader is being sent to, while the source
+   remains the owner of the answer. `itemSays` supplies each row's own label and the owned
+   command scope's `options.answer` supplies its current answer. Selecting a tray row
+   travels through the same decision-arrival function as `a` and `A`, so the panel and
+   directional walk agree about focus, reveal, arrival placement, and `landed`; only the
+   tray's list is wider, preserving answered routes for review and revision.
+
+   An arrival stands the reader on the decision, which is the element the scroll has just
+   aligned and the one the ring names. The widget's contributed actions are addressable
+   there by their declared bindings, with `1`–`9` as the default; its controls remain the
+   next Tab stops, a stop at `tabindex: -1` keeping its place in document order. Landing
+   the answering control instead puts them as far down the decision as its context and
+   evidence are long, off the screen the same gesture arranged. A decision a page styles
+   boxless has nothing to stand on and keeps the control as its landing. A widget rebuilt
+   under a reader is not an arrival and hands back the control they were working
+   (`standOn`).
+
+   A directional page walk starts from the reader's place, in this order:
+
+   1. current focus;
+   2. selection or caret;
+   3. the walk's last `landed` item;
+   4. the current reading block and scroll position.
+
+   The banner is an address, not a page position, so its controls do not become the walk's
+   origin. `decisionStep` compares document positions rather than incrementing an index
+   remembered by the walk. A panel thread walk may use log order because the list itself
+   is its complete ordered space.
+
+   Arriving at a page decision puts its arrival region's start below the banner, not the
+   decision's own top edge. A widget declaring `x-decision` states that region and the
+   walk is handed the region rather than the source inside it. Nothing else declares one,
+   and an edit to a phrase cannot: what explains it is the sentence it stands in and the
+   heading over that. `arrivalRegion` reads that region off the document instead. Its
+   candidates are the blocks before the decision whose own parent still contains it — so a
+   block wrapped in something the decision stands outside of, another ask or a section of
+   its own, is not this decision's context — and of those it takes the last heading, then
+   the text block holding the decision or, for a change that is its own block, the nearest
+   remaining block before it. The first candidate whose start still leaves the decision's
+   foot on screen wins, falling back to the decision itself. That bound is what lets the
+   widest candidate go first, and it keeps the region inside one screen without a rule
+   about distance. A candidate that paints no box is not a place to arrive at: an element
+   generating none measures at the document's origin, which would read as a region at the
+   top of the page.
+
+   The sweep is the document's own blocks in document order, so a decision staged inside a
+   declared shadow tree takes a heading standing over its host but not one inside that
+   tree. The travel moves the page's scroller, so the decision's own box is brought into
+   view first for the sake of a decision inside a nested scroller, which that placement
+   would never reach. A decision whose region already stands clear of the banner, and
+   which `readableDestination` reads as unclipped on every edge, is not travelled to at
+   all: the press moves the ring and the focus and leaves the page still. A thread
+   decision keeps its centred arrival in the panel's own list. */
+
 import { shownBox, shownRect } from "../geometry.js";
 import {
   createAddressPlacement,

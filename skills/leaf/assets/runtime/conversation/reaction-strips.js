@@ -1,6 +1,14 @@
 import { paintReactionStanding } from "../reactions.js";
 
-/* Reaction surfaces rendered in every complete Thread view. */
+/* Reaction surfaces rendered in every complete Thread view.
+
+   `paintReactStrips` puts one reaction surface under each agent message and marks the
+   latest one `lf-open`, which keeps its ellipsis visible and makes it the thread's `r`
+   target. Older ellipses appear while the reader is in the thread. A closed surface
+   shows only standing tokens, pressed and wearing their word; opening it replaces the
+   ellipsis with the complete list. `paintPageStrip` builds the explicit page-wide
+   surface above the general box. A token press closes the list and returns focus to
+   the ellipsis; any standing mark remains visible as its own eraser. */
 export function createConversationReactionStrips(dependencies) {
   const {
     bareReaction,

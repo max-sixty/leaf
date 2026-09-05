@@ -87,6 +87,16 @@ function marginReading(main) {
   return { isResident, left, residents, right };
 }
 
+// Overflow is acceptable only when the reader can reach it or the box explicitly signals
+// the cut. A scroll container may expose content in its scroll direction. `text-overflow`
+// may signal omitted text. Plain clipping does not make content reachable.
+// `misplacedBoxes`, `clippedControls`, and `coveredWords` enforce the distinct geometry,
+// interaction, and text consequences.
+//
+// `tinyBoxes` ensures each declared widget upgrades to a usable box. `unreachableWords`
+// catches rendered words outside reachable flow. `misplacedBoxes` asks each container's
+// actual overflow behavior. Do not exempt a box merely because an ancestor declares
+// `overflow`.
 export function misplacedBoxes() {
   // shownBand is the runtime's own: what a container lets the reader see of what it
   // holds, or nothing where it shows all of it. Imported rather than restated, so the
@@ -457,6 +467,16 @@ export function withheldRoom() {
 // unwrapped would push every column it spans out and name them all.
 // A cell in a hidden or collapsed row has no height. Read from `main`, where geometry
 // is real.
+//
+// `squeezedTables` reports a table that scrolls sideways with a cell in it wrapped. A
+// scrolling table's columns are all at their longest unbreakable run, so a cell wrapping
+// there wraps at a word a line — beside a name that could not break (an identifier
+// written outside `<code>`, a bare URL), or because the table has more columns than the
+// measure holds. A column wraps when it stands wider with wrapping turned off — its
+// content asked for more than its longest run — which hidden content, laid out on demand
+// but size-contained, cannot change. The finding lists the wrapping columns with their
+// widths, names the widest, and leaves the diagnosis to the author. A table that scrolls
+// with nothing left to wrap is the theme's honest third case.
 export function squeezedTables() {
   const main = document.querySelector("main");
   if (!main) return [];

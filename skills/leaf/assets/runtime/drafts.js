@@ -1,4 +1,64 @@
-/* Durable, cross-tab drafts and their accepted-log reconciliation. */
+/* Durable, cross-tab drafts and their accepted-log reconciliation.
+
+   Every unsent text surface persists:
+
+   - the general comment box;
+   - each thread reply;
+   - the selection composer, including its anchor and mode;
+   - a conversation's first message and replies;
+   - an `lf-draft` edit.
+
+   The store is `localStorage` scoped by page and draft context, because the text must
+   survive reload, version navigation, server restart, and closing the tab where it was
+   typed. `draftCache` keeps a readable local branch when storage writes fail. Storage
+   failure may reduce cross-tab durability; it never disables the live Send or Save
+   action.
+
+   One context has one shared generation. `watchDraft` mirrors storage changes into
+   every connected view. The DOM's listener cleanup is the index: a watcher stops when
+   its box is disconnected, so panel reconciliation does not maintain a parallel map of
+   live inputs.
+
+   A draft generation stores `{text, attempt, base}` while active and `{attempt, base,
+   settled: true}` after settlement. Its attempt is minted on the keystroke that creates
+   the generation, not on Send, and is reused by every tab that sends that generation.
+   A refusal does not mint a new attempt. Pressing Send again re-evaluates the same
+   attempt against current server state. A new edit, including replacing text with the
+   same characters, creates a new attempt. A successful send settles only the exact
+   active generation it sent. `sendDraft` refreshes the shared record and compares both
+   untrimmed text and attempt immediately before POST; `settleDraft` repeats the
+   generation check before writing the tombstone. Text typed while the request is in
+   flight therefore survives its response.
+
+   An active record and a settled tombstone are different records. An empty active
+   `text` means the reader intentionally cleared the box. A tombstone means Send or
+   Cancel settled that generation. The implementation never depends on `removeItem` to
+   distinguish them, because deletion can fail independently and could otherwise
+   resurrect old words.
+
+   `base` records the durable shared generation a local edit descends from. A chain of
+   nondurable local writes keeps that base. Storage news from the base cannot erase the
+   branch; an unrelated later shared generation owns the context and retires it. Before
+   writing a settlement, Send, Cancel, and log reconciliation refresh the shared
+   generation so a stale tab cannot tombstone a newer edit.
+
+   Settlement is generation-specific. `activeDraftRecord` filters tombstones and
+   accepted attempts (`attemptAccepted`: an attempt already in `events` is settled
+   whatever stale storage hands back). `sendDraft` snapshots the current record, checks
+   ownership immediately before POST, and settles only that attempt. `mirrorDraft`
+   updates visible text only when doing so will not erase a newer local generation.
+
+   The selection composer keys drafts by anchor, not by one global composer slot. Its
+   stored record carries the anchor, mode, and last-touch time; startup reopens the
+   most recently touched draft. Different passages may therefore hold independent
+   unfinished comments.
+
+   An `lf-draft` editor is a live gesture. Its `renderState` returns `false` while the
+   editor is open, so remote edits and refusal correction wait rather than overwriting
+   the textarea. Closing the editor lets the authoritative projection apply in order.
+
+   The comment over the store below says where it came from and why one record carries
+   an edit's provenance. */
 
 import { runtime } from "./context.js";
 import { PAGE_SCOPE, draftStore } from "./storage.js";

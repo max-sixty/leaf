@@ -169,10 +169,9 @@
  * version it was written on, so a reference to an id this one hasn't got wears the
  * detached face a stranded quote wears, and its press is refused (paintAnchors). */
 
-import { chromeStyle } from "./runtime/chrome-style.js";
+import chromeSheet from "./runtime/chrome.css" with { type: "css" };
 import {
   COVERING,
-  NON_COVERING,
   PANEL_KEY,
   PANEL_MIN,
   PANEL_PROP,
@@ -330,20 +329,14 @@ import {
   widgetEntries,
 } from "./runtime/registry.js";
 import {
-  MARK_RULES,
   createShadowStage,
+  marksSheet,
   pageShadowRoots,
   shadowStage,
 } from "./runtime/shadow.js";
 import { VERSION_PATH, readerStore, tabStore } from "./runtime/storage.js";
 import { highlightBlocks } from "./runtime/syntax.js";
-import {
-  createTrays,
-  STRIP_TRAY_RULE,
-  TRAY_COVERING,
-  TRAY_KEY,
-  TRAY_PROP,
-} from "./runtime/trays.js";
+import { createTrays, TRAY_KEY } from "./runtime/trays.js";
 
 // A reader preference, not page state: speech input and a stray key should not turn into
 // commands unless this reader wants the Vim-like layer. It follows them across Leaf pages,
@@ -409,40 +402,8 @@ function receiveState(...args) {
 // register's own scopes and the dispatcher that walks them are in the keyboard section
 // below; what is here is the vocabulary they and the widget modules share.
 //
-// A row:
-//   id    — its stable dotted identity. Words and keys may change without changing the
-//           route used by the reference and other projections.
-//   keys  — the bindings it answers: "a", "Escape", "Mod+Enter", "Shift+a", "d".
-//           A function where the set is the page's (an option group's 1–N).
-//   routes— optional stable subcommands when those bindings mean different things. The
-//           keyline keeps the compact row; the reference presents each route separately.
-//           A route may override `line` and `label` for the case where a nearer scope
-//           shadows only its sibling binding.
-//   label — how it renders. Computed from `keys` unless the row is a chord whose second
-//           half is another scope's row, and then built from that row rather than typed.
-//   does  — the overlay's sentence.
-//   line  — the line's word: a row carrying one stands on the key line, and a row that has
-//           a `run` must carry one. That is the failure this register was built for, at
-//           its smallest — page travel worked, and no always-visible surface named it,
-//           because the field was optional and its absence read exactly like a decision.
-//           A row with no `run` may carry one all the same, since a press can be real and
-//           immediate without being the runtime's: Enter opens the focused leaf because
-//           the row is a link. What carries no word is reference, named in the "?"
-//           overlay and never promised as the next press — F7, ⌥ click, a press on a
-//           draft's own box.
-//   lineWhen — optional projection-only visibility on the key line. Unlike `when`, it
-//           never changes whether the command dispatches or appears in the reference,
-//           and an active chord shows every live row regardless of it.
-//   promoteEscape — whether an Escape row takes the line's second visible slot. On by
-//           default; a local action that happens to clear state can leave the slot to the
-//           next action on that state.
-//   when  — its liveness. The one predicate every surface asks.
-//   run   — the press, taking the binding that fired.
-//   native— whether the platform completes its default after `run`. Off by default: a
-//           row normally owns the press it answers.
-//   repeat— whether holding the key repeats the press. Off by default: a held `]` was a
-//           page navigation per repeat, and a held pick a `choose` per repeat. It applies
-//           to native rows too, independently of whether their platform default repeats.
+// What a row's fields mean is stated once, in keyboard/bindings.js, beside the checks a
+// declaration passes on its way in.
 //
 // A scope is where the keyboard means something particular — the page, a focused thread,
 // a card grip, a box being typed in. It declares its rows and where it holds, and where it
@@ -615,60 +576,12 @@ const RETRY_MS = 2000;
 const SILENCE_MS = 30_000;
 
 // ---------- styles ----------
-/* A marked passage is painted, not wrapped (see paintAnchors), so its rules reach it
-   through the highlight registry — which styles glyphs, so the underline stands in for
-   a border and the pointer's cursor comes from a class the hit-test puts on body. A
-   posted thread's mark wears the comment layer's own violet (--mark-ink and the wash
-   beside it, which is the same colour a marked element's ring is drawn in); the open
-   composer's draft wears the accent, and outranks it where they overlap. Not dashed —
-   dashed means detached.
-
-   The wash and the ink answer two questions, so they are moved by two things. The wash
-   says how near the reader's attention is, in three steps of one hue: --mark for a mark
-   the page merely holds, --mark-hover for the one the pointer is indicating, and
-   --mark-strong for the one the reader is standing in. The ink turns accent for that last
-   one alone (paintStanding), because "you are here" is a different claim from "you are
-   near here", and it is made in the one band this page spends on that fact everywhere
-   else (--here-ring).
-
-   Three steps and not two, because the hover is no longer a thing the reader does only by
-   pointing at the prose. A card in the panel indicates its thread the same way (paintHover
-   reads both surfaces), and the pointer is over the panel by construction in the moment
-   after a reader presses a card — so a hover sharing the standing wash left the two lit
-   identically whenever a hand rested where it had just clicked, with a 2px underline hue
-   the only thing between them and, on a page of one mark, nothing to compare it against.
-
-   What moved is the hover, downward. The constraint on the standing wash binds in one
-   direction only — it cannot go past --mark-strong without spending what code read
-   through a mark still has to clear — so the room was below rather than above, and taking
-   it raises what a hovered passage's code reads at instead of spending any (theme.css
-   states the numbers). The promise the hover's old strength was making is in any case
-   already the cursor's (lf-over-mark). The draft's accent wash cannot be confused with the
-   standing mark's accent ink, because one focus decides both and an open composer holds
-   it.
-
-   Stated once and installed twice, because the registry is the document's and the
-   ::highlight() rule is not: a rule in the document styles no glyph inside a shadow
-   tree, so a widget that renders the page's words into one (x-shadow) adopts this same
-   text (`markSheet`). Two copies of these declarations would be two chances for a mark
-   to mean one thing in the document and another inside a diff. */
-const style = document.createElement("style");
-style.dataset.lfRuntime = "1";
-// The chrome's whole stylesheet, and a template literal, so a backtick anywhere in
-// it — a CSS comment naming a command — ends the string and the rest of the sheet
-// parses as code. `node --check` accepts the result and the browser refuses it, so a
-// syntax check is not the gate here; the render suite is.
-style.textContent = chromeStyle({
-  COVERING,
-  MARK_RULES,
-  NON_COVERING,
-  PAGE_PAINT_ATTRIBUTE,
-  PANEL_PROP,
-  STRIP_TRAY_RULE,
-  TRAY_COVERING,
-  TRAY_PROP,
-});
-document.head.appendChild(style);
+// The chrome's sheet and the marks' arrive as CSS modules: part of the import graph, so
+// both are constructed before this module's first line runs, and adopted rather than
+// written into the head, so a version activation's head reconciliation never meets
+// them. shadowStage adopts the marks into every root it builds; the bake writes both
+// into a <style> for a copy, which has no module graph to carry them.
+document.adoptedStyleSheets = [chromeSheet, marksSheet];
 
 // ---------- scaffold ----------
 const el = (tag, cls, text) => {
@@ -829,7 +742,6 @@ const {
   showNews,
   stateCoordinate: (...args) => stateCoordinate(...args),
   stateSignoff,
-  style,
   syncLayout,
 });
 const toggleBtn = el("button", "lf-btn lf-workspace lf-threads-toggle", "Threads");

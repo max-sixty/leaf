@@ -1,3 +1,13 @@
+// Generated rows that switch views keep the same outer box. Controls may give up ink
+// while retaining their cells. A status item that can appear later reserves its place for
+// the page's life. When a row runs out of room it gives up whole controls before it gives
+// up any control's words, and it gives them up to somewhere a reader can still reach: the
+// banner's row folds the addresses it cannot hold into one menu (`foldShelf`) rather than
+// clipping them or scrolling them off its own edge, and its status sentence keeps a floor
+// stated in the row's own characters so a crowded row can never cut it. The row reads in
+// one order at every width, and a control the fold has taken is still at its place in
+// that order.
+
 // How many addresses stay on the row whatever the width. The last two are the page's
 // reading loop — approval and the conversation — and a reader must never open a menu to
 // find them. Everything before them is a destination, and a destination is what a menu

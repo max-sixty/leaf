@@ -1,3 +1,10 @@
+/* The vocabulary's query doors, which is how the layer stays open.
+
+   `widgetEntries` and `tagsDeclaring` are the general iteration doors. `stateSpecs` is
+   the one traversal of both `x-state` and `x-report`. New code that loops over tag names
+   or repeats those channel traversals is a closed list in another form. CSS selectors
+   follow the same rule: a list of framed widget tags is still a closed consumer. */
+
 import { runtime } from "./context.js";
 
 // The vocabulary, vendored per page: which tags a module upgrades, and which of their

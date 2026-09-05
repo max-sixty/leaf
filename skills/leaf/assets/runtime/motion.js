@@ -1,3 +1,18 @@
+// Arrival is not a gesture. Restored panel, tray, drawn-width, design-mode, widget, and
+// reading-position state appears at rest. `motion` finishes Web Animations immediately
+// before `data-lf-presented`; theme transitions use the same presentation stamp.
+//
+// After presentation, changes that remove a visible unit use a short fold. The semantic
+// state is true at the start of the fold, while the old pixels collapse so the eye can
+// follow them. Reconciliation, not the originating press, owns the fold because the same
+// change can arrive from another tab or the agent. A resolved thread leaves the
+// open-thread vocabulary at once, folds in place, then moves under the resolved
+// disclosure.
+//
+// Projection composes the complete final state before rendering. Ordered containers
+// measure once around that composition and show one FLIP from the current layout to the
+// final layout. A live drag defers the whole correction.
+
 import { runtime } from "./context.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 

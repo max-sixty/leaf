@@ -1,0 +1,70 @@
+/* The marks the runtime paints on the reader's words, and the one element paint from
+   the same pass. Stated once and adopted twice: by the document (leaf.js) and by every
+   shadow root a widget renders into (shadow.js, shadowStage). A rule in the document
+   styles no glyph inside a shadow tree, so a widget that renders the page's words into
+   one (x-shadow) would otherwise show words the reader can select and no mark could
+   ever paint. Two copies of these declarations would be two chances for a mark to mean
+   one thing in the document and another inside a diff, which is why this is a file
+   both import rather than a block each spells.
+
+   A marked passage is painted, not wrapped (see paintAnchors), so its rules reach it
+   through the highlight registry — which styles glyphs, so the underline stands in for
+   a border and the pointer's cursor comes from a class the hit-test puts on body. A
+   posted thread's mark wears the comment layer's own violet (--mark-ink and the wash
+   beside it, which is the same colour a marked element's ring is drawn in); the open
+   composer's draft wears the accent, and outranks it where they overlap. Not dashed —
+   dashed means detached.
+
+   The wash and the ink answer two questions, so they are moved by two things. The wash
+   says how near the reader's attention is, in three steps of one hue: --mark for a mark
+   the page merely holds, --mark-hover for the one the pointer is indicating, and
+   --mark-strong for the one the reader is standing in. The ink turns accent for that last
+   one alone (paintStanding), because "you are here" is a different claim from "you are
+   near here", and it is made in the one band this page spends on that fact everywhere
+   else (--here-ring).
+
+   Three steps and not two, because the hover is no longer a thing the reader does only by
+   pointing at the prose. A card in the panel indicates its thread the same way (paintHover
+   reads both surfaces), and the pointer is over the panel by construction in the moment
+   after a reader presses a card — so a hover sharing the standing wash left the two lit
+   identically whenever a hand rested where it had just clicked, with a 2px underline hue
+   the only thing between them and, on a page of one mark, nothing to compare it against.
+
+   What moved is the hover, downward. The constraint on the standing wash binds in one
+   direction only — it cannot go past --mark-strong without spending what code read
+   through a mark still has to clear — so the room was below rather than above, and taking
+   it raises what a hovered passage's code reads at instead of spending any (theme.css
+   states the numbers). The promise the hover's old strength was making is in any case
+   already the cursor's (lf-over-mark). The draft's accent wash cannot be confused with the
+   standing mark's accent ink, because one focus decides both and an open composer holds
+   it.
+
+   Every name here carries an ink line, and the wash alone is never the mark. The washes
+   are what the hue affords rather than what a floor asks: --mark composites to 1.13:1
+   over the light paper and 1.34:1 over the dark, and --dfd1ed cannot reach 1.5:1 against
+   --paper at any alpha at all — opaque it stands at 1.38:1. So what the reader sees a
+   mark by is the line, at 9.0:1 light and 6.2:1 dark, exactly as the element anchors
+   next door are seen by their hairline (.lf-mark-el, chrome.css). The wash then
+   only has to separate one mark from another, which is a job it can do at 1.1:1.
+
+   lf-react was the one name with no line, and it was the faintest wash of the set: a
+   reacted passage stood at 1.08:1 over the light paper, which is a mark nobody sees.
+   Dashed against the comment's solid, the pair the element anchors already draw
+   (.lf-mark-el solid, .lf-react-el dashed) — same relation, said on glyphs. */
+/* The highlights rank `lf-mark`, `lf-mark-hover`, `lf-mark-here`, `lf-pending`, and a
+   higher one supplies only the properties it states, so a standing mark under the pointer
+   keeps its own wash and its own ink and takes nothing from the hover. Pointing at one
+   comment while standing in another therefore says both, in two washes a reader can tell
+   apart. */
+::highlight(lf-mark) { background-color: var(--mark);
+  text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
+::highlight(lf-mark-hover) { background-color: var(--mark-hover); }
+::highlight(lf-mark-here) {
+  background-color: var(--mark-strong);
+  text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
+::highlight(lf-pending) { background-color: color-mix(in srgb, var(--accent) 20%, transparent);
+  text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
+::highlight(lf-react) { background-color: var(--react);
+  text-decoration: underline 2px dashed var(--mark-ink); text-underline-offset: 3px; }
+.lf-action-target { outline: 1px solid var(--accent); outline-offset: -1px;
+  cursor: pointer; }

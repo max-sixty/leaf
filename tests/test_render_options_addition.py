@@ -41,14 +41,14 @@ def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_reader)
 def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     """The reader writes on the same line and in the same voice as the options.
 
-    The trailing return glyph submits the field without borrowing the selection mark's
-    circle, and remains a full-sized pointer target with an accessible action name.
+    The trailing action stays out of an empty row, then submits without borrowing the
+    selection mark's circle. It remains a full-sized, aligned pointer target.
     """
     page, errors = open_page(browser, serve(DECISION_PAGE))
     option = page.locator("#job-camera")
     form = page.locator("#jobs > .lf-another")
     field = form.get_by_role("textbox", name="Another option", exact=True)
-    add = form.get_by_role("button", name="Add option", exact=True)
+    add = form.get_by_role("button", name="Add option", exact=True, include_hidden=True)
 
     typography = """el => { const s = getComputedStyle(el);
                              return [s.fontFamily, s.fontSize, s.lineHeight]; }"""
@@ -75,15 +75,50 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert abs(card_field.bounding_box()["x"] - card_words.bounding_box()["x"]) < 0.5
 
     expect(add).to_have_text("Add")
-    expect(add).to_have_css("opacity", "0.55")
+    expect(add).to_be_hidden()
+    expect(add).to_have_attribute("aria-disabled", "true")
+    empty_field_box = field.bounding_box()
     field.fill("Portrait sketch")
+    expect(add).to_be_visible()
+    expect(add).to_have_attribute("aria-disabled", "false")
     expect(add).to_have_css("opacity", "1")
     aim_floor = page.locator("html").evaluate(
         "el => parseFloat(getComputedStyle(el).getPropertyValue('--aim-floor'))"
     )
+    form_box = form.bounding_box()
+    field_box = field.bounding_box()
+    assert field_box == empty_field_box
     add_box = add.bounding_box()
     assert add_box["width"] >= aim_floor
     assert add_box["height"] >= aim_floor
+    assert (
+        abs(
+            field_box["y"]
+            + field_box["height"] / 2
+            - add_box["y"]
+            - add_box["height"] / 2
+        )
+        < 0.5
+    )
+    face = """el => { const s = getComputedStyle(el);
+                       return [s.backgroundColor, s.borderTopColor, s.borderTopStyle,
+                               s.borderTopWidth, s.borderRadius, s.color]; }"""
+    add_face = add.evaluate(face)
+    ordinary_face = page.locator("body").evaluate(
+        """body => {
+          const probe = document.createElement("button");
+          probe.className = "lf-btn";
+          body.append(probe);
+          const s = getComputedStyle(probe);
+          const result = [s.backgroundColor, s.borderTopColor, s.borderTopStyle,
+                          s.borderTopWidth, s.borderRadius, s.color];
+          probe.remove();
+          return result;
+        }"""
+    )
+    assert add_face == ordinary_face
+    page.keyboard.press("Tab")
+    expect(add).to_be_focused()
 
     page.locator("html").evaluate("el => el.style.setProperty('--aim-floor', '44px')")
     form_box = form.bounding_box()

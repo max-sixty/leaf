@@ -414,7 +414,10 @@ def test_an_unchanged_heartbeat_re_marks_no_docked_row(browser, serve):
     with one target settles.
 
     The guard must not cost the mark, so the narrowing is read too — the row
-    arrives hanging, and it is the pass that docks it.
+    arrives hanging, and it is the pass that docks it. The pass itself is counted
+    off `lf-margin-layout`, which `layoutMarginRows` dispatches after the marks:
+    a window that stopped reaching the layout would otherwise return the same
+    clean reading a guarded one does.
     """
     fixture = leaf_page("Docked reading", '<p id="target">Target passage</p>')
     page, errors = open_page(browser, serve(fixture))
@@ -443,6 +446,10 @@ def test_an_unchanged_heartbeat_re_marks_no_docked_row(browser, serve):
           const frame = () => new Promise(
             resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
           const wrote = [];
+          // The reading has to say the pass ran: a window that never reaches
+          // `layoutMarginRows` returns the same clean `[]` a guarded one does.
+          let passes = 0;
+          document.addEventListener('lf-margin-layout', () => passes++);
           const observer = new MutationObserver(list => wrote.push(...list));
           observer.observe(document.body, {subtree: true, attributes: true,
             attributeOldValue: true, attributeFilter: ['class']});
@@ -452,14 +459,14 @@ def test_an_unchanged_heartbeat_re_marks_no_docked_row(browser, serve):
           }
           wrote.push(...observer.takeRecords());
           observer.disconnect();
-          return wrote
+          return {passes, marks: wrote
             .filter(record => record.target.matches('.lf-margin-item'))
             .map(record => ({was: record.oldValue,
-                             now: record.target.getAttribute('class')}));
+                             now: record.target.getAttribute('class')}))};
         }""",
         5,
     )
-    assert marks == [], marks
+    assert marks == {"passes": 5, "marks": []}, marks
     expect(row).to_have_class(re.compile(r"lf-docked"))
     assert errors == []
     page.close()

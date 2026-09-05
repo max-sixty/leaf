@@ -1058,6 +1058,11 @@ consumer names its tag. Export preserves the rendered elements and their labels 
 snapshot, while dropping the scripts that could refresh them. Print preserves the same
 readable words. Neither medium claims that the snapshot remains live.
 
+Ordinary action controls use `.lf-btn`, whose shared theme rules also enter
+declared shadow trees. Packages may set placement and density, but keep its
+shape, border, hover, and disabled treatment. Margin Buttons, reaction chips,
+and status labels retain their own forms.
+
 The three visual voices are prose, apparatus, and evidence. Body prose uses the
 serif; labels, controls, and annotations embedded in evidence use the sans; and
 literal evidence uses the mono face. Typography is presentation, not passage

@@ -118,7 +118,7 @@ function buildToolbar(owner) {
   // `offer`, not a bare button: the disclosure control is chrome this widget injected
   // and a handler is all it ever was, so the markers it writes are what tells the
   // exported copy to take the press away rather than draw a hand over a dead one.
-  const button = offer("button", "lf-call-toggle");
+  const button = offer("button", "lf-btn lf-call-toggle");
   button.addEventListener("click", () => {
     const groups = [...owner.querySelectorAll(":scope > .lf-call-group")];
     const open = groups.some((group) => !group.open);

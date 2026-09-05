@@ -1,3 +1,5 @@
+import { clocked } from "./presence.js";
+
 export function createBanner({
   agentName,
   ago,
@@ -267,5 +269,10 @@ export function createBanner({
     showStatus(kind, TONE[kind], ...line);
   }
 
-  return { loadIcon, renderStatus, sayLine, toneFor };
+  return {
+    loadIcon,
+    renderStatus: clocked(document.body, renderStatus),
+    sayLine,
+    toneFor,
+  };
 }

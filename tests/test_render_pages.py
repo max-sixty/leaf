@@ -295,24 +295,19 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
             page.wait_for_function(
                 "() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0"
             )
-        # An anchor that quotes nothing marks its exact element rather than words,
-        # so it makes no range and no highlight: a diagram or board names its host;
-        # a data-backed widget may name one projected datum inside that host. The
-        # class is what the reader follows and what the ring is drawn on, so it is
-        # what is read here.
+        # An anchor that names an element and quotes nothing marks the box rather
+        # than the words, so it makes no range and no highlight: a diagram or a
+        # board has no sentence to point at, and a comment on the whole of one is a
+        # shape the corpus otherwise never shows. The class is what the reader
+        # follows and what the ring is drawn on, so it is what is read here.
         for event in anchored:
             if event in quoted:
                 continue
-            anchor = event["anchor"]
-            section = page.locator(f"#{anchor['section']}")
-            marks = section.locator(".lf-mark-el")
-            if datum := anchor.get("datum"):
-                assert marks.evaluate_all(
-                    "(nodes, key) => nodes.some(node => node.dataset.lfDatum === key)",
-                    datum,
-                ), f"{example.stem}: datum {datum} is marked nowhere"
-            else:
-                expect(section).to_have_class(re.compile(r"\blf-mark-el\b"))
+            section = event["anchor"]["section"]
+            target = page.locator(f"#{section}")
+            if datum := event["anchor"].get("datum"):
+                target = target.locator(f"[data-lf-datum={json.dumps(datum)}]")
+            expect(target).to_have_class(re.compile(r"\blf-mark-el\b"))
         # The exchange is both voices, and the mark is on the words the log named.
         for event in quoted:
             quote = event["anchor"]["quote"]

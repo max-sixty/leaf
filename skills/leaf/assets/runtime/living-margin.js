@@ -9,6 +9,7 @@ import {
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { landInConversation } from "./conversation/landing.js";
+import { clocked } from "./presence.js";
 
 const KINDS = {
   action: { label: "Action", icon: "dot", priority: -1 },
@@ -464,6 +465,7 @@ function comesBefore(left, right) {
 }
 
 export function createLivingMargin(dependencies) {
+  const render = clocked(document.body, renderNow);
   const {
     ago,
     anchorLabel,
@@ -2160,7 +2162,7 @@ export function createLivingMargin(dependencies) {
     if (!onPaper.matches) render();
   });
 
-  function render() {
+  function renderNow() {
     if (onPaper.matches) return;
     const threadOwnerHeld =
       transferThreadFocus || document.activeElement === previewButton;

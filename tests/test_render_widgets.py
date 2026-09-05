@@ -200,8 +200,8 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
     page.close()
 
 
-def test_a_detached_board_releases_and_restores_its_motion_subscription(browser, serve):
-    """Version replacement does not retain a board through a media-query listener."""
+def test_a_detached_board_releases_and_restores_its_lifecycle(browser, serve):
+    """Version replacement releases board resources and restores pointer dragging."""
     context = browser.new_context(viewport={"width": 1000, "height": 800})
     context.add_init_script(
         """(() => {
@@ -222,7 +222,44 @@ def test_a_detached_board_releases_and_restores_its_motion_subscription(browser,
     )
     try:
         page, errors = open_page(browser, serve(BOARD_PAGE), context=context)
+        cdp = context.new_cdp_session(page)
+        page.evaluate(
+            """async () => {
+              window.__lfSortablePrototype =
+                (await import('/vendor/sortable.esm.js')).default.prototype;
+            }"""
+        )
+
+        def sortable_count():
+            # Keep the query handles in a disposable group. In particular, the probe
+            # must not become the new owner of the DOM it is checking.
+            group = "board-lifecycle-probe"
+            prototype = cdp.send(
+                "Runtime.evaluate",
+                {
+                    "expression": "window.__lfSortablePrototype",
+                    "returnByValue": False,
+                    "objectGroup": group,
+                },
+            )["result"]["objectId"]
+            try:
+                objects = cdp.send(
+                    "Runtime.queryObjects",
+                    {"prototypeObjectId": prototype, "objectGroup": group},
+                )["objects"]["objectId"]
+                return cdp.send(
+                    "Runtime.callFunctionOn",
+                    {
+                        "objectId": objects,
+                        "functionDeclaration": "function () { return this.length; }",
+                        "returnByValue": True,
+                    },
+                )["result"]["value"]
+            finally:
+                cdp.send("Runtime.releaseObjectGroup", {"objectGroup": group})
+
         before = page.evaluate("() => ({...window.__lfMotionListeners})")
+        assert sortable_count() == 2
         page.evaluate(
             """() => {
               window.__lfDetachedBoard = document.querySelector('lf-board');
@@ -233,6 +270,10 @@ def test_a_detached_board_releases_and_restores_its_motion_subscription(browser,
         assert released["removed"] > before["removed"], (
             f"detaching the board retained its motion listener: {before=}, {released=}"
         )
+        cdp.send("HeapProfiler.collectGarbage")
+        assert sortable_count() == 0, (
+            "detaching the board retained its Sortable instances"
+        )
         page.evaluate(
             "() => document.querySelector('main').append(window.__lfDetachedBoard)"
         )
@@ -240,6 +281,152 @@ def test_a_detached_board_releases_and_restores_its_motion_subscription(browser,
         assert restored["added"] > before["added"], (
             f"reconnecting the board did not restore live motion changes: {restored=}"
         )
+        assert sortable_count() == 2
+
+        grip = page.locator("#card-heater .lf-grip").bounding_box()
+        dest = page.locator("#col-done").bounding_box()
+        page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
+        page.mouse.down()
+        page.mouse.move(
+            dest["x"] + dest["width"] / 2,
+            dest["y"] + dest["height"] / 2,
+            steps=15,
+        )
+        page.mouse.up()
+        page.wait_for_selector("#col-done #card-heater")
+        assert errors == []
+    finally:
+        if "cdp" in locals():
+            cdp.detach()
+        context.close()
+
+
+def test_live_widget_watchers_release_and_reconnect(browser, serve):
+    """Live widget feeds release detached owners and call them after reconnection."""
+    source = leaf_page(
+        "widget watcher lifecycle",
+        """
+<section id="watched">
+  <p><lf-suggestion id="watched-suggestion"><lf-old>old</lf-old><lf-new>new</lf-new></lf-suggestion></p>
+  <lf-draft id="watched-draft"><pre>Draft words.</pre></lf-draft>
+  <lf-roster id="watched-roster">
+    <lf-agent id="watched-agent" state="working"><strong>worker</strong> Working.</lf-agent>
+  </lf-roster>
+  <lf-record id="watched-record"></lf-record>
+</section>
+""",
+    )
+    context = browser.new_context(viewport={"width": 1000, "height": 800})
+    context.add_init_script(
+        """(() => {
+          const add = EventTarget.prototype.addEventListener;
+          const remove = EventTarget.prototype.removeEventListener;
+          const watched = new Set(['lf-actions', 'lf-drafts']);
+          const wrappers = new Map();
+          window.__lfWatchers = {
+            added: Object.create(null),
+            removed: Object.create(null),
+            calls: Object.create(null),
+          };
+          for (const type of watched) {
+            window.__lfWatchers.added[type] = 0;
+            window.__lfWatchers.removed[type] = 0;
+            window.__lfWatchers.calls[type] = 0;
+          }
+          EventTarget.prototype.addEventListener = function(type, listener, options) {
+            if (this !== document || !watched.has(type) || typeof listener !== 'function')
+              return add.call(this, type, listener, options);
+            const wrapped = function(...args) {
+              window.__lfWatchers.calls[type]++;
+              return listener.apply(this, args);
+            };
+            let byType = wrappers.get(type);
+            if (!byType) wrappers.set(type, byType = new Map());
+            byType.set(listener, wrapped);
+            window.__lfWatchers.added[type]++;
+            return add.call(this, type, wrapped, options);
+          };
+          EventTarget.prototype.removeEventListener = function(type, listener, options) {
+            if (this !== document || !watched.has(type) || typeof listener !== 'function')
+              return remove.call(this, type, listener, options);
+            const wrapped = wrappers.get(type)?.get(listener) ?? listener;
+            window.__lfWatchers.removed[type]++;
+            return remove.call(this, type, wrapped, options);
+          };
+        })()"""
+    )
+    try:
+        page, errors = open_page(browser, serve(source), context=context)
+        initial = page.evaluate("() => structuredClone(window.__lfWatchers)")
+        initial_actions = (
+            initial["added"]["lf-actions"] - initial["removed"]["lf-actions"]
+        )
+        initial_drafts = initial["added"]["lf-drafts"] - initial["removed"]["lf-drafts"]
+        assert initial_actions >= 4
+        assert initial_drafts >= 1
+
+        page.evaluate(
+            """() => {
+              window.__lfWatchedSection = document.querySelector('#watched');
+              window.__lfWatchedSection.remove();
+            }"""
+        )
+        released = page.evaluate("() => structuredClone(window.__lfWatchers)")
+        released_actions = (
+            released["added"]["lf-actions"] - released["removed"]["lf-actions"]
+        )
+        released_drafts = (
+            released["added"]["lf-drafts"] - released["removed"]["lf-drafts"]
+        )
+        assert released_actions == initial_actions - 4
+        assert released_drafts == initial_drafts - 1
+        released_calls = page.evaluate(
+            """() => {
+              const before = structuredClone(window.__lfWatchers.calls);
+              document.dispatchEvent(new Event('lf-actions'));
+              document.dispatchEvent(new CustomEvent('lf-drafts', {
+                detail: {ctx: 'edit:watched-draft', value: null},
+              }));
+              return {
+                actions: window.__lfWatchers.calls['lf-actions'] - before['lf-actions'],
+                drafts: window.__lfWatchers.calls['lf-drafts'] - before['lf-drafts'],
+              };
+            }"""
+        )
+        assert released_calls == {
+            "actions": released_actions,
+            "drafts": released_drafts,
+        }
+
+        page.evaluate(
+            "() => document.querySelector('main').append(window.__lfWatchedSection)"
+        )
+        restored = page.evaluate("() => structuredClone(window.__lfWatchers)")
+        restored_actions = (
+            restored["added"]["lf-actions"] - restored["removed"]["lf-actions"]
+        )
+        restored_drafts = (
+            restored["added"]["lf-drafts"] - restored["removed"]["lf-drafts"]
+        )
+        assert restored_actions == initial_actions
+        assert restored_drafts == initial_drafts
+        restored_calls = page.evaluate(
+            """() => {
+              const before = structuredClone(window.__lfWatchers.calls);
+              document.dispatchEvent(new Event('lf-actions'));
+              document.dispatchEvent(new CustomEvent('lf-drafts', {
+                detail: {ctx: 'edit:watched-draft', value: null},
+              }));
+              return {
+                actions: window.__lfWatchers.calls['lf-actions'] - before['lf-actions'],
+                drafts: window.__lfWatchers.calls['lf-drafts'] - before['lf-drafts'],
+              };
+            }"""
+        )
+        assert restored_calls == {
+            "actions": restored_actions,
+            "drafts": restored_drafts,
+        }
         assert errors == []
     finally:
         context.close()
@@ -1846,7 +2033,8 @@ def test_composer_grows_with_its_text_without_script(browser, serve):
     page.close()
 
 
-def test_suggestion_controls_stay_out_of_the_column(browser, serve):
+@pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
+def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_motion):
     """Suggestion chrome hangs in the page margin, so the prose keeps the full column
     and reads as it will once the change is settled. The row is the column's own
     child and takes its line from an anchor inside the change, so how deep the
@@ -1860,7 +2048,8 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     proves it is the one a user reads in: with the thread panel open, a
     centred column left too little beside it and every row docked — above the
     change it decides, which reads as the paragraph before's."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
+    page.emulate_media(reduced_motion=reduced_motion)
     assert errors == []
     column = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
     room = page.evaluate("() => document.body.getBoundingClientRect().right")
@@ -1895,6 +2084,17 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     # other. Measured after the layout has moved, since opening the panel resizes
     # the page and the rows re-place on the frame after that.
     page.locator(".lf-threads-toggle").click()
+    if reduced_motion == "no-preference":
+        # Hold the presentation offset while the resize-driven placements dock the
+        # rows. Let that frame's ResizeObserver delivery and its queued placement run
+        # before finishing the carry, so no pending resize accidentally repairs them.
+        page.wait_for_function(
+            "() => [...document.querySelectorAll('[data-lf-for=sug-refill], [data-lf-for=sug-thistle]')]"
+            ".every(r => r.parentElement.classList.contains('lf-docked'))"
+        )
+        page.evaluate("""() => new Promise(resolve => {
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+        })""")
     panel_settled(page)
     page.wait_for_function(
         "() => [...document.querySelectorAll("

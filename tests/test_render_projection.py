@@ -4195,7 +4195,26 @@ def test_command_hub_request_waits_for_one_linked_host_receipt(browser, serve):
     )
     assert available == [True, False]
 
+    page.locator(".lf-decisions").click()
+    request_row = page.locator(
+        '.lf-decisions-row[data-lf-at="dedupe-operations-decision"]'
+    )
+    expect(request_row).to_have_attribute("data-lf-answer-state", "open")
+    page.evaluate(
+        """() => {
+          window.__lfFirstRequestAnswer = new Promise(resolve => {
+            document.addEventListener('lf-actions', () => queueMicrotask(() => {
+              resolve(document.querySelector(
+                '[data-lf-at="dedupe-operations-decision"] .lf-decisions-answer'
+              ).textContent);
+            }), {once: true});
+          });
+        }"""
+    )
     operations.get_by_role("button", name="Restart with a fresh worker").click()
+    assert page.evaluate("() => window.__lfFirstRequestAnswer") == (
+        "Restart with a fresh worker"
+    ), "the open Asks tray missed the package's first request projection"
     round_trip(page)
     requests = [
         event
@@ -4215,10 +4234,6 @@ def test_command_hub_request_waits_for_one_linked_host_receipt(browser, serve):
     )
     expect(operations).to_contain_text("restart requested · waiting for the host")
     expect(page.locator(".lf-decisions")).to_have_text("Asks 1/5")
-    page.locator(".lf-decisions").click()
-    request_row = page.locator(
-        '.lf-decisions-row[data-lf-at="dedupe-operations-decision"]'
-    )
     expect(request_row).to_have_attribute("data-lf-answer-state", "answered")
     expect(request_row.locator(".lf-decisions-answer")).to_have_text(
         "Restart with a fresh worker"

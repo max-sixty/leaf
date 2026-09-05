@@ -1,11 +1,18 @@
 """Package authoring commands and filesystem safety gates."""
 
+import contextlib
+import fcntl
+import os
+import re
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
-from .files import replace_files
+from .files import json_bytes, read_json, replace_files
 from .host import config_home
 from .layer import (
+    LayerComposition,
     checked_inputs,
     checked_layer_inputs,
     compose_layer,
@@ -23,6 +30,7 @@ from .locations import (
 from .schema import (
     BROWSER_DIRS,
     DEFAULT_PACKAGE,
+    ELEMENT_ID,
     EVENTS_FILE,
     KERNEL,
     PACKAGE_DIRS,
@@ -30,7 +38,119 @@ from .schema import (
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     VENDORED_FILES,
+    WIDGET_NAME,
 )
+
+
+@contextlib.contextmanager
+def package_write_lock(package: Path):
+    """Serialize package mutations without creating a lock artifact beside the code.
+
+    A directory inode is a stable process-shared lock on both supported host families.
+    The filesystem root exists before any candidate package path, so two initializers
+    choose the same inode even when the package's parent directories do not exist yet.
+    Package writes are rare and short; one lock per filesystem also closes concurrent
+    registry updates to different packages without inventing persistent state.
+    """
+    root = Path(package.absolute().anchor)
+    descriptor = os.open(root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
+def create_package_files(package: Path, files: list[tuple[Path, bytes]]) -> list:
+    """Create new members with no-clobber semantics, returning rollback identities."""
+    created = []
+    try:
+        for path, contents in files:
+            try:
+                descriptor = os.open(
+                    path,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0),
+                    0o666,
+                )
+            except FileExistsError:
+                sys.exit(
+                    f"package member {path.relative_to(package)} was created "
+                    "while package init was running; nothing was replaced"
+                )
+            with os.fdopen(descriptor, "wb") as stream:
+                identity = os.fstat(stream.fileno())
+                stream.write(contents)
+                stream.flush()
+                os.fsync(stream.fileno())
+            created.append((path, identity.st_dev, identity.st_ino))
+        for parent in {path.parent for path, _contents in files}:
+            descriptor = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        return created
+    except BaseException:
+        rollback_package_files(created)
+        raise
+
+
+def rollback_package_files(created: list) -> None:
+    """Remove only members that are still the exact files this transaction created."""
+    for path, device, inode in reversed(created):
+        try:
+            standing = path.stat(follow_symlinks=False)
+            if (standing.st_dev, standing.st_ino) == (device, inode):
+                path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def starter_widget_entry(tag: str) -> dict:
+    """One useful upgraded prose block, ready for a package author to specialize."""
+    name = tag.removeprefix("lf-")
+    label = name.replace("-", " ")
+    title = label.capitalize()
+    return {
+        "description": (
+            f"A dedicated block for {label} content. Use it to keep one technical "
+            "point with its supporting evidence or rationale. Give the block a stable "
+            "id."
+        ),
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "string",
+                "pattern": f"^{ELEMENT_ID}$",
+            }
+        },
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "prose",
+        "x-upgrade": True,
+        "x-verbatim": True,
+        "x-example": (
+            f'<{tag} id="{name}"><strong>{title}</strong> '
+            "The retry budget is three attempts before manual review."
+            f"</{tag}>"
+        ),
+    }
+
+
+def starter_widget_module(tag: str) -> bytes:
+    """The registration and one-shot upgrade shared by behavioral widgets."""
+    return (
+        'import { once } from "/runtime/widget-api.js";\n\n'
+        "customElements.define(\n"
+        f'  "{tag}",\n'
+        "  class extends HTMLElement {\n"
+        "    connectedCallback() {\n"
+        "      if (!once(this)) return;\n"
+        "    }\n"
+        "  },\n"
+        ");\n"
+    ).encode()
 
 
 def protected_package_paths(package: Path) -> list:
@@ -139,42 +259,128 @@ def package_layer_inputs(package: Path) -> list[Path]:
     return [KERNEL, DEFAULT_PACKAGE, package]
 
 
-def check_package(package: Path, *, require_exists: bool) -> tuple[Path, list]:
+def check_package(
+    package: Path, *, require_exists: bool
+) -> tuple[Path, list, LayerComposition]:
     """Validate one package through the same composition gate as a page."""
     package = package.expanduser().resolve()
     if require_exists and not package.is_dir():
         sys.exit(f"{package} is not a package directory")
     protected = validate_package_dir(package)
     roots = checked_layer_inputs(package_layer_inputs(package))
-    compose_layer(roots)
-    return package, protected
+    composition = compose_layer(roots)
+    return package, protected, composition
 
 
-def cmd_package_init(package: Path) -> Path:
-    package, protected = check_package(package, require_exists=False)
+def validate_starter_candidate(package: Path, files: dict[str, bytes]) -> None:
+    """Compose the complete package candidate without changing its destination."""
+    with tempfile.TemporaryDirectory(prefix="leaf-package-") as temporary:
+        staged = Path(temporary) / "package"
+        staged.mkdir()
+        if package.is_dir():
+            for name in PACKAGE_FILES:
+                source = package / name
+                if source.is_file():
+                    shutil.copy2(source, staged / name)
+        for name in PACKAGE_DIRS:
+            source = package / name
+            target = staged / name
+            if source.is_dir():
+                shutil.copytree(source, target)
+            else:
+                target.mkdir()
+        for relative, contents in files.items():
+            target = staged / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(contents)
+
+        roots = [
+            staged if paths_same(root, package) else root
+            for root in package_layer_inputs(package)
+        ]
+        compose_layer(checked_layer_inputs(roots))
+
+
+def init_starter_widget(
+    package: Path,
+    protected: list,
+    composition: LayerComposition,
+    widget: str,
+) -> None:
+    """Add one checked upgraded-content starter without replacing package members."""
+    if re.fullmatch(WIDGET_NAME, widget) is None:
+        sys.exit(f"widget tag {widget!r} must match {WIDGET_NAME}")
+    module_name = f"{widget}.js"
+    module_path = package / "widgets" / module_name
+    if widget in composition.registry:
+        sys.exit(f"widget tag <{widget}> already exists in the composed layer")
+    if (
+        module_path.exists()
+        or module_path.is_symlink()
+        or module_name in composition.directory_files["widgets"]
+    ):
+        sys.exit(
+            f"widget module widgets/{module_name} already exists in the composed layer"
+        )
+
+    registry_path = package / "registry.json"
+    registry = read_json(registry_path) or {}
+    registry[widget] = starter_widget_entry(widget)
+    files = {
+        "registry.json": json_bytes(registry, indent=2),
+        f"widgets/{module_name}": starter_widget_module(widget),
+    }
+    validate_starter_candidate(package, files)
     refuse_package_overlap(
         [package, *(package / name for name in (*PACKAGE_FILES, *PACKAGE_DIRS))],
         protected,
     )
 
-    files = {
-        "registry.json": b"{}\n",
-        "theme.css": b"",
-    }
-    writes = [
-        (package / name, contents, False)
-        for name, contents in files.items()
-        if not ((package / name).exists() or (package / name).is_symlink())
-    ]
     package.mkdir(parents=True, exist_ok=True)
     for name in PACKAGE_DIRS:
         (package / name).mkdir(exist_ok=True)
-    replace_files(writes)
-    print(f"initialized {package}")
-    return package
+    creates = [(module_path, files[f"widgets/{module_name}"])]
+    if not ((package / "theme.css").exists() or (package / "theme.css").is_symlink()):
+        creates.append((package / "theme.css", b""))
+    created = create_package_files(package, creates)
+    try:
+        replace_files([(registry_path, files["registry.json"], True)])
+    except BaseException:
+        rollback_package_files(created)
+        raise
+
+
+def cmd_package_init(package: Path, widget: str | None = None) -> Path:
+    with package_write_lock(package):
+        package, protected, composition = check_package(package, require_exists=False)
+        if widget is not None:
+            init_starter_widget(package, protected, composition, widget)
+            print(f"initialized {package} with <{widget}>")
+            return package
+
+        refuse_package_overlap(
+            [package, *(package / name for name in (*PACKAGE_FILES, *PACKAGE_DIRS))],
+            protected,
+        )
+
+        files = {
+            "registry.json": b"{}\n",
+            "theme.css": b"",
+        }
+        package.mkdir(parents=True, exist_ok=True)
+        for name in PACKAGE_DIRS:
+            (package / name).mkdir(exist_ok=True)
+        creates = [
+            (package / name, contents)
+            for name, contents in files.items()
+            if not ((package / name).exists() or (package / name).is_symlink())
+        ]
+        create_package_files(package, creates)
+        print(f"initialized {package}")
+        return package
 
 
 def cmd_package_check(package: Path) -> Path:
-    package, _ = check_package(package, require_exists=True)
+    package, _, _ = check_package(package, require_exists=True)
     print(f"checked {package}")
     return package

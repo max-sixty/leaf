@@ -13,7 +13,6 @@ from leaf import schema as schema_model
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.validation import compatibility as validation_model
-from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
     AUTHORED_LINES_PAGE,
@@ -75,33 +74,34 @@ from render_support import (
     reader_arrangements,
     resize_notice_after_last_probe,
     resized,
-    round_trip,
+    sending,
 )
 
 pytestmark = pytest.mark.nightly
 
 
-def test_a_traffic_wait_stops_when_responses_outlive_its_deadline(monkeypatch):
-    """A busy response stream cannot keep a false delivery fact alive forever."""
-
-    class BusyTraffic:
-        def settle(self):
-            pass
-
-        def __str__(self):
-            return "busy"
+def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):
+    """A page that repaints its ledger forever cannot keep a false fact alive forever."""
 
     class BusyPage:
-        lf_traffic = BusyTraffic()
+        reads = 0
 
-        def wait_for_event(self, *_args, **_kwargs):
-            raise AssertionError("the expired wait listened for another response")
+        def evaluate(self, _script):
+            self.reads += 1
+            return json.dumps(
+                {"sends": self.reads, "acked": 0, "asked": 0, "heard": 0, "pending": []}
+            )
 
-    times = iter((0, 31))
+        def wait_for_function(self, *_args, **_kwargs):
+            raise AssertionError("the expired wait listened for another paint")
+
+    page = BusyPage()
+    page.lf_traffic = Traffic(page)
+    times = iter((0, 31, 31, 31))
     monkeypatch.setattr(time, "monotonic", lambda: next(times))
 
     with pytest.raises(AssertionError, match="never reached a false fact"):
-        _until(BusyPage(), lambda _traffic: False, "reached a false fact")
+        _until(page, lambda _traffic: False, "reached a false fact")
 
 
 def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
@@ -237,15 +237,17 @@ def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):
 
 
 def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
-    """A navigation ends a trip the browser reports for neither kind, and the
-    counters must say so or every later wait on this page runs its timeout out.
+    """A navigation ends a trip the browser reports for neither kind, and the ledger
+    must not carry it into the next document or every later wait there runs its
+    timeout out.
 
     Accept-all is how a real sweep gets here: it answers its asks one awaited
     trip at a time, so a reload after the press lands mid-cascade and kills an
     /api/event POST that then produces no `response` and no `requestfailed`.
     The route's delay holds a post in the air so the navigation reliably lands
-    on one; the assertion is Traffic's books balancing, and then `round_trip`
-    returning on a page whose only unfinished trip ended at the reload."""
+    on one. The ledger is the document's, so what can still go wrong is the new
+    document's own first trip: the same press again has to be counted there and
+    come back, with `round_trip` returning on exactly that."""
     corpus = next(p for p in EXAMPLES if p.stem == "corpus")
     # The example itself, so the data its markup selects is laid in beside it; its
     # conversation is not, because the asks the cascade answers are the markup's.
@@ -269,12 +271,12 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     page.unroute("**/api/event")
     page.goto(url, wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
-    t = _traffic(page)
-    assert t.acked >= t.sends, (
-        f"a trip the navigation ended was never counted: sends={t.sends} "
-        f"acked={t.acked}"
+    with sending(page, "the new document's first answer"):
+        page.locator(".lf-answer-all").first.click()
+    t = _traffic(page).read()
+    assert t.sends >= 1 and t.acked == t.sends and not t.pending, (
+        f"the new document's first trip did not count and complete: {t}"
     )
-    round_trip(page)
 
 
 def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
@@ -2063,97 +2065,6 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
         "page's paper — which is above the host, and reached by climbing out of the "
         "root rather than stopping where parentElement runs out"
     )
-
-
-def test_a_traffic_wait_accounts_for_the_trip_it_consumes():
-    """The waiter may resume before Traffic's ordinary listeners under load."""
-
-    class LateTraffic:
-        done = False
-
-        def settle(self):
-            pass
-
-        def settle_finished(self, request):
-            assert request == "trip"
-            self.done = True
-
-        def __str__(self):
-            return f"done={self.done}"
-
-    class EarlyPage:
-        lf_traffic = LateTraffic()
-
-        def wait_for_event(self, event, **_kwargs):
-            assert event == "requestfinished"
-            return "trip"
-
-    _until(EarlyPage(), lambda traffic: traffic.done, "accounted for the trip")
-
-
-def test_traffic_leaves_a_body_the_browser_has_not_finished_handing_over():
-    """`Response.json` waits on the finished fact with no deadline of its own, so a
-    body read before the browser has one is the single wait here that cannot run out —
-    the one that spent a whole CI run's bound and named no test. A response settles
-    when its trip finishes and waits in the queue until then."""
-
-    class Request:
-        url = "http://page/api/state"
-
-    class Unfinished:
-        ok = True
-        read = False
-        request = Request()
-
-        def json(self):
-            self.read = True
-            return {"events": []}
-
-    class Page:
-        """The page's own event surface, which is all Traffic asks of one."""
-
-        def __init__(self):
-            self.listeners = {}
-
-        def on(self, event, handler):
-            self.listeners[event] = handler
-
-    page = Page()
-    traffic = Traffic(page)
-    response = Unfinished()
-
-    page.listeners["response"](response)
-    traffic.settle()
-    assert not response.read, "a body was read before the browser had all of it"
-    assert traffic.heard == 1, "the headers stopped counting as a state answer"
-
-    page.listeners["requestfinished"](response.request)
-    traffic.settle()
-    assert response.read, "the finished body never settled, so the queue only grows"
-
-
-def test_a_traffic_wait_accepts_completion_delivered_with_its_timeout():
-    """Traffic's own requestfinished listener can settle the trip as the waiter times
-    out, so the final reading is taken after the deadline rather than before it."""
-
-    class EdgeTraffic:
-        done = False
-
-        def settle(self):
-            pass
-
-        def __str__(self):
-            return f"done={self.done}"
-
-    class EdgePage:
-        lf_traffic = EdgeTraffic()
-
-        def wait_for_event(self, event, **_kwargs):
-            assert event == "requestfinished"
-            self.lf_traffic.done = True
-            raise PlaywrightTimeout("the trip met its deadline")
-
-    _until(EdgePage(), lambda traffic: traffic.done, "accounted for the trip")
 
 
 def test_an_authored_project_widget_loads_through_the_real_layer(

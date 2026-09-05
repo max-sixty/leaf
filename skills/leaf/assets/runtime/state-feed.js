@@ -1,3 +1,19 @@
+/* The page's ear: the state reads, the news stream that says when to ask, the heartbeat
+   that re-applies what the page holds, and the phase the answers leave it in.
+
+   `statePhase` distinguishes `waiting`, `ready`, and `offline`. An empty `events` array
+   while waiting means the log has not been read; it does not mean there are no comments.
+   A restored or newly opened panel keeps its general composer usable and shows a loading
+   state until that distinction resolves.
+
+   A failed fetch is a complete offline answer for interaction: the authored page is the
+   best state available when no log can be reached, so fixed status chrome reports the
+   loss and its controls may activate. A successful response with malformed state is not
+   an offline answer. Parsing or rendering errors pass to the recovery boundary and leave
+   the candidate sequence unresolved; authored content stays readable while
+   state-dependent controls remain unavailable. */
+
+import { countTraffic } from "./traffic.js";
 import { tickClock } from "./presence.js";
 
 export function createStateFeed({
@@ -27,27 +43,34 @@ export function createStateFeed({
   // for that would stop hearing. The page would then go silent for a reason none of its
   // news is about, which is a wedge rather than a delay: nothing else would ever ask.
   async function readState() {
-    let res;
+    countTraffic("asked");
     try {
-      const revision = runtime.currentRevision;
-      res = await fetch("/api/state", {
-        headers: Number.isInteger(revision)
-          ? { "Leaf-View-Revision": String(revision) }
-          : {},
-      });
-    } catch {
-      // Network absence is a completed answer: there is no log to replay, so the offline
-      // authored page is honest. A successful but malformed response is different — let
-      // JSON or processing errors escape so the caller retains the recovery boundary.
-      return null;
+      let res;
+      try {
+        const revision = runtime.currentRevision;
+        res = await fetch("/api/state", {
+          headers: Number.isInteger(revision)
+            ? { "Leaf-View-Revision": String(revision) }
+            : {},
+        });
+      } catch {
+        // Network absence is a completed answer: there is no log to replay, so the
+        // offline authored page is honest. A successful but malformed response is
+        // different — let JSON or processing errors escape so the caller retains the
+        // recovery boundary.
+        return null;
+      }
+      const responseGeneration = res?.ok && res.headers.get("Leaf-Layer");
+      if (responseGeneration && !sameLayer(responseGeneration)) return null;
+      // A refusal is not state: the server answers a missing key with error-shaped JSON
+      // at 403. A live server refusing the key and a dead one both leave the page
+      // unreachable from here, and the terminal link is the recourse for both.
+      if (!res?.ok) return null;
+      return await res.json();
+    } finally {
+      // Heard once the read has ended whichever way: the body in hand, or nothing.
+      countTraffic("heard");
     }
-    const responseGeneration = res?.ok && res.headers.get("Leaf-Layer");
-    if (responseGeneration && !sameLayer(responseGeneration)) return null;
-    // A refusal is not state: the server answers a missing key with error-shaped JSON at
-    // 403. A live server refusing the key and a dead one both leave the page unreachable
-    // from here, and the terminal link is the recourse for both.
-    if (!res?.ok) return null;
-    return res.json();
   }
 
   // Start a read without leaving a rejection unobserved while widget startup continues.

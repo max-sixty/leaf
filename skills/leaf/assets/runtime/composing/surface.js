@@ -1,3 +1,50 @@
+/* The anchored response bar: where it stands, what raises it, and the room it keeps.
+
+   Normal reading mode leaves a plain click on unadorned authored content to the
+   browser. Visible native and Leaf controls keep their click actions; text selection
+   targets words. Alt-click, `s`, and a visual's “Respond to…” proxy are explicit
+   Comment gestures. They pass the target from `aimTargetAt` or the visual provider to
+   `commentOnTarget`, which opens the compact field and focuses its cursor in the same
+   transaction. A whole item or picture names its authored id, while a visual part adds
+   its declared token. Tab exchanges that field for choices in the same bar and focuses
+   Comment first. Tab, Shift-Tab, and the arrow keys then wrap through every choice.
+   Comment and Escape restore the field; Escape from the field hides the draft. The
+   same anchor resolves both states against the target's geometry.
+
+   The bar a selection or keyboard-selected item raises is `.lf-fab-bar`: the durable,
+   compact `.lf-fab-input` followed by one response ellipsis. An explicit item target
+   opens and focuses that field immediately. Selecting a passage opens the field
+   without taking focus or collapsing the browser selection; the reader can still copy
+   the selection or use its native context menu, then enter the field with Comment. The
+   field grows in place and never transfers text into a second composer card. A
+   one-line note is a pill. A longer one widens up to a readable 80ch and then wraps,
+   and grows into the available clear band before it scrolls; its corner stays the
+   pill's 16px rather than growing with the box, so the corner never reaches over the
+   first or last line. Placement states a float's room as `--lf-float-w` and
+   `--lf-float-h`; the bar is capped by it and the field's `--lf-response-room`
+   excludes its neighboring controls. The field's scroll extent supplies its desired
+   height without temporarily resizing it and losing the reader's scroll position.
+   When the target fills the viewport, the viewport still caps the field. When a
+   covering panel leaves no usable band for the response bar, placement withdraws it
+   without discarding its draft. If the disappearing bar held focus, the visible
+   Threads list takes it; an unrelated focused control keeps it. A partially exposed
+   page remains interactive whenever the bar fits its actual remaining room. Enter
+   inserts a newline; `Mod+Enter` sends. Tab changes the same bar into Comment, Suggest
+   when the anchor is a quote, and the layer's reaction tokens.
+
+   `showFab` places the bar; `openComposer` (composing/selection.js) binds its field to
+   the durable draft and takes the focus decision. Every explicit item and visual route
+   passes its resolved anchor to `commentOnTarget`, which focuses the same field and
+   carries an unsent draft to the new target. Automatic passage selection opens that
+   passage's own durable draft without moving focus. Submitted words still in flight
+   remain owned by their original anchor, while a later target starts clean and keeps
+   focus.
+
+   `placeClear` fits the response bar into a free band bounded by the viewport, its
+   target, and controls carrying `data-lf-offer`. A quoted passage keeps its whole
+   paragraph clear. Placement prioritizes proximity to the target, then visible writing
+   space; geometry supplies CSS room constraints, while CSS owns the field's content
+   sizing. */
 import { sameAnchor } from "../anchors.js";
 import { documentPoint } from "../geometry.js";
 import { targetElement, targetParts, targetSegments } from "../resolved-target.js";

@@ -534,7 +534,7 @@ PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR)
 # The dir patterns are keyed by the public directories themselves, so growing
 # that surface without saying what it may serve fails here, at import.
 _DIR_FILES = {
-    "runtime": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.js",
+    "runtime": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.(?:js|css)",
     "widgets": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.js",
     "vendor": (r"(?:(?!\.{1,2}/)[A-Za-z0-9._-]+/)*" r"(?!\.{1,2}$)[A-Za-z0-9._-]+"),
     MEDIA_DIR: r"[a-f0-9]{16}(?:" + "|".join(re.escape(e) for e in MEDIA_TYPES) + ")",

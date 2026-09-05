@@ -181,6 +181,44 @@ lf-chip, .lf-chips span {
  * the card's hover turned it, and a status lost its stripe and grew a ring the group's
  * own clip cut down to a line above the cell. Declared, a rule states the case it is
  * true of and has nothing of the other case to undo. */
+/* Row prose must remain prose. A table layout may create an anonymous cell around mixed
+   inline content without inserting a wrapper that changes authorship or spacing. Flex
+   gaps applied to raw inline children can turn authored spaces into layout gaps and split
+   code or emphasis into separate items. Joined answerable rows keep their complete width
+   inside the group's border with `box-sizing: border-box`.
+
+   Whether a group is answerable is independent of its form. The presence of `choose`
+   gives the whole group a visible control boundary in cards and rows. Each form chooses
+   its presentation, not whether the page admits a response.
+
+   A group joined into one control has cells, and its children arrive from every layer:
+   the authored options are the author's, while the option the reader writes and the Done
+   press are the runtime's. Each brings the spacing it wears standing alone, and the grid
+   stretches all of them to the same column whatever they were written as.
+
+   The reader's cell is an add form dressed as an option. It creates and selects a real
+   generated option through the same absolute `choose` state as the authored options; it
+   is not a conversation seat. What it is for is the answer the menu hasn't got, so it
+   takes the cells' fill and their column and states no inset of its own. A cell that
+   dresses as apparatus tells the reader to skip it.
+
+   So what every cell owes is said over every child, and only what one kind alone answers
+   is said by naming it. Block margins are zeroed for all of them, because the hairline is
+   the whole of what separates a cell from the next; the inset each holds its words off
+   the frame by is a floor at zero specificity, which any cell with an answer of its own
+   outranks. Naming kinds is how three children got their margins reset and the fourth
+   kept an 8px band under a line already separating, and how the question got no inset at
+   all. Reserved columns the cells share, such as the room a keyboard address stands in,
+   are named once and read by everything that opens at them — including the forms the
+   frame never reaches, since a settled group reserves the same column on the cards behind
+   its disclosure.
+
+   A widget derives its visual form from content when the content already states the
+   distinction; do not add a second layout attribute that can disagree with that
+   markup. Rules specific to one form include the form predicate in their selector.
+   Avoid general rules followed by a reset for the other form; specificity can leave
+   the wrong state partially active. A rule stays general only when its effect is true
+   in every form. */
 lf-options { display: block; margin: 14px 0; --lf-joined: 0;
              container-type: inline-size; }
 lf-option { display: block; position: relative; }
@@ -643,7 +681,7 @@ lf-options > .lf-done > .lf-address { position: absolute;
     /* A cell has no border of its own. Selection gets one quiet ground here; the mark's
      * check is its compact second channel. The vertical status bar that used to sit
      * beside both only repeated the same fact and made green read like focus. */
-    & > lf-option { --fill: var(--card); background: var(--fill); }
+    & > lf-option { --fill: var(--card); background-color: var(--fill); }
     /* The aim wash. The cell under the pointer and the cell under the keyboard are the
      * same fact to the reader — this one is being weighed — so both wear one paint. It
      * deepens whatever the cell is filled with, rather than lifting it: a cell that

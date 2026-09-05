@@ -1,4 +1,21 @@
-/* Search and waiting-on-reader narrowing for the thread panel. */
+/* Search and waiting-on-reader narrowing for the thread panel.
+
+   Two narrowings compose: the words the reader is looking for (`finding`, over each
+   thread's messages, its anchor label, and the part of the page it is on) and whether
+   the latest agent message asks the reader to answer (`needsYou`, through
+   `awaitsReader`). Both are the panel's own view. The page's marks, the inline
+   conversation seats and the banner's count go on saying what the log says, and the
+   panel's head says `Showing N of M` for as long as a narrowing stands, because a list
+   that goes quiet about what it is hiding is a trap.
+
+   Neither is stored. A remembered narrowing greets a returning reader with part of a
+   conversation and nothing on screen saying why. `ARRANGEMENTS` is for what the page
+   restores; a look at a list is not one.
+
+   Neither takes a card out of the document. An open thread the narrowing hides keeps
+   its node, `hidden`: a widget an agent sent in a reply is instantiated once, in that
+   card, and the banner's Asks count, the tray's rows and the `a`/`A` walk all find it
+   by id. `openThreads` and the `t`/`T` walk read only the cards that show. */
 export function createConversationNarrowing(dependencies) {
   const {
     anchorLabel,
@@ -14,10 +31,6 @@ export function createConversationNarrowing(dependencies) {
     threadsBox,
   } = dependencies;
 
-  // Two narrowings, and they compose: the words a reader is looking for, and whether the
-  // thread is one the agent has left with them. Neither is stored — see the find row's own
-  // comment for why a remembered narrowing is the trap rather than the convenience.
-  //
   // Whose turn a thread is (`awaitsReader`) belongs to the model rather than to this file,
   // because the banner's decision count asks the same question from the other side: a request
   // whose own conversation is with the agent is not the reader's to deal with. The panel

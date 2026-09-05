@@ -1,7 +1,13 @@
 import { outbox } from "../outbox.js";
 import { measure, reserve } from "../widget-elements.js";
 
-/* Settlement controls share the outbox across panel and inline views. */
+/* Resolve and Reopen, in the panel and inline.
+
+   Panel and inline settlement controls read pending work from the outbox. Their busy
+   labels reserve their width, keep focus, and prevent another submission while the
+   request is pending. The accepted projection decides when the thread resolves or
+   reopens. Resolving the last thread in an inline card closes it and returns focus to
+   page navigation; a conversation seated in the page keeps a Reopen control. */
 export function createThreadSettlement({ keys, offer, paintKeys, post, PRESS }) {
   const news = "lf-thread-settlement";
   const pendingSettlement = (id) =>

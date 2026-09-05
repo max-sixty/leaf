@@ -296,7 +296,7 @@ def prepare(source: Path, page: Path, launcher: Path, runtime: Path) -> tuple[in
             # A reader's words, not the checkout's: the note is the menu's subtitle, and
             # a filename "as it stands in the tree" read as developer jargon to a reviewer.
             "--text",
-            "Current draft" if order == len(versions) - 1 else "Earlier draft",
+            "Draft as authored" if order == len(versions) - 1 else "Earlier draft",
         )
         if order == 0:
             seed_log(source, page)
@@ -454,7 +454,7 @@ def refresh_preview(
                 "stamp",
                 str(page),
                 "--text",
-                f"{source.name}, updated in the checkout",
+                "Updated in the checkout",
             )
         except BaseException:
             authored.write_bytes(previous)

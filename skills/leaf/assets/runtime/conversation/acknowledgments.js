@@ -1,4 +1,20 @@
-/* Interaction-scoped acknowledgment receipts and explicit work claims. */
+/* Interaction-scoped acknowledgment receipts and explicit work claims.
+
+   `.lf-receipt` is transient runtime chrome for a subject with no page-edge Button.
+   `paintAcknowledgments` is its one writer. An unsettled reader message paints after
+   that exact message in the full thread panel, and an event-backed widget frozen into
+   conversation chrome paints beneath its owner. Inline page conversations and page
+   widgets use their target's existing margin cluster instead; an explicit page-widget
+   claim is the cluster's **Active** reading. The fallback receipt wears `lf-ui` and
+   `data-lf-gen`: it is an account of the conversation, not authored words, so
+   selection and diff readings skip it. Reconcile widget state first and paint receipts
+   afterward, so each receipt describes the state the widget now displays. Keep
+   surviving nodes across state applications, and in their place, so an unchanged phase
+   is not re-announced: a node taken out of the document and put back replays every
+   animation it wears and re-announces its live region. A phase change is a change of
+   words and of the Active ink, with no motion. Its live state span changes only with
+   semantic phase or detail; the separate age clock may repaint on a heartbeat without
+   entering the live region. */
 export function createAcknowledgments(dependencies) {
   const {
     ago,

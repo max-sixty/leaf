@@ -91,6 +91,7 @@ import {
   sendAction,
   sendDraft,
   notice,
+  keeps,
   commands,
   saveDraft,
   loadDraft,
@@ -401,18 +402,21 @@ customElements.define(
         role: "complete",
         state: this.#failed ? "failed" : "engaged",
       });
-      this.#save.setAttribute("aria-label", this.#failed ? "Retry" : "Save");
+      keeps(this.#save, "aria-label", this.#failed ? "Retry" : "Save");
       marginButtonState(this.#cancel, this.#failed ? "failed" : "engaged");
       marginButtonState(this.#pencil, this.#sending ? "busy" : "idle");
       const available = actionAvailable(this, "edit");
-      this.#pencil.setAttribute("aria-disabled", String(this.#sending || !available));
-      this.#pencil.tabIndex = this.#sending || !available ? -1 : 0;
-      this.#save.setAttribute("aria-disabled", String(!available));
-      this.#save.tabIndex = available ? 0 : -1;
-      for (const restore of this.querySelectorAll(".lf-draft-restore")) {
-        restore.setAttribute("aria-disabled", String(!available));
-        restore.tabIndex = available ? 0 : -1;
-      }
+      // The action sequence this paint follows arrives on every heartbeat, so each of
+      // these states is written on a page nobody has touched. State only what changed.
+      const reach = (control, blocked) => {
+        keeps(control, "aria-disabled", blocked);
+        const stop = blocked ? -1 : 0;
+        if (control.tabIndex !== stop) control.tabIndex = stop;
+      };
+      reach(this.#pencil, this.#sending || !available);
+      reach(this.#save, !available);
+      for (const restore of this.querySelectorAll(".lf-draft-restore"))
+        reach(restore, !available);
       if (this.#failed && this.#ta) {
         this.#failureReceipt ??= document.createElement("span");
         this.#failureReceipt.className = "lf-margin-receipt";

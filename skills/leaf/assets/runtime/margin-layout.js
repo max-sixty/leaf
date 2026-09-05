@@ -1,4 +1,39 @@
-/* One geometry owner for controls and readings that hang in the document margin. */
+/* One geometry owner for controls and readings that hang in the document margin.
+
+   `margin-layout` places, packs, docks, and measures the complete host. Its rail claim is
+   the widest stable contribution seen over a floor of the generated marker's own fitting,
+   and is monotonic for the document's lifetime, so neither settling an action nor taking
+   one back shifts the readable column. A first contribution wider than that floor still
+   widens the claim once; `reserve` is how a contribution declares that width in advance.
+   A temporary contribution registers with `claim: false`: it borrows available RHS room
+   and docks the complete host when it cannot fit, without moving the column on first open
+   or leaving blank room after close. A stable contribution whose future primary and `…`
+   fitting is wider than its resting one declares that pixel width with `reserve`; the
+   claim includes it before the control changes. Below the margin breakpoint the complete
+   host docks into flow. Visibility and vertical placement read `shownParts` and
+   `shownBox`, not the target's raw client rect: a project may set `display: contents`
+   while its rendered descendants remain usable, and a collapsed target has no rendered
+   part to offer.
+
+   Every live page may grow a page-edge Button — an anchored comment can arrive on one
+   made entirely of prose — so the living margin reserves the rail as it is built and
+   never gives it back. The runtime states that reservation as `data-lf-rail` on the root,
+   and the cascade spends it there; neither reads what is standing in the margin, because
+   a row's placement depends on the strip it would be answering about. A copy takes no
+   gestures, so the bake drops the reservation unless a margin item survived into the
+   file.
+
+   Where a durable margin item stands is the same question in every medium, and a file
+   cannot dock: the packing pass measured the rail at the width the page was exported at
+   and left with the scripts. So under that floor and on paper, where no rail is drawn, a
+   copy's remaining margin items take the docked shape rather than the absolute seat they
+   were exported into, which hangs off the page box. Not the rows that same pass withheld:
+   an item whose target is not shown wears `lf-waiting` into the file, and a shape taken
+   on the medium's terms would be the only thing standing a record beside a passage the
+   file was folding away when exported. Paper later unfolds that passage through CSS, but
+   a script-free copy cannot rerun the packing pass, so its serialized `lf-waiting`
+   reading remains withheld. Changing that behavior belongs to the live and copied layouts
+   together, not to this export override. */
 const rows = new Map();
 const GAP = 4;
 let pending = 0;
@@ -69,6 +104,14 @@ export function unregisterMarginRow(row) {
   scheduleMarginLayout();
 }
 
+// The other half of the clear below: `add` re-serializes the class attribute whether
+// or not the token is new, and the posture read leaves a row that still cannot hang
+// carrying `lf-docked` from one pass into the next, so it arrives at its mark already
+// wearing it. Ask before marking.
+function mark(row, name) {
+  if (!row.classList.contains(name)) row.classList.add(name);
+}
+
 function placeRows(columnRect) {
   const placements = [...rows].map(([row, options]) =>
     options.place?.(row, columnRect),
@@ -117,7 +160,11 @@ export function layoutMarginRows() {
     }
     if (staysDocked.has(row)) continue;
     if (row.classList.contains("lf-docked")) options.float?.(row);
-    row.classList.remove("lf-docked", "lf-waiting");
+    // `remove` re-serializes the class attribute whether or not the tokens stand, and
+    // this pass runs on the heartbeat, so ask before clearing: a row that hangs in the
+    // margin carries neither class and has nothing to be put back.
+    if (row.classList.contains("lf-docked") || row.classList.contains("lf-waiting"))
+      row.classList.remove("lf-docked", "lf-waiting");
     row.style.transform = "";
   }
   if (!rows.size) {
@@ -166,11 +213,11 @@ export function layoutMarginRows() {
   const inMargin = [];
   let docked = false;
   for (const { row, options, rect, shown, hangs } of measured) {
-    if (!shown) row.classList.add("lf-waiting");
+    if (!shown) mark(row, "lf-waiting");
     else if (!hangs || rect.right > room) {
-      if (options.fallback === "hide") row.classList.add("lf-waiting");
+      if (options.fallback === "hide") mark(row, "lf-waiting");
       else {
-        row.classList.add("lf-docked");
+        mark(row, "lf-docked");
         options.dock?.(row);
         docked = true;
       }

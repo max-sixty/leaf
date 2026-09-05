@@ -1,3 +1,72 @@
+/* The dispatcher: which scope answers a press, what it owes the platform, and the one
+   unwind step Escape takes.
+
+   Scopes nest by focus. `scopesFor` produces the active stack and element scopes are
+   spliced where their elements stand. The dispatcher walks innermost first. The first
+   live row answering the event runs, prevents the platform default when it owns the
+   press, and stops. A `native` row runs and stops the scope walk but leaves that default
+   intact. A focused widget may shadow a page key without either scope naming the other.
+
+   Leaf must not block standard platform or browser shortcuts. A handler prevents a
+   default only after a Leaf command owns the complete modified press; secondary clicks
+   and the native context menu remain the browser's too.
+
+   `claims` lists platform keys a scope consumes even when no registered row answers them.
+   A text entry scope uses `takesLetters` and claims character keys plus the keys that
+   edit that specific control: Enter, deletion, caret movement, Home/End, and page
+   movement. The claim follows the base key through modifiers, so Shift+Arrow selection,
+   Alt character composition, and Mod editing commands remain native. It does not blanket
+   radio, checkbox, slider, Escape, or unrelated function keys merely because they are
+   form-related. An exact element scope is nearer than that claim, so a wired textarea
+   keeps its own Escape or send row; the typing claim then stands before any scope on an
+   ancestor widget. This ordering lets a widget contain an editor without taking letters,
+   newlines, or caret keys from it.
+
+   One box inside another scope states only what it does differently. The find box
+   registers its Escape and Enter on the exact input element, so those rows stand before
+   the command return frame; that frame stands before `TYPING`, and the general text-entry
+   claim stands before any ancestor widget. Escape therefore lets a live query go, then
+   leaves the box through the `/` frame, then leaves the panel through its entry frame. A
+   plain composer with no control-specific Escape goes directly through the command frame
+   instead of paying a generic “leave the textarea” step the entry never made.
+
+   A key may repeat across nesting scopes to mean the same intent in context. `c` reads
+   that way: from the page it enters the nearest comment box; from the Threads list it
+   enters the page-comment box one frame below that list. `g T`, not `c`, is what enters
+   Threads as a navigable surface and leaves `w` and `/` live. Where a box has a key that
+   reaches it, the box says so itself through its placeholder `address`, which is what a
+   screen reader hears.
+
+   Escape is an ordinary binding in the register for Leaf-owned modes. A focused control's
+   specific inner step stands first, the latest active command return frame next, then the
+   generic text and containing scopes. The innermost live row owns exactly one unwind
+   step. A query clear, box return, panel dismissal, decision release, and return to the
+   page cannot cascade from one keypress. A scope does not need a private `keydown`
+   listener or hand-written `preventDefault` to protect that contract.
+
+   Auto popovers and modal dialogs are the platform's modes. While one is the active top
+   layer, the page rung stands down and browser Escape closes it; Leaf updates from the
+   resulting `toggle`, `cancel`, or `close` event. Register Escape only when Leaf adds a
+   distinct inner step, such as leaving a text box before closing its dialog or collapsing
+   the keyboard reference's expanded shelf — or, as a `native: true` row, to name the
+   platform's own press on the key line where nothing else does (the versions menu opened
+   by pointer): the row runs the same close, leaves the platform's half alone, and a
+   return frame standing nearer names the key first.
+
+   A popover hands focus back to whatever had it when the popover showed — not to its
+   invoker, and not to `showPopover({source})`, which buys the anchor and the invoker
+   relationship and nothing about focus. So a key that opens a layer runs the press from
+   the control itself rather than opening it from the page, and every door leaves the same
+   way out. Where Leaf has to hand focus back itself, scope that to the door that needs it
+   rather than to focus landing on the body: a light dismissal restores nothing on
+   purpose, and a reader who pressed away into the page is not asking to be moved to the
+   control they pressed away from.
+
+   When Leaf handles a binding that promises a visible control's activation, its command
+   path calls that control's `click()`; it does not call the handler or reproduce its
+   result. A platform-native press stays native. Arrival may focus or reveal the control
+   before activation. Modality checks belong only to gesture guards before activation,
+   such as refusing the mouseup that ends a text-selection drag. */
 import {
   MODIFIER_KEYS,
   answers,

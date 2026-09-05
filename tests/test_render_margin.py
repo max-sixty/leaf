@@ -243,7 +243,7 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
 # `dockSeats` restating every seat's offer, the same ten frames on the gallery
 # reported about 1700 records with nothing dispatched.
 HEARTBEAT_PAGES = (
-    # The corpus is the widest margin the examples draw: 28 items on this viewport,
+    # The corpus is the widest margin the examples draw: 31 items on this viewport,
     # more than half of them docked out in the document beside their targets. It is
     # also the page whose rows are withheld — 29 of the 31 it draws wear `lf-waiting`
     # at this viewport — so the posture clear and the rail re-read are read here.

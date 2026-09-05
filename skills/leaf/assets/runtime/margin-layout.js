@@ -42,7 +42,7 @@ let observedColumn = null;
 let claimedRail = 0;
 let railReserved = false;
 
-export const marginColumn = () => document.querySelector("main") || document.body;
+const marginColumn = () => document.querySelector("main") || document.body;
 
 // Whether the page takes a margin strip at all, as distinct from how wide the strip is.
 // The width is `--rail` below and only ever grows; this says the page has taken the

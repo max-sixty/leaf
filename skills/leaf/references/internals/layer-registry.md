@@ -23,10 +23,10 @@ The registry is shared by the JS runtime, the POST and re-vendor action gates,
 `leaf comment` anchors through, and the selective queries the agent runs. Each
 successful init records two deliberately different identities under `$layer`:
 
-- `generation` is a fresh epoch embedded in both leaf.js and the registry. State
-  reports it and event requests carry it; the server repeats it on contract
-  responses, so an old or half-loaded tab reloads before a replacement server can
-  interpret or append its event.
+- `generation` is a fresh epoch embedded in both `runtime/layer-client.js` and the
+  registry. State reports it and event requests carry it; the server repeats it on
+  contract responses, so an old or half-loaded tab reloads before a replacement
+  server can interpret or append its event.
 - `fingerprint` is the SHA-256 identity of the complete composed layer before that
   epoch is stamped. Identical runtime, theme, registry, widget, vendor, icon, and
   guidance bytes have the same fingerprint across repeated vendoring. `producer`

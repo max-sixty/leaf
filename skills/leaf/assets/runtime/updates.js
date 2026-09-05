@@ -64,143 +64,101 @@
    the freshness floor for authored state when no report exists. A page that reports no
    worker update is not timeless; its authored assertion is as old as its revision. */
 import { watchProjection } from "./projection-watch.js";
+import { presented } from "./presence.js";
+import { stateProjection } from "./projection/fold.js";
+import { coordinateProjectionCommitted, projectionCommitted } from "./projection.js";
+import { runtime } from "./context.js";
+import { closestAcross } from "./passages.js";
 
-let publishedActionSequence;
-let publishedPublishedAt;
-let publishedSaidAt;
-let publishedUpdateSequence;
-let publishedWatchActions;
-let publishedWatchHistory;
-let publishedWatchUpdates;
-export {
-  publishedActionSequence as actionSequence,
-  publishedPublishedAt as publishedAt,
-  publishedSaidAt as saidAt,
-  publishedUpdateSequence as updateSequence,
-  publishedWatchActions as watchActions,
-  publishedWatchHistory as watchHistory,
-  publishedWatchUpdates as watchUpdates,
+let claimState = Object.freeze({
+  sources: Object.freeze([]),
+  presence: null,
+  agentTurnClosed: null,
+  claimingSession: null,
+});
+export function replaceClaimState(next) {
+  const prior = claimState;
+  claimState = Object.freeze({
+    sources: Object.freeze(structuredClone(next.sources)),
+    presence: next.presence,
+    agentTurnClosed: next.agentTurnClosed,
+    claimingSession: next.claimingSession,
+  });
+  return () => (claimState = prior);
+}
+export const workClaimState = () => ({
+  claimsHeld: claimState.presence ? presented(claimState.presence).held : false,
+  agentTurnClosed: claimState.agentTurnClosed,
+  claimingSession: claimState.claimingSession,
+});
+
+export const actionSequence = (widget, action) => {
+  const projection = stateProjection();
+  return [...projection.classified.values()]
+    .filter(
+      (entry) =>
+        !entry.terminal &&
+        entry.e.kind === "action" &&
+        entry.e.widget === widget.id &&
+        (!action || entry.e.action === action) &&
+        projectionCommitted(projection, entry.e),
+    )
+    .sort((left, right) => left.e.seq - right.e.seq)
+    .map((entry) => structuredClone(entry.e));
 };
 
-export function createUpdates(runtime, dependencies) {
-  const {
-    closestAcross,
-    coordinateProjectionCommitted,
-    presented,
-    projectionCommitted,
-    stateProjection,
-  } = dependencies;
-
-  let claimState = Object.freeze({
-    sources: Object.freeze([]),
-    presence: null,
-    agentTurnClosed: null,
-    claimingSession: null,
-  });
-  function replaceClaimState(next) {
-    const prior = claimState;
-    claimState = Object.freeze({
-      sources: Object.freeze(structuredClone(next.sources)),
-      presence: next.presence,
-      agentTurnClosed: next.agentTurnClosed,
-      claimingSession: next.claimingSession,
-    });
-    return () => (claimState = prior);
+function updateTarget(target) {
+  if (target === null) return null;
+  if (target instanceof Element) {
+    if (target.id) return { kind: "widget", id: target.id };
+  } else if (
+    ["widget", "thread"].includes(target?.kind) &&
+    typeof target.id === "string" &&
+    target.id
+  ) {
+    return { kind: target.kind, id: target.id };
   }
-  const workClaimState = () => ({
-    claimsHeld: claimState.presence ? presented(claimState.presence).held : false,
-    agentTurnClosed: claimState.agentTurnClosed,
-    claimingSession: claimState.claimingSession,
-  });
-
-  const actionSequence = (widget, action) => {
-    const projection = stateProjection();
-    return [...projection.classified.values()]
-      .filter(
-        (entry) =>
-          !entry.terminal &&
-          entry.e.kind === "action" &&
-          entry.e.widget === widget.id &&
-          (!action || entry.e.action === action) &&
-          projectionCommitted(projection, entry.e),
-      )
-      .sort((left, right) => left.e.seq - right.e.seq)
-      .map((entry) => structuredClone(entry.e));
-  };
-
-  function updateTarget(target) {
-    if (target === null) return null;
-    if (target instanceof Element) {
-      if (target.id) return { kind: "widget", id: target.id };
-    } else if (
-      ["widget", "thread"].includes(target?.kind) &&
-      typeof target.id === "string" &&
-      target.id
-    ) {
-      return { kind: target.kind, id: target.id };
-    }
-    throw new TypeError(
-      "update target must be a widget element or {kind: 'widget' | 'thread', id}",
-    );
-  }
-  const targetKey = (target) =>
-    target ? JSON.stringify([target.kind, target.id]) : null;
-  const updateSequence = (target = null) => {
-    const key = targetKey(updateTarget(target));
-    return (runtime.view?.updates ?? [])
-      .filter((update) => key === null || targetKey(update.target) === key)
-      .map((update) => structuredClone(update));
-  };
-
-  function reportsCommitted(projection, target) {
-    const key = targetKey(updateTarget(target));
-    const coordinates = new Map();
-    for (const entry of projection.classified.values()) {
-      if (entry.terminal || entry.e.kind !== "report") continue;
-      const entryKey = targetKey({ kind: "widget", id: entry.e.widget });
-      if (key === null || key === entryKey) coordinates.set(entry.coordinate, entry);
-    }
-    return [...coordinates.values()].every((entry) =>
-      coordinateProjectionCommitted(projection, entry),
-    );
-  }
-
-  const publishedAt = () => runtime.view?.published_at ?? null;
-  const saidAt = (el) =>
-    closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head > time")
-      ?.dateTime || publishedAt();
-
-  const watchActions = (widget, action, callback) =>
-    watchProjection(widget, () => callback(actionSequence(widget, action)));
-  const watchUpdates = (target, callback) =>
-    watchProjection(target instanceof Element ? target : document.body, () => {
-      const projection = stateProjection();
-      if (reportsCommitted(projection, target)) callback(updateSequence(target));
-    });
-  // Full history is intentionally raw: it is the one public escape hatch whose contract
-  // is the append-only log itself rather than a semantic reading of that log.
-  const watchHistory = (owner, callback) =>
-    watchProjection(owner, () =>
-      callback(runtime.events.map((event) => structuredClone(event))),
-    );
-
-  publishedActionSequence = actionSequence;
-  publishedPublishedAt = publishedAt;
-  publishedSaidAt = saidAt;
-  publishedUpdateSequence = updateSequence;
-  publishedWatchActions = watchActions;
-  publishedWatchHistory = watchHistory;
-  publishedWatchUpdates = watchUpdates;
-
-  return {
-    actionSequence,
-    publishedAt,
-    replaceClaimState,
-    saidAt,
-    updateSequence,
-    watchActions,
-    watchHistory,
-    watchUpdates,
-    workClaimState,
-  };
+  throw new TypeError(
+    "update target must be a widget element or {kind: 'widget' | 'thread', id}",
+  );
 }
+const targetKey = (target) =>
+  target ? JSON.stringify([target.kind, target.id]) : null;
+export const updateSequence = (target = null) => {
+  const key = targetKey(updateTarget(target));
+  return (runtime.view?.updates ?? [])
+    .filter((update) => key === null || targetKey(update.target) === key)
+    .map((update) => structuredClone(update));
+};
+
+function reportsCommitted(projection, target) {
+  const key = targetKey(updateTarget(target));
+  const coordinates = new Map();
+  for (const entry of projection.classified.values()) {
+    if (entry.terminal || entry.e.kind !== "report") continue;
+    const entryKey = targetKey({ kind: "widget", id: entry.e.widget });
+    if (key === null || key === entryKey) coordinates.set(entry.coordinate, entry);
+  }
+  return [...coordinates.values()].every((entry) =>
+    coordinateProjectionCommitted(projection, entry),
+  );
+}
+
+export const publishedAt = () => runtime.view?.published_at ?? null;
+export const saidAt = (el) =>
+  closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head > time")
+    ?.dateTime || publishedAt();
+
+export const watchActions = (widget, action, callback) =>
+  watchProjection(widget, () => callback(actionSequence(widget, action)));
+export const watchUpdates = (target, callback) =>
+  watchProjection(target instanceof Element ? target : document.body, () => {
+    const projection = stateProjection();
+    if (reportsCommitted(projection, target)) callback(updateSequence(target));
+  });
+// Full history is intentionally raw: it is the one public escape hatch whose contract
+// is the append-only log itself rather than a semantic reading of that log.
+export const watchHistory = (owner, callback) =>
+  watchProjection(owner, () =>
+    callback(runtime.events.map((event) => structuredClone(event))),
+  );

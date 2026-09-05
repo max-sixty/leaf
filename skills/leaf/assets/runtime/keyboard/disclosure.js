@@ -31,14 +31,39 @@
    attribute, so one `MutationObserver` over `open` and `aria-expanded` repaints for both,
    and `shadowStage` hands it each root. */
 import { PRESS } from "./bindings.js";
+import { paintKeys } from "./scopes.js";
+import { disclosed } from "./page.js";
+import { inChrome } from "../passages.js";
 
-let publishedDisclosure;
-export const DISCLOSE = (...args) => publishedDisclosure(...args);
+// Where a disclosure keeps which way it stands, in both spellings. Declared up here
+// because `shadowStage` calls it, far above the surfaces it repaints for.
+// This pair is what DISCLOSE reads, so a toggle moves every row bound through it — and a
+// row's keys are named on two surfaces, the line the reader sees and the
+// `aria-keyshortcuts` a listener is read. Repainting the line alone left the attribute
+// standing whichever way the row was when its scope was declared, naming the arrow that no
+// longer moves the section and withholding the one that does. `paintKeys()` is the superset
+// — it revalidates the connected scopes and ends in `paintHere()` — so the watcher that
+// already hears this write is the one place both surfaces are kept together, rather than a
+// repaint each DISCLOSE row has to remember for itself.
+// A write that says what the attribute already said is not a disclosure changing, and
+// taking it for one closes a loop: paintCoreControls paints `aria-expanded` on the key
+// line's More control, so every paint scheduled the next one and the page repainted for
+// as long as it was open. Reading the old value is what tells the two apart. A real
+// toggle still arrives, including one that lands back where it started, because the
+// record for its return leg carries the other value.
+const disclosureWatch = new MutationObserver((records) => {
+  if (records.some((r) => r.target.getAttribute(r.attributeName) !== r.oldValue))
+    paintKeys();
+});
+export const watchDisclosures = (root) =>
+  disclosureWatch.observe(root, {
+    subtree: true,
+    attributeFilter: ["open", "aria-expanded"],
+    attributeOldValue: true,
+  });
 
-export function createDisclosure({ disclosed, inChrome }) {
-  publishedDisclosure = (el) => {
-    const open = disclosed(el);
-    if (open === null) return [...PRESS, "ArrowLeft", "ArrowRight"];
-    return inChrome(el) ? PRESS : [...PRESS, open ? "ArrowLeft" : "ArrowRight"];
-  };
-}
+export const DISCLOSE = (el) => {
+  const open = disclosed(el);
+  if (open === null) return [...PRESS, "ArrowLeft", "ArrowRight"];
+  return inChrome(el) ? PRESS : [...PRESS, open ? "ArrowLeft" : "ArrowRight"];
+};

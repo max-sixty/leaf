@@ -72,7 +72,7 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
 
     An action or request on a sent widget belongs to the conversation that supplied
     its frozen contract. An action also belongs to the conversation it settles,
-    which `detail.resolves` names — the same key `build_threads` folds on to close
+    which admitted `meaning.answer` names — the same key `build_threads` folds on to close
     one. Those are usually different threads and often only the second exists: the
     shipped settling verb is `lf-suggestion`'s accept, whose widget stands on the
     page and in no conversation at all. Reading the widget alone left the gesture
@@ -92,7 +92,7 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
     elif kind in {"action", "request"}:
         named = [
             widgets.get(event["widget"]),
-            event["detail"].get("resolves") if kind == "action" else None,
+            event["meaning"].get("answer") if kind == "action" else None,
         ]
     else:
         return []
@@ -114,7 +114,7 @@ def thread_memberships(
     records explain that fold rather than becoming another state projection.
     """
     memberships: dict[str, list[str]] = {}
-    settled_by_widget: dict[str, list[str]] = {}
+    settled_by_coordinate: dict[tuple, list[str]] = {}
     settling_actions: list[tuple[dict, str]] = []
     for event in events:
         if event["kind"] == "undo":
@@ -124,9 +124,10 @@ def thread_memberships(
         else:
             named = event_threads(event, roots, widgets)
         if event["kind"] == "action":
-            named = [*named, *settled_by_widget.get(event["widget"], [])]
-            if root := event["detail"].get("resolves"):
-                settled_by_widget.setdefault(event["widget"], []).append(root)
+            coordinate = tuple(event["meaning"]["coordinate"])
+            named = [*named, *settled_by_coordinate.get(coordinate, [])]
+            if root := event["meaning"].get("answer"):
+                settled_by_coordinate.setdefault(coordinate, []).append(root)
                 settling_actions.append((event, root))
         elif event["kind"] == "note" and (restated := set(event.get("restated", []))):
             named = [

@@ -399,8 +399,8 @@ the UI subscribes with `useAgent` and writes back with `setState`, and a middlew
 pipe a tool argument into a state key as the model generates it, so a draft assembles on
 screen a token at a time. leaf has no state object. The version's markup states the
 initial condition, the log records every transition, and the standing state is the fold
-over it — which is the whole reason an `applyAction` must state an absolute placement
-rather than a mutation. CopilotKit streams down to the token, where a leaf page changes
+over it. Each widget's `renderState` receives the complete result, including the
+initial values restored by undo. CopilotKit streams down to the token, where a leaf page changes
 a version at a time and `leaf report` is what lets a dashboard tick over between
 versions. leaf keeps a decision across a rewrite: a card the reader moved is still where
 they moved it after the agent publishes v4, and taking that back costs the author the

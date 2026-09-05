@@ -36,9 +36,11 @@ customElements.define(
       if (!closestCommandRole(this.parentElement, "command")) renderChips(this);
     }
 
-    applyAction(action, detail) {
-      if (action !== "status") return;
-      this.setAttribute("status", detail.status);
+    renderState(state) {
+      const value = state.status.value;
+      if (value === this.getAttribute("status")) return;
+      if (value === null) this.removeAttribute("status");
+      else this.setAttribute("status", value);
       if (closestCommandRole(this.parentElement, "command")) return;
       for (const task of this.closest("lf-tasks").querySelectorAll("lf-task"))
         renderChips(task);

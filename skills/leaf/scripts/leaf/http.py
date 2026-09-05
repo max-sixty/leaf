@@ -1,5 +1,8 @@
 """HTTP transport and routes for one served page."""
 
+import base64
+import hashlib
+import html
 import json
 import re
 import secrets
@@ -42,7 +45,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .structure import parse_structure
+from .structure import PAGE_CSP, parse_structure
 
 # How often an open news stream re-reads the page, and how long it may go without a
 # word before saying it is still there. The look is a re-stat rather than an in-process
@@ -171,12 +174,8 @@ def scope_page_urls(value, page_root: str):
     return scoped
 
 
-def runtime_document(
-    source: str,
-    revision: int,
-    version: int | None = None,
-) -> bytes:
-    """Inject the exact immutable identity beside the canonical runtime script."""
+def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
+    """Inject immutable document identity, including non-HTTP delivery surfaces."""
     parsed = parse_structure(source)
     scripts = [
         script
@@ -195,9 +194,50 @@ def runtime_document(
     return (source[:offset] + markers + source[offset:]).encode()
 
 
+def supervised_document(
+    source: str,
+    revision: int,
+    version: int | None,
+    *,
+    server_id: str,
+    layer_id: str,
+    bootstrap: str,
+) -> bytes:
+    """Supervise HTTP startup before the module graph or stylesheet can load.
+
+    The authored source keeps its canonical script and CSP. Only the served
+    document gains the exact bootstrap hash and the server incarnation probe.
+    """
+    source = runtime_document(source, revision, version).decode()
+    parsed = parse_structure(source)
+    policy = next(
+        meta
+        for meta in parsed.http_equivs
+        if meta["equiv"].lower() == "content-security-policy"
+    )
+    policy_line, policy_column = policy["position"]
+    policy_offset = (
+        sum(len(part) + 1 for part in source.split("\n")[: policy_line - 1])
+        + policy_column
+    )
+    digest = base64.b64encode(hashlib.sha256(bootstrap.encode()).digest()).decode()
+    csp = PAGE_CSP + f"; script-src 'self' 'sha256-{digest}'"
+    supervised = (
+        f'<meta http-equiv="Content-Security-Policy" content="{html.escape(csp, quote=True)}">'
+        f'<script data-lf-runtime data-lf-server="{server_id}" data-lf-layer="{layer_id}" data-lf-entry="/leaf.js" '
+        f'data-lf-theme="/theme.css" data-lf-probe="/registry.json">{bootstrap}</script>'
+    )
+    return (
+        source[:policy_offset]
+        + supervised
+        + source[policy_offset + len(policy["raw"]) :]
+    ).encode()
+
+
 class Handler(BaseHTTPRequestHandler):
     page_dir = None
     token = None
+    server_id = secrets.token_hex(16)
     event_endpoint = None
     # Set by `authorized` when the key arrived in the query, cleared by the one
     # writer that spends it.
@@ -412,6 +452,7 @@ class Handler(BaseHTTPRequestHandler):
             "/",
         }:
             self.send_header("Leaf-Layer", self.layer)
+            self.send_header("Leaf-Server", self.server_id)
         if self.set_cookie:
             self.send_header(
                 "Set-Cookie",
@@ -534,7 +575,14 @@ class Handler(BaseHTTPRequestHandler):
             source = revision_path(self.page_dir, revision).read_text(encoding="utf-8")
             version = stamped_version(events, revision)
         try:
-            projected = runtime_document(source, revision, version)
+            projected = supervised_document(
+                source,
+                revision,
+                version,
+                server_id=self.server_id,
+                layer_id=self.layer,
+                bootstrap=self.bootstrap,
+            )
         except ValueError as error:
             self._json({"error": str(error)}, 500)
             return
@@ -560,7 +608,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send(
                 200,
                 "text/html; charset=utf-8",
-                runtime_document(source, mapping[version], version),
+                supervised_document(
+                    source,
+                    mapping[version],
+                    version,
+                    server_id=self.server_id,
+                    layer_id=self.layer,
+                    bootstrap=self.bootstrap,
+                ),
             )
             return True
         if path.startswith("/revisions/"):
@@ -694,6 +749,10 @@ def handler_for(
         {
             "page_dir": page_dir,
             "token": token,
+            "server_id": secrets.token_hex(16),
+            "bootstrap": (page_dir / "runtime" / "bootstrap.js").read_text(
+                encoding="utf-8"
+            ),
             "preview_source": preview_source,
             "protocol_version": protocol_version,
             "event_endpoint": EventEndpoint(page_dir),

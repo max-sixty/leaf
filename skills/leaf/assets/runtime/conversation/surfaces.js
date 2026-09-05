@@ -4,7 +4,14 @@
    threads qualify, their retained rendering, and whether a local view suppresses
    the living-margin fallback. Adapter faults release that widget's core views
    and report through the page-error channel; they cannot stop other threads
-   reconciling. Core rendering faults still fail the complete state application. */
+   reconciling. Core rendering faults still fail the complete state application.
+
+   With the panel closed, an exact projected-datum comment opens in a declared widget
+   Thread surface when that widget supplies a visible outlet. A local surface uses the
+   canonical Thread fold and core-owned controls; only its container and layout belong
+   to the widget. Closing, filtering, or lazily withholding the datum removes the claim
+   and restores the living-margin fallback. Deliberate travel may reveal or hydrate the
+   datum, then runs the same reconciliation path to claim it. */
 let publishedRegister;
 
 export const registerThreadSurface = (...args) => {

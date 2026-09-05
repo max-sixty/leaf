@@ -113,6 +113,22 @@ export function coveredWords({
 // is named here: this marks the medium, and the widgets answer for themselves.
 export function bake() {
   document.documentElement.classList.add("lf-copy");
+  // The chrome's sheet and the marks' are adopted, so they stand in no element's
+  // markup and a serialized copy would open without them — and the copy reads the
+  // chrome's: its `html.lf-copy` rules are what dress a copy's marks. Each becomes a
+  // link the export folds into its file's own text, the way the theme's link becomes
+  // the theme, rather than a re-serialization of parsed rules that could drop what the
+  // browser parsed but cannot spell back. The order is the cascade's: after the theme,
+  // chrome before marks. The delivery ledger is a session's diagnostic, not the copy's.
+  for (const href of ["/runtime/chrome.css", "/runtime/marks.css"]) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = href;
+    link.dataset.lfRuntime = "1";
+    document.head.append(link);
+  }
+  document.adoptedStyleSheets = [];
+  document.documentElement.removeAttribute("data-lf-traffic");
   // A live report is runtime chrome even where its seat is in the page rather than
   // under .lf-chrome, so it is answered here, in the document and in every open shadow
   // root, before those roots are serialized below.

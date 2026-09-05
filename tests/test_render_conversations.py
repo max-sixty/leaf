@@ -2130,7 +2130,8 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         serve(leaf_page("t", "<h1>t</h1><section id=s><p>words</p></section>")),
     )
     surface = page.evaluate("""() => {
-        const sheet = [...document.styleSheets].find(
+        // The chrome's sheet is adopted, not linked (runtime/chrome.css).
+        const sheet = [...document.styleSheets, ...document.adoptedStyleSheets].find(
             s => { try { return [...s.cssRules].some(r => r instanceof CSSScopeRule); }
                    catch { return false; } });
         const classes = sel => [...(sel || "").matchAll(/\\.([A-Za-z0-9_-]+)/g)].map(m => m[1]);
@@ -2144,7 +2145,8 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         // from the runtime sheet. It is still outside this collision probe: any movement
         // it causes in the page is that deliberate global rule, not a leaked scoped one.
         const documentGlobal = new Set(global_);
-        for (const other of [...document.styleSheets].filter(s => s !== sheet))
+        for (const other of [...document.styleSheets, ...document.adoptedStyleSheets]
+                 .filter(s => s !== sheet))
             collect(other.cssRules, documentGlobal);
         const themed = new Set([...scoped].filter(
             c => !global_.has(c) && documentGlobal.has(c)));

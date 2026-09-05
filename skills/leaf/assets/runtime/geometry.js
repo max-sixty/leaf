@@ -1,6 +1,26 @@
 import { uiInside } from "./passages.js";
 
-/* Shared readings of the boxes the page actually shows. */
+/* Shared readings of the boxes the page actually shows.
+
+   `shownBox` returns an element's own box or the union of the boxes its
+   `display: contents` descendants paint. `shownParts` returns the visible elements on
+   which an outline can be drawn. `shownRect` clips the result through scrolling
+   ancestors and the viewport, stopping ancestor clipping at a fixed-position box.
+   `clippedRect` applies that same clipping walk to a box already measured from a Range,
+   using the element that owns the Range as the start of the walk. Use:
+
+   - `shownBox` for travel, bounds, and reading-position landmarks;
+   - `shownParts` for decision rings and element-anchor outlines;
+   - `shownRect` for visible placement of floating chrome and address chips;
+   - `clippedRect` only when the subject has no element box of its own.
+
+   Do not read `getBoundingClientRect()` directly when the target may generate no box.
+   A `display: contents` element reports an origin-like zero rectangle that does not
+   represent where its contents are. An area greater than zero is not enough for shown
+   parts either: clipped note text and hoisted controls can have measurable boxes while
+   remaining the wrong semantic target, which is why `shownParts` takes the bounded
+   chrome question (`uiInside`). `unmarkableItems`, in the render checks, detects
+   declared items with no visible part on which a mark can land. */
 // Document-anchored chrome is positioned from the document origin, while the boxes it
 // follows are read in viewport coordinates. Convert once at that boundary.
 export function documentPoint(left, top) {

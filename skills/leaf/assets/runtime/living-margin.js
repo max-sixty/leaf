@@ -1,3 +1,266 @@
+/* The living margin: the thread card and Page map sheet that open from a target's
+   Buttons, and the map's own way back out.
+
+   The right margin has one projected cluster per page target. Leaf calls its repeated
+   fitting a Button: like a coat button, it is one consistent piece attached to the
+   passage, not a synonym for every HTML `<button>` on the page. The cluster is the single
+   place for controls the reader can use on the target, communications they can start
+   about it, and standing information such as comment threads, decisions, changes, or
+   agent activity.
+
+   At rest a cluster has a two-Button budget: the primary and one peer, or the primary and
+   `…` when there are at least two peers. Hiding one peer costs the same fitting as
+   showing it and adds a press, so it is not overflow. With no contributed control,
+   standing information supplies the primary Button in the fitting declared by its face.
+
+   The expanded budget is six fittings, including the primary or visible reading marker
+   where one exists; a target made only of peer choices uses all six. A larger set shows
+   the Buttons that fit and a final Page-map Button whose label gives the remaining count.
+   That opens the existing Page map at the first excess action; every excess control has
+   its own named row which performs that exact action. Do not grow another popover for
+   overflow. The same limit and exact-action route apply when the cluster docks on a
+   narrow screen.
+
+   An engaged contribution exposes its peers within that budget. Engagement is the owner's
+   semantic interaction state, not DOM focus: an open editor, for example, keeps Save and
+   Cancel exposed until either action ends the edit, even if focus moves within the
+   document. An unsettled reader action engages the whole target in the same way, keeping
+   its delivery lifecycle visible until the handoff settles. An engaged set has no `…`;
+   completion and escape actions take the first fittings, so the density limit cannot hide
+   the way to finish or leave the active interaction.
+
+   Keyboard arrival unfolds that same cluster immediately: Tab into any of its Buttons
+   replaces `…` with the expanded set, and Left/Right wrap through those visible Buttons.
+   A pointer press on `…` makes the same replacement and lands on the first revealed
+   Button. Escape folds that temporary expansion, restores `…`, and returns focus to it;
+   moving focus or the pointer outside folds without taking focus. None of those routes
+   folds peers required by an engaged contribution, and moving into a modal or thread
+   surface the cluster opened does not count as leaving it. The cluster uses one temporary
+   expansion state for both keyboard and pointer routes; focus does not create a parallel
+   presentation. A category walk that lands on a Button does not unfold its peers: it is
+   navigation rather than Tab arrival, so one Escape still lets go of the destination the
+   walk put down. A numbered Page-map address arrives the same way and then presses that
+   Button, so anything unfolded there is the press's own result rather than the arrival's,
+   and Escape still lets go of where the press left the reader.
+
+   An unsettled reader action reuses that same Button rather than growing a status row
+   inside authored content. Its information face advances from Sent or Waiting for pickup
+   to Picked up, then to Active only when a typed local claim exists; an acknowledgment
+   keeps the same retained target cluster throughout that live handoff. The first three
+   phases report a move already made, so the Button wears the flat `status` behavior
+   below. Active raises it back into a disclosure. Once no receipt or claim is live, the
+   generated Button disappears; the widget and action projection carry the durable state.
+   A thread's existing Thread Button remains the page-edge route to the exact receipt in
+   the full conversation; an Active claim joins that engaged cluster as an exposed peer. A
+   standalone page-widget claim gets an Active Button directly. When no page edge
+   exists—inside the full thread panel or a widget frozen into conversation chrome—the
+   compact `.lf-receipt` remains the local fallback.
+
+   Content modules contribute through `registerMarginItem({key, target, controls, subject,
+   state, ...})`; they own their verbs and events, never placement or control styling.
+   `key` is stable within a target. Optional `subject` is a string or live reading of the
+   concise semantic subject used to name that target away from its own paint. Supply it
+   only when plain text concatenation loses a relation the widget paints visually, such as
+   a rewrite's `old → new`; contributions at the same target must agree. `state` is a
+   value or live reading of `idle`, `engaged`, `busy`, `failed`, or `settled`; active
+   states keep the owner's peers exposed. A contribution item that sets `represents` and
+   names its `kind` is also the visible reading of that state, so the margin suppresses a
+   generated reading of the same kind at that exact target rather than showing the fact
+   twice. Every fitting in a contribution is built with `marginButton(control, {key, icon,
+   label, context, behavior, tone, role, state, writesRelation, writesSeat})`; an
+   authored reaction can supply `glyph` instead of `icon`, never both. That is the one RHS control type: it owns the circle,
+   size, type, focus, state paint, and glyph/word anatomy shared by decisions, editing,
+   communications, and information triggers. Its behavior states what the fitting
+   promises. Behavior, tone, and state are independent axes: never use a heavier border to
+   mean positive, busy, selected, or complete.
+
+   `marginButton` also establishes the canonical Button record: key, face, label, context,
+   behavior, tone, role, lifecycle state, and the relation writer the call declared. The
+   record carries that last one because the options group rebuilds a proxy Button from
+   it, and a proxy that re-inferred the default would write a relation its source has no
+   writer for. Registration assigns its stable owner and rejects duplicate Button keys
+   within that owner. The compact rail and complete Page map
+   both render from this record; neither infers semantics by scraping the contributor's
+   painted DOM. Transient native state such as disabled and `aria-expanded` is mirrored
+   onto a retained proxy, while the original contributor control remains the only
+   activation owner.
+
+   - `action` has a uniformly heavier ring and a small lower shadow, carries an imperative
+     verb, and performs its effect immediately;
+   - `disclosure` has a firmer single ring than status and the same paper surface. It
+     carries `aria-expanded`, reveals or hides context without settling it, and includes
+     the generated More Button whose ellipsis is its whole face. `marginButton` writes
+     that attribute's default unless the call says `writesRelation: false`, which
+     declares that another writer decides the disclosure's relation — the margin's own
+     readings, whose `aria-controls` and `aria-expanded` are settled together from
+     whether the reading opens a thread. Two writers over one attribute say something
+     different each pass, so no record of theirs restates anything while the document's
+     disclosure watch reads the pair as news. `writesSeat: false` says the same thing
+     about the control's `tabindex`: the rail's roving stop writes every row's seat on
+     the frame after each pass, so a marker that seated itself here would have the next
+     pass contradict it. The two are declared apart because they part on the reading
+     options, which stand outside the rail's walk and own their own seat while another
+     writer owns their relation;
+   - `status` reports a move already made and offers no press. It keeps its icon and its
+     circular Button silhouette and seat in the cluster on the page surface with a ghost
+     keyline, but gives up its raised edge, hover response, pointer, and tab stop. It
+     remains a `status` in the accessibility tree so the Page map can still land there and
+     name the phase. Status is live-session information, so a copy drops it.
+
+   A generated reading wears more than one of those over its life — a Thread Button while
+   there is something to open, a status once the move is reported — and one element has to
+   carry both, or the seat moves under a reader standing in it. Such a control is
+   therefore a span, since a `<button>` cannot stop being one, and the activation the
+   platform then does not supply is declared by the page map's own scope (`margin.press`)
+   rather than by a listener on the control: a key the register does not hold is a key no
+   surface can promise.
+
+   Material and ring weight distinguish immediate actions, disclosures, and statuses:
+   Action is raised, Open is outlined, and a read-only report stays flat behind the palest
+   ring. Their resting interiors all use the page surface, so fill does not imply that a
+   status is selected or pressed. The shape stays shared, with no added mark. A lone
+   non-thread informational Button reveals its target directly. Each additional non-thread
+   reading gets its own peer Button under `…`; pressing one reveals that reading directly
+   rather than collecting readings in a card. All threads at one target share one Thread
+   Button and one conversation card. That card opens only on a press, never merely on
+   focus or hover; when the document cannot leave it room beside the source, the same
+   press opens the full Threads surface. The thread card is the only generated contextual
+   pane, not a generic container for alternatives.
+
+   Tone is `neutral`, `positive`, or `negative`, expressed through icon color only; rings,
+   fills, and state marks keep their shared neutral treatment. An interactive Button's
+   state has a separate small corner mark: a dot for engaged, an open moving ring for busy
+   (static under reduced motion), a diamond for failed, and a square for settled. The mark
+   is enough to state that a Button is busy, so the Button itself stays at full opacity
+   and keeps its pointer. Busy also sets `aria-busy="true"`; failed and settled actions
+   need visible words, not color or shape alone. A status's phase is its transient hover
+   or focus label instead of a corner mark. Standing reactions reuse the settled square in
+   their margin palette and seated marks, so they remain distinct from hover without
+   changing the shared ring or fill. Reaction toggles retain their vocabulary labels and
+   `aria-pressed`; withdrawing a token returns its palette Button to idle.
+   `marginButtonState(control, state)` changes that axis without changing the verb, ring,
+   or tone. Built-in faces use the shared monochrome SVG vocabulary with `currentColor`;
+   emoji and font-dependent symbols are not structural icons. Reaction glyphs are content
+   declared by the layer and retain their declared vocabulary order.
+
+   Ordering is semantic, not registration or DOM order. Active contributors rank failed,
+   busy, then engaged; ordinary contributors follow. Within that order, roles rank
+   `complete`, `escape`, `primary`, `secondary`, `reading`, then `overflow`. Stable
+   contributor and control keys break ties. The primary is the first available contributed
+   control; generated readings follow direct controls, and a temporary communication
+   palette keeps its own keyed order after those readings. Reordering a module's setup
+   must not move an unrelated action into the primary fitting.
+
+   A failed mutation leaves Failed · Retry · Cancel at its target. Retry makes a new
+   attempt only after a definitive refusal; an ambiguous transport result stays busy while
+   the outbox retries the same attempt. Details is a disclosure only when there is useful
+   detail to show. An editor retains the user's text; typing again returns from failed to
+   engaged. Reversible actions normally act immediately and offer Undo, which withdraws
+   the named logged gesture under the same authored-version, replayability, and
+   pending-delivery guards as keyboard Undo. Confirmation is for a genuinely irreversible
+   effect, not routine Save or Accept. Settled outcomes are visible receipt text beside an
+   active Undo or context disclosure: never leave an inert Button-shaped status.
+
+   The Page-map keyboard scope owns the cluster's way back out. When a thread card stands
+   over an unfolded `…` group, Escape closes the card first and folds the secondary
+   Buttons on the next press; each rung is named on the key line before it runs.
+
+   A gesture that unfolds a cluster for its own use puts that fold back, and only that
+   one: putting the reaction choices away folds back the cluster the raise unfolded, so a
+   disarm over a reply strip or over a fold the reader opened themselves takes away no
+   layer the gesture put on. That put-down folds without claiming the focus — it runs from
+   wherever the reader is standing, so taking the focus would throw them onto a cluster
+   they may have left, and would send a press already on its way to a Button they were not
+   standing on.
+
+   Every Button-shaped fitting keeps one circle. Its label appears as transient chrome on
+   hover or keyboard focus without changing the cluster's geometry. An open disclosure
+   suppresses the label because the context it opened now names the Button's result. A
+   disclosure label ends in an ellipsis because it opens something; action and status
+   labels do not. A status may add a quieter context line, such as how long ago its phase
+   began. The complete label remains in the DOM, and its accessible name tracks the
+   control or status.
+
+   A marker's accessible name also carries where it stands in the walk: which location of
+   how many, and how far down the page. That is how a reader listening places it, and it
+   belongs to the name alone. Painted beside the phase, the same words read as progress
+   rather than position.
+
+   Hover or focus on any interactive fitting illuminates its exact target, including a
+   cluster displaced by packing. Hovering a status shows its label and connects it to the
+   target with a softer neutral trace, without lifting the fitting or borrowing the accent
+   ring that promises interaction. A numbered Page-map arrival may still focus it and
+   illuminate the target deliberately. Labels stay inside the viewport without moving the
+   fitting. Dense and narrow-screen tests must exercise that association and activate an
+   excess action through Page map; counting hidden DOM nodes is not evidence of
+   reachability.
+
+   The living margin groups contributions and state readings by exact target identity,
+   chooses the primary, and owns the generated disclosure and `…` Buttons plus the
+   cluster's accessible group name. At wide widths it hoists that host into the main
+   positioning context, preserving source and tab order when several targets share a
+   top-level block. At compact widths it returns the host to flow immediately after the
+   target's rendered text block (or the target itself). Adding another target action must
+   not add another absolute row, control type, or rail measurement.
+
+   Each render reads once which contributed controls paint, and it does not take that
+   reading on paper. Print takes every injected control out of the page, so the reading
+   comes back empty there and folds every cluster to nothing — the medium written down as
+   the page's state, standing on screen after the print preview closes. A render asked for
+   while `print` matches is refused whole and taken once the screen is back. It is the
+   thread list's head-room rule on the layer's other measuring surface: a reading taken
+   where the box is `display: none` is not a measurement.
+
+   That ordered target collection is the Page map's complete location count and the source
+   for the `g m` address list. A location's disclosure Button announces its position in
+   the complete collection. The numbered chord exposes up to nine locations in the visible
+   window, starting at one. `g M` and the banner's Map control open the complete sheet,
+   which projects the same currently available contributed controls in owner and role
+   order, plus readings that have no direct control. An offered reading that merely
+   describes its owner's controls is omitted there rather than becoming a parallel “open
+   action” beside the real verbs. Ordinary entry focuses the sheet's filter, so a large
+   map is searchable by Button name, concise target name, or the visible passage
+   containing that target without tabbing through every preceding action. A spill opens
+   this complete sheet focused on the first control the compact cluster omitted; it does
+   not make a smaller overflow-only menu.
+
+   Live reconciliation retains the DOM identity of each surviving Button and each of its
+   hit-tested descendants, including a count badge. State-feed refreshes can arrive
+   between pointerdown and pointerup, so rebuilding an unchanged face would cancel the
+   browser's click even if its replacement had identical markup. The open Page map follows
+   the same rule for its groups and action proxies; a refresh updates their meaning
+   without replacing the control under focus or a held pointer.
+
+   A thread card names the target without offering a second route to the panel the banner
+   already opens. At wide widths it is the conversation itself, measured eight pixels
+   beside the pressed Thread Button in the same turn it is shown or changes size. While
+   that Button keeps focus, `c` enters the card's one reply box; several roots leave the
+   destination ambiguous and preserve the page's ordinary route to the panel. Replacing an
+   open panel waits for the column's workspace motion before choosing the card posture.
+   When the document cannot leave the card room beside its Button, the press opens the
+   full Threads surface instead.
+
+   Closing is not the mirror of that. The platform hides the dialog and restores focus at
+   once but hands `close` to a task of its own, so a reader who leaves a surface and
+   returns to it in the same breath — Esc off an overflow route and straight back onto the
+   control that named it — is standing in the next opening before the first one's close
+   arrives. A handler that tears down the opening's state therefore reads whether the
+   dialog is open again and gives that reopening its state back rather than taking it: a
+   `close` overtaken by a reopen has nothing left to close. The state a late close would
+   have cleared is what the surface is read by, and losing it is silent — the sheet still
+   stands, still says its name, and the next press inside it means something else.
+
+   The same task boundary decides who puts focus back. A surface's own close route returns
+   the reader to the control that opened it, which is right for a press on that control
+   and wrong for a keyboard entry: the dispatcher captured the reader's exact place before
+   the command ran and restores it synchronously, so a return route delivered a task later
+   overwrites the restore and leaves them holding a door they never touched. A close that
+   places the reader itself therefore says so, by raising the flag the `close` handler
+   reads: `leavePageMap` unwinding the dispatcher's frame, so that frame's restore stands,
+   and the two activation routes that land the reader on the map control or on the control
+   the row forwards to. A close that raises nothing — the Close button, the platform's own
+   dismissal — still runs the surface's own route. */
+
 import {
   layoutMarginRows,
   registerMarginRow,

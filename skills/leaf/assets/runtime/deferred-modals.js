@@ -1,3 +1,13 @@
+/* Authored top-layer UI held measurable until the page is presented.
+
+   `showModal()` calls from authored main are temporarily represented as measurable
+   non-modal dialogs; `presentPage` promotes only connected, still-open dialogs whose
+   reconciled branch remains visible. This prevents a modal's top-layer inertness from
+   disabling the recovery chrome. `showPopover()` opens natively so the widget can
+   observe and cancel it through `:popover-open`; the startup stylesheet withholds its
+   top-layer paint and interaction, and `presentPage` closes any open popover whose
+   reconciled branch is no longer visible. */
+
 export function createDeferredModals({ presentedAttribute }) {
   // A modal is promoted into the top layer and makes the rest of the document inert. Both
   // facts escape an ancestor boundary: hiding it with CSS alone would still disable the

@@ -45,10 +45,10 @@ def inline_css_assets(css: str, page_dir: Path) -> str:
 
 def inline_assets(html: str, page_dir: Path) -> str:
     """Fold the served assets into the markup. The theme's link becomes the stylesheet
-    itself and each image becomes its own bytes, which is everything the document still
-    reaches the server for: the runtime's stylesheet arrived as a `<style>` in the DOM,
-    the widget modules were imports rather than elements, and a `lf-ref`'s link was
-    always somewhere else."""
+    itself, the runtime's sheets the bake linked become theirs, and each image becomes
+    its own bytes, which is everything the document still reaches the server for: the
+    widget modules were imports rather than elements, and a `lf-ref`'s link was always
+    somewhere else."""
     theme = (page_dir / "theme.css").read_text(encoding="utf-8")
     html, n = re.subn(
         r'<link[^>]+href="/theme\.css"[^>]*>',
@@ -60,6 +60,14 @@ def inline_assets(html: str, page_dir: Path) -> str:
         sys.exit(
             "the rendered page carried no /theme.css link — it would open unstyled"
         )
+
+    def runtime_sheet(match):
+        path = page_dir / match.group(1).lstrip("/")
+        return f'<style data-lf-runtime="1">{path.read_text(encoding="utf-8")}</style>'
+
+    html = re.sub(
+        r'<link[^>]+href="(/runtime/[a-z0-9/.-]+\.css)"[^>]*>', runtime_sheet, html
+    )
     # References from the parsed reading, never a scan of the text: a path standing
     # in prose is the reader's words — the lesson `media_refs` itself carries — and
     # a text scan crashed the export on a documented path no file answers. The

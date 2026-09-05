@@ -9,6 +9,10 @@ export const dataApplied = (revision) =>
 export const logApplied = (applied) =>
   Number(document.body.dataset.lfApplied ?? -1) >= applied;
 
+// Finite animations delay final geometry reads. Infinite ambient animation, such as the
+// status indicator, does not. `moving` is the render gate's shared reading of that
+// boundary. A component that animates forever must not appear in it; a state transition
+// that can still change boxes must.
 export function moving() {
   const at = (el) => {
     for (let node = el; node; node = node.getRootNode?.()?.host) {

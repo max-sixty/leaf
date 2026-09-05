@@ -24,7 +24,118 @@ import {
   visualPartAt as registeredVisualPartAt,
 } from "./visual-parts.js";
 
-/* Anchor resolution, painting, and anchor-specific travel. */
+/* Anchor resolution, painting, and anchor-specific travel.
+
+   `selectionAnchor` (composing/capture.js) and the file-side comment capture produce
+   the same collapsed quote, surrounding context, and section identity. `resolveAnchor`
+   is the only search implementation. It accepts an occurrence only when full context
+   confirms one candidate. A quote that occurs once may stand without context; a
+   repeated quote with no unique context detaches instead of using document order or an
+   old offset.
+
+   An element anchor has no text range. `sectionOf` resolves its id and marking uses
+   visible element parts. Text anchors use passages.js's `segmentsIn`, `spanIn`, and
+   `rangeOf`. `itemSays` labels a compact view from an item's own opening words. A
+   decision that needs a useful row label states it on itself, commonly through an
+   `x-says` attribute; the row does not infer a heading from surrounding layout.
+
+   `paintAnchors` is the only anchor writer. One pass decides thread marks, element
+   outlines, and the open composer's pending mark. It clears and paints through the
+   same composed-tree helpers, then records exactly what it drew in `marked`,
+   `pendingMarks`, and `pendingOutline`. Other features consult those records rather
+   than looking for arbitrary DOM paint. The anchor runtime exposes only the questions
+   other features ask — `isMarked` and `placedAt` — so the pass-owned maps and arrays
+   cannot acquire a second writer through the entrypoint.
+
+   The same pass answers a second question and records it apart. `placed` records at
+   least `{element, datumElement, exact, status}` for each thread; `status` is `exact`,
+   `fallback`, or `outdated`. `marked` is what was drawn for it. They differ for a
+   resolved thread, which has a place and no paint, and for an element anchor, whose
+   paint is the boxes its contents show through rather than the element the anchor
+   named. The panel's order reads `placed`, so the list and the page cannot disagree
+   about which of two threads comes first, and one walk of the document's text answers
+   both. `renderPanel` therefore paints before it renders the list. Do not resolve a
+   thread's anchor a second time to sort it.
+
+   `paintStanding` is the second reading of that record: the thread holding the panel's
+   focus paints its own passage apart from every other mark, as `lf-mark-here` over its
+   ranges and as a class of the same name over its element parts. It reads the focus,
+   through `closest`, rather than being written where a travel left the reader — the
+   argument `markHere` makes for the decision ring, and for the same reason. Every route
+   that puts the reader in a thread therefore paints it: the quote's press, the `t`/`T`
+   walk, a click on the card, a reply box. A press on a page mark reaches `showThread`,
+   which focuses the reply box before its deliberate reveal. Escape returns to the
+   card; `t`/`T` then walk the threads. `paintHere` repaints it beside the decision
+   ring, and `paintAnchors` repaints it after rebuilding the ranges it holds.
+
+   The panel paints the same fact on the card, through `.lf-thread:focus-within` — the
+   same predicate, so the two halves cannot disagree about which comment the reader is
+   in. `:focus-visible` instead answers which input modality should draw the browser's
+   focus indicator. While typing, the reply box carries the strong focus ring and the
+   enclosing thread keeps a subdued outline.
+
+   `lf-mark-hover` answers a different question — which thread the pointer is
+   indicating — and reads both surfaces in one frame. A card is the thread's view in
+   the list the way a mark is its view in the prose, so resting on the card lights the
+   passage exactly as resting on the passage lights its bounded quote, and a reader
+   sweeping a full panel is told what each comment is about without pressing anything.
+   The semantic class stays on the card while its quote takes the wash: a long thread
+   can span several viewports, while the clamped quote is the panel's compact
+   representation of the passage. There is one answer rather than two because the
+   pointer is in one place: `markAt` refuses a point that lands in the chrome, so
+   `hoveredThreadOf` and the page's hit test cannot both name a thread. Both are read
+   inside `refreshHover`'s frame, which is also what settles `:hover` — asking for it
+   from inside the pointer event that moves it asks mid-move — and a second writer to
+   this highlight would be overwritten by whichever frame ran last.
+
+   `body.lf-over-mark` stays with the page's own reading: it is the promise that a
+   press here opens something, and over a card the press on offer is the card's, which
+   `.lf-quote` states for itself. `setPanel` asks the question again on the way out as
+   well as in, because the panel is one of the two surfaces this reads: closing it from
+   the keyboard, with a hand resting on a card, takes that card out from under a
+   pointer that never moved.
+
+   Hover state keeps both the semantic id and painted card node because reconciliation
+   can replace one without changing the other. `paintAnchors` rebinds replaced ranges
+   and element parts; `renderThreads`, page movement, and a version transition's end
+   refresh the reading when content moves under a stationary pointer.
+
+   `paintHover` paints both kinds of anchor, as `paintStanding` does. `::highlight`
+   paints glyphs, so a box takes no wash; the element mark says the same rank in the
+   property it has, one weight up from the posted hairline (`.lf-mark-el.lf-mark-hover`).
+   Without that, an element-anchored comment answered the pointer with nothing at all —
+   which from the panel, where there is no page cursor to change, reads as a broken
+   hover rather than as a passage with no words.
+
+   A bare reaction — a token comment nobody has replied to — is paint, not a thread.
+   `paintAnchors` resolves its anchor like any comment's and records it in `reacted`
+   rather than `marked`: a wash through the `lf-react` highlight on a passage,
+   `lf-react-el` on an element's shown parts, and a glyph reconciled by `seatReactions`.
+   Its `.lf-reacts` span is an unpositioned contribution to the target's Button
+   cluster; the pill inside is the reaction's own eraser, posting the ordinary `undo`
+   through `withdraw`. It wears `lf-ui` and `data-lf-gen`, so no reading takes it for
+   the page's words. `markAt` does not see it: a reaction takes no press to a card and
+   has no hover. Export keeps the glyph with its press taken off and writes the wash
+   into the words as a `<mark>` (the bake), the highlight registry being script state
+   no file can hold.
+
+   `scrollToThread` is the one travel every "show me that comment's passage" ends in.
+   Each nested scrollport first reveals the exact range instantly on both axes without
+   writing the document's position, then `moveScrollerBy` glides that range to its
+   final position in the region that holds it. The travel owns no standing or arrival
+   state. Focus already supplies the durable answer through `paintStanding`, and a
+   transient page effect does not observe, restart, or reconcile across the browser's
+   scrolling operation.
+
+   Use the CSS custom highlight registry for text marks. Wrapping ranges mutates and
+   splits authored text nodes, can cancel a click between pointer down and pointer up,
+   and creates a second DOM representation for the passage. `markAt` performs geometric
+   hit testing over the ranges recorded by `paintAnchors`.
+
+   Custom highlights create no accessibility nodes. `noteMarks` adds one hidden,
+   unselectable button to each block that contains comments and states the comment
+   count. It names the block rather than copying the selected words. Keep that line
+   outside selection, quote capture, widget word readings, and clipboard output. */
 let publishedAnchors;
 export const itemWord = (...args) => publishedAnchors.itemWord(...args);
 export const navigateToDatum = (...args) => publishedAnchors.navigateToDatum(...args);

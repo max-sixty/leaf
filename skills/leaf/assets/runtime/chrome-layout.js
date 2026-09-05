@@ -1,3 +1,37 @@
+// `syncLayout` derives only floating chrome placement and reservations from current
+// chrome boxes. CSS owns the document shell: `body` is the named `lf-shell` inline-size
+// container, `main` composes its left and right claims, and queries grant or withdraw
+// margin postures. JavaScript may hear the shell's content-box size without deriving a
+// posture or mirroring cramped state. `layoutSizes` schedules `syncLayout` and page
+// repaint after a width change. `moveShell` lands the final responsive shell in one pass,
+// then animates only the reading column's presentation offset and repaints page-attached
+// chrome along that route. A height-only change sends `pageShifted` directly so a content
+// reflow re-places document-attached paint without re-running chrome reservation.
+//
+// `syncLayout` measures only chrome whose placement or reservation depends on rendered
+// chrome, and writes only chrome boxes. `layoutSizes` watches `document.body`'s
+// content-box size without deriving a posture from it. A width change schedules
+// `syncLayout` and page repaint in the following frame after a workspace lands its final
+// shell; a height-only content reflow calls `pageShifted` during observer delivery so
+// page paint follows targets that moved. That direct path may write only unobserved paint
+// hosts and state or queue work for a frame. A `ResizeObserver` callback must not resize
+// the box it observes, directly or through a class or attribute that changes that box.
+//
+// The browser's root is the document scrollport. `pageScroller` is the shared answer for
+// reading position and paging; native fragments, history restoration, wheel/touch input,
+// and browser UI all use that same root. Root scroll events are reported on `document`,
+// while nested scrollports report on their elements. Use `scrollerFor(el)` where a widget
+// may be one an agent sent, since a widget in a message is scrolled by the panel's own
+// list and by nothing else. Threads and trays are alternate auxiliary workspaces, so only
+// one stands at a time. The strip-taking workspaces—Threads and Asks—take room when the
+// viewport can hold them and cover the page under their respective media query otherwise;
+// Leaves always covers because its rows leave this page. The shell's inline size already
+// reflects the margins a beside panel or tray takes. `--strip-l`, `--strip-r`, and
+// `--lf-room` are CSS-owned readings resolved on `main`; `--lf-shell-inset-left` carries
+// the left workspace offset to viewport-fixed page furniture; `--lf-claim-right` is the
+// project-layer extension claim. A script-free copy therefore answers the same layout
+// from its own viewport without exporting session geometry.
+
 import { scheduleMarginLayout } from "./margin-layout.js";
 
 // The width the panel stands at for a reader who has not moved its edge. 420 since
@@ -7,6 +41,9 @@ import { scheduleMarginLayout } from "./margin-layout.js";
 // wants room the same thread quoting a sentence does not, and only the reader looking at
 // it knows which this is. So the edge is a thing they take hold of (`drawnEdge`), and
 // this is where it stands until they do.
+//
+// Opening or closing a workspace calls its state setter, updates the persisted intent,
+// and schedules the shared layout and key paint.
 export const PANEL_W = 420;
 // How narrow they may draw it in. 320 is the narrowest window the panel is held to
 // standing up in (test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next),
@@ -29,10 +66,9 @@ export const PANEL_MIN = 320;
 // strikes — the page keeps at least what the panel takes — without putting the posture
 // itself in play.
 export const COVERING = `(width <= ${PANEL_W * 2}px)`;
-export const NON_COVERING = `(width > ${PANEL_W * 2}px)`;
-// Where each standing width is written, and where the cascade reads it. Named rather than
-// spelled, because the stylesheet and the runtime's writer are two ends of one fact
-// and a property spelled twice is two facts the day one of them moves.
+// Where each standing width is written, and where the cascade reads it. chrome.css
+// spells the same name and the same covering width, and the layer test holds the two
+// spellings equal, since a stylesheet cannot read a constant.
 export const PANEL_PROP = "--lf-panel-w";
 
 // Panel open/closed is remembered too: it survives live activation, document travel,

@@ -9,7 +9,21 @@ import { registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
 import { settle, settling } from "./widget-upgrade.js";
 
-/* Registry loading and the one initial widget-upgrade lifecycle. */
+/* Registry loading and the one initial widget-upgrade lifecycle.
+
+   A page loads what it uses. `importWidgets` is the one import-on-demand door: it takes
+   the markup about to be upgraded, imports each declared tag standing in it once per
+   tab, and loads the shadow rules only where an `x-shadow` widget is among them. Three
+   boundaries introduce markup and all three call it — startup with the document, a
+   version activation with the incoming `main`, and the state application with the frozen
+   markup an agent's reply carries, ahead of the panel building a body. Each of them
+   names the tags it needs, so nothing imports on a mutation after the element is already
+   connected. A module whose own payload is large (`lf-diff`'s renderer) imports it on
+   first render for the same reason. `missingUpgrades` therefore reports the page's own
+   widgets; that a declared module exists at all stays `package check`'s.
+
+   Required widget imports reject through the startup or activation boundary; a missing
+   module cannot count as a completed upgrade. */
 export function createWidgetLoader({
   buildReactBar,
   rememberAuthoredParents,

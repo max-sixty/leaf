@@ -489,6 +489,8 @@ body { position: static; box-sizing: border-box; }
 textarea.lf-ui:where(:not(.lf-fab-input)) { padding: 8px 10px; border: 1px solid var(--border-2);
   border-radius: 6px; background: var(--card); color: inherit; resize: none;
   field-sizing: content; max-height: 50vh; overflow-y: auto; }
+.lf-ui :is(input, textarea)::placeholder,
+:is(input, textarea).lf-ui::placeholder { color: var(--muted); opacity: 1; }
 .lf-ui textarea:where(:not(.lf-fab-input)):is(:focus, .lf-focus),
 textarea.lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--here-ring);
   --lf-here-ring: text-box; outline-offset: 1px; border-color: var(--accent); }
@@ -1493,7 +1495,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     padding-inline: 12px;
     resize: none;
     field-sizing: content; overflow-y: auto; }
-  textarea.lf-fab-input::placeholder { color: var(--muted); opacity: 1; }
   .lf-response-action { min-width: 30px; padding-inline: 9px;
     display: inline-flex; align-items: center; justify-content: center; gap: 0;
     white-space: nowrap; cursor: pointer; }

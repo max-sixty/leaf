@@ -5,8 +5,6 @@
 import { el } from "../widget-elements.js";
 import { setPanel } from "../chrome-layout.js";
 import { designOn } from "../design.js";
-import { labelOf } from "../keyboard/bindings.js";
-import { PANEL_SAY } from "../keyboard/page.js";
 import { loadDraft, mirrorDraft, saveDraft, sendDraft } from "../drafts.js";
 import { runtime } from "../context.js";
 import { post } from "../outbox.js";
@@ -89,16 +87,7 @@ export function wireGeneralBox() {
     // send, by the mode standing then — and the hint says which, so the reader typing in
     // design mode knows their remark is about the layer as a whole.
     hint: generalHint,
-    // The box's own address: unfocused, the placeholder reads "Comment on the page · c".
-    // The same c reaches this box from the page or from the panel list. One key rather than
-    // a chord, because “comment” is the intent in both contexts.
-    //
-    // Read off the row that answers the press rather than spelled here, which is the rule
-    // the reference states about itself: a fact about a binding written somewhere the
-    // binding cannot correct it goes on promising a key nobody rebound it with. Named for
-    // that alone — the row is otherwise `PANEL`'s like any other. The forward reference is
-    // only ever resolved at paint.
-    address: () => labelOf(PANEL_SAY),
+    accessibleName: generalHint,
     sends: "send",
     sendBtn: generalSend,
     save: (v) => saveDraft("general", v),

@@ -18,21 +18,37 @@ import { notice } from "../notifications.js";
 // tooltip and the row a box declares all read one string.
 const SEND = "Mod+Enter";
 let uploadMedia;
-export const configureInput = (uploader) => (uploadMedia = uploader);
+let inputAddress = () => "";
+export const configureInput = ({ upload, address }) => {
+  uploadMedia = upload;
+  inputAddress = address;
+};
 const inputDrafts = new WeakMap();
 // A wired textarea's visible value omits generated image Markdown. Readers outside
 // this module ask through this seam for the complete draft; an unwired textarea keeps
 // the platform's ordinary value.
 export const draftOf = (ta) => inputDrafts.get(ta)?.value() ?? ta?.value ?? "";
-// Focus-derived hints join the runtime's one standing paint. Only the input losing the
-// standing and the one gaining it can change for that reason.
+// Focus and contextual-entry hints join the runtime's one standing paint. Focus changes
+// repaint the two boxes they cross; the small set with an entry address also repaints
+// when another standing fact changes which box that command reaches.
 const inputPaints = new WeakMap();
+const addressedInputs = new Set();
+const connectedInputs = new WeakSet();
 let paintedInput = null;
 export const paintInputs = () => {
   const held = focused();
   const input = held && inputPaints.has(held) ? held : null;
   if (paintedInput && paintedInput !== input) inputPaints.get(paintedInput)?.();
   if (input) inputPaints.get(input)?.();
+  for (const addressed of addressedInputs) {
+    if (addressed.isConnected) connectedInputs.add(addressed);
+    else if (connectedInputs.has(addressed)) {
+      addressedInputs.delete(addressed);
+      continue;
+    }
+    if (addressed !== input && addressed !== paintedInput)
+      inputPaints.get(addressed)?.();
+  }
   paintedInput = input;
 };
 // `sends` is the word the box's own send row says — "send", "suggest", "comment" — since
@@ -42,7 +58,7 @@ export function wireInput(
   ta,
   {
     hint,
-    address,
+    accessibleName = null,
     save,
     send,
     sendBtn,
@@ -101,21 +117,27 @@ export function wireInput(
   };
   hydrate(ta.value);
   // The hint goes in the placeholder, where it's visible exactly while the box is
-  // empty and can't be found any other way; the button's tooltip spells the send key
-  // out. The send shortcut is focus-scoped, so only the focused box may claim it.
-  // Unfocused, the placeholder may carry a contextual key where the composer has one.
-  // Both hint and address may be functions because their labels can change while the
-  // box stands.
+  // empty; the stable accessible name remains independent of that changing hint. The
+  // button's tooltip spells the send key out. The send shortcut is focus-scoped, so
+  // only the focused box may claim it. Unfocused, the placeholder may carry the live
+  // contextual key that enters this exact box. These readings may be functions because
+  // their labels can change while the box stands.
   const label = () => (typeof hint === "function" ? hint() : hint);
+  const name = () =>
+    typeof accessibleName === "function" ? accessibleName() : accessibleName;
   const sendKeys = spell(SEND);
   const paint = () => {
     // Read the shared logical focus so this hint agrees with the key line and rings.
     const standing = focused() === ta;
-    const suffix = standing ? sendKeys : address?.();
+    const suffix = standing ? sendKeys : inputAddress(ta);
     const placeholder = suffix ? `${label()} · ${suffix}` : label();
     if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
+    const ariaLabel = name();
+    if (ariaLabel && ta.getAttribute("aria-label") !== ariaLabel)
+      ta.setAttribute("aria-label", ariaLabel);
   };
   inputPaints.set(ta, paint);
+  addressedInputs.add(ta);
   const repaint = () => {
     if (focused() === ta) paintInputs();
     else paint();

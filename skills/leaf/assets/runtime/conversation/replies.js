@@ -66,6 +66,7 @@ export function wireReply(t, input, send) {
   input.value = loadDraft(draftCtx) ?? "";
   const sync = wireInput(input, {
     hint: "Reply",
+    accessibleName: "Reply",
     sends: "send",
     sendBtn: send,
     busy: () => replyBusy(t.root.id),

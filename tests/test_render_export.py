@@ -49,6 +49,7 @@ _PREVIEW_RESTART_ERRORS = {
     "Failed to load resource: net::ERR_CONNECTION_REFUSED",
     "Failed to load resource: net::ERR_CONNECTION_RESET",
     "Failed to load resource: net::ERR_EMPTY_RESPONSE",
+    "Failed to load resource: net::ERR_CONTENT_LENGTH_MISMATCH",
     "leaf: page failed to start: Failed to fetch",
 }
 _PREVIEW_RESTART_ICON_ERROR = re.compile(

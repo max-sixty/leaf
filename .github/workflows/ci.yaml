@@ -14,8 +14,8 @@ on:
 # suite reached a verdict on under a third of main's commits. Queueing instead keeps
 # the same one-run-at-a-time ceiling — GitHub still drops a superseded *pending* run,
 # so the queue never grows past the newest head — while letting each run finish. It
-# is also what makes the 90-minute step timeout below reachable: a wedged run has to
-# outlive the next push to be reported as one.
+# is also what makes the timeouts below reachable: a wedged run has to outlive the
+# next push to be reported as one, and each job is bounded even before its suite starts.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref || github.run_id }}
   cancel-in-progress: false
@@ -23,6 +23,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 105
 
     steps:
       - name: 📂 Checkout code
@@ -49,6 +50,7 @@ jobs:
 
   lint:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - name: 📂 Checkout code

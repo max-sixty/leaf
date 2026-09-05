@@ -69,6 +69,14 @@ export function unregisterMarginRow(row) {
   scheduleMarginLayout();
 }
 
+// The other half of the clear below: `add` re-serializes the class attribute whether
+// or not the token is new, and the posture read leaves a row that still cannot hang
+// carrying `lf-docked` from one pass into the next, so it arrives at its mark already
+// wearing it. Ask before marking.
+function mark(row, name) {
+  if (!row.classList.contains(name)) row.classList.add(name);
+}
+
 function placeRows(columnRect) {
   const placements = [...rows].map(([row, options]) =>
     options.place?.(row, columnRect),
@@ -117,7 +125,11 @@ export function layoutMarginRows() {
     }
     if (staysDocked.has(row)) continue;
     if (row.classList.contains("lf-docked")) options.float?.(row);
-    row.classList.remove("lf-docked", "lf-waiting");
+    // `remove` re-serializes the class attribute whether or not the tokens stand, and
+    // this pass runs on the heartbeat, so ask before clearing: a row that hangs in the
+    // margin carries neither class and has nothing to be put back.
+    if (row.classList.contains("lf-docked") || row.classList.contains("lf-waiting"))
+      row.classList.remove("lf-docked", "lf-waiting");
     row.style.transform = "";
   }
   if (!rows.size) {
@@ -166,11 +178,11 @@ export function layoutMarginRows() {
   const inMargin = [];
   let docked = false;
   for (const { row, options, rect, shown, hangs } of measured) {
-    if (!shown) row.classList.add("lf-waiting");
+    if (!shown) mark(row, "lf-waiting");
     else if (!hangs || rect.right > room) {
-      if (options.fallback === "hide") row.classList.add("lf-waiting");
+      if (options.fallback === "hide") mark(row, "lf-waiting");
       else {
-        row.classList.add("lf-docked");
+        mark(row, "lf-docked");
         options.dock?.(row);
         docked = true;
       }

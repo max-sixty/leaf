@@ -16,18 +16,6 @@ const KINDS = {
   change: { label: "Change", icon: "change", priority: 0 },
   comment: { label: "Thread", icon: "comment", priority: 1 },
   decision: { label: "Ask", icon: "question", priority: 2 },
-  // `standing` is the one indication the document already carries. The other three are
-  // an agent's report on a move still being made; an Outcome is the page map's reading
-  // of a recorded `action` event, with the decided state applied in the same file. A
-  // medium that cannot stand behind a provisional claim — a copy — reads that apart.
-  outcome: {
-    label: "Outcome",
-    icon: "check",
-    priority: 3,
-    indication: true,
-    standing: true,
-    state: "settled",
-  },
   sent: {
     label: "Sent",
     icon: "sent",
@@ -201,7 +189,6 @@ export function marginButton(
     label,
     context = null,
     behavior = "action",
-    standing = false,
     tone = "neutral",
     role = "primary",
     state = "idle",
@@ -225,7 +212,6 @@ export function marginButton(
     label: String(label),
     context: String(context ?? "").trim() || null,
     behavior,
-    standing: behavior === "status" && standing === true,
     tone,
     role,
     state,
@@ -236,13 +222,6 @@ export function marginButton(
   control.removeAttribute("title");
   control.dataset.lfButtonKey = record.key;
   control.dataset.lfBehavior = record.behavior;
-  // Which of a status's two sources this one has. The behavior answers the question
-  // every other reader asks — whether this is a press — and both sources answer it the
-  // same way, so the durability is a second declaration rather than a fifth behavior.
-  // A copy is what needs it: Sent, Waiting for pickup and Picked up are news about a
-  // move an agent is still making and a file has nothing standing behind them, while a
-  // standing Outcome is the record of a decision the same file already carries.
-  control.toggleAttribute("data-lf-standing", record.standing);
   control.dataset.lfTone = record.tone;
   control.dataset.lfRole = record.role;
   control.dataset.lfOffer = behavior === "status" ? "" : "button";
@@ -542,7 +521,10 @@ export function createLivingMargin(dependencies) {
   nav.setAttribute("aria-label", "Page map");
   const toolbar = el("div", "lf-margin-toolbar");
   toolbar.setAttribute("role", "toolbar");
-  toolbar.setAttribute("aria-label", "Changes, threads, asks, outcomes, and activity");
+  toolbar.setAttribute(
+    "aria-label",
+    "Changes, threads, asks, delivery status, and activity",
+  );
   nav.append(toolbar);
   chromeRoot.append(nav);
 
@@ -1193,20 +1175,21 @@ export function createLivingMargin(dependencies) {
       if (entry.e.kind !== "action") continue;
       const target = elementById(entry.unit) ?? elementById(entry.e.widget);
       if (!target) continue;
+      const receipt = receiptByCoordinate.get(coordinate);
+      if (!receipt) continue;
       const account = [itemWord(target), humanized(entry.e.action), itemSays(target)]
         .filter(Boolean)
         .join(" · ");
-      const receipt = receiptByCoordinate.get(coordinate);
-      const face = receipt ? acknowledgmentFace(receipt) : null;
-      if (face?.kind === "activity")
+      const face = acknowledgmentFace(receipt);
+      if (face.kind === "activity")
         activityAlreadyShown.add(`widget:${receipt.target.id}`);
       add(groups, target, {
-        kind: "outcome",
-        id: receipt ? `acknowledgment:${receipt.id}` : `outcome:${coordinate}`,
-        text: trimmed(face ? `${face.text} · ${account}` : account),
-        ...(face ? { acknowledgmentFace: KINDS[face.kind] } : {}),
-        ...(face?.context ? { context: face.context } : {}),
-        activate: () => revealTarget(target, `${face?.text ?? "Outcome"}: ${account}`),
+        kind: face.kind,
+        id: `acknowledgment:${receipt.id}`,
+        text: trimmed(`${face.text} · ${account}`),
+        acknowledgmentFace: KINDS[face.kind],
+        ...(face.context ? { context: face.context } : {}),
+        activate: () => revealTarget(target, `${face.text}: ${account}`),
       });
     }
 
@@ -1740,7 +1723,6 @@ export function createLivingMargin(dependencies) {
       label,
       context: readingContext(choice),
       behavior,
-      standing: face.standing === true,
       role: "reading",
       state: readingState(choice),
     });
@@ -1835,7 +1817,6 @@ export function createLivingMargin(dependencies) {
       label,
       context: readingContext(choice),
       behavior,
-      standing: face.standing === true,
       role: "reading",
       state: readingState(choice),
     });

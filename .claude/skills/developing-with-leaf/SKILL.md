@@ -37,15 +37,22 @@ a source line.
 
 1. From the repository root, start `scripts/preview.py <example>` in a
    long-running command or terminal session. Keep it alive and retain the exact
-   served URL. The script replaces `.tmp/preview`, so one checkout has one active
-   example preview.
+   served URL. The script watches source and runtime edits and preserves feedback
+   at `.tmp/previews/<example>`. Repeating the command reuses that preview; use
+   `--slot <name>` for another copy. A refused update appears in the terminal or
+   the background log named at startup. Fix the input and the watcher retries.
 2. In Codex, call `mcp__codex_app__open_in_codex` with that heading's fragment
    URL as a browser target and `placement: "right"`.
-3. Run `<root>/bin/leaf codex start <root>/.tmp/preview` so Leaf comments return
+3. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>` so Leaf comments return
    to the current task.
 4. Tell the user to select page text or use Leaf's comment affordance for a Leaf
    thread. Codex Annotation mode creates visual comments that the user sends with
    their next chat message.
+
+When finished with a preview, run the matching preview command with `--stop`; it
+waits for the watcher and service to stop. Ctrl-C stops a foreground preview.
+Changing an occupied slot to a different source or seeded history requires a new
+slot; the existing page and feedback are retained.
 
 ## Compare runtime versions
 
@@ -58,8 +65,8 @@ scripts/preview.py --source <source.html> --runtime <candidate-root> \
   --slot candidate --background
 ```
 
-Each command verifies the checkout launcher, vendors an independent page, starts
-its service, and prints its exact URL. Exercise the same journey and viewport at
+Each command verifies the checkout launcher, prepares or resumes its independent
+page, watches that runtime and source, and prints its exact URL. Exercise the same journey and viewport at
 both URLs, check both browser consoles, then navigate both to the same authored
 heading id and open those exact fragment URLs as Codex browser targets. Hand off
 the labeled URL pair and the action that reveals the difference.

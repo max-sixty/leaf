@@ -64,7 +64,7 @@ export function createConversation(dependencies) {
     reactDone,
     refreshHover,
     registry,
-    rememberAuthoredMarkup,
+    rememberAuthoredParents,
     renderQuiet,
     renderSaid,
     renderLivingMargin,
@@ -127,7 +127,6 @@ export function createConversation(dependencies) {
   } = createConversationMessages({
     MARKED_ANYWHERE,
     ago,
-    captureAuthoredFacets,
     designName,
     el,
     elementById,
@@ -137,7 +136,7 @@ export function createConversation(dependencies) {
     itemWord,
     markDeclared,
     pageQueryAll,
-    rememberAuthoredMarkup,
+    rememberAuthoredParents,
     renderQuiet,
     renderSaid,
     reportPageError,
@@ -382,11 +381,12 @@ export function createConversation(dependencies) {
     // document's whole text again to say it.
     paintAnchors(threads);
     surfaces.render(threadList, placedAt);
-    renderThreads(threads);
+    const prepared = renderThreads(threads);
     renderConversations(threadList);
     paintPageStrip(threads);
     renderLivingMargin();
     paintAcknowledgments();
+    return prepared;
   }
 
   return {

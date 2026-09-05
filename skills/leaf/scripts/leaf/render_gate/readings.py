@@ -86,12 +86,6 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
                 for s in shown
                 if s["says"] != spk.get(s["id"], EMPTY).words
             ]
-        if touched and replayed and earlier is not None:
-            conflicts = evaluate_probe(
-                page,
-                "replayOverrides",
-                {"curHtml": markup, "prevHtml": earlier},
-            )
         # Behind the caught-up wait above: a report moves a painted attribute and
         # the pass that speaks it runs before the stamp, so a reading taken any
         # earlier asks after a word the page has not been asked to say yet. A page
@@ -99,7 +93,7 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
         if replayed:
             silent = evaluate_probe(page, "silentWords", widgets)
             # Behind the same wait, because reconciliation is one of the two
-            # writers: an applyAction states one declared fact whole, and a
+            # writers: a renderState states one declared fact whole, and a
             # record form is exactly the attribute it may state that fact in.
             undeclared_attrs = evaluate_probe(page, "undeclaredAttrs", widgets)
             # Behind it too: the settlement mark is replay's own write, so a
@@ -179,13 +173,27 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
             for s, p in zip(screen, paper)
             if s["text"] == p["text"] and s["shown"] and not p["shown"]
         ]
-    # Last of all, because it is the only reading here that writes: it applies each
-    # standing action again, which is a no-op exactly when the contract holds and a
-    # page nobody should read any further when it doesn't. Behind the same caught-up
-    # wait as the conflicts above, for the same reason — a page mid-replay has not
-    # finished producing the state the second application is measured against.
+    # Last: these probes render temporary complete states. Compare carried actions
+    # against the authored baseline, restore current state, then prove idempotence.
+    # The caught-up wait ensures they observe the same settled projection as the
+    # preceding read-only probes.
     relative = []
     if scheme == "light" and replayed:
+        if touched and earlier is not None:
+            projection, _, _ = page_projection(markup, state["events"], registry, here)
+            conflicts = evaluate_probe(
+                page,
+                "replayOverrides",
+                {
+                    "curHtml": markup,
+                    "prevHtml": earlier,
+                    "carriedActions": [
+                        event["id"]
+                        for event, _spec in projection.actions.values()
+                        if event["revision"] < here
+                    ],
+                },
+            )
         relative = evaluate_probe(page, "relativeReplays")
     # The print reset and replay above can resize what an observer watches. Chrome
     # delivers that notice in the next rendering turn, so closing on the write

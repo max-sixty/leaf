@@ -18,8 +18,8 @@
  * was made on, without the page's author having to copy it into the next one by
  * hand. When a version does mean to overrule one — the content the decision was
  * about got rewritten — `version check` makes the author say so (see restatement_errors in
- * the leaf.validation package); it is never inferred from the markup's silence. Widgets opt in via an
- * applyAction(action, detail) method stating an absolute value, so a reload keeps the
+ * the leaf.validation package); it is never inferred from the markup's silence. Widgets opt in via a
+ * renderState(state) method stating an absolute value, so a reload keeps the
  * user's drag and a second tab follows along live.
  *
  * Comment layer: talks to leaf's server — listens on GET /api/news and reads
@@ -564,8 +564,7 @@ const {
   upgradeWidgets,
 } = createWidgetLoader({
   buildReactBar: (...args) => buildReactBar(...args),
-  rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
-  reportPageError,
+  rememberAuthoredParents: (...args) => rememberAuthoredParents(...args),
   revealLayer,
   sameLayer,
 });
@@ -815,7 +814,7 @@ const {
   quoteFrom: (...args) => quoteFrom(...args),
   rangeOf: (...args) => rangeOf(...args),
   readAndApply,
-  rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
+  rememberAuthoredParents: (...args) => rememberAuthoredParents(...args),
   rememberPassageParts,
   reportPageError,
   reserveNewsSlot,
@@ -3226,9 +3225,9 @@ const midComposition = () => {
 // ---------- reading ----------
 // Rendering version V means making its DOM equal the log's desired projection.
 // Each `(owner widget, unit, facet)` keeps its last surviving action or report, with
-// a reader action outranking provisional agent news on the same coordinate. Widgets state
-// those winners through an absolute applyAction(action, detail); when several units
-// share one ordered container, their winners are applied together in log order.
+// a reader action outranking provisional agent news on the same coordinate. The framework composes
+// those winners with authored state, including complete ordered containers, before
+// widgets render each final facet map through renderState(state).
 //
 // Absolute is what makes projection converge. Reader actions outrank provisional agent
 // reports on the same coordinate; winners on different coordinates are applied in their
@@ -3398,24 +3397,17 @@ const {
 
 const runtimeProjection = createProjection(runtime, {
   unaccountedGesture,
-  DECISION_ROW,
   COLLAPSE,
-  MARKED_ANYWHERE,
-  MARKED_IN_PAGE,
   PAGE_PAINT_ATTRIBUTE,
   PAGE_PAINT_ATTRIBUTES,
   agentName,
   answeredContext,
   authored,
   decisionEntry,
-  containsAcross,
-  dress,
   elementById,
   failSoft,
-  focused,
   inChrome,
   isAwaiting,
-  markDeclared,
   outbox,
   pagePresented,
   pageQueryAll,
@@ -3424,41 +3416,30 @@ const runtimeProjection = createProjection(runtime, {
   post,
   projectedParent,
   quoteFrom,
-  reachScrollers,
   reconcileThreads: renderPanel,
-  rememberPassageParts,
   removeOutbox,
   renderQuiet,
   renderRetired,
   reportPageError,
-  settling,
   settlementSlots,
-  standOn,
   textNodesUnder,
   notice,
 });
 const {
-  authoredDetails,
-  authoredFacets,
-  authoredMarkup,
   authoredParents,
-  authoredStatements,
-  authoredWidgets,
   captureAuthoredFacets,
   committedProjection,
   coordinateProjectionCommitted,
   domFacet,
-  markSettled,
   matchesProjectedWhen,
   paintStateOrigins,
   projectedFacet,
   projectionFromView,
   projectionCommitted,
-  rebuild,
   reconcileKnownState,
   reconcileState,
   releaseProjectedOutbox,
-  rememberAuthoredMarkup,
+  rememberAuthoredParents,
   resetAuthoredPage,
   requirementMatches,
   stageOutboxAction,
@@ -3549,7 +3530,7 @@ conversationRuntime = createConversation({
   sendReaction,
   refreshHover,
   registry,
-  rememberAuthoredMarkup,
+  rememberAuthoredParents,
   renderQuiet,
   renderSaid,
   renderLivingMargin,
@@ -3872,9 +3853,9 @@ async function startPage() {
     upgradeWidgets(),
     // Alongside rather than after, and caught rather than fatal: the tab icon is not
     // what the page is for, so a layer missing it says so in the console and leaves the
-    // rest working — the same bargain a widget module that fails to import makes. It is
-    // still awaited here, because `version export` copies the page at the stamp below
-    // and a mark that arrived after it would leave the copy's tab to chance.
+    // rest working. It is still awaited here, because `version export` copies the
+    // page at the stamp below, and an icon arriving later would leave the copy's
+    // tab to chance.
     loadIcon().catch((err) => console.error(err)),
   ]);
   if (!upgraded) return;
@@ -3901,6 +3882,7 @@ async function startPage() {
 startPage().catch((error) => {
   // The boundary itself must fail visibly. Authored HTML remains readable, while the
   // status names the fault and the absent presented stamp keeps durable controls closed.
+  window.dispatchEvent(new Event("lf-startup-failed"));
   reportPageError(`page failed to start: ${error?.message ?? error}`);
   renderStatus(error);
 });

@@ -98,11 +98,15 @@ the decision rests on. Use `restated` when a rewrite invalidates one. An `undo`
 event names the gesture withdrawn; it never deletes or invents a counter-event.
 
 Actions and reports share the registry-declared coordinate of owner widget,
-fold unit, and facet. Python derives winners, retractions, settlement, asks,
-threads, and updates in one transaction-consistent browser view. JavaScript
-resolves that view onto live DOM nodes and overlays only unresolved local
-gestures. Page-widget state is bounded by document version; widgets frozen into
-thread markup use the conversation window.
+fold unit, and facet. Admission records the command's declared meaning in the
+event, so historical readers do not need a surviving widget to recover it.
+Python derives winners, retractions, settlement, asks, threads, and updates in
+one transaction-consistent browser view. JavaScript combines that view with
+authored initial values and unresolved local gestures to derive complete widget
+state. Widgets render that state, including unset and undecided values; undo
+does not reconstruct widgets or replay baseline actions into the DOM. Page-widget
+state is bounded by document version; widgets frozen into thread markup use the
+conversation window.
 
 The page directory is the durable record and deployment unit. `index.html` is
 mutable author source; revisions are immutable, and append-only notes bind public
@@ -124,9 +128,11 @@ and failure returns it through that same projection.
 
 ### Validate once and share readings
 
-Validate each input at its boundary: browser events at `POST /api/event`,
-authored markup at `version check`, message markup at `check_markup`, and replayed
-action detail in `applyAction`. Downstream code reads validated fields directly.
+Validate each input at its boundary: browser commands at `POST /api/event`,
+authored markup at `version check`, and message markup at `check_markup`.
+Admission derives server-owned event meaning after validation; downstream code
+reads those fields directly. Event dependencies name declared identities;
+ordinary detail text is never interpreted as a reference.
 
 A passage is one sequence of `{node, start, end}` segments. The file and browser
 readings share collapse and resolution rules. `says` is visible, pointable text;

@@ -426,14 +426,18 @@ def actions(page_dir):
     return [e for e in events_model.read_events(page_dir) if e["kind"] == "action"]
 
 
-NESTED_SUGGESTION = SUGGESTION_PAGE.replace(
-    "<lf-new>Switch the north feeder to thistle in autumn.</lf-new>",
-    "<lf-new>Switch the north feeder to thistle in autumn."
-    '<lf-decision id="blend-decision"><h2>Which seed blend?</h2>'
-    '<lf-options id="blend" choose>'
-    '<lf-option id="blend-nyjer">Nyjer only</lf-option>'
-    '<lf-option id="blend-mixed">Mixed thistle</lf-option>'
-    "</lf-options></lf-decision></lf-new>",
+NESTED_SUGGESTION = (
+    SUGGESTION_PAGE.replace(
+        "<lf-new>Switch the north feeder to thistle in autumn.</lf-new>",
+        "<lf-new>Switch the north feeder to thistle in autumn."
+        '<lf-decision id="blend-decision"><h2>Which seed blend?</h2>'
+        '<lf-options id="blend" choose>'
+        '<lf-option id="blend-nyjer">Nyjer only</lf-option>'
+        '<lf-option id="blend-mixed">Mixed thistle</lf-option>'
+        "</lf-options></lf-decision></lf-new>",
+    )
+    .replace('<p id="insert">', '<div id="insert">')
+    .replace("</lf-suggestion></p>\n<lf-board", "</lf-suggestion></div>\n<lf-board")
 )
 FENCED_CAPTURE_PAGE = leaf_page(
     "fenced capture",

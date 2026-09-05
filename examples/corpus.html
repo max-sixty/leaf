@@ -1789,6 +1789,25 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
             ></span
           >
         </p>
+        <h3 id="bg-nested-change-heading">Undo a proposal while keeping its choice</h3>
+        <p id="bg-nested-change-guide">
+          Pick a route inside the proposal, accept the proposal, then use its Undo
+          Button. The proposal becomes undecided again; your route remains chosen.
+          Reload to check that both decisions survive.
+        </p>
+        <lf-suggestion id="bg-nested-change">
+          <lf-old><p>Keep the practice walk indoors.</p></lf-old>
+          <lf-new>
+            <p>Take the practice walk outside.</p>
+            <lf-decision id="bg-route-ask">
+              <h4 id="bg-route-heading">Which route should the walk follow?</h4>
+              <lf-options id="bg-route" choose>
+                <lf-option id="bg-route-garden">Through the garden</lf-option>
+                <lf-option id="bg-route-river">Along the river</lf-option>
+              </lf-options>
+            </lf-decision>
+          </lf-new>
+        </lf-suggestion>
       </section>
 
       <section id="bg-editing">

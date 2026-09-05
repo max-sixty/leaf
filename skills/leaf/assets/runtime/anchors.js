@@ -69,7 +69,6 @@ export function createAnchors(dependencies) {
     el,
     elementById,
     elementFromPointAcross,
-    elementOver,
     findQuote,
     focusedThreadOf,
     glideTo,
@@ -627,7 +626,7 @@ export function createAnchors(dependencies) {
       return segments.length
         ? {
             ...resolvedPassage({
-              place: elementOver(segments[0].node),
+              place: blockAt(segments[0].node) ?? datum[0],
               segments,
             }),
             datumElement: datum[0],
@@ -666,7 +665,9 @@ export function createAnchors(dependencies) {
     const segments = findQuote(text, anchor.quote, anchor, sectionOf(anchor));
     return segments.length
       ? resolvedPassage({
-          place: elementOver(segments[0].node),
+          // Attached chrome belongs beside a widget's readable body, never inside
+          // that body. A block is the passage seat; otherwise use its authored item.
+          place: blockAt(segments[0].node) ?? itemAt(segments[0].node),
           segments,
         })
       : null;

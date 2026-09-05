@@ -156,7 +156,7 @@ export function bake() {
   // read by the next thing that asks.
   //
   // Named, and the names are the point. What goes is a measurement whose subject
-  // this file no longer has: the panel, tray, and key line are removed with the chrome
+  // this file no longer has: the panel, tray, and keyline leave with the chrome
   // above. A copy drops what it hasn't got. Page room is not in this list: CSS resolves
   // it from the copy's own shell.
   //

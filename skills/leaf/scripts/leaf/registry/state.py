@@ -414,9 +414,9 @@ def _validate_awaiting_units(widgets: dict, path) -> None:
                 f"{path}: <{tag}> x-state verbs {non_answers} declare completion "
                 "conditions but are not x-awaits completion verbs"
             )
-        # A widget-scoped answer is itself the whole Decision's value. A part-scoped
+        # A widget-scoped answer is itself the whole Ask's value. A part-scoped
         # answer needs the predicate that lifts one part record to that whole-widget
-        # meaning; without it the first part action would answer the Decision.
+        # meaning; without it the first part action would answer the Ask.
         if unanchored := sorted(
             verb
             for verb in completion_verbs

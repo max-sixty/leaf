@@ -3,10 +3,10 @@
 import json
 from pathlib import Path
 
+from .asks import thread_asks
 from .construction import constructed_content
 from .data import read_data
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
-from .decisions import thread_decisions
 from .document_reading import DocumentReading, read_document
 from .events import bare_reaction, build_threads, is_reaction
 from .files import (
@@ -125,7 +125,7 @@ def _base_state(
         "data": {"file": DATA_FILE, "revision": stored_data["revision"]},
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "measurement_lag": [],
-        "decisions": [],
+        "asks": [],
         # Current semantic facts only. Exact raw history belongs to
         # `events --thread`; keeping its sequence list here would make this
         # default snapshot grow with every conversation turn. A reaction nobody
@@ -191,7 +191,7 @@ def _apply_document_state(
         standing_entry(coordinate, event)
         for coordinate, (event, _) in projection.actions.items()
     ]
-    state["decisions"] = document.decisions["reader"]
+    state["asks"] = document.asks["reader"]
     page_dir = Path(state["page"])
     state["content_source"] = {
         "file": str(page_dir / state["active"]["file"]),
@@ -221,7 +221,7 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
     # answering one is answering the page. The projection above is of the published
     # version's elements alone, so a press on an AskUserQuestion resolved no
     # declaration and stood nowhere — a session picking the page up read the reader's
-    # answer to its own question as an answer nobody had given, with `decisions` reporting
+    # answer to its own question as an answer nobody had given, with `asks` reporting
     # the same question answered.
     #
     # `thread` is the one key that separates them, present on every entry so a reader
@@ -266,7 +266,7 @@ def _write_page_state(
     projection of the user's standing state and the reports standing on the agent
     channel, the effective construction and its mutation owners, authored
     measurements whose live source has run again (`measurement_lag_entries`), the
-    open decisions on the page and in threads (the banner's own count), each comment
+    open Asks on the page and in threads (the banner's own count), each comment
     thread's current state,
     and presence beside what answers for it. Computed on demand from the log,
     revision, registry, and source store — no derived reading is stored, so there
@@ -308,7 +308,7 @@ def _write_page_state(
         registry,
         {"kind": "thread"},
     )
-    state["decisions"] += thread_decisions(
+    state["asks"] += thread_asks(
         events,
         registry,
         {root for root, thread in threads.items() if thread["resolved"]},

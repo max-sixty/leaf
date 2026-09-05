@@ -17,8 +17,12 @@ import {
 import { shownParts, shownRect } from "../geometry.js";
 import { focused, paintHere } from "../keyboard/scopes.js";
 import { announce } from "../notifications.js";
-import { commentOnTarget, updateFab } from "./surface.js";
-import { allButTheReference, hasCapturedTarget } from "../keyboard/page.js";
+import { selectTarget, updateFab } from "./surface.js";
+import {
+  allButTheReference,
+  hasCapturedTarget,
+  responseInstructions,
+} from "../keyboard/page.js";
 
 // The selection chooser's two faces. Hints and the active search result are paint only;
 // the search box is a real control, kept beside them so its focus and accessible name are
@@ -376,8 +380,8 @@ function matchDescription(segments) {
 function choose(target) {
   setOpen(false);
   document.body.focus({ preventScroll: true });
-  commentOnTarget(target);
-  announce(`Selected ${target.label}. Choose a response.`);
+  selectTarget(target);
+  announce(`Selected ${target.label}. ${responseInstructions()}`);
 }
 
 function typeHint(key) {

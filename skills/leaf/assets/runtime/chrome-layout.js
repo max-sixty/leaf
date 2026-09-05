@@ -119,7 +119,7 @@ export const inPanel = () => panelOpen && containsAcross(panel, focused());
 // The panel is shown, never shown modally, at either posture. A modal dialog makes the
 // rest of the document inert, and the panel covering the page is the posture in which the
 // page most needs to stay live: the toggle that opened it is out in the banner and is how
-// it closes, the decisions toggle beside it is the other workspace this one replaces
+// it closes, the Asks toggle beside it is the other workspace this one replaces
 // (test_workspaces_replace_each_other_instead_of_stacking), and the strip of page still
 // showing beside a covering sheet is still page a reader can point a hint at
 // (test_selection_hints_do_not_name_page_content_behind_a_covering_panel, which is the

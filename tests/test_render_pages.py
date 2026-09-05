@@ -2326,16 +2326,16 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     # A left workspace and the page's own left margin are consecutive strips. The fixed
     # ToC follows the shell's left edge instead of remaining behind the Asks sheet.
     resized(page, 1700, 900)
-    page.locator(".lf-decisions").click()
-    expect(page.locator(".lf-decisions-panel")).to_be_visible()
+    page.locator(".lf-asks").click()
+    expect(page.locator(".lf-asks-panel")).to_be_visible()
     page.wait_for_function(
         """() => document.querySelector('body > main').getAnimations().length === 0
-          && document.querySelector('.lf-decisions-panel').getAnimations().length === 0
+          && document.querySelector('.lf-asks-panel').getAnimations().length === 0
           && document.querySelector('lf-toc').getAnimations().length === 0"""
     )
     workspace = page.evaluate(
         """() => {
-          const tray = document.querySelector('.lf-decisions-panel').getBoundingClientRect();
+          const tray = document.querySelector('.lf-asks-panel').getBoundingClientRect();
           const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
           const toc = document.querySelector('lf-toc').getBoundingClientRect();
           return {trayRight: tray.right, sidebarLeft: sidebar.left, tocLeft: toc.left,
@@ -2350,8 +2350,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert abs(workspace["tocLeft"] - workspace["trayRight"] - 24) <= 1
     assert 64 <= workspace["tocTop"] <= 68
     assert abs(workspace["tocBottom"] - 876) <= 1
-    page.locator(".lf-decisions").click()
-    expect(page.locator(".lf-decisions-panel")).to_be_hidden()
+    page.locator(".lf-asks").click()
+    expect(page.locator(".lf-asks-panel")).to_be_hidden()
 
     # The rail claim is monotonic, so narrowing the same page carries its widest
     # right-margin row into the tighter layout. The sidebar and rail use the outer

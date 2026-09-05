@@ -65,9 +65,9 @@ ended, and the outbox's unresolved attempts — painted on the root element as
 `data-lf-traffic` for whatever waits on the page from outside it;
 `runtime/requests.js` owns typed one-shot request availability, sending, and the
 server-projected request lifecycle watcher;
-`runtime/decisions/model.js` owns request discovery, folding, and the semantic Decision
+`runtime/asks/model.js` owns request discovery, folding, and the semantic Ask
 subscription;
-`runtime/decisions/view.js` owns decision chrome, marking, the decision walk, and
+`runtime/asks/view.js` owns Ask chrome, marking, the Ask walk, and
 Ask-local contextual command projection;
 `runtime/projection-watch.js` owns the lifetime-bound invalidation subscription shared
 by the public semantic projection watchers;
@@ -243,7 +243,7 @@ Do not add a second cache, pending map, widget-specific replay list, or DOM
 attribute as another source for one of these facts. A rendering may expose state,
 but callers do not read the rendering to recover it. For example,
 `style.display` does not answer whether the composer is open, and a focus ring
-does not remember where a decision walk last landed.
+does not remember where an Ask walk last landed.
 
 ## Startup and presentation
 
@@ -297,31 +297,31 @@ event schema refuses it.
 
 The projection's inputs, coordinate, and views are `runtime/projection/fold.js`'s;
 Python derives the durable side (below). What both must honor: an `x-state` verb may
-declare `requires`, a prerequisite over the standing decision projection that
+declare `requires`, a prerequisite over the standing Ask projection that
 `x-awaits` defines. Its target is the sender or its
-declared parent, and `awaiting` states whether that decision must be open or closed.
+declared parent, and `awaiting` states whether that Ask must be open or closed.
 `actionAvailable` paints and guards the action, `sendAction` checks at the common
 browser door, and POST evaluates the same declaration from the authoritative log
-under the append lock. No eligibility cache sits beside the ordinary decision and state
-projections. `x-awaits.answers` says which actions actually close the decision;
+under the append lock. No eligibility cache sits beside the ordinary Ask and state
+projections. `x-awaits.answers` says which actions actually close the Ask;
 orthogonal actions do not, and neither does a conversation standing in the widget's
-declared `x-conversation` seat — that takes the decision off the reader's list without
+declared `x-conversation` seat — that takes the Ask off the reader's list without
 answering it, which is why this gate reads the projection with no seats in
 it. An answer with a position record may declare
 `completion: {empty: {within, when}}`: POST applies the candidate position to the
 authoritative holder relation and admits it only when the one matching item container
 inside the answering widget is empty. The same predicate decides whether a standing
-record answers the Decision, so no private completion flag can diverge from the durable
+record answers the Ask, so no private completion flag can diverge from the durable
 arrangement. An answer or thread-completion verb cannot require its own awaiting value, or
 an aggregate parent's awaiting value, to be false: either prerequisite is circular
-while the decision stands. `x-awaits.rollup` carries the logical OR of its nearest
-local decisions and child roll-ups in Python; the aggregate owner never originates
-or surfaces a decision. The
+while the Ask stands. `x-awaits.rollup` carries the logical OR of its nearest
+local Asks and child roll-ups in Python; the aggregate owner never originates
+or surfaces an Ask. The
 browser receives the resulting ids and awaiting values.
 
 Python's `state_projection` is the durable derived view. Under the same page
 transaction as `/api/state`, `browser_state` serializes its classified events and
-winners, decisions, conversations, updates, undo candidates, receipts, and coverage at
+winners, Asks, conversations, updates, undo candidates, receipts, and coverage at
 one `through_seq`. A normal response projects the revision the tab shows and the
 active revision it may install next. A version comparison requests its older base
 from `/api/view` at the exact `through_seq` already applied to the live DOM, so every
@@ -329,9 +329,9 @@ view used together has the same sequence basis without every state read parsing 
 historical revisions. Page coordinates use that revision's document window;
 conversation coordinates use the unbounded frozen-markup window.
 
-`awaitsReader` first reads any standing local `x-awaits` or `x-request.decision`
-Decision carried anywhere in the unresolved thread; a later plain turn does not hide
-an earlier structural Decision. With no such Decision, it reads the latest spoken turn:
+`awaitsReader` first reads any standing local `x-awaits` or `x-request.ask`
+Ask carried anywhere in the unresolved thread; a later plain turn does not hide
+an earlier structural Ask. With no such Ask, it reads the latest spoken turn:
 an agent comment is a question and an agent reply's explicit `awaits` field marks a
 prose request. A `settles` token standing on that latest prose request answers it
 without closing the thread.
@@ -362,12 +362,12 @@ later version does not revive retracted state. Python's projection uses
 containment, not a global id lookup, when deciding which detailed parts an action
 rests on.
 
-A Decision the reader answers with a request for change is answered by a version, not
-a reply (`runtime/decisions/model.js` reads the seat): authored state in a later
-version must answer an originating open Decision, or change the declared answer when
-the Decision was already answered; a reader action in the log cannot substitute for
+An Ask the reader answers with a request for change is answered by a version, not
+a reply (`runtime/asks/model.js` reads the seat): authored state in a later
+version must answer an originating open Ask, or change the declared answer when
+the Ask was already answered; a reader action in the log cannot substitute for
 that revision. Only then may the agent resolve the thread that carried the request.
-Threads owns the reader-facing clarification; the page's Decision remains the proposal
+Threads owns the reader-facing clarification; the page's Ask remains the proposal
 with the agent rather than counting both.
 
 ## The widget vocabulary stays open
@@ -400,13 +400,13 @@ The extension keys describe general behavior:
 | `x-shadow` | a declared open shadow tree is part of the page's composed reading |
 | `x-state` | reader action verbs, current eligibility, facets, units, schemas, and records |
 | `x-report` | report verbs with the same semantic state shape |
-| `x-request` | direct-child command offers, typed one-shot external-operation verbs, and whether a ready lifecycle is a decision |
+| `x-request` | direct-child command offers, typed one-shot external-operation verbs, and whether a ready lifecycle is an Ask |
 | `x-refers` | element-id attributes and optional package-owned map predicates that type their targets |
-| `x-parent` | the child widgets whose decisions belong to this holder |
+| `x-parent` | the child widgets whose state and Ask membership belong to this holder |
 | `x-retired-when` | outcome-to-slot retirement relations |
 | `x-withdrawn-as` | the author's state for a withdrawn recordless decision |
-| `x-decision` | the complete reading and arrival region around one nested decision source |
-| `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for a decision |
+| `x-ask-surface` | the complete reading and arrival region around one nested Ask source |
+| `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for an Ask |
 | `x-conversation` | the condition under which the widget owns a conversation seat, and whether its root requires a version response |
 | `x-thread-surface` | the upgraded widget may provide local outlets for complete Threads anchored to its exact projected data |
 | `x-work` | admits local agent work without a pending reader move, through a content or conversation seat and optional condition; an admitted page-widget claim then appears at the page edge through its Target Button |
@@ -595,8 +595,8 @@ native tag while keeping the next press visible.
 ### Standing somewhere
 
 A press that acts on where the reader is standing reads it through
-`standingItem`: the unanswered decision where focus is on a control that works it — a
-pick, a ✓, a mark — an answered decision on its explicit review arrival, and the
+`standingItem`: the unanswered Ask where focus is on a control that works it — a
+pick, a ✓, a mark — an answered Ask on its explicit review arrival, and the
 innermost item everywhere else, which is the ⌥ aim's own reading. It answers nothing
 in ordinary chrome, where a reader is working on the page rather than standing in it.
 

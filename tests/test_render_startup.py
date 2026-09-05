@@ -525,11 +525,11 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             "Top-layer stale control</button></dialog>",
         ).replace(
             "</main>",
-            """<lf-decision id="startup-decision"><h2>Startup choice</h2>
+            """<lf-ask id="startup-decision"><h2>Startup choice</h2>
 <lf-options id="startup-choice" choose>
   <lf-option id="startup-a">First</lf-option>
   <lf-option id="startup-b">Second</lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 <lf-draft id="startup-note"><pre>Ship on Tuesday from the blue room.</pre></lf-draft>
 """
             + SHADOWED_DIFF,
@@ -802,7 +802,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     priming.wait_for_function(BOTH_STAMPS)
-    priming.evaluate("localStorage.setItem('lf-tray-up', 'decisions')")
+    priming.evaluate("localStorage.setItem('lf-tray-up', 'asks')")
     priming.close()
 
     held = []
@@ -814,28 +814,28 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         assert held, "the positive control did not hold the first state response"
         body = page.locator("body")
-        expect(body).to_have_attribute("data-lf-tray", "decisions")
-        expect(page.locator(".lf-decisions")).to_be_hidden()
-        expect(page.locator(".lf-decisions-panel")).to_be_hidden()
+        expect(body).to_have_attribute("data-lf-tray", "asks")
+        expect(page.locator(".lf-asks")).to_be_hidden()
+        expect(page.locator(".lf-asks-panel")).to_be_hidden()
         expect(page.locator(".lf-answer-all")).to_be_hidden()
 
         comments = page.get_by_role("button", name=re.compile("^Threads"))
         expect(comments).to_be_enabled()
         comments.click()
-        expect(body).not_to_have_attribute("data-lf-tray", "decisions")
+        expect(body).not_to_have_attribute("data-lf-tray", "asks")
         expect(page.locator(".lf-general textarea")).to_be_editable()
 
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-        decisions = page.locator(".lf-decisions")
+        decisions = page.locator(".lf-asks")
         expect(decisions).to_be_visible()
         expect(decisions).to_have_text("Asks 1/1")
         expect(decisions).to_have_attribute("data-lf-complete", "")
         expect(decisions).to_have_attribute("aria-expanded", "false")
-        expect(page.locator(".lf-decisions-panel")).to_be_hidden()
+        expect(page.locator(".lf-asks-panel")).to_be_hidden()
         expect(page.locator(".lf-panel")).to_be_visible()
-        expect(page.locator("button.lf-decisions-row")).to_have_count(0)
+        expect(page.locator("button.lf-asks-row")).to_have_count(0)
         expect(page.locator(".lf-answer-all")).to_be_hidden()
         assert errors == []
     finally:
@@ -1627,11 +1627,11 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
             "Depends what you want to keep:",
             "--markup",
             (
-                '<lf-decision id="store-decision"><h3>Which store?</h3>'
+                '<lf-ask id="store-decision"><h3>Which store?</h3>'
                 '<lf-options id="store-pick" choose>'
                 '<lf-option id="store-redis"><strong>Redis</strong></lf-option>'
                 '<lf-option id="store-cookie"><strong>A signed cookie</strong>'
-                "</lf-option></lf-options></lf-decision>"
+                "</lf-option></lf-options></lf-ask>"
             ),
         ],
     )

@@ -161,13 +161,13 @@ INLINE_PAGE = leaf_page(
     "inline",
     """
 <h1 id="t">Inline</h1>
-<lf-decision id="opts-decision"><h2>How should sessions work?</h2>
+<lf-ask id="opts-decision"><h2>How should sessions work?</h2>
 <lf-options id="opts" choose>
   <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
   which costs a replica and buys revocation for free.</lf-option>
   <lf-option id="opt-b"><strong>Signed tokens</strong> No store at all, until revocation
   quietly puts one back.</lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 <p id="p">A paragraph carrying <strong>bold text</strong> and <em>emphasis</em> inside it,
 so that a selection across the middle of it lands in more than one text node.</p>
 <p id="p2">A neighbouring block, so a selection reaching across the boundary between
@@ -197,7 +197,7 @@ SETTLED_PAGE = leaf_page(
     """
 <h1 id="h">Session transport</h1>
 <p id="lede">Decided last week; open the row for the alternatives.</p>
-<lf-decision id="transport-decision"><h2>How should sessions travel?</h2>
+<lf-ask id="transport-decision"><h2>How should sessions travel?</h2>
 <lf-options id="transport" choose settled>
   <lf-option id="opt-lax" chosen><strong>Lax cookie</strong> Host-only, set by the auth
   origin, nothing for a script to read.</lf-option>
@@ -205,7 +205,7 @@ SETTLED_PAGE = leaf_page(
   started from an emailed link arrives logged out.</lf-option>
   <lf-option id="opt-bearer"><strong>Bearer header</strong> Suits the mobile client;
   puts the id where every script can read it.</lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 """,
 )
 
@@ -309,22 +309,22 @@ SPECIMEN_PAGE = leaf_page(
       <lf-new>Refill when the camera shows it half-empty.</lf-new>
     </lf-suggestion></p>
 </lf-specimen>
-<lf-decision id="live-group-decision"><h2>How should the schema migrate?</h2>
+<lf-ask id="live-group-decision"><h2>How should the schema migrate?</h2>
 <lf-options id="live-group" choose>
   <lf-option id="l-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="l-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-decision>
-<lf-decision id="live-rows-decision"><h2>What should happen to the nightly job?</h2>
+</lf-options></lf-ask>
+<lf-ask id="live-rows-decision"><h2>What should happen to the nightly job?</h2>
 <lf-options id="live-rows" choose>
   <lf-option id="l-row-keep">Keep the nightly job</lf-option>
   <lf-option id="l-row-drop">Drop it and poll on demand</lf-option>
-</lf-options></lf-decision>
-<lf-decision id="live-settled-decision"><h2>How should sessions travel?</h2>
+</lf-options></lf-ask>
+<lf-ask id="live-settled-decision"><h2>How should sessions travel?</h2>
 <lf-options id="live-settled" choose settled>
   <lf-option id="l-lax" chosen><strong>Lax cookie</strong> Host-only.</lf-option>
   <lf-option id="l-bearer"><strong>Bearer header</strong> Suits mobile.</lf-option>
   <lf-option id="l-signed" ><strong>Signed token</strong> No store.</lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 <lf-board id="live-board">
   <lf-column id="l-col" label="Doing">
     <lf-card id="l-card"><strong>Wire the importer</strong></lf-card>
@@ -356,11 +356,11 @@ SPECIMEN_TEXT = (
     "Two shapes for the same question — first the one I'd ship, then, for the "
     "record, the framing it replaces:"
 )
-SPECIMEN_MARKUP = """<lf-decision id="rp-live-decision"><h3>How should the schema migrate?</h3>
+SPECIMEN_MARKUP = """<lf-ask id="rp-live-decision"><h3>How should the schema migrate?</h3>
 <lf-options id="rp-live" choose>
   <lf-option id="rp-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="rp-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 <lf-specimen id="rp-spec" label="the April thread">
   <lf-options id="rp-quoted" choose>
     <lf-option id="rp-memory"><strong>App memory</strong> Nothing to build.</lf-option>
@@ -378,11 +378,11 @@ REPLAYED_PAGE = leaf_page(
     "replayed",
     f"""
 <h1 id="t">Rollout</h1>
-<lf-decision id="approach-decision"><h2>How should the schema migrate?</h2>
+<lf-ask id="approach-decision"><h2>How should the schema migrate?</h2>
 <lf-options id="approach" choose>
   <lf-option id="opt-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="opt-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 <lf-board id="work">
   <lf-column id="col-doing" label="Doing">{IMPORTER_CARD}</lf-column>
   <lf-column id="col-done" label="Done"><lf-card id="card-notes"><strong>Draft the notes</strong></lf-card></lf-column>

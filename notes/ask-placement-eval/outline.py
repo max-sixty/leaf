@@ -1,4 +1,4 @@
-"""Print a document-order outline of each output: headings, list items, decisions, details.
+"""Print a document-order outline of each output: headings, list items, Asks, details.
 
 Usage: outline.py .tmp/ask-placement-eval/*.html
 """
@@ -24,8 +24,8 @@ class Outline(HTMLParser):
             self.grab = (tag, a.get("id", ""), [])
         elif tag == "li":
             self.grab = ("li", a.get("id", ""), [])
-        elif tag == "lf-decision":
-            self.rows.append(("DECISION", a.get("id", ""), ""))
+        elif tag == "lf-ask":
+            self.rows.append(("ASK", a.get("id", ""), ""))
         elif tag == "details":
             self.rows.append(("details", a.get("id", ""), ""))
         elif tag == "section":
@@ -47,8 +47,8 @@ class Outline(HTMLParser):
             self.grab = None
         if self.stack and self.stack[-1] == tag:
             self.stack.pop()
-        if tag == "lf-decision":
-            self.rows.append(("/DECISION", "", ""))
+        if tag == "lf-ask":
+            self.rows.append(("/ASK", "", ""))
 
 
 for path in sys.argv[1:]:
@@ -58,15 +58,15 @@ for path in sys.argv[1:]:
     o = Outline()
     o.feed(body)
     print(f"===== {path}")
-    in_decision = 0
+    in_ask = 0
     for kind, id_, txt in o.rows:
-        if kind == "/DECISION":
-            in_decision -= 1
+        if kind == "/ASK":
+            in_ask -= 1
             continue
-        indent = "    " * in_decision
-        if kind == "DECISION":
-            print(f"{indent}>>> DECISION {id_}")
-            in_decision += 1
+        indent = "    " * in_ask
+        if kind == "ASK":
+            print(f"{indent}>>> ASK {id_}")
+            in_ask += 1
         elif kind == "li":
             print(f"{indent}  - li {id_}: {txt}")
         else:

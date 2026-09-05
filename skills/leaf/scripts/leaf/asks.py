@@ -1,4 +1,4 @@
-"""Declaration-driven page and thread decision projections."""
+"""Declaration-driven page and thread ask projections."""
 
 from leaf.passages import page_passages
 from leaf.projection import (
@@ -12,17 +12,17 @@ from leaf.projection import (
 )
 
 
-def local_decision_entry(entry: dict) -> bool:
-    """Whether one widget entry originates a decision rather than aggregating it."""
+def local_ask_entry(entry: dict) -> bool:
+    """Whether one widget entry originates an ask rather than aggregating it."""
     awaits = entry.get("x-awaits")
     return (awaits is not None and not awaits.get("rollup")) or entry.get(
         "x-request", {}
-    ).get("decision") is True
+    ).get("ask") is True
 
 
 def asking(attrs: dict, when: dict) -> bool:
     """The runtime's `asking`: every attribute `when` names holds one of the
-    values that decision, a flag's two values being its presence and its absence."""
+    values that ask, a flag's two values being its presence and its absence."""
     return all(
         any(
             (attr in attrs) == value
@@ -64,7 +64,7 @@ def answered_verb(
 ) -> bool:
     """Whether one verb's own durable facet answers this widget.
 
-    Most decisions fold one widget-wide value. A completion gesture can instead
+    Most asks fold one widget-wide value. A completion gesture can instead
     leave its whole durable result on a named part (for example, the final card's
     destination); the owner coordinate and verb still identify that answer
     without a second private completion flag.
@@ -96,7 +96,7 @@ def answered_verb(
     )
 
 
-def answered_decision(
+def answered_ask(
     rec: dict,
     entry: dict,
     projection: StateProjection,
@@ -179,7 +179,7 @@ def completion_met(
 
     Completion is a predicate over the same projected holder relation the position
     record changes. It is not another folded value: undoing or superseding the record
-    therefore changes both the durable arrangement and whether the Decision is answered
+    therefore changes both the durable arrangement and whether the Ask is answered
     in one operation.
     """
     completion = spec.get("completion")
@@ -223,8 +223,8 @@ def completion_met(
     )
 
 
-class _DecisionReducer:
-    """One page or frozen-thread decision fold over a shared state projection."""
+class _AskReducer:
+    """One page or frozen-thread ask fold over a shared state projection."""
 
     def __init__(
         self,
@@ -271,13 +271,13 @@ class _DecisionReducer:
         return self.registry[record["tag"]]
 
     def _is_request(self, record):
-        return self._entry(record).get("x-request", {}).get("decision") is True
+        return self._entry(record).get("x-request", {}).get("ask") is True
 
     def _is_declared(self, record):
         entry = self.registry.get(record["tag"]) or {}
         return (
             entry.get("x-awaits") is not None
-            or entry.get("x-request", {}).get("decision") is True
+            or entry.get("x-request", {}).get("ask") is True
         )
 
     def _declaration(self, record):
@@ -312,7 +312,7 @@ class _DecisionReducer:
                     action["widget"] == unit and action["action"] == until["verb"]
                     for action, _spec in self.projection.actions.values()
                 )
-        return answered_decision(
+        return answered_ask(
             record,
             entry,
             self.projection,
@@ -359,7 +359,7 @@ class _DecisionReducer:
             surface = record
             holder = self._holder(record)
             while holder:
-                if (self.registry.get(holder["tag"]) or {}).get("x-decision"):
+                if (self.registry.get(holder["tag"]) or {}).get("x-ask-surface"):
                     surface = holder
                     break
                 holder = self._holder(holder)
@@ -369,13 +369,13 @@ class _DecisionReducer:
         return surfaces
 
     def inventory(self) -> list:
-        """Every active Decision, including ones the reader has answered.
+        """Every active Ask, including ones the reader has answered.
 
-        An action Decision remains active while its authored `when` holds, even after
-        one of its answer verbs has state. A request Decision remains the instruction
+        An action Ask remains active while its authored `when` holds, even after
+        one of its answer verbs has state. A request Ask remains the instruction
         the page asked throughout its one lifecycle; accepting it changes who owns the
         turn rather than erasing the Ask. Roll-ups continue to aggregate without
-        originating a visible Decision of their own.
+        originating a visible Ask of their own.
         """
         active = []
         for record in self.records:
@@ -384,10 +384,10 @@ class _DecisionReducer:
             ):
                 active.append(record)
                 continue
-            # A decision that retires its own last visible slot still has a receipt
+            # An ask that retires its own last visible slot still has a receipt
             # and Undo control in the margin. Keep that completed route until a new
             # revision removes the authored source. A source retired by some other
-            # decision is absent rather than reviewable, and is not in settled_away.
+            # ask is absent rather than reviewable, and is not in settled_away.
             unit = record["attrs"].get("id")
             if (
                 unit in self.settled_away
@@ -422,7 +422,7 @@ class _DecisionReducer:
         )
 
 
-def page_decision_projection(
+def page_ask_projection(
     source,
     projection,
     byid,
@@ -434,26 +434,26 @@ def page_decision_projection(
     thread: bool = False,
     request_phases: dict[str, str] | None = None,
 ) -> tuple[list, dict[str, bool]]:
-    """The page's visible decisions and exact awaiting value for every declared target.
+    """The page's visible asks and exact awaiting value for every declared target.
 
     An ordinary x-awaits instance is its local condition minus an explicit answer.
-    A roll-up projects the logical OR of its nearest local decisions and child roll-ups
+    A roll-up projects the logical OR of its nearest local asks and child roll-ups
     through a nested plan without originating one.
 
-    An x-request.decision instance is local exactly while its canonical lifecycle is ready.
+    An x-request.ask instance is local exactly while its canonical lifecycle is ready.
     Its pending and completed phases hand the turn away from the reader; failure
-    returns the lifecycle to ready and therefore reopens the decision.
+    returns the lifecycle to ready and therefore reopens the ask.
 
     `with_agent` chooses which question this answers, and is the whole of the
     difference between the two. Given `seats_with_agent`, it is the reader's list: a
-    decision whose own conversation seat holds a thread the agent owes an answer to is
+    ask whose own conversation seat holds a thread the agent owes an answer to is
     not one the reader has to deal with, whatever its state. Given an empty set, it is
-    whether the decision is answered at all, which is what an action's `requires` asks
+    whether the ask is answered at all, which is what an action's `requires` asks
     — a conversation does not answer a question the widget still holds no state for,
     and refusing the pick over the reader's own remark would refuse them the answer
     they were asked for. Frozen thread markup seats no conversation either way.
     """
-    return _DecisionReducer(
+    return _AskReducer(
         source,
         projection,
         byid,
@@ -466,7 +466,7 @@ def page_decision_projection(
     ).result()
 
 
-def page_decisions(
+def page_asks(
     parser,
     projection,
     byid,
@@ -476,7 +476,7 @@ def page_decisions(
     with_agent: set[str],
     request_phases: dict[str, str] | None = None,
 ) -> list:
-    return page_decision_projection(
+    return page_ask_projection(
         parser,
         projection,
         byid,
@@ -496,11 +496,11 @@ def page_awaiting_values(
     registry: dict,
     request_phases: dict[str, str] | None = None,
 ) -> dict:
-    """Each current page decision's declaration-driven awaiting value."""
+    """Each current page ask's declaration-driven awaiting value."""
     passages = page_passages(
         html, registry, retirement_outcomes(projection.actions, registry)
     )
-    return page_decision_projection(
+    return page_ask_projection(
         parser,
         projection,
         parser.by_id,
@@ -512,7 +512,7 @@ def page_awaiting_values(
     )[1]
 
 
-def page_decision_inventory(
+def page_ask_inventory(
     source,
     projection,
     byid,
@@ -524,8 +524,8 @@ def page_decision_inventory(
     request_phases: dict[str, str] | None = None,
     settled_away: set[str] | None = None,
 ) -> list:
-    """Every active Decision surface, answered or not, for progress and review."""
-    return _DecisionReducer(
+    """Every active Ask surface, answered or not, for progress and review."""
+    return _AskReducer(
         source,
         projection,
         byid,
@@ -539,7 +539,7 @@ def page_decision_inventory(
     ).inventory()
 
 
-def _thread_decision_records(
+def _thread_ask_records(
     events: list, settled: set, reading: FrozenThreadReading
 ) -> tuple[list, dict]:
     records = []
@@ -554,7 +554,7 @@ def _thread_decision_records(
     return records, {rec["attrs"].get("id"): thread for thread, rec in records}
 
 
-def thread_decision_projection(
+def thread_ask_projection(
     events: list,
     registry: dict,
     settled: set,
@@ -562,24 +562,24 @@ def thread_decision_projection(
     reading: FrozenThreadReading | None = None,
     request_phases: dict[str, str] | None = None,
 ) -> tuple[list, dict]:
-    """Open Decisions standing in thread markup, read from the log.
+    """Open Asks standing in thread markup, read from the log.
 
     A fragment is frozen: no version answers it and no `restated`
     retracts it, so every action on its widgets stands (no floors, no window).
-    A widget with an action decision or request decision can stand in a thread. `until`
-    holds a matching action decision open until the reader has posted the verb it names,
-    while a request decision follows its frozen-document request lifecycle.
+    A widget with an action ask or request ask can stand in a thread. `until`
+    holds a matching action ask open until the reader has posted the verb it names,
+    while a request ask follows its frozen-document request lifecycle.
 
-    `settled` is the root ids of the closed threads, whose decisions went with them —
+    `settled` is the root ids of the closed threads, whose asks went with them —
     the question was the thread's, and the panel's own reading takes a closed
     thread's mark off the page for the same reason. Without it, a question the
     agent asked and then withdrew by resolving stays on the banner's count for
     the life of the page, and the walk that steps to it lands in a shut
     disclosure."""
     thread_reading = reading or frozen_thread_reading(events, registry)
-    records, thread_by_id = _thread_decision_records(events, settled, thread_reading)
+    records, thread_by_id = _thread_ask_records(events, settled, thread_reading)
 
-    decisions, values = page_decision_projection(
+    asks, values = page_ask_projection(
         [rec for _thread, rec in records],
         thread_reading.projection,
         thread_reading.by_id,
@@ -594,15 +594,12 @@ def thread_decision_projection(
         request_phases=request_phases,
     )
     return (
-        [
-            {**decision, "thread": thread_by_id[decision["id"]]}
-            for decision in decisions
-        ],
+        [{**ask, "thread": thread_by_id[ask["id"]]} for ask in asks],
         values,
     )
 
 
-def thread_decision_inventory(
+def thread_ask_inventory(
     events: list,
     registry: dict,
     settled: set,
@@ -610,10 +607,10 @@ def thread_decision_inventory(
     reading: FrozenThreadReading | None = None,
     request_phases: dict[str, str] | None = None,
 ) -> list:
-    """Every active Decision in unresolved frozen thread markup."""
+    """Every active Ask in unresolved frozen thread markup."""
     thread_reading = reading or frozen_thread_reading(events, registry)
-    records, thread_by_id = _thread_decision_records(events, settled, thread_reading)
-    decisions = page_decision_inventory(
+    records, thread_by_id = _thread_ask_records(events, settled, thread_reading)
+    asks = page_ask_inventory(
         [rec for _thread, rec in records],
         thread_reading.projection,
         thread_reading.by_id,
@@ -623,12 +620,10 @@ def thread_decision_inventory(
         thread=True,
         request_phases=request_phases,
     )
-    return [
-        {**decision, "thread": thread_by_id[decision["id"]]} for decision in decisions
-    ]
+    return [{**ask, "thread": thread_by_id[ask["id"]]} for ask in asks]
 
 
-def thread_decisions(
+def thread_asks(
     events: list,
     registry: dict,
     settled: set,
@@ -636,7 +631,7 @@ def thread_decisions(
     *,
     reading: FrozenThreadReading | None = None,
 ) -> list:
-    return thread_decision_projection(
+    return thread_ask_projection(
         events,
         registry,
         settled,

@@ -413,32 +413,32 @@ def _validate_widget_predicates(
     # lists — and a subschema that states neither contradicts nothing.
     awaits = entry.get("x-awaits", {})
     request = entry.get("x-request", {})
-    if request.get("region") and request.get("decision") is not True:
+    if request.get("region") and request.get("ask") is not True:
         raise RegistryError(
-            f"{path}: <{tag}> x-request.region requires decision: true — a region "
-            "owns the title of a request that joins the reader's Decision projection"
+            f"{path}: <{tag}> x-request.region requires ask: true — a region "
+            "owns the title of a request that joins the reader's Ask projection"
         )
-    if request.get("decision") is True and entry.get("x-awaits") is not None:
+    if request.get("ask") is True and entry.get("x-awaits") is not None:
         raise RegistryError(
-            f"{path}: <{tag}> declares both x-request.decision and x-awaits — one "
-            "widget cannot own both a lifecycle request and a state decision or rollup"
+            f"{path}: <{tag}> declares both x-request.ask and x-awaits — one "
+            "widget cannot own both a lifecycle request and a state Ask or rollup"
         )
-    if entry.get("x-decision"):
+    if entry.get("x-ask-surface"):
         if "id" not in entry.get("required", []):
-            raise RegistryError(f"{path}: <{tag}> x-decision does not require an id")
+            raise RegistryError(f"{path}: <{tag}> x-ask-surface does not require an id")
         if entry.get("x-content") != "prose":
             raise RegistryError(
-                f"{path}: <{tag}> x-decision must admit prose around the Decision it frames"
+                f"{path}: <{tag}> x-ask-surface must admit prose around the Ask it frames"
             )
         if awaits:
             raise RegistryError(
-                f"{path}: <{tag}> declares both x-decision and x-awaits — the broader "
-                "Decision frames one nested decision source; the nested widget owns its state"
+                f"{path}: <{tag}> declares both x-ask-surface and x-awaits — the broader "
+                "Ask frames one nested source; the nested widget owns its state"
             )
-        if request.get("decision") is True:
+        if request.get("ask") is True:
             raise RegistryError(
-                f"{path}: <{tag}> declares both x-decision and x-request.decision — the broader "
-                "Decision frames one nested external request; the nested widget owns its lifecycle"
+                f"{path}: <{tag}> declares both x-ask-surface and x-request.ask — the broader "
+                "Ask frames one nested external request; the nested widget owns its lifecycle"
             )
     conditions = [
         ("x-awaits", awaits.get("when", {})),
@@ -501,7 +501,7 @@ def _validate_widget_predicates(
     if response and (entry.get("x-awaits") is None or awaits.get("rollup")):
         raise RegistryError(
             f"{path}: <{tag}> x-conversation requires a version response but "
-            "declares no x-awaits standing decision"
+            "declares no x-awaits standing Ask"
         )
     data_bindings = {
         attr
@@ -556,12 +556,12 @@ def _validate_widget_interactions(
         local_fields = sorted(set(awaits) - {"rollup"})
         if local_fields:
             raise RegistryError(
-                f"{path}: <{tag}> x-awaits rollup also declares local decision "
+                f"{path}: <{tag}> x-awaits rollup also declares local Ask "
                 f"fields {local_fields}"
             )
     elif entry.get("x-awaits") is not None and not answers:
         raise RegistryError(
-            f"{path}: <{tag}> x-awaits local decision declares no answer verbs"
+            f"{path}: <{tag}> x-awaits local Ask declares no answer verbs"
         )
     if unknown := sorted(set(answers) - set(entry.get("x-state", {}))):
         raise RegistryError(
@@ -582,11 +582,11 @@ def _validate_widget_interactions(
             f"{path}: <{tag}> x-awaits blanket verb `{blanket}` is not one of "
             "its answer verbs"
         )
-    # The until verb closes a thread decision, so it too is one of the widget's own
+    # The until verb closes a thread Ask, so it too is one of the widget's own
     # verbs — same rule as `all`, same reason.
     if (until := awaits.get("until")) and until["verb"] not in entry.get("x-state", {}):
         raise RegistryError(
-            f"{path}: <{tag}> x-awaits holds decisions open until `{until['verb']}`, "
+            f"{path}: <{tag}> x-awaits holds Asks open until `{until['verb']}`, "
             "which it does not declare as an x-state verb"
         )
     if response:

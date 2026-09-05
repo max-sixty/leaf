@@ -1,5 +1,5 @@
-/* The decision view: where the reader is standing, the ring that says so, the Asks tray's
-   rows, and the walks and arrivals that move between decisions.
+/* The ask view: where the reader is standing, the ring that says so, the Asks tray's
+   rows, and the walks and arrivals that move between asks.
 
    Focus is the reader's current place. `focused` follows it through declared shadow
    roots. A native label activation may pass through `body` or a focusable container
@@ -10,20 +10,20 @@
    `.lf-focus-visible`, and `.lf-focus-within` projections. A key ends the pointer
    interval and restores physical focus before dispatch. Code that acts on physical focus
    otherwise reads `document.activeElement` directly. `markHere` paints one `--here-ring`
-   around the semantic decision or control that contains focus. The ring is derived on
-   each paint; it does not store the decision walk's position.
+   around the semantic ask or control that contains focus. The ring is derived on
+   each paint; it does not store the ask walk's position.
 
-   The ring is therefore paintable on a decision the `a`/`A` ask walk will not step to.
+   The ring is therefore paintable on an ask the `a`/`A` ask walk will not step to.
    The tray does list it: the walk is a worklist, while the tray is the complete route
    through the active Ask inventory. The Escape rung still reads focus rather than either
    list, so the way out is the one it always has.
 
-   Working a decision and standing in one are different facts, and `markHere`'s ring
+   Working an ask and standing in one are different facts, and `markHere`'s ring
    answers the second. A reader who tabbed to a link inside a question has named something
    more particular than the question, so a press there means the link's own block; reading
    the ring instead overrode what they named, and made the same markup answer differently
    according to whether its question was still open. The two agree wherever the reader is
-   working the decision, which is every arrival the decision walk makes.
+   working the ask, which is every arrival the ask walk makes.
 
    `standingConversation` (conversation/landing.js) is the exception, and covers all three
    containers that hold a conversation the reader can stand in: the panel's thread, a
@@ -32,30 +32,30 @@
    function and wears the same class while having no box to reach, and a collapsed one
    answers the same honest way.
 
-   `landed` stores where the decision walk last arrived. This is distinct from focus:
+   `landed` stores where the ask walk last arrived. This is distinct from focus:
    clicking elsewhere removes the focus-derived ring without erasing either the walk's
    useful continuation point or the answer progress in the banner.
 
-   `shownParts` supplies ring targets when a page styles a decision with `display:
-   contents`. A normal boxed decision wears one outline on its own box. Hoisted controls
+   `shownParts` supplies ring targets when a page styles an ask with `display:
+   contents`. A normal boxed ask wears one outline on its own box. Hoisted controls
    use the same ring token through the shared pill rule.
 
-   Decision rows come from every active local `x-awaits` source and holder declaring
-   `x-request.decision`, answered or open, not from a list of decision tags. Where a
-   source is nested in an `x-decision` region, the row names the region: its heading,
-   context, and evidence are the decision the reader is being sent to, while the source
+   Ask rows come from every active local `x-awaits` source and holder declaring
+   `x-request.ask`, answered or open, not from a list of ask tags. Where a
+   source is nested in an `x-ask-surface` region, the row names the region: its heading,
+   context, and evidence are the ask the reader is being sent to, while the source
    remains the owner of the answer. `itemSays` supplies each row's own label and the owned
    command scope's `options.answer` supplies its current answer. Selecting a tray row
-   travels through the same decision-arrival function as `a` and `A`, so the panel and
+   travels through the same ask-arrival function as `a` and `A`, so the panel and
    directional walk agree about focus, reveal, arrival placement, and `landed`; only the
    tray's list is wider, preserving answered routes for review and revision.
 
-   An arrival stands the reader on the decision, which is the element the scroll has just
+   An arrival stands the reader on the ask, which is the element the scroll has just
    aligned and the one the ring names. The widget's contributed actions are addressable
    there by their declared bindings, with `1`–`9` as the default; its controls remain the
    next Tab stops, a stop at `tabindex: -1` keeping its place in document order. Landing
-   the answering control instead puts them as far down the decision as its context and
-   evidence are long, off the screen the same gesture arranged. A decision a page styles
+   the answering control instead puts them as far down the ask as its context and
+   evidence are long, off the screen the same gesture arranged. An Ask a page styles
    boxless has nothing to stand on and keeps the control as its landing. A widget rebuilt
    under a reader is not an arrival and hands back the control they were working
    (`standOn`).
@@ -68,34 +68,34 @@
    4. the current reading block and scroll position.
 
    The chrome is an address, not a page position, so its controls do not become the walk's
-   origin. `decisionStep` compares document positions rather than incrementing an index
+   origin. `askStep` compares document positions rather than incrementing an index
    remembered by the walk. A panel thread walk may use log order because the list itself
    is its complete ordered space.
 
-   Arriving at a page decision puts its arrival region's start below the banner, not the
-   decision's own top edge. A widget declaring `x-decision` states that region and the
+   Arriving at a page ask puts its arrival region's start below the banner, not the
+   ask's own top edge. A widget declaring `x-ask-surface` states that region and the
    walk is handed the region rather than the source inside it. Nothing else declares one,
    and an edit to a phrase cannot: what explains it is the sentence it stands in and the
    heading over that. `arrivalRegion` reads that region off the document instead. Its
-   candidates are the blocks before the decision whose own parent still contains it — so a
-   block wrapped in something the decision stands outside of, another ask or a section of
-   its own, is not this decision's context — and of those it takes the last heading, then
-   the text block holding the decision or, for a change that is its own block, the nearest
-   remaining block before it. The first candidate whose start still leaves the decision's
-   foot on screen wins, falling back to the decision itself. That bound is what lets the
+   candidates are the blocks before the ask whose own parent still contains it — so a
+   block wrapped in something the ask stands outside of, another ask or a section of
+   its own, is not this ask's context — and of those it takes the last heading, then
+   the text block holding the ask or, for a change that is its own block, the nearest
+   remaining block before it. The first candidate whose start still leaves the ask's
+   foot on screen wins, falling back to the ask itself. That bound is what lets the
    widest candidate go first, and it keeps the region inside one screen without a rule
    about distance. A candidate that paints no box is not a place to arrive at: an element
    generating none measures at the document's origin, which would read as a region at the
    top of the page.
 
-   The sweep is the document's own blocks in document order, so a decision staged inside a
+   The sweep is the document's own blocks in document order, so an ask staged inside a
    declared shadow tree takes a heading standing over its host but not one inside that
-   tree. The travel moves the page's scroller, so the decision's own box is brought into
-   view first for the sake of a decision inside a nested scroller, which that placement
-   would never reach. A decision whose region already stands clear of the banner, and
+   tree. The travel moves the page's scroller, so the ask's own box is brought into
+   view first for the sake of an ask inside a nested scroller, which that placement
+   would never reach. An Ask whose region already stands clear of the banner, and
    which `readableDestination` reads as unclipped on every edge, is not travelled to at
    all: the press moves the ring and the focus and leaves the page still. A thread
-   decision keeps its centred arrival in the panel's own list. */
+   ask keeps its centred arrival in the panel's own list. */
 
 import { shownBox, shownParts } from "../geometry.js";
 import {
@@ -119,23 +119,17 @@ import {
 import { pageScroller } from "../scrolling.js";
 import { el, reserve, reveal } from "../widget-elements.js";
 import {
-  decisionsBtn,
-  decisionsList,
-  decisionsOffered,
-  decisionsPanel,
+  asksBtn,
+  asksList,
+  asksOffered,
+  asksPanel,
   openTray,
   showTray,
   traysEdge,
 } from "../trays.js";
 import { focusForNavigation, presentedControl } from "../living-margin.js";
 import { registry, tagsDeclaring } from "../registry.js";
-import {
-  allDecisions,
-  decisionEntry,
-  decisionSource,
-  openDecisions,
-  unansweredDecisions,
-} from "./model.js";
+import { allAsks, askEntry, askSource, openAsks, unansweredAsks } from "./model.js";
 import { showNews } from "../banner-shelf.js";
 import { readingBlock, versionBtn } from "../version.js";
 import {
@@ -161,17 +155,17 @@ import { announce } from "../notifications.js";
 import { availableCommands } from "../keyboard/dispatch.js";
 
 // Contextual actions for the Ask the reader is standing in. These share the address face
-// but not the g chord's lifecycle: the decision view paints them whenever its semantic
+// but not the g chord's lifecycle: the ask view paints them whenever its semantic
 // focus and the dispatch stack leave the contributed action row reachable.
-export const decisionActionLayer = el("div", "lf-ui lf-addresses lf-ask-addresses");
-decisionActionLayer.setAttribute("aria-hidden", "true");
+export const askActionLayer = el("div", "lf-ui lf-addresses lf-ask-addresses");
+askActionLayer.setAttribute("aria-hidden", "true");
 
 const closeTray = () => showTray(null);
 const presentedActionControl = (control) => presentedControl(control) ?? control;
 const trayCovers = () => traysEdge.over.matches;
 
 // One blanket answer per verb a widget declares one for (x-awaits.all), each deciding
-// its decisions one at a time so the log records what was consented to rather than one
+// its asks one at a time so the log records what was consented to rather than one
 // blanket yes — accepting the rest after rejecting one stays honest. The widget
 // exposes a method named for the verb; the label is built from the same word.
 //
@@ -198,9 +192,9 @@ export function buildBulkAnswers() {
       // the guard above still makes a repeated activation inert.
       btn.setAttribute("aria-disabled", "true");
       try {
-        for (const decision of openDecisions()) {
-          const source = decisionSource(decision);
-          if (decisionEntry(source)?.all === verb) await source[verb]?.();
+        for (const ask of openAsks()) {
+          const source = askSource(ask);
+          if (askEntry(source)?.all === verb) await source[verb]?.();
         }
       } finally {
         answering = false;
@@ -211,21 +205,19 @@ export function buildBulkAnswers() {
     bulkButtons.set(verb, { btn, label });
     versionBtn.before(btn);
     // In the row now, so it holds the widest it reaches below a thousand — the same
-    // words syncDecisions writes, measured in the face it will render in (see reserve).
+    // words syncAsks writes, measured in the face it will render in (see reserve).
     reserve(btn, [`${label} all (999)`]);
   }
 }
 
-// Each blanket answer with the decisions it would take, from the list above. The banner
+// Each blanket answer with the asks it would take, from the list above. The banner
 // writes its controls and counts from this one reading, without naming a verb in core;
 // which verbs exist is the registry's answer.
-function blanketAnswers(decisions) {
+function blanketAnswers(asks) {
   return [...bulkButtons].map(([verb, { btn, label }]) => ({
     btn,
     label,
-    n: decisions.filter(
-      (decision) => decisionEntry(decisionSource(decision))?.all === verb,
-    ).length,
+    n: asks.filter((ask) => askEntry(askSource(ask))?.all === verb).length,
   }));
 }
 // What the banner's button says about the page's Ask progress. The numerator is
@@ -237,13 +229,13 @@ function blanketAnswers(decisions) {
 // mutation stream a screen reader rebuilds its buffer on.
 function sayAsks(completed, total) {
   const said = `Asks ${completed}/${total}`;
-  if (decisionsBtn.textContent !== said) decisionsBtn.textContent = said;
+  if (asksBtn.textContent !== said) asksBtn.textContent = said;
   // The fraction alone does not say which way it counts — a blind drive read 1/2 as
   // "one open" until Done turned it into 2/2 — so the tooltip spells the numerator.
   const title = total
     ? `${completed} of ${total} asks answered — show or hide the list`
     : "Show or hide this page's asks";
-  if (decisionsBtn.title !== title) decisionsBtn.title = title;
+  if (asksBtn.title !== title) asksBtn.title = title;
 }
 // The banner's reading of that one list. Refreshed from every signal that can change
 // it: a widget saying it has just taken an answer (lf-answered, which is also when the
@@ -251,24 +243,24 @@ function sayAsks(completed, total) {
 // send that failed has its optimism taken back.
 let shortcutsOffered = false;
 let rowWalkOffered = false;
-export function syncDecisions() {
-  const decisions = openDecisions();
-  const all = allDecisions();
-  const unanswered = new Set(unansweredDecisions());
-  const completed = all.filter((decision) => !unanswered.has(decision)).length;
-  decisionsBtn.toggleAttribute(
+export function syncAsks() {
+  const asks = openAsks();
+  const all = allAsks();
+  const unanswered = new Set(unansweredAsks());
+  const completed = all.filter((ask) => !unanswered.has(ask)).length;
+  asksBtn.toggleAttribute(
     "data-lf-complete",
     all.length > 0 && completed === all.length,
   );
   // While the tray stands its button stands too, whatever the count just did — the
   // press that opened it has to be able to close it.
   sayAsks(completed, all.length);
-  showNews(decisionsBtn, decisionsOffered());
+  showNews(asksBtn, asksOffered());
   // Only while the tray is up: the count above is what a closed tray says, and these
   // rows are what an open one says. A closed tray reconciling a list on every poll is
   // work for a reader who cannot see it, and rows in a document nothing can press.
-  if (openTray("decisions")) renderDecisions(all, unanswered);
-  for (const { btn, label, n } of blanketAnswers(decisions)) {
+  if (openTray("asks")) renderAsks(all, unanswered);
+  for (const { btn, label, n } of blanketAnswers(asks)) {
     const said = `${label} all (${n})`;
     if (btn.textContent !== said) btn.textContent = said;
     showNews(btn, Boolean(n));
@@ -276,8 +268,8 @@ export function syncDecisions() {
   // The a/A row stands on this list, so the surfaces reading it are repainted
   // where it changes — the rule showFab and showTray already keep for the words
   // they write. A capability change also moves the tray edge's machine-readable keys.
-  const offered = decisionsOffered();
-  const walkOffered = decisions.length > 0;
+  const offered = asksOffered();
+  const walkOffered = asks.length > 0;
   if (offered !== shortcutsOffered || walkOffered !== rowWalkOffered) {
     shortcutsOffered = offered;
     rowWalkOffered = walkOffered;
@@ -288,28 +280,28 @@ export function syncDecisions() {
 // marks are repainted from the same signal, and a comment on text the user just
 // removed says so at once rather than at the next poll.
 document.addEventListener("lf-answered", () => {
-  syncDecisions();
+  syncAsks();
   paintAnchors();
 });
 // Semantic package watchers consume this broad invalidation synchronously and may
 // update the package-owned answer read above. Reconcile the shared Ask surfaces after
 // every listener has seen the complete projection, regardless of registration order.
-document.addEventListener("lf-actions", () => queueMicrotask(syncDecisions));
-// One row per active decision, reconciled on every signal that moves the list, the way the
+document.addEventListener("lf-actions", () => queueMicrotask(syncAsks));
+// One row per active ask, reconciled on every signal that moves the list, the way the
 // leaves tray reconciles its own — rows kept in place rather than rebuilt, so a
 // repaint doesn't swap a row out from under a pressed pointer or drop focus inside it.
 //
-// Keyed by the decision's id and not by the element: a new version replaces every node on the
+// Keyed by the ask's id and not by the element: a new version replaces every node on the
 // page, and the row for a question that survived the revision is the same row. That is
 // also what a press resolves through — the element this row stood for may be gone, and
-// the decision with that id is the one the reader means.
+// the ask with that id is the one the reader means.
 //
-// A row says what kind of thing is asking and then the decision's own opening words, which is
+// A row says what kind of thing is asking and then the ask's own opening words, which is
 // itemSays — the same reading the thread panel labels an anchor with, so a row and a
-// comment on that decision say the same thing. Nothing here asks which widget it is: the kind
+// comment on that ask say the same thing. Nothing here asks which widget it is: the kind
 // is the element's own word and the words are the element's own text, so the twelfth
 // widget gets a row that reads properly on the day it declares x-awaits.
-const decisionRowsById = new Map();
+const askRowsById = new Map();
 // What the tray says when it is holding nothing, in the voice the thread panel's own
 // empty note uses: what is true, then what would fill it. A reader who opens Asks on a
 // page that is waiting on nobody was getting a blank panel, which says the same thing
@@ -334,128 +326,124 @@ const answerWords = (value) => {
   const at = short.lastIndexOf(" ");
   return (at > ANSWER_CAP / 2 ? short.slice(0, at) : short).trimEnd() + "…";
 };
-function currentDecisionAnswer(decision) {
-  const source = decisionSource(decision);
+function currentAskAnswer(ask) {
+  const source = askSource(ask);
   const readers = commandScopesWithin(source)
     .filter(
       ({ source: commandSource, answer }) =>
-        answer && ownedDecisionControl(source, commandSource),
+        answer && ownedAskControl(source, commandSource),
     )
     .map(({ answer }) => answer);
   if (readers.length > 1)
-    throw new TypeError(`Ask ${decision.id} has more than one answer reader`);
+    throw new TypeError(`Ask ${ask.id} has more than one answer reader`);
   return answerWords(readers[0]?.());
 }
-export function renderDecisions(
-  decisions = allDecisions(),
-  unanswered = new Set(unansweredDecisions()),
-) {
+export function renderAsks(asks = allAsks(), unanswered = new Set(unansweredAsks())) {
   let anchor = null;
-  if (!openTray("decisions")) {
-    for (const [, row] of decisionRowsById) row.remove();
-    decisionRowsById.clear();
+  if (!openTray("asks")) {
+    for (const [, row] of askRowsById) row.remove();
+    askRowsById.clear();
     emptyNote.remove();
     return;
   }
   // Out of the way before the rows place themselves, so `firstElementChild` below is a
   // row or nothing and the note cannot become the thing a row is inserted after.
   emptyNote.remove();
-  for (const decision of decisions) {
-    let row = decisionRowsById.get(decision.id);
+  for (const ask of asks) {
+    let row = askRowsById.get(ask.id);
     if (!row) {
-      row = el("button", "lf-decisions-row");
+      row = el("button", "lf-asks-row");
       row.type = "button";
-      // The attribute that already means "this chrome belongs to that decision" (decisionPlace),
-      // so focus landing on a row is the reader standing in the decision it names, and the
+      // The attribute that already means "this chrome belongs to that ask" (askPlace),
+      // so focus landing on a row is the reader standing in the ask it names, and the
       // ring, the walk's own measuring point and the mark all follow with nothing added.
-      row.setAttribute(DECISION_AT, decision.id);
+      row.setAttribute(ASK_AT, ask.id);
       row.append(
-        el("span", "lf-decisions-kind"),
-        el("span", "lf-decisions-says"),
-        el("span", "lf-decisions-answer"),
+        el("span", "lf-asks-kind"),
+        el("span", "lf-asks-says"),
+        el("span", "lf-asks-answer"),
       );
       row.onclick = () => {
-        const route = allDecisions();
-        const to = route.find((candidate) => candidate.id === decision.id);
-        if (to) goToDecision(to, route);
+        const route = allAsks();
+        const to = route.find((candidate) => candidate.id === ask.id);
+        if (to) goToAsk(to, route);
       };
       keys(row, "In the Asks tray", [
         {
-          id: "decision.open",
+          id: "ask.open",
           keys: PRESS,
           does: "Go to this ask",
           line: "go to this ask",
         },
       ]);
-      decisionRowsById.set(decision.id, row);
+      askRowsById.set(ask.id, row);
     }
     const [kind, says, answer] = row.querySelectorAll(
-      ".lf-decisions-kind, .lf-decisions-says, .lf-decisions-answer",
+      ".lf-asks-kind, .lf-asks-says, .lf-asks-answer",
     );
-    const item = itemWord(decision);
-    const word = item === "decision" ? "ask" : item;
-    const said = itemSays(decision) || decision.id;
-    const answered = !unanswered.has(decision);
+    const word = itemWord(ask);
+    const said = itemSays(ask) || ask.id;
+    const answered = !unanswered.has(ask);
     // Written only on change: an unchanged poll must not feed the mutation stream a
     // screen reader rebuilds its buffer on.
     if (kind.textContent !== word) kind.textContent = word;
     if (says.textContent !== said) says.textContent = said;
-    const answerText = answered ? currentDecisionAnswer(decision) : "";
+    const answerText = answered ? currentAskAnswer(ask) : "";
     if (answer.textContent !== answerText) answer.textContent = answerText;
     const answerState = answered ? "answered" : "open";
     if (row.dataset.lfAnswerState !== answerState)
       row.dataset.lfAnswerState = answerState;
     const account = `${word} · ${said}${answerText ? ` · ${answerText}` : ""}`;
     if (row.title !== account) row.title = account;
-    const place = anchor ? anchor.nextElementSibling : decisionsList.firstElementChild;
-    if (place !== row) decisionsList.insertBefore(row, place);
+    const place = anchor ? anchor.nextElementSibling : asksList.firstElementChild;
+    if (place !== row) asksList.insertBefore(row, place);
     anchor = row;
   }
-  const live = new Set(decisions.map((a) => a.id));
-  for (const [id, row] of decisionRowsById)
+  const live = new Set(asks.map((a) => a.id));
+  for (const [id, row] of askRowsById)
     if (!live.has(id)) {
-      // A decision that leaves the active inventory takes its row with it, and may take
+      // An Ask that leaves the active inventory takes its row with it, and may take
       // the focus too — for example, when a revision retires the source while the reader
       // is standing on its row. Hand focus to whatever now stands in its place rather
       // than letting it fall to the body, which is nowhere and takes the ring with it.
       const held = row.contains(document.activeElement);
       const next = row.nextElementSibling ?? row.previousElementSibling;
       row.remove();
-      decisionRowsById.delete(id);
-      if (held) (next ?? decisionsBtn).focus();
+      askRowsById.delete(id);
+      if (held) (next ?? asksBtn).focus();
     }
-  if (!decisions.length) decisionsList.append(emptyNote);
+  if (!asks.length) asksList.append(emptyNote);
 }
 
 // The walk over what the page is waiting on the reader for. It wraps at both ends,
-// because decisions are a worklist rather than a document to read through: answering one takes
+// because asks are a worklist rather than a document to read through: answering one takes
 // it out of the list, so forward is the direction that has somewhere to go, and a walk
 // that clamped there would strand them at the end of it.
 //
-// Somewhere inside the decision the reader can be stood: one within it, or one hoisted out of
+// Somewhere inside the ask the reader can be stood: one within it, or one hoisted out of
 // it and pointing back (a suggestion's row is the column's child, so that it can hang in
-// the page margin). Landing on it rather than on the decision puts the reader on something
-// that works it, and Tab walks the rest of that decision's own controls from there.
+// the page margin). Landing on it rather than on the ask puts the reader on something
+// that works it, and Tab walks the rest of that ask's own controls from there.
 //
 // Focusable offered chrome: native buttons carry their tab stop implicitly, while the
 // selectable-control exception states one explicitly. Written as one `:is()` compound
 // rather than as two comma-separated alternatives, because standOn below prefixes it
 // with a descendant selector: a prefix binds to the first alternative of a selector
-// list only, so the bare list read as "a control inside this decision's row, or any
+// list only, so the bare list read as "a control inside this ask's row, or any
 // offered tab stop anywhere in the document" and the walk landed on the first control
 // on the page instead of the one it was sent to.
-export const DECISION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
-// Which decision such a control decides, where the widget hoisted it out of the element (the
+export const ASK_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
+// Which ask such a control decides, where the widget hoisted it out of the element (the
 // attribute lf-suggestion writes on the row it hangs in the margin).
-const DECISION_ROW = "data-lf-for";
-// Chrome that stands *at* a decision without deciding it: the decisions tray's rows. Separate
-// from DECISION_ROW above, because the two say different things about the same element and
-// one of them has a consumer that must not confuse them — stepDecision looks through DECISION_ROW
-// for the control to put the reader on, and a row that merely points at the decision is not
+const ASK_ROW = "data-lf-for";
+// Chrome that stands *at* an ask without deciding it: the asks tray's rows. Separate
+// from ASK_ROW above, because the two say different things about the same element and
+// one of them has a consumer that must not confuse them — stepAsk looks through ASK_ROW
+// for the control to put the reader on, and a row that merely points at the ask is not
 // that control. What they share is this: focus on either means the reader is standing at
-// that decision, which is the one question decisionPlace asks.
-const DECISION_AT = "data-lf-at";
-// The tab stop this walk lends a decision that holds nothing to work: such a decision has no box
+// that ask, which is the one question askPlace asks.
+const ASK_AT = "data-lf-at";
+// The tab stop this walk lends an ask that holds nothing to work: such an ask has no box
 // in the tab order and the runtime writes it one — which is paint on the author's element,
 // and PAGE_PAINT_ATTRIBUTES is the whole of what the runtime may leave standing there (a
 // `tabindex` in it would blind the replay signature to an authored one). So the lend lasts
@@ -464,15 +452,15 @@ const DECISION_AT = "data-lf-at";
 //
 // One function for both ends of it, because written as statements at each end the walk's
 // half only ever wrote — it took the last lend's reference with it and left the stop
-// standing. Two control-less decisions in a row is all it took, and the walk in the shipped
+// standing. Two control-less asks in a row is all it took, and the walk in the shipped
 // examples goes through two: stepping off a task left it wearing a tab stop that nothing
 // afterwards was ever going to remove.
-let decisionLent = null;
-function lend(decision) {
-  if (decisionLent === decision) return;
-  decisionLent?.removeAttribute("tabindex");
-  decisionLent = decision;
-  if (decision) decision.tabIndex = -1;
+let askLent = null;
+function lend(ask) {
+  if (askLent === ask) return;
+  askLent?.removeAttribute("tabindex");
+  askLent = ask;
+  if (ask) ask.tabIndex = -1;
 }
 // Where the walk last left off. Not the same question as where the reader is standing,
 // though one answer used to serve both: the ring said where they were and the walk read
@@ -492,52 +480,50 @@ function hasReviewedFocus() {
   reviewedThrough = null;
   return false;
 }
-// A place in the document, stated as the decision it belongs to wherever it belongs to one: a
-// control hoisted out of its decision and pointing back at it stands for that decision and not for
+// A place in the document, stated as the ask it belongs to wherever it belongs to one: a
+// control hoisted out of its ask and pointing back at it stands for that ask and not for
 // the block it was hung beside, or stepping back from a suggestion's own ✓ Accept would
 // land on the suggestion the reader is already standing on.
-export function decisionPlace(node) {
+export function askPlace(node) {
   const el = node.nodeType === 1 ? node : node.parentElement;
-  const row = el?.closest(`[${DECISION_ROW}], [${DECISION_AT}]`);
-  const at = row?.getAttribute(DECISION_ROW) ?? row?.getAttribute(DECISION_AT);
+  const row = el?.closest(`[${ASK_ROW}], [${ASK_AT}]`);
+  const at = row?.getAttribute(ASK_ROW) ?? row?.getAttribute(ASK_AT);
   return (at && elementById(at)) ?? node;
 }
-// The decision the reader is standing in: the one holding the focus, or the one a control
-// hoisted into the margin decides. The innermost of them, a decision being able to hold
+// The ask the reader is standing in: the one holding the focus, or the one a control
+// hoisted into the margin decides. The innermost of them, an ask being able to hold
 // another (a question inside a suggestion's lf-new) — the list answers in document order,
 // so the last container in the list is the nearest one.
 //
-// The unanswered decisions rather than the reader's list, because standing in a question is
+// The unanswered asks rather than the reader's list, because standing in a question is
 // about where the reader is working and not about what they owe. The two part on a widget
 // whose own seat is mid-conversation with the agent: it leaves the list while its pick
 // stays unmade and its controls stay live, and reading the list took the ring off that
 // widget and moved `c` from the seat the reader was writing in down to whichever option
 // their focus rested on — a second thread on the child rather than the next line of their
 // own. The agent's reply put both back. Nothing the reader did moved either. An
-// answered decision leaves both worklists but stays in the active inventory: the
+// answered ask leaves both worklists but stays in the active inventory: the
 // Asks tray can return the reader to it, and standing there restores the same numeric
 // action route so they can revise the recorded answer.
 //
-// Document focus rather than the inner control, for the reason decisionPosition gives: a
+// Document focus rather than the inner control, for the reason askPosition gives: a
 // control staged in a shadow tree retargets to its host, and the host is the place in the
 // document this wants.
 export function standingIn() {
   const held = documentFocused();
   if (!held || held === document.body) return null;
-  const place = decisionPlace(held);
-  const unanswered = unansweredDecisions().findLast(
-    (decision) => decision === place || decision.contains(place),
+  const place = askPlace(held);
+  const unanswered = unansweredAsks().findLast(
+    (ask) => ask === place || ask.contains(place),
   );
   if (unanswered) return unanswered;
   // An answered Ask is standing only on the explicit review route: its tray row or
-  // the decision element that row lands on. A widget host can be the document's
-  // retargeted focus without being the decision itself; treating that as an arrival
+  // the ask element that row lands on. A widget host can be the document's
+  // retargeted focus without being the ask itself; treating that as an arrival
   // would make an ordinary click on a chosen option steal the option's own semantics.
-  const answered = allDecisions().findLast(
-    (decision) => decision === place || decision.contains(place),
-  );
+  const answered = allAsks().findLast((ask) => ask === place || ask.contains(place));
   if (!answered) return null;
-  return held === answered || held.closest(".lf-decisions-row") || hasReviewedFocus()
+  return held === answered || held.closest(".lf-asks-row") || hasReviewedFocus()
     ? answered
     : null;
 }
@@ -548,19 +534,19 @@ export function standingIn() {
 // active as Tab moves into the Ask; nearer local scopes still own the bindings they
 // declare, and the dispatcher's ordinary shadowing keeps actions out of text entry and
 // nested modes.
-function ownedDecisionControl(decisionSource, commandSource) {
+function ownedAskControl(askSource, commandSource) {
   const selector = tagsDeclaring(
-    (entry) => entry["x-awaits"] || entry["x-request"]?.decision,
+    (entry) => entry["x-awaits"] || entry["x-request"]?.ask,
   ).join(",");
-  return !selector || closestAcross(commandSource, selector) === decisionSource;
+  return !selector || closestAcross(commandSource, selector) === askSource;
 }
 const availableActions = () => {
-  const decision = standingIn();
-  if (!decision) return [];
-  const source = decisionSource(decision);
-  const actions = decisionControls(commandsWithin(source), `Ask ${decision.id}`).filter(
+  const ask = standingIn();
+  if (!ask) return [];
+  const source = askSource(ask);
+  const actions = decisionControls(commandsWithin(source), `Ask ${ask.id}`).filter(
     ({ source: commandSource, control }) =>
-      ownedDecisionControl(source, commandSource) &&
+      ownedAskControl(source, commandSource) &&
       control.isConnected &&
       !control.matches(":disabled") &&
       control.getAttribute("aria-disabled") !== "true" &&
@@ -597,7 +583,7 @@ const actionRoutes = () =>
     }),
   );
 export const actionRow = {
-  id: "decision.activate-nth",
+  id: "ask.activate-nth",
   keys: () => actionRoutes().map(({ binding }) => binding),
   routes: actionRoutes,
   label: () => {
@@ -654,12 +640,12 @@ function paintActionProjections() {
   clearActionProjections();
   const routes = reachableActionRoutes();
   if (!routes.length) {
-    decisionActionLayer.replaceChildren();
+    askActionLayer.replaceChildren();
     return;
   }
   // A covering tray does not invalidate the commands or their accessible shortcuts,
   // but it does hide the page controls that inline address faces claim to label.
-  const addressesVisible = !(openTray("decisions") && trayCovers());
+  const addressesVisible = !(openTray("asks") && trayCovers());
   const placement = addressPlacement();
 
   // Reuse a widget's page-local address where it has one. Besides preserving the
@@ -710,7 +696,7 @@ function paintActionProjections() {
     chip.style.top = `${box.top}px`;
     chips.push(chip);
   }
-  placement.paint(decisionActionLayer, chips);
+  placement.paint(askActionLayer, chips);
 }
 addEventListener("scroll", () => reachableActionRoutes().length && paintHere(), {
   capture: true,
@@ -721,46 +707,46 @@ addEventListener("scroll", () => reachableActionRoutes().length && paintHere(), 
 addEventListener("resize", paintHere);
 // The ring that says so, painted from the focus rather than written where the reader was
 // put. The walk used to write it, and it then said where the walk had left them rather
-// than where they were: click away, work in the panel, come back tomorrow, and a decision
-// nobody was standing in went on wearing "you are here". Every other way into a decision —
+// than where they were: click away, work in the panel, come back tomorrow, and an ask
+// nobody was standing in went on wearing "you are here". Every other way into an ask —
 // Tab, a click on one of its controls — left the ring somewhere else entirely, so the
 // same place was marked or not by how the reader had reached it.
 //
 // Keyed on focus and not on :focus-visible, which is a claim about the last input rather
 // than about where the reader is: a tray row's press lands the focus by script after a
-// click, and the decision it brought the reader to would wear nothing at all.
+// click, and the ask it brought the reader to would wear nothing at all.
 //
-// The decision wears it, and so does every box it shows through (shownParts): the decision is
-// what carries the id captureView writes down and the place decisionStep measures from,
+// The ask wears it, and so does every box it shows through (shownParts): the ask is
+// what carries the id captureView writes down and the place askStep measures from,
 // while an outline needs a box to hang on. Every widget in the vocabulary draws one
 // box now — the wrapper that declined to took a form instead, in its own stylesheet,
 // after the ring went out over its pieces and read as two boxes touching rather than
-// as the one decision the reader is standing in — so on shipped pages the parts are the
-// decision itself, and the fallback answers the wrapper any page can still style boxless
+// as the one ask the reader is standing in — so on shipped pages the parts are the
+// ask itself, and the fallback answers the wrapper any page can still style boxless
 // in a line, the same way the thread's mark does (paintAnchors).
 //
-// The tray's row for the decision is a second surface showing this one fact, so it is
+// The tray's row for the ask is a second surface showing this one fact, so it is
 // painted from this one reading rather than from a mark the tray keeps for itself —
-// and the ring is the chrome's as much as the page's (the [data-lf-decision] rule in the
+// and the ring is the chrome's as much as the page's (the [data-lf-ask] rule in the
 // stylesheet is written against the attribute, not against the page), so wearing the
 // attribute is the whole of what the row needs.
 export function markHere() {
   const here = standingIn();
-  const row = here && decisionsPanel.querySelector(`[${DECISION_AT}="${here.id}"]`);
+  const row = here && asksPanel.querySelector(`[${ASK_AT}="${here.id}"]`);
   const wearing = new Set(
     here ? [here, ...shownParts(here), ...(row ? [row] : [])] : [],
   );
   // A walk that runs past the foot of an open tray leaves its mark off screen, which is
   // the tray saying nothing exactly while the reader is using it. `nearest` so a row
   // already in view moves nothing.
-  if (row && openTray("decisions")) row.scrollIntoView({ block: "nearest" });
-  for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.decision}]`))
-    if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.decision);
-  // A control-less request can borrow its own tab stop while the broader x-decision
+  if (row && openTray("asks")) row.scrollIntoView({ block: "nearest" });
+  for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
+    if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
+  // A control-less request can borrow its own tab stop while the broader x-ask-surface
   // region wears the ring. Keep that stop until the reader leaves the region.
-  const holder = here && decisionSource(here);
-  if (decisionLent && decisionLent !== here && decisionLent !== holder) lend(null);
-  for (const marked of wearing) marked.setAttribute(PAGE_PAINT_ATTRIBUTE.decision, "1");
+  const holder = here && askSource(here);
+  if (askLent && askLent !== here && askLent !== holder) lend(null);
+  for (const marked of wearing) marked.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
   paintActionProjections();
 }
 // The place a node puts the reader in the space this walk measures against, and null where
@@ -768,20 +754,18 @@ export function markHere() {
 // its controls are addresses the reader holds from wherever they are: a reader who pressed
 // the Asks button is standing on it, so measuring from it would send the next press back to
 // the top. The layer is also appended after the page, so once the walk clamped at its edges
-// instead of wrapping, taking any of it for a place put the reader behind every decision
+// instead of wrapping, taking any of it for a place put the reader behind every ask
 // there is. From a thread in the conversation panel, `a` and `A` both landed on the last.
 //
 // The route runs through the chrome all the same. A widget frozen into a reply is a
-// decision the walk visits, collected beside the document's, and a reader working its
+// ask the walk visits, collected beside the document's, and a reader working its
 // controls is standing in the ordered space. So what decides it is membership of that
-// space: the decision a hoisted control or a tray row names (decisionPlace), or the one the
+// space: the ask a hoisted control or a tray row names (askPlace), or the one the
 // node stands inside. The rest of the layer names none.
 const walkPlace = (node) => {
-  const place = decisionPlace(node);
+  const place = askPlace(node);
   if (!inChrome(place)) return place;
-  const holding = allDecisions().some(
-    (decision) => decision === place || containsAcross(decision, place),
-  );
+  const holding = allAsks().some((ask) => ask === place || containsAcross(ask, place));
   return holding ? place : null;
 };
 // Where the walk measures from: where the reader is standing, rather than where the walk
@@ -794,13 +778,13 @@ const walkPlace = (node) => {
 //
 // Read in the order of how directly each says where they are: what they have focused,
 // what they have selected, where this walk last left off (`landed`), and what they are
-// reading. Every one of them can be absent, and then the first decision is the only answer
+// reading. Every one of them can be absent, and then the first ask is the only answer
 // there is.
 //
 // Document focus rather than the inner control: a control staged in a shadow tree
 // retargets to its host, which is exactly what this question wants — a place in the
-// document to measure the decisions against, not the control the register would dispatch to.
-function decisionPosition() {
+// document to measure the asks against, not the control the register would dispatch to.
+function askPosition() {
   const held = documentFocused();
   if (held && held !== document.body) {
     const place = walkPlace(held);
@@ -817,61 +801,61 @@ function decisionPosition() {
   // compareDocumentPosition against a detached node answers about no document.
   return (landed?.isConnected ? landed : null) ?? readingBlock();
 }
-// The decision `dir` steps to from there, clamped at the first and last open decisions.
+// The ask `dir` steps to from there, clamped at the first and last open asks.
 // Document position rather than an index into the list, because the reader's place is a
-// place and not a row: a decision holding it is the one they are standing on, so it is
+// place and not a row: an ask holding it is the one they are standing on, so it is
 // what they step off rather than what they step to.
-function decisionStep(decisions, dir) {
-  const here = decisionPosition();
-  if (!here) return dir > 0 ? decisions[0] : decisions.at(-1);
+function askStep(asks, dir) {
+  const here = askPosition();
+  if (!here) return dir > 0 ? asks[0] : asks.at(-1);
   const side =
     dir > 0 ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING;
-  const reach = decisions.filter((decision) => {
-    const rel = here.compareDocumentPosition(decision);
+  const reach = asks.filter((ask) => {
+    const rel = here.compareDocumentPosition(ask);
     return !(rel & Node.DOCUMENT_POSITION_CONTAINS) && rel & side;
   });
-  return dir > 0 ? (reach[0] ?? decisions.at(-1)) : (reach.at(-1) ?? decisions[0]);
+  return dir > 0 ? (reach[0] ?? asks.at(-1)) : (reach.at(-1) ?? asks[0]);
 }
 // Putting the reader back on the control they were working when a widget rebuilt itself
-// underneath them (rebuild): the control that works this decision — one inside it, or
-// one the widget hoisted into the margin and pointed back at it — or the decision
+// underneath them (rebuild): the control that works this ask — one inside it, or
+// one the widget hoisted into the margin and pointed back at it — or the ask
 // itself, lent a tab stop where it holds nothing to work.
 //
 // This is not where an arrival lands, and the two parted when the scroll and the focus
-// were measured against each other. Arrival puts the decision's opening at the top of
-// the window, and the first control that answers it is as far down the decision as its
+// were measured against each other. Arrival puts the ask's opening at the top of
+// the window, and the first control that answers it is as far down the ask as its
 // context and evidence are long: measured on the shipped corpus at 1200x900, the heading
 // stood at 54px and the pick the walk focused ran from 847 to 1107 in a 900px window. So
 // the reader was told to look at one thing and stood on another, off the bottom of the
 // screen, and their next local action could have worked a control they could not see.
 function standOn(el, review = false) {
-  const source = decisionSource(el);
+  const source = askSource(el);
   const control =
-    source.querySelector(DECISION_CONTROL) ??
-    document.querySelector(`[${DECISION_ROW}="${source.id}"] ${DECISION_CONTROL}`);
+    source.querySelector(ASK_CONTROL) ??
+    document.querySelector(`[${ASK_ROW}="${source.id}"] ${ASK_CONTROL}`);
   if (!control) lend(source);
   const target = control ?? source;
   if (review) reviewedThrough = target;
   focusForNavigation(target);
 }
-// Where an arrival lands: on the decision, which is what the scroll has just brought to
+// Where an arrival lands: on the ask, which is what the scroll has just brought to
 // the top of the window and what the ring is about to name. Its controls are then the
 // next Tab stops, in the order they are written, because a tab stop at `tabindex: -1`
-// keeps its place in document order and everything inside a decision comes after it.
-// The decision's exact action routes remain active as Tab moves into its controls;
+// keeps its place in document order and everything inside an ask comes after it.
+// The ask's exact action routes remain active as Tab moves into its controls;
 // nearer widget scopes still own their local mechanics.
-function arriveAt(decision, review = false) {
-  reviewedThrough = review ? decision : null;
-  decision.focus({ preventScroll: true });
-  if (decision.matches(":focus")) return;
-  lend(decision);
-  decision.focus({ preventScroll: true });
-  if (decision.matches(":focus")) return;
-  // A decision the page styles boxless generates nothing to stand on, and a lent stop
+function arriveAt(ask, review = false) {
+  reviewedThrough = review ? ask : null;
+  ask.focus({ preventScroll: true });
+  if (ask.matches(":focus")) return;
+  lend(ask);
+  ask.focus({ preventScroll: true });
+  if (ask.matches(":focus")) return;
+  // An Ask the page styles boxless generates nothing to stand on, and a lent stop
   // does not change that. There the control that answers it is the only place the
   // reader can be, which is where every arrival used to land.
   lend(null);
-  standOn(decision, review);
+  standOn(ask, review);
 }
 
 // The screen the reader can use, and the distance two boxes stand apart in it. The
@@ -881,15 +865,15 @@ function arriveAt(decision, review = false) {
 const clearanceOf = (box) => parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
 const HEADING = "h1,h2,h3,h4,h5,h6";
 
-// Where the reader arrives at a page decision: the region whose start has to be in front
-// of them for the question to make sense. A widget declaring x-decision states its own —
+// Where the reader arrives at a page ask: the region whose start has to be in front
+// of them for the question to make sense. A widget declaring x-ask-surface states its own —
 // one heading, then the context and evidence, then the control — and this walk is handed
 // that region rather than the widget inside it, so its arrival is simply its start.
 //
 // The kind that most needs a region is the kind that cannot declare one. A suggestion is
 // an edit to a phrase, and what explains it is the sentence it stands in and the heading
 // over that — so it can never satisfy "an ask must name itself without context outside
-// the ask", and no x-decision can be written round it. Landing on the change alone put
+// the ask", and no x-ask-surface can be written round it. Landing on the change alone put
 // its own top edge under the banner and took that sentence with it: the reader arrived
 // at ✓ Accept with nothing on screen saying what they were accepting. So where the
 // author has not declared a region, the document supplies one in the shape a declared
@@ -897,13 +881,13 @@ const HEADING = "h1,h2,h3,h4,h5,h6";
 //
 // Candidates widest first — the heading titling this part of the document, then the
 // block the change stands in, or, for a change that is its own block, the block before
-// it. The first whose start still leaves the decision's own foot on screen wins, so a
-// region never grows past what the reader takes in at once and a decision with nothing
+// it. The first whose start still leaves the ask's own foot on screen wins, so a
+// region never grows past what the reader takes in at once and an ask with nothing
 // that fits keeps the landing this walk always gave it. That bound is what lets the
 // widest candidate go first: a heading a long way up fails to fit, rather than needing a
 // rule about how far up is too far.
-function arrivalRegion(decision, box) {
-  if (registry[decision.localName]?.["x-decision"]) return decision;
+function arrivalRegion(ask, box) {
+  if (registry[ask.localName]?.["x-ask-surface"]) return ask;
   const room = shownBox(box).height - clearanceOf(box);
   // A region has to be somewhere the reader can be taken. An element generating no box
   // measures (0,0) at the document's origin, which is not a degenerate answer but a
@@ -917,7 +901,7 @@ function arrivalRegion(decision, box) {
   const fits = (region) => {
     if (!region) return false;
     const start = shownBox(region);
-    const target = shownBox(decision);
+    const target = shownBox(ask);
     return (
       start.height > 0 && start.top <= target.top && target.bottom - start.top <= room
     );
@@ -927,7 +911,7 @@ function arrivalRegion(decision, box) {
   // whole of the bound the search needs. Without it the nearest preceding heading can
   // be the previous ask's own — two asks written one after another is the ordinary way
   // to write them — and the reader arrives reading the wrong question as the context
-  // for this one. It also stops the walk at the section the decision is in rather than
+  // for this one. It also stops the walk at the section the ask is in rather than
   // running back through the whole document to find a heading.
   //
   // An ancestor both contains and precedes, so the block holding an inline change is
@@ -939,23 +923,23 @@ function arrivalRegion(decision, box) {
   // composing one order, so the last heading it reported could be from another tree
   // entirely — a worse answer than the one this misses. The crossing worth having is
   // on the two questions asked of each block: `containsAcross` for the container, and
-  // the host climb below for the order, which together let a decision staged inside a
+  // the host climb below for the order, which together let an ask staged inside a
   // shadow tree take the heading standing over its host.
   //
   // `hidden` goes with `inChrome`: content-visibility leaves real rects behind, so a
   // block behind a shut disclosure otherwise measures like one the reader can see.
   //
-  // Order is asked of the decision as the block's own tree sees it, which for a
-  // decision staged in a shadow tree is its host and not the decision. Two nodes in
+  // Order is asked of the ask as the block's own tree sees it, which for a
+  // ask staged in a shadow tree is its host and not the ask. Two nodes in
   // different roots are DISCONNECTED, and the direction bit that comes with it is
   // arbitrary-but-consistent rather than positional: Chrome answers PRECEDING for every
   // block in the document, whichever side of the host it stands. Asked straight, the
-  // filter therefore kept the blocks after such a decision too, and the last heading in
+  // filter therefore kept the blocks after such an ask too, and the last heading in
   // the container won — the wrong-question arrival this bound exists to remove, in the
   // one shape the crossing above was written to serve.
   const seenBy = (block) => {
     const root = block.getRootNode();
-    let node = decision;
+    let node = ask;
     while (node && node.getRootNode() !== root) node = node.getRootNode().host ?? null;
     return node;
   };
@@ -965,62 +949,59 @@ function arrivalRegion(decision, box) {
       from &&
       !inChrome(block) &&
       !block.closest("[hidden]") &&
-      !containsAcross(block, decision) &&
+      !containsAcross(block, ask) &&
       block.parentElement &&
-      containsAcross(block.parentElement, decision) &&
+      containsAcross(block.parentElement, ask) &&
       from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING
     );
   });
   const heading = before.findLast((block) => block.matches(HEADING));
-  return (
-    [heading, closestAcross(decision, TEXT_BLOCK) ?? before.at(-1)].find(fits) ??
-    decision
-  );
+  return [heading, closestAcross(ask, TEXT_BLOCK) ?? before.at(-1)].find(fits) ?? ask;
 }
 
 // The arrival the reader already has. The press then moves the ring and the focus and
 // leaves the page where it stands: they can see the ask and the words around it, and
 // scrolling to rebuild a view they are already looking at is motion that says nothing.
 //
-// Whether the decision itself is readable is `readableDestination`'s question, asked of
-// every edge through whatever clips it — a decision half cut off by a board's own
+// Whether the ask itself is readable is `readableDestination`'s question, asked of
+// every edge through whatever clips it — an ask half cut off by a board's own
 // scroller is not in front of the reader for having a box inside the window. This adds
 // the one thing that reading cannot know: the arrival is the region's start, so the
 // start has to be standing clear of the banner too.
-function framed(region, decision, box) {
+function framed(region, ask, box) {
   return (
-    readableDestination(decision) &&
+    readableDestination(ask) &&
     shownBox(region).top >= shownBox(box).top + clearanceOf(box)
   );
 }
 
-// Standing on one decision: what d and D do once they have decided which, and what a press on
+// Standing on one ask: what d and D do once they have decided which, and what a press on
 // a tray row does having been told outright. One function because it is one act — a
-// second would be a second answer to "how do I put the reader on a decision", and the two
+// second would be a second answer to "how do I put the reader on an ask", and the two
 // would drift the first time either the reveal or the focus rule changed.
 //
-// The list comes with the decision, because the announcement names a place in it and the caller
+// The list comes with the ask, because the announcement names a place in it and the caller
 // is the one that knows which list it walked: the walk's own or the tray's.
-export function goToDecision(next, decisions) {
-  // A thread's decision lives in the panel, which has no geometry while closed — the
+export function goToAsk(next, asks) {
+  // A thread's ask lives in the panel, which has no geometry while closed — the
   // same reason reveal() opens a settled group before the scroll.
   if (inChrome(next) && !panelIsOpen()) setPanel(true);
   // A tray beside the page stays standing as a working index. A covering tray has
   // become the whole visible surface, so selecting a page destination closes it
   // before the reveal and focus land; otherwise the correct navigation happens
   // invisibly behind the very sheet that offered it.
-  if (!inChrome(next) && openTray("decisions") && trayCovers()) closeTray();
+  if (!inChrome(next) && openTray("asks") && trayCovers()) closeTray();
   reveal(next); // a settled group or an inactive tab has no geometry until it opens
-  const source = decisionSource(next);
+  const source = askSource(next);
   if (source !== next) reveal(source); // let the answering widget settle its own chrome
   landed = next;
   // The ring follows: the focus move is what paints it, so the walk says where to stand
   // and markHere says where the reader is standing, rather than both saying the second.
-  arriveAt(next, !unansweredDecisions().includes(next));
-  // A page Decision starts below the banner so its context comes before its control, and
+  arriveAt(next, !unansweredAsks().includes(next));
+  // A page Ask starts below the banner so its context comes before its control, and
   // what counts as its context is arrivalRegion's answer: the region an author declared,
   // or the one the document supplies for a change that cannot declare one. A thread
-  // Decision is in the panel's own list, whose arrival stays centred in that region.
+  // Ask is in the panel's own list, whose arrival stays centred in that region.
   // Which box either travel moves is the travel's own question (scrollerFor) rather than
   // a second one asked here.
   //
@@ -1030,10 +1011,10 @@ export function goToDecision(next, decisions) {
   else {
     const region = arrivalRegion(next, pageScroller);
     if (!framed(region, next, pageScroller)) {
-      // The decision's own box first, which is the only pass that moves a scroller
+      // The ask's own box first, which is the only pass that moves a scroller
       // other than the page's: the placement below moves whichever box scrolls the
       // region, and for a region out on the page that is never the board's own
-      // scroller. Handing that placement the region alone left a decision inside a
+      // scroller. Handing that placement the region alone left an ask inside a
       // card unscrolled in its card, with the ring and focus on a change the reader
       // could not see. `nearest` is a request to reveal only, which is exactly
       // what this needs and what the placement then builds on.
@@ -1041,13 +1022,13 @@ export function goToDecision(next, decisions) {
       scrollToElement(region, scrollBehavior(), "start");
     }
   }
-  const state = unansweredDecisions().includes(next) ? "waiting on you" : "answered";
-  announce(`${decisions.indexOf(next) + 1} of ${decisions.length} ${state}`);
+  const state = unansweredAsks().includes(next) ? "waiting on you" : "answered";
+  announce(`${asks.indexOf(next) + 1} of ${asks.length} ${state}`);
 }
-export function stepDecision(dir) {
-  const decisions = openDecisions();
-  if (!decisions.length) return; // never: the key and the control are live only with decisions
-  goToDecision(decisionStep(decisions, dir), decisions);
+export function stepAsk(dir) {
+  const asks = openAsks();
+  if (!asks.length) return; // never: the key and the control are live only with asks
+  goToAsk(askStep(asks, dir), asks);
 }
 
 export const landedAt = () => landed;

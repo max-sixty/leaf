@@ -775,23 +775,23 @@ def test_a_closed_thread_stops_asking(page_dir):
             "author": "claude",
             "revision": 1,
             "text": "Which mitigations?",
-            "markup": '<lf-decision id="gm-decision"><h3>Which mitigations?</h3>'
+            "markup": '<lf-ask id="gm-decision"><h3>Which mitigations?</h3>'
             "<p>The retry budget is shared.</p>"
             '<lf-options id="gm" choose>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
-            "</lf-options></lf-decision>",
+            "</lf-options></lf-ask>",
         },
     )
-    assert state_json(page_dir)["decisions"] == [
-        {"id": "gm-decision", "tag": "lf-decision", "thread": root["id"]}
+    assert state_json(page_dir)["asks"] == [
+        {"id": "gm-decision", "tag": "lf-ask", "thread": root["id"]}
     ]
     events_model.append_event(
         page_dir, {"kind": "resolve", "author": "claude", "parent": root["id"]}
     )
-    assert state_json(page_dir)["decisions"] == []
+    assert state_json(page_dir)["asks"] == []
 
 
-def test_thread_decisions_share_one_projection_across_open_fragments(page_dir):
+def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
     """Independent thread widgets fold together while retaining their threads."""
     publish(page_dir)
     roots = []
@@ -805,17 +805,17 @@ def test_thread_decisions_share_one_projection_across_open_fragments(page_dir):
                     "revision": 1,
                     "text": f"Choose {suffix}",
                     "markup": (
-                        f'<lf-decision id="group-{suffix}-decision"><h3>Choose {suffix}</h3>'
+                        f'<lf-ask id="group-{suffix}-decision"><h3>Choose {suffix}</h3>'
                         f'<lf-options id="group-{suffix}" choose>'
                         f'<lf-option id="option-{suffix}"><strong>{suffix}</strong></lf-option>'
-                        "</lf-options></lf-decision>"
+                        "</lf-options></lf-ask>"
                     ),
                 },
             )
         )
-    assert state_json(page_dir)["decisions"] == [
-        {"id": "group-a-decision", "tag": "lf-decision", "thread": roots[0]["id"]},
-        {"id": "group-b-decision", "tag": "lf-decision", "thread": roots[1]["id"]},
+    assert state_json(page_dir)["asks"] == [
+        {"id": "group-a-decision", "tag": "lf-ask", "thread": roots[0]["id"]},
+        {"id": "group-b-decision", "tag": "lf-ask", "thread": roots[1]["id"]},
     ]
 
     append_command(
@@ -829,8 +829,8 @@ def test_thread_decisions_share_one_projection_across_open_fragments(page_dir):
             "detail": {"options": ["option-a"]},
         },
     )
-    assert state_json(page_dir)["decisions"] == [
-        {"id": "group-b-decision", "tag": "lf-decision", "thread": roots[1]["id"]}
+    assert state_json(page_dir)["asks"] == [
+        {"id": "group-b-decision", "tag": "lf-ask", "thread": roots[1]["id"]}
     ]
 
 
@@ -849,8 +849,8 @@ def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir):
     nothing but a widget still posts."""
     published(page_dir)
     widget = (
-        '<lf-decision id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
-        '<lf-option id="d1-a">A</lf-option></lf-options></lf-decision>'
+        '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
+        '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
     )
 
     sheet = comment(
@@ -901,11 +901,11 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
             "--text",
             "Pick one:",
             "--markup",
-            '<lf-decision id="ps-decision"><h3>Which store?</h3>'
+            '<lf-ask id="ps-decision"><h3>Which store?</h3>'
             '<lf-options id="ps-q" choose>'
             '<lf-option id="ps-redis">Redis</lf-option>'
             '<lf-option id="ps-cookie">A signed cookie</lf-option>'
-            "</lf-options></lf-decision>",
+            "</lf-options></lf-ask>",
         ).exit_code
         == 0
     )
@@ -941,9 +941,9 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "--text",
             "Pick:",
             "--markup",
-            '<lf-decision id="q1-decision"><h3>Pick one</h3><lf-options id="q1" choose>'
+            '<lf-ask id="q1-decision"><h3>Pick one</h3><lf-options id="q1" choose>'
             '<lf-option id="q1-a"><strong>A</strong>'
-            '<span id="thread-label">Label</span></lf-option></lf-options></lf-decision>',
+            '<span id="thread-label">Label</span></lf-option></lf-options></lf-ask>',
         ).exit_code
         == 0
     )

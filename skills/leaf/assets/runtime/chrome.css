@@ -7,7 +7,7 @@
    Two numbers here are spelled again in the runtime, and a layer test holds each pair
    equal: the covering queries `(width <= 840px)` and `(width > 840px)` are twice
    PANEL_W (chrome-layout.js), `(width <= 600px)` is twice TRAY_W (trays.js), and the
-   tray that takes a strip, `[data-lf-tray="decisions"]`, is trays.js's STRIP_TRAYS. A
+   tray that takes a strip, `[data-lf-tray="asks"]`, is trays.js's STRIP_TRAYS. A
    container or media query cannot read a custom property, which is why each query is a
    literal rather than the --lf-panel-w the runtime writes. */
 /* `.lf-chrome` is one fixed runtime root containing the banner and its notice, the tray
@@ -187,13 +187,13 @@ body { position: static; box-sizing: border-box; }
    left edge. showTray states which tray is up; STRIP_TRAYS states which trays claim
    this room. */
 @media screen and (not (width <= 600px)) {
-  body:is([data-lf-tray="decisions"]) {
+  body:is([data-lf-tray="asks"]) {
     --lf-shell-inset-left: var(--lf-tray-w);
     margin-left: var(--lf-tray-w);
   }
 }
 @media screen and (width <= 600px) {
-  :where(html:not(.lf-copy)):has(body:is([data-lf-tray="decisions"])) { overflow-y: hidden; }
+  :where(html:not(.lf-copy)):has(body:is([data-lf-tray="asks"])) { overflow-y: hidden; }
 }
 /* Rules at this level are the shared vocabulary: classes whose whole job is
    elements the page owns — a widget's controls wear lf-ui and lf-btn, and the
@@ -729,12 +729,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
    mid-conversation with the agent has left the reader's list while the reader is still
    standing in it. Exactly one decision wears it at a time: every shipped widget
    draws one box for it to paint on, and one a page styles boxless hangs it on the
-   boxes its contents make (shownParts). While the decisions tray is open, its row mirrors
+   boxes its contents make (shownParts). While the Asks tray is open, its row mirrors
    the same fact — for a decision the tray lists, which is one the reader still owes. It is an outline like every other mark the
    runtime paints on the page's own elements: it moves nothing on arriving, and it
    keeps its place for nothing, being the element's own paint rather than a box in
    the chrome that would have to chase it down every scroll, reflow and drag. */
-[data-lf-decision] { outline: var(--here-ring); --lf-here-ring: decision; outline-offset: var(--here-ring-gap); }
+[data-lf-ask] { outline: var(--here-ring); --lf-here-ring: ask; outline-offset: var(--here-ring-gap); }
 /* Paper takes no input, so what a widget injects to be worked goes: the control,
    and the box that holds controls. What stays is a control whose label is words the
    page keeps — one it speaks (data-lf-said: a pick mark reading "chosen" is the only
@@ -1114,36 +1114,36 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* A decision's row, against a leaf's above: a leaf's is a link out to another page and a
      decision's is a press that moves this one, so it is a button and takes the button's own
      reset. */
-  .lf-decisions-row { display: block; width: 100%; text-align: left; padding: 8px 10px;
+  .lf-asks-row { display: block; width: 100%; text-align: left; padding: 8px 10px;
     border: 0; border-radius: 6px; background: none; color: inherit; font: inherit;
     cursor: pointer; }
-  .lf-decisions-row:hover { background: var(--chip); }
+  .lf-asks-row:hover { background: var(--chip); }
   /* Both rings this row can wear, inset together. A control packed into a list states
      its own inset (theme.css, --here-ring), because the list clips to its padding box.
      The second ring arrives from a rule written for a page element with room around
      it: while the tray is open the row mirrors the standing decision (markHere) wherever
      the tray lists that decision, so it wears the decision's own outset ring and lost a pixel of
      it to each edge. */
-  .lf-decisions-row:is(:focus-visible, .lf-focus-visible, [data-lf-decision]) {
-    outline: var(--here-ring); --lf-here-ring: decisions-row; outline-offset: calc(-1 * var(--here-ring-w)); }
+  .lf-asks-row:is(:focus-visible, .lf-focus-visible, [data-lf-ask]) {
+    outline: var(--here-ring); --lf-here-ring: asks-row; outline-offset: calc(-1 * var(--here-ring-w)); }
   /* What kind of thing is asking, in the apparatus voice, over the decision's own words in
      the page's. Two lines, because they are two claims: the kind is the runtime's word
      for the element and the words below it are the page's own. */
-  .lf-decisions-kind { display: block; color: var(--muted); font-size: var(--t-6);
+  .lf-asks-kind { display: block; color: var(--muted); font-size: var(--t-6);
     text-transform: uppercase; letter-spacing: .05em; }
   /* Three lines at most, then ellipsized: a decision's opening words are a name here, and a
      name that runs to eight lines stops being one — while a single line would cut most
      questions off before they said which question they were. */
-  .lf-decisions-says { display: -webkit-box; -webkit-box-orient: vertical;
+  .lf-asks-says { display: -webkit-box; -webkit-box-orient: vertical;
     -webkit-line-clamp: 3; overflow: hidden; }
-  .lf-decisions-answer { display: none; margin-top: 3px; color: var(--ink-2);
+  .lf-asks-answer { display: none; margin-top: 3px; color: var(--ink-2);
     font-size: var(--t-6); font-weight: 600; }
-  .lf-decisions-row[data-lf-answer-state="answered"] .lf-decisions-answer {
+  .lf-asks-row[data-lf-answer-state="answered"] .lf-asks-answer {
     display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
     overflow: hidden; }
-  .lf-decisions-row[data-lf-answer-state="answered"] .lf-decisions-kind {
+  .lf-asks-row[data-lf-answer-state="answered"] .lf-asks-kind {
     color: var(--ok-ink); }
-  .lf-decisions[data-lf-complete] { border-color: var(--ok);
+  .lf-asks[data-lf-complete] { border-color: var(--ok);
     background: var(--ok-tint); color: var(--ok-ink); }
   /* Version news remains a legible address at every width. When the row runs out of
      room the shelf above scrolls; clipping the one control instead left a visible
@@ -1505,8 +1505,11 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-response-action-space { white-space: pre; }
   .lf-response-action[data-lf-collapse] > :is(.lf-response-action-space,
     .lf-response-action-label) { display: none; }
-  .lf-fab-bar:not(.lf-react-open) > :is(.lf-fab, .lf-fab-suggest,
-    .lf-react-palette) { display: none !important; }
+  .lf-fab-bar:not(.lf-react-open) > :is(.lf-fab-suggest,
+    .lf-react-palette),
+  .lf-fab-bar:not(.lf-react-open):not([data-lf-target-only]) > .lf-fab {
+    display: none !important;
+  }
   .lf-fab-bar.lf-react-open { flex-wrap: wrap; }
   .lf-fab-bar.lf-react-open > .lf-composer { display: none !important; }
   .lf-fab-bar.lf-react-open > .lf-react-palette { display: contents; }

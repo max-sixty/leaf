@@ -3241,7 +3241,7 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
         # a dozen pixels puts the first card of a run a couple of pixels under the
         # heading, and a couple of pixels is the whole of an inset ring. The depth is the
         # ring's width rather than a comfortable number on purpose. Deeper, and the card
-        # itself is under the heading, which `RING_FAULTS` excuses by design — a control
+        # itself is under the heading, which `ring_faults` excuses by design — a control
         # standing under something is a fact about where it was put. What is left when the
         # card is otherwise in full view is the claim this file makes: where the control
         # can be seen, so can the ring that names it.

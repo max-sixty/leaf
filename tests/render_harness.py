@@ -415,10 +415,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
     Each call gets its own directory, reached through `serve.page_dir`. Sharing one
     meant a test that serves two examples in a single body re-initialised over the
     first and appended the second's events to a log already holding the first's,
-    which reads as a page rather than failing.
-
-    `serve(example, seed_log=False)` is for a test where only the shipped conversation
-    would be noise; the external data still belongs to the example."""
+    which reads as a page rather than failing."""
 
     def go(
         source,
@@ -626,8 +623,7 @@ class Traffic:
     product fact asserted on the surface that needs it.
 
     The count is the document's: a navigation starts it over with the page that carries
-    it, and a page that has not booted reads as nothing sent. `sends` counts posts as
-    issued, so a retry is a second send — the edge `sending` waits on."""
+    it, and a page that has not booted reads as nothing sent."""
 
     KEYS = ("sends", "acked", "asked", "heard", "pending")
 
@@ -715,14 +711,7 @@ def _until(page, fact, wanted):
 # surface. A request failure does not finish delivery, because the outbox keeps the same
 # attempt and retries; waiting merely for `acked` would return on that ambiguous edge.
 def round_trip(page):
-    """Wait for what this page has sent to have come back to it.
-
-    Delivery is all this proves. When applying the response is itself the subject, wait for `data-lf-applied` to cover the expected events before
-    reading the resulting surface or making a gesture whose liveness depends on that
-    projection. That stamp counts replayed actions, reports, and undos, and no comment:
-    a comment, a reply, or a reaction never moves it, so a wait on it for one of those
-    spends the whole timeout; the fact such an event states is its paint or its card.
-    """
+    """Wait for what this page has sent to have come back to it."""
     _until(page, lambda t: not t.pending, "heard back what it sent")
 
 
@@ -779,12 +768,7 @@ def _server_reading(page):
 
 
 def told(page):
-    """Wait until the page has taken in everything the server now holds.
-
-    Letting `expect` absorb the page's next read instead hides which
-    mechanism supplied the wait and spends its timeout budget on transport rather than
-    on the assertion.
-    """
+    """Wait until the page has taken in everything the server now holds."""
     deadline = time.monotonic() + 30
     began = None
     while True:
@@ -909,11 +893,7 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
 # default 1200×900 or something near it; under a viewport set narrow on purpose it would
 # run its budget out on a press that is perfectly live.
 def undo(page):
-    """Take the last gesture back, from the moment the line offers to.
-
-    A visible changed widget is not enough to press on: undo can be refused while the
-    preceding gesture is still unresolved.
-    """
+    """Take the last gesture back, from the moment the line offers to."""
     expect(page.locator(".lf-keyline")).to_contain_text("undo")
     with sending(page, "the withdrawal"):
         page.keyboard.press("z")
@@ -921,16 +901,11 @@ def undo(page):
 
 # A request a test stops is cancelled rather than failed. The page cannot tell the two
 # apart — both reject the fetch the runtime awaits and leave it on the same `catch`.
-# A refused event request remains unresolved, deliberately: the outbox keeps its attempt
-# and retries.
+# The console can tell them apart, which is what the reason is chosen for:
+# tests/CLAUDE.md, "A test cannot assert over noise it makes itself". A refused event
+# request remains unresolved, deliberately: the outbox keeps its attempt and retries.
 def refuse(route):
-    """Stop this request with nothing for the page's console to report.
-
-    The `aborted` cancellation reason is what keeps Chrome from reporting a console load
-    failure for a request a test merely declined to answer, so a later assertion that
-    the console is quiet is not asserting over noise the test made. Use an ordinary
-    abort only when the failed request and its browser error are the subject.
-    """
+    """Stop this request with nothing for the page's console to report."""
     route.abort("aborted")
 
 
@@ -1288,11 +1263,6 @@ NEVER_ASKED_FOR = "**/__leaf_arms_interception__"
 
 
 def arm_interception(page):
-    """Turn request interception on before any request this page will make.
-
-    A page made another way is unarmed, and a request already in flight is past holding
-    either way — both remain `primed`'s.
-    """
     page.route(NEVER_ASKED_FOR, lambda route: route.abort())
 
 
@@ -1360,8 +1330,8 @@ def margins_laid_out(page):
     window — but only on the runs where the frame had not landed yet, which is why the
     same probe condensed on one run and not the next.
 
-    The pending frame is not a fact to wait a frame for (`tests/CLAUDE.md`, "A wait
-    consumes a fact the system states"), so the work is run instead of guessed at.
+    The pending frame is not a fact to wait a frame for (`tests/CLAUDE.md`, "a fixed
+    number of animation frames only guesses"), so the work is run instead of guessed at.
     Whether the observer schedules it at all is `test_render_margin.py`'s subject, not
     that of a test reading the layout it produces.
 
@@ -1538,8 +1508,7 @@ def hold_selection(page, start, end, steps=8, frame_the_press=False):
 
 
 def select(page, start, end, steps=8):
-    """Drag and release a selection. The drag is `hold_selection`'s, whole-pixel
-    start and all; this releases it."""
+    """Drag and release a selection."""
     hold_selection(page, start, end, steps)
     page.mouse.up()
 

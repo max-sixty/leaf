@@ -584,7 +584,7 @@ def geometry(page, edge):
 def draw_edge(page, edge, by):
     """Draw the region's edge `by` pixels wider, as a hand on it would.
 
-    Whole pixels, per `hold_selection`'s reason: a press on a fractional point
+    Whole pixels, per `select`'s reason (tests/CLAUDE.md): a press on a fractional point
     is a press the browser is free to round somewhere else. In steps, because one jump
     from press to release is a drag with no `pointermove` between its ends, and the move
     is the whole of what this gesture is made of. Wider is away from the side the region
@@ -1554,66 +1554,6 @@ RING_NAMES = """() => {
 #
 # The focused element is a candidate too, whatever paints its outline, so a ring the
 # platform draws and the layer never named is still measured.
-# A ring is also only drawn for a press. `element.focus()` sets `:focus` and not
-# `:focus-visible`, so a control focused from script wears no ring at all, and every
-# reading of one comes back empty — the same empty that a control whose ring is
-# perfectly fine comes back with. Reach it with a real `Tab`, or focus it and press
-# `Tab` then `Shift+Tab` back onto it, and asserting the ring is there comes before
-# asserting anything about its shape.
-#
-# Which rule drew a ring is a separate question from which box wears it, and the rule
-# answers it where it draws (`--lf-here-ring`, theme.css), so the population the floor
-# divides by is read out of the page's own composed stylesheets rather than from a list
-# kept beside them.
-#
-# A reading blind to one mechanism does not report that it is blind — it returns the
-# same clean result it returns when nothing is wrong — so a green corpus is not evidence
-# of a clean corpus, and the reach is asserted the way a population is:
-# `test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge` puts one
-# outset ring under three parents differing only in how they clip, with a control case
-# that has to report nothing, and
-# `test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` fails on any
-# rule in the layer that nothing in the corpus paints, and on any scope of its walk that
-# no example opens. A ring is credited when a box painting the layer's own width and
-# style also carries a name, so a name the cascade left on a box whose outline a later
-# rule took away is not credited off it, and a ring painted with no name is a finding of
-# its own — the only half that can see a rule drawing the ring some other way, since
-# what a declaration's text draws is not decidable and what a box paints is. Nothing
-# reads `@media` or `@supports`: the reading is taken on screen, and a ring that painted
-# only in some other medium is one the corpus never shows.
-#
-# The walk also asks, at every stop, whether the reader can see where the keyboard is —
-# which the rings were only ever half of, since a ring nothing draws and a stop drawn
-# some other way come back the same. Four answers count: the platform's own ring
-# (`outline-style: auto`), which leaf leaves on the controls it does not restyle; the
-# layer's here ring, on the stop or on an ancestor drawing for it; the element mark's
-# own ink at the indicated weight; and the accent shadow every box the reader types into
-# wears, since the chrome's textarea rule takes the outline off and puts the shadow
-# there instead. Colours are resolved through a swatch rather than compared as written,
-# and the accent twice: a `color-mix` resolves into a different space than a plain
-# token, so the ring's `rgb(...)` and the shadow's `color(srgb ...)` are one colour
-# spelled two ways. The general fact the walk keeps: any outline an element wears for a
-# reason other than focus silently costs it the ring it would otherwise have had. An
-# author's outline on a focusable element takes the platform's ring away, and the
-# element mark's 1px hairline, drawn whether or not anything is focused, once left
-# tabbing onto a commented diagram changing nothing on screen; the mark now answers the
-# keyboard the way it answers the pointer, which is why its ink counts above.
-#
-# A Tab walk needs its starting point said as well as its end. `blur()` does not supply
-# one: the sequential focus navigation starting point stays where the blurred control
-# stood, so the next Tab carries on from there, runs off the end of the order and never
-# enters the page. `document.body.focus()` resets it.
-#
-# The fault reading (`ring_faults`, over what this measured) can go blind in what it
-# reads rather than in what it walks, and silently. Its excuse for a control standing
-# behind something has to step past the
-# ring's own band to ask the question, which is `grow + w`; written as one pixel it
-# cleared an outward ring and landed inside an inset one, so every covered inset ring
-# answered that the control was behind the same thing — and the panel's list draws
-# nothing but inset rings. A reach case answers for the shapes it is written over, and a
-# ring has two:
-# `test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_box` is the
-# plant over the inset shape.
 RINGS_DRAWN = f"""async () => {{
   // shownBand, rather than a fourth reading of what a box clips to. Its own comment
   // carries why: version check --render imports it so the band a handover is refused

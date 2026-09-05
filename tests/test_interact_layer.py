@@ -694,8 +694,7 @@ def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
     pypi.org URL anywhere in the output would mean something still had a way
     around it. It declines the developer's own index settings, in their
     environment and in their `uv.toml` alike, since either would serve the run and
-    read as leaf ignoring the port it was pointed at.
-    """
+    read as leaf ignoring the port it was pointed at."""
     installed = install_payload(tmp_path / "leaf")
 
     unconfigured = {

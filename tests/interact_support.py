@@ -1025,14 +1025,7 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     `isolated_session`'s value. Read from the environment here instead, at setup
     or after the yield, the root is the developer's `~/.local/state/leaf`, and
     this sweep stopped every server standing there (tests/CLAUDE.md, "A process
-    the suite starts ends with the run").
-
-    Autouse fixtures set up outermost first — a `pytest_plugins` module's before the
-    conftest's — and tear down in reverse, which is when the environment is wrong at
-    both ends. `test_a_run_ends_only_the_servers_it_started` runs a nested suite against
-    a planted home and requires the planted page untouched and the run's own leftover
-    stopped.
-    """
+    the suite starts ends with the run")."""
     yield
     while HELD_LEASES:
         HELD_LEASES.pop().close()

@@ -42,23 +42,26 @@ class UndoReading:
     same reading for its authoritative check, while callers that only have one
     candidate can keep using :func:`undo_error`.
 
-    ``threads`` may be supplied by a caller that already folded the same log. It
-    is deliberately a reading rather than another source of state: the event log
-    and page containment remain the authorities, and this object only indexes their
-    validated projection.
+    ``threads`` may be supplied by a caller that already folded the same log.
+    Otherwise, ``within`` is required to fold the threads; it is not read when
+    threads are supplied. This is a reading rather than another source of state:
+    the event log and page containment remain the authorities, and this object
+    only indexes their validated projection.
     """
 
     def __init__(
         self,
         events: list,
-        within: dict,
-        threads: dict | None = None,
         *,
+        threads: dict | None = None,
+        within: dict | None = None,
         withdrawn: set | None = None,
     ):
         self.events_by_id = {event["id"]: event for event in events}
         self.withdrawn = taken_back(events) if withdrawn is None else withdrawn
         if threads is None:
+            if within is None:
+                raise TypeError("within is required when threads are not supplied")
             # Only reactions ask about conversation state. Keeping this fold lazy
             # also preserves the boundary's ability to reject a non-reaction
             # gesture without interpreting unrelated, already-validated records.
@@ -145,7 +148,7 @@ def undo_error(
     `within` is the published page's containment, as every other fold of the
     threads takes it: a thread an action settled, and a version's `restated`
     inside that widget reopened, is open here as it is in `page state`."""
-    return UndoReading(events, within).error(event)
+    return UndoReading(events, within=within).error(event)
 
 
 def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -> dict:

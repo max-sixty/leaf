@@ -36,7 +36,7 @@ def browser_state(
     active_within = enclosing_of(active_spk)
     withdrawn = taken_back(events)
     threads = build_threads(events, active_within, withdrawn=withdrawn)
-    undo_reading = UndoReading(events, active_within, threads, withdrawn=withdrawn)
+    undo_reading = UndoReading(events, threads=threads, withdrawn=withdrawn)
     conversation, conversation_reading = _browser_conversation(
         events, registry, threads
     )

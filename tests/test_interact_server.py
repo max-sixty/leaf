@@ -1177,7 +1177,7 @@ def test_undo_candidates_keep_only_standing_reader_gestures():
         },
     ]
     empty = projection_model.StateProjection({}, {}, {}, {}, {})
-    undo_reading = event_folds_model.UndoReading(events, {})
+    undo_reading = event_folds_model.UndoReading(events, within={})
 
     candidates = served_document._browser_undo_candidates(
         events, {}, {}, empty, empty, undo_reading=undo_reading
@@ -1240,7 +1240,7 @@ def test_undo_candidates_restore_another_action_on_the_same_coordinate():
         },
     )
     events = [page_action, page_action_2, conversation_action, separate_action]
-    undo_reading = event_folds_model.UndoReading(events, {})
+    undo_reading = event_folds_model.UndoReading(events, within={})
 
     candidates = served_document._browser_undo_candidates(
         events,

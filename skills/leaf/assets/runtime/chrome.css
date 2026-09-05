@@ -57,13 +57,6 @@
    it as trailing padding so that the fit is still one measured box rather than a length
    read out of CSS.
 
-   `paintHover` paints both kinds of anchor, as `paintStanding` does. `::highlight` paints
-   glyphs, so a box takes no wash; the element mark says the same rank in the property it
-   has, one weight up from the posted hairline (`.lf-mark-el.lf-mark-hover`). Without
-   that, an element-anchored comment answered the pointer with nothing at all — which from
-   the panel, where there is no page cursor to change, reads as a broken hover rather than
-   as a passage with no words.
-
    The response bar (`.lf-fab-bar`): `.lf-response-control` keeps the field and every
    choice on one baseline with one type, border, corner, and elevation; the bar keeps its
    DOM owner and accessible name while its contents change. Comment restores the field and

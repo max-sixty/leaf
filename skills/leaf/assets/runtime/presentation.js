@@ -9,10 +9,11 @@
    layer in turn:
 
    - `data-lf-upgraded` means widget imports, asynchronous upgrades, geometry, and
-   drawings have finished. - `data-lf-applied` is the event coverage of the last complete
-   semantic projection committed to the DOM. - `data-lf-presented` means the initial
-   authoritative projection, or the deliberate offline authored fallback, has crossed the
-   semantic-interaction boundary.
+     drawings have finished.
+   - `data-lf-applied` is the event coverage of the last complete semantic projection
+     committed to the DOM.
+   - `data-lf-presented` means the initial authoritative projection, or the deliberate
+     offline authored fallback, has crossed the semantic-interaction boundary.
 
    Do not merge these stamps. A document can finish upgrading while its first state read
    is pending, or the answer can wait unapplied while upgrades finish. A projection can
@@ -23,20 +24,23 @@
    If registry declarations and the log contain enough information to implement a
    behavior, the layer implements it once. Current examples are:
 
-   - `renderSaid` turns `x-says` values into real selectable text. - `renderQuiet` gives
-   `x-paints` facts a clipped spoken reading. - `markDeclared` exposes the declared width
-   model, inline run, and quoting to the theme. - `renderSettlement` (projection.js)
-   paints the holder's authoritative settlement. - `renderRetired` marks slots retired by
-   the declared holder relation. - The decision model (decisions/model.js) reads
-   `x-awaits`, while the decision tray projects a declared `x-decision` region around
-   that source where one exists; neither names a tag. - A holder declaring
-   `x-request.decision` joins that same decision projection only while its canonical
-   request lifecycle is `ready`. Pending and completed requests are the host's turn; a
-   failed receipt returns the holder to the reader without a package-maintained pending
-   flag. - `standingState` exposes replay winners to the render gate without naming a
-   widget, the panel's own folds included: a widget an agent sent folds the way a page
-   widget does and the poll replays it the same way, so the premise that every
-   `renderState` is absolute binds it too.
+   - `renderSaid` turns `x-says` values into real selectable text.
+   - `renderQuiet` gives `x-paints` facts a clipped spoken reading.
+   - `markDeclared` exposes the declared width model, inline run, and quoting to the
+     theme.
+   - `renderSettlement` (projection.js) paints the holder's authoritative settlement.
+   - `renderRetired` marks slots retired by the declared holder relation.
+   - The decision model (decisions/model.js) reads `x-awaits`, while the decision tray
+     projects a declared `x-decision` region around that source where one exists;
+     neither names a tag.
+   - A holder declaring `x-request.decision` joins that same decision projection only
+     while its canonical request lifecycle is `ready`. Pending and completed requests
+     are the host's turn; a failed receipt returns the holder to the reader without a
+     package-maintained pending flag.
+   - `standingState` exposes replay winners to the render gate without naming a widget,
+     the panel's own folds included: a widget an agent sent folds the way a page widget
+     does and the poll replays it the same way, so the premise that every `renderState`
+     is absolute binds it too.
 
    A module owns only its choreography and semantics that no declaration can express. For
    example, a suggestion module may animate its slots and write the visible deletion and

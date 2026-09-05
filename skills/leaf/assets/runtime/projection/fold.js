@@ -20,9 +20,11 @@
    The two durable channels share the coordinate model but retain their meaning:
 
    - `x-state` records the reader's actions. The latest surviving action wins its
-   coordinate. - `x-report` records provisional agent or worker state. Reports remain
-   live until a version note answers their event ids. - A reader action wins over a live
-   report on the same coordinate. Different facets on the same unit remain independent.
+     coordinate.
+   - `x-report` records provisional agent or worker state. Reports remain live until a
+     version note answers their event ids.
+   - A reader action wins over a live report on the same coordinate. Different facets on
+     the same unit remain independent.
 
    `stateProjection` is uncached because registry declarations resolve through the live
    DOM. Thread construction and revision activation can introduce new nodes. Its result

@@ -67,7 +67,20 @@
    not an Escape rung, because it gives no layer back. The address chord states what
    remains open: beside the document, `g p` returns from the thread panel to the document
    and keeps both the panel and its narrowing. A panel covering the document cannot make
-   that promise, so its ordinary Escape rung remains the route back. */
+   that promise, so its ordinary Escape rung remains the route back.
+
+   Keyboard destinations also capture the workspace they replace. `g T`, `g A`, and
+   `g L` may exchange a standing panel or tray for another; their return frame restores
+   that prior workspace and re-resolves its semantic row when reconciliation rebuilt it.
+   `g M` uses the same frame for the complete Page-map sheet. `g V` contributes the
+   version menu's own return frame to that destination vocabulary. Direct destinations
+   therefore restore the standing their owner displaced rather than merely focusing the
+   destination's banner control after closing it.
+
+   The address mode has no timeout. A prefix with no competing complete binding remains
+   active until a listed key completes it, Escape cancels it, or an unrelated key
+   disarms it and is redispatched with its ordinary meaning. The reader is not charged a
+   time limit for reading the addresses just painted. */
 import { labelOf, live, spell } from "./bindings.js";
 import { createAddressPlacement, MAX_NUMBERED_ADDRESSES } from "./address-placement.js";
 import { keySequence, progressStates } from "./presentation.js";

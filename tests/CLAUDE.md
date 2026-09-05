@@ -708,6 +708,14 @@ samples can both precede the transition. Ask whether the claim concerns the sett
 state, one frame, the order of frames, or the exact turn of a write, then choose the
 smallest observation that can preserve it.
 
+The movement tests ask both paths that can shift a target:
+
+- press a control and compare the rest of its line;
+- let news arrive and compare all persistent chrome controls.
+
+A pixel diff is required for borders, outlines, and shadows that can paint
+outside unchanged rectangles. Box comparisons alone cannot see those changes.
+
 ## Make a green test non-vacuous
 
 For each assertion, state the causal contrast: what single product change would make

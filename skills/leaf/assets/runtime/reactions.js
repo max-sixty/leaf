@@ -14,7 +14,18 @@
    open. Closing it restores its exact opener; selecting overflow presses the original
    Button before its temporary target is released. Enter or Space presses the focused
    choice, digits remain optional reaction accelerators in declaration order, and a
-   stray key closes the list before keeping its ordinary meaning. */
+   stray key closes the list before keeping its ordinary meaning.
+
+   The `r` key unfolds this same cluster's secondary Button group for a page selection
+   or item and shows the declared reaction Buttons together within the six-fitting
+   budget. Comment and Suggest retain their separate `c` and compact response-bar routes
+   rather than displacing reactions from the mode that explicitly asked for them. The
+   digit register and visible choices therefore name the same complete set. The choices
+   do not widen the rail or open a separate palette below the target. The compact
+   response bar's Tab state stays in that bar. Conversation reactions remain in their
+   conversation-owned strip. The event still carries its durable authored anchor, while
+   the temporary item resolves selected text to the first rendered block, matching the
+   target where replay later seats its standing reaction. */
 import {
   iconElement,
   marginButton,

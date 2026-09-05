@@ -47,7 +47,12 @@
  * group as a control exclude the descendants of `[data-lf-exhibit]` for the same reason,
  * asking in CSS the question `quoted()` asks in JavaScript. A tag name in a shared list
  * is a closed vocabulary wherever it appears, and one layer's tag written into another
- * layer's stylesheet is that plus a leak. */
+ * layer's stylesheet is that plus a leak.
+ *
+ * Live pages reserve conversation room at the wide layout's existing floors, so the
+ * first comment and the last resolution leave the document column in place.
+ * `--thread-card-floor` bounds an inline card when the remaining margin is too narrow;
+ * the card then covers the page rather than becoming an unreadable sliver. */
 
 /* Ordinary action controls use `.lf-btn`, whose shared theme rules also enter declared
    shadow trees. Packages may set placement and density, but keep its shape, border,

@@ -43,7 +43,8 @@ endpoints are sound.
 
 ## Judge
 
-Read the frames against skills/leaf/CLAUDE.md — each norm there is a checklist row —
+Read the frames against skills/leaf/CLAUDE.md and the module headers its ownership map
+names — each norm there is a checklist row —
 and against the craft the norms don't state: nothing stands on words being read or
 written about, nothing renders below legibility, nothing runs out of room while
 the screen has some, floats track what they point at. A finding is a reproduced

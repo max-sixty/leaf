@@ -37,9 +37,9 @@ export const undoableAction = (...args) => publishedProjection.undoableAction(..
    `reconcileKnownState` protects the wakeups that follow a state application — focus,
    undo, draft settlement, and later asynchronous work (state-application.js). It permits
    reconciliation only from the last complete sequence, or from the authored-only initial
-   state before any events have been installed. A read that brought nothing is allowed to retry a deferred correction
-   against that known state. It must not project a newer candidate whose surrounding
-   render failed.
+   state before any events have been installed. A read that brought nothing is allowed
+   to retry a deferred correction against that known state. It must not project a newer
+   candidate whose surrounding render failed.
 
    `reconcileState` delivers one complete facet map through `renderState(state)`.
    `widgetStates` starts with typed authored values, overlays the server's desired

@@ -1,4 +1,12 @@
-/* One reply draft and send lifecycle shared by every view of a thread. */
+/* One reply draft and send lifecycle shared by every view of a thread.
+
+   A reply send keeps its editor and actions visible only while the reader remains
+   there. Moving to another input, closing the panel, or scrolling away relinquishes
+   that continuation. The send preserves the panel's narrowing. A general-comment send
+   keeps focus in its originating box.
+
+   The send focuses the reply box only when no later selection, edit, or typing gesture
+   stands. */
 import { heldConversation, revealConversation } from "./landing.js";
 
 export function createReplies({

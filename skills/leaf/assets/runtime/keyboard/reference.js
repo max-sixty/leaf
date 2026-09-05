@@ -31,7 +31,11 @@
    dispatch, the key line, the reference, tooltips, address labels, placeholders, and
    `aria-keyshortcuts` in one projection. Space is activation, not a character shortcut,
    and remains live. The native More button and its Enter activation are the route back to
-   the setting; do not make the setting depend on the character key it disables. */
+   the setting; do not make the setting depend on the character key it disables.
+
+   An overlay may become stale while open. If a row goes dead, its dispatch no longer
+   runs. A newly live row may wait until the reference is reopened. Do not rebuild a
+   focused help surface under the reader merely to keep it live to the latest poll. */
 import {
   bindings,
   clampedRow,

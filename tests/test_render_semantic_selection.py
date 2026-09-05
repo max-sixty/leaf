@@ -69,7 +69,7 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     expect(field).to_be_focused()
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
     expect(shown).to_have_count(2)
-    expect(shown.nth(0).locator("kbd")).to_have_text("⏎")
+    expect(shown.nth(0).locator("kbd")).to_have_text(re.compile(r"^(⌘⏎|Ctrl\+⏎)$"))
     expect(shown.nth(0)).to_contain_text("comment")
     expect(shown.nth(1).locator("kbd")).to_have_text("⇥")
     expect(shown.nth(1)).to_contain_text("other responses")
@@ -146,7 +146,7 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
     expect(shown).to_have_count(2)
     expect(page.locator(".lf-fab-input")).to_have_attribute(
-        "aria-keyshortcuts", "Enter"
+        "aria-keyshortcuts", "Meta+Enter Control+Enter"
     )
 
     page.keyboard.press("Escape")

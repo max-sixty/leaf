@@ -1401,6 +1401,10 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
     url = serve(DECISIONS_PAGE)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     del registry["lf-suggestion"]["x-awaits"]
+    del registry["lf-suggestion"]["properties"]["resolves"]
+    del registry["lf-suggestion"]["x-state"]["accept"]["detail"]["properties"][
+        "resolves"
+    ]
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
 
     page, errors = open_page(browser, url)
@@ -2234,7 +2238,7 @@ customElements.define("lf-tally", class extends HTMLElement {
         ("report", "claude", "tally-fitted", "measure", "9"),
         ("action", "user", "tally-seen", "set", "5"),
     ]:
-        events_model.append_event(
+        append_command(
             serve.page_dir,
             {
                 "kind": kind,

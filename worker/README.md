@@ -21,3 +21,21 @@ deploy the Worker, container, and `leaf.page` custom domain. This is the same bo
 used by Tend: manual workflow dispatches from other branches cannot read the token. The
 domain already uses Cloudflare nameservers; a successful deployment makes the Worker
 the `leaf.page` origin. The workflow build is otherwise self-contained.
+
+Create that GitHub boundary once, then enter the token when the last command prompts:
+
+```sh
+gh api --method PUT repos/max-sixty/leaf/environments/cloudflare-deploy \
+  -F 'deployment_branch_policy[protected_branches]=false' \
+  -F 'deployment_branch_policy[custom_branch_policies]=true'
+gh api --method POST \
+  repos/max-sixty/leaf/environments/cloudflare-deploy/deployment-branch-policies \
+  -f name=main -f type=branch
+gh secret set CLOUDFLARE_API_TOKEN \
+  --repo max-sixty/leaf --env cloudflare-deploy
+```
+
+Create the token from Cloudflare's **Edit Cloudflare Workers** template, restricted to
+the account and the `leaf.page` zone. The deploy workflow verifies the public
+`/examples/design-decision/api/state` response after Wrangler returns because a
+Containers rollout can finish after the Worker itself becomes active.

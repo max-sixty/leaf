@@ -68,3 +68,15 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: npx wrangler deploy
+
+      # A Containers deploy activates the Worker before its image rollout necessarily
+      # finishes. Prove the public route has crossed both boundaries before calling the
+      # deployment successful; --retry-all-errors also covers the first-deploy 404/5xx
+      # window while Cloudflare provisions the application and custom domain.
+      - name: Verify public example server
+        run: |
+          curl --fail --silent --show-error \
+            --retry 30 --retry-all-errors --retry-delay 10 --max-time 10 \
+            https://leaf.page/examples/design-decision/api/state \
+            | jq --exit-status \
+              '.example.install_url == "/#install" and .claims == []'

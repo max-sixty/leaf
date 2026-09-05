@@ -16,11 +16,6 @@ the relevant design note or in git history.
   rules deterministic and optional; the first case is specified in
   [the agent-usability notes](notes/agent-usability-evals.md#near-term-usability-todo).
 
-- **Install outside packages by name.** Let `leaf package install SOURCE` place a
-  package in a user-owned store and make `--package NAME` resolve installed and bundled
-  packages through the same directory contract. Leave updates, pinning, and trust to
-  later dogfooding.
-
 - **Establish the first agent-usability baseline.** Build the cold-authoring,
   reading-parity, and resume fixtures described in
   [the evaluation plan](notes/agent-usability-evals.md#first-executable-slice), then use

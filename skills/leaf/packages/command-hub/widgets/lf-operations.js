@@ -63,7 +63,7 @@ customElements.define(
         // boundary as every replayable input widget.
         if (quoted(this)) return;
         for (const option of children(this)) {
-          const control = offer("button", "lf-operation-press", "Do this");
+          const control = offer("button", "lf-btn lf-operation-press", "Do this");
           control.setAttribute("aria-label", title(option));
           control.onclick = async () => {
             if (

@@ -214,7 +214,7 @@ def thread_digest(
     shown = ends_kept(kept, pin)
     return {
         "id": thread["root"]["id"],
-        "anchor": thread["root"].get("anchor"),
+        "anchor": thread["anchor"],
         # Who closed it, or null for a thread still open — a thread an agent
         # closed is one the reader may never have answered.
         "resolved": thread["resolved"] and thread["resolved"]["author"],

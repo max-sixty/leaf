@@ -826,6 +826,13 @@ def test_server_round_trip(server, page_dir):
             "text": "hi",
             "suggestion": True,
         },
+        {
+            "kind": "reply",
+            "parent": posted["id"],
+            "revision": 2,
+            "text": "hi",
+            "anchor": {"section": "plan"},
+        },
         {"kind": "reply", "parent": "nope", "revision": 2, "text": "hi"},
         {"kind": "resolve", "parent": "nope"},
         # A report is agent-authored: its one door is `leaf report`, so the

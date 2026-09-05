@@ -78,8 +78,10 @@
  * it — the revision being read, the stamped versions, and the press on an older one that
  * marks that change on the page.
  *
- * Composing: every textarea behaves identically — saves its draft on each keystroke,
- * sends on ⌘/Ctrl+Enter — because they are all wired through wireInput. Growing with
+ * Composing: every composition textarea behaves identically — saves its draft on each
+ * keystroke and submits its contextual action on ⌘/Ctrl+Enter — because runtime and
+ * widget composition boxes are all wired through wireInput. Direct editors register the
+ * same Enter and Mod+Enter meanings with their additional commands. Growing with
  * its content is the stylesheet's job: `field-sizing: content` on the one text-box rule,
  * which a widget's own box opts into by wearing `lf-ui`. No script measures a textarea,
  * so none can leave one momentarily too small for its own text — the shape of bug that

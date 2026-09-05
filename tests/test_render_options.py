@@ -367,7 +367,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     """The Ask owns its numbered actions wherever focus stands inside it.
 
     Tab traverses the real controls without replacing that action map. Another option is
-    an ordinary form field rather than an action hidden behind Enter on an option mark.
+    a shared text box rather than an action hidden behind Enter on an option mark.
     """
     url = serve(DECISION_WITH_CONTEXT_PAGE)
     page, errors = open_page(browser, url)
@@ -380,7 +380,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(option_hints).to_have_text(["1", "2"])
     expect(option_hints.first).to_be_visible()
     write_hint = page.locator("#storage-options > .lf-another > .lf-address")
-    box = page.locator("#storage-options > .lf-another input")
+    box = page.locator("#storage-options > .lf-another textarea")
     expect(write_hint).to_have_count(0)
 
     # Enter has no invented meaning on the Ask or an option mark. Tab enters the real
@@ -400,17 +400,27 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(box).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
-    # The controls remain in document order: the other mark, then the form field. Once
-    # focus is in the field, Enter has its native submit meaning.
+    # The controls remain in document order: the other mark, then the text box. It keeps
+    # native newlines on both forms of Enter and exposes the shared submit chord.
     page.keyboard.press("Tab")
     expect(page.locator("#storage-stop .lf-pick")).to_be_focused()
     page.keyboard.press("Tab")
     expect(box).to_be_focused()
     box.fill("Keep both layers")
     page.keyboard.press("Enter")
-    expect(page.locator("#storage-options > lf-option[data-lf-added]")).to_contain_text(
-        "Keep both layers"
+    page.keyboard.type("Keep them together")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("Preserve both histories")
+    expect(box).to_have_value(
+        "Keep both layers\nKeep them together\nPreserve both histories"
     )
+    expect(box).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
+    expect(page.locator("#storage-options > lf-option[data-lf-added]")).to_have_count(0)
+    assert "add option" in key_line(page)
+    page.keyboard.press("ControlOrMeta+Enter")
+    added = page.locator("#storage-options > lf-option[data-lf-added]")
+    expect(added).to_contain_text("Keep both layers")
+    expect(added).to_have_css("white-space", "pre-wrap")
     assert errors == []
     page.close()
 
@@ -427,7 +437,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(mark).to_be_focused()
     expect(chosen).to_have_attribute("role", "checkbox")
     expect(chosen).to_have_attribute("aria-checked", "true")
-    expect(page.locator("#storage-options > .lf-another input")).not_to_be_focused()
+    expect(page.locator("#storage-options > .lf-another textarea")).not_to_be_focused()
     assert errors == []
     page.close()
 
@@ -439,7 +449,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     page.keyboard.press("a")
     for _ in range(3):
         page.keyboard.press("Tab")
-    box = page.locator("#storage-options > .lf-another input")
+    box = page.locator("#storage-options > .lf-another textarea")
     expect(box).to_be_focused()
     clearance = page.evaluate(
         """() => document.querySelector('.lf-keyline').getBoundingClientRect().top

@@ -2983,6 +2983,9 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(page.locator(".lf-general textarea")).to_have_attribute(
         "aria-keyshortcuts", "Meta+Enter Control+Enter"
     )
+    expect(page.locator("#live-question .lf-another textarea")).to_have_attribute(
+        "aria-keyshortcuts", "Meta+Enter Control+Enter"
+    )
     assert page.locator(".lf-version-menu").get_attribute("aria-keyshortcuts") is None
 
     page.keyboard.press("a")

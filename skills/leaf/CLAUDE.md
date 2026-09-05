@@ -856,6 +856,12 @@ minimum obligations:
 - For a verb with `requires`, use `actionAvailable(el, verb)` for both its
   visible control state and its gesture guard. `sendAction` and POST repeat that
   declared check at their respective doors.
+- Write a name or state through `keeps(node, name, value)` wherever the render runs on
+  the `lf-actions` heartbeat. A `watchActions` callback paints every two seconds on a
+  page nobody has touched, and an unconditional `setAttribute` restates itself at that
+  rate: a mutation record a screen reader rebuilds its buffer from, and — for `open` and
+  `aria-expanded` — a repaint of every key on the page. `toggleAttribute` already keeps
+  the rule for flags.
 - Read authored or user-facing words with `says`, never raw `textContent`.
 - Build injected controls with `offer`. Use `relabel` when a control's label is
   also one of the page's words.

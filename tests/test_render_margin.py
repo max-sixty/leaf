@@ -190,24 +190,34 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(browser, serve):
     screen reader rebuilds its buffer from, and a dirty box for whatever reads
     next. The corpus used to restate 205 attributes and the Page-map button's
     words on every pass. A record is a restatement only when the node already
-    carried the value being written, so a real change is still free — as is the
-    one attribute two writers disagree over, `aria-expanded` on a marker, which
-    `marginButton` defaults and `syncThreadRelation` then strips because the
-    marker opens no thread. That is a seam between two writers rather than a
-    writer restating itself, and it needs an answer about what a thread-less
-    disclosure should announce before it can be closed here.
+    carried the value being written, so a real change is still free.
+
+    The margin is not the nav: `render` docks every host with offers beside its
+    own perch out in the document, which on this corpus is more of the margin
+    than the nav holds. So the watch is rooted at every host as well, and the
+    reach is asserted the way the population is — a run where the docked hosts
+    stopped being watched would otherwise return the same clean `[]` it returns
+    when nothing is wrong.
+
+    A second reading covers what a restatement cannot: two writers taking turns
+    over one attribute say something different each time, so no record of theirs
+    restates anything, while `leaf.js`'s disclosure watch reads the pair as news
+    and repaints the page's keys on every heartbeat. `open` and `aria-expanded`
+    are the attributes that watch reads, and an untouched page must give it none.
     """
     corpus = next(example for example in EXAMPLES if example.stem == "corpus")
     page, errors = open_page(browser, serve(corpus))
     resized(page, 1440, 900)
     margins_laid_out(page)
     assert page.locator(".lf-margin-item").count() >= 15
-    restated = page.evaluate(
+    heartbeat = page.evaluate(
         """refreshes => {
           const text = nodes => [...nodes].map(node => node.textContent).join('');
+          const hosts = [...document.querySelectorAll('.lf-margin-item')];
+          const roots = [document.querySelector('nav.lf-living-margin'),
+                         document.querySelector('.lf-page-map-toggle'), ...hosts];
           const observer = new MutationObserver(() => {});
-          for (const root of [document.querySelector('nav.lf-living-margin'),
-                              document.querySelector('.lf-page-map-toggle')])
+          for (const root of roots)
             observer.observe(root, {subtree: true, childList: true,
               characterData: true, characterDataOldValue: true,
               attributes: true, attributeOldValue: true});
@@ -215,25 +225,42 @@ def test_an_unchanged_heartbeat_restates_no_margin_name(browser, serve):
             document.dispatchEvent(new CustomEvent('lf-actions'));
           const records = observer.takeRecords();
           observer.disconnect();
+          const on = record => record.target.className || record.target.nodeName;
           const said = record => {
-            const on = record.target.className || record.target.nodeName;
             if (record.type === 'attributes')
               return record.oldValue !== null && record.oldValue ===
                 record.target.getAttribute(record.attributeName)
-                ? {on, wrote: record.attributeName, said: record.oldValue}
+                ? {on: on(record), wrote: record.attributeName, said: record.oldValue}
                 : null;
             if (record.type === 'characterData')
               return record.oldValue === record.target.data
-                ? {on, wrote: 'text', said: record.oldValue} : null;
+                ? {on: on(record), wrote: 'text', said: record.oldValue} : null;
             return text(record.removedNodes) === text(record.addedNodes)
               && record.removedNodes.length > 0
-              ? {on, wrote: 'children', said: text(record.addedNodes)} : null;
+              ? {on: on(record), wrote: 'children', said: text(record.addedNodes)} : null;
           };
-          return records.map(said).filter(Boolean);
+          const news = record =>
+            record.type === 'attributes'
+            && ['open', 'aria-expanded'].includes(record.attributeName)
+            && record.target.getAttribute(record.attributeName) !== record.oldValue
+              ? {on: on(record), wrote: record.attributeName,
+                 was: record.oldValue,
+                 now: record.target.getAttribute(record.attributeName)}
+              : null;
+          return {
+            restated: records.map(said).filter(Boolean),
+            news: records.map(news).filter(Boolean),
+            docked: hosts.filter(host => !host.closest('nav.lf-living-margin')).length,
+            hosts: hosts.length,
+          };
         }""",
         5,
     )
-    assert restated == [], restated
+    assert heartbeat["restated"] == [], heartbeat["restated"]
+    assert heartbeat["news"] == [], heartbeat["news"]
+    # The reach the two readings above are worth: the nav alone would leave more
+    # than half the corpus's hosts, and every writer under them, unwatched.
+    assert heartbeat["docked"] >= heartbeat["hosts"] / 2, heartbeat
     assert errors == []
     page.close()
 

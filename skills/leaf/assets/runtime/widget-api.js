@@ -75,6 +75,7 @@ export {
   HIDDEN,
   LAYOUT,
   dragging,
+  keeps,
   layoutChanged,
   measure,
   offer,

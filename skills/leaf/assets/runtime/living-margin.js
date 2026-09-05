@@ -7,6 +7,7 @@ import {
   updateMarginRow,
 } from "./margin-layout.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
+import { keeps, keepsHidden } from "./widget-elements.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { landInConversation } from "./conversation/landing.js";
 
@@ -175,28 +176,14 @@ function validateMarginControls(offered) {
 function syncForwardedButtonState(projection, source) {
   const label = source.getAttribute("aria-label");
   if (label == null) projection.removeAttribute("aria-label");
-  else projection.setAttribute("aria-label", label);
-  projection.disabled =
-    source.disabled || source.getAttribute("aria-disabled") === "true";
+  else keeps(projection, "aria-label", label);
+  const disabled = source.disabled || source.getAttribute("aria-disabled") === "true";
+  if (projection.disabled !== disabled) projection.disabled = disabled;
   for (const attribute of FORWARDED_BUTTON_ATTRIBUTES) {
     const value = source.getAttribute(attribute);
     if (value == null) projection.removeAttribute(attribute);
-    else projection.setAttribute(attribute, value);
+    else keeps(projection, attribute, value);
   }
-}
-
-// The margin's renders are bound to the `lf-actions` heartbeat, so a write that
-// restates what the node already says restates it every two seconds on a page nobody
-// has touched: the mutation stream a screen reader rebuilds its buffer from, and a
-// fresh dirty box for whatever reads next. `toggleAttribute` keeps that rule for the
-// flags by construction and several readings below keep it inline; these two are the
-// same rule for the names, states, and words that have no such door.
-function keeps(node, name, value) {
-  if (node && node.getAttribute(name) !== value) node.setAttribute(name, value);
-}
-
-function keepsHidden(node, hidden) {
-  if (node && node.hidden !== hidden) node.hidden = hidden;
 }
 
 // One Button grammar for every gesture in a target's RHS cluster. Contributors keep
@@ -262,7 +249,13 @@ export function marginButton(
   keeps(control, "data-lf-offer", behavior === "status" ? "" : "button");
   marginButtonState(control, state);
   const opens = behavior === "disclosure";
-  if (opens && !control.hasAttribute("aria-expanded"))
+  // A reading's relation is `syncThreadRelation`'s alone to write: it decides
+  // `aria-controls` and `aria-expanded` together from whether this reading opens a
+  // thread, and takes both off when it opens none. A default written here would be a
+  // second writer that the same pass then strips — an add and a remove per heartbeat,
+  // and the remove reads as news to the document's disclosure watch, so an untouched
+  // page repaints its keys at the refresh rate.
+  if (opens && role !== "reading" && !control.hasAttribute("aria-expanded"))
     control.setAttribute("aria-expanded", "false");
   if (!opens) control.removeAttribute("aria-expanded");
   if (behavior === "status") {
@@ -852,7 +845,7 @@ export function createLivingMargin(dependencies) {
       control.hasAttribute("data-lf-button-overflow"),
     );
     for (const control of controls) {
-      control.setAttribute("data-lf-button-primary", "");
+      control.toggleAttribute("data-lf-button-primary", true);
       control.removeAttribute("data-lf-button-overflow");
     }
     let shown;
@@ -1813,7 +1806,7 @@ export function createLivingMargin(dependencies) {
     });
     syncForwardedButtonState(node, control);
     node.lfForwardedControl = control;
-    node.dataset.lfButtonOwner = record.owner;
+    keeps(node, "data-lf-button-owner", record.owner);
     node.onclick = () => {
       control.click();
     };
@@ -2347,7 +2340,7 @@ export function createLivingMargin(dependencies) {
       marker.lfEntry = entry;
       const primary = syncControls(host, marker, more, options, entry);
       if (entry.offers.length) {
-        host.dataset.lfExternal = "1";
+        keeps(host, "data-lf-external", "1");
         const perch = externalPerch(entry.target, main);
         const dock = externalDocks.get(perch) ?? perch;
         if (dock.nextSibling !== host) moveHost(host, () => dock.after(host));

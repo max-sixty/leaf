@@ -89,6 +89,16 @@ from leaf import cli as cli_model
 """
 
 
+def append_command(page_dir, command):
+    """Seed a widget command through the real transaction's admission step.
+
+    A test of raw storage or retired vocabulary passes an explicitly admitted
+    event, including meaning, to event_log.append_event instead.
+    """
+    with service_model.PageTransaction(page_dir) as page:
+        return page.append_event(command)
+
+
 def run_async(entry):
     """Run an async entry point on a thread of this test's own.
 
@@ -557,7 +567,7 @@ def suggest(page_dir, version=2, markup=SUGGESTION):
 
 
 def decide(page_dir, outcome, widget="sug-refill"):
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -580,7 +590,7 @@ def _decided(page_dir, words):
         )
     )
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -663,8 +673,19 @@ ACCEPT = {
     "widget": "sug-a",
     "action": "accept",
     "detail": {"resolves": "c1"},
+    "meaning": {
+        "document": {"kind": "page", "revision": 1},
+        "coordinate": ["sug-a", "sug-a", "settlement"],
+        "depends": ["sug-a"],
+        "answer": "c1",
+    },
 }
-REJECT = {**ACCEPT, "action": "reject", "detail": {}}
+REJECT = {
+    **ACCEPT,
+    "action": "reject",
+    "detail": {},
+    "meaning": {**ACCEPT["meaning"], "answer": None},
+}
 RESOLVE = {"kind": "resolve", "author": "user", "parent": "c1"}
 
 
@@ -673,7 +694,14 @@ def logged(page_dir, *events):
     the whole log and the page the decisions were folded over. Copied in, because
     `append_event` stamps an id onto what it is handed and these are constants."""
     for event in events:
-        events_model.append_event(page_dir, dict(event))
+        event = dict(event)
+        if event["kind"] == "action":
+            event["meaning"] = {
+                **event["meaning"],
+                "coordinate": [event["widget"], event["widget"], "settlement"],
+                "depends": [event["widget"]],
+            }
+        events_model.append_event(page_dir, event)
     return event_folds_model.build_threads(
         events_model.read_events(page_dir),
         passages_model.enclosing_ids(
@@ -1321,7 +1349,7 @@ def edit(page_dir, text, widget="note", version=1):
     revision = files_model.version_revisions(events).get(
         version, files_model.latest_revision(page_dir)
     )
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",

@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
+from interact_support import append_command
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -1527,7 +1528,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         assert held, "the first comparison view was not held"
         held[0][1] = held[0][0].fetch()
 
-        events_model.append_event(
+        append_command(
             d,
             {
                 "kind": "report",
@@ -2061,7 +2062,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
         ("approach", "choose", {"options": ["opt-shim"]}),
         ("work", "move", {"card": "card-importer", "to": "col-done", "index": 0}),
     ]:
-        events_model.append_event(
+        append_command(
             d,
             {
                 "kind": "action",
@@ -2113,7 +2114,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     added without an event here fails rather than going unexercised."""
     url = serve(STANDING_PAGE)
     for widget, action, detail in STANDING_ACTIONS:
-        events_model.append_event(
+        append_command(
             serve.page_dir,
             {
                 "kind": "action",
@@ -2451,7 +2452,7 @@ def test_the_render_gate_catches_a_relative_apply_action(
         ("tally-fitted", "step", {"count": "3"}),
         ("tally-fitted", "caption", {"text": "Two greys at the north feeder."}),
     ]:
-        events_model.append_event(
+        append_command(
             serve.page_dir,
             {
                 "kind": "action",
@@ -2657,7 +2658,7 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
     element, so the replay record must name it; runtime attributes and generated chrome
     must not change the signature."""
     url = serve(SUGGESTION_PAGE)
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -2881,7 +2882,7 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
     url = serve(
         SUGGESTION_PAGE, anchored=[("replace", "Refill every feeder each morning.")]
     )
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -2953,7 +2954,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     trial_family(tmp_path)
 
     url = serve(TWO_HOLDER_PAGE, anchored=[("th-next", "warmed on the first request")])
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -2981,7 +2982,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     # last surviving action per facet and unit, so a widget-unit verb on the same
     # facet that settles nothing displaces the decision, and a mark left standing
     # would silence a slot the log has handed back.
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -3045,7 +3046,7 @@ customElements.define("lf-trial", class extends HTMLElement {
         '<lf-trial id="th-cache">', '<lf-trial id="th-cache" decision="open">'
     )
     url = serve(page_html)
-    decision = events_model.append_event(
+    decision = append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -3091,7 +3092,7 @@ customElements.define("lf-trial", class extends HTMLElement {
 """
     )
     url = serve(TWO_HOLDER_PAGE)
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -3132,7 +3133,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     trial_family(tmp_path)
 
     url = serve(TWO_HOLDER_SPARE_PAGE)
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -3184,7 +3185,7 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
     outranks a look must not outrank a decision, or a quote lands in the half the user
     removed."""
     url = serve(RETIRED_WIDGET_PAGE, anchored=[("sug-swap", "Settled: Lax cookie")])
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -3490,7 +3491,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "markup": SPECIMEN_MARKUP,
         },
     )
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",
@@ -3499,7 +3500,6 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "widget": "rp-live",
             "action": "choose",
             "detail": {"options": ["rp-shim"]},
-            "generated": [],
         },
     )
     page, errors = open_page(browser, live_url(url))
@@ -5001,7 +5001,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(browser, s
     a fresh stopped report dates the new interruption from itself."""
     url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "report",
@@ -5028,7 +5028,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(browser, s
     )
     assert active != stalled
     stamp_page(d, active, "work resumed")
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "report",

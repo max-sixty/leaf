@@ -18,6 +18,7 @@ The main owners are:
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
 - `event_endpoint` and `event_contracts`: browser-event admission, retry
   coordination and append, and shared browser/CLI event contracts;
+- `event_meaning`: admitted widget-command meaning and layer compatibility;
 - `events` and `projection`: standing event and durable state folds;
 - `thread_context` and `conversation`: thread identity, frozen markup, bounded
   delivery context, and conversation writes;

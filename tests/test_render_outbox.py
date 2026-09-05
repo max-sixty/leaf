@@ -5,6 +5,7 @@ import math
 import re
 
 import pytest
+from interact_support import append_command
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from playwright.sync_api import expect
@@ -517,7 +518,7 @@ def test_a_failed_background_read_cannot_aim_undo_at_its_partial_history(
         page.expect_console_message(lambda message: "read failed" in message.text),
         page.expect_request("**/api/state*"),
     ):
-        second = events_model.append_event(
+        second = append_command(
             serve.page_dir,
             {
                 "kind": "action",
@@ -805,7 +806,7 @@ def test_a_refused_position_rebuilds_the_whole_authored_sibling_order(browser, s
         '    <lf-card id="card-third"><strong>Third card</strong></lf-card>',
     )
     url = serve(three_cards)
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -1041,7 +1042,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     page.unroute("**/api/event")
 
     with page.expect_request("**/api/state*"):
-        events_model.append_event(
+        append_command(
             serve.page_dir,
             {
                 "kind": "action",
@@ -1125,7 +1126,7 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
     # stream would otherwise have the page read A alone in the time B takes.
     cut = CutOff().hold(page)
     older_answer = held[0].fetch()  # the server appends A; its response stays held
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -1312,7 +1313,7 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
     # reads held too, so one complete read accounts the accept and replays the reject.
     cut = CutOff().hold(page)
     accepted_answer = held[0].fetch()
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -1582,7 +1583,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
     page.wait_for_timeout(0)
     expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
 
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -2255,7 +2256,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     put down where it was picked up takes the class off and returns before #send, so
     there is no send downstream to paint in its place."""
     url = serve(BOARD_PAGE)
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",

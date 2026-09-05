@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 import pytest
 from click.testing import CliRunner
+from interact_support import append_command
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -510,7 +511,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             + SHADOWED_DIFF,
         )
     )
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -521,7 +522,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             "detail": {},
         },
     )
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -761,7 +762,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
     the current workspace standing while it paints the accepted state directly.
     """
     url = serve(SHORT_SUGGESTION)
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -882,7 +883,7 @@ def test_an_unavailable_first_poll_releases_a_useful_page(browser, serve):
 def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
     """A startup fault leaves useful HTML plus an error, not a blocking sheet."""
     url = serve(SHORT_SUGGESTION)
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -923,7 +924,7 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
             "</title>", '</title><meta name="lf-review" content="sign-off">', 1
         )
     )
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -1033,7 +1034,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     saying out loud."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",
@@ -1077,7 +1078,7 @@ def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
     on it and every later revision inherits it for free."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",
@@ -1181,7 +1182,7 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
     page.mouse.move(grip["x"] + grip["width"] / 2 + 12, grip["y"] + 12, steps=4)
     expect(page.locator(".lf-dragging")).to_have_count(1)
 
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -1301,7 +1302,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # What the other tab's press leaves in the log, made against the same version:
     # its own accept and reject controls are still standing, because it has not
     # heard about this one's decision yet.
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",

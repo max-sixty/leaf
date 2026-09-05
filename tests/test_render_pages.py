@@ -6,6 +6,7 @@ import re
 
 import pytest
 from click.testing import CliRunner
+from interact_support import append_command
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import events as conversation_model
@@ -1312,7 +1313,7 @@ def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
     rather than on a file, and on the live page the room is measured rather than guessed.
     The question has to be asked of the copy directly, which is what this does."""
     url = serve(RAIL_AND_WIDE_PAGE)
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -1570,7 +1571,7 @@ def test_a_copy_keeps_a_board_off_the_row_its_decided_change_left(
     measured is still real in the file, while the exhibit 600px further down carries no
     mark and takes the room the copy's own reading grants it."""
     url = serve(RAIL_BAND_PAGE)
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",

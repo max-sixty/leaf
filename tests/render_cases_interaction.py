@@ -3,6 +3,7 @@
 import json
 from datetime import datetime, timedelta
 
+from interact_support import append_command
 from leaf import event_log as events_model
 from render_harness import (
     EXAMPLES,
@@ -983,7 +984,7 @@ def stale_report(page_dir, widget, doing, hours, state="working"):
     quarter of an hour, so nothing that waits can reach it and nothing that sleeps
     should: the fact under test is what the row does with a timestamp, and the log
     is where a timestamp comes from."""
-    return events_model.append_event(
+    return append_command(
         page_dir,
         {
             "kind": "report",

@@ -5,6 +5,7 @@ from copy import deepcopy
 
 import pytest
 from click.testing import CliRunner
+from interact_support import append_command
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import event_log as events_model
@@ -2578,7 +2579,7 @@ def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serv
                     "anchor": {"section": wid},
                 },
             )
-        events_model.append_event(
+        append_command(
             d,
             {
                 "kind": "action",

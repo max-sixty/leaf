@@ -58,6 +58,23 @@ so the voice is read from the poster's environment rather than from the current
 watcher's claim record — and identity is the session id, because a display name
 is anyone's to choose and two workers may share one.
 
+Browser POSTs are commands. The append transaction stamps the accepted event with
+server-owned `meaning`; callers cannot send it or `generated`, and retry identity
+compares the original command fields rather than this enrichment. Actions and
+reports record `document`, the `[owner, unit, facet]` coordinate, and `depends`, the
+direct element identities named by declared state fields. Requests record their
+page-revision or frozen-thread document identity. A declared `x-awaits.answers`
+verb additionally records `answer`: a thread id closes that conversation, null
+states an answer that leaves it open, and an absent field is not an answer.
+Historical conversation folds use this coordinate even after its widget retires.
+
+Dependency identities come from the fold unit, attribute-set and position record
+fields, and optional `references` detail-field declarations. Literal strings do
+not become dependencies by matching HTML ids. The log does not freeze ancestry:
+retraction tests use the current document's containment of those identities.
+Generated children retain the durable ownership established by `creates`, whose
+sorted identity snapshot the server stamps in `generated`.
+
 An agent comment opens a question. A reply answers without closing the thread;
 when its prose leaves another question for the reader, `leaf reply --awaits`
 records `awaits: true`. The browser cannot write that field. A reader reply always

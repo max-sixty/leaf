@@ -970,7 +970,6 @@ def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
         "widget": "choice",
         "action": "choose",
         "detail": {"options": ["flag-first"]},
-        "generated": [],
     }
     if not pick_after_proposal:
         events_model.append_event(page_dir, pick)
@@ -1591,6 +1590,11 @@ def test_export_prints_threads_and_versions(page_dir):
             "widget": "b",
             "action": "move",
             "detail": {"card": "card-x", "to": "col-done", "index": 0},
+            "meaning": {
+                "document": {"kind": "page", "revision": 2},
+                "coordinate": ["b", "card-x", "position"],
+                "depends": ["b", "card-x", "col-done"],
+            },
         },
     )
     # An anchor holds the whole passage, because that is the extent the page marks; a

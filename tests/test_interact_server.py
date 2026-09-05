@@ -23,6 +23,7 @@ from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
     TOKEN,
+    append_command,
     check,
     declare_data_input,
     fetch,
@@ -369,7 +370,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     )
     assert first.exit_code == 0, first.output
     first_revision = json.loads(first.output)["revision"]
-    event_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -945,38 +946,21 @@ def test_action_door_owns_generated_child_snapshots(server, page_dir):
         },
     }
 
-    correct = {
-        **base,
-        "generated": ["delivery-reader-a", "delivery-reader-z"],
-        "attempt": "attempt-generated-good",
-    }
-    assert fetch(f"{server}/api/event", data=json.dumps(correct).encode())[0] == 200
-
-    cases = [
-        ({**base, "attempt": "attempt-generated-missing"}, "no generated snapshot"),
-        (
-            {
-                **base,
-                "generated": ["delivery-foreign"],
-                "attempt": "attempt-generated-mismatch",
-            },
-            "must equal the sorted keys",
-        ),
-        (
-            {
-                **base,
-                "action": "answer",
-                "detail": {},
-                "generated": [],
-                "attempt": "attempt-generated-foreign",
-            },
-            "creates no children",
-        ),
-    ]
-    for sent, wanted in cases:
-        status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
-        assert status == 400
-        assert wanted in json.loads(body)["error"]
+    command = {**base, "attempt": "attempt-generated-good"}
+    status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
+    assert status == 200, body
+    accepted = json.loads(body)["state"]["events"][-1]
+    assert accepted["generated"] == ["delivery-reader-a", "delivery-reader-z"]
+    assert accepted["meaning"]["coordinate"] == ["delivery", "delivery", "selection"]
+    # The server's enrichment does not alter retry identity.
+    status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
+    assert status == 200, body
+    assert json.loads(body)["state"]["events"][-1]["id"] == accepted["id"]
+    for field, value in (("generated", []), ("meaning", accepted["meaning"])):
+        forged = {**base, field: value, "attempt": "attempt-forged-" + field}
+        status, body = fetch(f"{server}/api/event", data=json.dumps(forged).encode())
+        assert status == 400, body
+        assert field in json.loads(body)["error"]
 
 
 def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_dir):
@@ -1003,7 +987,6 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
         "widget": "delivery",
         "action": "choose",
         "detail": {"options": ["delivery-now"]},
-        "generated": [],
         "attempt": "attempt-browser-view-1",
     }
 
@@ -1057,7 +1040,6 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
                     "widget": "delivery",
                     "action": "choose",
                     "detail": {"options": [option]},
-                    "generated": [],
                     "attempt": attempt,
                 }
             ).encode(),
@@ -1174,7 +1156,6 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
                     "widget": "delivery",
                     "action": "choose",
                     "detail": {"options": [option]},
-                    "generated": [],
                     "attempt": attempt,
                 }
             ).encode(),
@@ -1936,7 +1917,6 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
         "revision": 1,
         "action": "choose",
         "detail": {"options": ["thread-a"]},
-        "generated": [],
     }
     status, _ = fetch(
         f"{server}/api/event",
@@ -2032,10 +2012,8 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
         "widget": widget,
         "action": "choose",
         "detail": {"options": [option]},
-        "generated": [],
     }
     nonanswer = {**choose, "action": "defer", "detail": {}}
-    nonanswer.pop("generated")
     assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
     assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
     assert fetch(f"{server}/api/event", data=json.dumps(choose).encode())[0] == 200
@@ -2100,7 +2078,6 @@ def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, pa
         "widget": "seated-options",
         "action": "choose",
         "detail": {"options": ["seated-a"]},
-        "generated": [],
     }
     status_code, body = fetch(f"{server}/api/event", data=json.dumps(choose).encode())
     assert status_code == 200, body
@@ -2238,7 +2215,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     }
     assert fetch(f"{server}/api/event", data=json.dumps(requested).encode())[0] == 200
 
-    event_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "report",
@@ -2249,7 +2226,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
             "detail": {"status": "blocked"},
         },
     )
-    event_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "report",
@@ -2272,7 +2249,6 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         "widget": "quota-child-review",
         "action": "choose",
         "detail": {"options": ["quota-child-ready"]},
-        "generated": [],
     }
     assert (
         fetch(f"{server}/api/event", data=json.dumps(child_choice).encode())[0] == 200
@@ -2287,7 +2263,6 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         "widget": "quota-intervention",
         "action": "choose",
         "detail": {"options": []},
-        "generated": [],
     }
     assert fetch(f"{server}/api/event", data=json.dumps(choose).encode())[0] == 200
     increase = {**event, "detail": {"slots": "4"}}
@@ -2430,6 +2405,7 @@ def test_event_ids_are_globally_strong_and_unique_within_the_log(page_dir, monke
             page_dir,
             {
                 "id": first["id"],
+                "meaning": {"document": {"kind": "page", "revision": 1}},
                 "kind": "request",
                 "author": "user",
                 "revision": 1,
@@ -3622,7 +3598,6 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
         "widget": "choice",
         "action": "choose",
         "detail": {"options": ["flag-first"]},
-        "generated": [],
     }
     publisher = threading.Thread(target=run_stamp)
     publisher.start()

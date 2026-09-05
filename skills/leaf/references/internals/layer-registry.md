@@ -35,11 +35,14 @@ successful init records two deliberately different identities under `$layer`:
 `registry.json` remains the source of truth for the current custom vocabulary and
 its explanations; this contract does not mirror that inventory.
 
-Within a registry-validated action detail, a string or list of strings may point
-at existing ids inside the sending widget. A state verb that creates authored
-children declares `creates: {field, child}`. The optional detail field is the
-canonical map from generated element ids to their first authored words, and
-`child` names their exact tag. The browser snapshots the map's sorted keys in
-the action's `generated` field. Registry-free historical folds read that snapshot;
-source continuity and word validation read the declaration, so an arbitrary
-mapping is never inferred to contain ids.
+The append transaction records state coordinates and direct dependencies in an
+action or report's `meaning`. Identity-bearing fields come from the declared fold
+unit and attribute-set or position record. Additional string or string-array
+fields must be named in `references`; arbitrary detail strings carry no identity.
+The current document still supplies containment when reading those dependencies.
+
+A state verb that creates authored children declares `creates: {field, child}`.
+The optional detail field is the canonical map from generated element ids to their
+first authored words, and `child` names their exact tag. The server snapshots the
+map's sorted keys in `generated`. Historical folds read that durable ownership;
+source continuity and word validation read the declaration.

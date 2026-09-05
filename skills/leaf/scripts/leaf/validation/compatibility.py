@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from leaf import event_contracts
+from leaf.event_meaning import stored_meaning_error
 from leaf.files import read_json
 from leaf.registry.contract import RegistryError, read_registry_entries
 from leaf.registry.layer import merge_layer_entries
@@ -157,6 +158,12 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
             errors := thread_markup_contract_errors(thread.fragments[e["id"]], incoming)
         ):
             key = "thread markup contract: " + "; ".join(errors)
+        elif kind in {"action", "report", "request"} and (
+            error := stored_meaning_error(
+                e, page(e["revision"]), thread, incoming, prior_registry
+            )
+        ):
+            key = f"admitted meaning: {error}"
         else:
             key = None
         prior.append(e)

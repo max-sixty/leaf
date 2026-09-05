@@ -153,29 +153,6 @@ def _validate_widget_state_relations(
             f"{slot}); distinct facets must record independently"
         )
 
-    # A resolves-bearing widget has one answer fact. Thread history can outlive
-    # the markup that declared its verbs, so both thread builders deliberately
-    # fold answers by widget id alone; requiring every action verb on that tag
-    # to share the answer facet makes that historical key exact rather than a
-    # compatibility approximation.
-    state = entry.get("x-state", {})
-    resolving = [
-        (verb, spec)
-        for verb, spec in state.items()
-        if "resolves" in spec["detail"].get("properties", {})
-    ]
-    if resolving:
-        answer_verb, answer_spec = resolving[0]
-        answer_facet = answer_spec["facet"]
-        for verb, spec in state.items():
-            if spec["facet"] != answer_facet:
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` uses facet "
-                    f"`{spec['facet']}`, but `{answer_verb}` declares "
-                    "`resolves`; every x-state verb on a resolves-bearing "
-                    f"widget must share its answer facet `{answer_facet}`"
-                )
-
 
 def _validate_widget_record_contracts(
     tag: str,
@@ -281,21 +258,19 @@ def _validate_widget_record_contracts(
                     'this action answers) — declare it {"type": "string"} or '
                     "rename the field"
                 )
-            # A thread is answered by the decision, and a decision is a widget
-            # instance (x-awaits) — so the answer is absolute across the
-            # widget, and both thread builders key the standing answer on
-            # the widget id, the one key a log outlives its markup with.
-            # A per-part verb answering a thread would fold per part and
-            # settle per widget, and the disagreement is invisible: the
-            # thread reads right until a second part is acted on. Whoever
-            # writes that widget needs a decision per part first, and this is
-            # where they find that out.
-            if unit != "widget":
+            if verb not in entry.get("x-awaits", {}).get("answers", []):
                 raise RegistryError(
-                    f"{path}: <{tag}> {channel} verb `{verb}` answers a "
-                    f"comment thread (`resolves`) but folds per `{unit}` — "
-                    "a thread is answered by the decision, and a decision is the "
-                    "whole widget"
+                    f"{path}: <{tag}> `{verb}` carries resolves but is not an x-awaits answer"
+                )
+        for field in spec.get("references", []):
+            schema = detail_properties.get(field, {})
+            if not (
+                schema.get("type") == "string"
+                or schema.get("type") == "array"
+                and schema.get("items", {}).get("type") == "string"
+            ):
+                raise RegistryError(
+                    f"{path}: <{tag}> `{verb}` reference `{field}` must declare a string or string array"
                 )
         undeclared = [field for field in fields if field not in detail_properties]
         optional = [field for field in fields if field not in required]

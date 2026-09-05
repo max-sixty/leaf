@@ -390,14 +390,7 @@ def state_projection(
         spec = (registry.get(rec["tag"], {}).get(channel) or {}).get(event["action"])
         if not spec:
             continue
-        unit = (
-            event["widget"]
-            if spec["unit"] == "widget"
-            else event["detail"].get(spec["unit"])
-        )
-        if not isinstance(unit, str):
-            continue
-        coordinate = state_coordinate(event["widget"], unit, spec)
+        coordinate = tuple(event["meaning"]["coordinate"])
         entry = (event, spec)
         classified[event["id"]] = (coordinate, entry)
         if event["kind"] == "action":

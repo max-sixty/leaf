@@ -67,16 +67,12 @@ export function createOutbox(runtime, dependencies) {
     // Modules ask the same predicate before optimistic paint. Repeat it at the common
     // door so authored HTML cannot post while the first state projection is pending.
     if (!actionAvailable(el, action)) return null;
-    const spec = registry[el.localName]["x-state"][action];
-    const creates = spec.creates;
-    const generated = creates ? Object.keys(detail[creates.field] ?? {}).sort() : null;
     return post({
       kind: "action",
       revision: runtime.currentRevision,
       widget: el.id,
       action,
       detail,
-      ...(creates && { generated }),
       ...(attempt && { attempt }),
     });
   }

@@ -5,6 +5,7 @@ from itertools import pairwise
 from pathlib import Path
 
 import pytest
+from interact_support import append_command
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
@@ -1400,7 +1401,7 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     only way to decide a change that is still plainly pending on the page. Replayed
     rather than dragged, because that is the same move with no gesture in the way."""
     url = serve(SUGGESTION_PAGE)
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",

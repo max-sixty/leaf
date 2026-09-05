@@ -195,8 +195,8 @@ control's own click remains the one activation path.
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical
 `{element-id: non-empty words}` map schema. The child tag admits the sender through
-`x-parent`, requires only its canonical `id`, and has `x-content: prose`. `sendAction`
-then records the map's sorted ids in `generated`, allowing registry-free historical
+`x-parent`, requires only its canonical `id`, and has `x-content: prose`. The append
+transaction records the map's sorted ids in `generated`, allowing historical
 folds to retain their liveness while version checks enforce the declared tag and
 direct-parent relation.
 

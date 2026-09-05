@@ -31,6 +31,7 @@ from interact_support import (
     PLUGIN_ROOT,
     SKILL_ROOT,
     _status,
+    append_command,
     available_loopback_port,
     check,
     fetch,
@@ -404,7 +405,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
 
     # The reader still has r1 open after r2 became active. That move is new work,
     # not something the earlier r2 note could already have answered.
-    answer = events_model.append_event(
+    answer = append_command(
         page_dir,
         {
             "kind": "action",
@@ -545,6 +546,11 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
             "widget": "b",
             "action": "move",
             "detail": {"card": "x", "to": "y", "index": 0},
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "coordinate": ["b", "x", "position"],
+                "depends": ["b", "x", "y"],
+            },
         },
     )
     assert session_model.cmd_wait(page_dir) == 0
@@ -602,6 +608,11 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
             "agent": "Indexer",
             "session": "worker-1",
             "widget": "t1",
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "coordinate": ["t1", "t1", "status"],
+                "depends": ["t1"],
+            },
             "action": "status",
             "detail": {"status": "review"},
             "revision": 1,
@@ -773,7 +784,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
             "</lf-options>",
         },
     )
-    chose = events_model.append_event(
+    chose = append_command(
         page_dir,
         {
             "kind": "action",
@@ -782,7 +793,6 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
             "widget": "gm",
             "action": "choose",
             "detail": {"options": ["m-cap"]},
-            "generated": [],
         },
     )
 
@@ -867,7 +877,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
     )
     session_model.cmd_ack(page_dir, target_seq)
     capsys.readouterr()
-    accepted = events_model.append_event(
+    accepted = append_command(
         page_dir,
         {
             "kind": "action",
@@ -939,7 +949,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
         parent = sent["id"]
         if index == 2:
             request_message = sent
-    requested = events_model.append_event(
+    requested = append_command(
         page_dir,
         {
             "kind": "request",
@@ -1074,7 +1084,7 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
     session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
     capsys.readouterr()
 
-    rejected = events_model.append_event(
+    rejected = append_command(
         page_dir,
         {
             "kind": "action",
@@ -1168,7 +1178,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
         },
     )
     publish(page_dir, 1)
-    answered = events_model.append_event(
+    answered = append_command(
         page_dir,
         {
             "kind": "action",
@@ -1177,7 +1187,6 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
             "widget": "picks",
             "action": "choose",
             "detail": {"options": ["flag-first"], "resolves": opened["id"]},
-            "generated": [],
         },
     )
     # Rewriting the option they picked retracts the pick: the thing they chose is
@@ -1305,7 +1314,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "</lf-options>",
         },
     )
-    chose = events_model.append_event(
+    chose = append_command(
         page_dir,
         {
             "kind": "action",
@@ -1314,7 +1323,6 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "widget": "gm",
             "action": "choose",
             "detail": {"options": ["m-cap"]},
-            "generated": [],
         },
     )
     # Bury the question: enough later exchange that the bound would drop it.
@@ -1390,6 +1398,11 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
             "kind": "report",
             "author": "claude",
             "widget": "t1",
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "coordinate": ["t1", "t1", "status"],
+                "depends": ["t1"],
+            },
             "action": "status",
             "detail": {"status": "review"},
             "revision": 1,
@@ -4087,7 +4100,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
         claimed, {"kind": "comment", "author": "user", "text": "which of these?"}
     )
     publish(claimed, 1)
-    events_model.append_event(
+    append_command(
         claimed,
         {
             "kind": "action",
@@ -4096,7 +4109,6 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
             "widget": "picks",
             "action": "choose",
             "detail": {"options": ["flag-first"], "resolves": asked["id"]},
-            "generated": [],
         },
     )
     note = {
@@ -4547,6 +4559,11 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
             "kind": "report",
             "author": "claude",
             "widget": "t1",
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "coordinate": ["t1", "t1", "status"],
+                "depends": ["t1"],
+            },
             "action": "status",
             "detail": {"status": "review"},
             "revision": 1,

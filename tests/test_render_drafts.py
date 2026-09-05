@@ -6,6 +6,7 @@ import re
 
 import pytest
 from click.testing import CliRunner
+from interact_support import append_command
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import session as session_model
@@ -352,7 +353,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
 
     d = serve.page_dir
     for text in ("Foreign first edit.", "Foreign committed words."):
-        events_model.append_event(
+        append_command(
             d,
             {
                 "kind": "action",
@@ -363,7 +364,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
                 "detail": {"text": text},
             },
         )
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",
@@ -2143,7 +2144,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         if version == 2:
             (d / ".fixture-versions" / "v2.html").write_text(JOURNEY_V2)
             stamp_version_file(d, 2, "v2")
-        events_model.append_event(
+        append_command(
             d,
             {
                 "kind": "action",
@@ -2198,7 +2199,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
     did."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",
@@ -2209,7 +2210,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
             "detail": {"card": "card-x", "to": "col-done", "index": 0},
         },
     )
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",
@@ -2247,7 +2248,7 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     in front of the user."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",

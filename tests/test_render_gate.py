@@ -6,6 +6,7 @@ import re
 import time
 
 import pytest
+from interact_support import append_command
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
@@ -2261,7 +2262,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
             ),
         },
     )
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",
@@ -2270,11 +2271,10 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
             "widget": "an-set",
             "action": "choose",
             "detail": {"options": ["an-chase", "an-say"]},
-            "generated": [],
         },
     )
     # The Done press. Recordless, and the last word on the group.
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",

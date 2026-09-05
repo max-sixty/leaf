@@ -25,6 +25,7 @@ from interact_support import (
     _report,
     _status,
     _tasks_version,
+    append_command,
     before_choice,
     check,
     decide,
@@ -94,7 +95,7 @@ def test_page_inspection_preserves_exact_reader_state_and_its_edit_routes(page_d
         ("b1", "move", {"card": "card-x", "to": "c-done", "index": 0}),
     ]
     for widget, action, detail in actions:
-        events_model.append_event(
+        append_command(
             page_dir,
             {
                 "kind": "action",
@@ -230,7 +231,7 @@ def test_page_inspection_retires_idless_slots_and_reads_frozen_construction(
             "markup": 'Before <lf-options id="frozen" choose><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options> after.',
         },
     )
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -1052,7 +1053,7 @@ def test_the_live_source_can_honor_the_latest_revision_decision(page_dir):
         )
     )
     publish(page_dir, 3)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -1452,7 +1453,7 @@ def test_a_standing_action_protects_its_fold_unit_until_undone(page_dir):
 
     write(1, [X])
     publish(page_dir)
-    moved = events_model.append_event(
+    moved = append_command(
         page_dir,
         {
             "kind": "action",
@@ -1489,7 +1490,7 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + board)
     )
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "report",
@@ -1512,7 +1513,7 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
     assert standing.exit_code == 1
     assert "protected ids" in standing.output and "'c-done'" in standing.output
 
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -1662,7 +1663,7 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
         version.read_text().replace("</section>", operation + "</section>")
     )
     publish(page_dir)
-    request = events_model.append_event(
+    request = append_command(
         page_dir,
         {
             "kind": "request",
@@ -1761,7 +1762,7 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
     ready_decisions = {decision["id"] for decision in state_json(page_dir)["decisions"]}
     assert "commands-decision" in ready_decisions
     assert "goal" not in ready_decisions
-    first = events_model.append_event(
+    first = append_command(
         page_dir,
         {
             "kind": "request",
@@ -1788,7 +1789,7 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
     assert "commands-decision" in {
         decision["id"] for decision in state_json(page_dir)["decisions"]
     }
-    retry = events_model.append_event(
+    retry = append_command(
         page_dir,
         {
             "kind": "request",
@@ -2047,7 +2048,7 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
 
     write(1, [X, Y], [])
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -2128,7 +2129,7 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
 
     write(1)
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -2137,7 +2138,6 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
-            "generated": [],
         },
     )
     assert check(page_dir).exit_code == 0
@@ -2174,7 +2174,7 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
     assert check(page_dir, version=2).exit_code == 0
 
     # A later pick on the same coordinate releases the old option's words.
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -2183,7 +2183,6 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-stage"]},
-            "generated": [],
         },
     )
     write(2, b=" chosen", shim="The shim now has a bounded removal date.")
@@ -2222,7 +2221,7 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
 
     write(1, added_words=None, pick="")
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -2234,12 +2233,11 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
                 "options": [added],
                 "additions": {added: "Use the reader's route."},
             },
-            "generated": [added],
         },
     )
     # A subsequent ordinary pick supersedes the selection, but it carries the
     # complete generated-option set so those reader-authored words remain live.
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -2251,7 +2249,6 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
                 "options": ["o-stage"],
                 "additions": {added: "Use the reader's route."},
             },
-            "generated": [added],
         },
     )
 
@@ -2332,7 +2329,7 @@ def test_reader_added_words_do_not_become_liveness_coordinates(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -2344,7 +2341,6 @@ def test_reader_added_words_do_not_become_liveness_coordinates(page_dir):
                 "options": ["o-stage"],
                 "additions": {added: "o-shim"},
             },
-            "generated": [added],
         },
     )
 
@@ -2374,7 +2370,7 @@ def test_a_cleared_pick_rests_on_the_group_that_holds_it(page_dir):
 
     write(1)
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -2383,7 +2379,6 @@ def test_a_cleared_pick_rests_on_the_group_that_holds_it(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"options": []},
-            "generated": [],
         },
     )
     write(2, shim="Fastest to ship, and we own the shim forever.")
@@ -2418,7 +2413,7 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
 
     write(1)
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -2427,7 +2422,6 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
-            "generated": [],
         },
     )
 
@@ -2471,7 +2465,7 @@ def test_reader_state_survives_without_source_copying(page_dir):
 
     write(1)
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -2480,7 +2474,6 @@ def test_reader_state_survives_without_source_copying(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
-            "generated": [],
         },
     )
     write(2)
@@ -2588,7 +2581,7 @@ def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir)
     html = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + nested)
     (page_dir / ".fixture-versions" / "v1.html").write_text(html)
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -2597,7 +2590,6 @@ def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir)
             "widget": "outer",
             "action": "choose",
             "detail": {"options": ["outer-a"]},
-            "generated": [],
         },
     )
 
@@ -2642,7 +2634,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     assert {"g1", "o-shim", "o-stage"} <= {el["id"] for el in state["elements"]}
     assert state["state"] == []
 
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -2651,7 +2643,6 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
-            "generated": [],
         },
     )
     state = state_json(page_dir)
@@ -2675,7 +2666,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
 
     # Completion is an independent fact on the same widget. It stands beside
     # selection instead of superseding it, and both are visible to the agent.
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -2764,7 +2755,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     assert state_json(page_dir)["data"] == {"file": "data.json", "revision": 2}
     assert data_model.read_data(page_dir) == {
         "revision": 2,
-        "sources": {"deployments": {"contract": "deployment-rows"}},
+        "sources": {"deployments": {"contract": "deployment-rows", "revisions": [1]}},
     }
 
     unbound = runner.invoke(
@@ -2871,6 +2862,7 @@ def test_text_capture_keeps_selected_snapshots_when_the_current_value_is_cleared
         "sources": {
             "leaf-skill": {
                 "contract": "text-document",
+                "revisions": [1, 2, 3],
                 "snapshots": source["snapshots"],
             }
         },
@@ -3260,7 +3252,8 @@ def test_clear_keeps_source_identity_without_an_immutable_document(page_dir):
     with pytest.raises(data_contracts_model.DataError, match="standing snapshot uses"):
         data_model.cmd_data_set(page_dir, "project-feed", [])
     assert data_model.read_data(page_dir)["sources"]["project-feed"] == {
-        "contract": "rows"
+        "contract": "rows",
+        "revisions": [1],
     }
 
 
@@ -3456,7 +3449,8 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
         (
             (
                 '{"revision":1,"sources":{"builds":{"contract":"build-map",'
-                '"revision":1,"updated":"2026-08-25T12:00:00-07:00",'
+                '"revisions":[1],"revision":1,'
+                '"updated":"2026-08-25T12:00:00-07:00",'
                 '"value":NaN}}}'
             ),
             "value is not JSON",
@@ -3472,6 +3466,7 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
         (
             (
                 '{"revision":1,"sources":{"leaf-skill":{"contract":"text-document",'
+                '"revisions":[1],'
                 '"snapshots":{"2":{"updated":"2026-08-25T12:00:00-07:00",'
                 '"value":"text","label":"SKILL.md"}}}}}'
             ),
@@ -3521,7 +3516,7 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
         {"id": "plan-decision", "tag": "lf-decision", "thread": None}
     ]
 
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -3530,7 +3525,6 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
-            "generated": [],
         },
     )
     state = state_json(page_dir)
@@ -3555,7 +3549,7 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "report",
@@ -3565,10 +3559,9 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-stage"]},
-            "generated": [],
         },
     )
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -3577,7 +3570,6 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
-            "generated": [],
         },
     )
 
@@ -3718,7 +3710,7 @@ def test_page_state_holds_a_thread_decision_open_until_its_verb(page_dir):
     assert state_json(page_dir)["decisions"] == [
         {"id": "gm-decision", "tag": "lf-decision", "thread": root["id"]}
     ]
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -3727,13 +3719,12 @@ def test_page_state_holds_a_thread_decision_open_until_its_verb(page_dir):
             "widget": "gm",
             "action": "choose",
             "detail": {"options": ["m-cap"]},
-            "generated": [],
         },
     )
     assert state_json(page_dir)["decisions"] == [
         {"id": "gm-decision", "tag": "lf-decision", "thread": root["id"]}
     ]
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -3793,7 +3784,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     )
     publish(page_dir)
     assert state_json(page_dir)["decisions"] == []
-    rep = events_model.append_event(
+    rep = append_command(
         page_dir,
         {
             "kind": "report",
@@ -3881,7 +3872,7 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
     publish(page_dir)
     tied = "2026-08-24T12:00:00-07:00"
     monkeypatch.setattr(events_model, "now_iso", lambda: tied)
-    first = events_model.append_event(
+    first = append_command(
         page_dir,
         {
             "kind": "report",
@@ -3898,7 +3889,7 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
     )
     assert _status(page_dir, "working", "checking", "--on", thread["id"]).exit_code == 0
     claim_id = files_model.read_json(page_dir / "status.json")["work"][0]["id"]
-    second = events_model.append_event(
+    second = append_command(
         page_dir,
         {
             "kind": "report",
@@ -4012,7 +4003,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
         {"id": "cargo", "tag": "lf-draft", "thread": None}
     ]
 
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -4155,7 +4146,7 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     (page_dir / "index.html").write_text(before_choice(PAGE, board))
     initial = state_json(page_dir)
     assert initial["source"]["live"], initial["source"]["error"]
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",

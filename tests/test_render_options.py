@@ -7,6 +7,7 @@ import re
 
 import pytest
 from click.testing import CliRunner
+from interact_support import append_command
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
@@ -1204,7 +1205,7 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
         '<lf-option id="out-drill">', '<lf-option id="out-drill" chosen>'
     ).replace('<lf-option id="in-now">', '<lf-option id="in-now" chosen>')
     url = serve(nested_choices)
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -1213,7 +1214,6 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
             "widget": "outer",
             "action": "choose",
             "detail": {"options": ["out-drill"]},
-            "generated": [],
         },
     )
 
@@ -1562,6 +1562,9 @@ def test_a_pick_states_the_whole_set(browser, serve):
         ("bracket", {"options": ["br-cedar"]}),
         ("bracket", {"options": []}),
     ]
+    expect(
+        page.locator('[data-lf-margin-for="bracket-decision"] .lf-margin-marker')
+    ).to_have_attribute("data-lf-kinds", "decision")
     assert errors == []
     page.close()
 
@@ -1571,9 +1574,10 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
 ):
     """A widget needs no x-work declaration to acknowledge the reader's move.
 
-    The owner's existing page-edge Button keeps its DOM identity while durable
-    transport acceptance advances Sent to Picked up and a real claim makes it Active.
-    Once authored markup records the choice, the Button returns to Outcome.
+    The owner's existing page-edge Button keeps its DOM identity while durable transport
+    acceptance advances Sent to Picked up and a real claim makes it Active. Once authored
+    markup records the choice and completes the claim, the Button disappears; the widget
+    carries the chosen state itself.
     """
     url = serve(DECISION_PAGE)
     page, errors = open_page(browser, live_url(url))
@@ -1590,7 +1594,7 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
         event for event in events_model.read_events(d) if event["id"] == action["id"]
     )
     receipt = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
-    expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
+    expect(receipt).to_have_attribute("data-lf-kinds", "sent")
     expect(receipt.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "sent"
     )
@@ -1602,7 +1606,7 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
         session_model.record_pickup(transaction, [logged_action])
     session_model.cmd_ack(d, logged_action["seq"])
     told(page)
-    expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
+    expect(receipt).to_have_attribute("data-lf-kinds", "pickup")
     expect(receipt).to_have_attribute("aria-label", re.compile(r"^Picked up, "))
     expect(receipt).to_have_attribute("data-identity-probe", "kept")
 
@@ -1612,7 +1616,7 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     )
     assert active.exit_code == 0, active.output
     told(page)
-    expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
+    expect(receipt).to_have_attribute("data-lf-kinds", "activity")
     expect(receipt.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
@@ -1638,8 +1642,8 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     )
     stamp_page(d, honored, "Honor the mounts choice", completes=("jobs",))
     wait_for_revision(page, 3)
-    expect(receipt).to_have_attribute("data-lf-kinds", "outcome")
-    expect(receipt).to_have_attribute("aria-label", re.compile(r"^Outcome, "))
+    expect(page.locator('[data-lf-margin-for="jobs"]')).to_have_count(0)
+    expect(page.locator("#job-mounts[chosen]")).to_have_count(1)
     assert errors == []
     page.close()
 

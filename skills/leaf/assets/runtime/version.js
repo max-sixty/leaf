@@ -91,7 +91,7 @@ export function createVersion({
   quoteFrom,
   rangeOf,
   readAndApply,
-  rememberAuthoredMarkup,
+  rememberAuthoredParents,
   rememberPassageParts,
   reportPageError,
   reserveNewsSlot,
@@ -556,9 +556,9 @@ export function createVersion({
       ? state.source_error
       : "Open the current page";
     latestChip.title = latestChip.dataset.lfKeyTitle;
-    showNews(latestChip, sourceFailed || behind);
     if (sourceFailed) latestChip.textContent = "Latest edit couldn't be shown";
     else if (behind) latestChip.textContent = arriving(runtime.active.label);
+    showNews(latestChip, sourceFailed || behind);
   }
 
   // ---------- version diff ----------
@@ -949,8 +949,8 @@ export function createVersion({
     if (comparedFrom !== null) setDiff(false);
 
     resetAuthoredPage();
-    rememberAuthoredMarkup(source);
-    rememberAuthoredMarkup(fresh);
+    rememberAuthoredParents(source);
+    rememberAuthoredParents(fresh);
     rememberPassageParts(fresh);
     markDeclared(fresh, MARKED_IN_PAGE);
     authoredHtmlAttributes = replaceAuthoredAttributes(

@@ -16,18 +16,6 @@ const KINDS = {
   change: { label: "Change", icon: "change", priority: 0 },
   comment: { label: "Thread", icon: "comment", priority: 1 },
   decision: { label: "Ask", icon: "question", priority: 2 },
-  // `standing` is the one indication the document already carries. The other three are
-  // an agent's report on a move still being made; an Outcome is the page map's reading
-  // of a recorded `action` event, with the decided state applied in the same file. A
-  // medium that cannot stand behind a provisional claim — a copy — reads that apart.
-  outcome: {
-    label: "Outcome",
-    icon: "check",
-    priority: 3,
-    indication: true,
-    standing: true,
-    state: "settled",
-  },
   sent: {
     label: "Sent",
     icon: "sent",
@@ -201,7 +189,6 @@ export function marginButton(
     label,
     context = null,
     behavior = "action",
-    standing = false,
     tone = "neutral",
     role = "primary",
     state = "idle",
@@ -242,7 +229,6 @@ export function marginButton(
     label: String(label),
     context: String(context ?? "").trim() || null,
     behavior,
-    standing: behavior === "status" && standing === true,
     tone,
     role,
     state,
@@ -260,13 +246,6 @@ export function marginButton(
   control.removeAttribute("title");
   keeps(control, "data-lf-button-key", record.key);
   keeps(control, "data-lf-behavior", record.behavior);
-  // Which of a status's two sources this one has. The behavior answers the question
-  // every other reader asks — whether this is a press — and both sources answer it the
-  // same way, so the durability is a second declaration rather than a fifth behavior.
-  // A copy is what needs it: Sent, Waiting for pickup and Picked up are news about a
-  // move an agent is still making and a file has nothing standing behind them, while a
-  // standing Outcome is the record of a decision the same file already carries.
-  control.toggleAttribute("data-lf-standing", record.standing);
   keeps(control, "data-lf-tone", record.tone);
   keeps(control, "data-lf-role", record.role);
   keeps(control, "data-lf-offer", behavior === "status" ? "" : "button");
@@ -556,7 +535,9 @@ export function createLivingMargin(dependencies) {
     setPanel,
     showThread,
     stateProjection,
+    traceTarget,
     threadPanel,
+    threadClaimed,
     threads,
     updateSequence,
     versionBtn,
@@ -570,7 +551,10 @@ export function createLivingMargin(dependencies) {
   nav.setAttribute("aria-label", "Page map");
   const toolbar = el("div", "lf-margin-toolbar");
   toolbar.setAttribute("role", "toolbar");
-  toolbar.setAttribute("aria-label", "Changes, threads, asks, outcomes, and activity");
+  toolbar.setAttribute(
+    "aria-label",
+    "Changes, threads, asks, delivery status, and activity",
+  );
   nav.append(toolbar);
   chromeRoot.append(nav);
 
@@ -582,10 +566,14 @@ export function createLivingMargin(dependencies) {
     const at = documentPoint(columnRect.left, columnRect.top);
     const height = main.scrollHeight;
     return () => {
-      nav.style.left = `${at.left}px`;
-      nav.style.top = `${at.top}px`;
-      nav.style.width = `${columnRect.width}px`;
-      nav.style.height = `${height}px`;
+      const dimensions = {
+        left: `${at.left}px`,
+        top: `${at.top}px`,
+        width: `${columnRect.width}px`,
+        height: `${height}px`,
+      };
+      for (const [property, value] of Object.entries(dimensions))
+        if (nav.style[property] !== value) nav.style[property] = value;
     };
   }
 
@@ -765,9 +753,11 @@ export function createLivingMargin(dependencies) {
   let forcedInlineKey = null;
   let expandedOptionsKey = null;
   let hoveredHost = null;
+  let hoveredBehavior = null;
   let settlingOptionsFocus = false;
   let suppressingOptionsArrival = false;
   let highlighted = null;
+  let highlightedBehavior = null;
   let rovingFrame = 0;
   let sheetCloseOwnsFocus = false;
   let sheetFrom = null;
@@ -1179,9 +1169,10 @@ export function createLivingMargin(dependencies) {
       receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
     }
     for (const thread of threads()) {
-      if (thread.resolved || !thread.root.anchor) continue;
+      if (thread.resolved || !thread.root.anchor || threadClaimed(thread.root.id))
+        continue;
       const id = thread.root.id;
-      add(groups, placedAt(id), {
+      add(groups, placedAt(id)?.element, {
         kind: "comment",
         id: `comment:${id}`,
         text: trimmed(
@@ -1213,20 +1204,21 @@ export function createLivingMargin(dependencies) {
       if (entry.e.kind !== "action") continue;
       const target = elementById(entry.unit) ?? elementById(entry.e.widget);
       if (!target) continue;
+      const receipt = receiptByCoordinate.get(coordinate);
+      if (!receipt) continue;
       const account = [itemWord(target), humanized(entry.e.action), itemSays(target)]
         .filter(Boolean)
         .join(" · ");
-      const receipt = receiptByCoordinate.get(coordinate);
-      const face = receipt ? acknowledgmentFace(receipt) : null;
-      if (face?.kind === "activity")
+      const face = acknowledgmentFace(receipt);
+      if (face.kind === "activity")
         activityAlreadyShown.add(`widget:${receipt.target.id}`);
       add(groups, target, {
-        kind: "outcome",
-        id: receipt ? `acknowledgment:${receipt.id}` : `outcome:${coordinate}`,
-        text: trimmed(face ? `${face.text} · ${account}` : account),
-        ...(face ? { acknowledgmentFace: KINDS[face.kind] } : {}),
-        ...(face?.context ? { context: face.context } : {}),
-        activate: () => revealTarget(target, `${face?.text ?? "Outcome"}: ${account}`),
+        kind: face.kind,
+        id: `acknowledgment:${receipt.id}`,
+        text: trimmed(`${face.text} · ${account}`),
+        acknowledgmentFace: KINDS[face.kind],
+        ...(face.context ? { context: face.context } : {}),
+        activate: () => revealTarget(target, `${face.text}: ${account}`),
       });
     }
 
@@ -1249,7 +1241,7 @@ export function createLivingMargin(dependencies) {
           continue;
         const target =
           update.target.kind === "thread"
-            ? placedAt(update.target.id)
+            ? placedAt(update.target.id)?.element
             : elementById(update.target.id);
         const turnClosed =
           update.session && update.session === claimState().claimingSession
@@ -1678,6 +1670,7 @@ export function createLivingMargin(dependencies) {
     next.focus({ preventScroll: true });
   }
 
+  let marginKeysAvailable = false;
   const marginKeys = [
     // The seat a reading holds is a span, so the platform's own activation is not under
     // it. Declared here rather than answered by a listener on the control: this is the
@@ -1759,7 +1752,6 @@ export function createLivingMargin(dependencies) {
       label,
       context: readingContext(choice),
       behavior,
-      standing: face.standing === true,
       role: "reading",
       state: readingState(choice),
       writesRelation: false,
@@ -1857,7 +1849,6 @@ export function createLivingMargin(dependencies) {
       label,
       context: readingContext(choice),
       behavior,
-      standing: face.standing === true,
       role: "reading",
       state: readingState(choice),
       writesRelation: false,
@@ -2267,12 +2258,7 @@ export function createLivingMargin(dependencies) {
           writesRelation: false,
           writesSeat: false,
         });
-        keys(
-          host,
-          "In the page map",
-          marginKeys,
-          () => visibleRows().length > 0 || clusterButtons(host).length > 1,
-        );
+        keys(host, "In the page map", marginKeys, () => marginKeysAvailable);
         host.lfEntry = entry;
         rows.set(entry.key, marker);
         more = marginButton(offer("button", "lf-margin-more"), {
@@ -2315,6 +2301,7 @@ export function createLivingMargin(dependencies) {
           // A new keyboard destination outranks a pointer parked on the previous
           // target. Real pointer movement can take ownership back without a press.
           hoveredHost = null;
+          hoveredBehavior = null;
           refreshHighlight();
         });
         host.addEventListener("focusout", () =>
@@ -2324,15 +2311,16 @@ export function createLivingMargin(dependencies) {
           const control = document
             .elementFromPoint(event.clientX, event.clientY)
             ?.closest?.(".lf-margin-button");
-          hoveredHost =
-            control && host.contains(control) && control.dataset.lfBehavior !== "status"
-              ? host
-              : null;
+          hoveredHost = control && host.contains(control) ? host : null;
+          hoveredBehavior = hoveredHost ? control.dataset.lfBehavior : null;
           refreshHighlight();
         };
         host.addEventListener("pointermove", takePointerOwnership);
         host.addEventListener("pointerleave", () => {
-          if (hoveredHost === host) hoveredHost = null;
+          if (hoveredHost === host) {
+            hoveredHost = null;
+            hoveredBehavior = null;
+          }
           refreshHighlight();
         });
         host.addEventListener("focusout", (event) => {
@@ -2448,6 +2436,11 @@ export function createLivingMargin(dependencies) {
     scheduleMarginLayout();
     scheduleRoving();
     scheduleButtonLabels();
+    // Every Page-map host contributes the same keyboard section. Its capability is the
+    // map's existence; each row already asks the narrower question of whether its press
+    // works from the current focus. Repeating live geometry in every scope's `when`
+    // forced a layout per location when paintKeys reflected them.
+    marginKeysAvailable = pageMapEntries.length > 0;
     paintKeys();
   }
 
@@ -2502,23 +2495,30 @@ export function createLivingMargin(dependencies) {
     return node;
   }
 
-  function highlight(target) {
-    if (highlighted === target) return;
+  function highlight(target, behavior = null) {
+    if (highlighted === target && highlightedBehavior === behavior) return;
     highlighted?.classList.remove("lf-margin-target");
     highlighted = target;
-    highlighted?.classList.add("lf-margin-target");
+    highlightedBehavior = target ? behavior : null;
+    traceTarget(behavior === "status" ? target : null);
+    if (target && behavior !== "status") target.classList.add("lf-margin-target");
   }
 
   function refreshHighlight() {
     const active = focused();
     const focusedHost = closestAcross(active, "[data-lf-margin-for]");
-    const key =
-      (hoveredHost?.isConnected ? hoveredHost.lfEntry?.key : null) ??
-      focusedHost?.lfEntry?.key ??
+    const pointerHost = hoveredHost?.isConnected ? hoveredHost : null;
+    const source =
+      pointerHost ??
+      focusedHost ??
       (preview.contains(active) || preview.matches(":popover-open")
-        ? previewEntry?.key
+        ? hosts.get(previewEntry?.key)
         : null);
-    highlight(pageMapEntries.find((entry) => entry.key === key)?.target ?? null);
+    highlight(
+      pageMapEntries.find((entry) => entry.key === source?.lfEntry?.key)?.target ??
+        null,
+      source === pointerHost ? hoveredBehavior : null,
+    );
   }
 
   function showPreview(entry, button, retry = true) {

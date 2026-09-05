@@ -354,23 +354,14 @@ export function createConversationThreadList(dependencies) {
     if (standingIn && !threadsBox.contains(focused()))
       threadsBox.focus({ preventScroll: true });
     paintHeadRoom();
-    // A thread's widget markup is authored too, but it arrives after the page's startup
-    // capture. Take its baseline on the first frame it is connected, before a reader can
-    // act on it; later reconciles keep the first capture rather than mistaking a live
-    // choice for authored state. Thread markup is frozen in its event, so unlike page
-    // markup it has no version window to move under.
-    captureAuthoredFacets(threadsBox);
-    // A comment carries whatever widget markup the gate allows, so the panel holds the
-    // same scroll boxes the page does, in a column half the width — and reachScrollers
-    // wants two things that are only true here, after this line. A message body is built
-    // detached, where `getComputedStyle` answers "" for every property, so a sweep at the
-    // point the body is filled tagged nothing at all and had done since it was written,
-    // reading like coverage the whole time. And a widget in that body upgrades on being
-    // connected, not on being written, so the queue it registers its render with
-    // (`settling`) has the promise only once this reconcile has appended it — which is
-    // why the wait is here rather than a snapshot taken earlier. The queue is read, never
-    // joined: nothing about the page's own first anchor pass waits on a message.
-    Promise.allSettled(settling).then(() => reachScrollers(threadsBox));
+    // Frozen markup has the same initial-value boundary as a page: connected and
+    // fully upgraded, before its first projection. Async widgets register their work
+    // on connection, so take the settling queue after setChildren above. Later list
+    // reconciles retain the first capture instead of adopting a reader's live value.
+    const prepared = Promise.allSettled(settling).then(() => {
+      captureAuthoredFacets(threadsBox);
+      reachScrollers(threadsBox);
+    });
 
     toggleBtn.textContent = `Threads (${open.length})`;
     paintNarrowing(open, shown);
@@ -382,6 +373,7 @@ export function createConversationThreadList(dependencies) {
     // Narrowing and reconciliation can move another card under a pointer that did not
     // move. Read :hover after the browser has laid out this list, in refreshHover's frame.
     refreshHover();
+    return prepared;
   }
 
   return { holdScrollPosition, renderThreads };

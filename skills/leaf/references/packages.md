@@ -180,15 +180,27 @@ on that x-state verb. `within` names an items container inside the answering wid
 `when` selects exactly one instance by static authored attributes. POST overlays the
 candidate move on the authoritative holder relation before testing emptiness, and the
 Decision projection uses the same condition for standing state. Do not add a second
-completed attribute or trust the browser's optimistic item count.
+completed attribute or trust the browser's optimistic item count. Re-vendoring must
+preserve the completion condition for every recorded action.
 
 A CSS-only widget is an entry and a theme rule. One with behavior takes a module. The
 skill's own `CLAUDE.md`, one directory up from this file, defines what the module owes:
-an absolute `applyAction`, `says()` over `textContent`, `offer()` and `relabel()` on anything
+a total, idempotent `renderState(state)`, `says()` over `textContent`, `offer()` and `relabel()` on anything
 injected, `commands()` at upgrade — through `DISCLOSE(el)` over anything that folds, the
 runtime owning those commands — `quoted()` before wiring input, `actionAvailable()` for
 an x-state verb with `requires`, and durable state in attributes because export drops
 the scripts. `/runtime/widget-api.js` is the whole Leaf API a behavior module gets.
+`renderState` receives every declared facet, including the initial values an undo
+returns to. Widget facets are `{action, value, detail}`: `action` is null for authored
+state; `value` is the typed record value or a recordless outcome verb (null means
+undecided); `detail` retains generated-child labels and other declared event data.
+Non-widget facets contain `units`, keyed by unit id, and position facets also contain
+`value`, a map from container id to the complete ordered ids it holds. Missing
+recordless units are undecided. Render the final composition and keep independent
+nested widgets mounted; never recreate the owner to restore an initial state.
+Return false only while a live edit prevents rendering. Optional recorded scalar
+attributes have a null initial value and must be removed when that value returns.
+
 The widget still owns its implementation: supporting modules can sit beside its entry
 module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
@@ -245,8 +257,8 @@ mapping; core owns the explicit Comment gestures, keyboard proxies, and paint.
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical
 `{element-id: non-empty words}` map schema. The child tag admits the sender through
-`x-parent`, requires only its canonical `id`, and has `x-content: prose`. `sendAction`
-then records the map's sorted ids in `generated`, allowing registry-free historical
+`x-parent`, requires only its canonical `id`, and has `x-content: prose`. The append
+transaction records the map's sorted ids in `generated`, allowing historical
 folds to retain their liveness while version checks enforce the declared tag and
 direct-parent relation.
 
@@ -450,8 +462,9 @@ A source id keeps one contract for the lifetime of the page. Documents without a
 snapshot selection share the page's current value; stamped versions and widgets
 frozen into threads may instead select a retained capture. `data clear` removes the
 current value and unreferenced captures, but keeps captures selected by those durable
-documents and a contract-only tombstone that never releases the source id for a new
-meaning. Use a new source id for a new contract. Re-vendoring preserves this mapping and
+documents and a tombstone with the contract and prior revision ids. The ids validate
+comments that raced a replacement without retaining the replaced values, and the
+tombstone never releases the source id for a new meaning. Use a new source id for a new contract. Re-vendoring preserves this mapping and
 each standing widget selection while validating current values and captures against the
 incoming schemas.
 `leaf page state PAGE` exposes the complete `data_bindings` inventory so a producer can
@@ -463,8 +476,8 @@ A contract whose values contain large independently useful payloads may declare 
 `fragments` coordinate: the top-level array field, each item's unique key field, and the
 payload field. `data.json` still keeps and validates the complete value. `/api/state`
 sends the array as a lightweight manifest with that payload field omitted; a widget uses
-`loadDataFragment(element, input, key)` to fetch one payload from the exact data revision
-and optional snapshot it already accepted. A stale revision is refused instead of
+`loadDataFragment(snapshot, key)` to fetch one payload using the snapshot delivered by
+`watchData`. A stale current-source revision is refused instead of
 combining a new payload with an old manifest. This is how a collapsed `lf-diff` can show
 thousands of files without transferring or rendering every patch first.
 
@@ -494,14 +507,12 @@ thousands of files without transferring or rendering every patch first.
 A module subscribes through its own input declaration:
 
 ```js
-this.stopWatching = watchData(this, "builds", (snapshot) => {
-  render(snapshot?.value ?? {});
-});
+this.stopWatching = watchData(this, "builds", (snapshot) => render(snapshot));
 ```
 
 The callback receives `null` before the host has supplied a current value, otherwise a
-clone of `{contract, revision, updated, value, origin}`. `revision` is the data revision
-that wrote that source value, so a renderer can distinguish two writes even when their wall
+clone of `{source, contract, revision, updated, value, origin}`. `revision` identifies the write
+of that source value, so a renderer can distinguish two writes even when their wall
 clock timestamps coincide. A selected capture additionally carries
 `snapshot`, `label`, and optional `lines`; a captured current value may carry its label
 and line range. It runs immediately and again when Leaf asks subscribers to restate its
@@ -509,13 +520,14 @@ view. Return the cleanup function from the element's disconnect path. The callba
 state the whole rendering and remain idempotent.
 
 `origin` identifies the declared `input`, concrete `source`, `contract`, selected source
-`revision`, and accepted store `data_revision`, plus `snapshot` when pinned. Pass it to
-`projectData` with `originOf: () => snapshot?.origin`. When the emitter knows the exact
-JSON coordinate within the source value, return `{...snapshot.origin, path: [...]}`;
+`revision`, and accepted store `data_revision`, plus `snapshot` when pinned. Passing
+`{snapshot}` to `projectData` supplies this default origin. When the emitter knows the
+exact JSON coordinate within the source value, its `originOf(record, index)` returns
+`{...snapshot.origin, path: [...]}`;
 path segments are object keys or array indices. A formatted or parsed record may only
 name its whole input. This identifies construction inputs, not an inverse edit mapping.
 
-Render the value with `projectData(root, records, keyOf, render)`. The root is an
+Render the value with `projectData(root, records, keyOf, render, options)`. The root is an
 id-bearing authored seat and owns the projection's children. `keyOf` returns a stable
 non-empty string for the logical datum; `render` receives
 `(record, priorNode, index)` and returns its element, reusing `priorNode` where that
@@ -526,15 +538,21 @@ rendering as a labelled snapshot and drops the code that could refresh it. A ren
 that owns a nested layout passes `{nested: true}` and returns its existing descendants;
 Leaf labels those nodes without moving them. Add `labelOf(record, index)` when a thread
 should name a projected datum with a human coordinate; the stable key remains opaque to
-the runtime. If a `watchData` callback renders asynchronously, return that promise so
-Leaf does not publish the source revision as ready before the projection settles. A
-rejection is reported as that subscriber's page error; it does not make later state
+the runtime. A widget declaring `x-data` passes `{snapshot}` with the delivery from
+`watchData`, including `null` when no current value exists. Leaf stamps the projection
+with that snapshot's source and revision. A comment remains exact only within that
+source revision. Replacing a current value leaves the thread in its section and marks
+it outdated. An authored snapshot remains exact. Derived projections
+omit `snapshot` and retain their section/key identity. If a `watchData` callback renders
+asynchronously, it returns that promise so Leaf publishes the source revision as ready
+only after the projection settles. A rejection is reported as that subscriber's page
+error; it does not make later state
 reads repeat the same page-wide failure. A rejection from the callback's first run is
 stronger: Leaf drops that subscription, so the callback is not asked to restate again
 until the element is reconnected.
 
-`originOf(record, index)` records those inputs as JSON in `data-lf-origin` on each
-datum; a null origin removes any previous provenance. Derived records outside the data
+Leaf records the default origin or `originOf(record, index)` result as JSON in
+`data-lf-origin` on each datum; a null origin removes any previous provenance. Derived records outside the data
 store can instead name their contributing widget seats as `{derived: [{widget: id}]}`.
 Export retains these origins with the rendering. Leaf never infers them from displayed
 text or datum keys.
@@ -546,6 +564,36 @@ that disclosure, updates the fragment, and announces the supplied `success` or `
 message. A lazy target may implement `lfRevealDatum(key)` to return its hydration promise
 and `lfDataDatum(key)` to map a semantic key to the rendered projected element.
 
+## Widget-local Thread surfaces
+
+An upgraded widget declares `"x-thread-surface": true` when it can place complete
+Threads beside its own projected data. Its module registers one adapter:
+
+```js
+this.threadSurface = registerThreadSurface(this, {
+  begin: () => beginThreadRows(),
+  outletFor: ({ anchor, placement, thread }) => threadOutlet(anchor.datum),
+  end: () => finishThreadRows(),
+});
+```
+
+Core calls `begin`, asks `outletFor` about each exact datum thread owned by that widget,
+then calls `end`. The adapter returns an element inside the widget or `null`. It owns
+only outlet creation, removal, and layout. Core renders the retained messages, replies,
+reactions, settlement controls, and receipts into each outlet. A claimed thread does not
+also appear in the living margin; the Threads panel remains the complete index.
+
+The adapter returns `null` for data that is filtered, collapsed, or not yet hydrated.
+That keeps lazy widgets lazy and restores the living-margin fallback. Deliberate thread
+travel may reveal the datum through `lfRevealDatum`; the ordinary reconciliation pass
+then asks the adapter again. The registration handle's `update()` invalidates layout-only
+visibility changes, and `unregister()` removes the surface when the widget disconnects.
+If an adapter throws, Leaf reports a page error, clears that registration's core-owned
+views, and returns its threads to the margin. Other registrations continue, and the
+next ordinary reconciliation retries the adapter. Outlets must remain inside their
+widget after `end`; disconnected outlets claim no threads. Core message-rendering
+errors still fail the state application rather than accepting a partial conversation.
+
 ## Seeing it
 
 After the main skill's re-vendoring route restores the recorded URL, run
@@ -555,8 +603,7 @@ layer. Note the re-vendor in the next stamped version's changelog.
 The render gate is where a module's mistakes surface — an upgrade that defines no element, a widget of no
 size, a `x-verbatim` the rendered words contradict, a shadow root the entry doesn't
 declare, a word the registry promised that never reached the page, an attribute left on
-the element that its entry doesn't declare, an `applyAction` that moves under
-re-application.
+the element that its entry doesn't declare, a `renderState` that changes the page when handed the same state again.
 
 Then put it on the page. A widget is reviewed in place: the version that follows the
 comment uses it where the comment asked, and the reader comments on it there. From the

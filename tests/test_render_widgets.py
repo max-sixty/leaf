@@ -5,6 +5,7 @@ from itertools import pairwise
 from pathlib import Path
 
 import pytest
+from interact_support import append_command
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
@@ -1723,12 +1724,17 @@ def test_swipe_deck_reloads_replays_and_undoes_absolute_placement(browser, serve
 
     page.reload(wait_until="load")
     expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
-    assert page.locator("#session-triage").evaluate(
-        """deck => {
-          const detail = {card: 'swipe-a', to: 'session-keep', index: 1};
-          return [deck.applyAction('swipe', detail), deck.applyAction('swipe', detail)];
+    assert page.evaluate(
+        """async () => {
+          const {standingState} = await import('/runtime/widget-api.js');
+          const deck = document.getElementById('session-triage');
+          const {state} = standingState().find(({widget}) => widget === deck);
+          window.swipeCards = [...deck.querySelectorAll('lf-swipe-card')];
+          deck.renderState(state);
+          deck.renderState(state);
+          return window.swipeCards.every(card => document.getElementById(card.id) === card);
         }"""
-    ) == [True, True]
+    )
     assert page.eval_on_selector_all(
         "#session-keep > lf-swipe-card", "cards => cards.map(card => card.id)"
     ) == ["already-kept", "swipe-a"]
@@ -1737,6 +1743,9 @@ def test_swipe_deck_reloads_replays_and_undoes_absolute_placement(browser, serve
     assert page.eval_on_selector_all(
         "#session-queue > lf-swipe-card", "cards => cards.map(card => card.id)"
     ) == ["swipe-a", "swipe-b", "swipe-c", "swipe-d"]
+    assert page.evaluate(
+        "window.swipeCards.every(card => document.getElementById(card.id) === card)"
+    )
     assert errors == []
     page.close()
 
@@ -1990,7 +1999,7 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     only way to decide a change that is still plainly pending on the page. Replayed
     rather than dragged, because that is the same move with no gesture in the way."""
     url = serve(SUGGESTION_PAGE)
-    events_model.append_event(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -2046,17 +2055,8 @@ def test_a_terse_compare_keeps_its_side_by_side_grid(browser, serve):
     page.close()
 
 
-def test_a_rebuilt_widget_is_still_set_among_the_words(browser, serve):
-    """Undo rebuilds a recordless decision from the version's own markup, and the
-    marks the runtime paints from the registry are painted again onto the clone —
-    the widget's own mark included, not only its descendants'. A suggestion is
-    inline, so the exhibition holding it is looked across; unmarked after the
-    rebuild it becomes block content, and taking back a decision about one case
-    would silently restack the comparison it was made in.
-
-    The reading straddles the rebuild rather than sampling after it, because the
-    grid is what the page arrives at and a rule that never applied would look the
-    same at the end."""
+def test_an_undone_suggestion_stays_inline_among_the_words(browser, serve):
+    """An undone suggestion retains its inline presentation and the surrounding comparison layout."""
     page, errors = open_page(browser, serve(REBUILT_INLINE_PAGE))
     form = "() => getComputedStyle(document.getElementById('cmp-stores')).display"
     assert page.evaluate(form) == "grid", (

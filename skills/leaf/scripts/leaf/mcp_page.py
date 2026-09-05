@@ -52,6 +52,7 @@ class _PageSession:
     capability: str
     endpoint: EventEndpoint
     layer_identity: dict
+    bootstrap: str
     preview: dict | None
 
 
@@ -79,6 +80,7 @@ class _RoutedPageHandler(Handler):
         self.event_endpoint = session.endpoint
         self.layer = session.layer_identity["generation"]
         self.layer_identity = session.layer_identity
+        self.bootstrap = session.bootstrap
         self.preview = session.preview
         self.page_root = f"/p/{session.capability}"
         self.path = inside + (f"?{external.query}" if external.query else "")
@@ -169,6 +171,9 @@ class ProcessPageServer:
                     capability=capability,
                     endpoint=EventEndpoint(page_dir),
                     layer_identity=identity,
+                    bootstrap=(page_dir / "runtime" / "bootstrap.js").read_text(
+                        encoding="utf-8"
+                    ),
                     preview=preview_metadata(page_dir),
                 )
                 self._by_page[page_dir] = session
@@ -183,6 +188,9 @@ class ProcessPageServer:
             current_identity = layer_metadata(session.page_dir)
             if current_identity != session.layer_identity:
                 session.layer_identity = current_identity
+                session.bootstrap = (
+                    session.page_dir / "runtime" / "bootstrap.js"
+                ).read_text(encoding="utf-8")
                 session.endpoint = EventEndpoint(session.page_dir)
             return session
 

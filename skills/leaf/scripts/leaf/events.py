@@ -93,74 +93,24 @@ def undo_error(event: dict, events: list, within: dict) -> str | None:
 
 
 def build_threads(events: list, within: dict) -> dict:
-    """Fold the chronological log into comment threads by root id.
+    """Fold conversations using the admitted answer coordinate.
 
-    `resolved` is the event that currently closes the thread, or None. Either side
-    can close one, so a bool beside a second field naming who would be two readings
-    of one fact; the event answers both questions and carries its own `author`.
-    A thread is settled by the widget's standing answer: the last action that
-    widget sent and the log still lets stand, and then only while that answer
-    names the thread. Three things unseat one, and every one of them is the log's
-    own word rather than a case written out here. A version that rewrites what a
-    decision rested on says `restated`, stamping records the floor, and replay
-    drops the action — `action_retracted`, the same test the fold and the words
-    gate ask. The reader can take the answer back where they stand, which is the
-    `undo` naming it and `taken_back` reading it. And a later action on the same
-    widget supersedes the one before it, exactly as the state fold reads a second
-    `move` on one card. Without that last one, a reject after an accept left the
-    reader's question filed away as answered by the fix they had just turned down,
-    while the fold reported the suggestion rejected: the log held one thing, the
-    panel showed another, and nothing on either side said so.
-
-    A decision is a widget instance ($awaits), so what answers one is that widget's
-    own last word — and the widget id is also the only key the log carries by
-    itself. That is why the state fold cannot serve here: it drops an action whose
-    widget the current page no longer holds, and the version that honors a
-    decision retires the widget that made it, precisely when the thread it settled
-    must stay settled. `x-state` holds a verb declaring `resolves` to a
-    widget-absolute unit, so the two keys are one key.
-
-    Standing says nothing about the page, and that silence cuts both ways: a stale
-    tab's decision unseats an answer whose widget a later revision has since
-    retired, leaving the fold nothing to paint and the reader's press reaching the
-    thread or nothing at all. Asking the page instead would fork the two runtimes,
-    which read different pages — the browser's pinned version against this side's
-    active revision.
-
-    A `resolve` is a person saying the conversation is done. An `unresolve` clears
-    that closure. A superseded answer also stops closing the thread; undo and
-    retraction remove it from the reading entirely.
-
-    What `resolves` cannot say is the difference between an answer that leaves the
-    thread open and an action that is not an answer at all — a reject means the
-    first, and both spell it by carrying nothing. The one widget that names a
-    thread has two verbs, both of them its answers, so the readings coincide; a
-    press that confirms rather than answers, Done over a set of picks, would want
-    the third value spelled before its widget could settle a thread.
-
-    `within` is where each id sits on the page the outcomes were folded over, so
-    threads and state cannot be settled against two different pages. It is the
-    whole of what the retraction test asks of a page, and `enclosing_ids` answers
-    it with no vocabulary loaded — which is what lets the readings that may not
-    raise on the registry gate settle a thread the way `page state` does rather
-    than approximately. Required, not defaulted: a caller with no published page
-    passes `{}` and says so, that being a fact about the page rather than a
-    reader standing down."""
+    Answer effects survive retirement of their source widget. An unrelated action
+    on another facet cannot supersede one, while an explicit answer with null
+    effect replaces a closing answer without itself closing a thread.
+    """
     floors = retractions(events)
     withdrawn = taken_back(events)
-    # widget id -> its last action the log still lets stand: not one the reader
-    # took back, and not one a version retracted under it.
-    answers = {}
-    settling_actions = set()
+    # Every action at a coordinate competes, including a non-answer. Conversation
+    # settlement and visible state therefore read the same winning gesture.
+    winners = {}
     for e in events:
         if (
             e["kind"] == "action"
             and e["id"] not in withdrawn
             and not action_retracted(e, floors, within)
         ):
-            answers[e["widget"]] = e
-            if e["detail"].get("resolves"):
-                settling_actions.add(e["id"])
+            winners[tuple(e["meaning"]["coordinate"])] = e
     threads = {}
     thread_for = {}
     messages = {}
@@ -176,22 +126,11 @@ def build_threads(events: list, within: dict) -> dict:
             threads[e["id"]] = thread
             thread_for[e["id"]] = thread
             continue
-        # A surviving answer closes the thread it names. The detail carrying
-        # `resolves` is the whole of that condition — a second widget that answers
-        # a thread joins by declaring the field, not by being read here by name.
-        # The sender snapshots the mapping into the action because the honoring
-        # version retires the element that held it, so nothing later can look it up.
-        #
-        # Folded here, at the answer's own place in the log, rather than after the
-        # walk: a resolve pressed between two decisions is the last current word on
-        # the thread.
+        # Read the effect at its own log position, so a person's intervening
+        # resolve remains the latest closure even after an answer is superseded.
         if e["kind"] == "action":
-            answered = threads.get(e["detail"].get("resolves"))
-            if (
-                answered
-                and e["id"] in settling_actions
-                and answers.get(e["widget"]) is e
-            ):
+            answered = threads.get(e["meaning"].get("answer"))
+            if answered and winners.get(tuple(e["meaning"]["coordinate"])) is e:
                 answered["resolved"] = e
             continue
         if e["kind"] == "edit":
@@ -333,44 +272,28 @@ def report_settlements(events: list, upto=None) -> dict:
     return at
 
 
-def _detail_ids(value):
-    """The coordinate-shaped scalar and list values in one validated field."""
-    if isinstance(value, str):
-        yield value
-    elif isinstance(value, list):
-        for item in value:
-            if isinstance(item, str):
-                yield item
-
-
 def action_rests_on(event: dict, within: dict) -> list:
-    """The sending widget plus every detail coordinate it contains, `resolves` aside.
-    This is the one key space for
-    liveness — fold survival, retraction floors, and the earning of `restated`
-    all go through it, while `action_subjects` stays the words gate's finer,
-    subject-keyed view of the same containment.
+    """Declared direct identities under the document's current containment.
 
-    `within` is where each id sits, and nothing else about the page. Liveness
-    never asks what an element says, and the difference is not tidiness: words
-    are the vocabulary's word, where an element sits is not, so a reading that
-    asks only this one can be had without loading a layer.
-
-    `resolves` names a conversation, and a conversation is not on the page to be
-    contained — so the only thing containment could find under that key is an
-    element inside the widget spelled the same, and a floor on it would retract
-    an answer that has nothing to do with it."""
+    The event keeps the identities the command named, not their ancestor path.
+    Moving a named element out of the owner therefore changes its applicability.
+    Generated identities have durable ownership even before markup records them.
+    Literal detail values never acquire identity by coinciding with an HTML id.
+    """
     widget = event["widget"]
-    parts = []
-    for field, value in event["detail"].items():
-        if field == "resolves":
-            continue
-        for named in _detail_ids(value):
-            if widget in within.get(named, ()):
-                parts.append(named)
-    # Generated identities were not in the sending revision, so their durable
-    # ownership is the action's validated snapshot rather than page containment.
-    parts.extend(event.get("generated", []))
-    return list(dict.fromkeys([widget, *parts]))
+    return list(
+        dict.fromkeys(
+            [
+                widget,
+                *(
+                    identity
+                    for identity in event["meaning"]["depends"]
+                    if widget in within.get(identity, ())
+                ),
+                *event.get("generated", []),
+            ]
+        )
+    )
 
 
 def action_retracted(event: dict, floors: dict, within: dict) -> bool:

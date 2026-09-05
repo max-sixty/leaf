@@ -2,6 +2,7 @@
 
 import importlib.util
 import itertools
+import json
 import os
 import re
 import shutil
@@ -15,11 +16,14 @@ import pytest
 from click.testing import CliRunner
 from interact_support import install_payload
 from leaf import cli as cli_model
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import hosting as hosting_model
+from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import server as server_model
+from leaf import service as service_model
 from leaf.render_gate import browser as browser_model
 from playwright.sync_api import expect
 from render_support import (
@@ -32,6 +36,7 @@ from render_support import (
     primed,
     refuse,
     resized,
+    round_trip,
     serious_axe_violations,
     watched,
 )
@@ -52,7 +57,7 @@ def preview_slot(tmp_path):
 
 
 def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spawn):
-    """Ctrl-C reaches the foreground server directly and produces only its abort."""
+    """Ctrl-C retires the watcher and its server without a traceback or lost feedback."""
     slot, page = preview_slot
     preview = spawn(
         [
@@ -81,8 +86,9 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
     os.killpg(preview.pid, signal.SIGINT)
     output, _ = preview.communicate(timeout=10)
 
-    assert preview.returncode == 1, output
-    assert output.endswith("Aborted!\n")
+    assert preview.returncode == 130, output
+    assert server_model.running_server(page) is None
+    assert (page / "events.jsonl").is_file()
     assert "Traceback" not in output
 
 
@@ -208,6 +214,340 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
             shutil.rmtree(page, ignore_errors=True)
 
 
+@pytest.fixture
+def watched_preview(tmp_path, preview_slot):
+    source = tmp_path / "watched.html"
+    original = (ROOT / "examples" / "design-decision.html").read_text(encoding="utf-8")
+    source.write_text(original, encoding="utf-8")
+    runtime = install_payload(tmp_path / "watched-runtime")
+    slot, directory = preview_slot
+    command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--runtime",
+        str(runtime),
+        "--slot",
+        slot,
+        "--background",
+    ]
+    started = subprocess.run(
+        command, cwd=ROOT, capture_output=True, text=True, check=False, timeout=90
+    )
+    assert started.returncode == 0, started.stdout + started.stderr
+    url = started.stdout.splitlines()[-1]
+    yield source, runtime, directory, command, url
+    stopped = subprocess.run(
+        [*command[:-1], "--stop"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert stopped.returncode == 0, stopped.stdout + stopped.stderr
+
+
+def test_a_detached_preview_restarts_under_its_original_codex_claim(
+    tmp_path, preview_slot, codex_program, codex_env, spawn
+):
+    """The launcher exits; the real session lifetime survives outside worker ancestry."""
+    source = tmp_path / "detached.html"
+    source.write_text((ROOT / "examples" / "design-decision.html").read_text())
+    slot, directory = preview_slot
+    command = [
+        sys.executable,
+        str(ROOT / "scripts" / "preview.py"),
+        "--source",
+        str(source),
+        "--slot",
+        slot,
+        "--background",
+    ]
+    ready = tmp_path / "started.json"
+    owner = spawn(
+        [
+            str(codex_program),
+            "-c",
+            (
+                "import json, pathlib, subprocess, sys; "
+                "result = subprocess.run(sys.argv[2:], capture_output=True, text=True); "
+                "pathlib.Path(sys.argv[1]).write_text(json.dumps([result.returncode, result.stdout, result.stderr])); "
+                "sys.stdin.read()"
+            ),
+            str(ready),
+            *command,
+        ],
+        env=codex_env
+        | {"CODEX_THREAD_ID": "preview-codex", "PYTHONHOME": sys.base_prefix},
+        stdin=subprocess.PIPE,
+    )
+    deadline = time.monotonic() + 90
+    while not ready.exists():
+        assert time.monotonic() < deadline
+        time.sleep(0.05)
+    result = json.loads(ready.read_text())
+    assert result[0] == 0, result
+    claim = service_model.page_claim(directory)
+    assert claim["pid"] == owner.pid
+    try:
+        revised = source.read_text().replace("Where sessions live", "Detached revision")
+        source.write_text(revised)
+        log = directory.with_name(f"{directory.name}.preview.log")
+        deadline = time.monotonic() + 30
+        while "Reloaded detached" not in log.read_text():
+            assert time.monotonic() < deadline, log.read_text()
+            time.sleep(0.05)
+        assert server_model.running_server(directory)
+        assert service_model.page_claim(directory) == claim
+
+        # SessionEnd can win while recompose waits for the page transaction.
+        with service_model.PageTransaction(directory) as transaction:
+            source.write_text(revised.replace("Detached revision", "Released revision"))
+            deadline = time.monotonic() + 30
+            while server_model.running_server(directory):
+                assert time.monotonic() < deadline, "refresh did not stop the service"
+                time.sleep(0.05)
+            transaction.release_claim()
+        deadline = time.monotonic() + 30
+        while "no longer owns" not in log.read_text():
+            assert time.monotonic() < deadline, log.read_text()
+            time.sleep(0.05)
+        assert server_model.running_server(directory) is None
+        assert service_model.page_claim(directory)["released"] is not None
+        lease = directory.with_name(f"{directory.name}.preview.lock")
+        deadline = time.monotonic() + 10
+        while leases_model.lock_is_held(lease):
+            assert time.monotonic() < deadline, (
+                "released session left its watcher alive"
+            )
+            time.sleep(0.05)
+        metadata = directory.with_name(f"{directory.name}.preview.json")
+        assert json.loads(metadata.read_text())["enabled"] is False
+    finally:
+        subprocess.run(
+            [*command[:-1], "--stop"], check=True, capture_output=True, timeout=30
+        )
+
+
+def test_preview_watches_runtime_and_source_without_losing_reader_state(
+    browser, watched_preview
+):
+    """The open tab follows edits; rejected source never replaces its last good page."""
+    source, runtime, directory, command, url = watched_preview
+    original = source.read_text(encoding="utf-8")
+    page, errors = open_page(browser, url)
+    page.locator("#opt-redis .lf-pick").click()
+    round_trip(page)
+    expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+    feedback = (directory / "events.jsonl").read_bytes()
+    assert b'"kind": "action"' in feedback
+    inode = (directory / "events.jsonl").stat().st_ino
+    registry = json.loads((directory / "registry.json").read_text())
+    generation = registry["$layer"]["generation"]
+
+    theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+    with theme.open("a", encoding="utf-8") as stream:
+        stream.write("\nh1 { color: rgb(17, 83, 129); }\n")
+    expect(page.locator("h1")).to_have_css("color", "rgb(17, 83, 129)", timeout=30000)
+    assert (
+        json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
+        != generation
+    )
+    expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+    assert (directory / "events.jsonl").read_bytes().startswith(feedback)
+    assert (directory / "events.jsonl").stat().st_ino == inode
+
+    revised = original.replace("Where sessions live", "A watched source revision", 1)
+    source.write_text(revised, encoding="utf-8")
+    expect(page.get_by_role("heading", name="A watched source revision")).to_be_visible(
+        timeout=30000
+    )
+    expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+    assert (directory / "events.jsonl").read_bytes().startswith(feedback)
+
+    source.write_text("<p>invalid source</p>", encoding="utf-8")
+    log_path = directory.with_name(f"{directory.name}.preview.log")
+    deadline = time.monotonic() + 30
+    while "Preview update refused" not in log_path.read_text():
+        assert time.monotonic() < deadline, log_path.read_text()
+        page.wait_for_timeout(50)
+    expect(
+        page.get_by_role("heading", name="A watched source revision")
+    ).to_be_visible()
+    assert (directory / "index.html").read_text() == revised
+    assert (directory / "events.jsonl").read_bytes().startswith(feedback)
+
+    source.write_text(
+        revised.replace("A watched source revision", "Recovered watched source"),
+        encoding="utf-8",
+    )
+    expect(page.get_by_role("heading", name="Recovered watched source")).to_be_visible(
+        timeout=30000
+    )
+    expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+    repeated = subprocess.run(
+        command, cwd=ROOT, capture_output=True, text=True, check=False, timeout=30
+    )
+    assert repeated.returncode == 0, repeated.stdout + repeated.stderr
+    assert repeated.stdout.splitlines()[-1] == url
+    assert (directory / "events.jsonl").read_bytes().startswith(feedback)
+    assert (directory / "events.jsonl").stat().st_ino == inode
+    # A stopped/restarted service briefly refuses the browser's reconnect.
+    assert set(errors) <= {
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_CONNECTION_RESET",
+        "Failed to load resource: net::ERR_EMPTY_RESPONSE",
+    }
+    page.close()
+
+
+@pytest.mark.parametrize(
+    "resource",
+    [
+        "leaf.js",
+        "runtime/context.js",
+        "widgets/lf-options.js",
+        "registry.json",
+        "theme.css",
+        "syntax",
+    ],
+)
+def test_a_failed_preview_bootstrap_hears_the_replacement_server(
+    browser, watched_preview, resource
+):
+    """Supervision precedes entry, dependency, registry and stylesheet loading."""
+    _, runtime, directory, _, url = watched_preview
+    if resource == "widgets/lf-options.js":
+        standing, errors = open_page(browser, url)
+        standing.locator("#opt-redis .lf-pick").click()
+        round_trip(standing)
+        assert errors == []
+        standing.close()
+    page = browser.new_page()
+    failures = []
+    navigations = []
+    page.on(
+        "framenavigated",
+        lambda frame: (
+            navigations.append(frame.url) if frame == page.main_frame else None
+        ),
+    )
+
+    def interrupt_resource(route):
+        if failures:
+            route.continue_()
+            return
+        failures.append(True)
+        if resource == "syntax":
+            route.fulfill(content_type="text/javascript", body="const = broken;")
+        else:
+            route.abort()
+
+    page.route(
+        "**/" + ("leaf.js" if resource == "syntax" else resource), interrupt_resource
+    )
+    page.goto(url, wait_until="load")
+    status = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    expect(status).to_be_visible()
+    # Hearing the same server does not loop on a persistent syntax/startup fault.
+    with page.expect_response("**/registry.json") as response:
+        pass
+    assert response.value.ok
+    assert len(navigations) == 1
+    expect(status).to_be_visible()
+    generation = json.loads((directory / "registry.json").read_text())["$layer"][
+        "generation"
+    ]
+    # A refused re-vendor still replaces the server; the old layer is now loadable.
+    (runtime / "skills" / "leaf" / "packages" / "default" / "registry.json").write_text(
+        "{", encoding="utf-8"
+    )
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-presented", "1", timeout=30000
+    )
+    expect(status).not_to_be_visible()
+    if resource == "widgets/lf-options.js":
+        expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+    assert len(navigations) == 2
+    assert (
+        json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
+        == generation
+    )
+    page.close()
+
+
+def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
+    source, _, directory, _, _ = watched_preview
+    media = source.parent / "media"
+    media.mkdir()
+    image = media / "051bee487bfb5d13.png"
+    expected = (ROOT / "examples" / "media" / image.name).read_bytes()
+    image.write_bytes(expected)
+    revised = source.read_text().replace(
+        "</main>", f'<img src="/media/{image.name}" alt="Preview proof"></main>'
+    )
+    source.write_text(revised)
+    deadline = time.monotonic() + 30
+    while (directory / "index.html").read_text() != revised:
+        assert time.monotonic() < deadline, (
+            "source referencing new media was not stamped"
+        )
+        time.sleep(0.05)
+    assert (directory / "media" / image.name).read_bytes() == expected
+
+    image.write_bytes(b"changed bytes")
+    log = directory.with_name(f"{directory.name}.preview.log")
+    deadline = time.monotonic() + 30
+    while "use a new filename" not in log.read_text():
+        assert time.monotonic() < deadline, log.read_text()
+        time.sleep(0.05)
+    assert (directory / "media" / image.name).read_bytes() == expected
+
+    image.unlink()
+    second = media / "a99a1b63048502d0.png"
+    second.write_bytes((ROOT / "examples" / "media" / second.name).read_bytes())
+    deadline = time.monotonic() + 30
+    while not (directory / "media" / second.name).exists():
+        assert time.monotonic() < deadline, "new media did not reach the preview"
+        time.sleep(0.05)
+    assert (directory / "media" / image.name).read_bytes() == expected
+
+
+def test_stopping_a_preview_waits_for_its_active_recompose(watched_preview, spawn):
+    """Stop intent survives an update's own stopped-service interval and returns last."""
+    source, runtime, directory, command, _ = watched_preview
+    metadata = directory.with_name(f"{directory.name}.preview.json")
+    # Real page-transaction contention pauses init after the watcher stops the service.
+    # The stop command must wait for that work and suppress its pending restart.
+    with events_model.flocked(directory / "events.jsonl"):
+        theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+        with theme.open("a", encoding="utf-8") as stream:
+            stream.write("\nh1 { color: navy; }\n")
+        deadline = time.monotonic() + 30
+        while json.loads((directory / "service.json").read_text())["enabled"]:
+            assert time.monotonic() < deadline, "watcher did not begin the update"
+            time.sleep(0.05)
+        stopping = spawn(
+            [*command[:-1], "--stop"],
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        while json.loads(metadata.read_text())["enabled"]:
+            assert time.monotonic() < deadline, "stop did not record its intent"
+            time.sleep(0.05)
+        assert stopping.poll() is None
+    stdout, stderr = stopping.communicate(timeout=30)
+    assert stopping.returncode == 0, stdout + stderr
+    assert server_model.running_server(directory) is None
+    assert not json.loads(metadata.read_text())["enabled"]
+    assert (directory / "events.jsonl").is_file()
+    assert (directory / "index.html").read_bytes() == source.read_bytes()
+
+
 # ---------- export: the page as one file ----------
 
 
@@ -259,7 +599,7 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
     preview = importlib.util.module_from_spec(spec)
     monkeypatch.syspath_prepend(str(ROOT / "scripts"))
     spec.loader.exec_module(preview)
-    monkeypatch.setattr(preview, "PAGE", page_dir)
+    monkeypatch.setattr(preview, "TMP", page_dir.parent)
     monkeypatch.setattr(sys, "argv", ["preview.py", "pr-walkthrough", "--export"])
 
     try:
@@ -436,24 +776,89 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     page.close()
 
 
-RECEIPT_DRAFTS = leaf_page(
-    "drafts",
+@pytest.mark.parametrize("resolved", [False, True], ids=["open", "resolved"])
+def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
+    browser, serve, tmp_path, resolved
+):
+    """Copies keep native thread disclosure; paper shows even a closed thread."""
+    url = serve(
+        leaf_page(
+            "thread export",
+            '<h1>Review</h1><lf-diff id="patch" source="review-patch">'
+            "<pre></pre></lf-diff>",
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        '@@ -1 +1 @@\n-return "old"\n+return "new"\n',
+    )
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this check beside the changed line.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "data_revision": 1,
+            },
+        },
+    )
+    if resolved:
+        events_model.append_event(
+            serve.page_dir,
+            {"kind": "resolve", "author": "user", "parent": root["id"]},
+        )
+    selector = f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
+    live, live_errors = open_page(browser, url)
+    thread = live.locator(selector)
+    expect(thread).to_have_count(1)
+    expect(thread.locator("button")).not_to_have_count(0)
+    live.emulate_media(media="print")
+    expect(thread.locator(".lf-conversation-body")).to_be_visible()
+    assert (
+        thread.locator("button:visible, textarea:visible, .lf-receipt:visible").count()
+        == 0
+    )
+    assert live_errors == []
+    live.close()
+
+    out = tmp_path / "thread-copy.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    copy = browser.new_page()
+    errors = watched(copy)
+    copy.goto(out.as_uri(), wait_until="load")
+    thread = copy.locator(selector)
+    expect(thread).to_have_count(1)
+    expect(thread.locator("button, textarea, .lf-receipt")).to_have_count(0)
+    expect(copy.locator("script, .lf-chrome, .lf-mark-note")).to_have_count(0)
+    if resolved:
+        expect(thread.locator(".lf-conversation-body")).to_be_hidden()
+        thread.locator("summary").click()
+    expect(thread.locator(".lf-conversation-body")).to_be_visible()
+    expect(thread).to_contain_text("Keep this check beside the changed line.")
+    if resolved:
+        thread.locator("summary").click()
+        expect(thread.locator(".lf-conversation-body")).to_be_hidden()
+    copy.emulate_media(media="print")
+    expect(thread.locator(".lf-conversation-body")).to_be_visible()
+    assert errors == []
+    copy.close()
+
+
+RECEIPT_DRAFT = leaf_page(
+    "draft",
     """
-<h1 id="h">Two notes</h1>
-<p id="p-settled">The invitation the author has written in already.</p>
-<lf-draft id="d-settled"><pre>The sample workshop is in the green room.</pre></lf-draft>
-<p id="p-open">The one still on its way.</p>
+<h1 id="h">One note</h1>
+<p id="p-open">The invitation still on its way.</p>
 <lf-draft id="d-open"><pre>The sample workshop is in the blue room.</pre></lf-draft>
 """,
 )
-SETTLED_EDIT = {
-    "kind": "action",
-    "author": "user",
-    "revision": 1,
-    "widget": "d-settled",
-    "action": "edit",
-    "detail": {"text": "The sample workshop is in the green room."},
-}
 OPEN_EDIT = {
     "kind": "action",
     "author": "user",
@@ -461,29 +866,22 @@ OPEN_EDIT = {
     "widget": "d-open",
     "action": "edit",
     "detail": {"text": "The sample workshop is in the red room."},
+    "meaning": {
+        "document": {"kind": "page", "revision": 1},
+        "coordinate": ["d-open", "d-open", "body"],
+        "depends": ["d-open"],
+        "answer": None,
+    },
 }
 
 
-def test_a_copy_keeps_a_settled_record_and_drops_a_move_still_in_flight(
+def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     browser, serve, tmp_path
 ):
-    """Both readings are status reports, and only one of them is news.
-
-    `d-open` holds an edit the document has not caught up with, so its reading is the
-    phase an agent is in — Picked up here — and a file has nothing standing behind that
-    sentence. `d-settled` holds one the authored markup already states, which leaves the
-    page map reading a decision this same file carries, with the decided text in it. That
-    is the fact the rail is held open for and, for a widget contributing no status text
-    of its own, the only margin record of the choice, so the copy keeps it.
-
-    It keeps it as a word, and in one seat. What a copy must not carry out of a seat that
-    was a Button's before the move was made is the promise: the status role the walk
-    lands on, its tab stop, and the offer marker that said a widget built this box — and
-    no widget did, which is why nothing is left here for the press pass to keep the way
-    it keeps a control's page words. Where the word stands is the same question asked of
-    layout: the draft's own Edit press had taken the resting seat and left the reading
-    under `…`, and the ellipsis that opens a fold goes out with every other press."""
-    url = serve(RECEIPT_DRAFTS, events=[SETTLED_EDIT, OPEN_EDIT])
+    """The action projection is durable; its delivery report belongs only to the live
+    session. A standalone file therefore carries the edited draft itself, not a second
+    page-map record saying that the move happened or that an agent picked it up."""
+    url = serve(RECEIPT_DRAFT, events=[OPEN_EDIT])
     in_flight = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -494,20 +892,15 @@ def test_a_copy_keeps_a_settled_record_and_drops_a_move_still_in_flight(
         {"kind": "pickup", "author": "page", "events": [in_flight["id"]]},
     )
 
-    reading = ".lf-margin-marker[data-lf-behavior='status']"
     live = browser.new_page(viewport={"width": 1200, "height": 900})
     live.goto(url, wait_until="load")
     resized(live, 1200, 900)
     expect(
-        live.locator(f"[data-lf-margin-for='d-settled'] {reading}")
-    ).to_have_attribute("data-lf-standing", "")
-    expect(
-        live.locator(f"[data-lf-margin-for='d-open'] {reading}")
-    ).not_to_have_attribute("data-lf-standing", "")
-    standing = live.locator(f"[data-lf-margin-for='d-settled'] {reading}")
-    assert standing.get_attribute("role") == "status", (
-        "the live reading is not the status a copy has to disarm"
-    )
+        live.locator(
+            "[data-lf-margin-for='d-open'] [data-lf-behavior='status']:visible"
+        )
+    ).to_have_attribute("data-lf-kinds", "pickup")
+    expect(live.get_by_text("Outcome", exact=True)).to_have_count(0)
     live.close()
 
     out = tmp_path / "standalone.html"
@@ -516,39 +909,11 @@ def test_a_copy_keeps_a_settled_record_and_drops_a_move_still_in_flight(
     errors = watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
-    carried = page.evaluate(
-        """() => [...document.querySelectorAll('[data-lf-behavior="status"]')].map(
-             row => ({
-               target: row.closest('[data-lf-margin-for]')?.dataset.lfMarginFor,
-               word: row.querySelector('.lf-margin-button-label').textContent,
-               shown: row.checkVisibility(),
-               folded: Boolean(row.closest('.lf-margin-options')),
-               role: row.getAttribute('role'),
-               tabindex: row.getAttribute('tabindex'),
-               offer: row.getAttribute('data-lf-offer'),
-             }))"""
+    expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
+    expect(page.get_by_text("Outcome", exact=True)).to_have_count(0)
+    expect(page.locator("#d-open")).to_contain_text(
+        "The sample workshop is in the red room."
     )
-    # One seat, standing in the item. The live page had two — the marker, and the peer
-    # the fold holds once a contributed control takes the resting one — and a copy can
-    # open no fold, so the reading it keeps is the reading it can show.
-    assert carried == [
-        {
-            "target": "d-settled",
-            "word": "Outcome",
-            "shown": True,
-            "folded": False,
-            "role": "img",
-            "tabindex": None,
-            "offer": None,
-        }
-    ], carried
-    assert (
-        page.evaluate(
-            """() => [...document.querySelectorAll('main *')]
-                 .filter(el => el.textContent.trim() === 'Picked up').length"""
-        )
-        == 0
-    ), "the copy still says an agent picked up a move it cannot report on"
     assert errors == []
     page.close()
 
@@ -571,88 +936,13 @@ AGENT_ACCEPT = {
     "widget": "sug-refill",
     "action": "accept",
     "detail": {},
+    "meaning": {
+        "document": {"kind": "page", "revision": 1},
+        "coordinate": ["sug-refill", "sug-refill", "settlement"],
+        "depends": ["sug-refill"],
+        "answer": None,
+    },
 }
-
-
-def test_a_copy_stands_its_kept_record_where_each_medium_can_show_it(
-    browser, serve, tmp_path
-):
-    """The other seat a standing record can be sitting in, and the two mediums that
-    draw no rail for it.
-
-    An agent decided this suggestion, so there is nothing for the reader to take back:
-    the widget contributes no shown control, and the page map's own marker carries the
-    reading. That is the seat the test above never reaches — a draft's Edit press takes
-    the resting seat and leaves the reading in the fold, which is where the copy finds
-    it there.
-
-    So the copy's record stops being a marker. The class is the rail's seat rather than
-    the reading's, and both rules that stop drawing the rail name it — the 900px floor
-    and print — so a record left wearing it is a fact the file states on a wide screen
-    and drops on a narrow one or on paper, while the same record kept in a fold stands
-    in all three. The spoken name goes with the class: it is the walk's address, which
-    counts the page map's entries and measures how far down the exporter's own window
-    the target sat, and a file has neither. The reading's own word takes its place,
-    because the span holding that word cannot: the runtime's stylesheet rides into the
-    file and keeps the span for a hover a file has no other use for, so a record left
-    to it would stand there saying nothing at all.
-
-    Where it stands is the second half, and it is one question for both seats. A file
-    cannot dock: the packing pass measured the rail at the width the page was exported
-    at and left with the scripts. Below the floor and on paper the absolute seat it
-    measured is off the page box — 115px past an 800px window, and away on a sheet
-    narrower than the export — so the item takes the docked shape there instead."""
-    url = serve(AGENT_SUGGESTION, events=[AGENT_ACCEPT])
-    reading = ".lf-margin-button[data-lf-behavior='status']"
-    item = '[data-lf-margin-for="sug-refill"]'
-    live, live_errors = open_page(browser, live_url(url))
-    resized(live, 1200, 900)
-    standing = live.locator(f"{item} {reading}")
-    expect(standing).to_have_class(re.compile(r"\blf-margin-marker\b"))
-    expect(standing).to_have_attribute("data-lf-standing", "")
-    expect(standing).to_have_attribute("aria-label", re.compile(r"^Outcome, 1 of 1, "))
-    assert live.locator(f"{item} .lf-margin-reading-option").count() == 0, (
-        "the widget contributed a shown control, so this is the seat the test above has"
-    )
-    assert live_errors == []
-    live.close()
-
-    out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    # The exported file, read at the width it was taken at and at one narrower than the
-    # rail's own floor, on screen and on paper. Each answer is the record's box against
-    # the page's: a seat outside it is a fact the medium does not carry.
-    for width in (1200, 800):
-        page = browser.new_page(viewport={"width": width, "height": 900})
-        errors = watched(page)
-        page.goto(out.as_uri(), wait_until="load")
-        for medium in ("screen", "print"):
-            page.emulate_media(media=medium)
-            assert page.evaluate(
-                """() => [...document.querySelectorAll('.lf-margin-button')].map(el => ({
-                     marker: el.matches('.lf-margin-marker'),
-                     word: el.querySelector('.lf-margin-button-label').textContent,
-                     shown: el.checkVisibility(),
-                     named: el.getAttribute('aria-label'),
-                     role: el.getAttribute('role'),
-                     within: el.getBoundingClientRect().right
-                       <= document.documentElement.getBoundingClientRect().right,
-                     overflow: document.documentElement.scrollWidth > innerWidth,
-                   }))"""
-            ) == [
-                {
-                    "marker": False,
-                    "word": "Outcome",
-                    "shown": True,
-                    "named": "Outcome",
-                    "role": "img",
-                    "within": True,
-                    "overflow": False,
-                }
-            ], f"{width}px, {medium}"
-        assert errors == []
-        page.close()
-
 
 FOLDED_SUGGESTION = leaf_page(
     "agreed, out of sight",
@@ -669,27 +959,48 @@ FOLDED_SUGGESTION = leaf_page(
 )
 
 
-def test_a_copy_preserves_a_withheld_record_without_a_packing_pass(
+def test_a_copy_keeps_a_suggestion_receipt_without_a_page_map_record(
     browser, serve, tmp_path
 ):
-    """The record above stands because its target does. This one's does not.
+    """Accepted/Rejected is state this widget visibly owns. Export keeps that receipt
+    and applied suggestion state without synthesizing an Outcome status beside it."""
+    url = serve(AGENT_SUGGESTION, events=[AGENT_ACCEPT])
+    item = '[data-lf-margin-for="sug-refill"]'
+    live, live_errors = open_page(browser, live_url(url))
+    resized(live, 1200, 900)
+    expect(live.locator(f"{item} .lf-sug-receipt")).to_have_text("Accepted")
+    expect(live.locator(f"{item} [data-lf-behavior='status']")).to_have_count(0)
+    assert live_errors == []
+    live.close()
 
-    The packing pass says so on the live page: a row whose anchor is not shown is left
-    `lf-waiting`, and a shut fold is the ordinary way a target goes unshown while the
-    reading for it is real. The class travels into the file with the row, so the file
-    is the same reading — a record for words the reader has to open the fold to reach,
-    and nothing in a copy opens it.
+    out = tmp_path / "standalone.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    for width in (1200, 800):
+        page = browser.new_page(viewport={"width": width, "height": 900})
+        errors = watched(page)
+        page.goto(out.as_uri(), wait_until="load")
+        for medium in ("screen", "print"):
+            page.emulate_media(media=medium)
+            expect(page.locator(".lf-sug-receipt")).to_have_text("Accepted")
+            expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
+            expect(page.get_by_text("Outcome", exact=True)).to_have_count(0)
+            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        assert errors == []
+        page.close()
 
-    Which makes the two facts one question. The shape a copy takes below the rail's
-    floor and on paper is a rule about rows that stand; a rule that reached these too
-    would be the only thing standing them, because `display: flex` is what it answers
-    `lf-waiting`'s `display: none` with. Print unfolds the passage through CSS after
-    export, but the file has no packing pass to recompute the serialized row state."""
+
+def test_a_copy_keeps_a_withheld_margin_item_out_of_static_layout(
+    browser, serve, tmp_path
+):
+    """A copied row withheld by the live packing pass stays withheld. Print may
+    unfold its target passage through CSS, but a script-free copy cannot rerun packing
+    and must not invent a margin position for the serialized row."""
     url = serve(FOLDED_SUGGESTION, events=[AGENT_ACCEPT])
     live, live_errors = open_page(browser, live_url(url))
     resized(live, 1200, 900)
     item = live.locator('[data-lf-margin-for="replace"]')
     expect(item).to_have_class(re.compile(r"\blf-waiting\b"))
+    expect(item.locator(".lf-sug-receipt")).to_have_text("Accepted")
     assert live_errors == []
     live.close()
 
@@ -705,6 +1016,7 @@ def test_a_copy_preserves_a_withheld_record_without_a_packing_pass(
                 """() => [...document.querySelectorAll('.lf-margin-item')].map(el => ({
                      waiting: el.matches('.lf-waiting'),
                      shown: el.checkVisibility(),
+                     receipt: el.querySelector('.lf-sug-receipt')?.textContent,
                      open: document.getElementById('survey').open,
                      passage: document.getElementById('replace').checkVisibility(),
                    }))"""
@@ -712,6 +1024,7 @@ def test_a_copy_preserves_a_withheld_record_without_a_packing_pass(
                 {
                     "waiting": True,
                     "shown": False,
+                    "receipt": "Accepted",
                     "open": False,
                     "passage": medium == "print",
                 }

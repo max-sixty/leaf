@@ -18,8 +18,8 @@
  * was made on, without the page's author having to copy it into the next one by
  * hand. When a version does mean to overrule one — the content the decision was
  * about got rewritten — `version check` makes the author say so (see restatement_errors in
- * the leaf.validation package); it is never inferred from the markup's silence. Widgets opt in via an
- * applyAction(action, detail) method stating an absolute value, so a reload keeps the
+ * the leaf.validation package); it is never inferred from the markup's silence. Widgets opt in via a
+ * renderState(state) method stating an absolute value, so a reload keeps the
  * user's drag and a second tab follows along live.
  *
  * Comment layer: talks to leaf's server — listens on GET /api/news and reads
@@ -375,8 +375,8 @@ createMeasurements({ shownBox });
 installReachedForWordsGuard();
 
 createDataProjection({
-  paintAnchors,
   reachScrollers,
+  reconcileThreads: renderPanel,
   setChildren,
 });
 
@@ -481,7 +481,7 @@ const watchDisclosures = (root) =>
     attributeFilter: ["open", "aria-expanded"],
     attributeOldValue: true,
   });
-createShadowStage(watchDisclosures, watchExternalLinks);
+createShadowStage(watchDisclosures, watchExternalLinks, setChildren);
 
 const {
   byCommand,
@@ -564,8 +564,7 @@ const {
   upgradeWidgets,
 } = createWidgetLoader({
   buildReactBar: (...args) => buildReactBar(...args),
-  rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
-  reportPageError,
+  rememberAuthoredParents: (...args) => rememberAuthoredParents(...args),
   revealLayer,
   sameLayer,
 });
@@ -680,6 +679,7 @@ const el = (tag, cls, text) => {
 };
 let chromeLayout;
 let livingMargin = null;
+const renderLivingMargin = (...args) => livingMargin?.render(...args);
 const syncLayout = (...args) => chromeLayout.syncLayout(...args);
 const setPanel = (...args) => chromeLayout.setPanel(...args);
 const moveShell = (...args) => chromeLayout.moveShell(...args);
@@ -814,7 +814,7 @@ const {
   quoteFrom: (...args) => quoteFrom(...args),
   rangeOf: (...args) => rangeOf(...args),
   readAndApply,
-  rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
+  rememberAuthoredParents: (...args) => rememberAuthoredParents(...args),
   rememberPassageParts,
   reportPageError,
   reserveNewsSlot,
@@ -984,6 +984,11 @@ fabBar.append(fab);
 // projections and keeps every anchored state above the package drawing.
 const visualMarkLayer = el("div", "lf-ui lf-visual-marks");
 visualMarkLayer.setAttribute("aria-hidden", "true");
+// A status remains flat and inert while its hover trace identifies the target it reports
+// on. Target paint owns its rectangular or shaped geometry; the living margin owns when
+// this instance is shown.
+const marginTraceBox = el("div", "lf-ui lf-margin-status-trace lf-target-paint");
+marginTraceBox.setAttribute("aria-hidden", "true");
 // The aim's paint host (see its rule above). Pointer-inert and carrying only aria-hidden
 // drawing geometry, it says nothing to a screen reader and takes nothing from the press
 // it promises; refreshAim is its one writer, and data-for is the aimed id stated where a
@@ -1122,6 +1127,7 @@ chromeRoot.append(
   selectionLayer,
   selectionSearch,
   visualMarkLayer,
+  marginTraceBox,
   aimBox,
   fabBar,
   liveEl,
@@ -1409,7 +1415,10 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   landTyping,
   loadDraft,
   mayLandTyping,
-  openInlineThread: (...args) => livingMargin?.openInlineThread(...args) ?? null,
+  openInlineThread: (...args) =>
+    conversationRuntime?.focusSurfaceThread(args[0]) ??
+    livingMargin?.openInlineThread(...args) ??
+    null,
   panelIsOpen,
   paintAnchors,
   paintHere,
@@ -3216,9 +3225,9 @@ const midComposition = () => {
 // ---------- reading ----------
 // Rendering version V means making its DOM equal the log's desired projection.
 // Each `(owner widget, unit, facet)` keeps its last surviving action or report, with
-// a reader action outranking provisional agent news on the same coordinate. Widgets state
-// those winners through an absolute applyAction(action, detail); when several units
-// share one ordered container, their winners are applied together in log order.
+// a reader action outranking provisional agent news on the same coordinate. The framework composes
+// those winners with authored state, including complete ordered containers, before
+// widgets render each final facet map through renderState(state).
 //
 // Absolute is what makes projection converge. Reader actions outrank provisional agent
 // reports on the same coordinate; winners on different coordinates are applied in their
@@ -3388,68 +3397,49 @@ const {
 
 const runtimeProjection = createProjection(runtime, {
   unaccountedGesture,
-  DECISION_ROW,
   COLLAPSE,
-  MARKED_ANYWHERE,
-  MARKED_IN_PAGE,
   PAGE_PAINT_ATTRIBUTE,
   PAGE_PAINT_ATTRIBUTES,
   agentName,
   answeredContext,
   authored,
   decisionEntry,
-  containsAcross,
-  dress,
   elementById,
   failSoft,
-  focused,
   inChrome,
   isAwaiting,
-  markDeclared,
   outbox,
   pagePresented,
   pageQueryAll,
   pageShifted,
-  paintAnchors,
   paintKeys,
-  paintAcknowledgments,
   post,
   projectedParent,
   quoteFrom,
-  reachScrollers,
-  rememberPassageParts,
+  reconcileThreads: renderPanel,
   removeOutbox,
   renderQuiet,
   renderRetired,
   reportPageError,
-  settling,
   settlementSlots,
-  standOn,
   textNodesUnder,
   notice,
 });
 const {
-  authoredDetails,
-  authoredFacets,
-  authoredMarkup,
   authoredParents,
-  authoredStatements,
-  authoredWidgets,
   captureAuthoredFacets,
   committedProjection,
   coordinateProjectionCommitted,
   domFacet,
-  markSettled,
   matchesProjectedWhen,
   paintStateOrigins,
   projectedFacet,
   projectionFromView,
   projectionCommitted,
-  rebuild,
   reconcileKnownState,
   reconcileState,
   releaseProjectedOutbox,
-  rememberAuthoredMarkup,
+  rememberAuthoredParents,
   resetAuthoredPage,
   requirementMatches,
   stageOutboxAction,
@@ -3495,6 +3485,7 @@ conversationRuntime = createConversation({
   designIsOn: () => designOn,
   captureAuthoredFacets,
   claimState: workClaimState,
+  containsAcross,
   designName,
   droppedAt,
   el,
@@ -3539,9 +3530,10 @@ conversationRuntime = createConversation({
   sendReaction,
   refreshHover,
   registry,
-  rememberAuthoredMarkup,
+  rememberAuthoredParents,
   renderQuiet,
   renderSaid,
+  renderLivingMargin,
   reportPageError,
   runtime,
   saveDraft,
@@ -3601,6 +3593,7 @@ anchorRuntime = createAnchors({
   inChrome,
   inUi,
   inspectEl,
+  marginTraceBox,
   offer,
   pageQueryAll,
   pageScroller,
@@ -3612,6 +3605,7 @@ anchorRuntime = createAnchors({
   quoteFrom,
   queueLegend,
   rangeOf,
+  reconcileThreads: renderPanel,
   refreshAction: refreshFab,
   registry,
   reveal,
@@ -3668,8 +3662,10 @@ livingMargin = createLivingMargin({
   setPanel,
   showThread,
   stateProjection,
+  traceTarget: (...args) => anchorRuntime.traceTarget(...args),
   threadPanel: panel,
   threads: () => conversationRuntime.threadList,
+  threadClaimed: (id) => conversationRuntime.threadClaimed(id),
   updateSequence,
   versionBtn,
   waitingForPickupSince,
@@ -3715,9 +3711,7 @@ stateApplication = createStateApplication({
   loadMarked,
   notifyDataSubscribers,
   observeServerNow,
-  paintAnchors,
   paintApproval,
-  paintAcknowledgments,
   panelIsOpen,
   prepareActivation,
   presented,
@@ -3821,7 +3815,7 @@ function presentPage() {
   // leave a composer carrying its authored words.
   anchoringReady = true;
   try {
-    paintAnchors();
+    renderPanel();
   } catch (error) {
     anchoringReady = false;
     throw error;
@@ -3859,9 +3853,9 @@ async function startPage() {
     upgradeWidgets(),
     // Alongside rather than after, and caught rather than fatal: the tab icon is not
     // what the page is for, so a layer missing it says so in the console and leaves the
-    // rest working — the same bargain a widget module that fails to import makes. It is
-    // still awaited here, because `version export` copies the page at the stamp below
-    // and a mark that arrived after it would leave the copy's tab to chance.
+    // rest working. It is still awaited here, because `version export` copies the
+    // page at the stamp below, and an icon arriving later would leave the copy's
+    // tab to chance.
     loadIcon().catch((err) => console.error(err)),
   ]);
   if (!upgraded) return;
@@ -3888,6 +3882,7 @@ async function startPage() {
 startPage().catch((error) => {
   // The boundary itself must fail visibly. Authored HTML remains readable, while the
   // status names the fault and the absent presented stamp keeps durable controls closed.
+  window.dispatchEvent(new Event("lf-startup-failed"));
   reportPageError(`page failed to start: ${error?.message ?? error}`);
   renderStatus(error);
 });

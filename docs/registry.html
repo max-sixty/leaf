@@ -81,6 +81,7 @@
           <a href="#x-says"><code>x-says</code></a>
           <a href="#x-shadow"><code>x-shadow</code></a>
           <a href="#x-state"><code>x-state</code></a>
+          <a href="#x-thread-surface"><code>x-thread-surface</code></a>
           <a href="#x-tone"><code>x-tone</code></a>
           <a href="#x-upgrade"><code>x-upgrade</code></a>
           <a href="#x-verbatim"><code>x-verbatim</code></a>
@@ -537,7 +538,8 @@
                 verb's detail schema (the payload half of the log's forever-contract),
                 its semantic facet, fold unit, optional current-state
                 <code>requires</code>, optional generated-child <code>creates</code>,
-                and the record form its state takes in markup.
+                optional <code>completion</code>, and the record form its state takes in
+                markup.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-state contract">Full contract</summary>
@@ -545,10 +547,11 @@
                   The owning widget instance, unit, and facet together name one
                   independently standing fact: verbs on the same tag and facet share
                   their unit and record form, competing verbs there supersede one
-                  another, and distinct facets coexist. Every applyAction is absolute,
-                  so the user's standing state is the last surviving action per
-                  coordinate, and one declaration drives the POST and re-vendor contract
-                  gates, <code>version check</code>'s state gate (a version whose markup
+                  another, and distinct facets coexist. The framework composes the last
+                  surviving action per coordinate with typed authored values and gives
+                  every widget its complete state through renderState, and one
+                  declaration drives the POST and re-vendor contract gates,
+                  <code>version check</code>'s state gate (a version whose markup
                   actively contradicts the fold without <code>restated</code> is
                   refused; writing the folded state is honoring; re-emitting the
                   previous version's state is blessed silence), construction-linked
@@ -556,19 +559,42 @@
                   state half. The browser uses <code>requires</code> for its controls
                   and common send door; POST interprets the same prerequisite against
                   the authoritative fold under the append lock. One detail field name is
-                  reserved across every verb: <code>resolves</code> means the comment
-                  thread this action answers, thread settlement reads it on any action,
-                  and the lint holds a verb declaring the name to a plain string on a
-                  widget-absolute unit — a thread is answered by the decision, and a
-                  decision is a widget instance ($awaits). Because thread history can
-                  outlive its markup, every action verb on a resolves-bearing tag shares
-                  one answer facet. A report verb spelling the name is refused outright:
-                  settlement reads actions, so the field there would declare an answer
-                  nothing gives. What settles the thread is the widget's standing answer
-                  rather than the fact an answer was once given, so an answer that a
-                  later action at that coordinate supersedes, or that a
-                  <code>restated</code> takes back, leaves the thread open again. The
-                  facet, unit, requires, creates, and record forms are $state's.
+                  reserved: <code>resolves</code> names the comment thread an x-awaits
+                  answer closes. Admission records its effect in meaning.answer: a
+                  thread id closes it, null answers without closing, and an absent field
+                  means the action is not an answer. Historical settlement uses the
+                  admitted owner-unit-facet coordinate even after the widget retires;
+                  independent facets on the widget coexist. A report cannot declare
+                  resolves. Optional references names additional string or string-array
+                  detail fields carrying element identities; fold units and
+                  attribute-set or position records already declare their own
+                  references. Admission snapshots those direct identities while
+                  retraction keeps reading current containment. The facet, unit,
+                  requires, creates, and record forms are $state's.
+                </p>
+              </details>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-thread-surface">
+            <h3><code>x-thread-surface</code></h3>
+            <div class="reference-copy">
+              <p>
+                The upgraded widget can seat canonical Thread views beside exact
+                projected datums.
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-thread-surface contract">
+                  Full contract
+                </summary>
+                <p>
+                  Its module registers one adapter through registerThreadSurface; the
+                  adapter owns only outlet geometry and visibility, while Leaf owns
+                  Thread rendering, reply and reaction state, settlement, focus,
+                  receipts, and living-margin fallback. Returning an outlet claims that
+                  thread locally for the current reconciliation; unloaded, filtered,
+                  collapsed, outdated, or otherwise undisplayable datums return no
+                  outlet and remain in the global Threads index plus the ordinary
+                  fallback.
                 </p>
               </details>
             </div>

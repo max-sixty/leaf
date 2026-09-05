@@ -426,14 +426,18 @@ def actions(page_dir):
     return [e for e in events_model.read_events(page_dir) if e["kind"] == "action"]
 
 
-NESTED_SUGGESTION = SUGGESTION_PAGE.replace(
-    "<lf-new>Switch the north feeder to thistle in autumn.</lf-new>",
-    "<lf-new>Switch the north feeder to thistle in autumn."
-    '<lf-decision id="blend-decision"><h2>Which seed blend?</h2>'
-    '<lf-options id="blend" choose>'
-    '<lf-option id="blend-nyjer">Nyjer only</lf-option>'
-    '<lf-option id="blend-mixed">Mixed thistle</lf-option>'
-    "</lf-options></lf-decision></lf-new>",
+NESTED_SUGGESTION = (
+    SUGGESTION_PAGE.replace(
+        "<lf-new>Switch the north feeder to thistle in autumn.</lf-new>",
+        "<lf-new>Switch the north feeder to thistle in autumn."
+        '<lf-decision id="blend-decision"><h2>Which seed blend?</h2>'
+        '<lf-options id="blend" choose>'
+        '<lf-option id="blend-nyjer">Nyjer only</lf-option>'
+        '<lf-option id="blend-mixed">Mixed thistle</lf-option>'
+        "</lf-options></lf-decision></lf-new>",
+    )
+    .replace('<p id="insert">', '<div id="insert">')
+    .replace("</lf-suggestion></p>\n<lf-board", "</lf-suggestion></div>\n<lf-board")
 )
 FENCED_CAPTURE_PAGE = leaf_page(
     "fenced capture",
@@ -963,19 +967,22 @@ customElements.define('lf-feed', class extends HTMLElement {
       this.stopWatching = watchData(
         this,
         'rows',
-        snapshot => this.show(snapshot?.value ?? [], snapshot?.origin),
+        snapshot => this.show(snapshot),
       );
   }
   disconnectedCallback() {
     this.stopWatching?.();
     this.stopWatching = null;
   }
-  show(rows, origin) {
-    projectData(this, rows, row => row.key, ({value}) => {
+  show(snapshot) {
+    projectData(this, snapshot?.value ?? [], row => row.key, ({value}) => {
       const row = document.createElement('p');
       row.append(value, offer('button', 'inspect', 'Inspect'));
       return row;
-    }, {originOf: (_row, index) => ({...origin, path: [index, 'value']})});
+    }, {
+      snapshot,
+      originOf: (_row, index) => ({...snapshot.origin, path: [index, 'value']}),
+    });
   }
 });
 """

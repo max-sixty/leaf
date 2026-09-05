@@ -98,7 +98,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
 
     page.locator(".lf-decisions").click()
     asks = page.locator("button.lf-decisions-row")
-    expect(asks).to_have_count(7)
+    expect(asks).to_have_count(9)
     expect(asks.first.locator(".lf-decisions-kind")).to_have_text("ask")
     expect(asks.first.locator(".lf-decisions-says")).to_contain_text(
         "Which map should the sample team carry?"
@@ -109,7 +109,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
 
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-panel")).to_be_visible()
-    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(2)
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(3)
     expect(page.locator(".lf-details .lf-thread")).to_have_count(1)
     page.locator(".lf-threads-toggle").click()
 
@@ -140,6 +140,35 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     expect(page.get_by_role("dialog", name="Page map", exact=True)).to_be_visible()
+    assert errors == []
+    page.close()
+
+
+def test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone(browser, serve):
+    """The composed page keeps nested reader work through an outer undo and reload."""
+    url = serve(FEATURE_GALLERY)
+    page, errors = open_page(browser, url)
+    page.locator("#bg-route-river").click()
+    round_trip(page)
+    controls = page.locator('[data-lf-for="bg-nested-change"]')
+    controls.get_by_role("button", name=re.compile("^Accept the ")).click()
+    round_trip(page)
+    expect(page.locator("#bg-nested-change > lf-old")).to_be_hidden()
+    controls.get_by_role("button", name=re.compile("^Undo ")).click()
+    round_trip(page)
+
+    expect(page.locator("#bg-nested-change > lf-old")).to_be_visible()
+    expect(page.locator("#bg-route lf-option[chosen]")).to_have_attribute(
+        "id", "bg-route-river"
+    )
+    assert errors == []
+    page.close()
+
+    page, errors = open_page(browser, url)
+    expect(page.locator("#bg-nested-change > lf-old")).to_be_visible()
+    expect(page.locator("#bg-route lf-option[chosen]")).to_have_attribute(
+        "id", "bg-route-river"
+    )
     assert errors == []
     page.close()
 
@@ -307,6 +336,46 @@ def test_the_feature_gallery_exercises_live_and_snapshotted_external_data(
     expect(page.locator("#bg-measurement-guide")).to_contain_text(
         "measurement is behind its source"
     )
+
+    assert errors == []
+    page.close()
+
+
+def test_the_feature_gallery_exercises_an_inline_diff_thread(browser, serve):
+    """The gallery's diff specimen carries a real line thread through both seats."""
+    page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    diff = page.locator("#bg-review-diff")
+    thread = diff.locator(
+        '.lf-conversation-thread[data-thread="8c91ac4c0c9d4e17831f45581a11639a"]'
+    )
+    expect(thread).to_contain_text(
+        "Keep the route choice visible beside the line that changes it."
+    )
+    send = thread.locator(".primary")
+    expect(send).to_be_disabled()
+    disabled_palette = send.evaluate(
+        """button => {
+          const style = getComputedStyle(button);
+          const row = getComputedStyle(button.closest('.lf-diff-thread-outlet'));
+          return {
+            background: style.backgroundColor,
+            opacity: style.opacity,
+            row: row.backgroundColor,
+          };
+        }"""
+    )
+    assert disabled_palette["background"] == disabled_palette["row"]
+    assert disabled_palette["opacity"] == "1"
+    markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
+    baseline = markers.count()
+
+    details = diff.locator(".lf-diff-file > details")
+    details.evaluate("element => { element.open = false; }")
+    expect(thread).to_have_count(0)
+    expect(markers).to_have_count(baseline + 1)
+    details.evaluate("element => { element.open = true; }")
+    expect(thread).to_have_count(1)
+    expect(markers).to_have_count(baseline)
 
     assert errors == []
     page.close()

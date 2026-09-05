@@ -6,6 +6,7 @@ import re
 
 import pytest
 from click.testing import CliRunner
+from interact_support import append_command
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import session as session_model
@@ -188,15 +189,16 @@ def test_page_round_trip(browser, serve):
     page.close()
 
 
-def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(browser, serve):
+@pytest.mark.parametrize("section", ["draft-ops", None])
+def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
+    browser, serve, section
+):
     """The line that tells a screen reader a block carries a comment is chrome, and chrome
     inside a widget's own content is chrome in the user's text: lf-draft seeds the
     editor they type into from its body div, so a line left in there arrives in the
     textarea and posts with the edit. It goes on the block the passage sits in, or on the
     element the anchor names — never on the inline run or body div in between."""
-    url = serve(
-        JOURNEY_V1, anchored=[("draft-ops", "Run the migration before deploying.")]
-    )
+    url = serve(JOURNEY_V1, anchored=[(section, "Run the migration before deploying.")])
     page, errors = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     assert page.locator("#draft-ops > .lf-mark-note").count() == 1, (
@@ -352,7 +354,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
 
     d = serve.page_dir
     for text in ("Foreign first edit.", "Foreign committed words."):
-        events_model.append_event(
+        append_command(
             d,
             {
                 "kind": "action",
@@ -363,7 +365,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
                 "detail": {"text": text},
             },
         )
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",
@@ -585,7 +587,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
     round_trip(first)
     expect(second_draft.locator("textarea")).to_have_count(0)
     # The body the other tab is left looking at is the log's, which is what closing the
-    # box in front of it was for: applyAction defers while an editor stands open.
+    # box in front of it was for: renderState defers while an editor stands open.
     expect(second_draft.locator(".lf-draft-body")).to_have_text(edited)
     assert second.evaluate(STORED_DRAFT_SETTLED, "edit:draft-ops")
 
@@ -2143,7 +2145,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         if version == 2:
             (d / ".fixture-versions" / "v2.html").write_text(JOURNEY_V2)
             stamp_version_file(d, 2, "v2")
-        events_model.append_event(
+        append_command(
             d,
             {
                 "kind": "action",
@@ -2198,7 +2200,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
     did."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",
@@ -2209,7 +2211,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
             "detail": {"card": "card-x", "to": "col-done", "index": 0},
         },
     )
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",
@@ -2247,7 +2249,7 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     in front of the user."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
-    events_model.append_event(
+    append_command(
         d,
         {
             "kind": "action",

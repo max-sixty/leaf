@@ -238,6 +238,15 @@ class PageTransaction:
 
     def append_event(self, event: dict) -> dict:
         """Append under this transaction without re-entering its log lease."""
+        if event["kind"] in {"action", "report", "request"}:
+            if accepted := self.matching_attempt(event):
+                return accepted
+            from leaf.event_meaning import admit_widget_event
+            from leaf.registry.storage import require_registry
+
+            event = admit_widget_event(
+                self.page_dir, event, self.events, require_registry(self.page_dir)
+            )
         try:
             accepted, appended = _append_event_unlocked(self._log, event, self.events)
         except Exception:

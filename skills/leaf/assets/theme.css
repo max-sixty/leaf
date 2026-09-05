@@ -163,6 +163,8 @@
   --here-ring-w: 2px;
   --here-ring: var(--here-ring-w) solid var(--accent); --here-ring-gap: 3px;
   --here-ring-room: calc(var(--here-ring-w) + var(--here-ring-gap));
+  --status-trace-w: 1.5px;
+  --status-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
   /* A keyboard address chip's box: the line box, which is a ratio of the font, plus
      the ring drawn around it (chrome-style.js dresses one). It is a token for the
      reason the ring's width is — a box somebody else holds room for has to be read
@@ -1151,10 +1153,30 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 [data-lf-reported] { outline: 2px dashed color-mix(in srgb, var(--warn) 92%, transparent);
                      outline-offset: 3px; border-radius: 2px; }
 
-/* The shared boxes of a registry-declared widget conversation. The widget places it. */
+/* The shared boxes of a registry-declared widget conversation. The widget places it.
+   The same Thread view may be seated inside an x-thread-surface shadow tree, so this
+   whole vocabulary is carried through the shadow extraction boundary. */
+/* lf-shadow:start */
+/* A thread mark's accessibility control lives beside the datum it names. The chrome
+   stylesheet states this contract for light DOM; repeat it in the shared shadow slice
+   because document selectors cannot cross into a declared widget tree. Its transparent
+   pixel remains a real pointer target, while keyboard focus gives it the same visible
+   skip-link face as the document copy. */
+.lf-mark-note { appearance: none; box-sizing: border-box; position: absolute;
+          width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden;
+          border: 0; background: none; color: inherit; font: inherit;
+          user-select: none; -webkit-user-select: none; opacity: 0; }
+.lf-mark-note:is(:focus-visible, .lf-focus-visible) { position: fixed; z-index: 9050;
+          top: calc(var(--lf-banner-h) + 6px); left: 8px;
+          width: auto; height: auto; padding: 6px 10px; overflow: visible; opacity: 1;
+          border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
+          color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
 .lf-conversation { display: none; margin-top: var(--sp-2); overflow-wrap: anywhere; }
+.lf-conversation-thread { min-width: 0; font-family: var(--sans); font-size: var(--t-5);
+          line-height: var(--lf-ui-lh); color: var(--ink); overflow-wrap: anywhere; }
 .lf-say { display: none; align-items: flex-end;
           gap: var(--sp-2); margin-top: var(--sp-2); }
+.lf-conversation-thread > .lf-say:not([hidden]) { display: flex; }
 .lf-say textarea { flex: 1; min-width: 0; }
 .lf-conversation-thread > .lf-say { flex-direction: column; align-items: stretch; }
 .lf-conversation-actions, .lf-conversation-resolved { display: flex;
@@ -1174,6 +1196,44 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-body > :last-child { margin-bottom: 0; }
 .lf-conversation-open { margin-top: var(--sp-2); }
 .lf-conversation-resolved { margin-top: var(--sp-2); color: var(--ok); }
+.lf-conversation-summary { padding: 8px 10px; color: var(--ok); cursor: pointer;
+          font-weight: 600; }
+.lf-conversation-thread[open] > .lf-conversation-summary { margin-bottom: var(--sp-2);
+          border-bottom: 1px solid var(--rule); }
+.lf-conversation-thread > .lf-conversation-summary[hidden] { display: none; }
+.lf-conversation-thread .lf-btn { font: inherit; }
+.lf-conversation-thread textarea { box-sizing: border-box; padding: 8px 10px;
+          border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
+          color: inherit; font: inherit; resize: none; field-sizing: content;
+          max-height: 50vh; overflow-y: auto; }
+.lf-conversation-thread :is(.lf-btn, textarea, summary):is(:focus-visible, .lf-focus-visible) {
+          outline: var(--here-ring); outline-offset: 1px; --lf-here-ring: conversation; }
+@media print {
+  .lf-conversation-thread,
+  .lf-conversation-thread :is(.lf-conversation-msg, .lf-conversation-resolved) {
+          display: block !important; }
+  .lf-conversation-thread :is(.lf-say, button, .lf-receipt), .lf-mark-note {
+          display: none !important; }
+}
+.lf-react-trigger { color: var(--muted); }
+.lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.lf-react-open > .lf-react-trigger { display: none; }
+.lf-react-strip:not(.lf-react-open) > .lf-react-palette:not(:has(> [aria-pressed="true"])) {
+          display: none; }
+.lf-react { display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+          min-width: 26px; }
+.lf-react > .lf-react-word { display: none; }
+.lf-react[aria-pressed="true"] > .lf-react-word { display: inline; }
+.lf-react[aria-pressed="true"] { background: var(--chip); }
+.lf-react[aria-busy="true"] { opacity: .55; }
+.lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+          margin-top: 6px; }
+.lf-react-palette > .lf-react:not([aria-pressed="true"]) { color: var(--muted);
+          border-color: transparent; background: transparent; }
+.lf-react-palette > .lf-react:not([aria-pressed="true"]):is(:hover, :focus-visible,
+          .lf-focus-visible, [aria-busy="true"]),
+.lf-react-open .lf-react-palette > .lf-react:not([aria-pressed="true"]) {
+          color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
 /* Where a subject has no page edge of its own, one receipt grows beneath the reader
    move it acknowledges: Sent, Picked up, then Active when an explicit work claim names
    that subject. This is the panel-local and frozen-conversation fallback; page targets
@@ -1183,7 +1243,6 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
    already asked, and a tint that replays is a flash.
    The shadow markers carry the same rule into any declared tree an authored subject
    is staged into; they remain ordinary comments in the document stylesheet. */
-/* lf-shadow:start */
 .lf-receipt { display: flex; gap: 6px; align-items: flex-end; clear: both;
   width: 100%; box-sizing: border-box; grid-column: 1 / -1;
   margin: var(--sp-2) 0 0; padding: 3px 8px; font-size: var(--t-6); color: var(--muted);
@@ -1405,6 +1464,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     width: 18px; border-top: 1px solid var(--border-2); opacity: 0;
     pointer-events: none; }
 .lf-margin-item:is(:hover, :focus-within)::before { opacity: 1; }
+.lf-margin-item:has(.lf-margin-button[data-lf-behavior="status"]:hover)::before {
+    border-color: var(--status-trace-ink); border-width: var(--status-trace-w); }
 .lf-margin-item.lf-waiting { display: none; }
 /* display, because the item is inline-flex where it hangs and absolute position is what
  * blockifies it there. Left inline-level once docked, the row joins whatever line box
@@ -1450,7 +1511,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-change { color: var(--accent); }
 .lf-margin-comment { color: var(--mark-ink); }
 .lf-margin-decision { color: var(--warn-ink); }
-.lf-margin-outcome { color: var(--ok-ink); }
 .lf-margin-activity { color: var(--accent); }
 .lf-margin-count { position: absolute; top: -7px; right: -7px; min-width: 16px;
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;
@@ -1533,6 +1593,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 @media print {
   .lf-living-margin, .lf-margin-marker.lf-margin-button { display: none !important; }
+}
+/* lf-shadow:start */
+@media print {
   /* A shut disclosure on paper is a summary and a stub: the words are in the document,
      nothing on the sheet says they are there, and there is no press to open them with.
      Six of them printed that way on the corpus, one of them holding 3270px of an exact
@@ -1548,6 +1611,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   details > summary { list-style: none; }
   details > summary::-webkit-details-marker { display: none; }
 }
+/* lf-shadow:end */
 /* A page that can grow a page-edge Button reserves this strip at load. The runtime says
  * so on the root (data-lf-rail) and never takes it back, so durable apparatus never hangs
  * in accidental leftover space and the reader never buys the room for it with a gesture.
@@ -1635,5 +1699,8 @@ html.lf-versioning::view-transition-new(root) {
    buttons, and the attribute wireInput sets, which is the only one a span press can
    wear. */
 .lf-btn:disabled, .lf-btn[aria-disabled="true"] { opacity: .55; cursor: default; }
+.lf-btn.primary:is(:disabled, [aria-disabled="true"]) {
+          opacity: 1; color: var(--muted); background: var(--paper);
+          border-color: var(--border-2); filter: none; }
 .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
 /* lf-shadow:end */

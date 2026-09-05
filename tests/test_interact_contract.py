@@ -32,8 +32,8 @@ from interact_support import (
     _report_undeclared_attr,
     _report_without_overruled,
     _report_without_upgrade,
-    _state_with_optional_value_record,
     _tasks_version,
+    append_command,
     assert_revendor_serializes_writer,
     check,
     comment,
@@ -81,6 +81,7 @@ def test_only_declared_generated_children_add_mapping_keys_to_liveness():
             "additions": {"reader-child": "Reader supplied words"},
         },
         "generated": ["reader-child", "reader-child"],
+        "meaning": {"depends": ["group", "authored-child"]},
     }
     spec = {"creates": {"field": "additions", "child": "lf-option"}}
 
@@ -131,6 +132,12 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
             "action": "choose",
             "detail": {"options": ["flag-first"], "resolves": "c1"},
             "generated": [],
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "coordinate": ["picks", "picks", "selection"],
+                "depends": ["flag-first", "picks"],
+                "answer": "c1",
+            },
         },
     )
     spk = passages_model.spoken(
@@ -380,6 +387,12 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
             "widget": "d1",
             "action": "decide",
             "detail": {"decision": "approved"},
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "coordinate": ["d1", "d1", "decision"],
+                "depends": ["d1"],
+                "answer": None,
+            },
         },
     )
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
@@ -404,7 +417,7 @@ def test_init_refuses_to_retire_a_logged_host_request_verb(page_dir):
         version.read_text().replace("</section>", operation + "</section>")
     )
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "request",
@@ -456,7 +469,7 @@ def test_init_refuses_a_receipt_without_one_prior_unsettled_request(
     )
     publish(page_dir)
     if receipt_requests[0] != "missing":
-        events_model.append_event(
+        append_command(
             page_dir,
             {
                 "id": "request-1",
@@ -552,7 +565,7 @@ def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
         version.read_text().replace("</section>", board + "\n</section>")
     )
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -599,7 +612,7 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
         version.read_text().replace("</section>", board + "\n</section>")
     )
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -642,7 +655,7 @@ def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
         version.read_text().replace("</section>", options + "</section>")
     )
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -701,7 +714,7 @@ def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_di
         version.read_text().replace("</section>", options + "\n</section>")
     )
     publish(page_dir)
-    events_model.append_event(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -710,7 +723,6 @@ def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_di
             "widget": "run-status",
             "action": "choose",
             "detail": {"options": ["rs-column"]},
-            "generated": [],
         },
     )
 
@@ -1517,23 +1529,14 @@ def test_the_registry_door_keeps_thread_answers_out_of_the_agent_channel(page_di
     assert "resolves" in result.output and "x-state" in result.output
 
 
-def test_the_registry_door_holds_a_thread_answer_to_the_whole_widget(page_dir):
-    """Both thread builders key a widget's standing answer on the widget id — the
-    one key a log outlives its markup with, the honoring version having retired the
-    element. A verb answering a thread while folding per part would fold per part
-    and settle per widget, and the thread would read right until a second part was
-    acted on. The door is where whoever writes that widget finds out.
-
-    Asked of a board rather than a suggestion, whose own verbs are held to the
-    widget by the retirement gate as well — so what fails here can only be this
-    one."""
+def test_the_registry_door_requires_an_explicit_answer_declaration(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     move = registry["lf-board"]["x-state"]["move"]
     move["detail"]["properties"]["resolves"] = {"type": "string"}
     (page_dir / "registry.json").write_text(json.dumps(registry))
     result = check(page_dir)
     assert result.exit_code != 0
-    assert "resolves" in result.output and "card" in result.output
+    assert "resolves" in result.output and "x-awaits answer" in result.output
 
 
 def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
@@ -1714,6 +1717,7 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
         ("x-paints", []),
         ("x-says", []),
         ("x-state", []),
+        ("x-thread-surface", False),
         ("x-upgrade", "yes"),
         ("x-verbatim", "false"),
         ("x-work", []),
@@ -1863,11 +1867,8 @@ def test_a_version_response_names_an_authored_answer_record(page_dir):
         # `overruled` is how a version keeps its state over a report; without it
         # every contradiction is unpublishable.
         (_report_without_overruled, "not the boolean `overruled`"),
-        # Reports replay through applyAction, so the widget must upgrade.
+        # Reports replay through renderState, so the widget must upgrade.
         (_report_without_upgrade, "declares x-report"),
-        # A value record has no action detail for an absent attribute. Requiring the
-        # attribute makes every authored state projectable through applyAction.
-        (_state_with_optional_value_record, "records optional attribute `owner`"),
         (_body_record_with_prose, "x-content must be data"),
         (_body_record_with_nested_widget, "admits nested widgets"),
     ],
@@ -2139,7 +2140,7 @@ def test_record_values_have_the_type_the_reader_uses(
     assert wanted in result.output
 
 
-def test_recorded_actions_require_only_fields_authored_markup_can_restore(page_dir):
+def test_recorded_actions_can_require_fields_beyond_the_record(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     detail = registry["lf-options"]["x-state"]["choose"]["detail"]
     detail["properties"]["animate"] = {"type": "boolean"}
@@ -2148,9 +2149,7 @@ def test_recorded_actions_require_only_fields_authored_markup_can_restore(page_d
 
     result = check(page_dir)
 
-    assert result.exit_code != 0
-    assert "requires detail fields ['animate']" in result.output
-    assert "authored markup cannot restore" in result.output
+    assert result.exit_code == 0, result.output
 
 
 def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
@@ -2315,19 +2314,70 @@ def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
     assert result.exit_code == 0, result.output
 
 
-def test_every_action_on_a_thread_answer_widget_shares_its_answer_facet(page_dir):
-    """Thread history outlives the markup that declared the action, so its one
-    durable widget key is exact only when every action on a resolves-bearing tag
-    is another outcome of the same answer fact."""
+def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
+    server, page_dir
+):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-suggestion"]["x-state"]["reject"]["facet"] = "other"
+    registry["lf-suggestion"]["x-state"]["label"] = {
+        "detail": {
+            "type": "object",
+            "properties": {"text": {"type": "string"}},
+            "required": ["text"],
+            "additionalProperties": False,
+        },
+        "facet": "label",
+        "unit": "widget",
+    }
     (page_dir / "registry.json").write_text(json.dumps(registry))
+    snippet = '<lf-suggestion id="proposal" resolves="c1"><lf-new><p id="proposed">Ship after validation.</p></lf-new></lf-suggestion>'
+    source = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + snippet)
+    (page_dir / ".fixture-versions" / "v1.html").write_text(source)
+    events_model.append_event(page_dir, dict(COMMENT))
+    publish(page_dir)
+    from leaf.files import latest_revision
 
-    result = check(page_dir)
+    revision = latest_revision(page_dir)
 
-    assert result.exit_code != 0
-    assert "resolves-bearing widget" in result.output
-    assert "answer facet `settlement`" in result.output
+    def send(action, detail, attempt):
+        command = {
+            "kind": "action",
+            "revision": revision,
+            "widget": "proposal",
+            "action": action,
+            "detail": detail,
+            "attempt": attempt,
+        }
+        status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
+        assert status == 200, body
+        return json.loads(body)["state"]["events"][-1]
+
+    accepted = send("accept", {"resolves": "c1"}, "accepted-proposal")
+    labeled = send("label", {"text": "proposed"}, "labelled-proposal")
+    assert accepted["meaning"]["answer"] == "c1"
+    assert "answer" not in labeled["meaning"]
+    assert labeled["meaning"]["depends"] == ["proposal"]
+    # Literal text matching an id is not a dependency; ancestry remains live for
+    # declared identities, tested in the named-dependency contrast below.
+    assert not event_folds_model.action_retracted(
+        labeled, {"proposed": revision + 1}, {"proposed": ("proposal", "proposed")}
+    )
+    result = event_folds_model.build_threads(
+        events_model.read_events(page_dir), passages_model.enclosing_ids(source)
+    )
+    assert result["c1"]["resolved"]["id"] == accepted["id"]
+    retired = source.replace(snippet, '<p id="proposed">Ship after validation.</p>')
+    (page_dir / ".fixture-versions" / "v2.html").write_text(retired)
+    publish(page_dir, 2)
+    result = event_folds_model.build_threads(
+        events_model.read_events(page_dir), passages_model.enclosing_ids(retired)
+    )
+    assert result["c1"]["resolved"]["id"] == accepted["id"]
+    # The immutable old command document still admits an explicit different answer.
+    send("reject", {}, "rejected-proposal")
+    result = event_folds_model.build_threads(
+        events_model.read_events(page_dir), passages_model.enclosing_ids(retired)
+    )
+    assert result["c1"]["resolved"] is None
 
 
 def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
@@ -2348,6 +2398,7 @@ def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     [
         ("lf-options", "x-state", None),
         ("lf-note", "x-conversation", {"when": {"id": ["note"]}}),
+        ("lf-diff", "x-thread-surface", True),
     ],
 )
 def test_runtime_features_require_an_upgraded_widget(page_dir, tag, key, fallback):
@@ -3841,3 +3892,177 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
     )
     assert status == 400 and "has been answered" in json.loads(body)["error"]
+
+
+def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
+    server, page_dir
+):
+    """Direct identities are durable; their containment remains a current reading."""
+    from copy import deepcopy
+
+    from leaf.files import latest_revision
+    from leaf.validation.compatibility import vocabulary_gaps
+
+    registry = json.loads((page_dir / "registry.json").read_text())
+    choose = registry["lf-options"]["x-state"]["choose"]
+    choose["detail"]["properties"].update(
+        annotation={"type": "string"}, dependency={"type": "string"}
+    )
+    choose["references"] = ["dependency"]
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    source = PAGE.replace("<lf-options>", '<lf-options id="picks" choose>')
+    (page_dir / ".fixture-versions" / "v1.html").write_text(source)
+    publish(page_dir)
+    revision = latest_revision(page_dir)
+    command = {
+        "kind": "action",
+        "revision": revision,
+        "widget": "picks",
+        "action": "choose",
+        "detail": {
+            "options": ["flag-first"],
+            "annotation": "plan-choice-decision",
+            "dependency": "backfill-first",
+        },
+        "attempt": "named-dependencies",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
+    assert status == 200, body
+    events = json.loads(body)["state"]["events"]
+    accepted = events[-1]
+    assert set(accepted["meaning"]["depends"]) == {
+        "picks",
+        "flag-first",
+        "backfill-first",
+    }
+    within = passages_model.enclosing_ids(source)
+    assert event_folds_model.action_retracted(
+        accepted, {"backfill-first": revision + 1}, within
+    )
+    moved = {**within, "backfill-first": ("elsewhere", "backfill-first")}
+    assert not event_folds_model.action_retracted(
+        accepted, {"backfill-first": revision + 1}, moved
+    )
+    empty = {
+        **command,
+        "attempt": "empty-dependency",
+        "detail": {**command["detail"], "dependency": ""},
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(empty).encode())
+    assert status == 400, body
+    assert "identity fields are invalid" in json.loads(body)["error"]
+    assert vocabulary_gaps(page_dir, events, registry) == []
+    facet = deepcopy(registry)
+    facet["lf-options"]["x-state"]["choose"]["facet"] = "other"
+    references = deepcopy(registry)
+    references["lf-options"]["x-state"]["choose"]["references"] = []
+    answer = deepcopy(registry)
+    answer["lf-options"]["x-awaits"]["answers"] = ["answer"]
+    for incoming in (facet, references, answer):
+        assert "changes admitted meaning" in "\n".join(
+            vocabulary_gaps(page_dir, events, incoming)
+        )
+
+
+def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
+    """Keeping a position record must not reinterpret whether it completed its Ask."""
+    from copy import deepcopy
+
+    from leaf.decisions import answered_decision
+    from leaf.files import latest_revision
+    from leaf.projection import page_projection
+    from leaf.validation.compatibility import vocabulary_gaps
+
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry.update(
+        json.loads(
+            (schema_model.BUNDLED_PACKAGES / "swipe" / "registry.json").read_text()
+        )
+    )
+    shutil.copyfile(
+        schema_model.BUNDLED_PACKAGES / "swipe" / "widgets" / "lf-swipe-deck.js",
+        page_dir / "widgets" / "lf-swipe-deck.js",
+    )
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    source = PAGE.replace(
+        "</section>", registry["lf-swipe-deck"]["x-example"] + "</section>"
+    )
+    (page_dir / ".fixture-versions" / "v1.html").write_text(source)
+    publish(page_dir)
+    revision = latest_revision(page_dir)
+    append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": revision,
+            "widget": "session-triage",
+            "action": "finish",
+            "detail": {"card": "session-expiry", "to": "session-keep", "index": 0},
+        },
+    )
+    events = events_model.read_events(page_dir)
+    incoming = deepcopy(registry)
+    incoming["lf-swipe-deck"]["x-state"]["finish"]["completion"]["empty"]["when"] = {
+        "verdict": ["keep"]
+    }
+    registry_validation.validate_registry(incoming, "changed completion")
+
+    def answered(layer):
+        projection, parser, words = page_projection(source, events, layer, revision)
+        return answered_decision(
+            parser.by_id["session-triage"],
+            layer["lf-swipe-deck"],
+            projection,
+            parser.by_id,
+            words,
+            layer,
+        )
+
+    assert answered(registry)
+    assert not answered(incoming)
+    assert vocabulary_gaps(page_dir, events, registry) == []
+    assert "changes its admitted completion condition" in "\n".join(
+        vocabulary_gaps(page_dir, events, incoming)
+    )
+
+
+@pytest.mark.parametrize("facet", ["settlement", "label"])
+def test_conversation_and_state_use_the_same_winning_coordinate(page_dir, facet):
+    from copy import deepcopy
+
+    from leaf.projection import page_projection
+    from leaf.thread_context import thread_memberships
+
+    registry = registry_storage.require_registry(page_dir)
+    registry = deepcopy(registry)
+    registry["lf-suggestion"]["x-state"]["label"] = {
+        "detail": {"type": "object"},
+        "unit": "widget",
+        "facet": facet,
+    }
+    event = {
+        "kind": "action",
+        "id": "label1",
+        "seq": 3,
+        "author": "user",
+        "revision": 1,
+        "widget": "sug-a",
+        "action": "label",
+        "detail": {},
+        "meaning": {
+            "document": {"kind": "page", "revision": 1},
+            "coordinate": ["sug-a", "sug-a", facet],
+            "depends": ["sug-a"],
+        },
+    }
+    events = [{**COMMENT, "seq": 1}, {**ACCEPT, "id": "accept1", "seq": 2}, event]
+    html = '<lf-suggestion id="sug-a"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
+    projection, _, words = page_projection(html, events, registry, 1)
+    winner, _ = projection.actions[("sug-a", "sug-a", "settlement")]
+    threads = event_folds_model.build_threads(
+        events, passages_model.enclosing_of(words)
+    )
+    assert bool(threads["c1"]["resolved"]) == (winner["id"] == "accept1")
+    memberships = thread_memberships(events, {"c1": "c1"}, {}, {})
+    assert memberships["label1"] == (["c1"] if facet == "settlement" else [])

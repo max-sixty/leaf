@@ -10,6 +10,7 @@ import { createReplies } from "./replies.js";
 import { createThreadCards } from "./thread-card.js";
 import { createConversationThreadList } from "./thread-list.js";
 import { createAcknowledgments } from "./acknowledgments.js";
+import { createThreadSurfaces } from "./surfaces.js";
 
 /* Conversation state and panel reconciliation. */
 export function createConversation(dependencies) {
@@ -21,6 +22,7 @@ export function createConversation(dependencies) {
     buildReactSurface,
     captureAuthoredFacets,
     claimState,
+    containsAcross,
     designIsOn,
     designName,
     droppedAt,
@@ -62,9 +64,10 @@ export function createConversation(dependencies) {
     reactDone,
     refreshHover,
     registry,
-    rememberAuthoredMarkup,
+    rememberAuthoredParents,
     renderQuiet,
     renderSaid,
+    renderLivingMargin,
     reportPageError,
     runtime,
     saveDraft,
@@ -124,7 +127,6 @@ export function createConversation(dependencies) {
   } = createConversationMessages({
     MARKED_ANYWHERE,
     ago,
-    captureAuthoredFacets,
     designName,
     el,
     elementById,
@@ -134,7 +136,7 @@ export function createConversation(dependencies) {
     itemWord,
     markDeclared,
     pageQueryAll,
-    rememberAuthoredMarkup,
+    rememberAuthoredParents,
     renderQuiet,
     renderSaid,
     reportPageError,
@@ -240,9 +242,11 @@ export function createConversation(dependencies) {
     post,
     PRESS,
   });
+  let surfaces;
   const cards = createThreadCards({
     anchorLabel,
     el,
+    focusThreadSurface: (id) => surfaces?.focus(id),
     isMarked,
     keys,
     msgNode,
@@ -273,7 +277,7 @@ export function createConversation(dependencies) {
   // forward, so the walk keeps those where they stand instead of reinserting each.
   function setChildren(parent, nodes) {
     const keep = new Set(nodes);
-    for (const child of [...parent.children]) if (!keep.has(child)) removeNode(child);
+    for (const child of [...parent.childNodes]) if (!keep.has(child)) removeNode(child);
     let cursor = parent.firstChild;
     for (const node of nodes) {
       if (node === cursor) cursor = cursor.nextSibling;
@@ -283,22 +287,32 @@ export function createConversation(dependencies) {
 
   const waitingNote = el("div", "lf-empty", "Loading current threads…");
 
-  const { renderConversations, renderMarginThread } = createInlineConversations({
-    ago,
-    el,
-    elementById,
-    focused,
-    loadDraft,
-    offer,
+  const { renderConversations, renderMarginThread, renderThreadSurface } =
+    createInlineConversations({
+      ago,
+      el,
+      elementById,
+      focused,
+      loadDraft,
+      offer,
+      paintReactStrips,
+      registry,
+      renderMessageMarkdown,
+      seatRoot,
+      setChildren,
+      settlementControl,
+      showThread,
+      syncEdited,
+      turns,
+      wireReply,
+    });
+  surfaces = createThreadSurfaces({
+    containsAcross,
     registry,
-    renderMessageMarkdown,
-    seatRoot,
+    renderThreadSurface,
+    reportPageError,
+    requestReconcile: renderPanel,
     setChildren,
-    settlementControl,
-    showThread,
-    syncEdited,
-    turns,
-    wireReply,
   });
   threadListRuntime = createConversationThreadList({
     ago,
@@ -350,6 +364,10 @@ export function createConversation(dependencies) {
       // the button says exactly what it will say the moment the log arrives empty.
       paintNarrowing([], []);
       threadList = [];
+      surfaces.render(threadList, placedAt);
+      renderConversations(threadList);
+      renderLivingMargin();
+      paintAcknowledgments();
       paintHere();
       return;
     }
@@ -362,10 +380,13 @@ export function createConversation(dependencies) {
     // disagree with the first over a page that changed between them — and it would walk the
     // document's whole text again to say it.
     paintAnchors(threads);
-    renderThreads(threads);
+    surfaces.render(threadList, placedAt);
+    const prepared = renderThreads(threads);
     renderConversations(threadList);
     paintPageStrip(threads);
+    renderLivingMargin();
     paintAcknowledgments();
+    return prepared;
   }
 
   return {
@@ -383,6 +404,8 @@ export function createConversation(dependencies) {
     paintThreadQuotes: cards.paintThreadQuotes,
     renderMarginThread,
     renderPanel,
+    focusSurfaceThread: surfaces.focus,
+    threadClaimed: surfaces.claimed,
     replyBoxHasDraft,
     showThread,
     get threadList() {

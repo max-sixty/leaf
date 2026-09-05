@@ -15,7 +15,7 @@ export function createConversationMessages(dependencies) {
     itemWord,
     markDeclared,
     pageQueryAll,
-    rememberAuthoredMarkup,
+    rememberAuthoredParents,
     renderQuiet,
     renderSaid,
     reportPageError,
@@ -93,7 +93,7 @@ export function createConversationMessages(dependencies) {
       if (m.markup) {
         const authored = document.createElement("template");
         authored.innerHTML = m.markup;
-        rememberAuthoredMarkup(authored.content);
+        rememberAuthoredParents(authored.content);
         captureAuthoredFacets(authored.content);
         body.append(authored.content);
       }

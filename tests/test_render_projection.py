@@ -77,6 +77,7 @@ from render_support import (
     page_registry,
     painted,
     panel_settled,
+    post_event,
     refuse,
     resized,
     round_trip,
@@ -2141,7 +2142,9 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
 
     page, errors = open_page(browser, url)
     standing = page.evaluate("""async () => (await import('/runtime/widget-api.js')).standingState()
-        .map(({ widget, facet, action }) => [widget.id, widget.localName, facet, action])""")
+        .flatMap(({widget, state}) => Object.entries(state).flatMap(([facet, value]) =>
+          (value.units ? Object.values(value.units) : [value]).filter(({action}) => action)
+            .map(({action}) => [widget.id, widget.localName, facet, action])))""")
     page.close()
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     declared = {
@@ -2165,8 +2168,9 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     assert render_gate_model.render_version(browser, url) == []
 
 
+@pytest.mark.parametrize("authored", [None, "0"])
 def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
-    browser, serve, tmp_path, monkeypatch
+    browser, serve, tmp_path, monkeypatch, authored
 ):
     """The projection, not channel replay order, is the DOM's authority. A worker's
     later count remains report history, but it cannot paint over the reader's action
@@ -2180,7 +2184,6 @@ def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
         "type": "string",
         "pattern": "^[0-9]+$",
     }
-    entries["lf-tally"].setdefault("required", []).append("count")
     entries["lf-tally"]["x-example"] = (
         '<lf-tally id="tally-example" count="0"><pre>Nothing yet.</pre></lf-tally>'
     )
@@ -2215,13 +2218,17 @@ def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
 import { once } from "/runtime/widget-api.js";
 customElements.define("lf-tally", class extends HTMLElement {
   connectedCallback() { once(this); }
-  applyAction(_action, detail) {
-    this.setAttribute("count", detail.count);
+  renderState(state) {
+    if (state.count.value === null) this.removeAttribute("count");
+    else this.setAttribute("count", state.count.value);
   }
 });
 """
     )
-    url = serve(RELATIVE_WIDGET_PAGE)
+    html = RELATIVE_WIDGET_PAGE
+    if authored is None:
+        html = html.replace('id="tally-seen" count="0"', 'id="tally-seen"')
+    url = serve(html)
     for kind, author, widget, action, count in [
         ("action", "user", "tally-fitted", "set", "7"),
         ("report", "claude", "tally-fitted", "measure", "9"),
@@ -2246,13 +2253,15 @@ customElements.define("lf-tally", class extends HTMLElement {
     standing = page.evaluate(
         """async () => (await import('/runtime/widget-api.js')).standingState()
           .filter(state => state.widget?.id === 'tally-fitted')
-          .map(state => [state.action, state.detail.count])"""
+          .map(({state}) => state.count.value)"""
     )
-    assert standing == [["set", "7"]]
+    assert standing == ["7"]
 
+    original = page.locator("#tally-seen").element_handle()
     page.keyboard.press("z")
     round_trip(page)
-    expect(page.locator("#tally-seen")).to_have_attribute("count", "0")
+    assert page.locator("#tally-seen").get_attribute("count") == authored
+    assert original.evaluate("node => node === document.getElementById('tally-seen')")
     assert errors == []
     page.close()
 
@@ -2333,10 +2342,11 @@ def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
 import { once } from "/runtime/widget-api.js";
 customElements.define("lf-owner", class extends HTMLElement {
   connectedCallback() { once(this); }
-  applyAction(_action, detail) {
-    const piece = document.getElementById(detail.piece);
-    const zone = document.getElementById(detail.to);
-    zone.insertBefore(piece, [...zone.children][detail.index] ?? null);
+  renderState(state) {
+    for (const [id, order] of Object.entries(state.placement.value)) {
+      const zone = document.getElementById(id);
+      for (const child of order) zone.append(document.getElementById(child));
+    }
   }
 });
 """
@@ -2346,7 +2356,7 @@ customElements.define("lf-owner", class extends HTMLElement {
 import { once } from "/runtime/widget-api.js";
 customElements.define("lf-piece", class extends HTMLElement {
   connectedCallback() { once(this); }
-  applyAction(_action, detail) { this.setAttribute("pinned", detail.pinned); }
+  renderState(state) { this.setAttribute("pinned", state.placement.value); }
 });
 """
     )
@@ -2382,16 +2392,136 @@ customElements.define("lf-piece", class extends HTMLElement {
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
     standing = page.evaluate(
         """async () => (await import('/runtime/widget-api.js')).standingState()
-          .filter(state => state.unit === 'piece' && state.facet === 'placement')
-          .map(state => [state.widget.id, state.action])"""
+          .filter(({widget}) => ['owner', 'piece'].includes(widget.id))
+          .map(({widget, state}) => [widget.id, (state.placement.units?.piece ?? state.placement).action])"""
     )
     assert standing == [["owner", "move"], ["piece", "pin"]]
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
+    # A data renderer can remount a part while retaining its owner. Both owning
+    # coordinates must render onto the new node even when no winning event changed.
+    page.evaluate("""() => {
+      const piece = document.createElement('lf-piece');
+      piece.id = 'piece';
+      piece.setAttribute('pinned', 'no');
+      document.getElementById('piece').replaceWith(piece);
+      document.getElementById('zone-a').append(piece);
+    }""")
+    response = post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "comment",
+            "revision": 1,
+            "text": "Check the refreshed piece",
+        },
+    )
+    assert response.ok, response.text()
+    told(page)
+    expect(page.locator("#zone-b > #piece")).to_have_count(1)
+    expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
     assert errors == []
     page.close()
 
 
-def test_the_render_gate_catches_a_relative_apply_action(
+def test_complete_positions_compose_across_independent_widget_owners(
+    browser, serve, tmp_path, monkeypatch
+):
+    """Four independently recorded siblings share one physical order. A fresh tab
+    must render their final positions in that order, rather than reapply each
+    owner's index in the original DOM order; undo retains those same nodes."""
+    monkeypatch.chdir(tmp_path)
+    author_test_widget(tmp_path, "lf-lane")
+    author_test_widget(tmp_path, "lf-token", upgrade=True)
+    path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(path.read_text())
+    entries["lf-lane"]["x-content"] = "items"
+    entries["lf-lane"].pop("x-example")
+    token = entries["lf-token"]
+    token.pop("x-example")
+    token["properties"]["restated"] = {"type": "boolean"}
+    token["x-parent"] = ["lf-lane"]
+    token["x-state"] = {
+        "move": {
+            "detail": {
+                "type": "object",
+                "properties": {
+                    "to": {"type": "string"},
+                    "index": {"type": "integer", "minimum": 0},
+                },
+                "required": ["to", "index"],
+                "additionalProperties": False,
+            },
+            "facet": "placement",
+            "unit": "widget",
+            "record": {
+                "kind": "position",
+                "within": "lf-lane",
+                "value": "to",
+                "order": "index",
+            },
+        }
+    }
+    path.write_text(json.dumps(entries))
+    (
+        path.parent / "widgets" / "lf-token.js"
+    ).write_text("""import { once } from "/runtime/widget-api.js";
+customElements.define("lf-token", class extends HTMLElement {
+  connectedCallback() { once(this); }
+  renderState(state) {
+    const {to, index} = state.placement.detail;
+    const parent = document.getElementById(to);
+    const rest = [...parent.children].filter(child => child !== this);
+    if (parent.children[index] !== this) parent.insertBefore(this, rest[index] ?? null);
+  }
+});
+""")
+    html = leaf_page(
+        "Shared order",
+        '<h1>Shared order</h1><lf-lane id="lane">'
+        + "".join(f'<lf-token id="token-{name}">{name}</lf-token>' for name in "abcd")
+        + "</lf-lane>",
+    )
+    url = serve(html)
+    sender, sender_errors = open_page(browser, url)
+    for name, index in [("d", 0), ("c", 1)]:
+        response = post_event(
+            sender,
+            url.rsplit("/versions/", 1)[0] + "/api/event",
+            data={
+                "kind": "action",
+                "revision": 1,
+                "widget": f"token-{name}",
+                "action": "move",
+                "detail": {"to": "lane", "index": index},
+                "attempt": f"move-token-{name}-test-case",
+            },
+        )
+        assert response.ok, response.text()
+    page, errors = open_page(browser, url)
+    order = "nodes => nodes.map(node => node.id)"
+    assert page.locator("#lane > lf-token").evaluate_all(order) == [
+        "token-d",
+        "token-c",
+        "token-a",
+        "token-b",
+    ]
+    original = page.locator("#token-c").element_handle()
+    undo(page)
+    assert page.locator("#lane > lf-token").evaluate_all(order) == [
+        "token-d",
+        "token-a",
+        "token-b",
+        "token-c",
+    ]
+    assert original.evaluate("node => node === document.getElementById('token-c')")
+    assert render_checks_model.evaluate_probe(page, "relativeReplays") == []
+    told(sender)
+    assert errors == sender_errors == []
+    page.close()
+    sender.close()
+
+
+def test_the_render_gate_catches_a_relative_state_renderer(
     browser, serve, tmp_path, monkeypatch
 ):
     """Bug-back for the module contract's first state rule, and for
@@ -2466,15 +2596,17 @@ def test_the_render_gate_catches_a_relative_apply_action(
 
     failures = render_gate_model.render_version(browser, url)
 
-    tail = (
-        ". Replay lays every standing action over the state they already "
-        "produced, so state the whole value from the detail rather than stepping "
-        "from what the page shows"
-    )
     assert [f for f in failures if "is relative" in f] == [
-        "[light] <lf-tally id=tally-fitted> applyAction(step, caption) is relative — "
-        "re-applying the standing log moved tally-fitted, the caption state recorded "
-        "on tally-fitted" + tail,
+        (
+            "[light] <lf-tally id=tally-fitted> renderState is relative — rendering "
+            "the same complete state changed tally-fitted, body text. Render the "
+            "supplied values without stepping from the DOM."
+        ),
+        (
+            "[light] <lf-tally id=tally-seen> renderState is relative — rendering "
+            "the same complete state changed body text. Render the "
+            "supplied values without stepping from the DOM."
+        ),
     ], failures
 
 
@@ -2940,7 +3072,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
 ):
     """A settlement is the layer's rendering of the log's decision, never a module
     obligation: the trial's module only defines the element and
-    supplies no applyAction at all — and once its decision replays the holder wears
+    supplies no renderState at all — and once its decision replays the holder wears
     data-lf-state, the retired slot is marked and hidden by the theme's one generic
     rule, and the quote anchored in it detaches instead of pointing at words the
     page's reading has dropped. The mark and the hide used to be each holder
@@ -3038,7 +3170,7 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
         """import { once } from "/runtime/widget-api.js";
 customElements.define("lf-trial", class extends HTMLElement {
   connectedCallback() { once(this); }
-  applyAction(_action, detail) { this.setAttribute("decision", detail.decision); }
+  renderState(state) { this.setAttribute("decision", state.settlement.value); }
 });
 """
     )
@@ -3087,7 +3219,7 @@ def test_a_throwing_settlement_still_reaches_the_layers_terminal_state(
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
         """\
 customElements.define("lf-trial", class extends HTMLElement {
-  applyAction() { throw new Error("trial replay broke"); }
+  renderState() { throw new Error("trial replay broke"); }
 });
 """
     )
@@ -3109,8 +3241,7 @@ customElements.define("lf-trial", class extends HTMLElement {
     expect(page.locator("#th-cache .lf-error")).to_contain_text("trial replay broke")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
     assert any(
-        "<lf-trial> applyAction(shelve) threw: trial replay broke" in error
-        for error in errors
+        "<lf-trial> renderState threw: trial replay broke" in error for error in errors
     ), errors
     page.close()
 
@@ -3125,7 +3256,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     slot (a later layer's rule outranking the default, a module re-showing what it
     folded): the words stay on screen where the reader can select what no comment
     can anchor to, and the gate must say so. Then the theme goes back and the
-    vendored module is rewritten to mark every trial at upgrade: on the undecided
+    vendored module is rewritten to mark every trial after projection commits: on the undecided
     spare that is a settlement the log never decided, silencing words the reader can
     still see, and the gate must say that too. Both failures render perfectly, which
     is why each is put back deliberately."""
@@ -3166,7 +3297,8 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     module.write_text(
         source.replace(
             upgrade_line,
-            upgrade_line + '\n      this.setAttribute("data-lf-state", "shelve");',
+            upgrade_line
+            + '\n      document.addEventListener("lf-actions", () => this.setAttribute("data-lf-state", "shelve"));',
         )
     )
     failures = render_gate_model.render_version(browser, url)

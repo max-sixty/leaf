@@ -920,18 +920,8 @@ customElements.define(
     }
 
     refreshReviewedState() {
-      if (!this.fileEntries) return;
-      for (const entry of this.fileEntries)
-        this.setReviewed(entry, false, { repaint: false });
-      for (const state of standingState()) {
-        if (state.widget !== this || state.action !== "review") continue;
-        this.setReviewed(
-          this.fileEntries.find(({ record }) => record.path === state.detail.file),
-          state.detail.reviewed,
-          { repaint: false },
-        );
-      }
-      this.refreshReviewTools();
+      const current = standingState().find(({ widget }) => widget === this);
+      if (current) this.renderState(current.state);
     }
 
     filterFiles(query) {
@@ -1125,12 +1115,14 @@ customElements.define(
       notice(`Next unreviewed file: ${entry.record.path}`);
     }
 
-    applyAction(action, detail) {
-      if (action !== "review") return;
-      this.setReviewed(
-        this.fileEntries?.find(({ record }) => record.path === detail.file),
-        detail.reviewed,
-      );
+    renderState(state) {
+      for (const entry of this.fileEntries ?? [])
+        this.setReviewed(
+          entry,
+          state.review.units[entry.record.path]?.detail.reviewed ?? false,
+          { repaint: false },
+        );
+      this.refreshReviewTools();
     }
   },
 );

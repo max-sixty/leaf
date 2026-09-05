@@ -270,7 +270,7 @@ export function createStateApplication(dependencies) {
       accountOutbox(nextBrowser.receipts ?? []);
       // Sequence consumers render after replay, so their history and the widget's
       // standing body describe the same poll. This also fires when the event list did
-      // not grow: applyAction may have deferred while a user was typing, then become
+      // not grow: renderState may have deferred while a user was typing, then become
       // applicable on the next poll after they close the editor.
       document.dispatchEvent(new Event("lf-actions"));
       await notifyDataSubscribers();

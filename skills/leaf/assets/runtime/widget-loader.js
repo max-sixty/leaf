@@ -12,7 +12,7 @@ import { settle, settling } from "./widget-upgrade.js";
 /* Registry loading and the one initial widget-upgrade lifecycle. */
 export function createWidgetLoader({
   buildReactBar,
-  rememberAuthoredMarkup,
+  rememberAuthoredParents,
   reportPageError,
   revealLayer,
   sameLayer,
@@ -98,7 +98,7 @@ export function createWidgetLoader({
     revealLayer();
     buildReactBar();
     rememberPassageParts();
-    rememberAuthoredMarkup();
+    rememberAuthoredParents();
     markDeclared(document.body, MARKED_IN_PAGE);
     watchExternalLinks(document.body);
     await importWidgets(document);

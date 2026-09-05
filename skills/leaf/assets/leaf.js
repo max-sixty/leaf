@@ -19,7 +19,7 @@
  * hand. When a version does mean to overrule one — the content the decision was
  * about got rewritten — `version check` makes the author say so (see restatement_errors in
  * the leaf.validation package); it is never inferred from the markup's silence. Widgets opt in via an
- * applyAction(action, detail) method stating an absolute value, so a reload keeps the
+ * renderState(state) method stating an absolute value, so a reload keeps the
  * user's drag and a second tab follows along live.
  *
  * Comment layer: talks to leaf's server — listens on GET /api/news and reads
@@ -562,7 +562,7 @@ const {
   upgradeWidgets,
 } = createWidgetLoader({
   buildReactBar: (...args) => buildReactBar(...args),
-  rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
+  rememberAuthoredParents: (...args) => rememberAuthoredParents(...args),
   reportPageError,
   revealLayer,
   sameLayer,
@@ -812,7 +812,7 @@ const {
   quoteFrom: (...args) => quoteFrom(...args),
   rangeOf: (...args) => rangeOf(...args),
   readAndApply,
-  rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
+  rememberAuthoredParents: (...args) => rememberAuthoredParents(...args),
   rememberPassageParts,
   reportPageError,
   reserveNewsSlot,
@@ -3213,9 +3213,9 @@ const midComposition = () => {
 // ---------- reading ----------
 // Rendering version V means making its DOM equal the log's desired projection.
 // Each `(owner widget, unit, facet)` keeps its last surviving action or report, with
-// a reader action outranking provisional agent news on the same coordinate. Widgets state
-// those winners through an absolute applyAction(action, detail); when several units
-// share one ordered container, their winners are applied together in log order.
+// a reader action outranking provisional agent news on the same coordinate. The framework composes
+// those winners with authored state, including complete ordered containers, before
+// widgets render each final facet map through renderState(state).
 //
 // Absolute is what makes projection converge. Reader actions outrank provisional agent
 // reports on the same coordinate; winners on different coordinates are applied in their
@@ -3385,24 +3385,17 @@ const {
 
 const runtimeProjection = createProjection(runtime, {
   unaccountedGesture,
-  DECISION_ROW,
   COLLAPSE,
-  MARKED_ANYWHERE,
-  MARKED_IN_PAGE,
   PAGE_PAINT_ATTRIBUTE,
   PAGE_PAINT_ATTRIBUTES,
   agentName,
   answeredContext,
   authored,
   decisionEntry,
-  containsAcross,
-  dress,
   elementById,
   failSoft,
-  focused,
   inChrome,
   isAwaiting,
-  markDeclared,
   outbox,
   pagePresented,
   pageQueryAll,
@@ -3413,40 +3406,29 @@ const runtimeProjection = createProjection(runtime, {
   post,
   projectedParent,
   quoteFrom,
-  reachScrollers,
-  rememberPassageParts,
   removeOutbox,
   renderQuiet,
   renderRetired,
   reportPageError,
-  settling,
   settlementSlots,
-  standOn,
   textNodesUnder,
   notice,
 });
 const {
-  authoredDetails,
-  authoredFacets,
-  authoredMarkup,
   authoredParents,
-  authoredStatements,
-  authoredWidgets,
   captureAuthoredFacets,
   committedProjection,
   coordinateProjectionCommitted,
   domFacet,
-  markSettled,
   matchesProjectedWhen,
   paintPending,
   projectedFacet,
   projectionFromView,
   projectionCommitted,
-  rebuild,
   reconcileKnownState,
   reconcileState,
   releaseProjectedOutbox,
-  rememberAuthoredMarkup,
+  rememberAuthoredParents,
   resetAuthoredPage,
   requirementMatches,
   stageOutboxAction,
@@ -3536,7 +3518,7 @@ conversationRuntime = createConversation({
   sendReaction,
   refreshHover,
   registry,
-  rememberAuthoredMarkup,
+  rememberAuthoredParents,
   renderQuiet,
   renderSaid,
   reportPageError,

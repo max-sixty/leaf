@@ -24,7 +24,7 @@ def _render_version_attempt(
     the page (a declaration is scheme-blind), an attribute a module left standing on a
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
-    applyAction is relative, so a read's replay of the sender's own gesture moves the
+    renderState is relative, so a read's replay of the sender's own gesture moves the
     page again (none of the three is CSS), a settled holder whose mark or still-showing
     slot words disagree with the log's decision (read once, on the premise the
     trapped-margin reading shares: the palettes carry no geometry between them), an SVG

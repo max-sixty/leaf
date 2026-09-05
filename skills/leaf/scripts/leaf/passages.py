@@ -33,7 +33,7 @@ from .structure import VOID_TAGS, implicit_closes
 #               verbs, which is where `decisions` reads them from.
 #   x-state, record kind "body"  the verb whose detail text becomes this element's
 #               body once the user sends one (lf-draft's `edit`): replay writes
-#               the newest surviving one into the DOM verbatim (applyAction is
+#               the newest surviving one into the DOM verbatim (renderState is
 #               absolute), so a reading given the fold's word (rewritten_bodies)
 #               holds their words in the authored body's place. It asks nothing of
 #               the browser, whose page already shows the text this substitutes.

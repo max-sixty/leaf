@@ -90,7 +90,7 @@ export function createVersion({
   quoteFrom,
   rangeOf,
   readAndApply,
-  rememberAuthoredMarkup,
+  rememberAuthoredParents,
   rememberPassageParts,
   reportPageError,
   reserveNewsSlot,
@@ -948,8 +948,8 @@ export function createVersion({
     if (comparedFrom !== null) setDiff(false);
 
     resetAuthoredPage();
-    rememberAuthoredMarkup(source);
-    rememberAuthoredMarkup(fresh);
+    rememberAuthoredParents(source);
+    rememberAuthoredParents(fresh);
     rememberPassageParts(fresh);
     markDeclared(fresh, MARKED_IN_PAGE);
     authoredHtmlAttributes = replaceAuthoredAttributes(

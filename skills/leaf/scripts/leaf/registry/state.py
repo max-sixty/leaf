@@ -212,15 +212,6 @@ def _validate_widget_record_contracts(
                         f"{path}: <{tag}> {channel} verb `{verb}` records "
                         f"undeclared attribute `{attr}`"
                     )
-                # Projection rebuilds a refused gesture from authored state.
-                # A required string value gives every baseline an absolute
-                # action detail; absence is represented by an admitted value.
-                if attr not in entry.get("required", []):
-                    raise RegistryError(
-                        f"{path}: <{tag}> {channel} verb `{verb}` records "
-                        f"optional attribute `{attr}`; recorded state must be "
-                        "required so its authored value can be replayed"
-                    )
                 # An x-says value is words the reader sees, and the file's
                 # reading takes them from the markup — replay writing one
                 # would change what the page says while that reading held
@@ -283,16 +274,6 @@ def _validate_widget_record_contracts(
             raise RegistryError(
                 f"{path}: <{tag}> {channel} verb `{verb}` reads detail fields "
                 f"its schema {problem}"
-            )
-        # Undo restores a recorded action from authored markup. That markup
-        # can reconstruct exactly the fold unit and the record's value/order;
-        # any other required field would make a valid declaration impossible
-        # to restore without a widget-specific default hidden in core.
-        unrestorable = sorted(required.difference(fields))
-        if channel == "x-state" and record and unrestorable:
-            raise RegistryError(
-                f"{path}: <{tag}> {channel} verb `{verb}` requires detail "
-                f"fields {unrestorable} that authored markup cannot restore"
             )
         if unit != "widget" and record and record["kind"] != "position":
             raise RegistryError(

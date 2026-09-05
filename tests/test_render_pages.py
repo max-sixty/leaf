@@ -422,7 +422,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # standing winner has to appear for the gate to reapply it at all. Read once:
         # the fold is the whole log's, not one widget's.
         standing = page.evaluate(
-            "async () => (await import('/runtime/widget-api.js')).standingState().map((s) => s.unit)"
+            "async () => (await import('/runtime/widget-api.js')).standingState().map((s) => s.widget.id)"
         )
         for wid in decided_here:
             decided.append(wid)

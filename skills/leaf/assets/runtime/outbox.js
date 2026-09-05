@@ -1,7 +1,7 @@
 /* A widget's report of the user editing the document through it (a card dragged
  * between columns). The caller has already applied the edit to its own DOM; the
- * projection reconciler states it again once the log contains it, which is why applyAction
- * implementations must state an absolute placement, never a relative mutation.
+ * projection reconciler states it again once the log contains it, through the complete widget renderer. It must be idempotent so accepting a gesture
+ * does not change the state the reader already sees.
  *
  * The outbox is the one representation of a gesture the page has made and has not yet
  * read back into a complete rendered state. It orders every user event, tells replay

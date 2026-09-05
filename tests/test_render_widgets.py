@@ -1457,17 +1457,8 @@ def test_a_terse_compare_keeps_its_side_by_side_grid(browser, serve):
     page.close()
 
 
-def test_a_rebuilt_widget_is_still_set_among_the_words(browser, serve):
-    """Undo rebuilds a recordless decision from the version's own markup, and the
-    marks the runtime paints from the registry are painted again onto the clone —
-    the widget's own mark included, not only its descendants'. A suggestion is
-    inline, so the exhibition holding it is looked across; unmarked after the
-    rebuild it becomes block content, and taking back a decision about one case
-    would silently restack the comparison it was made in.
-
-    The reading straddles the rebuild rather than sampling after it, because the
-    grid is what the page arrives at and a rule that never applied would look the
-    same at the end."""
+def test_an_undone_suggestion_stays_inline_among_the_words(browser, serve):
+    """An undone suggestion retains its inline presentation and the surrounding comparison layout."""
     page, errors = open_page(browser, serve(REBUILT_INLINE_PAGE))
     form = "() => getComputedStyle(document.getElementById('cmp-stores')).display"
     assert page.evaluate(form) == "grid", (

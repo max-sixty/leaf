@@ -1114,13 +1114,9 @@ customElements.define(
     connectedCallback() {
       once(this);
     }
-    applyAction(action, detail) {
-      if (action === "step")
-        this.setAttribute(
-          "count",
-          Number(this.getAttribute("count")) + Number(detail.count),
-        );
-      if (action === "caption") this.querySelector("pre").append(detail.text);
+    renderState(state) {
+      this.setAttribute("count", Number(this.getAttribute("count")) + Number(state.count.value));
+      this.querySelector("pre").append(state.caption.value);
     }
   },
 );
@@ -1171,11 +1167,11 @@ customElements.define(
       }
       this.#place();
     }
-    // Absolute, as every applyAction is: the offset is stated, never stepped.
-    applyAction(action, detail) {
-      if (action !== "settle") return;
+    // Absolute, as every renderState is: the offset is stated, never stepped.
+    renderState(state) {
       const from = this.getAttribute("offset");
-      this.setAttribute("offset", String(detail.offset));
+      if (from === String(state.offset.value)) return;
+      this.setAttribute("offset", String(state.offset.value));
       this.#place();
       // Held at the old offset for nine tenths of the run, so the words are over
       // their neighbour's for as long as the motion lasts. A move that eased the
@@ -1483,8 +1479,12 @@ customElements.define(
       this.press.setAttribute("aria-pressed", "true");
     }
 
-    applyAction(action) {
-      if (action === "settle") this.settled();
+    renderState(state) {
+      if (state.verdict.value) this.settled();
+      else {
+        this.press.textContent = "Accept";
+        this.press.setAttribute("aria-pressed", "false");
+      }
     }
   },
 );

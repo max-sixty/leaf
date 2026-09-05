@@ -3481,10 +3481,12 @@ customElements.define("lf-quota", class extends HTMLElement {
     paint(this);
     document.getElementById("destination")?.append(this);
   }
-  applyAction(action, detail) {
-    if (action === "move") document.getElementById(detail.to)?.append(this);
-    else if (["increase", "decrease"].includes(action))
-      this.setAttribute("slots", detail.slots);
+  renderState(state) {
+    const { to, index } = state.placement.detail;
+    const parent = document.getElementById(to);
+    const rest = [...parent.children].filter(child => child.id && child !== this);
+    parent.insertBefore(this, rest[index] ?? null);
+    this.setAttribute("slots", state.capacity.value);
     paint(this);
   }
 });

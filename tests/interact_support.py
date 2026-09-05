@@ -811,24 +811,6 @@ def _report_without_upgrade(registry):
     registry["lf-task"]["x-upgrade"] = False
 
 
-def _state_with_optional_value_record(registry):
-    task = registry["lf-task"]
-    task["properties"]["restated"] = {"type": "boolean"}
-    task["x-state"] = {
-        "assign": {
-            "detail": {
-                "type": "object",
-                "properties": {"owner": task["properties"]["owner"]},
-                "required": ["owner"],
-                "additionalProperties": False,
-            },
-            "facet": "owner",
-            "unit": "widget",
-            "record": {"kind": "value", "attr": "owner", "value": "owner"},
-        }
-    }
-
-
 def _body_record_with_prose(registry):
     registry["lf-draft"]["x-content"] = "prose"
 

@@ -2291,7 +2291,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     resized(page, 1280, 900)
     standing = page.evaluate(
         "async () => (await import('/runtime/widget-api.js')).standingState()"
-        ".map((s) => [s.unit, s.action])"
+        ".flatMap(({widget, state}) => Object.values(state).map(facet => [widget.id, facet.action]))"
     )
     assert ["an-set", "choose"] in standing and ["an-set", "answer"] in standing, (
         f"the reader's decisions are not among what the runtime hands the gate: "

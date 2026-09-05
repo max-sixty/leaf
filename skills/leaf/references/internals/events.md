@@ -40,12 +40,10 @@ state. It withdraws rather than deletes. Nothing is removed from the log; the
 folds and the thread reading simply drop the event, so the page is what the
 revision says plus what still stands — the same sentence a reload has always
 read, and the same one `restated` already writes from the author's side. What
-the reader sees follows from that rather than from a second statement: where the
-log still leaves the unit a state that can be stated, the browser states it (a
-prior action's detail, or the placement the revision's markup arrived showing) so
-the page moves rather than being rebuilt; where the verb records nothing, and so
-no state can be stated, the browser rebuilds that widget from the revision's own
-markup and replays what survives onto it. The door refuses an `undoes` naming
+the reader sees follows from the complete widget projection: authored values plus
+surviving winners, including unset and undecided values. The same `renderState`
+contract paints both forward changes and withdrawals, retaining the widget and its
+independent children. The door refuses an `undoes` naming
 anything but an unwithdrawn gesture of the reader's own.
 
 The server stamps every other

@@ -32,7 +32,6 @@ from interact_support import (
     _report_undeclared_attr,
     _report_without_overruled,
     _report_without_upgrade,
-    _state_with_optional_value_record,
     _tasks_version,
     append_command,
     assert_revendor_serializes_writer,
@@ -1830,11 +1829,8 @@ def test_a_version_response_names_an_authored_answer_record(page_dir):
         # `overruled` is how a version keeps its state over a report; without it
         # every contradiction is unpublishable.
         (_report_without_overruled, "not the boolean `overruled`"),
-        # Reports replay through applyAction, so the widget must upgrade.
+        # Reports replay through renderState, so the widget must upgrade.
         (_report_without_upgrade, "declares x-report"),
-        # A value record has no action detail for an absent attribute. Requiring the
-        # attribute makes every authored state projectable through applyAction.
-        (_state_with_optional_value_record, "records optional attribute `owner`"),
         (_body_record_with_prose, "x-content must be data"),
         (_body_record_with_nested_widget, "admits nested widgets"),
     ],
@@ -2106,7 +2102,7 @@ def test_record_values_have_the_type_the_reader_uses(
     assert wanted in result.output
 
 
-def test_recorded_actions_require_only_fields_authored_markup_can_restore(page_dir):
+def test_recorded_actions_can_require_fields_beyond_the_record(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     detail = registry["lf-options"]["x-state"]["choose"]["detail"]
     detail["properties"]["animate"] = {"type": "boolean"}
@@ -2115,9 +2111,7 @@ def test_recorded_actions_require_only_fields_authored_markup_can_restore(page_d
 
     result = check(page_dir)
 
-    assert result.exit_code != 0
-    assert "requires detail fields ['animate']" in result.output
-    assert "authored markup cannot restore" in result.output
+    assert result.exit_code == 0, result.output
 
 
 def test_value_records_use_the_string_type_html_attributes_carry(page_dir):

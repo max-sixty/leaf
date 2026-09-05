@@ -13,9 +13,9 @@ author, and stamp as usual, then run:
 leaf version export <page> -o <file>
 ```
 
-Hand back the `file://` URL. Do not start a server or wait. An export is the page
-as the browser draws it, with standing decisions applied, comments and live
-handlers removed, and controls replaced by their answers. Write it where the
+Hand back the `file://` URL. Do not start a server or wait. An export keeps the
+drawn page, standing decisions, and inline conversation messages. It removes
+live chrome and handlers; native disclosures still work. Write it where the
 project keeps user-facing artifacts. A live page can also be exported without
 ending its loop.
 

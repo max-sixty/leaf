@@ -306,6 +306,7 @@ export function createScopes({ paintHere, upFrom }) {
     for (let a = node; a; a = upFrom(a)) {
       const scope = elementScopes.get(a);
       if (scope) found.push(scope);
+      if (a.hasAttribute?.("data-lf-thread-surface")) break;
     }
     return found;
   }

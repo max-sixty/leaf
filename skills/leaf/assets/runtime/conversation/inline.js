@@ -8,6 +8,7 @@ export function createInlineConversations({
   focused,
   loadDraft,
   offer,
+  paintReactStrips,
   registry,
   renderMessageMarkdown,
   seatRoot,
@@ -61,14 +62,31 @@ export function createInlineConversations({
     return node;
   }
 
-  function conversationThreadNode(host, t) {
+  function conversationThreadNode(host, t, collapsible = false) {
     let thread = host.querySelector(
-      `:scope > .lf-conversation-thread[data-thread="${t.root.id}"]`,
+      `:scope > .lf-conversation-thread[data-thread="${CSS.escape(t.root.id)}"]`,
     );
+    const wantedTag = collapsible ? "DETAILS" : "DIV";
+    if (thread && thread.tagName !== wantedTag) {
+      thread.remove();
+      thread = null;
+    }
     if (!thread) {
-      thread = offer("div", "lf-conversation-thread");
+      thread = offer(collapsible ? "details" : "div", "lf-conversation-thread");
       thread.dataset.thread = t.root.id;
       thread.tabIndex = -1;
+    }
+    let summary = null;
+    if (collapsible) {
+      summary = thread.querySelector(":scope > .lf-conversation-summary");
+      if (!summary) summary = offer("summary", "lf-conversation-summary");
+      const resolved = Boolean(t.resolved);
+      if (thread.lfResolved !== resolved) thread.open = !resolved;
+      thread.lfResolved = resolved;
+      summary.hidden = !resolved;
+      summary.textContent = `Resolved · ${turns(t).length} message${
+        turns(t).length === 1 ? "" : "s"
+      }`;
     }
     // Turns only: a reaction on a message is the panel's strip to show, and the seat is
     // the textual projection of the exchange.
@@ -121,6 +139,7 @@ export function createInlineConversations({
     const standing = focused();
     const heldFocus = thread.contains(standing);
     setChildren(thread, [
+      ...(summary ? [summary] : []),
       ...messageRows,
       ...receipts.filter((receipt) => !placed.has(receipt)),
       ...(tail ? [tail] : []),
@@ -129,7 +148,16 @@ export function createInlineConversations({
     // that removed focus; a later gesture elsewhere remains where the reader put it.
     if (heldFocus && !thread.contains(standing))
       landInConversation(thread.querySelector(SAY_BOX) ?? thread);
+    if (collapsible) paintReactStrips(thread, t);
     return thread;
+  }
+
+  function renderThreadSurface(host, threads) {
+    const receipts = [...host.querySelectorAll(":scope > .lf-receipt")];
+    setChildren(host, [
+      ...threads.map((thread) => conversationThreadNode(host, thread, true)),
+      ...receipts,
+    ]);
   }
 
   function renderConversations(threads) {
@@ -162,5 +190,5 @@ export function createInlineConversations({
     return node;
   }
 
-  return { renderConversations, renderMarginThread };
+  return { renderConversations, renderMarginThread, renderThreadSurface };
 }

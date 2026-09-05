@@ -16,6 +16,7 @@ import {
   offer,
   paintKeys,
   projectData,
+  registerThreadSurface,
   relabel,
   scrollBehavior,
   sendAction,
@@ -401,6 +402,12 @@ customElements.define(
     connectedCallback() {
       document.removeEventListener("lf-actions", this.paintReviewAvailability);
       document.addEventListener("lf-actions", this.paintReviewAvailability);
+      if (!this.threadSurface)
+        this.threadSurface = registerThreadSurface(this, {
+          begin: () => this.beginThreadSurface(),
+          outletFor: (entry) => this.threadOutletFor(entry),
+          end: () => this.endThreadSurface(),
+        });
       if (this.stopWatching) return;
       // A page diff's file header pins under the banner; one an agent sent in a reply
       // scrolls inside the panel's own list, whose pinned slot already belongs to the
@@ -521,7 +528,7 @@ customElements.define(
         if (this.classList.contains("lf-rendered")) return;
         if (this.inlineSource === undefined)
           this.inlineSource = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
-        settle(this.render(this.inlineSource, false));
+        settle(this.render(this.inlineSource));
         return;
       }
       let first = true;
@@ -532,7 +539,7 @@ customElements.define(
           : null;
         if (this.boundStamp === stamp) return this.boundRendering ?? Promise.resolve();
         this.boundStamp = stamp;
-        const rendering = this.render(source, true);
+        const rendering = this.render(source, snapshot);
         this.boundRendering = rendering;
         rendering.finally(() => {
           if (this.boundRendering === rendering) this.boundRendering = null;
@@ -555,10 +562,16 @@ customElements.define(
       this.boundStamp = undefined;
       this.boundRendering = null;
       this.manifestEntries = null;
+      this.manifestSnapshot = null;
       this.sharedStyles = null;
+      this.threadSurface?.unregister();
+      this.threadSurface = null;
+      this.threadOutlets = null;
+      this.threadPairs = null;
     }
 
-    async render(source, bound) {
+    async render(source, snapshot) {
+      const bound = snapshot !== undefined;
       const rendering = (this.rendering ?? 0) + 1;
       this.rendering = rendering;
       try {
@@ -574,13 +587,13 @@ customElements.define(
             [],
             () => "",
             () => null,
-            { nested: true },
+            { nested: true, snapshot },
           );
           this.classList.remove("lf-rendered");
           return;
         }
         if (bound && typeof source === "object") {
-          await this.renderManifest(source, rendering);
+          await this.renderManifest(snapshot, rendering);
           return;
         }
         if (typeof source !== "string")
@@ -628,7 +641,7 @@ customElements.define(
             entries.flatMap(({ lines }) => lines),
             lineKey,
             ({ node }) => node,
-            { nested: true, labelOf: lineLabel },
+            { nested: true, labelOf: lineLabel, snapshot },
           );
         this.paintHeadRoom();
         this.watchHeadRoom();
@@ -648,12 +661,13 @@ customElements.define(
             [],
             () => "",
             () => null,
-            { nested: true },
+            { nested: true, snapshot },
           );
       }
     }
 
-    async renderManifest(source, rendering) {
+    async renderManifest(snapshot, rendering) {
+      const source = snapshot.value;
       if (!Array.isArray(source.files) || !source.files.length)
         throw new Error("empty diff manifest");
       const entries = [];
@@ -714,6 +728,7 @@ customElements.define(
       if (rendering !== this.rendering || !this.isConnected) return;
       for (const { node } of entries) node.dataset.lfGen = "1";
       this.manifestEntries = entries;
+      this.manifestSnapshot = snapshot;
       this.fileEntries = entries;
       this.sharedStyles = new Map();
       this.reviewTools = reviewTools(this);
@@ -747,8 +762,123 @@ customElements.define(
         (this.manifestEntries ?? []).flatMap(({ lines }) => lines),
         lineKey,
         ({ node }) => node,
-        { nested: true, labelOf: lineLabel },
+        { nested: true, labelOf: lineLabel, snapshot: this.manifestSnapshot },
       );
+    }
+
+    beginThreadSurface() {
+      this.threadOutlets ??= new Map();
+      this.threadPairs ??= new Map();
+      for (const [key, record] of this.threadOutlets) {
+        if (!record.outlet.isConnected || !record.gutterRow.isConnected) {
+          this.threadOutlets.delete(key);
+          continue;
+        }
+        record.active = false;
+      }
+      for (const [content, pair] of this.threadPairs)
+        if (!content.isConnected || !pair.gutter.isConnected)
+          this.threadPairs.delete(content);
+    }
+
+    threadPair(row) {
+      const content = row.parentElement;
+      const pre = content?.closest("pre");
+      const gutter = pre?.querySelector("[data-gutter]");
+      const lineIndex = row.dataset.lineIndex;
+      const gutterRow = [...(gutter?.children ?? [])].find(
+        (candidate) => candidate.dataset.lineIndex === lineIndex,
+      );
+      if (!content?.matches("[data-content]") || !gutter || !gutterRow)
+        throw new Error("Pierre returned a diff line without its paired gutter row");
+      let pair = this.threadPairs.get(content);
+      if (!pair) {
+        const span = (node) => {
+          const value = node.style.gridRow || getComputedStyle(node).gridRow;
+          const matches = [...value.matchAll(/span\s+(\d+)/g)];
+          const count = Number(matches.at(-1)?.[1]);
+          if (!Number.isInteger(count))
+            throw new Error("Pierre returned a diff grid without a finite row span");
+          return count;
+        };
+        pair = {
+          content,
+          gutter,
+          contentRows: span(content),
+          gutterRows: span(gutter),
+          contentGridRow: content.style.gridRow,
+          gutterGridRow: gutter.style.gridRow,
+        };
+        this.threadPairs.set(content, pair);
+      }
+      return { gutterRow, pair };
+    }
+
+    threadOutletFor({ anchor, placement }) {
+      const entry = this.fileEntryForDatum(anchor.datum);
+      if (
+        !entry?.loaded ||
+        entry.filtered ||
+        (entry.details && !entry.details.open) ||
+        placement.datumElement !==
+          entry.lines.find((line) => lineKey(line) === anchor.datum)?.node
+      )
+        return null;
+
+      let record = this.threadOutlets.get(anchor.datum);
+      if (record && record.row !== placement.datumElement) {
+        record.outlet.remove();
+        record.gutterRow.remove();
+        this.threadOutlets.delete(anchor.datum);
+        record = null;
+      }
+      if (!record) {
+        const row = placement.datumElement;
+        const { gutterRow: lineGutter, pair } = this.threadPair(row);
+        const outlet = document.createElement("section");
+        outlet.className = "lf-diff-thread-outlet lf-ui";
+        outlet.dataset.lfGen = "1";
+        outlet.dataset.lfThreadDatum = anchor.datum;
+        outlet.setAttribute(
+          "aria-label",
+          `Threads on ${row.dataset.lfDatumLabel || "diff line"}`,
+        );
+        const gutterRow = document.createElement("div");
+        gutterRow.className = "lf-diff-thread-gutter lf-ui";
+        gutterRow.dataset.lfGen = "1";
+        gutterRow.setAttribute("aria-hidden", "true");
+        row.after(outlet);
+        lineGutter.after(gutterRow);
+        record = { active: true, gutterRow, outlet, pair, row };
+        this.threadOutlets.set(anchor.datum, record);
+      }
+      record.active = true;
+      return record.outlet;
+    }
+
+    endThreadSurface() {
+      for (const [key, record] of this.threadOutlets ?? []) {
+        if (record.active) continue;
+        record.outlet.remove();
+        record.gutterRow.remove();
+        this.threadOutlets.delete(key);
+      }
+      const counts = new Map();
+      for (const record of this.threadOutlets?.values() ?? [])
+        counts.set(record.pair, (counts.get(record.pair) ?? 0) + 1);
+      for (const pair of this.threadPairs?.values() ?? []) {
+        const count = counts.get(pair) ?? 0;
+        const contentRow = count
+          ? `span ${pair.contentRows + count}`
+          : pair.contentGridRow;
+        const gutterRow = count
+          ? `span ${pair.gutterRows + count}`
+          : pair.gutterGridRow;
+        if (pair.content.style.gridRow !== contentRow)
+          pair.content.style.gridRow = contentRow;
+        if (pair.gutter.style.gridRow !== gutterRow)
+          pair.gutter.style.gridRow = gutterRow;
+      }
     }
 
     async loadManifestEntry(entry) {
@@ -757,7 +887,7 @@ customElements.define(
       const rendering = this.rendering;
       entry.loading = (async () => {
         try {
-          const patch = await loadDataFragment(this, "document", entry.record.key);
+          const patch = await loadDataFragment(this.manifestSnapshot, entry.record.key);
           if (rendering !== this.rendering || !this.isConnected) return;
           if (typeof patch !== "string")
             throw new Error("the fragment is not unified patch text");
@@ -804,9 +934,10 @@ customElements.define(
     // Core can place a standing line thread at its file disclosure before that file's
     // patch exists in the DOM. Navigation asks the second method to make the exact line
     // real, then the ordinary datum resolver and anchor painter take over.
-    lfDataDatum(key) {
+    lfDataDatum(key, { outdated = false } = {}) {
       const entry = this.fileEntryForDatum(key);
       if (!entry) return null;
+      if (outdated) return entry.node;
       if (!entry.loaded || entry.filtered) return entry.node;
       const exact = entry.lines.find((line) => lineKey(line) === key);
       if (exact) return exact.node;
@@ -878,6 +1009,10 @@ customElements.define(
     }
 
     attachReview(entry) {
+      if (entry.details && !entry.threadSurfaceToggle) {
+        entry.threadSurfaceToggle = () => this.threadSurface?.update();
+        entry.details.addEventListener("toggle", entry.threadSurfaceToggle);
+      }
       entry.review = reviewButton(entry, (target, reviewed) => {
         if (!actionAvailable(this, "review")) return;
         this.setReviewed(target, reviewed);
@@ -900,7 +1035,10 @@ customElements.define(
     paintReviewAvailability = () => {
       const available = actionAvailable(this, "review");
       for (const entry of this.fileEntries ?? [])
-        if (entry.review instanceof HTMLButtonElement)
+        if (
+          entry.review instanceof HTMLButtonElement &&
+          entry.review.disabled !== !available
+        )
           entry.review.disabled = !available;
     };
 
@@ -945,6 +1083,7 @@ customElements.define(
       }
       this.refreshReviewTools();
       layoutChanged(this);
+      this.threadSurface?.update();
     }
 
     clearFilter() {

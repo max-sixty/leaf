@@ -67,6 +67,15 @@ export function createBannerShelf({ el, paintHere }) {
   // address with nothing to say is simply not in the menu. That is not a second rule: it
   // is the same rule asked of a place where taking room costs nothing to give back.
   const newsControls = new Set();
+  let newsFoldQueued = false;
+  function queueNewsFold() {
+    if (newsFoldQueued) return;
+    newsFoldQueued = true;
+    queueMicrotask(() => {
+      newsFoldQueued = false;
+      foldShelf();
+    });
+  }
   function paintPresence(control) {
     const speaking = control.classList.contains("lf-news-shown");
     const holds = control.parentElement === bannerActions && control.dataset.lfReserved;
@@ -76,6 +85,7 @@ export function createBannerShelf({ el, paintHere }) {
 
   function showNews(control, on) {
     newsControls.add(control);
+    on = Boolean(on);
     // News can arrive while a deferred activation leaves the reader working in this live
     // banner, and a control that settles its own decisions goes away while it still owns
     // focus. Hand the reader to the next standing address rather than dropping them on
@@ -105,7 +115,10 @@ export function createBannerShelf({ el, paintHere }) {
     if (on) reserveNewsSlot(control);
     control.classList.toggle("lf-news-shown", on);
     paintPresence(control);
-    foldShelf();
+    // One state application can refresh Decisions, blanket answers, Requests, and live
+    // leaves in succession. They all change the same row; fold it once after that write
+    // batch, against the final words and presence of every address.
+    queueNewsFold();
     if (focusTransfer) focusTransfer.focus({ preventScroll: true });
   }
 

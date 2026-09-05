@@ -6,6 +6,7 @@ export { shownBand, shownBox, shownParts } from "./geometry.js";
 export { registerDecisionActions } from "./decisions/actions.js";
 export { answeredContext, decisionSource, openDecisions } from "./decisions/model.js";
 export { conversationBox } from "./conversation/box.js";
+export { registerThreadSurface } from "./conversation/surfaces.js";
 export { conversationInput, landInConversation } from "./conversation/landing.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";

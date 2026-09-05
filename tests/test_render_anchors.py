@@ -6,7 +6,9 @@ import re
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
+from click.testing import CliRunner
 from leaf import anchor_capture as anchor_capture_model
+from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.registry import storage as registry_storage
@@ -58,6 +60,7 @@ from render_support import (
     resized,
     round_trip,
     select,
+    sending,
     sent_events,
     stamp_version_file,
     ticked,
@@ -3532,6 +3535,8 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     assert added.get_attribute("data-lf-projection") == "patch"
     expect(added).to_have_attribute("data-lf-datum-label", "app.py · new line 2")
     expect(added).to_have_attribute("aria-description", "app.py · new line 2")
+    expect(added).to_have_attribute("data-lf-source", "review-patch")
+    expect(added).to_have_attribute("data-lf-source-revision", "1")
 
     details = page.locator("lf-diff details").first
     details.evaluate(
@@ -3582,13 +3587,43 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     page.locator(".lf-fab-input").fill("Review the whole added line.")
     page.keyboard.press("Enter")
     round_trip(page)
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    inline = page.locator("lf-diff .lf-diff-thread-outlet")
+    expect(inline).to_have_count(1)
+    expect(inline.locator(".lf-conversation-thread")).to_contain_text(
+        "Review the whole added line."
+    )
+    alignment = inline.evaluate(
+        """outlet => {
+          const root = outlet.getRootNode();
+          const gutter = root.querySelector('.lf-diff-thread-gutter');
+          const contentBox = outlet.getBoundingClientRect();
+          const gutterBox = gutter.getBoundingClientRect();
+          return {
+            top: Math.abs(contentBox.top - gutterBox.top),
+            bottom: Math.abs(contentBox.bottom - gutterBox.bottom),
+            contentRows: getComputedStyle(outlet.parentElement).gridRow,
+            gutterRows: getComputedStyle(gutter.parentElement).gridRow,
+          };
+        }"""
+    )
+    assert alignment["top"] < 0.5 and alignment["bottom"] < 0.5, alignment
+    assert alignment["contentRows"] == alignment["gutterRows"], alignment
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
+    details.evaluate("element => { element.open = false; }")
+    expect(inline).to_have_count(0)
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
+    details.evaluate("element => { element.open = true; }")
+    expect(inline).to_have_count(1)
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     whole_line = page.locator(".lf-threads > .lf-thread .lf-quote").first
     expect(whole_line).to_have_text("§ app.py · new line 2")
     search = page.locator("#patch .lf-diff-search")
     search.fill("nothing-matches")
     expect(added).to_be_hidden()
+    expect(inline).to_have_count(0)
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     expect(added).not_to_be_in_viewport()
     whole_line.click()
@@ -3596,6 +3631,9 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(added).to_be_in_viewport()
     expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(deleted).not_to_have_class(re.compile(r"\blf-mark-here\b"))
+    expect(inline).to_have_count(1)
+    expect(inline.locator("textarea")).to_be_focused()
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, False)
 
@@ -3647,17 +3685,209 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
     assert [comment["anchor"] for comment in comments] == [
-        {"section": "patch", "datum": new_key},
-        {"section": "patch", "datum": new_key, "quote": "request.token.id"},
+        {
+            "section": "patch",
+            "datum": new_key,
+            "source": "review-patch",
+            "data_revision": 1,
+        },
+        {
+            "section": "patch",
+            "datum": new_key,
+            "source": "review-patch",
+            "data_revision": 1,
+            "quote": "request.token.id",
+        },
     ]
 
-    data_model.cmd_data_set(serve.page_dir, "review-patch", "not a unified diff")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1,2 +1,2 @@
+ def route(request):
+-    return f"legacy:{request.token.id}"
++    return f"replacement:{request.token.id}"
+""",
+    )
     told(page)
-    expect(page.locator("lf-diff .lf-error")).to_be_visible()
+    expect(inline).to_have_count(0)
+    expect(added).not_to_have_class(re.compile(r"\blf-mark-here\b"))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, True)
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(2)
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text(
+        ["Outdated", "Outdated"]
+    )
     quote_classes = page.locator(".lf-thread .lf-quote").evaluate_all(
         "quotes => quotes.map(quote => [...quote.classList])"
     )
-    assert all("detached" in classes for classes in quote_classes), quote_classes
+    assert all("detached" not in classes for classes in quote_classes), quote_classes
+    assert errors == []
+    page.close()
+
+
+def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serve):
+    """The diff owns only the row. Core's shared Thread view keeps replies,
+    reactions, settlement, and the compact resolved disclosure working inside it."""
+    authored = leaf_page(
+        "inline diff thread",
+        '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
+        "<pre></pre></lf-diff>",
+    )
+    url = serve(authored)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-return "old"
++return "new"
+""",
+    )
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this check beside the changed line.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "data_revision": 1,
+            },
+        },
+    )
+    reply = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Codex",
+            "parent": root["id"],
+            "text": "The guard now covers the replacement path.",
+        },
+    )
+    page, errors = open_page(browser, url)
+    thread = page.locator(
+        f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
+    )
+    expect(thread).to_have_count(1)
+    expect(thread).to_have_attribute("open", "")
+    expect(thread.locator("textarea")).to_be_visible()
+    palette = thread.evaluate(
+        """thread => {
+          const style = getComputedStyle(thread);
+          const outlet = getComputedStyle(thread.parentElement);
+          const reply = getComputedStyle(thread.querySelector('textarea'));
+          return {
+            card: style.backgroundColor,
+            cardBorder: style.borderTopColor,
+            cardPadding: parseFloat(style.paddingTop),
+            reply: reply.backgroundColor,
+            replyBorder: reply.borderTopColor,
+            row: outlet.backgroundColor,
+            page: getComputedStyle(thread.ownerDocument.body).backgroundColor,
+          };
+        }"""
+    )
+    assert palette["card"] == palette["reply"]
+    assert palette["cardBorder"] == palette["replyBorder"]
+    assert palette["cardPadding"] > 0
+    assert palette["row"] == palette["page"]
+    note = page.locator("lf-diff .lf-mark-note")
+    expect(note).to_have_count(1)
+    assert note.evaluate(
+        "el => { const r = el.getBoundingClientRect(); return r.width <= 1 && r.height <= 1; }"
+    ), "the shared comment note escaped the shadow theme and painted inside the diff"
+    assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
+    note.focus()
+    expect(note).to_be_focused()
+    assert note.evaluate("el => el.getBoundingClientRect().width > 1")
+    assert note.evaluate("el => getComputedStyle(el).opacity") == "1"
+    page.keyboard.press("Escape")
+
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "status",
+            str(serve.page_dir),
+            "working",
+            "checking the inline placement",
+            "--on",
+            root["id"],
+        ],
+    )
+    assert claimed.exit_code == 0, claimed.output
+    told(page)
+    expect(thread.locator(":scope > .lf-receipt")).to_contain_text(
+        "● Active — checking the inline placement"
+    )
+
+    strip = thread.locator(
+        f'.lf-conversation-msg[data-event="{reply["id"]}"] .lf-react-strip'
+    )
+    expect(strip.locator(".lf-react-trigger")).to_be_visible()
+    strip.locator(".lf-react-trigger").click()
+    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
+    expect(strip.locator('.lf-react[data-token="no"]')).to_be_visible()
+    assert errors == []
+    with sending(page, "the inline reaction"):
+        strip.locator('.lf-react[data-token="no"]').click()
+    reacted = events_model.read_events(serve.page_dir)[-1]
+    assert (reacted["kind"], reacted["parent"], reacted["token"]) == (
+        "reply",
+        reply["id"],
+        "no",
+    )
+
+    with sending(page, "the inline resolution"):
+        thread.get_by_role("button", name="Resolve", exact=True).click()
+    expect(thread).not_to_have_attribute("open", "")
+    summary = thread.locator(".lf-conversation-summary")
+    expect(summary).to_have_text("Resolved · 2 messages")
+    summary_box = summary.evaluate(
+        """element => {
+          const style = getComputedStyle(element);
+          return {
+            position: style.position,
+            paddingLeft: style.paddingLeft,
+            paddingRight: style.paddingRight,
+          };
+        }"""
+    )
+    assert summary_box["position"] == "static"
+    assert summary_box["paddingLeft"] == summary_box["paddingRight"]
+    expect(thread.locator(".lf-conversation-msg").first).to_be_hidden()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, True)
+    page.locator(".lf-details > summary").click()
+    page.locator(".lf-details .lf-thread .lf-quote").click()
+    expect(summary).to_be_focused()
+    summary.click()
+    expect(thread.locator(".lf-conversation-msg").first).to_be_visible()
+
+    with sending(page, "the inline reopening"):
+        thread.get_by_role("button", name="Reopen", exact=True).click()
+    expect(thread).to_have_attribute("open", "")
+    expect(thread.locator(".lf-conversation-summary")).to_be_hidden()
+    expect(thread.locator("textarea")).to_be_visible()
+    thread.locator("textarea").fill("Confirmed from the inline thread.")
+    with sending(page, "the inline reply"):
+        thread.get_by_role("button", name="Send", exact=True).click()
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["parent"], sent["text"]) == (
+        "reply",
+        root["id"],
+        "Confirmed from the inline thread.",
+    )
+    expect(thread).to_contain_text("Confirmed from the inline thread.")
     assert errors == []
     page.close()
 
@@ -3724,8 +3954,12 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     page.close()
 
 
+@pytest.mark.parametrize(
+    ("activation", "superseded"),
+    [("mouse", False), ("keyboard", False), ("mouse", True)],
+)
 def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
-    browser, serve
+    browser, serve, activation, superseded
 ):
     """A collapsed manifest is the startup surface, not a hidden fully-rendered patch.
 
@@ -3794,8 +4028,14 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
           window.fetch = (input, init) => {
             const url = new URL(input instanceof Request ? input.url : String(input),
                                 location.href);
-            if (url.pathname === '/api/data')
-              window.__leafFragmentRequests.push(url.searchParams.get('key'));
+            if (url.pathname === '/api/data') {
+              const key = url.searchParams.get('key');
+              window.__leafFragmentRequests.push(key);
+              if (key === 'second.py')
+                return new Promise(resolve => {
+                  window.__leafReleaseFragment = () => resolve(originalFetch(input, init));
+                });
+            }
             return originalFetch(input, init);
           };
         """,
@@ -3803,6 +4043,8 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
 
     expect(page.locator("lf-diff details")).to_have_count(2)
     expect(page.locator("lf-diff [data-line]")).to_have_count(0)
+    expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(0)
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
     assert page.evaluate("window.__leafFragmentRequests") == []
 
     page.locator("lf-diff summary").first.click()
@@ -3814,14 +4056,45 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
     ).to_have_count(0)
     assert page.evaluate("window.__leafFragmentRequests") == ["first.py"]
 
+    if activation == "keyboard":
+        resized(page, 600, 900)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
     quote = page.locator(".lf-threads > .lf-thread .lf-quote")
     expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
-    quote.click()
+    if activation == "keyboard":
+        quote.focus()
+        page.keyboard.press("Enter")
+    else:
+        quote.click()
+    page.wait_for_function("typeof window.__leafReleaseFragment === 'function'")
+    search = page.locator("lf-diff .lf-diff-search")
+    if superseded:
+        search.click()
+        expect(search).to_be_focused()
+    page.evaluate("window.__leafReleaseFragment()")
     second = page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     expect(second).to_be_in_viewport()
+    expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(1)
+    reply = page.locator("lf-diff .lf-diff-thread-outlet textarea")
+    if superseded:
+        expect(search).to_be_focused()
+        quote.click()
+    expect(reply).to_be_focused()
     expect(second).to_have_class(re.compile(r"\blf-mark-here\b"))
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
+
+    # Closing an already-loaded file removes its outlet too. Both return gestures
+    # must rebuild that outlet before transferring keyboard focus to its reply.
+    details = page.locator("lf-diff .lf-diff-file > details").nth(1)
+    details.evaluate("element => { element.open = false; }")
+    expect(reply).to_have_count(0)
+    if activation == "keyboard":
+        page.get_by_role("button", name=re.compile("^Threads")).click()
+        panel_settled(page, True)
+    quote.focus()
+    page.keyboard.press("Enter")
+    expect(reply).to_be_focused()
     assert page.evaluate("window.__leafFragmentRequests") == ["first.py", "second.py"]
     assert errors == []
     page.close()
@@ -3902,6 +4175,66 @@ def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(
     page.close()
 
 
+def test_a_fragment_load_keeps_the_manifest_source_revision(browser, serve):
+    """A retained manifest cannot read a replacement's same-key payload."""
+    url = serve(
+        leaf_page(
+            "fragment provenance",
+            '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
+            "collapsed><pre></pre></lf-diff>",
+        )
+    )
+    original = """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-return "old"
++return "first"
+"""
+    manifest = {
+        "files": [
+            {
+                "key": "app.py",
+                "path": "app.py",
+                "kind": "patch",
+                "additions": 1,
+                "deletions": 1,
+                "patch": original,
+            }
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
+    page, errors = open_page(browser, url)
+    page.evaluate(
+        "window.priorManifest = document.querySelector('#patch').manifestSnapshot"
+    )
+    replacement = original.replace('return "first"', 'return "replacement"')
+    manifest["files"][0]["patch"] = replacement
+    data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
+    told(page)
+    result = page.evaluate(
+        """async () => {
+          const {loadDataFragment} = await import('/runtime/widget-api.js');
+          let stale;
+          try {
+            stale = await loadDataFragment(window.priorManifest, 'app.py');
+          } catch (error) {
+            stale = error.message;
+          }
+          const current = await loadDataFragment(
+            document.querySelector('#patch').manifestSnapshot, 'app.py'
+          );
+          return {stale, current};
+        }"""
+    )
+    assert result == {
+        "stale": "source review-patch revision 1 changed before loading fragment app.py",
+        "current": replacement,
+    }
+    assert errors == []
+    page.close()
+
+
 def test_a_failed_fragment_hydration_waits_for_a_reader_retry(browser, serve):
     """Thread travel attempts a failing unopened file once rather than recursing.
 
@@ -3975,6 +4308,48 @@ def test_a_failed_fragment_hydration_waits_for_a_reader_retry(browser, serve):
     with page.expect_response(lambda response: "/api/data" in response.url):
         summary.click()
     assert len(requests) == 2
+    assert errors == []
+    page.close()
+
+
+def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
+    browser, serve
+):
+    """Text and comments leave the stage; a retained control keeps its caret."""
+    page, errors = open_page(browser, serve(DIFF_PAGE))
+    result = page.evaluate(
+        """async () => {
+          const {shadowStage} = await import('/runtime/widget-api.js');
+          const host = document.querySelector('lf-diff');
+          const input = document.createElement('input');
+          input.value = 'draft reply';
+          shadowStage(host, [
+            document.createTextNode('old reading'),
+            document.createComment('old stage'),
+            input,
+          ]);
+          input.focus();
+          input.setSelectionRange(2, 5);
+          shadowStage(host, [document.createTextNode('new reading'), input]);
+          return {
+            text: [...host.shadowRoot.childNodes]
+              .filter(node => node.nodeType === Node.TEXT_NODE)
+              .map(node => node.textContent),
+            comments: [...host.shadowRoot.childNodes]
+              .filter(node => node.nodeType === Node.COMMENT_NODE).length,
+            focused: host.shadowRoot.activeElement === input,
+            value: input.value,
+            selection: [input.selectionStart, input.selectionEnd],
+          };
+        }"""
+    )
+    assert result == {
+        "text": ["new reading"],
+        "comments": 0,
+        "focused": True,
+        "value": "draft reply",
+        "selection": [2, 5],
+    }
     assert errors == []
     page.close()
 

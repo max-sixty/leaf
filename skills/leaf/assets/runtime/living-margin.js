@@ -488,6 +488,7 @@ export function createLivingMargin(dependencies) {
     showThread,
     stateProjection,
     threadPanel,
+    threadClaimed,
     threads,
     updateSequence,
     versionBtn,
@@ -513,10 +514,14 @@ export function createLivingMargin(dependencies) {
     const at = documentPoint(columnRect.left, columnRect.top);
     const height = main.scrollHeight;
     return () => {
-      nav.style.left = `${at.left}px`;
-      nav.style.top = `${at.top}px`;
-      nav.style.width = `${columnRect.width}px`;
-      nav.style.height = `${height}px`;
+      const dimensions = {
+        left: `${at.left}px`,
+        top: `${at.top}px`,
+        width: `${columnRect.width}px`,
+        height: `${height}px`,
+      };
+      for (const [property, value] of Object.entries(dimensions))
+        if (nav.style[property] !== value) nav.style[property] = value;
     };
   }
 
@@ -943,19 +948,7 @@ export function createLivingMargin(dependencies) {
 
   const readingBehavior = (face) => (face.indication ? "receipt" : "disclosure");
 
-  function readingControl(className) {
-    const control = offer("span", className);
-    control.addEventListener("keydown", (event) => {
-      if (
-        control.getAttribute("role") !== "button" ||
-        (event.key !== "Enter" && event.key !== " ")
-      )
-        return;
-      event.preventDefault();
-      control.click();
-    });
-    return control;
-  }
+  const readingControl = (className) => offer("span", className);
 
   function syncThreadRelation(control, isThread) {
     if (!isThread) {
@@ -1102,9 +1095,10 @@ export function createLivingMargin(dependencies) {
       receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
     }
     for (const thread of threads()) {
-      if (thread.resolved || !thread.root.anchor) continue;
+      if (thread.resolved || !thread.root.anchor || threadClaimed(thread.root.id))
+        continue;
       const id = thread.root.id;
-      add(groups, placedAt(id), {
+      add(groups, placedAt(id)?.element, {
         kind: "comment",
         id: `comment:${id}`,
         text: trimmed(
@@ -1171,7 +1165,7 @@ export function createLivingMargin(dependencies) {
           continue;
         const target =
           update.target.kind === "thread"
-            ? placedAt(update.target.id)
+            ? placedAt(update.target.id)?.element
             : elementById(update.target.id);
         const turnClosed =
           update.session && update.session === claimState().claimingSession
@@ -1596,7 +1590,22 @@ export function createLivingMargin(dependencies) {
     next.focus({ preventScroll: true });
   }
 
+  let marginKeysAvailable = false;
   const marginKeys = [
+    {
+      id: "margin.activate",
+      keys: ["Enter", " "],
+      does: "Activate this page-map Button",
+      line: "activate Button",
+      when: () => {
+        const active = focused();
+        return (
+          active?.matches?.('.lf-margin-action[role="button"]') &&
+          !(active instanceof HTMLButtonElement)
+        );
+      },
+      run: () => focused().click(),
+    },
     {
       id: "margin.buttons",
       keys: ["ArrowLeft", "ArrowRight"],
@@ -2158,12 +2167,7 @@ export function createLivingMargin(dependencies) {
           behavior: "disclosure",
           role: "reading",
         });
-        keys(
-          host,
-          "In the page map",
-          marginKeys,
-          () => visibleRows().length > 0 || clusterButtons(host).length > 1,
-        );
+        keys(host, "In the page map", marginKeys, () => marginKeysAvailable);
         host.lfEntry = entry;
         rows.set(entry.key, marker);
         more = marginAction(offer("button", "lf-margin-more"), {
@@ -2341,6 +2345,11 @@ export function createLivingMargin(dependencies) {
     scheduleMarginLayout();
     scheduleRoving();
     scheduleButtonLabels();
+    // Every Page-map host contributes the same keyboard section. Its capability is the
+    // map's existence; each row already asks the narrower question of whether its press
+    // works from the current focus. Repeating live geometry in every scope's `when`
+    // forced a layout per location when paintKeys reflected them.
+    marginKeysAvailable = pageMapEntries.length > 0;
     paintKeys();
   }
 

@@ -340,6 +340,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         )
     )
     assert selected == "└─ if request.token"
+    expect(page.locator("#lf-composer-quote")).to_contain_text(f"“{selected}”")
 
     updated = call_diff.replace(
         "calldiff diff main → feature", "calldiff diff main → feature-2"
@@ -351,6 +352,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "gateway/limits.py:40"
     )
     assert lines.nth(2).evaluate("el => el.__callIdentity") is True
+    assert page.evaluate("() => getSelection().toString()") == selected
     expect(page.locator("#lf-composer-quote")).to_contain_text(f"“{selected}”")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
@@ -453,6 +455,77 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("quote_anchor", [True, False], ids=["passage", "whole-datum"])
+def test_a_source_replacement_preserves_the_focused_draft_and_its_original_anchor(
+    browser, serve, quote_anchor
+):
+    url = serve(
+        leaf_page(
+            "source comment draft",
+            '<h1 id="title">Review</h1>'
+            '<lf-source id="source" source="document"></lf-source>',
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "document", "Original source words.")
+    page, errors = open_page(browser, url)
+    if quote_anchor:
+        page.locator("#source code").evaluate(
+            """code => {
+              const range = document.createRange();
+              range.selectNodeContents(code);
+              const selection = getSelection();
+              selection.removeAllRanges();
+              selection.addRange(range);
+              document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+            }"""
+        )
+    else:
+        page.locator("#source [data-lf-datum]").click(modifiers=["Alt"])
+    quote = page.locator("#lf-composer-quote")
+    expect(quote).to_contain_text("Original source words.")
+    draft = page.locator(".lf-fab-input")
+    draft.fill("Keep this comment about the original source.")
+    expect(draft).to_be_focused()
+    assert (
+        page.evaluate(
+            "() => CSS.highlights.get('lf-pending').size + "
+            "document.querySelectorAll('#source.lf-pending, #source .lf-pending').length"
+        )
+        > 0
+    )
+
+    data_model.cmd_data_set(serve.page_dir, "document", "Replacement source words.")
+    told(page)
+    expect(page.locator("#source code")).to_have_text("Replacement source words.")
+    expect(draft).to_be_focused()
+    expect(draft).to_have_value("Keep this comment about the original source.")
+    expect(quote).to_contain_text(
+        "“Original source words.”" if quote_anchor else "§ source"
+    )
+    assert page.evaluate("() => CSS.highlights.get('lf-pending').size") == 0
+    expect(page.locator("#source.lf-pending, #source .lf-pending")).to_have_count(0)
+
+    with sending(page, "the draft about the replaced source"):
+        draft.press("Enter")
+    comment = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    expected_anchor = {
+        "section": "source",
+        "datum": "document",
+        "source": "document",
+        "data_revision": 1,
+    }
+    if quote_anchor:
+        expected_anchor["quote"] = "Original source words."
+    assert comment["anchor"] == expected_anchor
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Outdated")
     assert errors == []
     page.close()
 

@@ -42,6 +42,7 @@ customElements.define(
           [{ snapshot, tokens }],
           () => "document",
           (record, prior) => sourceNode(this, record, prior),
+          { snapshot },
         );
         this.classList.add("lf-rendered");
       } catch (error) {

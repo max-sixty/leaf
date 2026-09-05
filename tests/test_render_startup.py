@@ -757,8 +757,9 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
     The tray was open on the prior visit and the log has since accepted its one
     suggestion. Holding the first replay makes the dangerous interval deterministic:
     discussion stays available, but the stale count, row, and bulk action stay withheld.
-    Opening Threads during that interval replaces the remembered tray, and replay leaves
-    the current workspace standing while it paints the accepted state directly.
+    Opening Threads during that interval replaces the remembered tray. Replay leaves
+    that workspace standing while it paints the accepted state and exposes the completed
+    Ask as a closed route for review.
     """
     url = serve(SHORT_SUGGESTION)
     events_model.append_event(
@@ -802,7 +803,9 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-        expect(page.locator(".lf-decisions")).to_be_hidden()
+        expect(page.locator(".lf-decisions")).to_be_visible()
+        expect(page.locator(".lf-decisions")).to_have_text("Asks 1/1")
+        expect(page.locator(".lf-decisions")).to_have_attribute("data-lf-complete", "")
         expect(page.locator(".lf-decisions-panel")).to_be_hidden()
         expect(page.locator(".lf-panel")).to_be_visible()
         expect(page.locator("button.lf-decisions-row")).to_have_count(0)
@@ -2541,16 +2544,15 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
     page.close()
 
 
-def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, serve):
-    """Runtime-supplied words are readable but are not authored prose, and their stable
-    key—not a text node, equal display text, or current order—owns an anchored comment.
+def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
+    browser, serve
+):
+    """Runtime-supplied words are readable but are not authored prose.
 
-    Reconciliation replaces every row to exercise the destructive path. The first
-    refresh reorders two equal values; a quote-only anchor either follows document order
-    or detaches. The second changes the intended value while leaving its old text on the
-    other row; silently following that text would move the comment to another fact. The
-    honest result is an outline on the same datum, with the original quote retained in
-    the thread as what the reader commented on.
+    Their stable key identifies the fact within one source revision. Reconciliation
+    replaces every row and leaves the old display text on another datum; the comment
+    must become explicitly outdated instead of following either the key into new data
+    or the equal text onto a different fact.
     """
     url = data_projection_page(serve)
     page, errors = open_page(browser, url)
@@ -2581,23 +2583,9 @@ def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, ser
         "section": "deployments",
         "datum": "api",
         "quote": "Ready",
+        "source": "deployments",
+        "data_revision": 1,
     }
-
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "deployments",
-        [
-            {"key": "worker", "value": "Ready"},
-            {"key": "api", "value": "Ready"},
-        ],
-    )
-    page.wait_for_function("""() => {
-      const mark = [...(CSS.highlights.get('lf-mark') ?? [])][0];
-      return mark?.startContainer?.isConnected
-        && mark.startContainer.parentElement.dataset.lfDatum === 'api'
-        && document.querySelector('#deployments').firstElementChild.dataset.lfDatum
-          === 'worker';
-    }""")
 
     data_model.cmd_data_set(
         serve.page_dir,
@@ -2607,13 +2595,18 @@ def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, ser
             {"key": "api", "value": "Running"},
         ],
     )
-    expect(page.locator('[data-lf-datum="api"]')).to_have_class(
+    expect(page.locator('[data-lf-datum="api"]')).to_have_attribute(
+        "data-lf-source-revision", "2"
+    )
+    expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
+    expect(page.locator('[data-lf-datum="api"]')).not_to_have_class(
         re.compile(r"\blf-mark-el\b")
     )
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0, (
         "the comment followed its old display text onto the other datum"
     )
     expect(page.locator(".lf-thread .lf-quote")).to_contain_text("Ready")
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Outdated")
     expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
         re.compile(r"\bdetached\b")
     )
@@ -2622,6 +2615,105 @@ def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, ser
     page.emulate_media(media="print")
     paper = render_checks_model.evaluate_probe(page, "paperWords")
     assert paper == screen, "paper dropped or rewrote projected data"
+    assert errors == []
+    page.close()
+
+
+def test_a_declared_external_projection_must_receive_its_snapshot(browser, serve):
+    """Omitting provenance is an invalid projection, not an unversioned fallback."""
+    page, errors = open_page(browser, data_projection_page(serve))
+    failure = page.evaluate(
+        """async () => {
+          const {projectData} = await import('/runtime/widget-api.js');
+          try {
+            projectData(
+              document.querySelector('#deployments'), [], row => row.key,
+              () => document.createElement('p')
+            );
+            return null;
+          } catch (error) {
+            return error.message;
+          }
+        }"""
+    )
+    assert failure == (
+        "projectData(deployments) must receive the snapshot that supplied its records"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
+    browser, serve
+):
+    """A widget's own derived records have no external revision boundary.
+
+    Their section and stable key remain the complete identity: replacing every node and
+    changing the intended value outlines that same datum without following its old words
+    onto an equal neighbor.
+    """
+    authored = leaf_page(
+        "derived projection",
+        '<h1 id="title">Deployments</h1><lf-derived id="deployments"></lf-derived>',
+    )
+    entry = {
+        "description": "A project-supplied derived feed.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "none",
+        "x-upgrade": True,
+        "x-example": '<lf-derived id="derived-example"></lf-derived>',
+    }
+    module = """
+import {offer, projectData} from '/runtime/widget-api.js';
+customElements.define('lf-derived', class extends HTMLElement {
+  connectedCallback() {
+    window.lfDerived = this;
+    this.show([{key: 'api', value: 'Ready'}, {key: 'worker', value: 'Ready'}]);
+  }
+  show(rows) {
+    projectData(this, rows, row => row.key, ({value}) => {
+      const row = document.createElement('p');
+      row.append(value, offer('button', 'inspect', 'Inspect'));
+      return row;
+    });
+  }
+});
+"""
+    page, errors = open_page(
+        browser,
+        serve(
+            authored,
+            layer_registry={"lf-derived": entry},
+            layer_widgets={"lf-derived.js": module},
+        ),
+    )
+
+    page.locator('[data-lf-datum="api"]').click(click_count=3)
+    page.locator(".lf-fab-input").click()
+    page.locator(".lf-composer textarea").fill("Which readiness check is this?")
+    page.keyboard.press("Enter")
+    round_trip(page)
+    comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
+    assert comment["anchor"] == {
+        "section": "deployments",
+        "datum": "api",
+        "quote": "Ready",
+    }
+
+    page.evaluate(
+        """() => window.lfDerived.show([
+          {key: 'worker', value: 'Ready'}, {key: 'api', value: 'Running'}
+        ])"""
+    )
+    expect(page.locator('[data-lf-datum="api"]')).to_have_class(
+        re.compile(r"\blf-mark-el\b")
+    )
+    assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
+    expect(page.locator(".lf-thread .lf-quote")).to_contain_text("Ready")
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
     assert errors == []
     page.close()
 
@@ -2932,6 +3024,96 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
         "captured": [None, None],
         "failedCalls": 1,
         "message": "mount failed",
+    }
+    assert errors == []
+    page.close()
+
+
+def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
+    browser, serve
+):
+    """Data acceptance can advance while a mounted source awaits syntax rendering.
+
+    Hold subscriber notification until that first render completes, then compare the
+    old rendering, the replacement, and an immutable capture of the same source.
+    """
+    authored = leaf_page(
+        "source provenance",
+        '<h1 id="title">Source</h1>'
+        '<lf-source id="live" source="document" language="python"></lf-source>'
+        '<lf-source id="frozen" source="document" language="python"></lf-source>',
+    )
+    url = live_url(serve(authored))
+    data_model.cmd_data_set(
+        serve.page_dir, "document", 'route = "old"', capture_label="first capture"
+    )
+    stamp_page(
+        serve.page_dir,
+        authored.replace('id="frozen"', 'id="frozen" snapshot="1"'),
+        "Keep the original source beside the live value",
+    )
+    page, errors = open_page(browser, url)
+    expect(page.locator("#live code")).to_have_text('route = "old"')
+    expect(page.locator("#frozen code")).to_have_text('route = "old"')
+    result = page.evaluate(
+        """async () => {
+          const {acceptData, notifyDataSubscribers} = await import('/runtime/data.js');
+          const {runtime} = await import('/runtime/context.js');
+          const source = document.querySelector('#live');
+          const mounted = source.cloneNode(false);
+          mounted.id = 'mounted-source';
+          mounted.classList.remove('lf-rendered');
+          const read = element => {
+            const datum = element.querySelector('[data-lf-datum]');
+            return {
+              text: datum.querySelector('code').textContent,
+              source: datum.dataset.lfSource,
+              revision: datum.dataset.lfSourceRevision,
+            };
+          };
+          let observer;
+          const firstProjection = new Promise(resolve => {
+            observer = new MutationObserver(() => {
+              if (!mounted.querySelector('[data-lf-datum]')) return;
+              observer.disconnect();
+              resolve();
+            });
+            observer.observe(mounted, {childList: true, subtree: true});
+          });
+          const original = runtime.data;
+          try {
+            // Mount starts watchData's delivery before acceptance advances. The real
+            // syntax await keeps projectData behind that acceptance in this turn.
+            source.after(mounted);
+            const newer = structuredClone(original);
+            newer.revision = 2;
+            newer.sources.document.revision = 2;
+            newer.sources.document.value = 'route = "new"';
+            acceptData(newer);
+            await firstProjection;
+            const beforeNotification = read(mounted);
+            await notifyDataSubscribers();
+            return {
+              beforeNotification,
+              mounted: read(mounted),
+              live: read(source),
+              frozen: read(document.querySelector('#frozen')),
+            };
+          } finally {
+            observer.disconnect();
+            mounted.remove();
+            runtime.data = original;
+            await notifyDataSubscribers();
+          }
+        }"""
+    )
+    old = {"text": 'route = "old"', "source": "document", "revision": "1"}
+    new = {"text": 'route = "new"', "source": "document", "revision": "2"}
+    assert result == {
+        "beforeNotification": old,
+        "mounted": new,
+        "live": new,
+        "frozen": old,
     }
     assert errors == []
     page.close()

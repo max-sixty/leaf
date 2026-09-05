@@ -204,6 +204,7 @@ customElements.define(
           next.missing
             ? renderMissing(prior)
             : renderCard(next, prior, snapshot, descriptionChanged),
+        { snapshot },
       );
       if (descriptionChanged.value) await highlightBlocks(this);
     }

@@ -582,6 +582,7 @@ def _validate_widget_interactions(
             "x-language",
             "x-verbatim",
             "x-shadow",
+            "x-thread-surface",
             "x-conversation",
         )
         if entry.get(key) and not entry["x-upgrade"]

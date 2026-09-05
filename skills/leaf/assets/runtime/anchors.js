@@ -8,6 +8,7 @@ import {
 } from "./geometry.js";
 import { marginAction, registerMarginItem } from "./living-margin.js";
 import { moveScrollerBy } from "./scrolling.js";
+import { focused } from "./keyboard/scopes.js";
 
 /* Anchor resolution, painting, and anchor-specific travel. */
 let publishedAnchors;
@@ -73,6 +74,7 @@ export function createAnchors(dependencies) {
     quoteFrom,
     queueLegend,
     rangeOf,
+    reconcileThreads,
     refreshAction,
     registry,
     reveal,
@@ -505,14 +507,23 @@ export function createAnchors(dependencies) {
     element: item,
     label: aimLabel(item),
   });
-  const datumAimTarget = (datum) => ({
-    anchor: {
-      section: datum.dataset.lfProjection,
-      datum: datum.dataset.lfDatum,
-    },
-    element: datum,
-    label: datum.dataset.lfDatumLabel?.trim() || aimLabel(datum),
-  });
+  const datumAimTarget = (datum) => {
+    const dataRevision = Number(datum.dataset.lfSourceRevision);
+    return {
+      anchor: {
+        section: datum.dataset.lfProjection,
+        datum: datum.dataset.lfDatum,
+        ...(datum.dataset.lfSource && Number.isInteger(dataRevision)
+          ? {
+              source: datum.dataset.lfSource,
+              data_revision: dataRevision,
+            }
+          : {}),
+      },
+      element: datum,
+      label: datum.dataset.lfDatumLabel?.trim() || aimLabel(datum),
+    };
+  };
   // One reading for the pointer aim and the keyboard's item hints. A declared picture
   // part outranks the authored item around it; everywhere else the innermost stable id
   // is the target.
@@ -551,6 +562,27 @@ export function createAnchors(dependencies) {
     if (anchor.datum) {
       const source = sectionOf(anchor);
       const datum = currentDatums(source, anchor.datum);
+      const anchoredToData =
+        typeof anchor.source === "string" && Number.isInteger(anchor.data_revision);
+      const basis = datum[0] ?? source;
+      const basisMatches =
+        !anchoredToData ||
+        (basis?.dataset.lfSource === anchor.source &&
+          Number(basis.dataset.lfSourceRevision) === anchor.data_revision);
+      if (!basisMatches) {
+        const contextual = source?.lfDataDatum?.(anchor.datum, { outdated: true });
+        const fallback =
+          contextual instanceof Element && containsAcross(source, contextual)
+            ? contextual
+            : source;
+        if (!(fallback instanceof Element)) return null;
+        return {
+          element: fallback,
+          datumElement: null,
+          exact: false,
+          status: "outdated",
+        };
+      }
       // A projection/key pair identifies exactly one current fact. Disappearance detaches;
       // duplicates refuse to guess. Where its old display text still stands, mark those
       // exact words. Where the value changed, outline the same datum whole instead of
@@ -560,11 +592,34 @@ export function createAnchors(dependencies) {
         const virtual = source?.lfDataDatum?.(anchor.datum);
         if (!(virtual instanceof Element) || !containsAcross(source, virtual))
           return null;
-        return { element: virtual };
+        return {
+          element: virtual,
+          datumElement: null,
+          exact: false,
+          status: "fallback",
+        };
       }
-      if (!anchor.quote) return { element: datum[0] };
+      if (!anchor.quote)
+        return {
+          element: datum[0],
+          datumElement: datum[0],
+          exact: true,
+          status: "exact",
+        };
       const segments = findQuote(text, anchor.quote, anchor, datum[0]);
-      return segments.length ? { segments } : { element: datum[0] };
+      return segments.length
+        ? {
+            segments,
+            datumElement: datum[0],
+            exact: true,
+            status: "exact",
+          }
+        : {
+            element: datum[0],
+            datumElement: datum[0],
+            exact: true,
+            status: "exact",
+          };
     }
     if (anchor.visual) {
       const section = sectionOf(anchor);
@@ -904,7 +959,15 @@ export function createAnchors(dependencies) {
       // Where the thread's passage lands in this version, recorded for every thread the
       // page still holds — the resolved ones too, which take no paint but do take a place
       // in the panel's order and keep the one they had while they fold out of it.
-      placed.set(t.root.id, found.element ?? elementOver(found.segments[0].node));
+      const place = found.element ?? elementOver(found.segments[0].node);
+      placed.set(t.root.id, {
+        datumElement: null,
+        exact: true,
+        status: "exact",
+        ...found,
+        element: place,
+      });
+      if (found.status === "outdated") continue;
       if (t.resolved) continue;
       // A reaction nobody has answered: its own paint, and no line for the note — the
       // glyph is a real control that says what it is. Answered, it is a thread and takes
@@ -989,7 +1052,8 @@ export function createAnchors(dependencies) {
     // Where the draft's passage is, recorded the way the threads' is. An element a thread
     // already outlines belongs in the record too — it is marked, just in the posted colour
     // rather than the accent.
-    pendingMarks = draft
+    const draftMarked = Boolean(draft && draft.status !== "outdated");
+    pendingMarks = draftMarked
       ? draft.element
         ? (draft.marks ?? shownParts(draft.element))
         : draft.segments.map((seg) => rangeOf([seg]))
@@ -1039,7 +1103,7 @@ export function createAnchors(dependencies) {
     // say the comment is about the layer and which control the press landed on.
     composerQuote.classList.toggle(
       "lf-unseen",
-      !label || (Boolean(draft) && !composerAbout()),
+      !label || (draftMarked && !composerAbout()),
     );
 
     // Ranked so each reading survives the ones under it: a posted mark, the hover over it,
@@ -1197,7 +1261,7 @@ export function createAnchors(dependencies) {
     projectionAnchorPaintQueued = true;
     queueMicrotask(() => {
       projectionAnchorPaintQueued = false;
-      paintAnchors();
+      reconcileThreads();
     });
   });
 
@@ -1385,51 +1449,65 @@ export function createAnchors(dependencies) {
   // panel and the page can't disagree about whether the passage survived. A painted range has
   // no element to scroll into view, so its own box does the work.
   //
-  // Every "show me that comment's passage" route ends here. The focus its caller already
-  // placed in the thread owns the standing paint; this function owns only the travel. It
-  // makes the target's box visible in both axes, then glides the exact mark to the centre
-  // of the region that holds it. No transient effect waits on that motion or survives it
-  // as separate state.
-  function scrollToThread(id, datumReady = false) {
+  // Hydration may outlive the gesture that requested it. A newer gesture or thread
+  // destination withdraws its pending scroll and focus, while the data still loads.
+  let threadTravelIntent = 0;
+  const leaveThreadTravel = () => threadTravelIntent++;
+  for (const type of ["pointerdown", "keydown", "input", "wheel"])
+    addEventListener(type, leaveThreadTravel, { capture: true, passive: true });
+  addEventListener("blur", leaveThreadTravel);
+
+  // Reveal and reconcile before the caller's focus landing: a widget outlet may not
+  // exist until its file opens. Focus lands before scrolling so it cannot cancel the
+  // passage's normal travel. Completion means the destination exists, not that a smooth
+  // scroll animation has finished.
+  async function scrollToThread(id, { land = null } = {}) {
+    const intent = ++threadTravelIntent;
+    const startingFocus = focused();
     const thread = buildThreads().find((candidate) => candidate.root.id === id);
     const anchor = thread?.root.anchor;
-    if (anchor?.datum && !datumReady) {
+    if (anchor?.datum && placed.get(id)?.status !== "outdated") {
       const source = sectionOf(anchor);
       // The line may already exist under a widget-owned filter. Core asks the owner to
       // reveal the semantic key before it reads the painted mark, just as cross-widget
       // datum travel does; DOM presence alone cannot prove reachability.
       const hydration = source?.lfRevealDatum?.(anchor.datum);
       if (hydration?.then) {
-        hydration.then(() => {
-          paintAnchors();
-          scrollToThread(id, true);
-        });
-        return;
+        await hydration;
+        if (
+          intent !== threadTravelIntent ||
+          sectionOf(anchor) !== source ||
+          (focused() !== startingFocus && focused() !== document.body)
+        )
+          return false;
+        reconcileThreads();
       }
     }
-    let where = marksOf(id)[0] ?? placed.get(id);
-    if (!where) return;
+    let where = marksOf(id)[0] ?? placed.get(id)?.element;
+    if (!where) return false;
     const holder =
       where instanceof Range
         ? where.startContainer instanceof Element
           ? where.startContainer
           : where.startContainer.parentElement
         : where;
-    if (!holder) return;
+    if (!holder) return false;
     reveal(holder);
-    if (!(where instanceof Range) && !marksOf(id).length) {
-      paintAnchors();
-      where = marksOf(id)[0] ?? where;
+    if (anchor?.datum || (!(where instanceof Range) && !marksOf(id).length)) {
+      reconcileThreads();
+      where = marksOf(id)[0] ?? placed.get(id)?.element ?? where;
     }
-    if (readableDestination(where)) return;
+    land?.();
+    if (readableDestination(where)) return true;
     if (!(where instanceof Range)) {
       scrollToElement(where);
-      return;
+      return true;
     }
     // Sideways first, and only as far as it takes: a passage inside a wide `pre` or a
     // rendered diagram sits in a box with its own horizontal scroll, which the vertical
     // jump below cannot reach — scrolling to it in one axis leaves it off-screen in the other.
     scrollToRange(where);
+    return true;
   }
 
   // Pointer feedback a wrapped <mark> got from :hover and cursor: pointer, neither of which
@@ -1517,7 +1595,8 @@ export function createAnchors(dependencies) {
   const HERE = "lf-mark-here";
   let hereParts = [];
   function paintStanding() {
-    const where = marksOf(focusedThreadOf()?.dataset.id);
+    const localThread = focused()?.closest(".lf-conversation-thread");
+    const where = marksOf(localThread?.dataset.thread ?? focusedThreadOf()?.dataset.id);
     const parts = where.filter((mark) => mark instanceof Element);
     // Only what changed, because the anchor pass calls this and the anchor pass runs on
     // every poll: an element that keeps the class would otherwise have it taken off and put

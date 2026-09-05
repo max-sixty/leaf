@@ -38,7 +38,6 @@ from render_support import (
     round_trip,
     sending,
     stamp_page,
-    ticked,
     told,
     undo,
     unfolded_button,
@@ -554,7 +553,8 @@ def test_a_failed_background_read_cannot_aim_undo_at_its_partial_history(
 def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
     """A later absolute action on the same widget is already painted while an older
     send waits. Refusing the older action must preserve that outbox overlay, including
-    while an accepted intermediate answer is older than the newest local gesture."""
+    while an accepted intermediate answer is older than the newest local gesture. The
+    queued state is not a result, so it mints no page-map record before acceptance."""
     page, errors = open_page(browser, serve(BOARD_PAGE))
     page.locator("#card-heater .lf-grip").focus()
     for key in ["Enter", "ArrowRight", "Enter"]:
@@ -571,6 +571,9 @@ def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
         for key in ["Enter", "ArrowRight", "Enter"]:
             page.keyboard.press(key)
     page.wait_for_timeout(0)
+    expect(
+        page.locator('[data-lf-margin-for="card-baffle"] [data-lf-behavior="status"]')
+    ).to_have_count(0)
     assert len(held) == 1
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
 
@@ -1428,77 +1431,9 @@ def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, s
 
     # The live gesture still owns the DOM; its origin must not move under it.
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
-    assert actions(serve.page_dir) == []
-    assert errors and all("400" in error for error in errors)
-    page.close()
-
-
-# Sampled rather than waited for, because the tick repairs a stale margin two seconds
-# later and an `expect` would take that for the pass under test. Both facts are read on
-# every frame and every task from before the refusal is answered: the reconciliation and
-# the render it tells consumers about are one turn, so no sample can fall between them,
-# and a margin left behind is sampled hundreds of times before the heartbeat hides it.
-CARD_AND_MARGIN_SAMPLES = """() => {
-  window.__lfMarginSamples = [];
-  const sample = () => {
-    window.__lfMarginSamples.push([
-      Boolean(document.querySelector("#col-done #card-heater")),
-      Boolean(document.querySelector('.lf-margin-marker[data-lf-kinds~="outcome"]')),
-    ]);
-    requestAnimationFrame(sample);
-  };
-  sample();
-  window.__lfMarginInterval = setInterval(sample, 0);
-}"""
-
-
-def test_a_refused_action_withdraws_its_outcome_from_the_margin_in_one_pass(
-    browser, serve
-):
-    """The margin reads the projection, so the outcome an optimistic winner raised
-    leaves with the winner. Reconciling a refusal is not a state application, and
-    `lf-actions` is the one thing every pass that reconciles tells its consumers
-    through; without it the page kept a ✓ Outcome for a move the log never took until
-    the heartbeat two seconds later. A widget that announces its own answer
-    (`lf-options` dispatches `lf-answered` for a rewound pick) covers this for its own
-    margin entry; a board move announces nothing."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
-    resized(page, 1440, 900)
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    heater = page.locator("#card-heater .lf-grip")
-    with page.expect_request("**/api/event"):
-        heater.focus()
-        for key in ["Enter", "ArrowRight", "Enter"]:
-            page.keyboard.press(key)
-    ticked(page)
-    outcome = page.locator('.lf-margin-marker[data-lf-kinds~="outcome"]')
-    expect(outcome).to_have_count(1)
-
-    page.evaluate(CARD_AND_MARGIN_SAMPLES)
-    attempt = held[0].request.post_data_json["attempt"]
-    with page.expect_response(lambda response: "/api/event" in response.url):
-        held[0].fulfill(
-            status=400,
-            json={
-                "ok": False,
-                "attempt": attempt,
-                "error": "refused before append",
-                "final": True,
-            },
-        )
-    page.wait_for_function('() => !document.querySelector("#col-done #card-heater")')
-    samples = page.evaluate("() => window.__lfMarginSamples")
-    page.evaluate("() => clearInterval(window.__lfMarginInterval)")
-
-    assert [True, True] in samples, "the pending move never reached the margin"
-    assert [False, True] not in samples, (
-        "the margin kept the outcome of a refused move after the board had taken it "
-        f"back: {samples}"
-    )
-    expect(outcome).to_have_count(0)
     assert actions(serve.page_dir) == []
     assert errors and all("400" in error for error in errors)
     page.close()

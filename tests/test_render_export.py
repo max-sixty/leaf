@@ -851,30 +851,14 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
     copy.close()
 
 
-RECEIPT_DRAFTS = leaf_page(
-    "drafts",
+RECEIPT_DRAFT = leaf_page(
+    "draft",
     """
-<h1 id="h">Two notes</h1>
-<p id="p-settled">The invitation the author has written in already.</p>
-<lf-draft id="d-settled"><pre>The sample workshop is in the green room.</pre></lf-draft>
-<p id="p-open">The one still on its way.</p>
+<h1 id="h">One note</h1>
+<p id="p-open">The invitation still on its way.</p>
 <lf-draft id="d-open"><pre>The sample workshop is in the blue room.</pre></lf-draft>
 """,
 )
-SETTLED_EDIT = {
-    "kind": "action",
-    "author": "user",
-    "revision": 1,
-    "widget": "d-settled",
-    "action": "edit",
-    "detail": {"text": "The sample workshop is in the green room."},
-    "meaning": {
-        "document": {"kind": "page", "revision": 1},
-        "coordinate": ["d-settled", "d-settled", "body"],
-        "depends": ["d-settled"],
-        "answer": None,
-    },
-}
 OPEN_EDIT = {
     "kind": "action",
     "author": "user",
@@ -891,26 +875,13 @@ OPEN_EDIT = {
 }
 
 
-def test_a_copy_keeps_a_settled_record_and_drops_a_move_still_in_flight(
+def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     browser, serve, tmp_path
 ):
-    """Both readings are status reports, and only one of them is news.
-
-    `d-open` holds an edit the document has not caught up with, so its reading is the
-    phase an agent is in — Picked up here — and a file has nothing standing behind that
-    sentence. `d-settled` holds one the authored markup already states, which leaves the
-    page map reading a decision this same file carries, with the decided text in it. That
-    is the fact the rail is held open for and, for a widget contributing no status text
-    of its own, the only margin record of the choice, so the copy keeps it.
-
-    It keeps it as a word, and in one seat. What a copy must not carry out of a seat that
-    was a Button's before the move was made is the promise: the status role the walk
-    lands on, its tab stop, and the offer marker that said a widget built this box — and
-    no widget did, which is why nothing is left here for the press pass to keep the way
-    it keeps a control's page words. Where the word stands is the same question asked of
-    layout: the draft's own Edit press had taken the resting seat and left the reading
-    under `…`, and the ellipsis that opens a fold goes out with every other press."""
-    url = serve(RECEIPT_DRAFTS, events=[SETTLED_EDIT, OPEN_EDIT])
+    """The action projection is durable; its delivery report belongs only to the live
+    session. A standalone file therefore carries the edited draft itself, not a second
+    page-map record saying that the move happened or that an agent picked it up."""
+    url = serve(RECEIPT_DRAFT, events=[OPEN_EDIT])
     in_flight = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -921,20 +892,15 @@ def test_a_copy_keeps_a_settled_record_and_drops_a_move_still_in_flight(
         {"kind": "pickup", "author": "page", "events": [in_flight["id"]]},
     )
 
-    reading = ".lf-margin-marker[data-lf-behavior='status']"
     live = browser.new_page(viewport={"width": 1200, "height": 900})
     live.goto(url, wait_until="load")
     resized(live, 1200, 900)
     expect(
-        live.locator(f"[data-lf-margin-for='d-settled'] {reading}")
-    ).to_have_attribute("data-lf-standing", "")
-    expect(
-        live.locator(f"[data-lf-margin-for='d-open'] {reading}")
-    ).not_to_have_attribute("data-lf-standing", "")
-    standing = live.locator(f"[data-lf-margin-for='d-settled'] {reading}")
-    assert standing.get_attribute("role") == "status", (
-        "the live reading is not the status a copy has to disarm"
-    )
+        live.locator(
+            "[data-lf-margin-for='d-open'] [data-lf-behavior='status']:visible"
+        )
+    ).to_have_attribute("data-lf-kinds", "pickup")
+    expect(live.get_by_text("Outcome", exact=True)).to_have_count(0)
     live.close()
 
     out = tmp_path / "standalone.html"
@@ -943,39 +909,11 @@ def test_a_copy_keeps_a_settled_record_and_drops_a_move_still_in_flight(
     errors = watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
-    carried = page.evaluate(
-        """() => [...document.querySelectorAll('[data-lf-behavior="status"]')].map(
-             row => ({
-               target: row.closest('[data-lf-margin-for]')?.dataset.lfMarginFor,
-               word: row.querySelector('.lf-margin-button-label').textContent,
-               shown: row.checkVisibility(),
-               folded: Boolean(row.closest('.lf-margin-options')),
-               role: row.getAttribute('role'),
-               tabindex: row.getAttribute('tabindex'),
-               offer: row.getAttribute('data-lf-offer'),
-             }))"""
+    expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
+    expect(page.get_by_text("Outcome", exact=True)).to_have_count(0)
+    expect(page.locator("#d-open")).to_contain_text(
+        "The sample workshop is in the red room."
     )
-    # One seat, standing in the item. The live page had two — the marker, and the peer
-    # the fold holds once a contributed control takes the resting one — and a copy can
-    # open no fold, so the reading it keeps is the reading it can show.
-    assert carried == [
-        {
-            "target": "d-settled",
-            "word": "Outcome",
-            "shown": True,
-            "folded": False,
-            "role": "img",
-            "tabindex": None,
-            "offer": None,
-        }
-    ], carried
-    assert (
-        page.evaluate(
-            """() => [...document.querySelectorAll('main *')]
-                 .filter(el => el.textContent.trim() === 'Picked up').length"""
-        )
-        == 0
-    ), "the copy still says an agent picked up a move it cannot report on"
     assert errors == []
     page.close()
 
@@ -1006,87 +944,6 @@ AGENT_ACCEPT = {
     },
 }
 
-
-def test_a_copy_stands_its_kept_record_where_each_medium_can_show_it(
-    browser, serve, tmp_path
-):
-    """The other seat a standing record can be sitting in, and the two mediums that
-    draw no rail for it.
-
-    An agent decided this suggestion, so there is nothing for the reader to take back:
-    the widget contributes no shown control, and the page map's own marker carries the
-    reading. That is the seat the test above never reaches — a draft's Edit press takes
-    the resting seat and leaves the reading in the fold, which is where the copy finds
-    it there.
-
-    So the copy's record stops being a marker. The class is the rail's seat rather than
-    the reading's, and both rules that stop drawing the rail name it — the 900px floor
-    and print — so a record left wearing it is a fact the file states on a wide screen
-    and drops on a narrow one or on paper, while the same record kept in a fold stands
-    in all three. The spoken name goes with the class: it is the walk's address, which
-    counts the page map's entries and measures how far down the exporter's own window
-    the target sat, and a file has neither. The reading's own word takes its place,
-    because the span holding that word cannot: the runtime's stylesheet rides into the
-    file and keeps the span for a hover a file has no other use for, so a record left
-    to it would stand there saying nothing at all.
-
-    Where it stands is the second half, and it is one question for both seats. A file
-    cannot dock: the packing pass measured the rail at the width the page was exported
-    at and left with the scripts. Below the floor and on paper the absolute seat it
-    measured is off the page box — 115px past an 800px window, and away on a sheet
-    narrower than the export — so the item takes the docked shape there instead."""
-    url = serve(AGENT_SUGGESTION, events=[AGENT_ACCEPT])
-    reading = ".lf-margin-button[data-lf-behavior='status']"
-    item = '[data-lf-margin-for="sug-refill"]'
-    live, live_errors = open_page(browser, live_url(url))
-    resized(live, 1200, 900)
-    standing = live.locator(f"{item} {reading}")
-    expect(standing).to_have_class(re.compile(r"\blf-margin-marker\b"))
-    expect(standing).to_have_attribute("data-lf-standing", "")
-    expect(standing).to_have_attribute("aria-label", re.compile(r"^Outcome, 1 of 1, "))
-    assert live.locator(f"{item} .lf-margin-reading-option").count() == 0, (
-        "the widget contributed a shown control, so this is the seat the test above has"
-    )
-    assert live_errors == []
-    live.close()
-
-    out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    # The exported file, read at the width it was taken at and at one narrower than the
-    # rail's own floor, on screen and on paper. Each answer is the record's box against
-    # the page's: a seat outside it is a fact the medium does not carry.
-    for width in (1200, 800):
-        page = browser.new_page(viewport={"width": width, "height": 900})
-        errors = watched(page)
-        page.goto(out.as_uri(), wait_until="load")
-        for medium in ("screen", "print"):
-            page.emulate_media(media=medium)
-            assert page.evaluate(
-                """() => [...document.querySelectorAll('.lf-margin-button')].map(el => ({
-                     marker: el.matches('.lf-margin-marker'),
-                     word: el.querySelector('.lf-margin-button-label').textContent,
-                     shown: el.checkVisibility(),
-                     named: el.getAttribute('aria-label'),
-                     role: el.getAttribute('role'),
-                     within: el.getBoundingClientRect().right
-                       <= document.documentElement.getBoundingClientRect().right,
-                     overflow: document.documentElement.scrollWidth > innerWidth,
-                   }))"""
-            ) == [
-                {
-                    "marker": False,
-                    "word": "Outcome",
-                    "shown": True,
-                    "named": "Outcome",
-                    "role": "img",
-                    "within": True,
-                    "overflow": False,
-                }
-            ], f"{width}px, {medium}"
-        assert errors == []
-        page.close()
-
-
 FOLDED_SUGGESTION = leaf_page(
     "agreed, out of sight",
     """
@@ -1102,27 +959,48 @@ FOLDED_SUGGESTION = leaf_page(
 )
 
 
-def test_a_copy_preserves_a_withheld_record_without_a_packing_pass(
+def test_a_copy_keeps_a_suggestion_receipt_without_a_page_map_record(
     browser, serve, tmp_path
 ):
-    """The record above stands because its target does. This one's does not.
+    """Accepted/Rejected is state this widget visibly owns. Export keeps that receipt
+    and applied suggestion state without synthesizing an Outcome status beside it."""
+    url = serve(AGENT_SUGGESTION, events=[AGENT_ACCEPT])
+    item = '[data-lf-margin-for="sug-refill"]'
+    live, live_errors = open_page(browser, live_url(url))
+    resized(live, 1200, 900)
+    expect(live.locator(f"{item} .lf-sug-receipt")).to_have_text("Accepted")
+    expect(live.locator(f"{item} [data-lf-behavior='status']")).to_have_count(0)
+    assert live_errors == []
+    live.close()
 
-    The packing pass says so on the live page: a row whose anchor is not shown is left
-    `lf-waiting`, and a shut fold is the ordinary way a target goes unshown while the
-    reading for it is real. The class travels into the file with the row, so the file
-    is the same reading — a record for words the reader has to open the fold to reach,
-    and nothing in a copy opens it.
+    out = tmp_path / "standalone.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    for width in (1200, 800):
+        page = browser.new_page(viewport={"width": width, "height": 900})
+        errors = watched(page)
+        page.goto(out.as_uri(), wait_until="load")
+        for medium in ("screen", "print"):
+            page.emulate_media(media=medium)
+            expect(page.locator(".lf-sug-receipt")).to_have_text("Accepted")
+            expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
+            expect(page.get_by_text("Outcome", exact=True)).to_have_count(0)
+            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        assert errors == []
+        page.close()
 
-    Which makes the two facts one question. The shape a copy takes below the rail's
-    floor and on paper is a rule about rows that stand; a rule that reached these too
-    would be the only thing standing them, because `display: flex` is what it answers
-    `lf-waiting`'s `display: none` with. Print unfolds the passage through CSS after
-    export, but the file has no packing pass to recompute the serialized row state."""
+
+def test_a_copy_keeps_a_withheld_margin_item_out_of_static_layout(
+    browser, serve, tmp_path
+):
+    """A copied row withheld by the live packing pass stays withheld. Print may
+    unfold its target passage through CSS, but a script-free copy cannot rerun packing
+    and must not invent a margin position for the serialized row."""
     url = serve(FOLDED_SUGGESTION, events=[AGENT_ACCEPT])
     live, live_errors = open_page(browser, live_url(url))
     resized(live, 1200, 900)
     item = live.locator('[data-lf-margin-for="replace"]')
     expect(item).to_have_class(re.compile(r"\blf-waiting\b"))
+    expect(item.locator(".lf-sug-receipt")).to_have_text("Accepted")
     assert live_errors == []
     live.close()
 
@@ -1138,6 +1016,7 @@ def test_a_copy_preserves_a_withheld_record_without_a_packing_pass(
                 """() => [...document.querySelectorAll('.lf-margin-item')].map(el => ({
                      waiting: el.matches('.lf-waiting'),
                      shown: el.checkVisibility(),
+                     receipt: el.querySelector('.lf-sug-receipt')?.textContent,
                      open: document.getElementById('survey').open,
                      passage: document.getElementById('replace').checkVisibility(),
                    }))"""
@@ -1145,6 +1024,7 @@ def test_a_copy_preserves_a_withheld_record_without_a_packing_pass(
                 {
                     "waiting": True,
                     "shown": False,
+                    "receipt": "Accepted",
                     "open": False,
                     "passage": medium == "print",
                 }

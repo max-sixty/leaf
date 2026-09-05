@@ -260,7 +260,7 @@ def record(
     # All three stamps, which is what "the page is ready" means here and what
     # `shoot_stills` below already waits for: the document's own stamp says nothing
     # about the log, so a gesture taken on it alone reads a page replay has not
-    # finished writing (skills/leaf/assets/CLAUDE.md, "The page finishes
+    # finished writing (skills/leaf/assets/CLAUDE.md, "Startup and presentation": the page finishes
     # twice"). The first thing this does is read `#p2`'s words back.
     page.wait_for_function(
         "() => document.body.dataset.lfUpgraded === '1'"

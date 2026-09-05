@@ -37,12 +37,6 @@ the relevant design note or in git history.
   idiom for owner state other owners read: `export let` bindings or reader functions,
   not both.
 
-- **Validate scopes at the first paint.** Stop `keys()` running row callbacks as a
-  module evaluates: validate every scope on its first paint, the way capability-gated
-  scopes already are, and move the ambiguous-row refusal in
-  `test_a_scope_cannot_give_one_live_key_two_meanings` to that boundary. This closes the
-  one evaluation-order path the `leaf/evaluation-order` rule cannot see.
-
 - **Make the MCP bundle fail loud on an evaluation-order fault.** esbuild hoists
   cross-module `let`/`const` into `var`s, so a fault the browser throws on reads
   `undefined` in the bundle; give `test_render_mcp` a probe that would see it, or build

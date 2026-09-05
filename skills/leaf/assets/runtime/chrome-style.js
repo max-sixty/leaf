@@ -1188,6 +1188,11 @@ ${MARK_RULES}
     .lf-thread.lf-mark-hover > .lf-quote {
       background: var(--mark-hover, var(--mark-strong));
     }
+    .lf-quote-label { min-width: 0; }
+    .lf-anchor-status { display: inline-block; margin-left: 7px; padding: 1px 5px;
+      border: 1px solid var(--warn); border-radius: 999px; color: var(--warn-ink);
+      background: var(--warn-tint); font: 600 var(--t-6)/1.25 var(--sans);
+      vertical-align: baseline; }
     .lf-going { overflow: hidden; box-sizing: border-box; }
     /* The outcome rides the closing edge, so it is legible for the whole fold rather
        than for the frame before the box swallows it: the actions row is the thread's

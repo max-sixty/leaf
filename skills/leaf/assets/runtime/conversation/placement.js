@@ -39,7 +39,9 @@ export function createThreadPlacement(dependencies) {
   };
 
   const threadPlace = (t) =>
-    inPage(placedAt(t.root.id) ?? (t.root.anchor ? sectionOf(t.root.anchor) : null));
+    inPage(
+      placedAt(t.root.id)?.element ?? (t.root.anchor ? sectionOf(t.root.anchor) : null),
+    );
 
   // Which of two elements the reader reaches first. `compareDocumentPosition` answers for
   // a containing element too — a section reaches the reader before the paragraph inside it

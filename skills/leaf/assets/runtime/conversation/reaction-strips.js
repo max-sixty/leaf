@@ -1,6 +1,6 @@
 import { paintReactionStanding } from "../reactions.js";
 
-/* Reaction surfaces rendered in the thread panel. */
+/* Reaction surfaces rendered in every complete Thread view. */
 export function createConversationReactionStrips(dependencies) {
   const {
     bareReaction,
@@ -24,8 +24,10 @@ export function createConversationReactionStrips(dependencies) {
   // arriving from another tab and an undo land the same way. A resolved thread offers none.
   function paintReactStrips(node, t) {
     const latest = t.msgs.findLast((x) => x.author === "claude")?.id ?? null;
-    for (const msg of node.querySelectorAll(":scope > .lf-msg")) {
-      const m = t.msgs.find((x) => x.id === msg.dataset.mid);
+    for (const msg of node.querySelectorAll(
+      ":scope > .lf-msg, :scope > .lf-conversation-msg",
+    )) {
+      const m = t.msgs.find((x) => x.id === (msg.dataset.mid ?? msg.dataset.event));
       if (!m || m.author !== "claude") continue;
       let strip = msg.querySelector(":scope > .lf-react-strip");
       if (t.resolved) {

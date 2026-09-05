@@ -1,7 +1,13 @@
+import { registry } from "../registry.js";
+
 let publishedProjectData;
 export { publishedProjectData as projectData };
 
-export function createDataProjection({ paintAnchors, reachScrollers, setChildren }) {
+export function createDataProjection({
+  reachScrollers,
+  reconcileThreads,
+  setChildren,
+}) {
   // Runtime-supplied data is a third kind of page word: it is neither prose the author
   // put in the version nor apparatus the runtime asks the reader to operate. It belongs
   // in `says` because the reader can point at it, and not in `wrote` because no version
@@ -33,7 +39,7 @@ export function createDataProjection({ paintAnchors, reachScrollers, setChildren
       for (const changed of changedRoots)
         if (changed.isConnected) reachScrollers(changed);
       changedRoots.clear();
-      paintAnchors();
+      reconcileThreads();
     });
   }
 
@@ -65,7 +71,7 @@ export function createDataProjection({ paintAnchors, reachScrollers, setChildren
     records,
     keyOf,
     render,
-    { nested = false, labelOf = null, originOf = null } = {},
+    { nested = false, labelOf = null, snapshot, originOf = null } = {},
   ) {
     if (!(root instanceof Element))
       throw new TypeError("projectData root must be an element");
@@ -80,6 +86,27 @@ export function createDataProjection({ paintAnchors, reachScrollers, setChildren
       throw new TypeError("projectData nested must be a boolean");
     if (labelOf !== null && typeof labelOf !== "function")
       throw new TypeError("projectData labelOf must be a function or null");
+    const declaredInputs = registry[root.localName]?.["x-data"] ?? {};
+    if (snapshot === undefined && Object.keys(declaredInputs).length)
+      throw new Error(
+        `projectData(${root.id}) must receive the snapshot that supplied its records`,
+      );
+    if (
+      snapshot != null &&
+      (typeof snapshot.source !== "string" ||
+        !snapshot.source ||
+        !Number.isInteger(snapshot.revision) ||
+        snapshot.revision < 1)
+    )
+      throw new TypeError("projectData snapshot needs a source and positive revision");
+
+    const stampBasis = (node) => {
+      if (snapshot) node.dataset.lfSource = snapshot.source;
+      else delete node.dataset.lfSource;
+      if (snapshot) node.dataset.lfSourceRevision = String(snapshot.revision);
+      else delete node.dataset.lfSourceRevision;
+    };
+    stampBasis(root);
     if (originOf !== null && typeof originOf !== "function")
       throw new TypeError("projectData originOf must be a function or null");
 
@@ -146,9 +173,10 @@ export function createDataProjection({ paintAnchors, reachScrollers, setChildren
       node.dataset.lfGen = "1";
       node.dataset.lfProjection = root.id;
       node.dataset.lfDatum = key;
+      stampBasis(node);
       // The emitter knows which input it transformed. Keep that construction fact,
       // never recover a source path by interpreting its opaque key or displayed words.
-      const origin = originOf?.(record, index) ?? null;
+      const origin = (originOf ? originOf(record, index) : snapshot?.origin) ?? null;
       if (origin !== null) {
         if (typeof origin !== "object" || Array.isArray(origin))
           throw new TypeError(
@@ -166,6 +194,8 @@ export function createDataProjection({ paintAnchors, reachScrollers, setChildren
           delete node.dataset.lfGen;
           delete node.dataset.lfProjection;
           delete node.dataset.lfDatum;
+          delete node.dataset.lfSource;
+          delete node.dataset.lfSourceRevision;
           delete node.dataset.lfOrigin;
           const label = node.dataset.lfDatumLabel;
           if (label !== undefined) {

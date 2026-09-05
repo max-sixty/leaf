@@ -593,6 +593,20 @@ AGENT_ACCEPT = {
     "detail": {},
 }
 
+FOLDED_SUGGESTION = leaf_page(
+    "agreed, out of sight",
+    """
+<h1 id="h">One rewrite</h1>
+<details id="survey"><summary>The camera survey</summary>
+<p id="replace">The camera survey found two dead zones.
+  <lf-suggestion id="sug-refill">
+    <lf-old>Refill every feeder each morning.</lf-old>
+    <lf-new>Refill a feeder when its camera shows it half-empty.</lf-new>
+  </lf-suggestion></p>
+</details>
+""",
+)
+
 
 def test_a_copy_keeps_a_suggestion_receipt_without_a_page_map_record(
     browser, serve, tmp_path
@@ -620,6 +634,50 @@ def test_a_copy_keeps_a_suggestion_receipt_without_a_page_map_record(
             expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
             expect(page.get_by_text("Outcome", exact=True)).to_have_count(0)
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        assert errors == []
+        page.close()
+
+
+def test_a_copy_keeps_a_withheld_margin_item_out_of_static_layout(
+    browser, serve, tmp_path
+):
+    """A copied row withheld by the live packing pass stays withheld. Print may
+    unfold its target passage through CSS, but a script-free copy cannot rerun packing
+    and must not invent a margin position for the serialized row."""
+    url = serve(FOLDED_SUGGESTION, events=[AGENT_ACCEPT])
+    live, live_errors = open_page(browser, live_url(url))
+    resized(live, 1200, 900)
+    item = live.locator('[data-lf-margin-for="replace"]')
+    expect(item).to_have_class(re.compile(r"\blf-waiting\b"))
+    expect(item.locator(".lf-sug-receipt")).to_have_text("Accepted")
+    assert live_errors == []
+    live.close()
+
+    out = tmp_path / "standalone.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    for width in (1200, 800):
+        page = browser.new_page(viewport={"width": width, "height": 900})
+        errors = watched(page)
+        page.goto(out.as_uri(), wait_until="load")
+        for medium in ("screen", "print"):
+            page.emulate_media(media=medium)
+            assert page.evaluate(
+                """() => [...document.querySelectorAll('.lf-margin-item')].map(el => ({
+                     waiting: el.matches('.lf-waiting'),
+                     shown: el.checkVisibility(),
+                     receipt: el.querySelector('.lf-sug-receipt')?.textContent,
+                     open: document.getElementById('survey').open,
+                     passage: document.getElementById('replace').checkVisibility(),
+                   }))"""
+            ) == [
+                {
+                    "waiting": True,
+                    "shown": False,
+                    "receipt": "Accepted",
+                    "open": False,
+                    "passage": medium == "print",
+                }
+            ], f"{width}px, {medium}"
         assert errors == []
         page.close()
 

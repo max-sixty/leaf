@@ -570,7 +570,9 @@ def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
         for key in ["Enter", "ArrowRight", "Enter"]:
             page.keyboard.press(key)
     page.wait_for_timeout(0)
-    expect(page.locator('[data-lf-kinds~="outcome"]')).to_have_count(0)
+    expect(
+        page.locator('[data-lf-margin-for="card-baffle"] [data-lf-behavior="status"]')
+    ).to_have_count(0)
     assert len(held) == 1
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
 
@@ -1430,7 +1432,7 @@ def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, s
 
     # The live gesture still owns the DOM; its origin must not move under it.
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
-    expect(page.locator('[data-lf-kinds~="outcome"]')).to_have_count(0)
+    expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     assert actions(serve.page_dir) == []

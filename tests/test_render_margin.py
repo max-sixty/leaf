@@ -2592,7 +2592,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
         browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
     )
     resized(page, 1440, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment sent"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     expect(marker).to_have_count(1)
     expect(marker.locator(".lf-margin-count")).to_have_count(0)
     expect(marker).to_have_attribute("aria-label", re.compile(r"Thread, \d+ of"))
@@ -2676,7 +2676,7 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
         browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
     )
     resized(page, 1440, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment sent"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
@@ -3174,7 +3174,7 @@ def test_focusing_a_thread_button_does_not_open_its_card(browser, serve):
         browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
     )
     resized(page, 1440, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment sent"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     preview = page.locator(".lf-margin-preview")
 
     marker.focus()
@@ -3303,7 +3303,7 @@ def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
         browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
     )
     resized(page, 1440, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment sent"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
 
@@ -3334,7 +3334,7 @@ def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
         serve(sidebar_page, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION]),
     )
     resized(page, 1440, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment sent"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
@@ -3367,7 +3367,7 @@ def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, 
         browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
     )
     resized(page, 1440, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment sent"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     target = page.locator("#bracket")
 
     def offset():
@@ -3478,7 +3478,7 @@ def test_crossing_to_the_small_screen_retires_the_desktop_preview(browser, serve
         browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
     )
     resized(page, 1440, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment sent"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
 
@@ -3537,7 +3537,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     )
     told(page)
     expect(
-        page.locator('.lf-margin-marker[data-lf-kinds="comment sent"]').locator(
+        page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').locator(
             ".lf-margin-count"
         )
     ).to_have_text("2")
@@ -3561,7 +3561,7 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
         ),
     )
     resized(page, 1440, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment sent"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
 
@@ -3642,7 +3642,7 @@ def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, se
     version_url = serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
     page, errors = open_page(browser, live_url(version_url))
     resized(page, 1440, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment sent"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.focus()
     expect(marker).to_be_focused()
 
@@ -3662,7 +3662,7 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     version_url = serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
     page, errors = open_page(browser, live_url(version_url))
     resized(page, 1440, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment sent"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
     close = page.locator(".lf-margin-preview-close")
     close.focus()

@@ -604,8 +604,9 @@ def read_data_fragment(
 
 def _write_source(
     page_dir: Path, source: str, value, capture: dict | None = None
-) -> int:
-    """Validate and atomically write one current value and optional capture."""
+) -> tuple[int, str]:
+    """Validate and atomically write one current value and optional capture,
+    returning the data revision and the `updated` instant it stamped."""
     try:
         # Validate the value the store and browser will actually receive. Python's
         # encoder accepts values JSON itself cannot express directly — tuples become

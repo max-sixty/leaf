@@ -149,7 +149,7 @@ sequential focus navigation starting point where the blurred control stood, so
 the next Tab runs off the end of the order; `document.body.focus()` resets it.
 
 A reach case answers for the shapes it is written over, and a ring has two,
-outset and inset. `RING_FAULTS`'s cover check steps past the ring's own band
+outset and inset. `ring_faults`'s cover check steps past the ring's own band
 (`grow + w`) to ask whether a control stands behind something; a one-pixel step
 clears an outward ring and lands inside an inset one.
 `test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_box`

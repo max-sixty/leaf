@@ -461,17 +461,20 @@ body { position: static; box-sizing: border-box; }
    the reference. A sequence composes these fixed boxes instead of making spaces inside
    one keycap carry time. A compact choice label such as g / G remains one decision
    point. The address chip is worn on both sides of the scope — an option's own corner
-   in the page, and the chord's chips in the chrome's address layer — so the box is
-   stated here, at document level, with the chrome's own step keys as further subjects
-   of the one rule: a rule inside the @scope block could not reach the chip in the page.
-   An address is an available key, so this neutral face is also its complete colour
-   statement; completed steps take the pressed face below. */
-.lf-address, .lf-key-sequence > kbd, .lf-key-more kbd { box-sizing: border-box;
+   in the page, and the chord's chips in the chrome's address layer — so its box is
+   stated here, at document level, where a rule inside the @scope block could not reach
+   the chip in the page. The chrome's own step keys wear the same box, spelled again
+   inside the scope (`.lf-key-sequence > kbd`), because naming them here would put two
+   private names on the document-level surface the coined-class probe pins; keep the
+   two declaration lists identical. An address is an available key, so this neutral
+   face is also its complete colour statement; completed steps take the pressed face
+   below. */
+.lf-address { box-sizing: border-box;
   min-width: var(--lf-key-box); height: var(--lf-key-box); padding: 0 4px;
   border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
   color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
-  line-height: 1.478; text-align: center; white-space: nowrap; }
-.lf-address { display: none; z-index: 1; }
+  line-height: 1.478; text-align: center; white-space: nowrap;
+  display: none; z-index: 1; }
 /* The general leaf text box, in one rule. The compact response field is excluded
    because it shares its complete control geometry with the response buttons below.
    field-sizing does the growing, so no script
@@ -1691,10 +1694,14 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     padding-inline-start: 12px; border-inline-start: 1px solid var(--rule); }
   /* The chrome's own step boxes: the key line's sequences and its More key, and the
      reference's routes. Every element wearing these stands inside the runtime's
-     container, so the rules do too; the box itself is stated once with the address
-     chip's, above the scope block. */
-  .lf-key-sequence > kbd, .lf-key-more kbd { display: inline-flex; align-items: center;
-    justify-content: center; }
+     container, so the rules do too; the box is the one `.lf-address` states at
+     document level, and the two lists stay identical. */
+  .lf-key-sequence > kbd, .lf-key-more kbd { box-sizing: border-box;
+    min-width: var(--lf-key-box); height: var(--lf-key-box); padding: 0 4px;
+    border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
+    color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
+    line-height: 1.478; text-align: center; white-space: nowrap;
+    display: inline-flex; align-items: center; justify-content: center; }
   .lf-key-sequence { display: inline-flex; align-items: center; gap: 3px;
     white-space: nowrap; }
   .lf-key-sequence > kbd[data-lf-key-state="pressed"] { border-color: var(--accent);

@@ -595,6 +595,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         assert gallery.locator("#bg-motion-board").evaluate(
             "board => getComputedStyle(board).gridAutoFlow === 'row'"
         )
+        assert status.evaluate("status => getComputedStyle(status).marginLeft") == "0px"
 
         replacement_installed = gallery.evaluate(
             """gallery => {

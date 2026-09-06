@@ -32,7 +32,11 @@ import {
   showFabOptions,
   updateFab,
 } from "../composing/surface.js";
-import { activeInlineThread, keyboardRung } from "../living-margin.js";
+import {
+  activeInlineThread,
+  keyboardRung,
+  openInlineThread,
+} from "../living-margin.js";
 import {
   backFromConversation,
   conversationInput,
@@ -102,7 +106,7 @@ export function pageParts(sel) {
 
 // ---------- what the page's keys are live over ----------
 function hasThreads() {
-  return openThreads().length > 0;
+  return openThreads({ visibleOnly: panelIsOpen() }).length > 0;
 }
 
 // The focused thread, one predicate: the row the line paints and the press the dispatcher
@@ -110,8 +114,8 @@ function hasThreads() {
 // control inside it, whose own press is its own. Open and resolved threads both qualify:
 // each has a primary Enter action and x changes the same resolution state in either direction.
 export function focusedThread() {
-  const active = documentFocused();
-  return active?.classList?.contains("lf-thread") ? active : null;
+  const active = focused();
+  return active?.matches?.(".lf-thread, .lf-conversation-thread") ? active : null;
 }
 
 // The item the reader is standing in, which is what a press means when they have pointed
@@ -199,6 +203,13 @@ function commenting(word) {
 
 function workspaceControlRoute(control) {
   if (!control || control === document.body) return () => null;
+  const inline = control.closest?.(
+    ".lf-margin-preview .lf-conversation-thread[data-thread]",
+  );
+  if (inline) {
+    const id = inline.dataset.thread;
+    return () => openInlineThread(id);
+  }
   const ask = control?.closest?.(".lf-asks-row[data-lf-at]");
   if (ask) {
     const target = ask.dataset.lfAt;
@@ -229,7 +240,10 @@ export function workspaceState() {
   return {
     panel: panelIsOpen(),
     tray: currentTray(),
-    control: workspaceControlRoute(documentFocused()),
+    // A widget-local Thread lives inside a shadow root, so the document reading is only
+    // its host. Capture the actual control to reopen that exact inline conversation when
+    // an auxiliary workspace closes.
+    control: workspaceControlRoute(focused()),
   };
 }
 
@@ -547,8 +561,17 @@ export function allButTheReference(binding) {
 }
 
 function landInThreadReply(thread) {
-  return landIn({ held: thread, box: thread.querySelector(SAY_BOX) });
+  return landIn({ held: thread, box: conversationInput(thread) });
 }
+
+const resolutionControl = (thread) =>
+  thread?.querySelector(
+    ":scope > .lf-compose > .lf-thread-actions > :is(.lf-resolve, .lf-reopen), " +
+      ":scope > .lf-say > .lf-conversation-actions > :is(.lf-resolve, .lf-reopen), " +
+      ":scope > .lf-thread-actions > :is(.lf-resolve, .lf-reopen), " +
+      ":scope > :is(.lf-conversation-actions, .lf-conversation-resolved) " +
+      ":is(.lf-resolve, .lf-reopen)",
+  ) ?? null;
 
 const HELP = {
   title: "In this reference",
@@ -805,19 +828,15 @@ const THREAD = {
       id: "thread.primary",
       keys: ["Enter"],
       does: () =>
-        focusedThread()?.querySelector(":scope > .lf-thread-actions > .lf-reopen")
+        resolutionControl(focusedThread())?.matches(".lf-reopen")
           ? "Reopen it"
           : "Write a reply",
       line: () =>
-        focusedThread()?.querySelector(":scope > .lf-thread-actions > .lf-reopen")
-          ? "reopen"
-          : "reply",
+        resolutionControl(focusedThread())?.matches(".lf-reopen") ? "reopen" : "reply",
       when: () =>
-        Boolean(focusedThread()?.querySelector(":scope > .lf-compose")) ||
-        Boolean(
-          focusedThread()?.querySelector(
-            ':scope > .lf-thread-actions > .lf-reopen:not(:disabled, [aria-disabled="true"])',
-          ),
+        Boolean(conversationInput(focusedThread())) ||
+        resolutionControl(focusedThread())?.matches(
+          '.lf-reopen:not(:disabled, [aria-disabled="true"])',
         ),
       returnFrame: () => {
         const thread = focusedThread();
@@ -828,7 +847,9 @@ const THREAD = {
       // contain a widget with an editor of its own before the reply box in DOM order.
       run: () => {
         const thread = focusedThread();
-        const reopen = thread.querySelector(":scope > .lf-thread-actions > .lf-reopen");
+        const reopen = resolutionControl(thread)?.matches(".lf-reopen")
+          ? resolutionControl(thread)
+          : null;
         if (reopen) reopen.click();
         else landInThreadReply(thread);
       },
@@ -842,28 +863,21 @@ const THREAD = {
       // closes under, and no other scope had claimed it.
       keys: ["x"],
       does: () =>
-        focusedThread()?.querySelector(":scope > .lf-thread-actions > .lf-reopen")
+        resolutionControl(focusedThread())?.matches(".lf-reopen")
           ? "Reopen it"
           : "Resolve it",
       line: () =>
-        focusedThread()?.querySelector(":scope > .lf-thread-actions > .lf-reopen")
+        resolutionControl(focusedThread())?.matches(".lf-reopen")
           ? "reopen"
           : "resolve",
       // Through the thread's own button, so keyboard and mouse are one behaviour — the
       // focus landing included. Both states offer exactly one resolution button, and the
       // row's liveness names that reachable capability instead of hiding a no-op in run.
       when: () =>
-        Boolean(
-          focusedThread()?.querySelector(
-            ':scope > .lf-compose > .lf-thread-actions > .lf-resolve:not(:disabled, [aria-disabled="true"]), :scope > .lf-thread-actions > .lf-reopen:not(:disabled, [aria-disabled="true"])',
-          ),
+        resolutionControl(focusedThread())?.matches(
+          ':not(:disabled, [aria-disabled="true"])',
         ),
-      run: () =>
-        focusedThread()
-          .querySelector(
-            ':scope > .lf-compose > .lf-thread-actions > .lf-resolve:not(:disabled, [aria-disabled="true"]), :scope > .lf-thread-actions > .lf-reopen:not(:disabled, [aria-disabled="true"])',
-          )
-          .click(),
+      run: () => resolutionControl(focusedThread()).click(),
     },
   ],
 };

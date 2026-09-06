@@ -3988,13 +3988,15 @@ RING_WALKS = (
     # press on a Map control the wide posture does not draw at all, so its walk asks for
     # the narrow window the control lives in.
     ("a thread card", (), ("ship-review",)),
+    ("message media", (), ("feature-gallery",)),
     ("the page map sheet", (), ("corpus",)),
 )
 # The corpus is the open-ended page and design-mode anchor. The authored pages now
 # give each interaction family a focused page, so the page walk names those owners:
 # Design contributes settled and joined options, Postmortem a visual target, PR source
-# and code, Release drafts and a shot, Triage a card grip, and Ship the log-hosted
-# widgets and element mark. Chrome with no page-owned contents is walked on the corpus.
+# and code, Release drafts and a shot, Triage a card grip, Ship the log-hosted widgets
+# and element mark, and the developer gallery its message media. Chrome with no
+# page-owned contents is walked on the corpus.
 RING_WALK_EXAMPLES = tuple(
     dict.fromkeys(name for _scope, _keys, corpus in RING_WALKS for name in corpus)
 )
@@ -4037,19 +4039,25 @@ RING_SCOPE_CONTROL = {
         '.lf-margin-marker[data-lf-kinds~="comment"]',
         ".lf-margin-preview",
     ),
+    "message media": (None, ".lf-message-media"),
     "the page map sheet": (".lf-page-map-toggle", ".lf-page-map-action"),
 }
 # The window a scope's own surface stands in, where that is not the walk's own. Both
 # entries are a floor the layer states rather than a preference: the Map control is drawn
-# under the margin's breakpoint and nowhere else, and a Thread Button builds its card only
-# where the document leaves room beside the source and opens Threads otherwise. That room
-# is the wider of the two floors here, because the card's walk is ship review and ship
-# review stands a contents map: a page with a sidebar waits for 1472px of shell rather
-# than 1208px (theme.css). Every other scope is read at the width the page opened at.
+# under the margin's breakpoint and nowhere else, while the thread-card walk uses the
+# wider room where Ship review can stand its card beside the source instead of overlaying
+# the page. Ship review stands a contents map, so that beside posture waits for 1472px of
+# shell rather than 1208px (theme.css). Every other scope is read at the width the page
+# opened at.
 RING_WALK_VIEWPORT = (1200, 900)
 # The one scope whose surface the standing panel takes the place of.
 RING_SCOPES_WITHOUT_PANEL = {"a thread card"}
 RING_SCOPE_WIDTH = {"a thread card": 1600, "the page map sheet": 760}
+# Message media exists only in the developer gallery's seeded conversation. Its direct
+# control setup is the causal ring specimen; walking all 250+ unrelated gallery stops
+# after reading it adds no evidence and can keep the page's moving margin perpetually
+# outside the settled probe.
+RING_SINGLE_STOPS = {"message media"}
 # Focus put back at the document's start. `document.body.focus()` and not a blur: a blur
 # leaves the sequential focus navigation starting point where the blurred control stood,
 # so the next Tab carries on from the chrome, runs off the end of the order and never
@@ -4258,7 +4266,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     unnamed = set()
     opened, walked_in, errors = set(), set(), []
     stops = 0
-    examples = {example.stem: example for example in EXAMPLES}
+    examples = {example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY)}
     assert not (missing := set(RING_WALK_EXAMPLES) - set(examples)), (
         "the ring walk names examples that no longer exist: "
         + ", ".join(sorted(missing))
@@ -4271,10 +4279,21 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         # which is the only way a ring is painted on the page for a focus held in the
         # panel.
         url = serve(example, comments=2)
-        # A version to compare against, published the way a page gets one. Serving v2
-        # rather than letting the open page follow keeps the walk out of an activation.
-        _publish(serve.page_dir, 2, example.read_text(), "Same page, said twice.")
-        page, console = open_page(browser, url.replace("/v1.html", "/v2.html"))
+        # A version to compare against, published the way a page gets one. Serving that
+        # next version rather than letting the open page follow keeps the walk out of an
+        # activation.
+        current_version = int(re.search(r"/v(\d+)\.html", url).group(1))
+        next_version = current_version + 1
+        _publish(
+            serve.page_dir,
+            next_version,
+            example.read_text(),
+            "Same page, said twice.",
+        )
+        page, console = open_page(
+            browser,
+            url.replace(f"/v{current_version}.html", f"/v{next_version}.html"),
+        )
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         # Opened, not pressed for a decision: a settled group's disclosure is this
@@ -4341,7 +4360,8 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 opener, arrival = control
                 # The first, because a page map has one Thread Button per commented
                 # target and the walk wants a card rather than a particular one.
-                page.locator(opener).first.click()
+                if opener:
+                    page.locator(opener).first.click()
                 page.locator(arrival).first.focus()
                 # A press opened the scope and a script placed the reader in it, and
                 # neither is the keyboard: `:focus-visible` answers the input device, so
@@ -4445,6 +4465,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     if fault not in seen_faults:
                         seen_faults.add(fault)
                         faults.append(fault)
+                if scope in RING_SINGLE_STOPS:
+                    came_round = True
+                    break
             # A control the runtime replaces on repaint is a new element at every Tab, so
             # the walk never meets a repeat and runs the cap out: sixteen times the work
             # and no message, which reads as a hang rather than as the fault it is.

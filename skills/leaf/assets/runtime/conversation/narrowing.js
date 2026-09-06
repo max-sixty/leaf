@@ -15,7 +15,8 @@
    Neither takes a card out of the document. An open thread the narrowing hides keeps
    its node, `hidden`: a widget an agent sent in a reply is instantiated once, in that
    card, and the banner's Asks count, the tray's rows and the `a`/`A` walk all find it
-   by id. `openThreads` and the `t`/`T` walk read only the cards that show. */
+   by id. Panel work reads only the cards that show; while the panel is closed, the
+   page-local `t`/`T` walk includes them all. */
 import { anchorLabel } from "./messages.js";
 import { awaitsReader } from "./model.js";
 import { el } from "../widget-elements.js";

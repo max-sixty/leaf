@@ -146,7 +146,7 @@ export function wireGeneralBox() {
       });
       if (!sent) return;
       const shouldLand = mayLandTyping(generalInput);
-      showThread(sent.id, { stand: false });
+      showThread(sent.id, { focus: false });
       if (shouldLand) landTyping(generalInput); // both send routes end where typing was
     },
   });

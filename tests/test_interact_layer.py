@@ -578,6 +578,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/packages/default/registry.json",
         "skills/leaf/packages/diagram/registry.json",
         "skills/leaf/packages/diff/registry.json",
+        "skills/leaf/packages/playground/registry.json",
         # The form a leaf process re-launches itself in.
         "skills/leaf/scripts/leaf/__main__.py",
     ]:

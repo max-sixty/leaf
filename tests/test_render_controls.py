@@ -17,6 +17,7 @@ from leaf.registry import storage as registry_storage
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
+    ACCENT_SWATCH,
     ADDRESSED_PAGE,
     BANNER_WATCH,
     BOARD_PAGE,
@@ -27,6 +28,7 @@ from render_support import (
     DIFF_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
+    HERE_SHADOW,
     HOLD_MOTION,
     LONG_PAGE,
     MANY_ASKS_PAGE,
@@ -3792,6 +3794,104 @@ def test_the_ring_reading_tells_a_ring_from_the_layers_other_outlines(browser, s
     page.close()
 
 
+def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, serve):
+    """The band has two carriers, and a reading that knew one was blind to the other.
+
+    Most of the layer's rules draw the ring as an outline. Two cast it as a shadow: the
+    anchored response bar, whose focused states write `outline: none` so the field and
+    its choices keep one silhouette, and the item hint the keyboard is browsing, a chip
+    in a layer nothing can focus. To a reader those are the same band, and a sweep asking
+    only the outline answered `no ring here` for both — the bar's own controls came back
+    credited to `pressable`, the name of the floor rule whose outline the bar takes away,
+    and neither ring's geometry was measured anywhere.
+
+    Knowing one on sight is the first half, and the layer offers three shadows to mistake
+    for it: the elevation lift every floating surface wears, the inset accent wash a
+    search match and an open draft wear, and the accent band a milestone's active dot
+    wears at a width of its own. Offsets, blur, `inset` and the ring's own width are what
+    separate the four, and nothing else does.
+
+    Measuring it is the second half, and the one the corpus floor rests on. A spread has
+    no offset, so the band's width is the whole of what the box draws past its edge — and
+    a reading that never finds the band measures nought, drops the box without a word,
+    and reports what a clean page reports. So the plant is a box standing on the window's
+    own foot, where the band is the only part of it that can be outside the window, with
+    the same box and the same place as the control once the band is taken off.
+    """
+    example = next(e for e in EXAMPLES if e.stem == "release-notes")
+    url = serve(example, comments=2, seed_log=False)
+    page, errors = open_page(browser, url)
+
+    # On the window's foot, so the only thing that can be outside the window is the band.
+    # Placed from `innerHeight` rather than from `100vh`, which is the viewport a
+    # scrollbar is not taken out of and so is the same number only while there is none.
+    plant = """(how) => {
+      const box = document.querySelector('main p');
+      box.classList.add('probe-target');
+      box.style.cssText = `position: fixed; left: 40px; top: ${innerHeight - 30}px;
+        width: 120px; height: 30px; box-sizing: border-box; margin: 0`;
+      if (how === 'a lift') box.style.boxShadow = '0 2px 8px var(--shade)';
+      if (how === 'an inset wash')
+        box.style.boxShadow = 'inset var(--here-shadow) var(--accent)';
+      if (how === 'a wider band')
+        box.style.boxShadow = '0 0 0 calc(var(--here-ring-w) + 1px) var(--accent)';
+      if (how === 'the band itself')
+        box.style.boxShadow = 'var(--here-shadow) var(--accent)';
+      const cs = getComputedStyle(box);
+      return [cs.boxShadow, cs.outlineStyle, box.getBoundingClientRect().bottom,
+              innerHeight];
+    }"""
+
+    def reading():
+        """What the sweep says about this one box: whether it is a ring, and its cuts.
+
+        Asked of the box and not of the page, because the runtime repaints the panel on
+        its own schedule and two whole-page readings a moment apart differ for reasons
+        that have nothing to do with what was planted here.
+        """
+        return next(
+            (
+                seen
+                for seen in rings_drawn(page)
+                if "probe-target" in seen["who"] and seen["here"]
+            ),
+            None,
+        )
+
+    for how in ("nothing", "a lift", "an inset wash", "a wider band"):
+        shadow, outline, bottom, foot = page.evaluate(plant, how)
+        assert outline == "none" and bottom == foot, (
+            f"{how} left the box wearing {outline} at {bottom} of {foot}, so the reading "
+            "was asked about a box other than the one this is written against"
+        )
+        assert reading() is None, (
+            f"the reading counted {how} ({shadow}) as the here ring: {reading()}"
+        )
+
+    shadow, outline, bottom, foot = page.evaluate(plant, "the band itself")
+    seen = reading()
+    assert seen, (
+        f"a box casting the layer's own band ({shadow}) was not counted, so the four "
+        "cases above prove only that this reading is silent"
+    )
+    # And the band is measured, not merely noticed: the box's own edge is on the window's
+    # foot, so the width reported outside it is the whole of the band and nothing else.
+    width = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.documentElement)"
+        "  .getPropertyValue('--here-ring-w'))"
+    )
+    assert any(
+        f"its bottom edge is {width:g}px outside the window" in cut
+        for cut in seen["cuts"]
+    ), (
+        f"the band stood {width}px past the window's foot and the reading said "
+        f"{seen['cuts']}, so nothing above measured it"
+    )
+
+    assert errors == []
+    page.close()
+
+
 def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve):
     """The half that answers by hit test, held to firing where it can and not where it
 
@@ -4002,6 +4102,27 @@ RING_WALKS = (
         ),
     ),
     ("passage search", ("/",), ("corpus",)),
+    # Item hints, and the anchored bar the reader answers a chosen item on. Both open the
+    # same mode, and both step back and then forward through it, which lands on the last
+    # item the window is showing whatever a page's count is: the browse wraps, so one step
+    # back from a fresh open is the second from the end. That item is the lowest on
+    # screen, which is where the layer has the least room to draw a band around a chip and
+    # the least room to hang a bar under one.
+    #
+    # The Tab in front of both sequences is a stop, not a gesture in the mode: item hints
+    # claim Tab for browsing themselves, so the walk below moves nothing once the mode is
+    # open, and with the document under it the walk would stand on nothing and read no
+    # page at all. Standing on a control first leaves the hint the keyboard is browsing on
+    # screen for the sweep, which is where its band is read — the chips are a layer nothing
+    # can focus, so the reader's place in that mode is not a stop.
+    ("item hints", ("Tab", "s", "Shift+Tab", "Tab"), ("corpus", "ship-review")),
+    # Enter selects the item the keyboard is browsing and leaves the response undecided;
+    # c is the Comment gesture that opens the bar's field and focuses it.
+    (
+        "the response bar",
+        ("Tab", "s", "Shift+Tab", "Tab", "Enter", "c"),
+        ("corpus", "ship-review"),
+    ),
     ("the comments", ("c",), ("ship-review",)),
     ("the Asks tray", (), ("ship-review",)),
     ("the leaves tray", ("g", "Shift+l"), ("corpus",)),
@@ -4056,6 +4177,12 @@ RING_SCOPE_SURFACE = {
     "a thread card": (".lf-margin-preview:popover-open", None),
     "the page map sheet": (".lf-page-map-sheet[open]", None),
     "passage search": (".lf-target-search:not([hidden])", None),
+    # The hint the keyboard is browsing, and the field the chosen item's bar opens with.
+    # Each is the mode's own state rather than a box that merely exists: the chips are
+    # rebuilt from nothing on every open, and the bar is in the document from the first
+    # frame and shows only for an anchor.
+    "item hints": (".lf-target-hint.lf-current", None),
+    "the response bar": (".lf-fab-bar .lf-composer[data-lf-open]", None),
     "the Asks tray": (".lf-asks-panel.open", ".lf-asks"),
     "the leaves tray": (".lf-others-panel.open", ".lf-others"),
     "the versions menu": (".lf-version-menu:popover-open", None),
@@ -4146,14 +4273,17 @@ RING_NEW_STOP = f"""async () => {{
 # passing everything: a mark that is merely posted is a hairline, and a hairline is not
 # an answer to where the keyboard is.
 #
-# An accent shadow is the fourth. Every box the reader types into is drawn that way: the
-# chrome's textarea rule takes the outline off and puts the shadow in its place, and a
-# box drawn like that is as found as one drawn with a ring. Read on the stop itself and
-# never on an ancestor, and only in the accent, since a card's decorative drop shadow is
-# no answer to where the keyboard is and accepting any shadow from any ancestor would
-# pass every stop on a page that has one shadowed box anywhere above it.
+# The band cast as a shadow is the fourth. The anchored response bar draws it that way —
+# its focused states take the outline off so the field and its choices keep one
+# silhouette — and to a reader that is the same ring. It is the sweep's own reading
+# (HERE_SHADOW), so the two halves of this file agree on what an accent shadow ring is
+# rather than each keeping a spelling of it: the earlier one here took any shadow
+# carrying the accent, which a wash or a tinted lift would have satisfied. Read on the
+# stop itself and never on an ancestor, since a card's decorative drop shadow is no
+# answer to where the keyboard is and accepting one from any ancestor would pass every
+# stop on a page with one shadowed box above it.
 #
-# Both colours are resolved through a swatch rather than compared as written, and the
+# Every colour is resolved through a swatch rather than compared as written, and the
 # accent is resolved twice: `outline-color` serializes as the browser resolved it, and a
 # `color-mix` resolves into a different space than a plain token does, so the ring's
 # `rgb(...)` and the shadow's `color(srgb ...)` are the same colour written two ways and
@@ -4161,16 +4291,7 @@ RING_NEW_STOP = f"""async () => {{
 SEEN_STOP = f"""() => {{
   const e = ({DEEP_FOCUS})();
   if (!e) return null;
-  const swatch = document.createElement('span');
-  swatch.style.cssText = 'outline: 1px solid var(--accent)';
-  document.head.append(swatch);
-  const accent = getComputedStyle(swatch).outlineColor;
-  swatch.style.outlineColor = 'var(--mark-ink)';
-  const markInk = getComputedStyle(swatch).outlineColor;
-  swatch.style.outlineColor = 'color-mix(in srgb, var(--accent) 100%, transparent)';
-  const mixed = getComputedStyle(swatch).outlineColor
-    .match(/color\\(srgb ([\\d.]+ [\\d.]+ [\\d.]+)/)?.[1];
-  swatch.remove();
+  const {{ accent, mixed, markInk }} = ({ACCENT_SWATCH})();
   const shown = (el) => {{
     const cs = getComputedStyle(el);
     if (cs.outlineStyle === 'auto') return true;
@@ -4192,12 +4313,12 @@ SEEN_STOP = f"""() => {{
        el = el.parentElement ?? el.getRootNode().host ?? null)
     if (shown(el) && (getComputedStyle(el).outlineStyle === 'auto' || named(el)))
       return null;
-  const shadow = getComputedStyle(e).boxShadow;
-  if (mixed && shadow.includes(mixed)) return null;
+  if (({HERE_SHADOW})(getComputedStyle(e), accent, mixed) > 0) return null;
   const cls = typeof e.className === 'string' && e.className.trim()
     ? '.' + e.className.trim().split(/\\s+/).join('.') : '';
   return e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + cls
-    + ' [outline ' + getComputedStyle(e).outlineStyle + ', shadow ' + shadow + ']';
+    + ' [outline ' + getComputedStyle(e).outlineStyle
+    + ', shadow ' + getComputedStyle(e).boxShadow + ']';
 }}"""
 
 
@@ -4271,6 +4392,14 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     way from no ring at all; the sweep is the reverse of both, and says when a box paints
     a ring nothing named. And the population is asserted before it is divided by, since
     an empty one makes every line above vacuous while reporting what a clean corpus does.
+
+    Both halves read both of the band's carriers. Most of the layer's rules draw it as
+    an outline; two cast it as a shadow, for boxes that cannot spend an outline on it,
+    and the scan asks each carrier the same question — does the value name the layer's
+    token — while the sweep measures a shadow ring's spread the way it measures an
+    outline's width and offset. Read only as an outline, the response bar's own controls
+    credited `pressable`, the name of the floor rule whose outline the bar takes away,
+    and the geometry of both shadow-drawn rings went unmeasured everywhere.
 
     Tab, because that is the walk every page has and it reaches the page's own controls
     and the runtime's chrome in one order. The scopes are what Tab alone cannot reach. A

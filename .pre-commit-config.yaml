@@ -62,6 +62,18 @@ repos:
         files: ^skills/leaf/assets/runtime/
         pass_filenames: false
         args: [--max-warnings=0, skills/leaf/assets/runtime]
+      # The runtime is supposed to pass the evaluation-order rule, so the two hooks above
+      # stay green whether the rule still works or not. This one plants faults the rule
+      # must refuse and checks what it says about them. It overrides the entry of the
+      # mirror above rather than declaring a `local` hook, so eslint is pinned once here
+      # and all three hooks share one node environment; the script runs the `eslint` that
+      # environment puts on `PATH`.
+      - id: eslint
+        alias: eslint-evaluation-order
+        name: eslint (the evaluation-order rule)
+        entry: node scripts/evaluation-order-faults.mjs
+        files: ^(eslint\.config\.mjs|scripts/evaluation-order-faults\.mjs|skills/leaf/assets/runtime/)
+        pass_filenames: false
   - repo: https://github.com/adhtruong/mirrors-typos
     rev: v1.48.0
     hooks:

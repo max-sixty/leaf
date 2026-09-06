@@ -1076,7 +1076,7 @@ def test_a_page_mark_does_not_wash_a_long_thread_card(browser, serve):
             "revision": 1,
             "text": "\n\n".join(
                 f"Consideration {i}: this thread needs its full context."
-                for i in range(18)
+                for i in range(24)
             ),
         },
     )
@@ -3778,10 +3778,13 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
 
 
 def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
-    """An ambiguous row set is refused at the register boundary.
+    """An ambiguous row set is refused at the scope's first paint, gated or not.
 
-    Reusing a key in mutually exclusive states remains valid; a card grip relies on that
-    to make Enter and Space mean grab before the move and drop during it."""
+    A declaration's shape is still refused where it is written, but what its rows mean
+    is read only once every module has evaluated, so the ambiguity surfaces at that
+    paint and takes the scope down with it. Reusing a key in mutually exclusive states
+    remains valid; a card grip relies on that to make Enter and Space mean grab before
+    the move and drop during it."""
     page, errors = open_page(browser, serve(NOTED_PAGE))
     answers = page.evaluate(
         """async () => {
@@ -3811,19 +3814,17 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               return error.message;
             }
           };
-          const keptInvalid = (id, when) => {
+          const firstPaint = (id, rows, when) => {
             const button = document.createElement('button');
             button.id = id;
             document.querySelector('main').append(button);
             let declaration = 'declared';
             try {
-              commands(button, id, [
-                {id: 'test.kept-first', keys: ['F4'], does: 'First kept meaning', line: 'first', run: () => {}},
-                {id: 'test.kept-second', keys: ['F4'], does: 'Second kept meaning', line: 'second', run: () => {}},
-              ], when);
+              commands(button, id, rows, when);
             } catch (error) {
               declaration = error.message;
             }
+            const declared = button.getAttribute('aria-keyshortcuts');
             const paints = [];
             for (let i = 0; i < 2; i++) {
               try {
@@ -3833,7 +3834,38 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
                 paints.push(error.message);
               }
             }
-            return {declaration, paints};
+            const painted = button.getAttribute('aria-keyshortcuts');
+            button.remove();
+            return {declaration, declared, paints, painted};
+          };
+          const atTheFrame = async (id, rows) => {
+            const button = document.createElement('button');
+            button.id = id;
+            document.querySelector('main').append(button);
+            commands(button, id, rows);
+            const declared = button.getAttribute('aria-keyshortcuts');
+            await new Promise((settle) =>
+              requestAnimationFrame(() => requestAnimationFrame(settle)));
+            const framed = button.getAttribute('aria-keyshortcuts');
+            button.remove();
+            return {declared, framed};
+          };
+          // Declared twice before any paint: the first declaration ambiguous, the second
+          // sound. Only the frame reads the superseded one, so this is the case a paintKeys
+          // call cannot reach.
+          const redeclaredAtTheFrame = async (id, first, second) => {
+            const button = document.createElement('button');
+            button.id = id;
+            document.querySelector('main').append(button);
+            commands(button, id, first);
+            commands(button, id, second);
+            await new Promise((settle) =>
+              requestAnimationFrame(() => requestAnimationFrame(settle)));
+            const framed = button.getAttribute('aria-keyshortcuts');
+            const standing = Boolean(
+              (await import('/runtime/keyboard/scopes.js')).elementScopes.get(button));
+            button.remove();
+            return {framed, standing};
           };
           const malformedFrame = () => {
             try {
@@ -3848,11 +3880,15 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             }
           };
           return {
-            ambiguous: declare('ambiguous', [
+            ambiguous: firstPaint('ambiguous', [
               {id: 'test.first', keys: ['F2'], does: 'First meaning', line: 'first', run: () => {}},
               {id: 'test.second', keys: ['F2'], does: 'Second meaning', line: 'second', run: () => {}},
             ]),
-            exclusive: declare('exclusive', [
+            gatedAmbiguous: firstPaint('gated-ambiguous', [
+              {id: 'test.gated-first', keys: ['F4'], does: 'First gated meaning', line: 'first', run: () => {}},
+              {id: 'test.gated-second', keys: ['F4'], does: 'Second gated meaning', line: 'second', run: () => {}},
+            ], () => true),
+            exclusive: firstPaint('exclusive', [
               {id: 'test.first-state', keys: ['F2'], does: 'First state', line: 'first',
                when: () => true, run: () => {}},
               {id: 'test.second-state', keys: ['F2'], does: 'Second state', line: 'second',
@@ -3932,13 +3968,35 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
                line: 'enter', returnFrame: () => ({})},
             ]),
             malformedFrame: malformedFrame(),
-            immediateTransaction: keptInvalid('kept-immediate'),
-            gatedTransaction: keptInvalid('kept-gated', () => true),
+            atFrame: await atTheFrame('frame-painted', [
+              {id: 'test.frame-painted', keys: ['F7'], does: 'Painted at the frame',
+               line: 'frame', run: () => {}},
+            ]),
+            redeclared: await redeclaredAtTheFrame('redeclared', [
+              {id: 'test.stale-first', keys: ['F9'], does: 'First stale meaning',
+               line: 'first', run: () => {}},
+              {id: 'test.stale-second', keys: ['F9'], does: 'Second stale meaning',
+               line: 'second', run: () => {}},
+            ], [
+              {id: 'test.replacing', keys: ['F9'], does: 'The declaration that stands',
+               line: 'stands', run: () => {}},
+            ]),
           };
         }"""
     )
-    assert "two live meanings for F2" in answers["ambiguous"], answers
-    assert answers["exclusive"] == "declared", answers
+    for name, binding in (("ambiguous", "F2"), ("gatedAmbiguous", "F4")):
+        refused = answers[name]
+        assert refused["declaration"] == "declared", answers
+        assert refused["declared"] is None, answers
+        assert f"two live meanings for {binding}" in refused["paints"][0], answers
+        assert refused["paints"][1] == "painted", answers
+        assert refused["painted"] is None, answers
+    assert answers["exclusive"] == {
+        "declaration": "declared",
+        "declared": None,
+        "paints": ["painted", "painted"],
+        "painted": "F2",
+    }, answers
     assert "has no stable command id" in answers["missingIdentity"], answers
     assert "is not a stable command id" in answers["malformedIdentity"], answers
     assert "declares test.same twice" in answers["duplicateIdentity"], answers
@@ -3971,11 +4029,12 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     assert "must return active, close, does, and line" in answers["malformedFrame"], (
         answers
     )
-    assert "two live meanings for F4" in answers["immediateTransaction"]["declaration"]
-    assert answers["immediateTransaction"]["paints"] == ["painted", "painted"]
-    assert answers["gatedTransaction"]["declaration"] == "declared"
-    assert "two live meanings for F4" in answers["gatedTransaction"]["paints"][0]
-    assert answers["gatedTransaction"]["paints"][1] == "painted"
+    # Nobody repaints the register for this one. The repaint frame the declaration itself
+    # asks for is the first paint, so the projection lands there without a state change.
+    assert answers["atFrame"] == {"declared": None, "framed": "F7"}, answers
+    # The superseded declaration is owed no reading: read at the frame, its refusal
+    # would have retracted the one that replaced it.
+    assert answers["redeclared"] == {"framed": "F9", "standing": True}, answers
 
     # Help merges instances with the same title for presentation. Repeated keys there
     # belong to separate focus locations, so they are not a conflict in either scope.

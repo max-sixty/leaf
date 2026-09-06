@@ -283,9 +283,9 @@ function validateActive(active, where, bindingOf) {
   return active;
 }
 
-// Declaration-time validation deliberately ignores the reader's character-shortcut
-// preference. A saved preference must not let an ambiguous register install successfully
-// and then fail halfway through turning the commands back on.
+// A scope's own validation, run when its first paint reads the rows, deliberately ignores
+// the reader's character-shortcut preference. A saved preference must not let an ambiguous
+// register stand and then fail halfway through turning the commands back on.
 export const validateRows = (rows, where = "a scope") =>
   validateActive(rows.filter(live), where, declaredBindings);
 

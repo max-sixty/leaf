@@ -22,7 +22,7 @@ from leaf.hooks import cmd_hook
 from leaf.host import host_identity
 from leaf.hosting import cmd_serve, cmd_serve_temporary, cmd_stop, start_server
 from leaf.media import cmd_media
-from leaf.packages import cmd_package_check, cmd_package_init
+from leaf.packages import cmd_package_check, cmd_package_init, cmd_package_install
 from leaf.page import cmd_guidance
 from leaf.publishing import cmd_stamp
 from leaf.requests import cmd_receipt
@@ -123,7 +123,8 @@ def page() -> None:
     "selected",
     multiple=True,
     metavar="PACKAGE",
-    help="include a bundled name or explicit project-relative/~ path; repeat for more",
+    help="include an installed or bundled name, or an explicit "
+    "project-relative/~ path; repeat for more",
 )
 @click.option(
     "--no-packages",
@@ -149,9 +150,9 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
     cmd_init(resolve_dir(dir, must_exist=False), selections)
 
 
-@cli.group(short_help="Create and check packages.")
+@cli.group(short_help="Create, check, and install packages.")
 def package() -> None:
-    """Create and check packages."""
+    """Create, check, and install packages."""
 
 
 @package.command("init", short_help="Create a package directory.")
@@ -182,6 +183,21 @@ def package_init(package_path: Path, widget: str | None) -> None:
 def package_check(package_path: Path) -> None:
     """Check the package as one composed unit."""
     cmd_package_check(package_path)
+
+
+@package.command("install", short_help="Install a package for selection by name.")
+@click.argument(
+    "package_path",
+    type=click.Path(path_type=Path, file_okay=False),
+    metavar="SOURCE",
+)
+def package_install(package_path: Path) -> None:
+    """Check SOURCE and copy it into this user's package store.
+
+    `page init --package NAME` then selects it by its directory name, on the
+    same terms as a package Leaf ships.
+    """
+    cmd_package_install(package_path)
 
 
 @page.command(short_help="Add images and print their page paths.")

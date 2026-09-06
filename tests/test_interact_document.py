@@ -3977,6 +3977,45 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     assert "unpointable" not in result.output
 
 
+def test_check_advises_a_page_whose_headings_have_nothing_listing_them(page_dir):
+    """Two headings and no table of contents: the outline widget's entry states that
+    default, and this line carries it back to the author — advice on a passing run,
+    never a gate. One heading is no outline, a page already carrying the widget has
+    answered it, and a layer that declares no outline says nothing."""
+
+    def outline_advice(markup):
+        (page_dir / ".fixture-versions" / "v1.html").write_text(markup)
+        result = check(page_dir)
+        assert result.exit_code == 0, result.output
+        return [line for line in result.output.splitlines() if "lf-toc" in line]
+
+    # PAGE has <h2>Plan</h2>, the decision's <h3>, and no lf-toc.
+    assert outline_advice(PAGE) == [
+        (
+            "  · 2 headings and no <lf-toc>: one in an aside.sidebar near the "
+            "opening lists them, unless the page is compact enough that its "
+            "outline is already visible at a glance"
+        )
+    ]
+    assert outline_advice(PAGE.replace("<h2>Plan</h2>", "")) == []
+    assert (
+        outline_advice(
+            PAGE.replace(
+                "<main>",
+                '<main>\n<aside class="sidebar" id="page-sidebar">'
+                '<lf-toc id="page-contents"></lf-toc></aside>',
+            )
+        )
+        == []
+    )
+
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    del registry["lf-toc"]["x-outline"]
+    registry_path.write_text(json.dumps(registry))
+    assert outline_advice(PAGE) == []
+
+
 def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
     markup = (
         '<lf-command id="hub">'

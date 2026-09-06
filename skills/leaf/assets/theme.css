@@ -1291,6 +1291,8 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-body { margin-top: 2px; }
 .lf-conversation-body > :first-child { margin-top: 0; }
 .lf-conversation-body > :last-child { margin-bottom: 0; }
+.lf-drawing-reference { display: block; margin-top: 2px; color: var(--muted-2);
+          font: 500 var(--t-6)/1.35 var(--sans); }
 .lf-conversation-open { margin-top: var(--sp-2); }
 .lf-conversation-resolved { margin-top: var(--sp-2); color: var(--ok); }
 .lf-conversation-summary { padding: 8px 10px; color: var(--ok); cursor: pointer;
@@ -1780,4 +1782,10 @@ html.lf-versioning::view-transition-new(root) {
           opacity: 1; color: var(--muted); background: var(--paper);
           border-color: var(--border-2); filter: none; }
 .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
+/* Draw mode takes page-widget presses before their controls can act. This rule is in
+   the shared slice because document selectors do not cross a declared shadow root. */
+:host-context(body.lf-drawing):host-context(main) * { cursor: crosshair !important; }
+:host-context(body.lf-drawing):host-context(main) .lf-conversation,
+:host-context(body.lf-drawing):host-context(main) .lf-conversation * {
+  cursor: auto !important; }
 /* lf-shadow:end */

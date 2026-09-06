@@ -2321,12 +2321,12 @@ def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
     page.close()
 
 
-def test_an_ambiguous_revised_passage_detaches_instead_of_guessing(browser, serve):
+def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser, serve):
     """Context tells two copies apart; it must not relocate a comment when the page moves
     on. If a later version rewrites the words beside the anchored copy, that copy confirms
     almost nothing while another copy remains. Neither is now identifiable: document
-    order is not evidence, so the comment detaches visibly instead of moving to words it
-    was never made on."""
+    order is not evidence, so the comment first detaches visibly. An anchored agent reply
+    then names the revised passage explicitly, and the complete thread moves there."""
     url = serve(DRIFT_V1)
     page, errors = open_page(browser, live_url(url))
     landed = page.evaluate("""async () => {
@@ -2360,6 +2360,46 @@ def test_an_ambiguous_revised_passage_detaches_instead_of_guessing(browser, serv
     expect(page.locator(".lf-thread .lf-quote")).to_have_attribute(
         "title", re.compile("can't be identified")
     )
+
+    [root] = [
+        event for event in events_model.read_events(d) if event["kind"] == "comment"
+    ]
+    revised_passage = "Cache warmup is gone now. The version stamp never lands."
+    moved = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            "--json",
+            str(d),
+            "--to",
+            root["id"],
+            "--section",
+            "drift",
+            "--quote",
+            revised_passage,
+            "--text",
+            "I revised this passage and moved the thread onto it.",
+        ],
+    )
+    assert moved.exit_code == 0, moved.output
+    reply = json.loads(moved.output)
+    assert reply["revision"] == 2 and reply["anchor"]["quote"] == revised_passage
+    told(page)
+
+    quote = page.locator(".lf-thread .lf-quote")
+    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).to_contain_text(revised_passage)
+    painted = page.evaluate(
+        "() => [...(CSS.highlights.get('lf-mark') ?? [])]"
+        ".map(range => range.toString()).join('')"
+    )
+    assert revised_passage in painted
+    [stored_root, stored_reply] = [
+        event
+        for event in events_model.read_events(d)
+        if event["kind"] in {"comment", "reply"}
+    ]
+    assert stored_root["anchor"] != stored_reply["anchor"]
     assert errors == []
     page.close()
 

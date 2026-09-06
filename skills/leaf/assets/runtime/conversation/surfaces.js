@@ -104,7 +104,7 @@ export function renderSurfaces(threads, placedAt) {
     try {
       adapter.begin();
       for (const thread of threads) {
-        const anchor = thread.root.anchor;
+        const anchor = thread.anchor;
         const placement = placedAt(thread.root.id);
         if (
           !anchor?.datum ||

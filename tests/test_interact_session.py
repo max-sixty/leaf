@@ -1052,7 +1052,11 @@ SETTLING_DECISION = {
     "id": "c1",
     "author": "user",
     "revision": 1,
-    "text": "the manual log is what the vet reads - are we sure?",
+    "anchor": {"section": "plan-choice-decision"},
+    "drawing": {
+        "format": "leaf-drawing/1",
+        "points": [[-20, 74], [50, 10], [120, 74]],
+    },
 }
 SETTLING_ACCEPT = {
     "kind": "action",
@@ -1096,7 +1100,9 @@ def test_a_page_ask_that_settles_a_thread_carries_its_conversation(page_dir, cap
     header = json.loads(capsys.readouterr().out.splitlines()[0])
     assert [t["resolved"] for t in state_json(page_dir)["threads"]] == ["user"]
     assert [t["id"] for t in header["threads"]] == ["c1"], json.dumps(header)
-    assert "the vet reads" in header["threads"][0]["messages"][0]["text"]
+    message = header["threads"][0]["messages"][0]
+    assert "text" not in message
+    assert message["drawing"] == SETTLING_DECISION["drawing"]
 
 
 def test_an_undo_of_a_page_ask_carries_the_thread_it_reopens(page_dir, capsys):

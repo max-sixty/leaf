@@ -2025,9 +2025,29 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
-    declare("waiting")
+    [first_comment] = [
+        event for event in events_model.read_events(d) if event["kind"] == "comment"
+    ]
+    events_model.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": first_comment["id"],
+            "text": "Handled before the next turn.",
+        },
+    )
     with live_watcher(d, page):
-        expect(text).to_have_text("1 update is saved. Claude is listening.")
+        declare("working", "revising the plan")
+        events_model.append_event(
+            d, {"kind": "comment", "author": "user", "text": "A later update."}
+        )
+        told(page)
+        # Reader input supersedes a fresh work claim as the primary activity, but it
+        # does not erase what that same declaration says the listening session is doing.
+        expect(text).to_have_text(
+            "1 update is saved. Claude is listening — revising the plan."
+        )
         expect(dot).to_have_class(re.compile(r"\blistening\b"))
 
         # A claim of work that has gone quiet is still a claim of work, and a live

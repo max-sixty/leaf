@@ -198,7 +198,7 @@ def canonical_activity(
             detail = status.get("detail", "")
             kind = "stalled" if present["listening"] else "away"
         elif present["listening"]:
-            kind = "listening"
+            kind, detail = "listening", status.get("detail", "")
     elif present["listening"]:
         kind, detail, quiet, dropped = (
             "listening",

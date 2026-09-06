@@ -51,7 +51,7 @@ import {
 import { completeRowSteps, keySequence, neutralStates } from "./presentation.js";
 import { captureReturnPlace, restoreReturnPlace } from "./return-stack.js";
 import { el } from "../widget-elements.js";
-import { ELEMENTS, EVERYTHING, pageScopes } from "./page.js";
+import { ELEMENTS, pageScopes } from "./page.js";
 import { setChord } from "./address.js";
 import { setReact } from "../reactions.js";
 import {
@@ -418,12 +418,12 @@ function showHelp(open, restoreFocus = true) {
       // it though no thread is focused. Filtering both by the same predicate is what took
       // the thread's own keys out of the reference altogether.
       //
-      // A mode is the exception, and it is one because there is no standing near it: the
-      // reader is in it or it is not there, so its rows answer about here whichever way the
-      // reference was opened. The chord is what needs this said — its rows are the lists
-      // the page has, and `?` reaches the reference only from a page nobody has armed, so
-      // listed whole it would name generated targets on a page holding none at all.
-      const inIt = readerIn(scope) || scope.claims === EVERYTHING;
+      // A transient mode is the exception, and it is one because there is no standing near
+      // it: the reader is in it or it is not there. Opening this modal dismisses the mode,
+      // so its declaration records that its rows must retain their boundary-time liveness.
+      // Deriving that fact from a blanket keyboard claim coupled two independent parts of a
+      // scope and made exempting `?` change what the reference listed.
+      const inIt = readerIn(scope) || scope.liveInReference;
       // A declared section may merge many element instances under one title. Their
       // identical bindings are alternatives at different focus locations, not competing
       // meanings in one dispatch scope, so conflict validation stays on each registered

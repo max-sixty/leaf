@@ -55,7 +55,7 @@ import { post } from "./outbox.js";
 import { announce, notice } from "./notifications.js";
 import { claimsEsc, focused, paintHere, saying } from "./keyboard/scopes.js";
 import { standingConversation } from "./conversation/landing.js";
-import { EVERYTHING, standingItem } from "./keyboard/page.js";
+import { allButTheReference, standingItem } from "./keyboard/page.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { anchorLabel } from "./conversation/messages.js";
 
@@ -494,10 +494,13 @@ const reactTargetWord = () =>
 
 export const REACT = {
   title: "With response choices open",
+  // Opening the modal reference dismisses this transient mode. Its section still reads
+  // the liveness captured at that boundary rather than listing every conditional choice.
+  liveInReference: true,
   // A modal may expose overflow from this same response interaction. Its native
   // focus walk and Escape own the keyboard until it closes; keep the anchor alive.
   at: () => reactArmed && !document.querySelector("dialog:modal"),
-  claims: EVERYTHING,
+  claims: allButTheReference,
   rows: [
     {
       id: "reaction.choose",

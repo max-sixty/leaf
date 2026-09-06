@@ -61,7 +61,7 @@ import { focusDestination } from "../widget-elements.js";
 import { el } from "../widget-elements.js";
 import { CHOOSER } from "../version.js";
 import {
-  EVERYTHING,
+  allButTheReference,
   focusedThread,
   letGo,
   pageParts,
@@ -555,8 +555,9 @@ export const GO = {
   reach: "with g armed",
   chord: chordKeys,
   chordPrefix,
+  liveInReference: true,
   at: () => chordArmed,
-  claims: EVERYTHING,
+  claims: allButTheReference,
   // Built on first use: the version chooser's row is version.js's, a module in the cycle,
   // so it is read once every module has evaluated.
   get rows() {

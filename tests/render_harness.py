@@ -748,11 +748,21 @@ def sending(page, what):
 # makes it, while the driver is handed the paused request over its own connection a beat
 # later, so `traffic.sends == 1` is already true while the route list is still empty and
 # the `held[0]` behind the wait raises IndexError on a machine loaded enough to lose that
-# beat. The list the test goes on to read is what the wait belongs over; `_until` waits on
-# it unchanged, because each round it polls the page rather than the ledger.
+# beat. The list the test goes on to read is what the wait belongs over, and `_until`
+# cannot carry it: its only wake-up is the ledger repainting, and a paused request paints
+# nothing further, so a route that lands after the send's paint would wait out the whole
+# deadline. The browser's own record already shows the send was made, so this repeats a
+# driver call — the thing that dispatches the route here — until the list has it.
 def holding(page, held, count, what):
     """Wait until `held` has collected `count` requests the route paused."""
-    _until(page, lambda _traffic: len(held) >= count, f"held {what} in the wire")
+    deadline = time.monotonic() + 30
+    while len(held) < count:
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                f"the page never held {what} in the wire: {len(held)} of {count} "
+                f"paused, on {_traffic(page)}"
+            )
+        page.wait_for_timeout(20)
 
 
 # The other direction of the same trip. Nothing a test writes into the page directory

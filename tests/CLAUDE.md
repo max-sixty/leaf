@@ -366,6 +366,10 @@ The causal helpers:
 - `sending(page, what)` encloses a gesture whose own event the assertion behind
   it reads: it waits for one further send to enter the wire and then for its
   trip, so the read cannot answer with the event that stood before the gesture.
+- `holding(page, held, count, what)` waits until a route's own list has the
+  requests it paused, for a test that holds the wire open. The ledger counts a
+  send as the runtime makes it, a beat before the driver is handed the paused
+  request, so it is the wrong fact to index `held` behind.
 - `told(page)` waits until the page has applied the reading the server holds
   now. Use it after the test writes a version, event, status, or lease that the
   browser learns by reading.
@@ -466,8 +470,12 @@ pattern nothing ever asks for, so a route a test registers later only adds to a
 list the browser is already consulting; a page made another way is unarmed.
 
 A handler that appends a route to `held` has established only that the browser
-made the request. Before indexing `held`, wait for the corresponding `Traffic`
-edge, a request event, or another fact named by the handler.
+made the request. Before indexing `held`, wait through `holding`, which is that
+sanctioned repeat: the ledger shows the send was made, and the driver call it
+repeats is what dispatches the route into this process. Do not wait on the
+corresponding `Traffic` edge instead — the ledger counts the send a beat before
+the request arrives here, and once it is held nothing repaints, so a wait on the
+paint has no second wake-up to catch a route that lands late.
 
 Keep the three route operations distinct:
 

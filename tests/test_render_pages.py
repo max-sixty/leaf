@@ -6,7 +6,6 @@ import re
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import events as conversation_model
@@ -1300,60 +1299,6 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
     page.close()
 
 
-def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
-    """A copy has no panel and no session, which is what makes reading its own window
-    honest — but it does have one piece of the live page's furniture left. A decided
-    change keeps the visible receipt that says so, because that record is what the margin was
-    reserved for, so the rail is still held open in the file while the room read off the
-    viewport knows nothing about it. The exported board stood 35px into that rail at a
-    laptop's width and 47px at a narrow one.
-
-    Both edges are asked about, and the left is the one that bites now: the rail claims
-    the right margin, so a room read too wide is spent on the side that is free and the
-    board runs off the left of the window rather than into the controls. That is the worse
-    of the two directions and the reason this asks about the box rather than the strip —
-    leftward overflow scrolls nothing in a page set left to right, so the columns that
-    went past the edge are not cut off with a way to reach them, they are simply gone.
-
-    Nothing could have caught it from the outside: the render gate runs on the live page
-    rather than on a file, and on the live page the room is measured rather than guessed.
-    The question has to be asked of the copy directly, which is what this does."""
-    url = serve(RAIL_AND_WIDE_PAGE)
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "id": "a-accept",
-            "author": "user",
-            "revision": 1,
-            "widget": "sug-copy",
-            "action": "accept",
-            "detail": {},
-        },
-    )
-    out = tmp_path / "decided.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
-    page.goto(out.as_uri(), wait_until="load")
-
-    fit = page.evaluate(RAIL_FIT)
-    rows = page.locator(".lf-sug-actions").count()
-    assert rows == 1 and fit["rail"] != "0px", (
-        "the decided receipt and its rail must survive into the copy, or the fault this "
-        f"is about cannot arise — rows {rows}, rail {fit['rail']}"
-    )
-    expect(page.locator(".lf-sug-receipt")).to_have_text("Accepted")
-    assert fit["past"] <= 1, (
-        f"the copied board stands {fit['past']:.0f}px outside the page's own box, having "
-        f"been given a room that did not know about the rail: {fit['widget']:.0f}px of "
-        "widget"
-    )
-    assert errors == []
-    page.close()
-
-
 def test_the_room_is_measured_after_a_late_rail(browser, serve):
     """A page carrying a change to decide gives up a rail of the controls' own width, and
     the width of those controls is a fact about their words — so lf-suggestion measures
@@ -1564,60 +1509,6 @@ def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
     )
     assert errors == []
     page.close()
-
-
-def test_a_copy_keeps_a_board_off_the_row_its_decided_change_left(
-    browser, serve, tmp_path
-):
-    """The mark that holds an exhibit off a row beside it is measured by the module and
-    painted on the widget, and a copy runs no script to measure anything: the mark rides
-    into the file the way the rail does, and it is all that holds the copy's board off
-    the decided control standing level with it. A decided change keeps that control —
-    the record is what the margin was reserved for — so the collision the live page
-    measured is still real in the file, while the exhibit 600px further down carries no
-    mark and takes the room the copy's own reading grants it."""
-    url = serve(RAIL_BAND_PAGE)
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "id": "a-accept",
-            "author": "user",
-            "revision": 1,
-            "widget": "sug-card",
-            "action": "accept",
-            "detail": {},
-        },
-    )
-    out = tmp_path / "banded.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-
-    errors = []
-    copy = browser.new_page(viewport={"width": 1600, "height": 900})
-    copy.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
-    copy.on("pageerror", lambda e: errors.append(str(e)))
-    copy.goto(out.as_uri(), wait_until="load")
-    at = copy.evaluate(RAIL_BANDS)
-
-    decided = [r for r in at["rows"] if not r["docked"]]
-    assert decided, "no row survived into the copy, so there is nothing to stand over"
-    b = at["plan"]
-    for r in decided:
-        across = b["left"] < r["right"] and b["right"] > r["left"]
-        down = b["top"] < r["bottom"] and b["bottom"] > r["top"]
-        assert not (across and down), (
-            f"the copy draws the board over the decided control beside it: board "
-            f"{b['left']:.0f}–{b['right']:.0f}px across and {b['top']:.0f}–"
-            f"{b['bottom']:.0f}px down, control {r['left']:.0f}–{r['right']:.0f}px "
-            f"and {r['top']:.0f}–{r['bottom']:.0f}px"
-        )
-    assert at["later"]["right"] > at["column"]["right"] + 1, (
-        "the copy held the far board to the column: the mark is the one claim that "
-        "travels, and it belongs only to the exhibits a row stands beside"
-    )
-    assert at["sideways"] == 0
-    assert errors == []
-    copy.close()
 
 
 def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):

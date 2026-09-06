@@ -475,6 +475,11 @@ all enumerable labels in the control's current font and sets a minimum width.
 Re-measure after changing type tokens; avoid numeric reservations where the
 possible words are available.
 
+Submission feedback uses the shared lifecycle: busy paint while delivery is
+unresolved, the resulting content or control state as durable confirmation, and
+`notice` for a transient acknowledgment. Persistent status text is for a state the
+reader must return to or act on, such as failure.
+
 ## Keyboard, focus, and navigation
 
 One register defines every runtime and widget key. A row binds keys, states what

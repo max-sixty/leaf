@@ -132,9 +132,9 @@
    state has a separate small corner mark: a dot for engaged, an open moving ring for busy
    (static under reduced motion), a diamond for failed, and a square for settled. The mark
    is enough to state that a Button is busy, so the Button itself stays at full opacity
-   and keeps its pointer. Busy also sets `aria-busy="true"`; failed and settled actions
-   need visible words, not color or shape alone. A status's phase is its transient hover
-   or focus label instead of a corner mark. Standing reactions reuse the settled square in
+   and keeps its pointer. Busy also sets `aria-busy="true"`; a failure keeps visible words
+   beside the controls that can repair it. A status's phase is its transient hover or focus
+   label instead of a corner mark. Standing reactions reuse the settled square in
    their margin palette and seated marks, so they remain distinct from hover without
    changing the shared ring or fill. Reaction toggles retain their vocabulary labels and
    `aria-pressed`; withdrawing a token returns its palette Button to idle.
@@ -158,8 +158,9 @@
    engaged. Reversible actions normally act immediately and offer Undo, which withdraws
    the named logged gesture under the same authored-version, replayability, and
    pending-delivery guards as keyboard Undo. Confirmation is for a genuinely irreversible
-   effect, not routine Save or Accept. Settled outcomes are visible receipt text beside an
-   active Undo or context disclosure: never leave an inert Button-shaped status.
+   effect, not routine Save or Accept. The layer-wide submission lifecycle in CLAUDE.md
+   governs feedback; a settled cluster keeps only the actions still available there, such
+   as Undo, and never leaves an inert Button-shaped status.
 
    The Page-map keyboard scope owns the cluster's way back out. When a thread card stands
    over an unfolded `…` group, Escape closes the card first and folds the secondary

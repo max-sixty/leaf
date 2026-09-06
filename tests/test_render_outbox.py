@@ -430,7 +430,9 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     # accepted event whose authoritative state is still incomplete.
     first_item = page.locator('[data-lf-margin-for="sug-refill"]')
     first_item.get_by_role("button", name=re.compile(r"^Undo accepting")).click()
-    expect(first_item.locator(".lf-sug-receipt")).to_have_text("Undo failed · Accepted")
+    expect(first_item.locator(".lf-margin-receipt")).to_have_text(
+        "Undo failed · Accepted"
+    )
     assert _traffic(page).sends == sent
     first_item.get_by_role("button", name="Cancel", exact=True).click()
 

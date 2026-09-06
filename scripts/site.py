@@ -206,10 +206,8 @@ def publish_pages(out: Path, env: dict) -> None:
         selection_args = [arg for name in packages for arg in ("--package", name)]
         selection_args.extend(("--package", SITE_PACKAGE))
         leaf(env, "page", "init", *selection_args, str(product_page))
-        # The page's content, named by the hash of its bytes and served from the root the
-        # markup names it at (/media/…). It goes in the page directory rather than
-        # straight to the site, because `version check` refuses a reference the directory
-        # can't answer — and from there it is published with everything else below.
+        # Put the authored images behind the content-addressed paths the product
+        # sources name before validating and rendering them.
         product_media = sorted(
             path
             for pattern in ("*.gif", "*.jpg", "*.png")
@@ -240,6 +238,9 @@ def publish_pages(out: Path, env: dict) -> None:
                 publish_product_pages(product_page, out, products, browser)
             finally:
                 browser.close()
+        # The social card is the reference that keeps this: every page names its
+        # og:image at an absolute https://leaf.page/media/… URL, which no export
+        # inlines and no link check can see. The rest is already in the exports.
         shutil.copytree(product_page / "media", out / "media")
         shutil.copy2(DOCS / "sitenote.js", out / "sitenote.js")
 

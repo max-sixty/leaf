@@ -96,10 +96,10 @@ def published_pages():
 
 
 @pytest.fixture(scope="module")
-def site(tmp_path_factory):
+def site(tmp_path_factory, browser):
     """One build for the module: it vendors a layer and checks every published page."""
     out = tmp_path_factory.mktemp("published") / "site"
-    site_build.build(out)
+    site_build.build(out, browser=browser)
     return out
 
 

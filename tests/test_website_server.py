@@ -54,9 +54,10 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path):
     try:
         assert get(f"{root}/health")[0] == b"ok\n"
 
-        document, _ = get(f"{root}/examples/decision/")
+        document, headers = get(f"{root}/examples/decision/")
         assert b'src="/examples/decision/sitenote.js"' in document
         assert b'data-lf-entry="/examples/decision/leaf.js"' in document
+        assert headers["Content-Security-Policy"] == "frame-ancestors 'none'"
 
         raw_state, headers = get(f"{root}/examples/decision/api/state")
         state = json.loads(raw_state)

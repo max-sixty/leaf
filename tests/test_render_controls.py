@@ -4271,6 +4271,25 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         # which is the only way a ring is painted on the page for a focus held in the
         # panel.
         url = serve(example, comments=2)
+        # Sent media is a conditional control rather than authored markup. Give one
+        # synthetic thread the screenshot Release notes already ships, so the page walk
+        # reaches the media ring without making the omnibus developer gallery its corpus.
+        if name == "release-notes":
+            root = next(
+                event
+                for event in reversed(events_model.read_events(serve.page_dir))
+                if event["kind"] == "comment" and event["text"].startswith("Comment ")
+            )
+            events_model.append_event(
+                serve.page_dir,
+                {
+                    "kind": "reply",
+                    "author": "claude",
+                    "agent": "Codex",
+                    "parent": root["id"],
+                    "text": "![Pasted image](/media/051bee487bfb5d13.png)",
+                },
+            )
         # A version to compare against, published the way a page gets one. Serving v2
         # rather than letting the open page follow keeps the walk out of an activation.
         _publish(serve.page_dir, 2, example.read_text(), "Same page, said twice.")

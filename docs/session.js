@@ -197,20 +197,31 @@ function demoThreads() {
     if (withdrawn.has(event.id)) continue;
     if (event.kind === "comment") {
       const message = { ...event };
-      const thread = { root: message, msgs: [message], resolved: null };
+      const thread = {
+        root: message,
+        anchor: message.anchor ?? null,
+        msgs: [message],
+        resolved: null,
+      };
       messages.set(message.id, message);
       threads.set(message.id, thread);
       threadFor.set(message.id, thread);
     } else if (event.kind === "reply") {
       let thread = threadFor.get(event.parent);
       if (!thread) {
-        thread = { root: { ...event }, msgs: [], resolved: null };
+        thread = {
+          root: { ...event },
+          anchor: event.anchor ?? null,
+          msgs: [],
+          resolved: null,
+        };
         threads.set(event.parent, thread);
         threadFor.set(event.parent, thread);
       }
       const message = { ...event };
       messages.set(message.id, message);
       thread.msgs.push(message);
+      if ("anchor" in event) thread.anchor = event.anchor;
       threadFor.set(message.id, thread);
     } else if (event.kind === "edit") {
       const message = messages.get(event.message);

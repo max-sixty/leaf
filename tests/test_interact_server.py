@@ -644,6 +644,7 @@ def test_server_round_trip(server, page_dir):
     arrived = peer.getresponse()
     body = arrived.read()
     assert arrived.status == 200 and arrived.getheader("Location") is None
+    assert arrived.getheader("Content-Security-Policy") == "frame-ancestors 'none'"
     peer.close()
     status = arrived.status
     assert status == 200 and b"lf-options" in body
@@ -652,13 +653,26 @@ def test_server_round_trip(server, page_dir):
         b'<meta name="lf-version" data-lf-runtime content="1">'
     )
     assert marker in body
+    assert b"base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;" in body
     assert (
         body.index(b"</style>")
         < body.index(marker)
         < body.index(b'<script type="module" src="/leaf.js"></script>')
     )
-    pinned_status, pinned = fetch(f"{server}/versions/v1.html")
-    assert pinned_status == 200 and b"lf-board" in pinned and marker in pinned
+    # A historical revision may predate the current canonical policy. The HTTP
+    # projection applies today's boundary instead of preserving the stale meta tag.
+    revision = files_model.revision_path(page_dir, 2)
+    legacy = revision.read_bytes().replace(
+        b"base-uri 'none'; form-action 'none'; ", b""
+    )
+    revision = revision.rename(revision.with_name(files_model.revision_name(2, legacy)))
+    revision.write_bytes(legacy)
+    with urllib.request.urlopen(f"{server}/versions/v1.html?t={TOKEN}") as response:
+        pinned = response.read()
+        assert response.status == 200
+        assert response.headers["Content-Security-Policy"] == "frame-ancestors 'none'"
+    assert b"lf-board" in pinned and marker in pinned
+    assert b"base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;" in pinned
     assert not (page_dir / "versions").exists()
     # Vendored files serve; the log and directory paths don't.
     for path in [

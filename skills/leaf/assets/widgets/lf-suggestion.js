@@ -457,6 +457,11 @@ customElements.define(
       const comment = this.getAttribute("resolves");
       const detail = outcome === "accept" && comment ? { resolves: comment } : {};
       this.#failed = null;
+      // This decision replaces words the reader may still have selected. Clear that
+      // page range before moving its nodes, independent of whether activation came from
+      // pointer, Enter, Space, or an address route; otherwise later reconciliation can
+      // reconstruct the relocated range and raise its Comment field again.
+      getSelection()?.removeAllRanges();
       // Keep the replacement Undo in the pressed Button's seat while delivery is open.
       // It is present for focus continuity but unavailable until the log gives the
       // gesture the durable id Undo must name.

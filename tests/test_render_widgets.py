@@ -2371,8 +2371,8 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     The outcome has to reach the log too: what the user sees settle and what
     Claude is told must be the same event.
 
-    The resulting content, Undo control, and notice use the layer's existing state and
-    feedback surfaces. No second status is inserted beside them."""
+    The resulting content and Undo control are sufficient confirmation. No status or
+    transient notice repeats them."""
     page, _errors = open_page(browser, serve(SUGGESTION_PAGE))
     row = page.locator("[data-lf-for='sug-refill']")
     accept = row.locator(".lf-sug-accept")
@@ -2413,7 +2413,8 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     assert undo_button.evaluate(box) == before, (
         "Undo moved away from the press it replaces"
     )
-    expect(page.locator(".lf-notice")).to_have_text(re.compile(r"^Accepted .+ — sent$"))
+    expect(page.locator(".lf-notice")).to_have_text("")
+    expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
     expect(reject).to_be_hidden()
     settled = page.locator("#sug-refill lf-new").evaluate(
         "el => getComputedStyle(el).textDecorationLine + ' ' + getComputedStyle(el).backgroundColor"
@@ -2590,10 +2591,8 @@ def test_a_decided_change_folds_away_rather_than_vanishing(browser, serve):
     below = after.evaluate("el => el.getBoundingClientRect().top")
 
     page.locator("[data-lf-for='sug'] .lf-sug-accept").click()
-    # Awaited, because the state lands when the log takes the decision rather than in
-    # the frame of the press. From that frame it is true everywhere at once — the log
-    # carries it, the banner counts it, a second tab converging reads it — and the
-    # pixels are the only thing still catching up, which is what the rest measures.
+    # The state lands in the frame of the press. Its fold then carries the pixels toward
+    # that already-current reading while the outbox carries it toward the log.
     expect(page.locator("#sug[data-lf-state='accept']")).to_have_count(1)
     held = page.evaluate(
         """() => window.__lfHeld.map((m) => [m.effect.target.tagName.toLowerCase(),
@@ -2735,44 +2734,32 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
     page.close()
 
 
-def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
-    """A decision is painted when the log takes it, never before, so a send the
-    server refuses leaves the page exactly as it was. Settling first and putting it
-    back on failure said the same thing in the end and flickered on the way: the
-    press against a closed session painted one frame of settled content and Undo over
-    a folding slot before rewinding it."""
+def test_a_refused_decision_returns_to_pending_with_failure_controls(
+    held_events, serve
+):
+    """The reversible result paints immediately, then refusal restores the offer."""
+    browser, held = held_events
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
-
-    def refuse_attempt(route):
-        route.fulfill(
-            status=400,
-            json={
-                "ok": False,
-                "error": "refused before append",
-                "final": True,
-            },
-        )
-
-    page.route("**/api/event", refuse_attempt)
-    # Watch the attribute across every frame, not just after: a rewind is only
-    # visible while it is happening, and the end state is the same either way.
-    page.evaluate(
-        """() => {
-          window.__settled = [];
-          new MutationObserver(() => {
-            window.__settled.push(
-              document.getElementById('sug-refill').dataset.lfState ?? null);
-          }).observe(document.getElementById('sug-refill'),
-                     {attributes: true, attributeFilter: ['data-lf-state']});
-        }"""
-    )
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
 
+    holding(page, held, 1, "the accepted suggestion")
+    expect(page.locator("#sug-refill lf-old")).to_be_hidden()
+    expect(page.locator("#sug-refill lf-new")).to_be_visible()
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    pending_item = page.locator('[data-lf-margin-for="sug-refill"]')
+    expect(pending_item.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(pending_item.get_by_text("Accepted", exact=True)).to_have_count(0)
+
+    held.pop(0).fulfill(
+        status=400,
+        json={
+            "ok": False,
+            "error": "refused before append",
+            "final": True,
+        },
+    )
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     assert page.locator("#sug-refill").get_attribute("data-lf-state") is None
-    assert page.evaluate("() => window.__settled") == [], (
-        "the refused decision must never have been on the element at all"
-    )
     item = page.locator('[data-lf-margin-for="sug-refill"]')
     expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
     expect(item).to_have_attribute("data-lf-state", "failed")
@@ -2785,6 +2772,15 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
     expect(item.locator(".lf-margin-receipt")).to_have_count(0)
     expect(item.locator(".lf-sug-accept")).to_be_focused()
     item.locator(".lf-sug-accept").click()
+    holding(page, held, 1, "the repeated accepted suggestion")
+    held.pop(0).fulfill(
+        status=400,
+        json={
+            "ok": False,
+            "error": "refused before append",
+            "final": True,
+        },
+    )
     expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
     # And the page's own count is derived from that, so it comes back too.
     expect(page.get_by_role("button", name="Accept all (3)")).to_be_visible()
@@ -2834,12 +2830,13 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
         "requestfailed", predicate=lambda request: "/api/event" in request.url
     ):
         accept.click()
-    expect(page.locator("#sug-refill")).to_have_attribute("aria-busy", "true")
+    expect(page.locator("#sug-refill lf-old")).to_be_hidden()
+    expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(page.locator(".lf-notice")).to_contain_text("retrying your change")
 
-    expect(accept).to_be_disabled()
-    accept.evaluate("button => button.click()")
-    expect(page.locator("#sug-refill lf-old")).to_be_hidden()
+    expect(accept).to_have_count(0)
+    expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-reject")).to_have_count(0)
+    holding(page, requests, 2, "the retried decision")
     assert accepted == [200]
     assert len(requests) == 2
     assert len({request["attempt"] for request in requests}) == 1
@@ -2854,28 +2851,19 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
 
 
 def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, serve):
-    """One press, one decision — and the element's own state is no longer what makes
-    that true. The decided state used to be written in the frame of the press, so a
-    control pressed twice refused itself on the second; it now lands with the log's
-    answer, leaving a whole round trip in which both controls are still offering.
-    Presses made in that gap would each be a line in the log for one act, and an
-    accept followed by a reject would resolve the thread the accept answers and then
-    record the opposite outcome over it.
-
-    Neither of those presses can be caught in the wire: `post` sends one action at a
-    time, so they queue behind the held one instead of reaching the route. What they
-    would leave is a line each in the log once the queue drains, and that is where
-    this reads them."""
+    """One press immediately retires both verdicts while its one attempt is pending."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     row = page.locator("[data-lf-for='sug-refill']")
     row.locator(".lf-sug-accept").click()
     holding(page, held, 1, "the decision")
-    expect(row.locator(".lf-sug-accept")).to_be_disabled()
-    row.locator(".lf-sug-accept").evaluate("button => button.click()")
-    expect(unfolded_button(row.locator(".lf-sug-reject"))).to_be_disabled()
-    row.locator(".lf-sug-reject").evaluate("button => button.click()")
+    expect(row.locator(".lf-sug-accept")).to_have_count(0)
+    expect(row.locator(".lf-sug-reject")).to_have_count(0)
+    pending_undo = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    expect(pending_undo).to_be_disabled()
+    pending_undo.evaluate("button => button.click()")
+    assert len(held) == 1
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -2890,70 +2878,27 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     page.close()
 
 
-def test_a_wait_the_reader_would_notice_says_so_and_a_short_one_says_nothing(
-    browser, serve
-):
-    """The press paints nothing until the log answers, so a wait long enough to
-    notice has to say it is waiting — and a wait too short to notice must not, or the
-    look would flash on and off exactly where the settle-then-rewind flicker used to
-    be. One delayed rule covers both, and it is keyed on aria-busy rather than on any
-    tag, so lf-draft's own busy word is painted by it too.
-
-    Held in the wire rather than timed against a real answer: the delay is measured
-    from the press either way, and a send that never lands is the only way to read
-    both sides of it without racing the machine the suite is on."""
+def test_an_optimistic_decision_stays_plain_while_delivery_waits(held_events, serve):
+    """A held send leaves the settled content legible and its Undo in place."""
+    browser, held = held_events
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
     resting = page.locator("[data-lf-for='sug-refill']").bounding_box()
-    # Pressed and sampled inside the page: what painted and when is not a fact the
-    # browser reports outward, and a reading taken over a CDP round trip would be
-    # racing the delay rather than measuring it. Each frame is placed on the rule's
-    # own clock rather than on the wall clock the press was made on — the animation
-    # starts at the frame the busy attribute is first painted in, and what the press
-    # does between the two is the layer's own work, not this rule's. Timed from the
-    # press the whole 200ms delay and 140ms fade all but fill a fixed window, and a
-    # loaded machine spends the remainder before the first frame; timed from the
-    # animation, the delay and the fade are the only durations being read.
-    frames = page.evaluate(
-        """async () => {
-          const el = document.getElementById('sug-refill');
-          const out = [];
-          let stop = false;
-          const tick = () => {
-            // Opacity first: reading it flushes the style that starts the animation,
-            // so the frame it begins in reports the animation rather than nothing.
-            const painted = Number(getComputedStyle(el).opacity);
-            const [busy] = el.getAnimations();
-            out.push([
-              busy ? Number(busy.currentTime) : null,
-              busy ? busy.playState : null,
-              painted,
-            ]);
-            if (!stop) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-          document.querySelector("[data-lf-for='sug-refill'] .lf-sug-accept").click();
-          await new Promise((r) => setTimeout(r, 700));
-          stop = true;
-          return out;
-        }"""
-    )
-    # Before the rule has anything to say: the frames the press had not yet reached,
-    # and the ones inside its delay. Once it has said it: the frames after the fade
-    # has run, which the animation states as its own end rather than as a deadline.
-    early = [o for elapsed, _state, o in frames if elapsed is None or elapsed < 150]
-    late = [o for _elapsed, state, o in frames if state == "finished"]
-    assert early and set(early) == {1}, (
-        f"the wait was announced before it was one: {early}"
-    )
-    assert late and set(late) == {0.5}, f"a wait worth noticing said nothing: {late}"
-    expect(page.locator("#sug-refill")).to_have_attribute("aria-busy", "true")
-    # And it says it without moving the line the press was made on: the row the reader
-    # just pressed stands where it stood, so a second press has the same target.
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    holding(page, held, 1, "the accepted suggestion")
+
+    suggestion = page.locator("#sug-refill")
+    expect(suggestion.locator("lf-old")).to_be_hidden()
+    expect(suggestion.locator("lf-new")).to_be_visible()
+    expect(suggestion).not_to_have_attribute("aria-busy", "true")
+    expect(suggestion).to_have_css("opacity", "1")
+    expect(
+        page.locator("[data-lf-for='sug-refill']").get_by_role(
+            "button", name=re.compile(r"^Undo accepting")
+        )
+    ).to_be_disabled()
     assert page.locator("[data-lf-for='sug-refill']").bounding_box() == resting
 
-    held[0].continue_()
+    held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect(page.locator("#sug-refill[data-lf-state='accept']")).to_have_count(1)
@@ -5366,9 +5311,10 @@ def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_swit
     # take back, and it drew every file's header 24px inside the file before it. The row
     # starts at its wrapper's top in both media, which is where it would with no press.
     placed = page.evaluate(DIFF_ROW_PLACEMENT)
-    assert placed["files"] == 2 and (placed["lift"], placed["drop"]) == (0, 0), (
-        f"a file's row does not start where its wrapper does: {placed}"
-    )
+    assert placed["files"] == 2 and (placed["lift"], placed["drop"]) == (
+        0,
+        0,
+    ), f"a file's row does not start where its wrapper does: {placed}"
     page.emulate_media(media="print")
     printed = page.evaluate(DIFF_CLIPPING)
     on_paper = page.evaluate(DIFF_ROW_PLACEMENT)
@@ -5377,9 +5323,10 @@ def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_swit
     assert printed["cut"] == 0, (
         f"the switch is off and paper cannot press it, so this text is gone: {printed}"
     )
-    assert (on_paper["lift"], on_paper["drop"]) == (0, 0), (
-        f"on paper a file's row is drawn above its own wrapper: {on_paper}"
-    )
+    assert (on_paper["lift"], on_paper["drop"]) == (
+        0,
+        0,
+    ), f"on paper a file's row is drawn above its own wrapper: {on_paper}"
     assert errors == []
     page.close()
 

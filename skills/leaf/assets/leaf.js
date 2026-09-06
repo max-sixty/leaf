@@ -141,7 +141,7 @@
  * door as its banner control. `w` claims one freehand drag on the page, attaching its
  * vector mark to the semantic item under or beside the first point, or to the page whole
  * where none shares that line.
- * Lowercase letters label the visible Page-map locations, tabs, links, and folds in one
+ * Lowercase letters label the visible Page-map Buttons, tabs, links, and folds in one
  * prefix-free namespace; the namespace grows to two letters when one-letter hints run
  * out. `g g` and `g G` remain the page's top and bottom edges.
  * Arming shows every complete route in the key line. Pressed keys use the blue face and

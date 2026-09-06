@@ -125,6 +125,7 @@ customElements.define(
     #row = null;
     #failureReceipt = null;
     #deciding = null; // the decision in flight, so a second press joins it
+    #staging = false; // the synchronous span before that promise exists
     #failed = null;
     #accept = null;
     #reject = null;
@@ -209,7 +210,7 @@ customElements.define(
         state: () =>
           this.#failed
             ? "failed"
-            : this.#deciding || this.#undoing
+            : this.#staging || this.#deciding || this.#undoing
               ? "busy"
               : this.dataset.lfState
                 ? "settled"
@@ -275,7 +276,8 @@ customElements.define(
 
     #paintAvailability = () => {
       for (const btn of [this.#accept, this.#reject]) {
-        const available = !this.#deciding && actionAvailable(this, verb(btn));
+        const available =
+          !this.#staging && !this.#deciding && actionAvailable(this, verb(btn));
         const disabled = String(!available);
         if (btn.getAttribute("aria-disabled") !== disabled)
           btn.setAttribute("aria-disabled", disabled);
@@ -297,7 +299,10 @@ customElements.define(
       return button;
     }
 
-    #renderControls(change = this.#label()) {
+    #renderControls(
+      change = this.#label(),
+      { pending = Boolean(this.#staging || this.#deciding) } = {},
+    ) {
       if (!this.#row) return;
       const outcome = this.dataset.lfState;
       if (outcome && !this.#failed) {
@@ -308,14 +313,17 @@ customElements.define(
           role: "primary",
           press: () => this.#undoOutcome(),
         });
-        marginButtonState(this.#undo, this.#undoing ? "busy" : "settled");
-        this.#undo.setAttribute("aria-disabled", String(this.#undoing));
+        const undoing = Boolean(pending || this.#undoing);
+        marginButtonState(this.#undo, undoing ? "busy" : "settled");
+        this.#undo.setAttribute("aria-disabled", String(undoing));
         this.#undo.setAttribute(
           "aria-label",
           `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change}`,
         );
         delete this.#row.dataset.lfMarginReceipt;
-        this.#replaceControls(...(undoableAction(this, outcome) ? [this.#undo] : []));
+        this.#replaceControls(
+          ...(pending || undoableAction(this, outcome) ? [this.#undo] : []),
+        );
         return;
       }
 
@@ -426,22 +434,15 @@ customElements.define(
       return this.#decide("accept");
     }
 
-    // A press asks for the decision; the log makes it, and only then does the page
-    // show it. A suggestion can wait because its decision is terminal — the slot
-    // retires, the controls stop offering, no later gesture computes from any of
-    // it — so nothing is owed the reader during the round trip, and the round trip
-    // is local. What waiting buys is the absence of the other half: a settled
-    // suggestion the server never took had to be un-settled in front of the reader,
-    // a frame of settled content and Undo over a fold that started and stopped. The rule that
-    // decides which gestures wait, and what waiting costs, are in CLAUDE.md.
+    // A press makes the reversible decision locally and the outbox carries that exact
+    // projection until the log accounts for it. A definitive refusal removes the local
+    // winner and reconciles the authored state before this continuation paints the repair
+    // controls, so the reader returns to a pending suggestion with Failed, Retry, Cancel.
     #decide(outcome) {
       if (this.dataset.lfState) return Promise.resolve(true);
       if (!actionAvailable(this, outcome)) return Promise.resolve(false);
-      // The decided state used to be this guard on its own, written in the frame of
-      // the press. It now lands when the log takes the decision, and the gap between
-      // press and answer is exactly wide enough for a second press to make a second
-      // decision beside the first — two lines in the log for one act.
-      if (this.#deciding) return this.#deciding;
+      if (this.#staging || this.#deciding)
+        return this.#deciding ?? Promise.resolve(false);
       // Read before deciding: deciding retires a slot, a retired slot leaves the page's
       // reading, and `says` on what has left the reading answers nothing — the notice
       // then named the widget's id instead of the words the user just judged.
@@ -454,42 +455,54 @@ customElements.define(
       const comment = this.getAttribute("resolves");
       const detail = outcome === "accept" && comment ? { resolves: comment } : {};
       this.#failed = null;
-      const sent = sendAction(this, outcome, detail).then((accepted) => {
-        this.#deciding = null;
-        this.removeAttribute("aria-busy");
-        if (!accepted) {
-          // A definitive refusal is a state the reader can act from. Keep it at the
-          // target as Failed, Retry, Cancel; there is no detail disclosure because the
-          // transport returned no useful detail beyond the notice it already showed.
-          this.#failed = { outcome, label };
-          this.#renderControls(label);
-          this.#margin?.update();
-          return false;
-        }
-        // Usually the accepted state has already replayed this decision. Paint is
-        // still owed if another part of that state failed to render, but not if the
-        // same event list also carried a later undo: authored state then stands.
-        if (actionStands(accepted)) this.#settle(outcome);
-        else {
-          this.#renderControls(label);
-          this.#margin?.update();
-        }
-        notice(`${outcome === "accept" ? "Accepted" : "Rejected"} “${label}” — sent`);
-        return true;
-      });
+      // Keep the replacement Undo in the pressed Button's seat while delivery is open.
+      // It is present for focus continuity but unavailable until the log gives the
+      // gesture the durable id Undo must name.
+      this.#staging = true;
+      this.#settle(outcome);
+      const sent = sendAction(this, outcome, detail, { optimistic: true }).then(
+        (accepted) => {
+          this.#deciding = null;
+          this.removeAttribute("aria-busy");
+          if (!accepted) {
+            // A definitive refusal is a state the reader can act from. Keep it at the
+            // target as Failed, Retry, Cancel; there is no detail disclosure because the
+            // transport returned no useful detail beyond the notice it already showed.
+            this.#failed = { outcome, label };
+            this.#renderControls(label);
+            this.#margin?.update();
+            return false;
+          }
+          // Usually the accepted state has already replayed this decision. Paint is
+          // still owed if another part of that state failed to render, but not if the
+          // same event list also carried a later undo: authored state then stands.
+          if (actionStands(accepted)) {
+            if (this.dataset.lfState === outcome) {
+              this.#renderControls(label);
+              this.#margin?.update();
+            } else this.#settle(outcome);
+          } else {
+            this.#renderControls(label);
+            this.#margin?.update();
+          }
+          // TODO(2026-09-06): Decide whether accepted work with no active agent pickup
+          // needs a distinct post-send presentation.
+          return true;
+        },
+      );
       this.#inFlight(sent, label);
+      this.#staging = false;
       return sent;
     }
 
-    // One fact said twice, because it is owed to two audiences. The field is what
-    // refuses the second press above. The attribute is the platform's own word for a
-    // surface mid-update — the layer paints it (leaf.js) and a screen reader holds
-    // its announcements until it clears, so the labels are read once, as what they
-    // ended up saying. Said here rather than at the two ends of the send, so the two
-    // cannot come apart; `lf-draft` says the same word for the same reason.
+    // The field refuses a second press while the first is unresolved. A pending result
+    // that has not painted also marks the widget busy; an optimistic result instead puts
+    // that state on its disabled Undo Button so the settled prose stays legible.
     #inFlight(decision, label = this.#label()) {
       this.#deciding = decision;
-      if (decision) this.setAttribute("aria-busy", "true");
+      // Optimistic content already says what the press did. Busy belongs to its disabled
+      // Undo Button, not as a dimming veil over the settled prose.
+      if (decision && !this.dataset.lfState) this.setAttribute("aria-busy", "true");
       else this.removeAttribute("aria-busy");
       this.#renderControls(label);
       this.#margin?.update();

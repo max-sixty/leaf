@@ -1754,35 +1754,23 @@ export function openButtonOptions(target) {
   return true;
 }
 
-function pageMapItemControl(item) {
-  const entry = item?.lfEntry;
-  if (!entry?.target) return null;
-  const available = clusterButtons(item);
-  const marker = rows.get(entry.key);
-  return marker && available.includes(marker)
-    ? marker
-    : (available.find((candidate) => candidate !== marker) ?? null);
+export function pageMapButtons() {
+  return pageMapEntries.flatMap((entry) => clusterButtons(hosts.get(entry.key)));
 }
 
-export function pageMapItems() {
-  return pageMapEntries
-    .map((entry) => hosts.get(entry.key))
-    .filter((item) => pageMapItemControl(item));
-}
-
-export function openPageMapItem(item) {
+export function openPageMapButton(control) {
+  const item = closestAcross(control, "[data-lf-margin-for]");
   const entry = item?.lfEntry;
-  const control = pageMapItemControl(item);
   if (!entry?.target || !control) return false;
   scrollToElement(entry.target, undefined, "nearest");
-  // Arrive before activation, then use the control's own press so this abbreviated
-  // Page-map route has the same meaning as its Button in the complete map.
+  // Arrive before activation, then use the exact visible Button's own press. A generated
+  // route never chooses among the cluster's actions on the reader's behalf.
   focusForNavigation(control);
   control.click();
   return true;
 }
 
-// The direct destination opens the complete map. Visible locations also join the page's
+// The direct destination opens the complete map. Its visible Buttons also join the page's
 // transient generated-hint namespace without claiming the sheet ends there.
 export function enterPageMap() {
   openSheet();

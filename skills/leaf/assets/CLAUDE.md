@@ -483,10 +483,12 @@ all enumerable labels in the control's current font and sets a minimum width.
 Re-measure after changing type tokens; avoid numeric reservations where the
 possible words are available.
 
-Submission feedback uses the shared lifecycle: busy paint while delivery is
-unresolved, the resulting content or control state as durable confirmation, and
-`notice` for a transient acknowledgment. Persistent status text is for a state the
-reader must return to or act on, such as failure.
+Submission feedback follows the state the reader can act from. A reversible action may
+paint its projected result in the gesture that queues it; the outbox keeps that
+result ahead of the log and restores authoritative state on refusal. Other unresolved
+submissions use busy paint. Resulting content or control state is durable confirmation
+and needs no success notice. Use `notice` only for a transient fact that state does not
+carry, and persistent status text for a failure the reader can act on.
 
 ## Keyboard, focus, and navigation
 
@@ -499,6 +501,9 @@ those objects.
 Treat that register as a product grammar, not a collection of locally convenient
 shortcuts. Before adding or changing a binding, survey the complete register for
 meaning, scope, native overlap, entry and exit symmetry, and focus restoration.
+Each generated hint names the exact visible control it activates. An aggregate location
+may expose each of its visible Buttons or focus itself; it never selects a descendant
+action for the reader.
 Document every inconsistency the survey exposes in the task handoff. If the rules
 here do not settle one, escalate it to the user before choosing locally; the
 absence of a dispatch conflict does not make a binding precise.

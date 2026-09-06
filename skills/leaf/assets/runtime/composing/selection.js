@@ -93,8 +93,12 @@ export let pendingDrawing = null;
 export let composerOpen = false;
 
 const closeReactions = () => setReact(false);
-const openInlineThread = (id, ...rest) =>
-  focusSurface(id) ?? marginOpenInlineThread(id, ...rest);
+const openInlineThread = (id, ...rest) => {
+  const local = focusSurface(id);
+  return (
+    local?.closest(".lf-conversation-thread") ?? marginOpenInlineThread(id, ...rest)
+  );
+};
 
 // What the open composer's comment is about: "layer" for one opened in design mode, so
 // the anchor chosen there — a widget, a control, a runtime part — posts with the word
@@ -222,11 +226,12 @@ syncComposer = wireInput(composerInput, {
       mayLandTyping(reply, composerInput);
     // Continue in the surface already in use. Closing an open panel here reflows the
     // passage just as the reader's comment moves across it to a new floating card.
-    const inlineReply =
+    const inlineThread =
       shouldLand && !panelIsOpen() ? openInlineThread(sent.id, transition) : null;
+    const inlineReply = inlineThread?.querySelector("textarea") ?? null;
     reply = inlineReply ?? reply;
     if (!inlineReply && (shouldLand || panelIsOpen())) {
-      showThread(sent.id, { stand: shouldLand });
+      showThread(sent.id, { focus: shouldLand ? "reply" : false });
       reply ??= threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
     }
     // The composer this was sent from is gone with the send; the thread it became

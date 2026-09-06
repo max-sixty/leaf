@@ -56,10 +56,10 @@ export function removeNode(node) {
 // second walk every two seconds would answer nothing the last one didn't.
 let listedThreads = [];
 
-// The open threads, in the order t/T walk. The list is the panel's own children rather
-// than a record kept beside them: a thread the log settles is renamed out of them in
-// that frame (foldOut), which takes it out of the walk and out of x's press in one
-// stroke.
+// The open threads, in the order t/T walk either surface. The canonical list is the
+// panel's own children rather than a record kept beside them: a thread the log settles
+// is renamed out of them in that frame (foldOut), which takes it out of the walk and out
+// of x's press in one stroke.
 // Cards a narrowing hid keep their nodes (thread-list.js) and are walked by nothing.
 export const openThreads = () => [
   ...threadsBox.querySelectorAll(":scope > .lf-thread:not([hidden])"),

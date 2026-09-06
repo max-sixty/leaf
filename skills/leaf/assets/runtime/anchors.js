@@ -9,7 +9,7 @@ import {
   shownBox,
   shownRect,
 } from "./geometry.js";
-import { marginButton, registerMarginItem } from "./living-margin.js";
+import { marginButton, openPageThread, registerMarginItem } from "./living-margin.js";
 import { scheduleMarginLayout } from "./margin-layout.js";
 import {
   resolvedElement,
@@ -68,7 +68,6 @@ import { renderPanel } from "./conversation/reconcile.js";
 import { commentOnTarget, fabAnchorAt, refreshFab } from "./composing/surface.js";
 import { aimedTarget, aimIsOn } from "./composing/aim.js";
 import { pointerAt } from "./pointer.js";
-import { setPanel } from "./chrome-layout.js";
 import { panel, threadsBox } from "./conversation/panel.js";
 import { withdraw } from "./projection.js";
 import { scrollerFor } from "./navigation.js";
@@ -963,16 +962,8 @@ function noteMarks(noted) {
       holder.appendChild(offer("button", NOTE));
     note.lfThreads = threadIds;
     note.onclick = () => {
-      setPanel(true);
-      const shown = (threadId) =>
-        threadsBox.querySelector(
-          `:scope > .lf-thread[data-id="${threadId}"]:not([hidden])`,
-        );
-      const id = note.lfThreads.find(shown);
-      const thread = id && shown(id);
-      if (!thread) return;
-      thread.focus({ preventScroll: true });
-      scrollToThread(id);
+      const id = note.lfThreads[0];
+      if (id) openPageThread(id, { focus: "thread" });
     };
     const n = threadIds.length;
     const said = `${n} comment${n === 1 ? "" : "s"}`;
@@ -1641,13 +1632,13 @@ function paintHover(id, repaintVisuals = true) {
   );
   if (repaintVisuals) paintVisualStates();
 }
-// Which comment the reader is standing in, said out on the page. The panel has always
-// answered it on its own surface — the thread holds the focus, and a press on a mark
+// Which comment the reader is standing in, said out on the page. The conversation card
+// answers it on its own surface — the thread holds the focus, and a press on a mark
 // flashes the bounded target it opens — while the page answered nothing back: every
 // posted mark wears one wash, so a reader sent from a comment to its passage arrived
 // among a dozen identical marks with no way to tell which one they had asked to see.
-// The t/T walk's comment already called the panel and the page "two views of the same
-// thread"; this is the view that was missing.
+// The thread surface and the page are two views of the same thread; this is the view that
+// was missing.
 //
 // Derived from the focus rather than written where the travel put the reader, for the
 // reason markHere gives about the decision ring: a mark written at the arrival says where the

@@ -614,7 +614,10 @@ Core calls `begin`, asks `outletFor` about each exact datum thread owned by that
 then calls `end`. The adapter returns an element inside the widget or `null`. It owns
 only outlet creation, removal, and layout. Core renders the retained messages, replies,
 reactions, settlement controls, and receipts into each outlet. A claimed thread does not
-also appear in the living margin; the Threads panel remains the complete index.
+also appear in the living margin; the Threads panel remains the complete index. With
+Threads closed, `t`/`T` lands on this local surface before trying the living-margin
+fallback. Opening Threads from the focused surface carries the same thread into the
+panel.
 
 The adapter returns `null` for data that is filtered, collapsed, or not yet hydrated.
 That keeps lazy widgets lazy and restores the living-margin fallback. Deliberate thread

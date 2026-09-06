@@ -3908,6 +3908,16 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
         f"and title included:\n{linked.output}"
     )
 
+    referenced = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--text", f"![shot][ref]\n\n[ref]: {missing}"],
+    )
+    assert referenced.exit_code == 1, (
+        f"a reference definition is where a reference-style image keeps its "
+        f"destination, and the runtime renders it as the inline form:\n"
+        f"{referenced.output}"
+    )
+
     (page_dir / "media").mkdir(exist_ok=True)
     (page_dir / "media" / "deadbeefdeadbeef.png").write_bytes(b"\x89PNG\r\n\x1a\n")
     answered = CliRunner().invoke(

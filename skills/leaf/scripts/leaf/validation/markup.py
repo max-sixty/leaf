@@ -7,10 +7,14 @@ from leaf.schema import _DIR_FILES, MEDIA_DIR
 from leaf.structure import OPTIONAL_END, SECTIONING_TAGS, _StructParser
 from leaf.styles import inline_presentation_override_errors
 
-# One media reference as a message's Markdown writes it: a link or image destination,
-# read where the runtime's own `isCanonicalMediaUrl` reads one, so a path standing in a
-# sentence or a fence keeps being the author's words rather than a file the page owes.
-MEDIA_REFERENCE = re.compile(rf"\]\(\s*<?(/{MEDIA_DIR}/{_DIR_FILES[MEDIA_DIR]})")
+# One media reference as a message's Markdown writes it: an inline destination, or the
+# definition a reference-style link resolves through, read where the runtime's own
+# `isCanonicalMediaUrl` reads one — so a path standing in a sentence or a fence keeps
+# being the author's words rather than a file the page owes.
+MEDIA_REFERENCE = re.compile(
+    rf"(?:\]\(\s*|^ {{0,3}}\[[^\]\n]+\]:\s*)<?(/{MEDIA_DIR}/{_DIR_FILES[MEDIA_DIR]})",
+    re.MULTILINE,
+)
 
 
 def reserved_ids_error(ids: list) -> str:
@@ -198,8 +202,11 @@ def text_media_errors(text: str, page_dir: Path) -> list:
     resolves `/media/…` off a token's href and nowhere else, `version check` says the
     same of authored markup, and `inline_assets` learned it from an export a text scan
     crashed. So a path quoted in prose is the author writing about leaf, and only a
-    destination is a file the directory has to answer. The residual is a fence quoting
-    a whole image construct — the one `inline_assets` names and accepts too."""
+    destination is a file the directory has to answer. A destination is written two
+    ways, and `marked` resolves both to the same href: inline after `](`, or as the
+    definition a reference-style `![shot][ref]` points at. The residual is a fence
+    quoting either construct — the one `inline_assets` names and accepts too — and a
+    definition nothing references, which renders nothing but reads as one."""
     return _unanswered_media(set(MEDIA_REFERENCE.findall(text)), page_dir)
 
 

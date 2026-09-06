@@ -443,21 +443,42 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     page.close()
 
     # Native focus scrolling reads the fixed key line as part of the root scrollport's
-    # unavailable foot. At phone width the field otherwise lands underneath that line:
+    # unavailable foot. In a phone window the field otherwise lands underneath that line:
     # geometrically in the viewport, but neither visible nor operable as the next stop.
+    #
+    # Short enough that the ask's own foot is under the line when the reader arrives, which
+    # is the only arrangement in which the claim can be read at all. With the whole ask on
+    # screen a Tab stop is already where the browser would put it, nothing scrolls, and the
+    # reading goes green over the travel it is about; the assertion before the presses says
+    # so rather than leaving it to the window's height to be right.
     page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
-    resized(page, 390, 844)
+    resized(page, 390, 640)
+    clearance = """() => document.querySelector('.lf-keyline').getBoundingClientRect().top
+      - document.querySelector('#storage-options > .lf-another')
+        .getBoundingClientRect().bottom"""
+    # The arrival is a glide, and a Tab pressed into it reads a position the page is only
+    # passing through: the glide goes on to its own destination afterwards and takes the
+    # measurement with it. The document says where it came to rest as it comes to rest
+    # there, which is the fact this stands on rather than a sampled frame near it.
+    page.evaluate("""() => {
+        window.lfRestedAt = null;
+        addEventListener("scrollend", event => {
+            if (event.target === document)
+                window.lfRestedAt = document.scrollingElement.scrollTop;
+        });
+    }""")
     page.keyboard.press("a")
+    page.wait_for_function(
+        "() => window.lfRestedAt === document.scrollingElement.scrollTop"
+    )
+    covered = page.evaluate(clearance)
+    assert covered < 0, f"the arrival left the add field {covered}px clear of the line"
     for _ in range(3):
         page.keyboard.press("Tab")
     box = page.locator("#storage-options > .lf-another textarea")
     expect(box).to_be_focused()
-    clearance = page.evaluate(
-        """() => document.querySelector('.lf-keyline').getBoundingClientRect().top
-          - document.querySelector('#storage-options > .lf-another')
-            .getBoundingClientRect().bottom"""
-    )
-    assert clearance >= 20, f"the key line covers the add field by {-clearance}px"
+    landed = page.evaluate(clearance)
+    assert landed >= 20, f"the key line covers the add field by {-landed}px"
     assert errors == []
     page.close()
 

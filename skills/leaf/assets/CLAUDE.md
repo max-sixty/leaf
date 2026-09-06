@@ -488,10 +488,11 @@ shown as trackable motion rather than an unexplained jump.
 
 Control state is paint: ink, fill, border, or an inset ring. Do not express it by
 changing font weight, size, padding, border width, or another metric. Reserve
-space before a label changes or a generated control appears. `reserve` measures
-all enumerable labels in the control's current font and sets a minimum width.
-Re-measure after changing type tokens; avoid numeric reservations where the
-possible words are available.
+space before a generated control appears. An action that still means the same thing
+keeps its label; report transient success with `notice` instead of relabeling the
+control. When a control's meaning genuinely changes, `reserve` measures all enumerable
+labels in its current font and sets a minimum width. Re-measure after changing type
+tokens; avoid numeric reservations where the possible words are available.
 
 Submission feedback uses the shared lifecycle: busy paint while delivery is
 unresolved, the resulting content or control state as durable confirmation, and

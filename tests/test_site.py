@@ -779,10 +779,16 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
         )
         page.reload(wait_until="domcontentloaded")
         replay = gallery.locator("[data-interaction-replay]")
-        expect(gallery.locator("[data-interaction-status]")).to_have_text(
-            "Send a comment · Loading"
+        page.wait_for_function(
+            """() => {
+                const gallery = document.querySelector('#bg-interactions');
+                const status = gallery?.querySelector('[data-interaction-status]');
+                const replay = gallery?.querySelector('[data-interaction-replay]');
+                return status?.textContent
+                    === 'Send a comment · Loading'
+                    && replay?.disabled;
+            }"""
         )
-        expect(replay).to_be_disabled()
         expect(gallery.locator("[data-interaction-status]")).to_have_text(
             "Send a comment · Ready — motion will start only when you press Play",
             timeout=15_000,

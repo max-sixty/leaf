@@ -538,6 +538,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         card = gallery.locator("#bg-motion-card")
 
         expect(status).to_have_text("Accept a suggestion · Playing")
+        expect(gallery.locator(".interaction-pointer").first).to_be_visible()
         toggle_box = toggle.bounding_box()
         assert toggle_box["y"] + toggle_box["height"] <= 900
         gallery.locator(".interaction-stage").first.evaluate(
@@ -566,12 +567,16 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         gallery.locator("[data-interaction-replay]").click()
         expect(status).to_have_text("Move a card · Playing")
         assert card.evaluate("card => card.parentElement.id") == "bg-motion-ready"
+        assert card.evaluate("card => card.getAnimations().length") == 0
         expect(status).to_have_text("Move a card · Complete", timeout=10_000)
         assert card.evaluate("card => card.parentElement.id") == "bg-motion-tried"
         assert read_events(page_dir) == before
         page.set_viewport_size({"width": 390, "height": 844})
         assert gallery.locator("#bg-motion-board").evaluate(
             "board => board.scrollWidth === board.clientWidth"
+        )
+        assert gallery.locator("#bg-motion-board").evaluate(
+            "board => getComputedStyle(board).gridAutoFlow === 'row'"
         )
 
         replacement_installed = gallery.evaluate(

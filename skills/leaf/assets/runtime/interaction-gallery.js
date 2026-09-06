@@ -7,7 +7,7 @@
 
 class StaleDemo extends Error {}
 
-const ARRIVAL_PAUSE = 1800;
+const ARRIVAL_PAUSE = 900;
 const POINTER_TRAVEL = 1400;
 const RESULT_PAUSE = 1200;
 
@@ -51,6 +51,8 @@ class Demo {
     this.pointerPosition = null;
     this.pausedByView = false;
     scenarios[this.name].reset(this);
+    // Reset is the starting frame, not a third transition before the demonstration.
+    this.stopAnimations();
     this.setState("ready");
   }
 
@@ -149,15 +151,20 @@ class Demo {
     };
   }
 
-  async movePointer(target, generation) {
-    const to = this.pointAt(target);
-    const from = this.pointerPosition ?? {
+  showPointer() {
+    const from = {
       x: this.stage.clientWidth * 0.16,
       y: this.stage.clientHeight * 0.82,
     };
+    this.pointerPosition = from;
     this.pointer.hidden = false;
     this.pointer.style.transform = `translate(${from.x}px, ${from.y}px)`;
     this.pointer.style.opacity = "1";
+  }
+
+  async movePointer(target, generation) {
+    const to = this.pointAt(target);
+    const from = this.pointerPosition;
     const animation = await this.animate(
       this.pointer,
       [
@@ -219,6 +226,7 @@ const scenarios = {
         .renderState({ settlement: { value: null } });
     },
     async play(demo, generation) {
+      demo.showPointer();
       await demo.wait(ARRIVAL_PAUSE, generation);
       const suggestion = document.querySelector("#bg-motion-accept");
       const accept = await demo.waitFor(
@@ -249,6 +257,7 @@ const scenarios = {
         .renderState({ placement: { value: placements.ready } });
     },
     async play(demo, generation) {
+      demo.showPointer();
       await demo.wait(ARRIVAL_PAUSE, generation);
       const board = document.querySelector("#bg-motion-board");
       const grip = await demo.waitFor(

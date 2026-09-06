@@ -495,7 +495,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
         expect(developer_galleries).to_be_visible()
         developer_galleries.scroll_into_view_if_needed()
         expect(developer_galleries.locator("a.developer-gallery-link")).to_have_count(2)
-        expect(developer_galleries.locator("iframe, lf-tabs")).to_have_count(0)
+        expect(page.locator("iframe, lf-tabs")).to_have_count(0)
         published = {
             path.name for path in (site / "examples").iterdir() if path.is_dir()
         }
@@ -559,9 +559,11 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         expect(accept).to_have_attribute("data-lf-state", "accept")
         assert read_events(page_dir) == before
 
-        gallery.get_by_role("tab", name="Move a card").click()
+        move_tab = gallery.get_by_role("tab", name="Move a card")
+        move_tab.click()
         expect(status).to_have_text("Move a card · Complete", timeout=10_000)
         assert card.evaluate("card => card.parentElement.id") == "bg-motion-tried"
+        assert move_tab.evaluate("tab => document.activeElement === tab")
         assert read_events(page_dir) == before
 
         gallery.locator("[data-interaction-replay]").click()
@@ -583,6 +585,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
             """gallery => {
                 const replacement = gallery.cloneNode(true);
                 replacement.removeAttribute('data-interaction-installed');
+                replacement.querySelector('.interaction-controls')?.remove();
                 gallery.replaceWith(replacement);
                 document.dispatchEvent(new Event('lf-actions'));
                 return new Promise(resolve => requestAnimationFrame(() =>

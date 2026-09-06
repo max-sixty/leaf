@@ -5,6 +5,9 @@
  * gallery opts in with data-interaction-gallery, so ordinary Leaf pages pay no runtime
  * or behavior cost for this developer surface. */
 
+import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
+import { el, offer } from "./widget-elements.js";
+
 class StaleDemo extends Error {}
 
 const ARRIVAL_PAUSE = 900;
@@ -267,7 +270,6 @@ const scenarios = {
       );
       await demo.movePointer(grip, generation);
       await demo.press(generation);
-      grip.focus({ preventScroll: true });
       await demo.wait(480, generation);
       board.renderState({ placement: { value: placements.tried } });
       await demo.waitFor(
@@ -296,10 +298,17 @@ export function installInteractionGallery() {
   gallery.dataset.interactionInstalled = "1";
   const tabs = gallery.querySelector("lf-tabs");
   const panels = [...tabs.querySelectorAll(":scope > lf-tab")];
-  const toggle = gallery.querySelector("[data-interaction-toggle]");
-  const replay = gallery.querySelector("[data-interaction-replay]");
-  const status = gallery.querySelector("[data-interaction-status]");
-  const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  const controls = el("div", "interaction-controls");
+  controls.setAttribute("aria-label", "Animation controls");
+  const toggle = offer("button", "interaction-control", "Loading…");
+  toggle.dataset.interactionToggle = "";
+  const replay = offer("button", "interaction-control", "Replay");
+  replay.dataset.interactionReplay = "";
+  const status = el("span", "interaction-status", "Loading the first interaction…");
+  status.dataset.interactionStatus = "";
+  status.setAttribute("aria-live", "polite");
+  controls.append(toggle, replay, status);
+  tabs.before(controls);
   let active = null;
   let onScreen = false;
 
@@ -327,7 +336,7 @@ export function installInteractionGallery() {
     const label = active.panel.getAttribute("label");
     const states = {
       idle: "Loading",
-      ready: reduced.matches
+      ready: reducedMotion()
         ? "Ready — motion will start only when you press Play"
         : "Ready",
       playing: "Playing",
@@ -341,7 +350,7 @@ export function installInteractionGallery() {
   }
 
   function maybePlay() {
-    if (!active || !onScreen || reduced.matches) return;
+    if (!active || !onScreen || reducedMotion()) return;
     if (active.state === "ready") void active.play();
     else if (active.state === "paused" && active.pausedByView) active.resume();
   }
@@ -381,12 +390,11 @@ export function installInteractionGallery() {
     { threshold: 0.2 },
   );
   viewObserver.observe(gallery);
-  const motionPreferenceChanged = () => {
-    if (reduced.matches) active?.pause();
+  const stopMotionPreference = onMotionPreferenceChange((reduced) => {
+    if (reduced) active?.pause();
     else maybePlay();
     renderControls();
-  };
-  reduced.addEventListener("change", motionPreferenceChanged);
+  });
 
   uninstallGallery = () => {
     for (const demo of demos.values()) {
@@ -397,7 +405,7 @@ export function installInteractionGallery() {
     viewObserver.disconnect();
     toggle.removeEventListener("click", togglePlayback);
     replay.removeEventListener("click", replayActive);
-    reduced.removeEventListener("change", motionPreferenceChanged);
+    stopMotionPreference();
   };
 
   syncActive();

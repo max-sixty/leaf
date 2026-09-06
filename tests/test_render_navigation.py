@@ -1102,6 +1102,16 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
         if event["kind"] == "comment"
     ]
 
+    # A panel search belongs to the panel. Closing it keeps that search for the next
+    # visit, but must not silently remove a visible page thread from the inline walk.
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, True)
+    page.fill(".lf-find-box", "neighbouring block")
+    expect(page.locator(f'.lf-thread[data-id="{roots[0]}"]')).to_be_hidden()
+    expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_visible()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, False)
+
     page.keyboard.press("t")
     first = page.locator(
         f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[0]}"]'

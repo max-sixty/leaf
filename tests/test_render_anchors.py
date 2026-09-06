@@ -4174,8 +4174,10 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     file.evaluate("details => { details.open = true; }")
     expect(thread.locator("textarea")).to_be_visible()
 
-    with sending(page, "the inline resolution"):
-        thread.get_by_role("button", name="Resolve", exact=True).click()
+    thread.focus()
+    expect(thread).to_be_focused()
+    with sending(page, "the inline keyboard resolution"):
+        page.keyboard.press("x")
     expect(thread).not_to_have_attribute("open", "")
     summary = thread.locator(".lf-conversation-summary")
     expect(summary).to_have_text("Resolved · 2 messages")

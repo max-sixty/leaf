@@ -106,7 +106,7 @@ export function pageParts(sel) {
 
 // ---------- what the page's keys are live over ----------
 function hasThreads() {
-  return openThreads().length > 0;
+  return openThreads({ visibleOnly: panelIsOpen() }).length > 0;
 }
 
 // The focused thread, one predicate: the row the line paints and the press the dispatcher
@@ -567,6 +567,7 @@ function landInThreadReply(thread) {
 const resolutionControl = (thread) =>
   thread?.querySelector(
     ":scope > .lf-compose > .lf-thread-actions > :is(.lf-resolve, .lf-reopen), " +
+      ":scope > .lf-say > .lf-conversation-actions > :is(.lf-resolve, .lf-reopen), " +
       ":scope > .lf-thread-actions > :is(.lf-resolve, .lf-reopen), " +
       ":scope > :is(.lf-conversation-actions, .lf-conversation-resolved) " +
       ":is(.lf-resolve, .lf-reopen)",

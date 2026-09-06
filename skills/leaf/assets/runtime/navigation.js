@@ -64,7 +64,7 @@ export function commentOnItem(item) {
 // with no page address is indexed only by Threads, so that destination opens the panel.
 // Once the panel is open, the walk stays in its list. Both paths are clamped, not wrapped.
 export function stepThread(dir) {
-  const threads = openThreads();
+  const threads = openThreads({ visibleOnly: panelIsOpen() });
   const inline = activeInlineThread();
   const current = panelIsOpen()
     ? document.activeElement?.closest?.(".lf-thread")

@@ -150,19 +150,19 @@ def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
         page.close()
 
 
-def test_a_website_example_says_no_agent_will_respond(browser, serve):
+def test_a_website_example_names_its_limited_agent(browser, serve):
     page, errors = open_page(
         browser,
         serve(
             leaf_page("Website example", "<h1>Website example</h1>"),
-            website_example={"install_url": "/#install"},
+            website_example={"agent": "Leaf guide", "install_url": "/#install"},
         ),
     )
     try:
         status = page.locator(".lf-banner .lf-status-text")
         expect(status).to_have_text(
-            "This is an example on the Leaf website. No agent will respond. "
-            "Install Leaf"
+            "This is an example on the Leaf website. Leaf guide replies here, but "
+            "cannot edit this page. Install Leaf"
         )
         expect(status.locator("a")).to_have_attribute("href", "/#install")
         expect(page.locator(".lf-banner .lf-dot")).to_have_class(

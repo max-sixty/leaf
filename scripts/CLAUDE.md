@@ -14,9 +14,9 @@ file says which script owns what, and the rules that hold across them.
   `--export` writes the browser-drawn result as one standalone file instead.
 - `corpus.py` generates the internal `examples/corpus.html` stress fixture and its
   companion data from the public examples and the developer feature gallery.
-- `example-previews.py` draws the stills for `docs/examples.html`, the public gallery,
-  whose visual catalog links only to user examples and reaches the developer feature
-  gallery through a text link below it.
+- `example-previews.py` draws the stills for `docs/examples.html` through the live
+  published-example server. It uses the locked Playwright headless shell and refuses
+  fallback fonts that would replace the macOS image corpus.
 
 Edit a source page, then regenerate the corpus. `examples/CLAUDE.md` owns the fixture
 rules a new or changed example has to meet.
@@ -48,3 +48,10 @@ so a diff from either can be an upstream patch rather than drift.
 
 Rerun a bundle after changing its pin or the registry input it reads; do not patch a
 generated bundle or `examples/corpus.html` directly.
+
+## Lint harness
+
+`evaluation-order-faults.mjs` plants the faults that pin `eslint.config.mjs`'s
+`leaf/evaluation-order` rule, which `skills/leaf/assets/CLAUDE.md` describes. Run it
+through its pre-commit hook, `eslint-evaluation-order`, which supplies the node and the
+pinned eslint it needs on `PATH`.

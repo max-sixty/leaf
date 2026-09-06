@@ -94,10 +94,10 @@ def published_pages():
 
 
 @pytest.fixture(scope="module")
-def site(tmp_path_factory):
+def site(tmp_path_factory, browser):
     """One build for the module: it vendors a layer and checks every published page."""
     out = tmp_path_factory.mktemp("published") / "site"
-    site_build.build(out)
+    site_build.build(out, browser=browser)
     return out
 
 
@@ -644,8 +644,8 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
             newest = len(example_versions(source))
             expect(page.locator(".lf-banner .lf-version")).to_have_text(f"v{newest} ▾")
             expect(page.locator(".lf-status-text")).to_have_text(
-                "This is an example on the Leaf website. No agent will respond. "
-                "Install Leaf"
+                "This is an example on the Leaf website. Leaf guide replies here, "
+                "but cannot edit this page. Install Leaf"
             )
             assert not errors, f"{source.name}: {errors[:3]}"
 
@@ -719,8 +719,8 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     page, errors = open_page(browser, url)
     try:
         expect(page.locator(".lf-banner .lf-status-text")).to_have_text(
-            "This is an example on the Leaf website. No agent will respond. "
-            "Install Leaf"
+            "This is an example on the Leaf website. Leaf guide replies here, but "
+            "cannot edit this page. Install Leaf"
         )
         expect(page.locator(".lf-banner .lf-status-text a")).to_have_attribute(
             "href", "/#install"
@@ -735,7 +735,10 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
             re.compile(r"^lf-dot\s*$")
         )
         state = page.evaluate("() => fetch('api/state').then(r => r.json())")
-        assert state["example"] == {"install_url": "/#install"}
+        assert state["example"] == {
+            "agent": "Leaf guide",
+            "install_url": "/#install",
+        }
         assert state["claims"] == []
         assert state["host"] is None
         assert state["session_alive"] is None

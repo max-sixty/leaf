@@ -3929,6 +3929,34 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     page.close()
 
 
+def test_an_arrival_keeps_a_readable_native_fragment_where_the_browser_landed_it(
+    browser, serve
+):
+    """Startup does not centre a static fragment that is already wholly readable."""
+    url = serve(
+        leaf_page(
+            "native fragment arrival",
+            """
+<h1>Native fragment arrival</h1>
+<div style="height: 900px"></div>
+<section id="arrival"><h2>Arrival</h2><p>The whole destination is visible.</p></section>
+<div style="height: 900px"></div>
+""",
+        )
+    )
+    page, errors = open_page(browser, f"{url}#arrival")
+    arrival = page.locator("#arrival")
+    position = arrival.evaluate(
+        """element => ({
+          top: element.getBoundingClientRect().top,
+          clear: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
+        })"""
+    )
+    assert abs(position["top"] - position["clear"]) < 2, position
+    assert errors == []
+    page.close()
+
+
 def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
     """A suggestion's words are bound for the page verbatim, so the panel shows them
     as typed. Rendering them would promise the user an italic where the next

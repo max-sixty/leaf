@@ -47,12 +47,20 @@ page. The browser gate is the guarantee (`leaf version check --render` and the
 everyday smoke test read page errors); the lint rule is the early, line-precise word:
 it refuses a module-scope read of a cycle binding or call of a cycle function, over the
 whole runtime directory whenever a runtime file is committed, and it does not see a
-callback another module runs during evaluation.
+callback another module runs during evaluation. The register closes the one such path
+it owns: `keys()` checks a declaration's shape and publishes it unread, and the repaint
+frame — which lands after every module body — is where a scope is first read, where its
+capability and row `when` predicates first run, where an ambiguous scope is refused, and
+where `aria-keyshortcuts` is first written. The `eslint-evaluation-order` pre-commit
+hook runs `scripts/evaluation-order-faults.mjs`, which feeds eslint the faults above at
+a real cycle path and checks that the rule refuses each on the right line.
 `runtime/chrome.js` owns the chrome's root, the order its parts stack in, and
 `mountChrome`, the one step that puts them in the document and wires what needs them
 there;
 `runtime/standing.js` owns the one repaint of where the reader stands, in the order
 the geometry demands;
+`runtime/walk-position.js` owns the transient ordinal the keyline reads for an active
+Ask or Thread keyboard walk;
 `runtime/icons.js` owns the layer's icon table;
 `runtime/context.js` owns the mutable facts shared across the browser layers and
 their direct readers;
@@ -102,7 +110,7 @@ subscriptions;
 `bindings.js` the spelling, parsing, row fields, and checks; `scopes.js` where a group
 of rows applies; `dispatch.js` which scope answers a press and what it owes the
 platform; `return-stack.js` what a keyboard entry owes on the way back out;
-`keyline.js` the short help at the foot of the page and its More control;
+`keyline.js` the status and short help at the foot of the page and its More control;
 `reference.js` the complete listing behind `?`; `address.js` the go-to chord;
 `address-placement.js` shared address visibility and the numeric Ask placement pass;
 `hints.js` prefix-free transient labels and their no-drop placement pass;

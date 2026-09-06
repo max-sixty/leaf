@@ -684,6 +684,10 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     expect(nums.first).to_be_hidden()
 
     page.keyboard.press("a")
+    position = page.locator(".lf-walk-position")
+    expect(position).to_have_text("Ask 1 of 4 open")
+    expect(position).to_have_attribute("aria-hidden", "true")
+    expect(position.locator("xpath=parent::*")).to_have_class(re.compile("lf-keyline"))
     marks = page.locator("#live-question .lf-pick")
     # The arrival stands on the Ask, which wears its options' digits; the marks
     # are the next Tab stops.
@@ -692,6 +696,7 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
+    expect(position).to_have_text("Ask 1 of 4 open")
     expect(
         page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_text(["1", "2"])
@@ -714,11 +719,60 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     page.keyboard.press("1")
     expect(page.locator("#lq-keep")).to_have_attribute("chosen", "")
     round_trip(page)
+    expect(position).to_be_hidden()
     acts = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
     assert acts[-1]["widget"] == "live-question"
     assert acts[-1]["detail"] == {"options": ["lq-keep"]}
+    assert errors == []
+    page.close()
+
+
+def test_the_ask_walk_position_leads_the_narrow_status_line(browser, serve):
+    """Navigation context gets the first row without acquiring a second box."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    resized(page, 390, 780)
+    position = page.locator(".lf-walk-position")
+    expect(position).to_be_hidden()
+    expect(page.locator(".lf-banner-menu > .lf-asks")).to_have_count(1)
+
+    page.keyboard.press("a")
+    expect(position).to_have_text("Ask 1 of 4 open")
+    geometry = page.evaluate(
+        """() => {
+          const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+          const position = box('.lf-walk-position');
+          const hint = box('.lf-keyline .lf-key:not([hidden])');
+          const line = box('.lf-keyline');
+          const style = getComputedStyle(document.querySelector('.lf-walk-position'));
+          return {position: {left: position.left, right: position.right,
+                             top: position.top, bottom: position.bottom},
+                  hint: {top: hint.top},
+                  line: {left: line.left, right: line.right},
+                  first: document.querySelector('.lf-keyline').firstElementChild
+                    .className,
+                  parent: document.querySelector('.lf-walk-position').parentElement
+                    .className,
+                  face: {background: style.backgroundColor,
+                         border: style.borderTopWidth, shadow: style.boxShadow},
+                  userSelect: style.userSelect};
+        }"""
+    )
+    assert "lf-walk-position" in geometry["first"], geometry
+    assert "lf-keyline" in geometry["parent"], geometry
+    assert geometry["position"]["bottom"] <= geometry["hint"]["top"], geometry
+    assert geometry["line"]["left"] <= geometry["position"]["left"], geometry
+    assert geometry["position"]["right"] <= geometry["line"]["right"], geometry
+    assert geometry["face"] == {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px",
+        "shadow": "none",
+    }, geometry
+    assert geometry["userSelect"] == "none", geometry
+
+    page.locator("#h").click()
+    expect(position).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -1022,7 +1076,7 @@ def test_a_page_mark_does_not_wash_a_long_thread_card(browser, serve):
             "revision": 1,
             "text": "\n\n".join(
                 f"Consideration {i}: this thread needs its full context."
-                for i in range(18)
+                for i in range(24)
             ),
         },
     )
@@ -1160,8 +1214,15 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     page.fill(".lf-find-box", "neighbouring block")
     expect(page.locator(f'.lf-thread[data-id="{roots[0]}"]')).to_be_hidden()
     expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_visible()
+    position = page.locator(".lf-walk-position")
+    page.locator(".lf-threads").focus()
+    page.keyboard.press("t")
+    expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_focused()
+    expect(position).to_have_text("Thread 1 of 1 shown")
+    expect(position.locator("xpath=parent::*")).to_have_class(re.compile("lf-keyline"))
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, False)
+    expect(position).to_be_hidden()
 
     page.keyboard.press("t")
     first = page.locator(
@@ -1169,6 +1230,8 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     )
     expect(first).to_be_focused()
     expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(position).to_have_text("Thread 1 of 2")
+    expect(position).to_have_attribute("aria-hidden", "true")
 
     page.keyboard.press("t")
     second = page.locator(
@@ -1176,9 +1239,11 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     )
     expect(second).to_be_focused()
     expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(position).to_have_text("Thread 2 of 2")
 
     page.keyboard.press("Shift+t")
     expect(first).to_be_focused()
+    expect(position).to_have_text("Thread 1 of 2")
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -3713,10 +3778,13 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
 
 
 def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
-    """An ambiguous row set is refused at the register boundary.
+    """An ambiguous row set is refused at the scope's first paint, gated or not.
 
-    Reusing a key in mutually exclusive states remains valid; a card grip relies on that
-    to make Enter and Space mean grab before the move and drop during it."""
+    A declaration's shape is still refused where it is written, but what its rows mean
+    is read only once every module has evaluated, so the ambiguity surfaces at that
+    paint and takes the scope down with it. Reusing a key in mutually exclusive states
+    remains valid; a card grip relies on that to make Enter and Space mean grab before
+    the move and drop during it."""
     page, errors = open_page(browser, serve(NOTED_PAGE))
     answers = page.evaluate(
         """async () => {
@@ -3746,19 +3814,17 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               return error.message;
             }
           };
-          const keptInvalid = (id, when) => {
+          const firstPaint = (id, rows, when) => {
             const button = document.createElement('button');
             button.id = id;
             document.querySelector('main').append(button);
             let declaration = 'declared';
             try {
-              commands(button, id, [
-                {id: 'test.kept-first', keys: ['F4'], does: 'First kept meaning', line: 'first', run: () => {}},
-                {id: 'test.kept-second', keys: ['F4'], does: 'Second kept meaning', line: 'second', run: () => {}},
-              ], when);
+              commands(button, id, rows, when);
             } catch (error) {
               declaration = error.message;
             }
+            const declared = button.getAttribute('aria-keyshortcuts');
             const paints = [];
             for (let i = 0; i < 2; i++) {
               try {
@@ -3768,7 +3834,38 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
                 paints.push(error.message);
               }
             }
-            return {declaration, paints};
+            const painted = button.getAttribute('aria-keyshortcuts');
+            button.remove();
+            return {declaration, declared, paints, painted};
+          };
+          const atTheFrame = async (id, rows) => {
+            const button = document.createElement('button');
+            button.id = id;
+            document.querySelector('main').append(button);
+            commands(button, id, rows);
+            const declared = button.getAttribute('aria-keyshortcuts');
+            await new Promise((settle) =>
+              requestAnimationFrame(() => requestAnimationFrame(settle)));
+            const framed = button.getAttribute('aria-keyshortcuts');
+            button.remove();
+            return {declared, framed};
+          };
+          // Declared twice before any paint: the first declaration ambiguous, the second
+          // sound. Only the frame reads the superseded one, so this is the case a paintKeys
+          // call cannot reach.
+          const redeclaredAtTheFrame = async (id, first, second) => {
+            const button = document.createElement('button');
+            button.id = id;
+            document.querySelector('main').append(button);
+            commands(button, id, first);
+            commands(button, id, second);
+            await new Promise((settle) =>
+              requestAnimationFrame(() => requestAnimationFrame(settle)));
+            const framed = button.getAttribute('aria-keyshortcuts');
+            const standing = Boolean(
+              (await import('/runtime/keyboard/scopes.js')).elementScopes.get(button));
+            button.remove();
+            return {framed, standing};
           };
           const malformedFrame = () => {
             try {
@@ -3783,11 +3880,15 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             }
           };
           return {
-            ambiguous: declare('ambiguous', [
+            ambiguous: firstPaint('ambiguous', [
               {id: 'test.first', keys: ['F2'], does: 'First meaning', line: 'first', run: () => {}},
               {id: 'test.second', keys: ['F2'], does: 'Second meaning', line: 'second', run: () => {}},
             ]),
-            exclusive: declare('exclusive', [
+            gatedAmbiguous: firstPaint('gated-ambiguous', [
+              {id: 'test.gated-first', keys: ['F4'], does: 'First gated meaning', line: 'first', run: () => {}},
+              {id: 'test.gated-second', keys: ['F4'], does: 'Second gated meaning', line: 'second', run: () => {}},
+            ], () => true),
+            exclusive: firstPaint('exclusive', [
               {id: 'test.first-state', keys: ['F2'], does: 'First state', line: 'first',
                when: () => true, run: () => {}},
               {id: 'test.second-state', keys: ['F2'], does: 'Second state', line: 'second',
@@ -3867,13 +3968,35 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
                line: 'enter', returnFrame: () => ({})},
             ]),
             malformedFrame: malformedFrame(),
-            immediateTransaction: keptInvalid('kept-immediate'),
-            gatedTransaction: keptInvalid('kept-gated', () => true),
+            atFrame: await atTheFrame('frame-painted', [
+              {id: 'test.frame-painted', keys: ['F7'], does: 'Painted at the frame',
+               line: 'frame', run: () => {}},
+            ]),
+            redeclared: await redeclaredAtTheFrame('redeclared', [
+              {id: 'test.stale-first', keys: ['F9'], does: 'First stale meaning',
+               line: 'first', run: () => {}},
+              {id: 'test.stale-second', keys: ['F9'], does: 'Second stale meaning',
+               line: 'second', run: () => {}},
+            ], [
+              {id: 'test.replacing', keys: ['F9'], does: 'The declaration that stands',
+               line: 'stands', run: () => {}},
+            ]),
           };
         }"""
     )
-    assert "two live meanings for F2" in answers["ambiguous"], answers
-    assert answers["exclusive"] == "declared", answers
+    for name, binding in (("ambiguous", "F2"), ("gatedAmbiguous", "F4")):
+        refused = answers[name]
+        assert refused["declaration"] == "declared", answers
+        assert refused["declared"] is None, answers
+        assert f"two live meanings for {binding}" in refused["paints"][0], answers
+        assert refused["paints"][1] == "painted", answers
+        assert refused["painted"] is None, answers
+    assert answers["exclusive"] == {
+        "declaration": "declared",
+        "declared": None,
+        "paints": ["painted", "painted"],
+        "painted": "F2",
+    }, answers
     assert "has no stable command id" in answers["missingIdentity"], answers
     assert "is not a stable command id" in answers["malformedIdentity"], answers
     assert "declares test.same twice" in answers["duplicateIdentity"], answers
@@ -3906,11 +4029,12 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     assert "must return active, close, does, and line" in answers["malformedFrame"], (
         answers
     )
-    assert "two live meanings for F4" in answers["immediateTransaction"]["declaration"]
-    assert answers["immediateTransaction"]["paints"] == ["painted", "painted"]
-    assert answers["gatedTransaction"]["declaration"] == "declared"
-    assert "two live meanings for F4" in answers["gatedTransaction"]["paints"][0]
-    assert answers["gatedTransaction"]["paints"][1] == "painted"
+    # Nobody repaints the register for this one. The repaint frame the declaration itself
+    # asks for is the first paint, so the projection lands there without a state change.
+    assert answers["atFrame"] == {"declared": None, "framed": "F7"}, answers
+    # The superseded declaration is owed no reading: read at the frame, its refusal
+    # would have retracted the one that replaced it.
+    assert answers["redeclared"] == {"framed": "F9", "standing": True}, answers
 
     # Help merges instances with the same title for presentation. Repeated keys there
     # belong to separate focus locations, so they are not a conflict in either scope.
@@ -4689,23 +4813,16 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     page.close()
 
 
-def test_a_coarse_pointer_is_given_no_key_line_and_keeps_no_room_for_one(
-    browser, serve
-):
-    """A touch device has no keyboard to advertise, so the line has nothing to say and
-    stands down whole rather than shrinking: every hint on it names a key the reader
-    cannot press, and it spends a box on them over the words of a page whose window is
-    the smallest one there is.
+def test_a_coarse_pointer_gets_only_active_navigation_context(browser, serve):
+    """Touch hides key hints, but an attached-keyboard walk still says where it arrived.
 
-    The room goes with it. syncLayout reads the standing line's own box, so the band
-    reserved at the foot of the document and of either list is the line's footprint or
-    nothing at all — a reservation for a line nobody is shown is a strip of blank paper
-    under the last paragraph."""
+    The room follows the rendered state. At rest no box spends page room; while the
+    position stands, syncLayout reserves its measured footprint."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
     try:
-        page, errors = open_page(browser, serve(NOTED_PAGE), context=context)
+        page, errors = open_page(browser, serve(ASKS_PAGE), context=context)
         assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
             "the touch fixture never reached Leaf's coarse-pointer rules"
         )
@@ -4738,6 +4855,24 @@ def test_a_coarse_pointer_is_given_no_key_line_and_keeps_no_room_for_one(
         page.keyboard.press("s")
         expect(page.locator(".lf-target-hint").first).to_be_visible()
         page.keyboard.press("Escape")
+
+        page.keyboard.press("a")
+        line = page.locator(".lf-keyline")
+        expect(line).to_be_visible()
+        expect(line.locator(".lf-walk-position")).to_have_text("Ask 1 of 4 open")
+        expect(line.locator(":scope > :visible")).to_have_count(1)
+        active_room = page.evaluate(
+            """() => ({
+              height: document.querySelector('.lf-keyline').getBoundingClientRect().height,
+              reserved: parseFloat(getComputedStyle(
+                document.querySelector('.lf-chrome')).paddingBottom),
+            })"""
+        )
+        assert active_room["height"] > 0, active_room
+        assert active_room["reserved"] > active_room["height"], active_room
+
+        page.locator("#h").click()
+        expect(line).to_be_hidden()
         assert errors == []
         page.close()
     finally:

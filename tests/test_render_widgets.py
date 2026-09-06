@@ -2572,7 +2572,7 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     and offered to accept “Retry three times. 1 comment”. It reads the slot the way the
     page is read instead, which is what `says` is for — read before deciding, because a
     reject retires the very slot the label comes from, and a retired slot says nothing:
-    the notice then named the widget's id instead of the words the user judged. Short
+    the announcement then named the widget's id instead of the words the user judged. Short
     on purpose: the label cuts at 48 characters, which hid this on every shipped example."""
     url = serve(SHORT_SUGGESTION, anchored=[("now", "Retry three times")])
     page, errors = open_page(browser, url)
@@ -2581,9 +2581,11 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     assert page.locator("lf-new #now > .lf-mark-note").count() == 1
     control = page.locator(f"[data-lf-for='sug'] .lf-sug-{outcome}")
     (unfolded_button(control) if folded else control).click()
-    expect(page.locator(".lf-notice")).to_have_text(
-        f"{verb} “Retry three times.” — sent"
+    expect(page.locator(".lf-live")).to_have_text(
+        f"{verb} suggested change: Retry three times."
     )
+    expect(page.locator(".lf-notice")).to_have_text("")
+    expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
     assert errors == []
     page.close()
 

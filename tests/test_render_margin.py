@@ -1010,7 +1010,7 @@ def test_the_feature_gallery_displays_the_complete_button_grammar(browser, serve
     page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1440, 900)
 
-    atlas = page.locator("#bg-button-atlas")
+    atlas = page.locator("#bg-button-atlas-specimens")
     expect(atlas).to_be_visible()
     buttons = atlas.locator(".lf-margin-button")
     expect(buttons).to_have_count(12)
@@ -1096,6 +1096,28 @@ def test_the_feature_gallery_displays_the_complete_button_grammar(browser, serve
 
     assert errors == []
     page.close()
+
+
+def test_the_feature_gallery_fragment_lands_after_presented_controls_take_space(
+    browser, serve
+):
+    """The atlas remains at the top edge when reaction controls above it appear."""
+    context = browser.new_context(viewport={"width": 700, "height": 900})
+    page, errors = open_page(
+        browser,
+        f"{live_url(serve(FEATURE_GALLERY))}#bg-button-atlas",
+        context=context,
+    )
+    position = page.locator("#bg-button-atlas").evaluate(
+        """element => ({
+          top: element.getBoundingClientRect().top,
+          clear: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
+        })"""
+    )
+    assert abs(position["top"] - position["clear"]) < 2, position
+    assert errors == []
+    page.close()
+    context.close()
 
 
 def test_the_feature_gallery_carries_a_button_through_its_whole_lifecycle(
@@ -1243,10 +1265,10 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
     resized(page, 1440, 900)
     expect(page.locator("#bg-grammar")).to_have_count(0)
     sections = {
-        "bg-clusters": (
+        "bg-button-atlas": (
             "Button atlas: every role, tone, and state",
             "#bg-button-atlas-guide",
-            "#bg-button-atlas",
+            "#bg-button-atlas-specimens",
         ),
         "bg-changes": (
             "Suggestions: proposed text changes",

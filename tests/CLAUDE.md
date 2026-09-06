@@ -14,15 +14,16 @@ at.
 
 ## Run the narrowest useful surface
 
-A new cloud container needs the pinned environment and both browsers before the
-suite can run:
+A new development host installs the browser binaries and website dependencies with
+the repository setup alias. `uv run` synchronizes the pinned Python environment,
+including pre-commit:
 
 ```sh
-uv sync --frozen
-uv run playwright install chromium --only-shell
-uv run playwright install chrome
-uv tool install pre-commit
+wt setup
 ```
+
+The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer. Docker is
+additionally needed for the complete website boundary and `scripts/linux-suite.sh`.
 
 A container without IPv6 cannot run the two tests that bind the stated-host
 wildcard `::`; run those from a workstation.
@@ -122,24 +123,35 @@ control wears the ring is a separate question from which holds focus, and the
 layer answers it four ways (a thread card for anything inside it, a decision for
 the control reached, a joined option group for the one its picks give up, and
 an anchored element with no focus of its own), so the reading sweeps every box
-painting a ring and asks the outline, never `getComputedStyle(activeElement)`
-and never a selector. Each rule names the ring it draws in `--lf-here-ring`, so
-the population the floor divides by is read off the page's composed stylesheets.
+painting a ring and asks the paint, never `getComputedStyle(activeElement)`
+and never a selector. The band has two carriers: `--here-ring`, the outline
+nearly every rule draws, and `--here-shadow`, the same band cast as a shadow by
+the two boxes that cannot spend an outline on it — the anchored response bar and
+the item hint the keyboard is browsing. A shadow ring is the layer's spread with
+no offsets and no blur, and its outset is that spread, where an outline's is its
+width and offset. Each rule names the ring it draws in `--lf-here-ring`, so
+the population the floor divides by is read off the page's composed stylesheets,
+one question per carrier: does the value name the layer's token.
 `test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge`
 plants one outset ring under three clipping parents with a control case that
-must report nothing, and
+must report nothing,
+`test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow` puts the three
+shadows the layer draws that are not the band in front of the reading and then
+stands the band on the window's foot, and
 `test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` fails
 on any rule the corpus never paints and any scope its walk never opens. A ring
-is credited when a box painting the layer's width and style also carries a
-name; a name whose outline a later rule took away is not credited, and a ring
-painted with no name is its own finding. Nothing reads `@media` or `@supports`:
-the reading is taken on screen.
+is credited when a box painting the layer's band also carries a name; a name
+whose ring a later rule took away is not credited — which is what keeps the
+response bar's own controls off `pressable`, the floor rule whose outline the bar
+removes — and a ring painted with no name is its own finding. Nothing reads
+`@media` or `@supports`: the reading is taken on screen.
 
 The walk also asks at every stop whether the reader can see where the keyboard
 is, and four answers count: the platform's own ring (`outline-style: auto`), the
 layer's here ring on the stop or an ancestor drawing for it, the element mark's
-own ink at the indicated weight, and the accent shadow every box the reader
-types into wears. Colours are resolved through a swatch rather than compared as
+own ink at the indicated weight, and the band the anchored response bar casts as
+a shadow — the sweep's own reading of it, so the two halves of the file agree on
+what one is. Colours are resolved through a swatch rather than compared as
 written, since a `color-mix` and a plain token spell one colour two ways. Any
 outline an element wears for a reason other than focus silently costs it the
 ring it would otherwise have had.

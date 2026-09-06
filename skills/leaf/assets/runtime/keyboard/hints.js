@@ -62,6 +62,19 @@ export function spreadHints(
   } = {},
 ) {
   const gap = 2;
+  // The browsed hint wears the layer's band (--here-shadow, theme.css), which a face's
+  // own rectangle does not report. Any chip can become the browsed one as the reader
+  // types, so the pass seats every face as though it were, keeping the one layout. A
+  // window edge takes the whole band, because a band drawn past it is clipped away. A
+  // barrier — another face, or the key line — takes the wider of the gap and the band,
+  // because a band may stand in the gap it keeps but not past it; only the browsed chip
+  // paints one, so it has that space to itself. Seated to the gap alone both cleared by
+  // coincidence, the gap and the band both being 2px.
+  const band =
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--here-ring-w"),
+    ) || 0;
+  const clear = Math.max(gap, band);
   const line = lineBox ?? { left: 0, top: viewportBottom, right: 0, height: 0 };
   const lineBand = {
     left: line.left,
@@ -69,24 +82,19 @@ export function spreadHints(
     right: line.right,
     bottom: viewportBottom,
   };
+  const edgeLeft = viewportLeft + band;
+  const edgeTop = viewportTop + band;
+  const edgeRight = viewportRight - band;
+  const edgeBottom = viewportBottom - band;
   const measured = hints.map(({ chip, target }) => {
     const start = chip.getBoundingClientRect();
     const first = movedTo(
       start,
-      clamp(
-        start.left,
-        viewportLeft,
-        Math.max(viewportLeft, viewportRight - start.width),
-      ),
-      clamp(
-        start.top,
-        viewportTop,
-        Math.max(viewportTop, viewportBottom - start.height),
-      ),
+      clamp(start.left, edgeLeft, Math.max(edgeLeft, edgeRight - start.width)),
+      clamp(start.top, edgeTop, Math.max(edgeTop, edgeBottom - start.height)),
     );
-    const rightSeat = Math.max(target.left, line.right + gap);
-    const canSitRight =
-      rightSeat + start.width <= Math.min(target.right, viewportRight);
+    const rightSeat = Math.max(target.left, line.right + clear);
+    const canSitRight = rightSeat + start.width <= Math.min(target.right, edgeRight);
     const left =
       line.height && overlaps(first, lineBand) && canSitRight ? rightSeat : first.left;
     return [chip, movedTo(first, left, first.top), start];
@@ -106,9 +114,9 @@ export function spreadHints(
       seated,
       seated.top,
       barriers,
-      viewportTop,
-      viewportBottom,
-      gap,
+      edgeTop,
+      edgeBottom,
+      clear,
     );
     // A viewport can be physically too small for every face. Keep the preferred clamped
     // seat in that impossible case; ordinary scenes always have an open interval, and

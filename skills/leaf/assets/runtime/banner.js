@@ -239,7 +239,7 @@ function renderStatusNow(state) {
     showStatus(
       "unattended",
       TONE.unattended,
-      "This is an example on the Leaf website. No agent will respond. ",
+      `This is an example on the Leaf website. ${state.example.agent} replies here, but cannot edit this page. `,
       install,
     );
     return;

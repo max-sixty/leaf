@@ -2389,17 +2389,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-skip",  # the keyboard entry point stands before the chrome container
         "lf-aiming",
         "lf-design",  # design mode's arming, on body beside the aim's, for the cursor
-        # Draw mode's arming, on body beside those two. Its crosshair belongs to the
-        # whole document plane rather than to an aim box, so the rule that paints it
-        # reaches the page from outside the chrome's scope.
-        "lf-drawing",
         "lf-over-item",
         "lf-quiet",
         # Shared textual thread boxes render both in page-owned widget seats and in the
-        # chrome-owned margin preview. The box around them is named here for the same
-        # reason the mode above is: draw mode's crosshair stops at a conversation
-        # seated in the page, and the rule that lifts it is document level too.
-        "lf-conversation",
+        # chrome-owned margin preview.
         "lf-conversation-msg",
         "lf-say",
         # A pasted image's writing projection and inspection control cross the same

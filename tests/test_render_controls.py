@@ -131,6 +131,23 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 +    # the ceiling doubles per approval
 +    return "over" if approvals &gt; 12 else limit
 </pre></lf-diff>
+<!-- The interaction gallery's playback row, at the foot of the page so the section is
+     off screen at rest: the gallery plays itself when the reader scrolls to it, and a
+     demonstration already running is not the resting row this sweep presses. -->
+<section data-interaction-gallery id="stable-interactions">
+  <lf-tabs id="stable-interaction-tabs">
+    <lf-tab id="stable-interaction-accept" label="Accept a suggestion">
+      <figure data-interaction-demo="accept">
+        <div class="interaction-stage">
+          <p id="stable-motion-copy">The importer now
+            <lf-suggestion id="stable-motion-accept"><lf-old>usually finishes</lf-old><lf-new>finishes</lf-new></lf-suggestion>
+            before the next run begins.</p>
+          <span class="interaction-pointer" hidden aria-hidden="true"></span>
+        </div>
+      </figure>
+    </lf-tab>
+  </lf-tabs>
+</section>
 """,
     head='<meta name="lf-review" content="sign-off">',
 )
@@ -194,6 +211,15 @@ CONTROL_ARCHETYPES = (
         "name": "diff-review",
         "coverage": ".lf-diff-review",
         "target": "#stable-diff .lf-diff-review",
+    },
+    {
+        # The interaction gallery's playback row: a toggle that says what pressing it
+        # does, standing beside Replay. Play, Pause and Played are three widths for one
+        # control, so the toggle is the press with something to prove — the row holds
+        # only because it reserves the width of the longest word it can say.
+        "name": "demo-playback",
+        "coverage": ".interaction-control",
+        "target": "#stable-interactions [data-interaction-toggle]",
     },
 )
 CONTROL_ROW_PRESS = (

@@ -6,7 +6,7 @@
  * or behavior cost for this developer surface. */
 
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
-import { el, offer } from "./widget-elements.js";
+import { offer, reserve } from "./widget-elements.js";
 
 class StaleDemo extends Error {}
 
@@ -210,32 +210,34 @@ class Demo {
   }
 }
 
-const placements = {
-  ready: {
-    "bg-motion-ready": ["bg-motion-card"],
-    "bg-motion-tried": [],
-  },
-  tried: {
-    "bg-motion-ready": [],
-    "bg-motion-tried": ["bg-motion-card"],
-  },
+// Where a board's one card is standing, in the placement shape lf-board renders from.
+// Read off the stage's own markup rather than written out here: a scenario names the
+// widget it plays against, and the page that stages it names the ids.
+const placedIn = (board, column) => {
+  const card = board.querySelector("lf-card");
+  return Object.fromEntries(
+    [...board.querySelectorAll("lf-column")].map((each) => [
+      each.id,
+      each === column ? [card.id] : [],
+    ]),
+  );
 };
 
 const scenarios = {
   accept: {
-    reset() {
-      document
-        .querySelector("#bg-motion-accept")
+    reset(demo) {
+      demo.stage
+        .querySelector("lf-suggestion")
         .renderState({ settlement: { value: null } });
     },
     async play(demo, generation) {
       demo.showPointer();
       await demo.wait(ARRIVAL_PAUSE, generation);
-      const suggestion = document.querySelector("#bg-motion-accept");
+      const suggestion = demo.stage.querySelector("lf-suggestion");
       const accept = await demo.waitFor(
         () =>
           document.querySelector(
-            '.lf-sug-actions[data-lf-for="bg-motion-accept"] [aria-label^="Accept"]',
+            `.lf-sug-actions[data-lf-for="${suggestion.id}"] [aria-label^="Accept"]`,
           ),
         "the suggestion did not expose its Accept control",
         generation,
@@ -254,28 +256,29 @@ const scenarios = {
     },
   },
   "move-card": {
-    reset() {
-      document
-        .querySelector("#bg-motion-board")
-        .renderState({ placement: { value: placements.ready } });
+    reset(demo) {
+      const board = demo.stage.querySelector("lf-board");
+      board.renderState({
+        placement: { value: placedIn(board, board.querySelector("lf-column")) },
+      });
     },
     async play(demo, generation) {
       demo.showPointer();
       await demo.wait(ARRIVAL_PAUSE, generation);
-      const board = document.querySelector("#bg-motion-board");
+      const board = demo.stage.querySelector("lf-board");
+      const card = board.querySelector("lf-card");
+      const destination = board.querySelectorAll("lf-column")[1];
       const grip = await demo.waitFor(
-        () => document.querySelector("#bg-motion-card > .lf-grip"),
+        () => card.querySelector(":scope > .lf-grip"),
         "the card did not expose its grip",
         generation,
       );
       await demo.movePointer(grip, generation);
       await demo.press(generation);
       await demo.wait(480, generation);
-      board.renderState({ placement: { value: placements.tried } });
+      board.renderState({ placement: { value: placedIn(board, destination) } });
       await demo.waitFor(
-        () =>
-          document.querySelector("#bg-motion-card").parentElement?.id ===
-          "bg-motion-tried",
+        () => card.parentElement?.id === destination.id,
         "the card did not move",
         generation,
       );
@@ -284,6 +287,27 @@ const scenarios = {
     },
   },
 };
+
+// What the toggle says in each state, and what the status line reports beside it. The
+// toggle's words are out here because it reserves the width of all of them before it
+// says the first one, and the two lists read as one vocabulary.
+const TOGGLE_WORDS = {
+  idle: "Loading…",
+  ready: "Play",
+  playing: "Pause",
+  paused: "Play",
+  finished: "Played",
+  error: "Unavailable",
+};
+const STATE_WORDS = {
+  idle: "Loading",
+  ready: "Ready",
+  playing: "Playing",
+  paused: "Paused",
+  finished: "Complete",
+  error: "Could not play",
+};
+const READY_WITHOUT_MOTION = "Ready — motion will start only when you press Play";
 
 let installedGallery = null;
 let uninstallGallery = () => {};
@@ -300,15 +324,31 @@ export function installInteractionGallery() {
   const panels = [...tabs.querySelectorAll(":scope > lf-tab")];
   const controls = offer("div", "interaction-controls");
   controls.setAttribute("aria-label", "Animation controls");
-  const toggle = offer("button", "interaction-control", "Loading…");
+  const toggle = offer("button", "interaction-control", TOGGLE_WORDS.idle);
   toggle.dataset.interactionToggle = "";
   const replay = offer("button", "interaction-control", "Replay");
   replay.dataset.interactionReplay = "";
-  const status = offer("span", "interaction-status", "Loading the first interaction…");
+  // A box rather than a run of words, so the reservation below is a width it can hold:
+  // `min-width` is nothing to an inline element, and this row is a flex line only where
+  // the page that stages the gallery says so.
+  const status = offer("div", "interaction-status", "Loading the first interaction…");
   status.dataset.interactionStatus = "";
   status.setAttribute("aria-live", "polite");
   controls.append(toggle, replay, status);
   tabs.before(controls);
+  // Every word in this row changes as the demonstration runs: Play becomes Pause becomes
+  // Played, and the status says a different state for each panel. Both keep the width of
+  // the longest thing they can say, so a press never moves the control beside it — the
+  // reservation the banner makes for its own counts, for the same reason.
+  reserve(toggle, Object.values(TOGGLE_WORDS));
+  reserve(
+    status,
+    panels.flatMap((panel) =>
+      [...Object.values(STATE_WORDS), READY_WITHOUT_MOTION].map(
+        (said) => `${panel.getAttribute("label")} · ${said}`,
+      ),
+    ),
+  );
   let active = null;
   let onScreen = false;
 
@@ -322,30 +362,17 @@ export function installInteractionGallery() {
 
   function renderControls() {
     if (!active) return;
-    const words = {
-      idle: "Loading…",
-      ready: "Play",
-      playing: "Pause",
-      paused: "Play",
-      finished: "Played",
-      error: "Unavailable",
-    };
-    toggle.textContent = words[active.state];
+    const word = TOGGLE_WORDS[active.state];
+    toggle.textContent = word;
     toggle.disabled = ["idle", "finished", "error"].includes(active.state);
     replay.disabled = active.state === "error";
     const label = active.panel.getAttribute("label");
-    const states = {
-      idle: "Loading",
-      ready: reducedMotion()
-        ? "Ready — motion will start only when you press Play"
-        : "Ready",
-      playing: "Playing",
-      paused: "Paused",
-      finished: "Complete",
-      error: "Could not play",
-    };
-    status.textContent = `${label} · ${states[active.state]}`;
-    toggle.setAttribute("aria-label", `${words[active.state]} ${label} animation`);
+    const said =
+      active.state === "ready" && reducedMotion()
+        ? READY_WITHOUT_MOTION
+        : STATE_WORDS[active.state];
+    status.textContent = `${label} · ${said}`;
+    toggle.setAttribute("aria-label", `${word} ${label} animation`);
     replay.setAttribute("aria-label", `Replay ${label} animation`);
   }
 

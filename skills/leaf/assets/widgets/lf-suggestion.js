@@ -483,13 +483,13 @@ customElements.define(
               this.#renderControls(label);
               this.#margin?.update();
             } else this.#settle(outcome);
+            announce(
+              `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change: ${label}`,
+            );
           } else {
             this.#renderControls(label);
             this.#margin?.update();
           }
-          announce(
-            `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change: ${label}`,
-          );
           // TODO(2026-09-06): Decide whether accepted work with no active agent pickup
           // needs a distinct post-send presentation.
           return true;

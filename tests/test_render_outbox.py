@@ -1299,6 +1299,8 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
     assert errors == []
     held[0].fulfill(response=accepted_answer)
+    page.wait_for_timeout(100)
+    expect(page.locator(".lf-live")).not_to_contain_text("Accepted suggested change")
     page.unroute("**/api/event")
     page.close()
 
@@ -1344,6 +1346,8 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
     ]
     assert errors == []
     held[0].fulfill(response=accepted_answer)
+    page.wait_for_timeout(100)
+    expect(page.locator(".lf-live")).not_to_contain_text("Accepted suggested change")
     page.unroute("**/api/event")
     page.close()
 

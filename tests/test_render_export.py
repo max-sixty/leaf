@@ -825,6 +825,8 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     source = (ROOT / "examples" / "pr-walkthrough.html").read_text(encoding="utf-8")
     title = re.search(r"<h1>(.*?)</h1>", source, re.DOTALL).group(1).strip()
     expect(page.get_by_role("heading", name=title)).to_be_visible()
+    assert page.evaluate("document.compatMode") == "CSS1Compat"
+    assert page.locator("body").get_attribute("data-lf-reading") is None
     assert page.locator("script").count() == 0
     assert page.locator('link[rel="stylesheet"]').count() == 0
     assert page.locator("style").count() > 0
@@ -1460,6 +1462,7 @@ def test_a_copy_wears_the_mark_and_claims_no_session(browser, serve, tmp_path):
 
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
+    assert page.locator('link[rel="icon"]').count() == 1
     # The tone is a stylesheet the runtime appends to the mark, so what says the copy is
     # wearing none is the mark carrying only the one its file was written with.
     icon = page.evaluate("""() => {

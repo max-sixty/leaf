@@ -46,7 +46,11 @@ uv run pytest --lf --lfnf=none -x -n0
 
 Before handing over a browser-facing change, run its complete browser file and
 the everyday suite. `wt merge` runs pre-commit and the everyday suite after
-rebasing. CI adds `--run-nightly` after main moves.
+rebasing. CI runs the everyday suite on a pull request and, after it, the nightly
+cases in the test modules that pull request touches, so a change confined to a
+nightly module is gated before it lands rather than by the run after it. A change
+to the runtime those modules drive is still the nightly run's to catch: CI adds
+`--run-nightly` after main moves.
 
 `scripts/linux-suite.sh` supplies the pinned headless shell, installed Chrome,
 and CI fonts. It accepts pytest arguments and needs a Docker daemon that can run

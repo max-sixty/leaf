@@ -26,8 +26,12 @@ jobs:
     timeout-minutes: 105
 
     steps:
+      # Two commits, so a pull request's merge commit has its base parent and
+      # the touched-module step below can diff against it.
       - name: 📂 Checkout code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
 
       - uses: astral-sh/setup-uv@v7
 
@@ -40,6 +44,32 @@ jobs:
         if: github.event_name == 'pull_request'
         timeout-minutes: 45
         run: uv run pytest tests -v
+
+      # The everyday suite deselects the nightly-marked modules, so a pull request
+      # whose whole diff is one of them goes green having run none of it: that is
+      # how #336 rewrote two render modules under a green gate and reddened main
+      # on the next push. Name the touched ones back. An explicit file selection
+      # runs what it names, `-m nightly` leaves the everyday cases in a mixed
+      # module to the step above rather than running them twice, and pytest's
+      # exit 5 is what a pull request that touches no nightly case gets. A change
+      # to the runtime the modules drive is still the nightly run's to catch;
+      # this reaches the modules themselves.
+      - name: 🧪 Nightly cases this pull request touches
+        if: github.event_name == 'pull_request'
+        timeout-minutes: 45
+        run: |
+          touched=()
+          while IFS= read -r module; do
+            if [ -f "$module" ]; then
+              touched+=("$module")
+            fi
+          done < <(git diff --name-only HEAD^1 HEAD -- 'tests/test_*.py')
+          if [ ${#touched[@]} -eq 0 ]; then
+            echo "No test module touched."
+            exit 0
+          fi
+          echo "Touched test modules: ${touched[*]}"
+          uv run pytest "${touched[@]}" -m nightly -v || [ $? -eq 5 ]
 
       # `-v` names a stalled test. The step timeout makes a wedge a failure that
       # `tend-ci-fix` can act on.

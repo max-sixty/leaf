@@ -32,8 +32,7 @@ function environment(overrides: Partial<Env> = {}): Env {
     ASSETS: { fetch: vi.fn() } as unknown as Fetcher,
     EXAMPLES: {} as DurableObjectNamespace<LeafExampleSession>,
     AGENT_WORKFLOW: { create: vi.fn() } as unknown as Workflow,
-    READER_AGENT_RATE_LIMITER: allow,
-    GLOBAL_AGENT_RATE_LIMITER: allow,
+    SOURCE_AGENT_RATE_LIMITER: allow,
     OPENAI_API_KEY: "test-key",
     ...overrides,
   };
@@ -127,6 +126,7 @@ describe("website example agent", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "CF-Connecting-IP": "203.0.113.1",
           Cookie: `__Host-leaf-example=${sessionId}`,
         },
         body: JSON.stringify({ kind: "comment", attempt }),
@@ -137,7 +137,12 @@ describe("website example agent", () => {
     expect(response.status).toBe(200);
     expect(create).toHaveBeenCalledWith({
       id: `reply-${sessionId}-${eventId}`,
-      params: { sessionId, slug: "design-decision", eventId },
+      params: {
+        sessionId,
+        slug: "design-decision",
+        eventId,
+        sourceId: "203.0.113.1",
+      },
     });
   });
 
@@ -305,6 +310,7 @@ describe("website example agent", () => {
       sessionId: "03".repeat(16),
       slug: "design-decision",
       eventId: "04".repeat(16),
+      sourceId: "203.0.113.1",
     };
     const containerFetch = vi
       .fn()
@@ -356,6 +362,7 @@ describe("website example agent", () => {
       sessionId: "13".repeat(16),
       slug: "design-decision",
       eventId: "14".repeat(16),
+      sourceId: "203.0.113.2",
     };
     const containerFetch = vi
       .fn()
@@ -368,7 +375,7 @@ describe("website example agent", () => {
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
     const deny = vi.fn(async () => ({ success: false }));
     const env = environment({
-      READER_AGENT_RATE_LIMITER: { limit: deny } as RateLimit,
+      SOURCE_AGENT_RATE_LIMITER: { limit: deny } as RateLimit,
     });
     const step = {
       do: vi.fn(async (_name, _config, callback) => callback()),
@@ -377,6 +384,8 @@ describe("website example agent", () => {
     const result = await runAgentWorkflow(env, params, step as never);
 
     expect(result).toEqual({ status: "appended", event: "15".repeat(16) });
+    expect(deny).toHaveBeenCalledOnce();
+    expect(deny).toHaveBeenCalledWith({ key: params.sourceId });
     expect(agents.run).not.toHaveBeenCalled();
     expect(step.do.mock.calls.map(([name]) => name)).toEqual([
       "read turn",
@@ -394,6 +403,7 @@ describe("website example agent", () => {
       sessionId: "08".repeat(16),
       slug: "design-decision",
       eventId: "09".repeat(16),
+      sourceId: "203.0.113.3",
     };
     const containerFetch = vi
       .fn()

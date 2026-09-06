@@ -46,14 +46,36 @@ def draw_over(
     page.mouse.up()
 
 
-def mark_relation(mark, target):
-    drawn = mark.bounding_box()
-    anchored = target.bounding_box()
-    return (
-        drawn["x"] - anchored["x"],
-        drawn["y"] - anchored["y"],
-        drawn["width"],
-        drawn["height"],
+READ_BOX = """selector => {
+  const box = document.querySelector(selector).getBoundingClientRect();
+  return {x: box.x, y: box.y, width: box.width, height: box.height, scrollY};
+}"""
+
+
+def mark_box(page, selector):
+    """Read a drawing mark's box, resolving and measuring it in one page-side call.
+
+    Every paint replaces the whole drawing layer, so a two-step read — Playwright
+    resolves the element, then measures the handle it got — can measure a node the
+    next paint has already detached, and a detached box reads as all zeros.
+    """
+    return page.evaluate(READ_BOX, selector)
+
+
+def mark_relation(page, mark, target):
+    """Read the mark's offset from its anchor and its size, in one page-side call."""
+    return page.evaluate(
+        """([mark, target]) => {
+          const drawn = document.querySelector(mark).getBoundingClientRect();
+          const anchored = document.querySelector(target).getBoundingClientRect();
+          return [
+            drawn.x - anchored.x,
+            drawn.y - anchored.y,
+            drawn.width,
+            drawn.height,
+          ];
+        }""",
+        [mark, target],
     )
 
 
@@ -108,11 +130,12 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
         1.8, abs=0.02
     )
 
-    mark = page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"]')
+    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
+    mark = page.locator(posted)
     expect(mark).to_have_count(1)
-    mark_box = mark.bounding_box()
-    assert mark_box["x"] + mark_box["width"] > target_box["x"] + target_box["width"]
-    assert mark_box["y"] < target_box["y"]
+    drawn = mark_box(page, posted)
+    assert drawn["x"] + drawn["width"] > target_box["x"] + target_box["width"]
+    assert drawn["y"] < target_box["y"]
     assert page.evaluate("document.documentElement.scrollWidth") == scroll_width
     page.wait_for_timeout(100)
     stacking = page.locator(".lf-drawings").evaluate(
@@ -124,13 +147,17 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert stable_mark.evaluate("node => node.isConnected"), (
         "an idle drawing must not sustain a ResizeObserver repaint loop"
     )
-    relation = mark_relation(mark, target)
+    relation = mark_relation(page, posted, "#bg-choice-trail")
     page.evaluate("scrollBy(0, 100)")
     page.wait_for_timeout(100)
-    assert mark_relation(mark, target) == pytest.approx(relation, abs=0.02)
+    assert mark_relation(page, posted, "#bg-choice-trail") == pytest.approx(
+        relation, abs=0.02
+    )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    assert mark_relation(mark, target) == pytest.approx(relation, abs=0.02)
+    assert mark_relation(page, posted, "#bg-choice-trail") == pytest.approx(
+        relation, abs=0.02
+    )
     expect(target).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(page.locator(".lf-panel .lf-drawing-preview")).to_have_count(0)
     expect(page.locator(".lf-panel .lf-drawing-reference")).to_have_text(
@@ -138,11 +165,10 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     )
 
     returned, returned_errors = open_page(browser, url)
-    replayed = returned.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"]')
-    expect(replayed).to_have_count(1)
-    assert mark_relation(
-        replayed, returned.locator("#bg-choice-trail")
-    ) == pytest.approx(relation, abs=0.02)
+    expect(returned.locator(posted)).to_have_count(1)
+    assert mark_relation(returned, posted, "#bg-choice-trail") == pytest.approx(
+        relation, abs=0.02
+    )
     assert errors == []
     assert returned_errors == []
     page.close()
@@ -216,21 +242,19 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     assert event["drawing"]["points"][0] == pytest.approx(
         [point["x"], point["y"] + point["scrollY"]], abs=0.1
     )
-    mark = page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"]')
+    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
+    mark = page.locator(posted)
     expect(mark).to_have_count(1)
     page.wait_for_function(
         "selector => document.querySelector(selector)?.getBoundingClientRect().x > 0",
-        arg=f'.lf-drawing-posted[data-thread="{event["id"]}"]',
+        arg=posted,
     )
-    reading = """el => {
-      const box = el.getBoundingClientRect();
-      return {x: box.x, y: box.y, scrollY};
-    }"""
-    before = mark.evaluate(reading)
+    before = mark_box(page, posted)
+    assert before["x"] > 0, before
     page.evaluate("scrollBy(0, 100)")
     page.wait_for_timeout(100)
     expect(mark).to_have_count(1)
-    after = mark.evaluate(reading)
+    after = mark_box(page, posted)
     assert after["x"] == pytest.approx(before["x"], abs=0.02)
     assert after["y"] == pytest.approx(
         before["y"] - (after["scrollY"] - before["scrollY"]), abs=0.02

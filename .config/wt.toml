@@ -41,8 +41,11 @@ then
 fi
 '''
 
-# uv run synchronizes the locked Python environment. Browser binaries and the
-# website's node_modules live outside it, so those remain explicit.
+# uv run synchronizes the locked Python environment. The external previews, browser
+# binaries, and website node_modules live outside it, so those remain explicit.
+[[aliases.setup]]
+assets = "uv run --frozen scripts/example_assets.py"
+
 [[aliases.setup]]
 chromium = "uv run --frozen playwright install chromium --only-shell"
 
@@ -51,6 +54,9 @@ chrome = "uv run --frozen playwright install chrome"
 
 [[aliases.setup]]
 worker = "npm ci --prefix worker"
+
+[[aliases.refresh-previews]]
+previews = "uv run --frozen scripts/example-previews.py"
 
 [[aliases.cloud]]
 setup = "wt setup"

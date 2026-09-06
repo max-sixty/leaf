@@ -3,10 +3,13 @@
    evaluates. */
 
 // Built-in Button faces use one stroked, currentColor icon vocabulary. Reaction tokens
-// are authored content and may supply emoji; the add-reaction affordance remains a
-// structural Leaf face, so its line weight and baseline stay stable across systems.
+// are authored content and may supply emoji; structural Leaf faces keep their line
+// weight and baseline stable across systems.
+const SEND = '<path d="M2.75 3.25 13.25 8 2.75 12.75l1.2-4L9 8 3.95 7.25z"/>';
+
 const ICONS = {
   activity: '<circle cx="8" cy="8" r="3" fill="currentColor" stroke="none"/>',
+  add: '<path d="M8 3v10M3 8h10"/>',
   change:
     '<path d="M3 5.25h8.5M9.25 3l2.25 2.25L9.25 7.5M13 10.75H4.5M6.75 8.5 4.5 10.75 6.75 13"/>',
   check: '<path d="m3 8.25 3.15 3.15L13 4.75"/>',
@@ -26,7 +29,8 @@ const ICONS = {
   reaction:
     '<circle cx="6.5" cy="8.25" r="4.25"/><circle cx="5" cy="7.25" r=".55" fill="currentColor" stroke="none"/><circle cx="8" cy="7.25" r=".55" fill="currentColor" stroke="none"/><path d="M4.75 9.25c.5.75 1.08 1.1 1.75 1.1s1.25-.35 1.75-1.1M11 4h4M13 2v4"/>',
   retry: '<path d="M12.5 5.25V2.75M12.5 2.75H10M12.35 3.1A5 5 0 1 0 13 9"/>',
-  sent: '<path d="M2.75 3.25 13.25 8 2.75 12.75l1.2-4L9 8 3.95 7.25z"/>',
+  send: SEND,
+  sent: SEND,
   undo: '<path d="M5.25 4.25 2.75 6.5 5.25 8.75M3 6.5h5.5a4 4 0 0 1 4 4v1"/>',
   waiting: '<circle cx="8" cy="8" r="5"/><path d="M8 5v3.25l2 1.25"/>',
 };

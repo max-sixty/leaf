@@ -78,6 +78,7 @@
    it is in. */
 import { el } from "../widget-elements.js";
 import { refreshHover, scrollToElement } from "../anchors.js";
+import { scrollBehavior } from "../motion.js";
 import { threadsBox } from "./panel.js";
 import { panelIsOpen } from "../chrome-layout.js";
 import { pointerAt } from "../pointer.js";
@@ -103,9 +104,9 @@ const emptyNote = el(
 
 // The heading over a run of threads, kept across reconciles so a scroll position, a focus
 // ring and the sticky pin survive a poll. A button where the page still holds the heading
-// it names — pressing it takes the reader there, which is the same move a thread's quote
-// makes — and a plain line for the three runs that name no place (groupFor). A key never
-// changes kind, so the node a key holds never has to.
+// it names — pressing it puts that heading at the readable start of the page — and a plain
+// line for the three runs that name no place (groupFor). A key never changes kind, so the
+// node a key holds never has to.
 const groupNodes = new Map();
 function groupNode(key, group) {
   let node = groupNodes.get(key);
@@ -123,7 +124,8 @@ function groupNode(key, group) {
   if (node.textContent !== group.label) node.textContent = group.label;
   // The press is rewired on every reconcile and the word is not: a version activation
   // replaces the heading the group names with a new element, and the same sentence.
-  if (group.target) node.onclick = () => scrollToElement(group.target);
+  if (group.target)
+    node.onclick = () => scrollToElement(group.target, scrollBehavior(), "start");
   return node;
 }
 

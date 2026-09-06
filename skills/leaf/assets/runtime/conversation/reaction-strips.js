@@ -13,15 +13,15 @@ import { reactDone, removeNode } from "./reconcile.js";
 
 /* Reaction surfaces rendered in every complete Thread view.
 
-   `paintReactStrips` puts one reaction surface under each agent message and marks the
-   latest one `lf-open`, which keeps its `React…` trigger visible and makes it the
-   thread's `r` target. Older triggers appear while the reader is in the thread. A
-   closed surface shows only standing tokens, pressed and wearing their word; opening it
-   replaces the trigger with the complete list. A token press closes the list and
+   `paintReactStrips` puts one reaction surface on each agent message and marks the
+   latest one `lf-open`, which makes it the thread's `r` target. A message reveals its
+   overlaid add-reaction affordance on hover or keyboard focus. A closed surface shows
+   only standing emoji; opening it replaces the trigger with the complete list. A token
+   press closes the list and
    returns focus to the trigger; any standing mark remains visible as its own eraser. */
-// The strip under each agent message keeps the reader's standing marks visible and
-// offers one trigger. The latest reply offers it at rest; older replies reveal theirs
-// while the reader is in the thread. A list opens only on the surface the reader chose.
+// The strip on each agent message keeps the reader's standing marks visible and offers
+// one overlaid trigger when that message is under the pointer or keyboard focus. A list
+// opens only on the surface the reader chose.
 // Rebuilt from the thread on each reconcile rather than from the press, so a reaction
 // arriving from another tab and an undo land the same way. A resolved thread offers none.
 export function paintReactStrips(node, t) {

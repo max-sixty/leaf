@@ -1,0 +1,212 @@
+{
+  "lf-playground": {
+    "description": "A reusable interactive playground that turns declarative controls into one local value set, reflects it into a live preview and authored instruction, and sends the final configuration as one `choose` action. Put it inside lf-ask when the configuration is a question for the reader. Direct children are controls, presets, one preview, and one output. Control edits and presets stay in this browser tab; Use these settings records the complete typed value map. CSS previews read `--playground-NAME` and `data-playground-NAME` on this element. A companion widget can read the public `values` property and listen for `lf-playground-change` when computation is required.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "submit-label": {
+        "type": "string",
+        "minLength": 1
+      },
+      "restated": {
+        "type": "boolean"
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "items",
+    "x-guidance": {
+      "author": "Use controls for values the reader should vary together. Keep the preview as real page markup and bind simple changes with `--playground-NAME` or `data-playground-NAME`; use a companion package only when the preview needs computation. Write the instruction as prose in `lf-playground-output`, with `lf-playground-value` where a current value belongs."
+    },
+    "x-upgrade": true,
+    "x-awaits": {
+      "region": true,
+      "answers": ["choose"]
+    },
+    "x-state": {
+      "choose": {
+        "detail": {
+          "type": "object",
+          "properties": {
+            "values": {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": {
+                "pattern": "^[a-z][a-z0-9-]*$"
+              },
+              "additionalProperties": {
+                "type": ["string", "number", "boolean"]
+              }
+            },
+            "instruction": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["values", "instruction"],
+          "additionalProperties": false
+        },
+        "facet": "configuration",
+        "unit": "widget"
+      }
+    },
+    "x-example": "<lf-ask id=\"card-design-ask\"><h2>How should the card feel?</h2><lf-playground id=\"card-design\"><lf-playground-control name=\"radius\" label=\"Corner radius\" kind=\"range\" value=\"12\" min=\"0\" max=\"24\" step=\"1\" unit=\"px\"></lf-playground-control><lf-playground-control name=\"compact\" label=\"Compact spacing\" kind=\"toggle\" value=\"false\"></lf-playground-control><lf-playground-control name=\"tone\" label=\"Tone\" kind=\"choice\" value=\"quiet\"><lf-playground-choice value=\"quiet\" label=\"Quiet\"></lf-playground-choice><lf-playground-choice value=\"bold\" label=\"Bold\"></lf-playground-choice></lf-playground-control><lf-playground-preview><article><strong>Preview card</strong><p>The real page markup responds to the controls.</p></article></lf-playground-preview><lf-playground-output>Use a <lf-playground-value for=\"radius\"></lf-playground-value> corner radius and a <lf-playground-value for=\"tone\"></lf-playground-value> tone.</lf-playground-output></lf-playground></lf-ask>"
+  },
+  "lf-playground-control": {
+    "description": "One typed input in a playground. `name` is the stable key in the submitted value map and in the reflected CSS property and data attribute. `label` names the generated native control. Every kind declares its initial value as a string: a finite number for range, `true` or `false` for toggle, one child value for choice, a six-digit hex colour for color, and arbitrary text for text. Range controls must add max and may add min, step, and unit. Choice controls contain one or more lf-playground-choice children; other kinds are empty.",
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "label": {
+        "type": "string",
+        "minLength": 1
+      },
+      "kind": {
+        "enum": ["range", "toggle", "choice", "color", "text"]
+      },
+      "value": {
+        "type": "string"
+      },
+      "min": {
+        "type": "string",
+        "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"
+      },
+      "max": {
+        "type": "string",
+        "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"
+      },
+      "step": {
+        "type": "string",
+        "pattern": "^(?:0\\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$"
+      },
+      "unit": {
+        "type": "string"
+      },
+      "placeholder": {
+        "type": "string"
+      }
+    },
+    "required": ["name", "label", "kind", "value"],
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "kind": {
+              "const": "range"
+            }
+          },
+          "required": ["kind"]
+        },
+        "then": {
+          "required": ["max"]
+        }
+      }
+    ],
+    "additionalProperties": false,
+    "x-parent": ["lf-playground"],
+    "x-content": "items",
+    "x-upgrade": false
+  },
+  "lf-playground-choice": {
+    "description": "One labeled value in a choice control. The value is stored and reflected; the label is the control text shown to the reader.",
+    "type": "object",
+    "properties": {
+      "value": {
+        "type": "string",
+        "minLength": 1
+      },
+      "label": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": ["value", "label"],
+    "additionalProperties": false,
+    "x-parent": ["lf-playground-control"],
+    "x-content": "none",
+    "x-upgrade": false
+  },
+  "lf-playground-preset": {
+    "description": "One named partial configuration. Activating the generated preset button applies each child setting and leaves controls not named by the preset unchanged. The button remains visibly selected while all of its settings match the current values.",
+    "type": "object",
+    "properties": {
+      "label": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": ["label"],
+    "additionalProperties": false,
+    "x-parent": ["lf-playground"],
+    "x-content": "items",
+    "x-upgrade": false
+  },
+  "lf-playground-setting": {
+    "description": "One value applied by a playground preset. `for` names a control in the same playground and `value` uses that control's authored string form.",
+    "type": "object",
+    "properties": {
+      "for": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "value": {
+        "type": "string"
+      }
+    },
+    "required": ["for", "value"],
+    "additionalProperties": false,
+    "x-parent": ["lf-playground-preset"],
+    "x-content": "none",
+    "x-upgrade": false
+  },
+  "lf-playground-preview": {
+    "description": "The real markup a playground previews. Page CSS may bind it to reflected values on the enclosing lf-playground; a companion widget inside may instead consume the playground's public values and change event.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "additionalProperties": false,
+    "x-parent": ["lf-playground"],
+    "x-content": "prose",
+    "x-upgrade": false
+  },
+  "lf-playground-output": {
+    "description": "The natural-language instruction produced by a playground. Write complete prose and place lf-playground-value elements where current values belong. The package keeps this output live and offers a copy button.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "additionalProperties": false,
+    "x-parent": ["lf-playground"],
+    "x-content": "prose",
+    "x-upgrade": false
+  },
+  "lf-playground-value": {
+    "description": "One live value inside a playground instruction. `for` names a control in the enclosing playground. Numeric values include the control's unit.",
+    "type": "object",
+    "properties": {
+      "for": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      }
+    },
+    "required": ["for"],
+    "additionalProperties": false,
+    "x-parent": ["lf-playground-output"],
+    "x-content": "none",
+    "x-inline": true,
+    "x-upgrade": false
+  }
+}

@@ -375,9 +375,10 @@ def test_the_feature_gallery_exercises_an_inline_diff_thread(browser, serve):
     disabled_palette = send.evaluate(
         """button => {
           const style = getComputedStyle(button);
+          const face = getComputedStyle(button, '::before');
           const row = getComputedStyle(button.closest('.lf-diff-thread-outlet'));
           return {
-            background: style.backgroundColor,
+            background: face.backgroundColor,
             opacity: style.opacity,
             row: row.backgroundColor,
           };
@@ -385,6 +386,11 @@ def test_the_feature_gallery_exercises_an_inline_diff_thread(browser, serve):
     )
     assert disabled_palette["background"] == disabled_palette["row"]
     assert disabled_palette["opacity"] == "1"
+    send.hover()
+    assert (
+        send.evaluate("button => getComputedStyle(button, '::before').backgroundColor")
+        == disabled_palette["background"]
+    )
     markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     baseline = markers.count()
 
@@ -2935,11 +2941,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(commands.last).to_have_attribute("data-lf-selected", "true")
 
     search.fill("resolve it")
-    result = help_el.locator(
-        '.lf-help-command[data-lf-command="thread.resolution.toggle"]'
-    )
+    result = help_el.locator('.lf-help-command[data-lf-command="thread.resolve"]')
     expect(result).to_have_count(1)
-    expect(result).to_have_attribute("data-lf-command", "thread.resolution.toggle")
+    expect(result).to_have_attribute("data-lf-command", "thread.resolve")
     expect(search).to_have_attribute("aria-haspopup", "grid")
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
@@ -2956,7 +2960,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("Enter")
     expect(help_el).to_be_visible()
     expect(help_el.locator(".lf-help-meta")).to_have_text(
-        "Available on a focused thread"
+        "Available on a thread's Resolve button"
     )
     search.fill("close response choices")
     cancel_reaction = help_el.locator(
@@ -2981,6 +2985,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("Enter")
     thread = page.locator(".lf-thread").last
     expect(thread).to_be_focused()
+    thread.get_by_role("button", name="Resolve").focus()
     page.keyboard.press("?")
     page.keyboard.press("?")
     search.fill("resolve it")
@@ -5403,9 +5408,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     page.close()
 
 
-def test_the_other_response_row_can_turn_the_compact_field_into_a_suggestion(
-    browser, serve
-):
+def test_other_responses_can_turn_the_compact_field_into_a_suggestion(browser, serve):
     """A selected passage offers Suggest without reopening the retired composer card."""
     page, errors = open_page(browser, serve(INLINE_PAGE))
     page.locator("#p").click(click_count=3)
@@ -5421,7 +5424,23 @@ def test_the_other_response_row_can_turn_the_compact_field_into_a_suggestion(
     expect(box).to_have_attribute(
         "placeholder", re.compile(r"^Comment… .*(⌘⏎|Ctrl\+⏎)$")
     )
-    send = page.locator(".lf-composer-row > button")
+    send = page.locator(".lf-composer > .lf-compose-field > button")
+    expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
+    expect(page.locator(".lf-composer-row")).to_have_count(0)
+    field_box = box.bounding_box()
+    send_box = send.bounding_box()
+    assert (
+        field_box["x"]
+        < send_box["x"]
+        < send_box["x"] + send_box["width"]
+        < (field_box["x"] + field_box["width"])
+    )
+    assert (
+        field_box["y"]
+        < send_box["y"]
+        < send_box["y"] + send_box["height"]
+        < (field_box["y"] + field_box["height"])
+    )
     expect(send).to_have_attribute("title", re.compile(r"^Comment \((⌘⏎|Ctrl\+⏎)\)$"))
 
     page.keyboard.press("Tab")
@@ -5658,7 +5677,7 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     expect(field).not_to_be_focused()
     page.keyboard.press("c")
     expect(field).to_be_focused()
-    send = composer.locator(".lf-composer-row .primary")
+    send = composer.locator(".lf-compose-field .primary")
     send.evaluate(
         """control => control.addEventListener('click', () => {
           document.body.dataset.composerShortcutClicks =
@@ -5856,14 +5875,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     page.close()
 
 
-def test_the_resolve_key_changes_the_focused_threads_resolution(browser, serve):
-    """x changes the resolution of the thread the reader is standing on.
+def test_resolution_uses_its_control_while_x_remains_a_close_symbol(browser, serve):
+    """A focused thread does not overload the close symbol as a resolution key.
 
-    It resolves the thread t/T landed on through the button's own press, so
-    focus lands where the button already sends it — on the thread that takes the
-    resolved one's place. On a resolved thread the same state key reopens it, while
-    Enter performs that thread's available primary action: reply when open and reopen
-    when resolved."""
+    Resolve and Reopen remain keyboard actions through their controls. Enter on a
+    focused open thread still reaches its reply box."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
 
@@ -5885,32 +5901,42 @@ def test_the_resolve_key_changes_the_focused_threads_resolution(browser, serve):
                 return
         raise AssertionError("Tab did not reach the expected control")
 
-    # At page scope nothing promises x — its target is the focused thread, and
-    # none is — while the overlay teaches the capability, scope in its words.
+    # The thread scope does not advertise Resolve before or after focus. Its visible
+    # control owns the keyboard route.
     expect(line).not_to_contain_text("resolve")
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text("On a focused thread")
-    expect(page.locator(".lf-help")).to_contain_text("Resolve it")
     focused_section = page.locator(".lf-help-section").filter(
         has=page.get_by_role("heading", name="On a focused thread", exact=True)
     )
-    expect(focused_section.get_by_text("Resolve it", exact=True)).to_have_count(1)
+    expect(focused_section.get_by_text("Resolve it", exact=True)).to_have_count(0)
     page.keyboard.press("Escape")
 
-    # t lands on the first thread and the line offers resolve; x takes it, and
-    # focus lands on the thread now holding the resolved one's place, so t/T
-    # and a second x walk on from there.
+    # x leaves the focused thread open. Tab and Enter on the visible control resolve it,
+    # with the button's existing landing taking focus to the next thread.
     page.keyboard.press("t")
-    expect(page.locator(f'.lf-thread[data-id="{c1}"]')).to_be_focused()
+    first = page.locator(f'.lf-thread[data-id="{c1}"]')
+    expect(first).to_be_focused()
+    expect(line).not_to_contain_text("resolve")
+    page.keyboard.press("x")
+    expect(first).to_be_visible()
+    assert not any(
+        event["kind"] == "resolve" for event in events_model.read_events(serve.page_dir)
+    )
+    resolve_control = first.get_by_role("button", name="Resolve")
+    tab_to(resolve_control)
+    expect(resolve_control).to_be_focused()
     expect(line).to_contain_text("resolve")
     page.keyboard.press("x")
+    expect(first).to_be_visible()
+    page.keyboard.press("Enter")
+    round_trip(page)
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
-    expect(line).to_contain_text("resolve")
 
     # The native disclosure and Reopen control put a resolved thread in the ordinary Tab
-    # journey. Enter is the primary route and the same x state key is available there.
+    # journey. Enter performs the control's named action.
     expect(page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')).to_have_count(1)
     summary = page.locator(".lf-details summary")
     tab_to(summary)
@@ -5929,22 +5955,6 @@ def test_the_resolve_key_changes_the_focused_threads_resolution(browser, serve):
     expect(reopened).to_be_focused()
     expect(line).to_contain_text("reply")
 
-    # The state key is reversible from either visible state control too: Tab to Resolve,
-    # resolve with x, then Tab to Reopen and use the same x to reverse it.
-    resolve_control = reopened.get_by_role("button", name="Resolve")
-    tab_to(resolve_control)
-    expect(resolve_control).to_be_focused()
-    expect(line).to_contain_text("resolve")
-    page.keyboard.press("x")
-    round_trip(page)
-    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
-    resolved = page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')
-    reopen_control = resolved.get_by_role("button", name="Reopen")
-    tab_to(reopen_control)
-    expect(reopen_control).to_be_focused()
-    page.keyboard.press("x")
-    round_trip(page)
-    expect(reopened.locator(":scope > .lf-compose textarea")).to_be_focused()
     assert errors == []
     page.close()
 

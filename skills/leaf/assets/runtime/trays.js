@@ -65,8 +65,8 @@ export const STRIP_TRAYS = ["asks"];
 
 export const TRAY_KEY = "lf-tray-up";
 
-const beforeOpen = () => {
-  if (panelIsOpen()) setPanel(false);
+const beforeOpen = ({ remember = true } = {}) => {
+  if (panelIsOpen()) setPanel(false, { remember });
   closePreview();
 };
 
@@ -146,15 +146,17 @@ export const asksList = trayList(asksPanel);
 // registering and none of them names a tray to do its job.
 const trays = new Map();
 // A reader gesture writes through showTray. A reload writes saved intent later through
-// restoreTrays, after registration and the late Asks painter have been initialized.
+// restoreTrays, after registration and the late Asks painter have been initialized. An
+// ephemeral developer replay may restore this visible state without replacing the saved
+// intent.
 let trayUp = null;
 export const currentTray = () => trayUp;
 export const openTray = (key) => trayUp === key;
-export function showTray(key) {
+export function showTray(key, { remember = true } = {}) {
   if (trayUp === key) return;
   // Threads and trays are alternate workspaces. Retire the standing one before another
   // opens so layout, focus, and persisted state never have to reconcile two of them.
-  if (key) beforeOpen();
+  if (key) beforeOpen({ remember });
   trayUp = key;
   for (const [name, { panel, btn, paint }] of trays) {
     const open = name === key;
@@ -189,7 +191,7 @@ export function showTray(key) {
       if (panel.contains(document.activeElement)) btn.focus();
     }
   }
-  readerStore.set(TRAY_KEY, key ?? "");
+  if (remember) readerStore.set(TRAY_KEY, key ?? "");
   // Publish the tray through the shared shell boundary so responsive postures settle
   // once and only the reading column's route to them is motion.
   moveShell(() => {

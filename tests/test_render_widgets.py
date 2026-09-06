@@ -1872,6 +1872,32 @@ def test_swipe_deck_exit_echo_starts_at_the_dragged_card_box(browser, serve):
     page.close()
 
 
+def test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe(browser, serve):
+    """A projected action carries its semantic transition into the widget renderer."""
+    page, errors = open_page(browser, serve(SWIPE_PAGE), init_script=HOLD_MOTION)
+
+    page.locator("#session-triage").evaluate(
+        """deck => deck.renderState({
+          verdict: {
+            action: 'swipe',
+            detail: {card: 'swipe-a', to: 'session-keep', index: 1},
+            value: {
+              'session-queue': ['swipe-b', 'swipe-c', 'swipe-d'],
+              'session-pass': ['already-passed'],
+              'session-keep': ['already-kept', 'swipe-a'],
+            },
+          },
+        })"""
+    )
+
+    expect(page.locator(".lf-swipe-exit")).to_have_count(1)
+    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
+    page.evaluate("window.__lfHeld[0].finish()")
+    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
 def test_swipe_deck_reloads_replays_and_undoes_absolute_placement(browser, serve):
     """The pile position is durable state, not module memory: reload reconstructs it,
     and undo restores the card to its authored queue position."""

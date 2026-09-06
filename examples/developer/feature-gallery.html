@@ -105,6 +105,58 @@
         margin: 0;
       }
 
+      .interaction-frame-stage {
+        min-height: 30rem;
+        overflow: hidden;
+        padding: 0;
+      }
+
+      .interaction-frame {
+        display: block;
+        width: 100%;
+        height: 30rem;
+        border: 0;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .interaction-frame[data-interaction-ready] {
+        opacity: 1;
+      }
+
+      .interaction-keypress {
+        position: absolute;
+        z-index: 4;
+        right: 18px;
+        bottom: 18px;
+        padding: 7px 10px;
+        border: 1px solid var(--border-2);
+        border-radius: 8px;
+        background: var(--card);
+        box-shadow: 0 4px 14px var(--shade);
+        color: var(--ink);
+        font: 650 var(--t-6) / 1 var(--sans);
+        pointer-events: none;
+      }
+
+      .interaction-keypress[hidden] {
+        display: none;
+      }
+
+      .interaction-swipe-stage {
+        min-height: 25rem;
+        padding-inline: clamp(12px, 4vw, 40px);
+      }
+
+      .interaction-swipe-stage lf-ask {
+        display: block;
+        margin: 0;
+      }
+
+      .interaction-swipe-stage lf-ask > h3 {
+        margin-top: 0;
+      }
+
       .interaction-pointer {
         position: absolute;
         z-index: 3;
@@ -863,17 +915,19 @@ gallery/
         data-interaction-gallery
       >
         <p class="eyebrow bg-feature-elements">
-          lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board · lf-column ·
-          lf-card
+          Core · lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board ·
+          lf-column · lf-card · Thread Button · Threads panel · Swipe package ·
+          lf-swipe-deck · lf-swipe-pile · lf-swipe-card
         </p>
         <h2 id="bg-interactions-heading">
           <strong>Interactions</strong
           ><span class="bg-feature-detail">: motion and input sequences</span>
         </h2>
         <p id="bg-interactions-guide">
-          Play, pause, or replay a focused sequence against Leaf’s real widgets. The
-          preview applies state locally, so watching it does not add decisions to the
-          page’s event log.
+          Selecting a tab starts its focused sequence against Leaf’s production
+          component and transition code. Page-wide controls run inside the preview box,
+          so the gallery around it stays still. Pause while it plays, or replay from the
+          beginning; neither action writes to the page’s event log.
         </p>
 
         <lf-tabs id="bg-interaction-tabs">
@@ -915,6 +969,96 @@ gallery/
               <figcaption>
                 The pointer finds the card’s grip, then Leaf plays the same placement
                 transition used after a keyboard or drag move.
+              </figcaption>
+            </figure>
+          </lf-tab>
+
+          <lf-tab id="bg-interaction-comment" label="Send a comment">
+            <figure
+              class="interaction-demo"
+              data-interaction-demo="send-comment"
+              data-interaction-thread-id="2be2443f0bb6cc49fc86b52f340e6073"
+            >
+              <div class="interaction-stage interaction-frame-stage">
+                <iframe
+                  class="interaction-frame"
+                  data-interaction-frame
+                  data-interaction-eyebrow="review note"
+                  data-interaction-target="bg-thread-text"
+                  data-interaction-title="Agenda draft"
+                  data-interaction-copy="The sample agenda has room for one more topic."
+                  title="Contained Leaf comment animation"
+                  tabindex="-1"
+                  aria-hidden="true"
+                ></iframe>
+                <kbd class="interaction-keypress" data-interaction-keypress hidden
+                  >⌘/Ctrl + Enter</kbd
+                >
+                <span class="interaction-pointer" hidden aria-hidden="true"></span>
+              </div>
+              <figcaption>
+                Leaf’s real response field submits with ⌘/Ctrl+Enter, then becomes the
+                real inline thread. A seeded comment lets the gallery replay that
+                accepted-send transition without posting another one.
+              </figcaption>
+            </figure>
+          </lf-tab>
+
+          <lf-tab id="bg-interaction-threads" label="Open and close Threads">
+            <figure class="interaction-demo" data-interaction-demo="open-threads">
+              <div class="interaction-stage interaction-frame-stage">
+                <iframe
+                  class="interaction-frame"
+                  data-interaction-frame
+                  data-interaction-eyebrow="review workspace"
+                  data-interaction-title="Release notes"
+                  data-interaction-target="bg-thread-text"
+                  data-interaction-copy="The sample agenda has room for one more topic."
+                  title="Contained Leaf Threads animation"
+                  tabindex="-1"
+                  aria-hidden="true"
+                ></iframe>
+                <span class="interaction-pointer" hidden aria-hidden="true"></span>
+              </div>
+              <figcaption>
+                The pointer presses the real top-bar control inside a compact Leaf page;
+                the production Threads workspace opens and closes without changing this
+                gallery page.
+              </figcaption>
+            </figure>
+          </lf-tab>
+
+          <lf-tab id="bg-interaction-swipe" label="Swipe a card">
+            <figure
+              class="interaction-demo"
+              data-interaction-demo="swipe-card"
+              data-interaction-module="/widgets/lf-swipe-deck.js"
+            >
+              <div class="interaction-stage interaction-swipe-stage">
+                <lf-ask id="bg-motion-swipe-ask">
+                  <h3>Keep this follow-up?</h3>
+                  <lf-swipe-deck id="bg-motion-swipe">
+                    <lf-swipe-pile id="bg-motion-swipe-queue" verdict="unseen">
+                      <lf-swipe-card id="bg-motion-swipe-card">
+                        <strong>Document the keyboard route</strong>
+                        <p>Keep the interaction reachable without a pointer.</p>
+                      </lf-swipe-card>
+                    </lf-swipe-pile>
+                    <lf-swipe-pile
+                      id="bg-motion-swipe-pass"
+                      verdict="pass"
+                    ></lf-swipe-pile>
+                    <lf-swipe-pile
+                      id="bg-motion-swipe-keep"
+                      verdict="keep"
+                    ></lf-swipe-pile>
+                  </lf-swipe-deck>
+                </lf-ask>
+                <span class="interaction-pointer" hidden aria-hidden="true"></span>
+              </div>
+              <figcaption>
+                The pointer presses Keep; the swipe package plays its real exit motion
+                while the projected placement moves the card into Kept.
               </figcaption>
             </figure>
           </lf-tab>

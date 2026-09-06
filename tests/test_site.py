@@ -578,6 +578,66 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         expect(status).to_have_text("Move a card · Complete", timeout=10_000)
         assert card.evaluate("card => card.parentElement.id") == "bg-motion-tried"
         assert read_events(page_dir) == before
+
+        comment_tab = gallery.get_by_role("tab", name="Send a comment")
+        comment_tab.click()
+        comment_frame = gallery.locator(
+            "#bg-interaction-comment [data-interaction-frame]"
+        ).content_frame
+        comment_input = comment_frame.locator(".lf-fab-input")
+        expect(comment_input).to_be_visible()
+        expect(comment_input).to_have_attribute(
+            "aria-keyshortcuts", "Meta+Enter Control+Enter"
+        )
+        expect(comment_input).to_have_value(
+            re.compile(r"should the practice exercise come before lunch\?")
+        )
+        expect(status).to_have_text("Send a comment · Complete", timeout=10_000)
+        expect(comment_frame.locator("#lf-margin-preview")).to_be_visible()
+        expect(comment_frame.locator("#lf-margin-preview")).to_contain_text(
+            "should the practice exercise come before lunch?"
+        )
+        expect(page.locator("#lf-margin-preview")).to_be_hidden()
+        assert read_events(page_dir) == before
+
+        threads_tab = gallery.get_by_role("tab", name="Open and close Threads")
+        threads_tab.click()
+        threads_frame = gallery.locator(
+            "#bg-interaction-threads [data-interaction-frame]"
+        ).content_frame
+        expect(threads_frame.locator("body")).to_have_attribute("data-lf-panel", "")
+        expect(threads_frame.locator(".lf-panel")).to_be_visible()
+        expect(page.locator("body")).not_to_have_attribute("data-lf-panel", "")
+        toggle.click()
+        expect(status).to_have_text("Open and close Threads · Paused")
+        page.wait_for_timeout(1_500)
+        expect(threads_frame.locator("body")).to_have_attribute("data-lf-panel", "")
+        toggle.click()
+        expect(status).to_have_text("Open and close Threads · Complete", timeout=15_000)
+        expect(threads_frame.locator("body")).not_to_have_attribute("data-lf-panel", "")
+        expect(threads_frame.locator(".lf-panel")).to_be_hidden()
+        assert read_events(page_dir) == before
+
+        swipe_tab = gallery.get_by_role("tab", name="Swipe a card")
+        swipe_tab.click()
+        expect(status).to_have_text("Swipe a card · Complete", timeout=10_000)
+        swipe_card = gallery.locator("#bg-motion-swipe-card")
+        assert swipe_card.evaluate("card => card.parentElement.id") == (
+            "bg-motion-swipe-keep"
+        )
+        expect(page.locator("body")).not_to_have_attribute("data-lf-panel", "")
+        assert read_events(page_dir) == before
+
+        replay.click()
+        expect(status).to_have_text("Swipe a card · Playing")
+        assert swipe_card.evaluate("card => card.parentElement.id") == (
+            "bg-motion-swipe-queue"
+        )
+        expect(status).to_have_text("Swipe a card · Complete", timeout=10_000)
+        assert swipe_card.evaluate("card => card.parentElement.id") == (
+            "bg-motion-swipe-keep"
+        )
+        assert read_events(page_dir) == before
         page.set_viewport_size({"width": 390, "height": 844})
         assert gallery.locator("#bg-motion-board").evaluate(
             "board => board.scrollWidth === board.clientWidth"
@@ -631,6 +691,88 @@ def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
         context.close()
 
 
+def test_interaction_gallery_contains_page_chrome(serve, browser):
+    """A chrome replay changes its compact Leaf document, not the gallery around it."""
+    url = serve(FEATURE_GALLERY)
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 1280, "height": 900}
+    )
+    page, errors = open_page(browser, f"{url}#bg-interactions", context=context)
+    try:
+        gallery = page.locator("#bg-interactions")
+        comment_tab = gallery.get_by_role("tab", name="Send a comment")
+        threads_tab = gallery.get_by_role("tab", name="Open and close Threads")
+        toggle = gallery.locator("[data-interaction-toggle]")
+        status = gallery.locator("[data-interaction-status]")
+        expect(status).to_have_text(
+            "Accept a suggestion · Ready — motion will start only when you press Play",
+            timeout=15_000,
+        )
+
+        assert page.evaluate(
+            """async () => {
+                const {openInlineThread} = await import('/runtime/living-margin.js');
+                return Boolean(openInlineThread('2be2443f0bb6cc49fc86b52f340e6073'));
+            }"""
+        )
+        expect(page.locator("#lf-margin-preview")).to_contain_text(
+            "should the practice exercise come before lunch?"
+        )
+        comment_tab.click()
+        toggle.click()
+        expect(status).to_have_text("Send a comment · Complete", timeout=10_000)
+        expect(page.locator("#lf-margin-preview")).to_contain_text(
+            "should the practice exercise come before lunch?"
+        )
+        comment_frame = gallery.locator(
+            "#bg-interaction-comment [data-interaction-frame]"
+        ).content_frame
+        expect(comment_frame.locator("#lf-margin-preview")).to_contain_text(
+            "should the practice exercise come before lunch?"
+        )
+
+        page.locator(".lf-threads-toggle").click()
+        expect(page.locator("body")).to_have_attribute("data-lf-panel", "")
+        assert page.evaluate("localStorage.getItem('lf-panel-open')") == "1"
+        threads_tab.evaluate("tab => tab.click()")
+        toggle.click()
+        threads_frame = gallery.locator(
+            "#bg-interaction-threads [data-interaction-frame]"
+        ).content_frame
+        expect(threads_frame.locator("body")).to_have_attribute("data-lf-panel", "")
+        expect(page.locator("body")).to_have_attribute("data-lf-panel", "")
+        expect(status).to_have_text("Open and close Threads · Complete", timeout=15_000)
+        expect(threads_frame.locator("body")).not_to_have_attribute("data-lf-panel", "")
+        expect(page.locator("body")).to_have_attribute("data-lf-panel", "")
+        assert page.evaluate("localStorage.getItem('lf-panel-open')") == "1"
+        assert not errors, errors[:3]
+    finally:
+        context.close()
+
+
+def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
+    """A remembered chrome demo does not reset before its inner Leaf page is ready."""
+    url = serve(FEATURE_GALLERY)
+    context = browser.new_context(reduced_motion="reduce")
+    page, errors = open_page(browser, f"{url}#bg-interactions", context=context)
+    try:
+        gallery = page.locator("#bg-interactions")
+        gallery.get_by_role("tab", name="Send a comment").click()
+        page.reload()
+        expect(gallery.locator("[data-interaction-status]")).to_have_text(
+            "Send a comment · Ready — motion will start only when you press Play",
+            timeout=15_000,
+        )
+        expect(
+            gallery.locator(
+                "#bg-interaction-comment [data-interaction-frame]"
+            ).content_frame.locator(".lf-fab-input")
+        ).to_be_visible()
+        assert not errors, errors[:3]
+    finally:
+        context.close()
+
+
 def test_every_published_page_stands_as_a_live_page(served_example, browser):
     """Every artifact starts through Leaf's own document and state boundaries."""
     pages = published_pages()
@@ -647,6 +789,10 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
                 "This is an example on the Leaf website. No agent will respond. "
                 "Install Leaf"
             )
+            if source == FEATURE_GALLERY:
+                expect(
+                    page.locator("#bg-interactions iframe[data-interaction-ready]")
+                ).to_have_count(2, timeout=15_000)
             assert not errors, f"{source.name}: {errors[:3]}"
 
     finally:

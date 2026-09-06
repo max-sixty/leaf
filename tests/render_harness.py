@@ -765,22 +765,24 @@ def sending(page, what):
 
 # The same arrangement for a test that holds the wire open with `page.route`, and the one
 # place the ledger is the wrong fact to state it over. The runtime counts a send as it
-# makes it, while the driver is handed the paused request over its own connection a beat
-# later, so `traffic.sends == 1` is already true while the route list is still empty and
-# the `held[0]` behind the wait raises IndexError on a machine loaded enough to lose that
-# beat. The list the test goes on to read is what the wait belongs over, and `_until`
-# cannot carry it: its only wake-up is the ledger repainting, and a paused request paints
-# nothing further, so a route that lands after the send's paint would wait out the whole
-# deadline. The browser's own record already shows the send was made, so this repeats a
-# driver call — the thing that dispatches the route here — until the list has it.
+# makes it, while the driver is handed the request over its own connection a beat later,
+# so `traffic.sends == 1` is already true while the route list is still empty and the
+# `held[0]` behind the wait raises IndexError on a machine loaded enough to lose that
+# beat. The same gap opens on a list of the requests the handler let through: the send is
+# counted before the route the handler would append even exists here. The list the test
+# goes on to read is what the wait belongs over, and `_until` cannot carry it: its only
+# wake-up is the ledger repainting, and a paused request paints nothing further, so a
+# route that lands after the send's paint would wait out the whole deadline. The browser's
+# own record already shows the send was made, so this repeats a driver call — the thing
+# that dispatches the route here — until the list has it.
 def holding(page, held, count, what):
-    """Wait until `held` has collected `count` requests the route paused."""
+    """Wait until `held` has collected `count` requests the route put there."""
     deadline = time.monotonic() + 30
     while len(held) < count:
         if time.monotonic() >= deadline:
             raise AssertionError(
-                f"the page never held {what} in the wire: {len(held)} of {count} "
-                f"paused, on {_traffic(page)}"
+                f"the route never took {what}: {len(held)} of {count} "
+                f"dispatched into this process, on {_traffic(page)}"
             )
         page.wait_for_timeout(20)
 

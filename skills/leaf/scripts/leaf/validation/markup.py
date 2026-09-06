@@ -3,16 +3,19 @@
 import re
 from pathlib import Path
 
-from leaf.schema import _DIR_FILES, MEDIA_DIR
+from leaf.schema import MEDIA_DIR
 from leaf.structure import OPTIONAL_END, SECTIONING_TAGS, _StructParser
 from leaf.styles import inline_presentation_override_errors
 
 # One media reference as a message's Markdown writes it: an inline destination, or the
 # definition a reference-style link resolves through, read where the runtime's own
 # `isCanonicalMediaUrl` reads one — so a path standing in a sentence or a fence keeps
-# being the author's words rather than a file the page owes.
+# being the author's words rather than a file the page owes. Any `/media/…` it names,
+# which is the predicate the markup door's attribute harvest already keeps: the
+# directory holds digest-named files and nothing else, so every other destination is
+# one it cannot answer either.
 MEDIA_REFERENCE = re.compile(
-    rf"(?:\]\(\s*|^ {{0,3}}\[[^\]\n]+\]:\s*)<?(/{MEDIA_DIR}/{_DIR_FILES[MEDIA_DIR]})",
+    rf"(?:\]\(\s*|^ {{0,3}}\[[^\]\n]+\]:\s*)<?(/{MEDIA_DIR}/[^\s)>]+)",
     re.MULTILINE,
 )
 

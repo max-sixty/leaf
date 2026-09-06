@@ -123,9 +123,10 @@ follow, since a message outlives the version it was written on. Raw HTML in a
 body renders as its own characters. A widget in a message rides the event's
 `markup` field instead, whose one door is `leaf comment`/`leaf reply`, where it
 is validated against the vendored registry; the browser door refuses the field.
-An agent's body is read for `/media/<digest>.<ext>` at that same door, whether it
+An agent's body is read for a `/media/…` reference at that same door, whether it
 arrives as text or markup, since either names a file the page directory has to
-have. Text is read where the runtime resolves one — a Markdown link or image
+have — and the directory holds `/media/<digest>.<ext>` and nothing else, so any
+other one under that root is a file it can never answer. Text is read where the runtime resolves one — a Markdown link or image
 destination — so a path quoted in prose is words, as it is in authored markup;
 the browser's own paste stores the image before the reference exists.
 

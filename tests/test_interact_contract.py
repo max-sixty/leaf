@@ -3876,7 +3876,10 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
 
     The reading is the link or image destination the runtime resolves rather than a scan
     of the words, so the same path quoted in a sentence — a page explaining leaf writes
-    one, and `version check` has always let it through — stays the author's prose."""
+    one, and `version check` has always let it through — stays the author's prose. Every
+    `/media/…` destination is asked about, the predicate the markup door's attribute
+    harvest already keeps: the directory holds digest-named files and nothing else, so a
+    destination that isn't one renders as a picture no request will ever answer."""
     publish(page_dir)
     missing = "/media/deadbeefdeadbeef.png"
     posted = CliRunner().invoke(
@@ -3916,6 +3919,16 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
         f"a reference definition is where a reference-style image keeps its "
         f"destination, and the runtime renders it as the inline form:\n"
         f"{referenced.output}"
+    )
+
+    unnamed = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--text", "look:\n\n![shot](/media/screenshot.png)"],
+    )
+    assert unnamed.exit_code == 1, (
+        f"the directory holds digest-named files and nothing else, so a destination "
+        f"under /media/ that isn't one is a picture it can never answer — the reading "
+        f"the markup door's attribute harvest already keeps:\n{unnamed.output}"
     )
 
     (page_dir / "media").mkdir(exist_ok=True)

@@ -5460,7 +5460,7 @@ def test_wait_prints_a_reaction_with_its_meaning_and_ack_covers_it(page_dir, cap
         json.loads(line) for line in capsys.readouterr().out.strip().splitlines()
     ]
     assert shown["token"] == "cut"
-    assert shown["means"] == "does not earn its length — shorten or drop"
+    assert shown["means"] == "too long — shorten or remove this"
     assert "text" not in shown
     assert page_state(page_dir)["pending"] == 1
     session_model.cmd_ack(page_dir, shown["seq"])

@@ -4,7 +4,7 @@
 import { banner, mountBanner, reserveBannerControls } from "./banner.js";
 import { versionMenu } from "./version.js";
 import { asksPanel, othersPanel } from "./trays.js";
-import { generalInput, panel, wireGeneralBox } from "./conversation/panel.js";
+import { panel, wireGeneralBox } from "./conversation/panel.js";
 import { composer, fab, fabBar } from "./composing/selection.js";
 import { helpEl } from "./keyboard/reference.js";
 import { keylineEl } from "./keyboard/keyline.js";
@@ -36,8 +36,10 @@ import { mediaViewer } from "./media.js";
 import { configureInput } from "./composing/input.js";
 import { uploadMedia } from "./layer-client.js";
 
-const commentAddress = (box) =>
-  commentBox() === box ? activeRowLabel(commentRows()) : "";
+const commentAddress = () => ({
+  box: commentBox(),
+  label: activeRowLabel(commentRows()),
+});
 
 // The one scope root for the chrome's private rules: they match nothing outside this
 // container. A div, not a lf-* element — the render gate reads a lf-* ancestor as

@@ -4,8 +4,8 @@
  *
  * The log owns the absolute outcome, so reloads and tabs converge. Once that outcome
  * stands, the surviving slot remains and the retired slot folds away as trackable
- * motion. The durable outcome is visible, selectable receipt text; its circle is Undo,
- * so a Button-shaped thing always still performs or reveals something.
+ * motion. Undo remains while that decision can still be withdrawn. The shared busy
+ * state and notice carry delivery feedback without restating the settled content.
  *
  * The suggestion owns only those controls and their semantics. It contributes the row
  * through `registerMarginItem`; the living margin joins it to comment threads,
@@ -123,7 +123,7 @@ customElements.define(
   "lf-suggestion",
   class extends HTMLElement {
     #row = null;
-    #receipt = null;
+    #failureReceipt = null;
     #deciding = null; // the decision in flight, so a second press joins it
     #failed = null;
     #accept = null;
@@ -193,9 +193,8 @@ customElements.define(
       this.#margin = registerMarginItem({
         key: `suggestion:${this.id}`,
         // An accepted deletion (or rejected insertion) has no surviving slot and the
-        // suggestion itself leaves layout. Its receipt still describes the containing
-        // passage, so that passage becomes the durable perch instead of making a word
-        // marked data-lf-said disappear with a target that now paints no box.
+        // suggestion itself leaves layout. Undo still belongs to the containing passage,
+        // so that passage becomes its perch while the gesture can be withdrawn.
         target: () =>
           !this.dataset.lfState ||
           shownParts(this).some((part) => part.checkVisibility())
@@ -222,8 +221,8 @@ customElements.define(
                 {
                   id: `suggestion:${this.id}`,
                   // Before settlement this contribution is the Ask, so suppress the shared
-                  // Ask at the same target. Afterwards the item keeps the receipt and Undo
-                  // controls in this cluster without inventing another page-map reading.
+                  // Ask at the same target. Afterwards Undo remains in this cluster without
+                  // inventing another page-map reading.
                   kind: this.dataset.lfState ? "action" : "ask",
                   ...(this.dataset.lfState ? {} : { represents: true }),
                   text: this.dataset.lfState
@@ -258,8 +257,7 @@ customElements.define(
     // WORDS), and the name that has to carry the change as well. The
     // change's own words come in rather than being read here, because settling
     // retires the slot they live in and a name asked for afterwards would answer the
-    // id. Both controls restate together. The persistent outcome belongs to #receipt,
-    // outside the tooltip whose visibility depends on a hover or focus.
+    // id. Both controls restate together.
     #name(btn, state, change) {
       const kind = verb(btn);
       btn.removeAttribute("data-lf-said");
@@ -303,11 +301,6 @@ customElements.define(
       if (!this.#row) return;
       const outcome = this.dataset.lfState;
       if (outcome && !this.#failed) {
-        this.#receipt ??= document.createElement("span");
-        this.#receipt.className = "lf-sug-receipt";
-        relabel(this.#receipt, outcome === "accept" ? "Accepted" : "Rejected", {
-          says: true,
-        });
         this.#undo ??= this.#utilityButton({
           key: "undo",
           icon: "undo",
@@ -321,21 +314,16 @@ customElements.define(
           "aria-label",
           `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change}`,
         );
-        this.#row.dataset.lfOutcome = outcome;
-        this.#row.dataset.lfMarginReceipt = "settled";
-        this.#replaceControls(
-          ...(undoableAction(this, outcome) ? [this.#undo] : []),
-          this.#receipt,
-        );
+        delete this.#row.dataset.lfMarginReceipt;
+        this.#replaceControls(...(undoableAction(this, outcome) ? [this.#undo] : []));
         return;
       }
 
-      delete this.#row.dataset.lfOutcome;
       if (this.#failed) {
-        this.#receipt ??= document.createElement("span");
-        this.#receipt.className = "lf-sug-receipt";
+        this.#failureReceipt ??= document.createElement("span");
+        this.#failureReceipt.className = "lf-margin-receipt";
         relabel(
-          this.#receipt,
+          this.#failureReceipt,
           this.#failed.undo
             ? `Undo failed · ${outcome === "accept" ? "Accepted" : "Rejected"}`
             : "Failed",
@@ -358,7 +346,7 @@ customElements.define(
         for (const control of [this.#retry, this.#cancelFailure])
           marginButtonState(control, "failed");
         this.#row.dataset.lfMarginReceipt = "failed";
-        this.#replaceControls(this.#retry, this.#cancelFailure, this.#receipt);
+        this.#replaceControls(this.#retry, this.#cancelFailure, this.#failureReceipt);
         return;
       }
 
@@ -444,7 +432,7 @@ customElements.define(
     // it — so nothing is owed the reader during the round trip, and the round trip
     // is local. What waiting buys is the absence of the other half: a settled
     // suggestion the server never took had to be un-settled in front of the reader,
-    // a frame of "✓ Accepted" over a fold that started and stopped. The rule that
+    // a frame of settled content and Undo over a fold that started and stopped. The rule that
     // decides which gestures wait, and what waiting costs, are in CLAUDE.md.
     #decide(outcome) {
       if (this.dataset.lfState) return Promise.resolve(true);
@@ -566,8 +554,8 @@ customElements.define(
       // decision lands; the layer then writes the same mark unconditionally.
       renderRetired(this);
       if (this.#row) {
-        // The durable outcome is ordinary receipt text. The only remaining circle is
-        // Undo, which still acts; no disabled Button-shaped status survives settlement.
+        // The only remaining circle is Undo, which still acts; the fold and surviving
+        // content carry the outcome without leaving another status beside them.
         this.#renderControls(change);
       }
       this.#margin?.update();

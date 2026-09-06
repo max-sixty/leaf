@@ -1499,27 +1499,16 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 [data-lf-retired] { display: none; }
 lf-suggestion[data-lf-state="accept"]:not(:has(lf-new)),
 lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
-/* Whose job it is to say the change is only proposed, in each medium. On screen the
- * ✓/✗ row hanging on the change's own line says it, and this word stays clipped for
- * whoever is listening. A copy has no row — export strips a control the page doesn't
- * speak through, and a pending one says nothing yet, so it goes whole — which left the
- * two states saying opposite amounts there: a decided change keeps its "Accepted", a
- * pending one kept nothing, and a struck red paragraph with an empty margin beside it
- * is exactly what a deletion looks like once it has happened. The word #voice already
- * writes is what the copy shows instead, so nothing new is drawn and both readings of
- * the page keep the same text in the same place.
+/* A pending suggestion still has to say it is proposed when generated controls are
+ * absent. On screen the ✓/✗ row carries that fact and this word stays clipped for
+ * whoever is listening. A static copy and paper expose the word #voice already writes
+ * in each slot, so the proposal remains distinguishable from settled content without
+ * adding another label or moving it elsewhere.
  *
- * Paper is in the base too, and it is the medium this note used to overstate: print
- * drops every offer, `[data-lf-said]` included, so a decided change says nothing there
- * either and the asymmetry the paragraph above describes is the copy's alone. What the
- * word buys on paper is the pending state stating itself at all.
- *
- * Stated the way the copy states every affordance (see the widget-chrome norm): the
- * page the markup describes is the base, and the live page's version of it goes inside
- * the screen guard — so the clip is what is granted, rather than the word being drawn
- * and then taken back. `user-select` is not touched either way: this is the runtime's
- * reading of the paint rather than the page's own words, so a paragraph copied out of
- * a published page must not come away carrying it.
+ * The page the markup describes is the base, and the live page's clipped version goes
+ * inside the screen guard. `user-select` is not touched: this is the runtime's reading
+ * of the paint rather than authored prose, so copying a published paragraph must not
+ * carry the word with it.
  *
  * inline-block, because lf-old is struck and CSS runs a decoration through every
  * in-flow inline descendant — a descendant cannot cancel it, and `text-decoration:
@@ -1539,15 +1528,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * packing, and the focus-ring allowance belong to .lf-margin-item below. */
 .lf-sug-actions { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
-/* A settled suggestion keeps state as visible, selectable receipt text. Its circle is
- * Undo, so it remains a genuine action; failure uses the same receipt anatomy beside
- * Retry and Cancel. Generated controls disappear from static export while the receipt
- * remains ordinary document text. */
-.lf-sug-receipt { color: var(--ink-2); font-weight: 600; }
-.lf-sug-actions[data-lf-outcome="accept"] .lf-sug-receipt { color: var(--ok-ink); }
-.lf-sug-actions[data-lf-outcome="reject"] .lf-sug-receipt { color: var(--danger-ink); }
-.lf-sug-actions[data-lf-margin-receipt="failed"] .lf-sug-receipt { color: var(--danger-ink); }
-
 /* The living margin is a retained projection with one cluster per page target. Its
  * primary Button, optional `…`, and the secondary Buttons that ellipsis unfolds share
  * one host. One packing pass keeps the clusters clear, docks each whole unit when the

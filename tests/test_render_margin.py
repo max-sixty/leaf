@@ -939,16 +939,16 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, width, 900)
 
-    for target, outcome, receipt in (
-        ("bg-replace", "accept", "Accepted"),
-        ("bg-insert", "reject", "Rejected"),
-        ("bg-delete", "accept", "Accepted"),
+    for target, outcome in (
+        ("bg-replace", "accept"),
+        ("bg-insert", "reject"),
+        ("bg-delete", "accept"),
     ):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         controls = page.locator(f'.lf-sug-actions[data-lf-for="{target}"]')
         item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
         round_trip(page)
-        expect(controls.locator(".lf-sug-receipt")).to_have_text(receipt)
+        expect(controls.locator(".lf-margin-receipt")).to_have_count(0)
         controls.get_by_role("button", name=re.compile("^Undo ")).click()
         round_trip(page)
         expect(
@@ -1671,8 +1671,8 @@ def test_left_and_right_walk_the_revealed_button_cluster(browser, serve):
     page.close()
 
 
-def test_settling_a_secondary_action_exposes_its_lifecycle(browser, serve):
-    """A settled outcome and its unsettled handoff stay one engaged cluster."""
+def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serve):
+    """The settled content and its Undo stay in one engaged cluster."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     resized(page, 1440, 900)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
@@ -1681,7 +1681,7 @@ def test_settling_a_secondary_action_exposes_its_lifecycle(browser, serve):
     options.get_by_role("button", name=re.compile(r"Reject")).click()
     round_trip(page)
 
-    expect(item.locator(".lf-sug-receipt")).to_have_text("Rejected")
+    expect(item.locator(".lf-margin-receipt")).to_have_count(0)
     expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
     expect(options).to_be_visible()
     expect(

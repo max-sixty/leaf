@@ -1314,6 +1314,19 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
   .lf-conversation-thread :is(.lf-say, button, .lf-receipt), .lf-mark-note {
           display: none !important; }
 }
+/* A reaction chip and its trigger wear the chrome's pill face. That face is written in
+   the chrome stylesheet, which no declared shadow root sees, so a widget's own thread
+   outlet drew the platform's button instead: on the dark scheme its ButtonFace grey put
+   the muted word at 1.86:1. Repeated here with the reset it needs, the way .lf-mark-note
+   above repeats its own. */
+.lf-pill { appearance: none; margin: 0; padding: 0 8px; white-space: nowrap;
+          border: 1px solid var(--border-2); border-radius: 999px;
+          background: var(--card); color: var(--ink-2);
+          font: inherit; font-size: var(--t-6); line-height: 1.7; }
+.lf-pill:is(button, [role="button"]) { cursor: pointer; }
+.lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
+.lf-pill:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+          --lf-here-ring: pill; outline-offset: 1px; }
 .lf-react-trigger { color: var(--muted); }
 .lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .lf-react-open > .lf-react-trigger { display: none; }

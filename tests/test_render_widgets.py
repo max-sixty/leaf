@@ -3191,7 +3191,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
         """() => {
           const ask = document.getElementById('storage-decision').getBoundingClientRect();
           const options = document.getElementById('storage-options').getBoundingClientRect();
-          return {context: options.top - ask.top,
+          return {context: options.top - decision.top,
                   room: document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight};
         }"""
     )
@@ -3225,7 +3225,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     )
     landed = page.evaluate(
         """() => {
-          const ask = document.getElementById('storage-decision').getBoundingClientRect();
+          const decision = document.getElementById('storage-decision').getBoundingClientRect();
           const options = document.getElementById('storage-options').getBoundingClientRect();
           const clear = parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop);
           return {ask: ask.top, options: options.top, clear};

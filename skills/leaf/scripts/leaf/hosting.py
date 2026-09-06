@@ -2,7 +2,6 @@
 
 import errno
 import secrets
-import selectors
 import socket
 import subprocess
 import sys
@@ -19,6 +18,7 @@ from .http import handler_for
 from .layer import payload_provenance
 from .leases import lock_is_held, transition_lock
 from .registry.storage import layer_metadata
+from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
     host_key,
     lifetime_note,
@@ -39,85 +39,28 @@ TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
 
 
 class LeafHTTPServer(ThreadingHTTPServer):
-    """Leaf's HTTP server with prompt, resource-safe lifecycle control.
+    """Leaf's HTTP server, with the stopping state a held-open stream reads.
 
     The request queue uses the kernel's maximum backlog so concurrent browser and
-    event requests are accepted by the same server used in production. A local
-    selector wakeup lets shutdown avoid a periodic idle poll while open news streams
-    can still observe the server's stopping state.
+    event requests are accepted by the same server used in production. The poll
+    interval below sets how long a stop waits for the serving loop to notice it;
+    it is short enough that stopping a page reads as immediate, and an idle
+    selector timeout costs nothing worth measuring.
     """
 
     request_queue_size = socket.SOMAXCONN
-
-    def __init__(self, *args, **kwargs):
-        # TCPServer.__init__ calls the virtual server_close() if binding fails.
-        # Seed these fields first so that failure preserves the real bind error and
-        # still lets our close override run safely.
-        self._shutdown_wakeup = None
-        self._shutdown_wakeup_peer = None
-        self._shutdown_requested = threading.Event()
-        self._serve_done = threading.Event()
-        super().__init__(*args, **kwargs)
-        try:
-            self._shutdown_wakeup, self._shutdown_wakeup_peer = socket.socketpair()
-        except BaseException:
-            super().server_close()
-            raise
 
     # Whether this server has been told to stop. A news stream held open for a tab
     # needs to see it; otherwise the stream outlives the server stop.
     stopping = False
 
     def shutdown(self):
-        """Stop promptly while letting the serve loop stay idle.
-
-        ``socketserver``'s default loop sleeps in ``select`` for its half-second
-        poll interval before checking the shutdown flag. The serving loop below also
-        watches a local socketpair, so this method records the flag first and then
-        wakes that selector immediately.
-        """
         self.stopping = True
-        try:
-            self._shutdown_requested.set()
-            self._shutdown_wakeup_peer.send(b"\0")
-        except OSError:
-            # The wake peer may already be closed during teardown; the completion
-            # event below still gives the standard shutdown contract.
-            pass
-        self._serve_done.wait()
+        super().shutdown()
 
-    def serve_forever(self, poll_interval=0.5):
-        """Dispatch requests until shutdown, waking immediately when requested."""
+    def serve_forever(self, poll_interval=0.02):
         self.stopping = False
-        self._serve_done.clear()
-        try:
-            with selectors.DefaultSelector() as selector:
-                selector.register(self, selectors.EVENT_READ)
-                selector.register(self._shutdown_wakeup, selectors.EVENT_READ)
-                while not self._shutdown_requested.is_set():
-                    ready = selector.select(poll_interval)
-                    if self._shutdown_requested.is_set():
-                        break
-                    for key, _ in ready:
-                        if key.fileobj is self:
-                            self._handle_request_noblock()
-                        elif key.fileobj is self._shutdown_wakeup:
-                            # A server object may be reused after a completed
-                            # shutdown; do not leave an old wake byte readable.
-                            self._shutdown_wakeup.recv(1)
-                    self.service_actions()
-        finally:
-            self._shutdown_requested.clear()
-            self._serve_done.set()
-
-    def server_close(self):
-        try:
-            super().server_close()
-        finally:
-            for name in ("_shutdown_wakeup", "_shutdown_wakeup_peer"):
-                wakeup = getattr(self, name, None)
-                if wakeup is not None:
-                    wakeup.close()
+        super().serve_forever(poll_interval)
 
 
 class TemporaryPageServer:
@@ -215,12 +158,12 @@ def _provenance_label(provenance: dict) -> str:
 def startup_note(page_dir: Path) -> str:
     """Identify the page, vendored bytes, and serving Leaf beside its lifetime."""
     layer = layer_metadata(page_dir)
-    service = read_json(page_dir / "service.json") or {}
+    service = read_json(page_dir / SERVICE_FILE) or {}
     # An older live service has no trustworthy runtime identity. Naming this
     # command's payload instead would make the exact stale-server case this note
     # exists to expose look current merely because a newer client inspected it.
     runtime = service.get("runtime") or {}
-    fingerprint = layer.get("fingerprint") or "unidentified"
+    fingerprint = layer["fingerprint"]
     # After the lifetime line, not before: a served subprocess's first line of
     # stderr is the lifetime, and readers of that handshake take exactly one.
     return "\n".join(
@@ -344,7 +287,7 @@ def _reuse_server(
 def _take_server_lease(page_dir: Path, detached: bool):
     """Take the process lease, or report the concurrent server that won it."""
     lease = open(  # noqa: SIM115 - held until the server process exits
-        page_dir / "server.lock", "a+b"
+        page_dir / SERVER_LOCK, "a+b"
     )
     try:
         fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -420,7 +363,7 @@ def cmd_serve(
     httpd = None
     runtime = payload_provenance(include_path=True)
     with flocked(transition_lock(page_dir)), PageTransaction(page_dir) as page:
-        service = read_json(page_dir / "service.json")
+        service = read_json(page_dir / SERVICE_FILE)
         claimed = _serve_claim(page_dir, page, service, standing, revive)
         if _reuse_server(page_dir, host, standing, detached):
             return
@@ -434,7 +377,7 @@ def cmd_serve(
             return
         httpd = _bind_server(page_dir, access, token, ports, lease)
         service = _service_record(access, httpd, standing, claimed, runtime)
-        write_json(page_dir / "service.json", service)
+        write_json(page_dir / SERVICE_FILE, service)
         url = page_url(service["host"], service["port"], token)
 
     _announce_server(page_dir, url, detached)
@@ -514,14 +457,14 @@ def cmd_stop(page_dir: Path) -> str:
     """Disable the desired service and wait until its process lease is released."""
     require_cross_process_locking()
     with flocked(transition_lock(page_dir)):
-        service = read_json(page_dir / "service.json")
-        live = lock_is_held(page_dir / "server.lock")
+        service = read_json(page_dir / SERVICE_FILE)
+        live = lock_is_held(page_dir / SERVER_LOCK)
         if service and service["enabled"]:
-            write_json(page_dir / "service.json", {**service, "enabled": False})
+            write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
         if live:
             # The serving process observes disabled desired state and exits.
             # Taking its lease is the barrier proving every socket is closed.
-            with open(page_dir / "server.lock", "a+b") as lease:
+            with open(page_dir / SERVER_LOCK, "a+b") as lease:
                 fcntl.flock(lease, fcntl.LOCK_EX)
             return "stopped server"
     return "no server running"

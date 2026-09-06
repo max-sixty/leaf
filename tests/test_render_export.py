@@ -1,6 +1,5 @@
 """Standalone export tests."""
 
-import importlib.util
 import itertools
 import json
 import os
@@ -840,13 +839,8 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
     """A static handoff can be made while its interactive proof stays live."""
     live_source = (page_dir / "index.html").read_bytes()
     live_server = standing_server(page_dir)
-    spec = importlib.util.spec_from_file_location(
-        "leaf_preview_script", ROOT / "scripts" / "preview.py"
-    )
-    assert spec and spec.loader
-    preview = importlib.util.module_from_spec(spec)
-    monkeypatch.syspath_prepend(str(ROOT / "scripts"))
-    spec.loader.exec_module(preview)
+    import preview
+
     monkeypatch.setattr(preview, "TMP", page_dir.parent)
     monkeypatch.setattr(sys, "argv", ["preview.py", "pr-walkthrough", "--export"])
 

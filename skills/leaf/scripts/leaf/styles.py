@@ -8,7 +8,7 @@ from functools import lru_cache
 
 import tinycss2
 
-from .structure import OVERFLOW_PROPS, _StructParser
+from .structure import OVERFLOW_PROPS, StructParser
 
 # ---------- the readable column ----------
 # A rule, a style="" and a width="" are the three places a document states a width.
@@ -279,7 +279,7 @@ def _column_width(page_css: str, theme_css: str) -> int:
 
 
 def _overwide_elements(
-    parser: _StructParser, column: int, theme_tokens: dict | None = None
+    parser: StructParser, column: int, theme_tokens: dict | None = None
 ) -> list:
     """Everything a version pins wider than the column: its own rules, its inline
     styles, and the width="" attributes that count as pixels.
@@ -320,7 +320,7 @@ PRESENTATION_PROPERTIES = {
 }
 
 
-def inline_presentation_override_errors(parser: _StructParser) -> list:
+def inline_presentation_override_errors(parser: StructParser) -> list:
     """Inline importance outranks even the theme's first important cascade layer."""
     errors = []
     for number, style in enumerate(parser.inline_styles, 1):

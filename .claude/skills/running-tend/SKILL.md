@@ -97,7 +97,7 @@ newest release that pin could take where that differs. `elkjs` and `entities` ar
 beautiful-mermaid's imports rather than Leaf's own choices, so their rows read
 against the range it declares: a release outside it is not a pin to take, because
 npm would install the declared version nested and the bundle would carry that one.
-`esbuild` is the tool the three builds share rather than payload, so it moves when
+`esbuild` is the tool the builds share rather than payload, so it moves when
 a bundle needs it rather than on every release.
 
 On drift, bump the entry in PINS and run `scripts/vendor.py <bundle>` — the

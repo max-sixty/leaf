@@ -28,19 +28,12 @@ from leaf.publishing import cmd_stamp
 from leaf.requests import cmd_receipt
 from leaf.schema import (
     ACK_BATCH_INSTRUCTION,
-    ANSWER_ASK_INSTRUCTION,
     EVENTS_FILE,
     SKILL_ROOT,
     WAIT_BATCH_OUTPUT_INSTRUCTION,
 )
-from leaf.served_state.page import full_state
-from leaf.service import (
-    PageTransaction,
-    restore_page_claim,
-    take_page_claim,
-    unacknowledged,
-)
-from leaf.session import check_local_claim, cmd_ack, cmd_status, cmd_wait
+from leaf.service import PageTransaction, restore_page_claim, take_page_claim
+from leaf.session import cmd_ack, cmd_idle, cmd_status, cmd_wait
 from leaf.transcript import cmd_events, cmd_transcript
 from leaf.validation.command import cmd_check
 from leaf.vendoring import cmd_init
@@ -518,53 +511,10 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     quiet after about a quarter of an hour — on the banner and each local line.
     """
     page_dir = resolve_dir(dir)
-    # Ahead of the branch below, which reaches `set_status` without passing the
-    # subject: refused here, `idle --on` cannot be reported back as a claim the
-    # page never took.
-    if on is not None:
-        check_local_claim(state, detail)
-    # Idling over an event nobody has answered ends the leaf on a user still
-    # owed one — unread, or read and left. The watcher's whole batch, not the
-    # reader-facing count, so a worker's report cannot be left standing as
-    # provisional state forever either. Here rather than in cmd_status because
-    # the log lock gives the check and the transition one order with an event
-    # arriving or an acknowledgement advancing the cursor.
-    if state != "idle":
+    if state == "idle":
+        cmd_idle(page_dir, detail, on)
+    else:
         cmd_status(page_dir, state, detail, on=on)
-        click.echo(_status_line(state, detail, on))
-        return
-    with PageTransaction(page_dir) as page:
-        events = page.events
-        cursor = page.cursor
-        pending = len(unacknowledged(events, cursor))
-        unanswered = [
-            obligation
-            for obligation in full_state(page_dir, events)["activity"]["obligations"]
-            if obligation["seq"] <= cursor
-        ]
-        if pending:
-            prefix = (
-                f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
-                "idling ends the leaf over them; "
-            )
-            sys.exit(
-                prefix + "`leaf wait` prints them and returns at once when events are "
-                "already waiting. The wait owner must finish the delivery contract "
-                "before idling. " + ACK_BATCH_INSTRUCTION
-            )
-        if unanswered:
-            ids = ", ".join(
-                obligation["target"]["id"]
-                if obligation["target"]["kind"] == "thread"
-                else obligation["event"]
-                for obligation in unanswered
-            )
-            sys.exit(
-                f"{len(unanswered)} acknowledged "
-                f"reader move{'s' if len(unanswered) != 1 else ''} with no answer "
-                f"({ids}); idling ends the leaf over them. " + ANSWER_ASK_INSTRUCTION
-            )
-        page.set_status(state, detail)
     click.echo(_status_line(state, detail, on))
 
 

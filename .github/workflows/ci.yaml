@@ -8,14 +8,11 @@ on:
     branches: [main]
   pull_request:
 
-# One main run at a time, but never a cancelled one. The nightly suite takes 22-41
-# minutes and main takes a commit every 10 minutes at the median, so cancelling the
-# run in flight meant the newer commit's run was cancelled in turn: the complete
-# suite reached a verdict on under a third of main's commits. Queueing instead keeps
-# the same one-run-at-a-time ceiling — GitHub still drops a superseded *pending* run,
-# so the queue never grows past the newest head — while letting each run finish. It
-# is also what makes the timeouts below reachable: a wedged run has to outlive the
-# next push to be reported as one, and each job is bounded even before its suite starts.
+# One main run at a time, but never a cancelled one: the nightly suite outlasts
+# main's commit cadence, so a run cancelled by the next push leaves most commits
+# with no verdict. Queueing keeps the one-run ceiling — GitHub drops a superseded
+# *pending* run, so the queue never grows past the newest head — and lets each run
+# finish, which is also what makes the timeouts below reachable.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref || github.run_id }}
   cancel-in-progress: false

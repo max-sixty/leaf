@@ -6,7 +6,7 @@ from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.projection import enclosing_widgets
 from leaf.registry.contract import json_validator, registry_path, visual_parts
 from leaf.registry.state import retirement_slots
-from leaf.structure import _StructParser
+from leaf.structure import StructParser
 
 from .markup import at, structure_errors
 
@@ -464,7 +464,7 @@ def suggestion_errors(lf_elements: list, registry: dict, comment_ids: set) -> li
     return errors
 
 
-def fragment_errors(parser: _StructParser, registry: dict) -> list:
+def fragment_errors(parser: StructParser, registry: dict) -> list:
     """Structural + registry validation of a markup fragment (an agent reply
     carrying widgets): the discussion-side analog of `version check`. The declared-word
     checks come along because the schema stopped carrying the lists: a reply's

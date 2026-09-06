@@ -3,6 +3,7 @@
 from typing import NamedTuple
 
 from leaf.events import action_rests_on, build_threads, taken_back
+from leaf.schema import MESSAGE_KINDS
 from leaf.structure import parse_structure
 
 
@@ -82,7 +83,7 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
     validates its target against the active revision's own elements, so one
     can never name a widget an agent sent."""
     kind = event["kind"]
-    if kind in {"comment", "reply"}:
+    if kind in MESSAGE_KINDS:
         named = [roots.get(event["id"])]
     elif kind == "edit":
         named = [roots.get(event["message"])]

@@ -24,6 +24,8 @@ ORPHAN_GRACE_SECS = 1
 # before the receipt is.
 UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
+# The kinds a widget owns, admitted against the page's registry before they append.
+WIDGET_KINDS = {"action", "report", "request"}
 ANSWER_ASK_INSTRUCTION = (
     "`leaf page state <page>` lists each thread's current state, and "
     "`leaf events <page> --thread <id>` prints its exact records. A thread with "
@@ -482,15 +484,13 @@ ATTRIBUTE_KEYS = ("x-language", "x-lines", "x-paints", "x-refers", "x-says", "x-
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
 PLUGIN_ROOT = SKILL_ROOT.parent.parent
-KERNEL = SKILL_ROOT / "assets"
-ASSETS = KERNEL
+ASSETS = SKILL_ROOT / "assets"
 BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
 # Outside the layer roots: an MCP host reads a resource here from the install over
 # the tool transport, so `page init` never copies one into a page directory.
 MCP_APP = SKILL_ROOT / "mcp-app"
 VENDORED_FILES = ("leaf.js", "theme.css", "registry.json", "icon.svg")
-PACKAGE_FILES = VENDORED_FILES
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
 GUIDANCE_DIR = "guidance"
 PACKAGE_DIRS = (*BROWSER_DIRS, GUIDANCE_DIR)
@@ -518,25 +518,30 @@ VIEWED_FILE = "viewed.json"
 # blind to the port, so every page this machine serves shares a jar — on 127.0.0.1,
 # with every other server the user has running, which is what the prefix is for.
 KEY_COOKIE = "lf_key"
+STATUS_FILE = "status.json"
+CURSOR_FILE = "cursor.json"
+SERVICE_FILE = "service.json"
+SERVER_LOCK = "server.lock"
+WAITER_LOCK = "waiter.lock"
 PAGE_STATE_FILES = (
     EVENTS_FILE,
-    "status.json",
+    STATUS_FILE,
     DATA_FILE,
-    "waiter.lock",
-    "cursor.json",
+    WAITER_LOCK,
+    CURSOR_FILE,
     VIEWED_FILE,
-    "service.json",
-    "server.lock",
+    SERVICE_FILE,
+    SERVER_LOCK,
     PREVIEW_FILE,
 )
-PAGE_OWNED_FILES = ("index.html", *PACKAGE_FILES, *PAGE_STATE_FILES)
+PAGE_OWNED_FILES = ("index.html", *VENDORED_FILES, *PAGE_STATE_FILES)
 PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR)
 # What the server exposes from a page: the browser layer, media, immutable revisions,
 # and event-backed version addresses. Agent-side guidance stays vendored but is read
 # only through the CLI.
 # The dir patterns are keyed by the public directories themselves, so growing
 # that surface without saying what it may serve fails here, at import.
-_DIR_FILES = {
+DIR_FILES = {
     "runtime": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.(?:js|css)",
     "widgets": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.js",
     "vendor": (r"(?:(?!\.{1,2}/)[A-Za-z0-9._-]+/)*" r"(?!\.{1,2}$)[A-Za-z0-9._-]+"),
@@ -546,7 +551,7 @@ SERVED_PATH = re.compile(
     "/(?:"
     + "|".join(
         [re.escape(f) for f in VENDORED_FILES]
-        + [f"{d}/{_DIR_FILES[d]}" for d in (*BROWSER_DIRS, MEDIA_DIR)]
+        + [f"{d}/{DIR_FILES[d]}" for d in (*BROWSER_DIRS, MEDIA_DIR)]
         + [r"versions/v[1-9][0-9]*\.html"]
         + [r"revisions/r[1-9][0-9]*-[a-f0-9]{16}\.html"]
     )

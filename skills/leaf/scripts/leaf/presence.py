@@ -12,12 +12,11 @@ from .files import (
     active_descriptor,
     file_stamp,
     latest_revision,
-    list_revisions,
     read_json,
 )
 from .host import state_home
 from .leases import wait_is_live
-from .schema import VIEWED_FILE
+from .schema import STATUS_FILE, VIEWED_FILE, WAITER_LOCK
 from .server import running_server
 from .service import (
     claim_is_active,
@@ -52,7 +51,7 @@ def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
         # created or removed.
         lease_stamp = file_stamp(state_home() / "sessions" / f"{claim['id']}.wait")
     else:
-        lease_stamp = file_stamp(page_dir / "waiter.lock")
+        lease_stamp = file_stamp(page_dir / WAITER_LOCK)
     return entries + (("$claim", claim_stamp), ("$wait", lease_stamp))
 
 
@@ -80,8 +79,8 @@ def other_leaves(page_dir: Path) -> list:
     candidates += (Path(claim["page"]) for claim in claim_records())
     others = []
     seen = {page_dir.resolve()}
-    for candidate in candidates:
-        candidate = candidate.resolve()
+    for found in candidates:
+        candidate = found.resolve()
         if candidate in seen or not candidate.is_dir():
             continue
         seen.add(candidate)
@@ -117,8 +116,8 @@ def other_leaves(page_dir: Path) -> list:
                     try:
                         if info:
                             events = read_events(candidate)
-                            if list_revisions(candidate):
-                                revision = latest_revision(candidate)
+                            revision = latest_revision(candidate)
+                            if revision is not None:
                                 parser = parse_revision(candidate, revision)
                                 # A neighboring row consumes the same canonical
                                 # activity as that page's own banner. Import here
@@ -128,10 +127,7 @@ def other_leaves(page_dir: Path) -> list:
                                 from .served_state.page import project_activity
 
                                 raw = presence(candidate, events)
-                                try:
-                                    active = active_descriptor(candidate, events)
-                                except SystemExit:
-                                    active = None
+                                active = active_descriptor(candidate, events)
                                 browser = project_browser_state(
                                     candidate, events, None, active, raw, observed_at
                                 )
@@ -176,14 +172,7 @@ def presence(page_dir: Path, events: list) -> dict:
     claim-against-proof judgment reads the same fields whichever page it judges,
     and the tray's account of a neighbour is the account this page gives of
     itself."""
-    # A file that isn't there stands in as its whole record, so every read below
-    # indexes rather than asking twice whether the field arrived.
-    stored_status = read_json(page_dir / "status.json") or {
-        "state": "idle",
-        "detail": "",
-        "ts": None,
-        "after": 0,
-    }
+    stored_status = read_json(page_dir / STATUS_FILE)
     status = {key: value for key, value in stored_status.items() if key != "work"}
     status.setdefault("after", 0)
     claim = page_claim(page_dir)

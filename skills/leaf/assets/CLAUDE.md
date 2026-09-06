@@ -53,6 +53,8 @@ callback another module runs during evaluation.
 there;
 `runtime/standing.js` owns the one repaint of where the reader stands, in the order
 the geometry demands;
+`runtime/walk-position.js` owns the transient ordinal the keyline reads for an active
+Ask or Thread keyboard walk;
 `runtime/icons.js` owns the layer's icon table;
 `runtime/context.js` owns the mutable facts shared across the browser layers and
 their direct readers;
@@ -102,7 +104,7 @@ subscriptions;
 `bindings.js` the spelling, parsing, row fields, and checks; `scopes.js` where a group
 of rows applies; `dispatch.js` which scope answers a press and what it owes the
 platform; `return-stack.js` what a keyboard entry owes on the way back out;
-`keyline.js` the short help at the foot of the page and its More control;
+`keyline.js` the status and short help at the foot of the page and its More control;
 `reference.js` the complete listing behind `?`; `address.js` the go-to chord;
 `address-placement.js` shared address visibility and the numeric Ask placement pass;
 `hints.js` prefix-free transient labels and their no-drop placement pass;
@@ -126,6 +128,8 @@ the fold that decides which of the banner's addresses stand on its row and which
 stand in its menu;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
+`runtime/interaction-gallery.js` owns the Product Gallery's opt-in, ephemeral
+interaction replays and their playback controls;
 `runtime/markdown.js` owns safe, lazy Markdown rendering for runtime-supplied text;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
 report, and work-claim feeds;

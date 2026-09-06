@@ -26,7 +26,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+from contextlib import contextmanager
+from functools import partial
 from html.parser import HTMLParser
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -136,6 +140,27 @@ def leaf(env: dict, *args: str, input_text: str | None = None) -> None:
         sys.exit(f"leaf {' '.join(args)}:\n{done.stdout}{done.stderr}")
 
 
+class _Quiet(SimpleHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+
+
+@contextmanager
+def hosted(directory: Path):
+    """The built site on a loopback port, which is the only way its own links resolve."""
+    server = ThreadingHTTPServer(
+        ("127.0.0.1", 0), partial(_Quiet, directory=str(directory))
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+
 def worked_example_sources() -> list[Path]:
     """Authored worked examples, never derived or developer test surfaces."""
     sources = [
@@ -198,7 +223,7 @@ def publish_product_pages(
         target.write_text(exported, encoding="utf-8")
 
 
-def publish_pages(out: Path, env: dict) -> None:
+def publish_pages(out: Path, env: dict, browser=None) -> None:
     """Standalone product documents and canonical interactive pages."""
     with tempfile.TemporaryDirectory() as tmp:
         product_page = Path(tmp) / "product-page"
@@ -221,23 +246,26 @@ def publish_pages(out: Path, env: dict) -> None:
             *(str(path) for path in product_media),
         )
         products = checked_product_sources(product_page, env)
-        try:
-            from playwright.sync_api import Error as PlaywrightError
-            from playwright.sync_api import sync_playwright
-        except ImportError:
-            sys.exit("the site build needs Playwright to render its product pages")
-        with sync_playwright() as playwright:
+        if browser is not None:
+            publish_product_pages(product_page, out, products, browser)
+        else:
             try:
-                browser, _ = launch_browser(playwright)
-            except PlaywrightError as error:
-                sys.exit(
-                    "the site build needs a browser, and none launched "
-                    f"({str(error).strip().splitlines()[0]}). {browser_hint()}"
-                )
-            try:
-                publish_product_pages(product_page, out, products, browser)
-            finally:
-                browser.close()
+                from playwright.sync_api import Error as PlaywrightError
+                from playwright.sync_api import sync_playwright
+            except ImportError:
+                sys.exit("the site build needs Playwright to render its product pages")
+            with sync_playwright() as playwright:
+                try:
+                    launched, _ = launch_browser(playwright)
+                except PlaywrightError as error:
+                    sys.exit(
+                        "the site build needs a browser, and none launched "
+                        f"({str(error).strip().splitlines()[0]}). {browser_hint()}"
+                    )
+                try:
+                    publish_product_pages(product_page, out, products, launched)
+                finally:
+                    launched.close()
         # The social card is the reference that keeps this: every page names its
         # og:image at an absolute https://leaf.page/media/… URL, which no export
         # inlines and no link check can see. The rest is already in the exports.
@@ -258,7 +286,7 @@ def publish_pages(out: Path, env: dict) -> None:
             print(f"  {source.stem}")
 
 
-def build(out: Path, *, verify_links: bool = True) -> None:
+def build(out: Path, *, verify_links: bool = True, browser=None) -> None:
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
 
@@ -277,7 +305,7 @@ def build(out: Path, *, verify_links: bool = True) -> None:
     env.pop("CODEX_THREAD_ID", None)
     with tempfile.TemporaryDirectory() as config_home:
         env["XDG_CONFIG_HOME"] = config_home
-        publish_pages(out, env)
+        publish_pages(out, env, browser)
 
     if verify_links:
         check_links(out)

@@ -14,15 +14,16 @@ at.
 
 ## Run the narrowest useful surface
 
-A new cloud container needs the pinned environment and both browsers before the
-suite can run:
+A new development host installs the browser binaries and website dependencies with
+the repository setup alias. `uv run` synchronizes the pinned Python environment,
+including pre-commit:
 
 ```sh
-uv sync --frozen
-uv run playwright install chromium --only-shell
-uv run playwright install chrome
-uv tool install pre-commit
+wt setup
 ```
+
+The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer. Docker is
+additionally needed for the complete website boundary and `scripts/linux-suite.sh`.
 
 A container without IPv6 cannot run the two tests that bind the stated-host
 wildcard `::`; run those from a workstation.
@@ -577,6 +578,14 @@ Do not substitute frame counts or quiet windows for these distinctions. Ask
 whether the claim concerns the settled state, one frame, the order of frames, or
 the exact turn of a write, then choose the smallest observation that can
 preserve it.
+
+Measure a node the layer rebuilds in one page-side call, resolving it by selector
+inside the same evaluation that reads its box. A Playwright locator resolves the
+element in one driver call and measures the handle it got in the next, so a paint
+landing in between hands back a detached node, whose box reads as all zeros rather
+than raising. Drawing marks are the standing case: every paint replaces the whole
+drawing layer, and `mark_box` in `test_render_drawing.py` is the reading that
+cannot be caught between the two.
 
 The movement tests ask both paths that can shift a target: press a control and
 compare the rest of its line, and let news arrive and compare all persistent

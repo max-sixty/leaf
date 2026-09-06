@@ -219,6 +219,7 @@ import { letGo } from "./runtime/keyboard/page.js";
 import { mountChrome } from "./runtime/chrome.js";
 import { restoreArrangements } from "./runtime/arrangements.js";
 import { captureAuthoredFacets } from "./runtime/projection/authored.js";
+import { layoutMarginRows } from "./runtime/margin-layout.js";
 
 // The register's repaint frame paints the standing chrome: registered here, first,
 // because the painter imports every owner and no owner may import it.
@@ -238,6 +239,22 @@ mountChrome();
 // the registry's widget modules. Its answer stays buffered until startPage has captured
 // the upgraded authored facets that replay starts from.
 const initialStateRead = beginRead();
+
+let interactionGalleryModule;
+function syncInteractionGallery() {
+  const gallery = document.querySelector("[data-interaction-gallery]");
+  if (!gallery && !interactionGalleryModule) return;
+  interactionGalleryModule ??= import("./runtime/interaction-gallery.js").catch(
+    (error) => {
+      reportPageError(
+        `interaction gallery failed to start: ${error?.message ?? error}`,
+      );
+      return null;
+    },
+  );
+  void interactionGalleryModule.then((module) => module?.installInteractionGallery());
+}
+document.addEventListener("lf-actions", syncInteractionGallery);
 
 // A fresh arrival starts on the page, the same stable focus destination the Escape ladder
 // uses after chrome. Root scrolling no longer depends on this handoff; focus ownership
@@ -274,6 +291,17 @@ function presentPage() {
   // anchor reading fail, so durable controls remain withheld on that partial page.
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
   updateFab();
+  // Repaint the remaining state-dependent chrome and controls in this same task. Replay
+  // is already complete, so the presented attribute opens interaction on the state it names.
+  restoreTray();
+  showNews(othersBtn, leavesOffered());
+  paintKeys();
+  document.dispatchEvent(new Event("lf-actions"));
+  layoutMarginRows();
+  paintApproval();
+  // Fragment arrival reads after those controls have taken their final space. Margin
+  // placement normally batches into a frame; a fresh arrival runs that pending layout
+  // now so a docked row above the target cannot move it again after the landing.
   paintHere();
   landArrival();
   if (savedView && savedView.revision < runtime.currentRevision)
@@ -284,13 +312,6 @@ function presentPage() {
       about: savedComposer.about ?? null,
       drawing: savedComposer.drawing ?? null,
     });
-  // Repaint the remaining state-dependent chrome and controls in this same task. Replay
-  // is already complete, so the presented attribute opens interaction on the state it names.
-  restoreTray();
-  showNews(othersBtn, leavesOffered());
-  paintKeys();
-  document.dispatchEvent(new Event("lf-actions"));
-  paintApproval();
   promoteDeferredModals();
 }
 

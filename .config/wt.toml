@@ -7,7 +7,7 @@
 # Two blocks rather than one table, because a table runs its commands together and the
 # lint rewrites the tree the suite reads.
 [[pre-merge]]
-checks = "pre-commit run -a"
+checks = "uv run pre-commit run -a"
 
 # Broad discovery keeps the local gate quick. CI adds the nightly browser and
 # published-site integration suites after main moves.
@@ -41,12 +41,22 @@ then
 fi
 '''
 
-[aliases]
-cloud = '''
-uv sync --frozen
-uv run playwright install chromium --only-shell
-uv run playwright install chrome
-uv tool install pre-commit
+# uv run synchronizes the locked Python environment. Browser binaries and the
+# website's node_modules live outside it, so those remain explicit.
+[[aliases.setup]]
+chromium = "uv run --frozen playwright install chromium --only-shell"
+
+[[aliases.setup]]
+chrome = "uv run --frozen playwright install chrome"
+
+[[aliases.setup]]
+worker = "npm ci --prefix worker"
+
+[[aliases.cloud]]
+setup = "wt setup"
+
+[[aliases.cloud]]
+tests = '''
 # urllib matches the IPv6 URL's bracketed host literally.
 NO_PROXY="${NO_PROXY:-},${no_proxy:-},[::1]"; export NO_PROXY no_proxy="$NO_PROXY"
 uv run pytest tests {{ args }}

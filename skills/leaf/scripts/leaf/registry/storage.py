@@ -54,7 +54,7 @@ def layer_metadata(page_dir: Path) -> dict:
             f"{path}: $layer.packages must be a unique list of non-empty strings"
         )
     fingerprint = layer.get("fingerprint")
-    if fingerprint is not None and not (
+    if not (
         isinstance(fingerprint, str)
         and re.fullmatch(r"sha256:[0-9a-f]{64}", fingerprint)
     ):

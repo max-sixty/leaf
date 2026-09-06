@@ -83,8 +83,8 @@ owns. Read `references/page-checkpoints.md` before stamping or ending. Edit only
 Unless the user specifies the page's form or depth, a Leaf is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
 state, or offers one move, so the reader can grasp it at a glance and continue;
-   disclosures keep supporting detail available without putting it in that path. A
-   quick-answer page puts its first Ask in the initial viewport, with the short
+disclosures keep supporting detail available without putting it in that path. A
+quick-answer page puts its first Ask in the initial viewport, with the short
 shared premise and alternatives it needs. A record or system page may expose the
 whole state and put each Ask where that state makes it answerable. The visible
 page follows the subject's shape rather than a report outline;
@@ -96,6 +96,17 @@ place and drop a superseded claim rather than narrating its withdrawal; the
 the subject changes and stamp meaningful checkpoints. Use status detail for
 progress between revisions. Keep the waiter alive while work continues so
 comments can affect the next step.
+
+## Improve Leaf through use
+
+Leaf's agent interface is still in development, and experience making real
+pages should inform it. When using Leaf exposes concrete friction, ambiguity,
+or a missing capability, raise it with the user and offer to file an issue in
+the Leaf repository. Agent-reported issues are welcome.
+
+Describe the specific case: what you wanted to do and how the interface got in
+the way. Then explain the general improvement and why it would make Leaf better
+beyond that page.
 
 ## Conditional references
 

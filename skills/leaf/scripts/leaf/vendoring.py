@@ -1,12 +1,13 @@
 """Page initialization and atomic layer vendoring."""
 
+import contextlib
 import json
 import secrets
 import sys
 from pathlib import Path
 from typing import NamedTuple
 
-from .data import empty_data, read_data_store
+from .data import empty_data, read_data
 from .data_contracts import (
     data_contract_errors,
     data_snapshot_selections,
@@ -42,6 +43,9 @@ from .schema import (
     PACKAGE_DIRS,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
+    SERVER_LOCK,
+    SERVICE_FILE,
+    STATUS_FILE,
 )
 from .service import PageTransaction, claim_path
 from .validation.compatibility import vocabulary_gaps
@@ -57,8 +61,8 @@ def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
 
 
 def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
-    service = read_json(page_dir / "service.json")
-    server_live = lock_is_held(page_dir / "server.lock")
+    service = read_json(page_dir / SERVICE_FILE)
+    server_live = lock_is_held(page_dir / SERVER_LOCK)
     if server_live or (service and service["enabled"]):
         sys.exit(
             f"cannot re-vendor {page_dir} while its service is enabled. "
@@ -172,7 +176,7 @@ def _refuse_vocabulary_drift(
 def _refuse_data_contract_drift(
     page_dir: Path, events: list[dict], incoming: dict
 ) -> None:
-    stored_data = read_data_store(page_dir)
+    stored_data = read_data(page_dir)
     # The outgoing registry is historical input, not a contract arriving at the
     # current code's boundary. It may legitimately predate a new kernel invariant;
     # validating it with today's rules would prevent `page init` from replacing the
@@ -224,10 +228,7 @@ def _refuse_data_contract_drift(
 
 
 def _refuse_untargeted_work(page_dir: Path, events: list[dict], incoming: dict) -> None:
-    try:
-        revision = latest_revision(page_dir)
-    except SystemExit:
-        revision = None
+    revision = latest_revision(page_dir)
     if revision is None:
         return
     html = revision_path(page_dir, revision).read_text(encoding="utf-8")
@@ -237,7 +238,7 @@ def _refuse_untargeted_work(page_dir: Path, events: list[dict], incoming: dict) 
         parser,
         projection,
         events,
-        read_json(page_dir / "status.json") or {},
+        read_json(page_dir / STATUS_FILE) or {},
         incoming,
     )
     if untargeted:
@@ -392,16 +393,14 @@ def _commit_layer(
             if relative not in wanted and (stale.is_symlink() or stale.is_file()):
                 stale.unlink()
             elif stale.is_dir():
-                try:
+                with contextlib.suppress(OSError):
                     stale.rmdir()
-                except OSError:
-                    pass
-    if not (page_dir / "status.json").exists():
+    if not (page_dir / STATUS_FILE).exists():
         # Fresh creation holds only the transition lease. Re-vendoring also
         # holds the page transaction. Calling cmd_status would try to re-enter the
         # latter's event-log flock for an existing directory missing status.
         write_json(
-            page_dir / "status.json",
+            page_dir / STATUS_FILE,
             {
                 "state": "working",
                 "detail": "Writing the page",

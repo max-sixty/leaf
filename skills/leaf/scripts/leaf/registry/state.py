@@ -11,9 +11,7 @@ from .contract import (
 )
 
 
-def _validate_widget_state_relations(
-    tag: str, entry: dict, widgets: dict, path
-) -> None:
+def validate_widget_state_relations(tag: str, entry: dict, widgets: dict, path) -> None:
     # A facet is one independently standing fact. Every way of stating that
     # fact therefore agrees on what it folds over and how authored markup can
     # record it. The name itself remains local to the tag: two widget families
@@ -155,7 +153,7 @@ def _validate_widget_state_relations(
         )
 
 
-def _validate_widget_record_contracts(
+def validate_widget_record_contracts(
     tag: str,
     entry: dict,
     properties: dict,
@@ -342,7 +340,7 @@ def _validate_widget_record_contracts(
                     )
 
 
-def _validate_widget_retirement(
+def validate_widget_retirement(
     tag: str, entry: dict, slots: dict, widgets: dict, path
 ) -> None:
     # Withdrawal is the author taking an unanswered question back, and the
@@ -376,7 +374,7 @@ def _validate_widget_retirement(
             )
 
 
-def _validate_retirement_facets(slots: dict, widgets: dict, path) -> None:
+def validate_retirement_facets(slots: dict, widgets: dict, path) -> None:
     # A holder's retired slots are halves of one decision; outcomes on different
     # facets could stand at once, leaving no single settlement to render.
     for holder, outcomes in slots.items():
@@ -393,7 +391,7 @@ def _validate_retirement_facets(slots: dict, widgets: dict, path) -> None:
             )
 
 
-def _validate_awaiting_units(widgets: dict, path) -> None:
+def validate_awaiting_units(widgets: dict, path) -> None:
     # Asked only after the record and retirement gates above have reported their
     # more fundamental structural errors. An answer may record its complete result
     # either on the widget or on a detail-named part: the projection identifies the

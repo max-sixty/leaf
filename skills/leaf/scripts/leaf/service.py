@@ -12,6 +12,7 @@ from leaf.event_log import (
     now_iso,
     read_cursor,
 )
+from leaf.event_meaning import admit_widget_event
 from leaf.files import read_json, write_json
 from leaf.host import (
     host_identity,
@@ -21,7 +22,7 @@ from leaf.host import (
     state_home,
 )
 from leaf.locations import page_key, paths_same
-from leaf.schema import EVENTS_FILE
+from leaf.schema import EVENTS_FILE, STATUS_FILE, WIDGET_KINDS
 
 
 def claim_path(page_dir: Path) -> Path:
@@ -196,7 +197,7 @@ class PageTransaction:
 
     @property
     def status(self) -> dict:
-        return read_json(self.page_dir / "status.json") or {"state": "idle"}
+        return read_json(self.page_dir / STATUS_FILE)
 
     def set_status(
         self,
@@ -244,7 +245,7 @@ class PageTransaction:
             )
         if claims:
             status["work"] = claims
-        write_json(self.page_dir / "status.json", status)
+        write_json(self.page_dir / STATUS_FILE, status)
 
     @property
     def events(self) -> list:
@@ -257,17 +258,16 @@ class PageTransaction:
         """An accepted retry, read under this transaction's log lease."""
         return _matching_attempt(self.events, event)
 
-    def append_event(self, event: dict) -> dict:
-        """Append under this transaction without re-entering its log lease."""
-        if event["kind"] in {"action", "report", "request"}:
+    def append_event(self, event: dict, registry: dict | None = None) -> dict:
+        """Append under this transaction without re-entering its log lease.
+
+        A widget command is admitted against `registry`, the vendored vocabulary
+        its caller already read for its own validation; every other kind needs
+        none."""
+        if event["kind"] in WIDGET_KINDS:
             if accepted := self.matching_attempt(event):
                 return accepted
-            from leaf.event_meaning import admit_widget_event
-            from leaf.registry.storage import require_registry
-
-            event = admit_widget_event(
-                self.page_dir, event, self.events, require_registry(self.page_dir)
-            )
+            event = admit_widget_event(self.page_dir, event, self.events, registry)
         try:
             accepted, appended = _append_event_unlocked(self._log, event, self.events)
         except Exception:

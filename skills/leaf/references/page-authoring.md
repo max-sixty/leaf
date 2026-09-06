@@ -127,6 +127,8 @@ The title names the page, and the lede under it carries the finding. A section
 that reaches a finding says it in the heading, briefly enough to scan in an
 `lf-toc` margin; supporting qualifications belong in the opening sentence. A
 `<summary>` and an option's `<strong>` do the same for what they cover.
+When lower-level headings name local controls or evidence rather than page destinations,
+set the `lf-toc`'s `max-level` to the deepest navigational level.
 "Why the prefixes matter" and "What we learned" promise a finding and withhold
 it. A name that only says what it holds is right where there is no finding to
 state, over a list, a table, or a board that speaks for itself.

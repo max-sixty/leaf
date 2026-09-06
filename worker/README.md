@@ -12,9 +12,9 @@ event id. Its retryable steps read a fresh page and thread from the container, r
 OpenAI Agents SDK in the Worker, then append through Leaf's ordinary reply writer. A
 deterministic attempt prevents duplicate replies, and a newer reader turn suppresses a
 stale one. If generation stops after its retries, the workflow appends a short failure
-reply. Cloudflare's native rate-limit bindings allow four model calls per reader and
-thirty across public examples per minute in each Cloudflare location; an over-limit
-turn receives a visible busy reply without sending anything to OpenAI.
+reply. A Cloudflare-native abuse brake allows one hundred model calls per source IP per
+minute in each Cloudflare location; an over-limit turn receives a visible busy reply
+without sending anything to OpenAI. There is no site-wide quota.
 
 The initial agent uses `gpt-5.6-luna` without tools and can discuss a page but not edit
 it. Leaf's page directory remains the only conversation authority, so tools, handoffs,

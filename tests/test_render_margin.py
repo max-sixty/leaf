@@ -1384,7 +1384,7 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
             '[data-lf-margin-for="bg-react-lost"] '
             '.lf-react-mark[data-token="lost"] > .lf-margin-button-glyph'
         )
-    ).to_have_text("??")
+    ).to_have_text("🤔")
     expect(
         page.locator(
             '[data-lf-margin-for="bg-choice-ask"] '
@@ -1393,12 +1393,12 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
         )
     ).to_be_visible()
     assert page.locator("#bg-reactions p strong").all_text_contents() == [
-        "1 · ok · settled.",
-        "2 · no · wrong.",
-        "3 · lost · unclear.",
-        "4 · cut · too long.",
-        "5 · more · needs detail.",
-        "6 · this · look here.",
+        "1 · 👍 · keep this.",
+        "2 · ❌ · wrong.",
+        "3 · 🤔 · unclear.",
+        "4 · ✂️ · shorten.",
+        "5 · 🔎 · substantiate.",
+        "6 · 👀 · pay attention.",
     ]
     assert errors == []
     page.close()
@@ -2310,11 +2310,11 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
         re.compile(r"lf-margin-button")
     )
     ok = reactions.locator('.lf-react[data-token="ok"]')
-    expect(ok).to_have_attribute("aria-label", "ok — settled — no change asked")
+    expect(ok).to_have_attribute("aria-label", "ok — good — keep this; no change asked")
     expect(ok).not_to_have_attribute("title", re.compile(".+"))
     ok.hover()
     expect(ok.locator(".lf-margin-button-label")).to_have_text(
-        "ok — settled — no change asked"
+        "ok — good — keep this; no change asked"
     )
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.evaluate(
@@ -3438,6 +3438,43 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).not_to_contain_text("options · choose")
+    close = preview.get_by_role("button", name="Close thread", exact=True)
+    resolve = preview.get_by_role("button", name="Resolve thread", exact=True)
+    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+    expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
+    expect(close).to_have_text("")
+    expect(resolve).to_have_text("")
+    geometry = preview.evaluate(
+        """preview => {
+          const thread = preview.querySelector('.lf-conversation-thread');
+          const textarea = thread.querySelector('textarea');
+          const close = preview.querySelector('.lf-margin-preview-close');
+          const resolve = thread.querySelector('.lf-resolve');
+          const head = thread.querySelector('.lf-conversation-head');
+          const tr = thread.getBoundingClientRect();
+          const ta = textarea.getBoundingClientRect();
+          const hr = head.getBoundingClientRect();
+          const rr = resolve.getBoundingClientRect();
+          return {
+            threadRight: tr.right,
+            textareaRight: ta.right,
+            closeBorder: getComputedStyle(close).borderTopWidth,
+            resolveBorder: getComputedStyle(resolve, '::before').borderTopWidth,
+            head: {top: hr.top, right: hr.right, bottom: hr.bottom},
+            resolve: {top: rr.top, right: rr.right, bottom: rr.bottom},
+          };
+        }"""
+    )
+    assert geometry["textareaRight"] == pytest.approx(geometry["threadRight"], abs=1)
+    assert float(geometry["closeBorder"][:-2]) == 0
+    assert float(geometry["resolveBorder"][:-2]) >= 1
+    assert geometry["resolve"]["top"] == pytest.approx(geometry["head"]["top"], abs=1)
+    assert geometry["resolve"]["right"] == pytest.approx(
+        geometry["head"]["right"], abs=1
+    )
+    assert geometry["resolve"]["bottom"] == pytest.approx(
+        geometry["head"]["bottom"], abs=1
+    )
     page.locator(".lf-margin-preview-close").click()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()

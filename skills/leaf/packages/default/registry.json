@@ -127,12 +127,16 @@
     "x-example": "<lf-source id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-source>"
   },
   "lf-toc": {
-    "description": "A table of contents derived from the page's h2-h6 headings. A page with two or more such headings includes one in an `aside.sidebar` near the opening by default; omit it when the page is compact enough that its outline is already visible at a glance. In the roomy margin, the runtime distributes the page title and headings down a full-height spine according to the sections they lead, paints the visible band of the document on that spine, and reveals the generated labels on pointer or keyboard entry. If showing every label would stretch a crowded map, only the destination under the pointer or keyboard focus reveals. In flow, on paper, and in a standalone copy, it remains an ordinary open outline. Existing heading ids become link targets. For an id-less heading, the widget adds a position-derived target beside it without changing the authored heading. Live links reveal headings inside disclosures or tabs, and a copied link returns to the same version's section. A stable authored heading id keeps that target across versions. The generated labels are link apparatus rather than a second commentable copy of each heading, and version diffs ignore them as generated navigation. Write the element empty and give it a stable id.",
+    "description": "A table of contents derived from the page's h2-h6 headings. `max-level` sets the deepest heading included when lower-level headings are local detail rather than page destinations; omitting it includes every level. A page with two or more included headings places one in an `aside.sidebar` near the opening by default; omit it when the page is compact enough that its outline is already visible at a glance. In the roomy margin, the runtime distributes the page title and headings down a full-height spine according to the sections they lead, paints the visible band of the document on that spine, and reveals the generated labels on pointer or keyboard entry. If the expanded labels would crowd, only the destination under the pointer or keyboard focus reveals. In flow, on paper, and in a standalone copy, it remains an ordinary open outline. Existing heading ids become link targets. For an id-less heading, the widget adds a position-derived target beside it without changing the authored heading. Live links reveal headings inside disclosures or tabs, and a copied link returns to the same version's section. A stable authored heading id keeps that target across versions. The generated labels are link apparatus rather than a second commentable copy of each heading, and version diffs ignore them as generated navigation. Write the element empty and give it a stable id.",
     "type": "object",
     "properties": {
       "id": {
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "max-level": {
+        "type": "string",
+        "pattern": "^[2-6]$"
       }
     },
     "required": [
@@ -852,12 +856,12 @@
   },
   "$reactions": {
     "tokens": {
-      "ok":   {"glyph": "✓", "means": "settled — no change asked", "settles": true},
-      "no":   {"glyph": "×", "means": "this is wrong; the passage is the referent"},
-      "lost": {"glyph": "??", "means": "unclear — rewrite it so it lands"},
-      "cut":  {"glyph": "−", "means": "does not earn its length — shorten or drop"},
-      "more": {"glyph": "+", "means": "expand here"},
-      "this": {"glyph": "⌖", "means": "look at this — attention, no verdict"}
+      "ok":   {"glyph": "👍", "means": "good — keep this; no change asked", "settles": true},
+      "no":   {"glyph": "❌", "means": "wrong — change this"},
+      "lost": {"glyph": "🤔", "means": "unclear — rewrite or explain this"},
+      "cut":  {"glyph": "✂️", "means": "too long — shorten or remove this"},
+      "more": {"glyph": "🔎", "means": "needs support — expand or substantiate this"},
+      "this": {"glyph": "👀", "means": "pay attention here — no verdict"}
     }
   }
 }

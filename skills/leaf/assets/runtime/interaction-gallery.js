@@ -558,7 +558,7 @@ export function installInteractionGallery() {
     };
     toggle.textContent = words[active.state];
     toggle.disabled = ["idle", "finished", "error"].includes(active.state);
-    replay.disabled = active.state === "error";
+    replay.disabled = ["idle", "error"].includes(active.state);
     const label = active.panel.getAttribute("label");
     const states = {
       idle: "Loading",

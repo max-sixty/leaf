@@ -751,18 +751,37 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
 
 
 def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
-    """A remembered chrome demo does not reset before its inner Leaf page is ready."""
+    """A remembered chrome demo cannot replay before its inner Leaf page is ready."""
     url = serve(FEATURE_GALLERY)
     context = browser.new_context(reduced_motion="reduce")
     page, errors = open_page(browser, f"{url}#bg-interactions", context=context)
     try:
         gallery = page.locator("#bg-interactions")
         gallery.get_by_role("tab", name="Send a comment").click()
-        page.reload()
+        context.add_init_script(
+            """() => {
+                const srcdoc = Object.getOwnPropertyDescriptor(
+                    HTMLIFrameElement.prototype, 'srcdoc'
+                );
+                Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', {
+                    ...srcdoc,
+                    set(value) {
+                        setTimeout(() => srcdoc.set.call(this, value), 2000);
+                    },
+                });
+            }"""
+        )
+        page.reload(wait_until="domcontentloaded")
+        replay = gallery.locator("[data-interaction-replay]")
+        expect(gallery.locator("[data-interaction-status]")).to_have_text(
+            "Send a comment · Loading"
+        )
+        expect(replay).to_be_disabled()
         expect(gallery.locator("[data-interaction-status]")).to_have_text(
             "Send a comment · Ready — motion will start only when you press Play",
             timeout=15_000,
         )
+        expect(replay).to_be_enabled()
         expect(
             gallery.locator(
                 "#bg-interaction-comment [data-interaction-frame]"

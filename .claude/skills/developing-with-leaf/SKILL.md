@@ -60,6 +60,19 @@ retained.
    their next chat message. Use the Codex review pane when feedback belongs to a
    source line.
 
+## Refresh the public catalog stills
+
+When a change adds or removes a worked example, or changes its first viewport, run
+`wt refresh-previews` from the repository root on macOS. Run `wt setup` first in a
+new checkout. If Worktrunk requests approval for the project commands, ask the user
+to run `wt config approvals add`. The refresh command captures every worked example,
+validates the rebuilt site, pushes the complete JPEG set to
+`max-sixty/leaf-assets`, and updates `example-previews.json` and the catalog links in
+this checkout. Because it pushes the asset repository immediately, run it only when
+the user has authorized that publication. The generator checks the required Charter
+and San Francisco fonts and fails rather than publishing images rendered with
+fallback fonts.
+
 ## Compare runtime versions
 
 Choose one authored source and serve it through two named preview slots:

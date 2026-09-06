@@ -1568,12 +1568,12 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
         "letting go left the reader holding the control on a page that fits the window"
     )
 
-    # A generated Page-map hint arrives the way the walk does and then presses what it
-    # arrived on, so this location's first available Button accepts the suggestion. What
-    # unfolds there is that press's own result rather than the arrival's, and the ladder
-    # owes what it owed before: one Escape lets go of where the press left the reader.
+    # A generated Page-map hint arrives the way the walk does and then presses the exact
+    # Accept Button it names. What unfolds there is that press's own result rather than
+    # the arrival's, and the ladder still owes one Escape to let go of where the press
+    # left the reader.
     with sending(page, "the addressed suggestion's acceptance"):
-        go_to_address(page, "Page-map location", "sug-refill")
+        go_to_address(page, "Page-map Button", "sug-refill", "accept")
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     assert page.evaluate(
@@ -4535,8 +4535,8 @@ def test_refusal_does_not_paint_a_queued_recordless_thread_action(browser, serve
 
 
 def test_a_done_press_says_it_is_waiting_and_answers_once(browser, serve):
-    """The Done press waits for the log the way a suggestion's decision does, so it
-    owes the reader what every waiting press owes: `aria-busy` while the answer is in
+    """The Done press has no local projection, so it waits for the log and owes the
+    reader what every waiting press owes: `aria-busy` while the answer is in
     the wire, and the pressed state only once the log has taken it. Nothing said the
     press had landed before this, and a `button` styled by the theme gets no `:active`
     of its own, so the reader had the round trip with no answer of any kind.
@@ -6004,9 +6004,12 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
                      cs.getPropertyValue('--here-ring-w').trim(),
                      cs.getPropertyValue('--lf-here-ring').trim()]; }"""
     )
-    assert ring == ["solid", ring[2], ring[2], "btn"], (
-        f"a request press wears no here ring from the layer's shared rule: {ring}"
-    )
+    assert ring == [
+        "solid",
+        ring[2],
+        ring[2],
+        "btn",
+    ], f"a request press wears no here ring from the layer's shared rule: {ring}"
 
     live.click()
     round_trip(page)

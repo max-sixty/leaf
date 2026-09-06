@@ -498,6 +498,12 @@ unresolved, the resulting content or control state as durable confirmation, and
 `notice` for a transient acknowledgment. Persistent status text is for a state the
 reader must return to or act on, such as failure.
 
+A suggestion decision is the exception: it paints its projected result in the gesture
+that queues it, and the outbox keeps that result ahead of the log and restores
+authoritative state on refusal. The resulting content and Undo control are that durable
+visual confirmation, so this path needs no success notice; announce the same decision
+for a reader listening to the page.
+
 ## Keyboard, focus, and navigation
 
 One register defines every runtime and widget key. A row binds keys, states what
@@ -509,6 +515,9 @@ those objects.
 Treat that register as a product grammar, not a collection of locally convenient
 shortcuts. Before adding or changing a binding, survey the complete register for
 meaning, scope, native overlap, entry and exit symmetry, and focus restoration.
+Each generated hint names the exact visible control it activates. An aggregate location
+may expose each of its visible Buttons or focus itself; it never selects a descendant
+action for the reader.
 Document every inconsistency the survey exposes in the task handoff. If the rules
 here do not settle one, escalate it to the user before choosing locally; the
 absence of a dispatch conflict does not make a binding precise.

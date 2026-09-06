@@ -2048,7 +2048,7 @@ def test_a_generated_hint_is_never_drawn_on_the_key_line(browser, serve):
 def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     """Mnemonics reach global surfaces; generated hints reach the visible scene.
 
-    Threads, Asks, Page map, and page edges keep stable named routes. Page-map locations,
+    Threads, Asks, Page map, and page edges keep stable named routes. Page-map Buttons,
     tabs, links, and folds instead share one viewport-local letter namespace."""
     url = serve(ADDRESSED_PAGE)
     d = serve.page_dir
@@ -2350,9 +2350,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     ).to_be_focused()
     page.keyboard.press("Escape")
 
-    # A visible Page-map location shares the generated target map. Activating the hint
+    # A visible Page-map Button shares the generated target map. Activating the hint
     # opens the same thread preview as its marker.
-    go_to_address(page, "Page-map location", "p1")
+    go_to_address(page, "Page-map Button", "p1")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread textarea").first).to_be_focused()
     page.keyboard.press("Escape")

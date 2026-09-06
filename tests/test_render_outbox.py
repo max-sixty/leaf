@@ -1259,10 +1259,10 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
 def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     browser, serve
 ):
-    """A record-less decision waits for the log instead of painting optimistically.
-    If the first complete read contains both that decision and its undo, replay leaves
-    authored markup standing. The send continuation must not paint the withdrawn
-    decision after that authoritative read has released it."""
+    """An optimistic record-less decision still yields to the first complete read.
+    If that read contains both the decision and its undo, replay leaves authored markup
+    standing. The send continuation must not repaint the withdrawn decision after that
+    authoritative read has released it."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
     errors = watched(page)
@@ -1299,6 +1299,8 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
     assert errors == []
     held[0].fulfill(response=accepted_answer)
+    page.wait_for_timeout(100)
+    expect(page.locator(".lf-live")).not_to_contain_text("Accepted suggested change")
     page.unroute("**/api/event")
     page.close()
 
@@ -1344,6 +1346,8 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
     ]
     assert errors == []
     held[0].fulfill(response=accepted_answer)
+    page.wait_for_timeout(100)
+    expect(page.locator(".lf-live")).not_to_contain_text("Accepted suggested change")
     page.unroute("**/api/event")
     page.close()
 

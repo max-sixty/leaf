@@ -542,6 +542,63 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     page.close()
 
 
+def test_a_draft_wait_only_paints_after_the_shared_busy_delay(browser, serve):
+    """The layer leaves a short send unpainted, then makes a long wait visible."""
+    page, errors = open_page(browser, serve(JOURNEY_V1))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    draft = page.locator("#draft-ops")
+    draft.locator(".lf-draft-body").dblclick()
+    draft.locator("textarea").fill("A send held long enough to need progress paint.")
+
+    # Sample on the CSS animation's own clock rather than racing wall time across a
+    # Playwright round trip. The host is the non-Button surface that owns aria-busy.
+    frames = page.evaluate(
+        """async () => {
+          const el = document.getElementById('draft-ops');
+          const out = [];
+          let stop = false;
+          const tick = () => {
+            const painted = Number(getComputedStyle(el).opacity);
+            const busy = el.getAnimations().find(
+              animation => animation.animationName === 'lf-runtime-4f3c2a8d-working'
+            );
+            out.push([
+              busy ? Number(busy.currentTime) : null,
+              busy ? busy.playState : null,
+              painted,
+            ]);
+            if (!stop) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+          document.querySelector(
+            '[data-lf-for="draft-ops"] [aria-label="Save"]'
+          ).click();
+          await new Promise(resolve => setTimeout(resolve, 700));
+          stop = true;
+          return out;
+        }"""
+    )
+    holding(page, held, 1, "the draft edit")
+
+    early = [
+        opacity
+        for elapsed, _state, opacity in frames
+        if elapsed is None or elapsed < 150
+    ]
+    late = [opacity for _elapsed, state, opacity in frames if state == "finished"]
+    assert early and set(early) == {1}, f"a short draft wait painted busy: {early}"
+    assert late and set(late) == {0.5}, f"a long draft wait stayed unpainted: {late}"
+    expect(draft).to_have_attribute("aria-busy", "true")
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(draft).not_to_have_attribute("aria-busy", "true")
+    assert errors == []
+    page.close()
+
+
 def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
     browser, serve
 ):

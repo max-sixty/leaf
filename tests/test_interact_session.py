@@ -427,6 +427,59 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(page_dir
     assert (receipt["agent"], receipt["detail"]) == (None, None)
 
 
+def test_idle_activity_refreshes_when_its_interaction_ownership_expires(
+    page_dir, monkeypatch
+):
+    """A Closed label still schedules the deadline that can withdraw its receipt."""
+    serving(page_dir, 1)
+    comment = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "new input"}
+    )
+    claimed = _status(page_dir, "working", "reading it", "--on", comment["id"])
+    assert claimed.exit_code == 0, claimed.output
+    started = datetime.now().astimezone()
+    status = files_model.read_json(page_dir / "status.json")
+    files_model.write_json(
+        page_dir / "status.json",
+        {
+            **status,
+            "state": "idle",
+            "detail": "",
+            "ts": started.isoformat(),
+            "work": [
+                {
+                    **status["work"][0],
+                    "ts": (started + timedelta(minutes=1)).isoformat(),
+                }
+            ],
+        },
+    )
+
+    monkeypatch.setattr(
+        served_page,
+        "now_iso",
+        lambda: (started + timedelta(minutes=14)).isoformat(),
+    )
+    before = page_state(page_dir)["activity"]
+    assert (before["kind"], before["held"]) == ("closed", True)
+    assert before["interactions"][0]["phase"] == "active"
+    assert before["next_transition_at"] == (started + timedelta(minutes=15)).isoformat()
+
+    monkeypatch.setattr(
+        served_page,
+        "now_iso",
+        lambda: (started + timedelta(minutes=15)).isoformat(),
+    )
+    after = page_state(page_dir)["activity"]
+    assert (after["kind"], after["held"]) == ("closed", False)
+    assert after["interactions"][0]["phase"] == "waiting"
+    assert (after["interactions"][0]["agent"], after["interactions"][0]["detail"]) == (
+        None,
+        None,
+    )
+    assert after["next_transition_at"] is None
+
+
 def test_revendoring_can_change_x_work_while_the_target_button_holds_a_claim(page_dir):
     """x-work admits an initial claim; it is not the claim's only later seat.
 

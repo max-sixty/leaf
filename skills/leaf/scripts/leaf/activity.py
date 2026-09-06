@@ -105,14 +105,13 @@ def canonical_activity(
     )
 
     deadlines = []
-    # Status age and turn closure can change the primary activity reading for any
-    # non-idle declaration. Emit every such boundary; consumers decide nothing
-    # locally and ask this fold for the next reading when it arrives.
-    if status["state"] != "idle":
-        if due := _deadline(status.get("ts"), WORKING_GRACE, now):
-            deadlines.append(due)
-        if due := _deadline(present.get("turn_closed"), TURN_RENEWAL_GRACE, now):
-            deadlines.append(due)
+    # Status age and turn closure can change ownership even when the primary label
+    # remains Closed. Emit every such boundary; consumers decide nothing locally and
+    # ask this fold for the next complete reading when it arrives.
+    if due := _deadline(status.get("ts"), WORKING_GRACE, now):
+        deadlines.append(due)
+    if due := _deadline(present.get("turn_closed"), TURN_RENEWAL_GRACE, now):
+        deadlines.append(due)
     for item in interactions:
         if item["phase"] == "sent":
             if due := _deadline(item["ts"], PICKUP_GRACE, now):

@@ -591,6 +591,27 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     page.close()
 
 
+# One rendered key face: the geometry a physical press claims wherever Leaf draws it, and
+# the emphasis it wears there. A standing paint can replace a whole layer between browser
+# round trips, so every face named in one call is read in one task: a handle resolved in an
+# earlier round trip can be detached by the time it is measured, and a detached element has
+# no computed style at all.
+FACE = """el => { const s = getComputedStyle(el); return {
+  key: Object.fromEntries(
+    ["min-width", "height", "padding", "box-sizing", "border-top-width",
+     "border-top-style", "border-radius", "font-family", "font-size", "line-height",
+     "text-align"].map(p => [p, s.getPropertyValue(p)])),
+  emphasis: {border: s.borderTopColor, ground: s.backgroundColor, ink: s.color},
+}; }"""
+
+
+def faces(page, *selectors):
+    return page.evaluate(
+        f"selectors => selectors.map(sel => ({FACE})(document.querySelector(sel)))",
+        list(selectors),
+    )
+
+
 def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     """One physical press keeps its geometry wherever Leaf presents it."""
     url = serve(ADDRESSED_PAGE)
@@ -598,74 +619,51 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
         events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
 
-    # Focus inside the first panel Ask paints that group's predictable digits. Bare g
-    # paints the page's generated target letters without replacing the Ask projection.
-    page.keyboard.press("g")
+    # Focus inside the first panel Ask paints that group's predictable digits, once a
+    # keyboard gesture has asked for a paint — opening the composer is that gesture here.
+    # The chord is a nearer keyboard layer and takes the digits back while it stands, so
+    # each face is read from the one moment its own layer renders it rather than from a
+    # single frame that cannot hold both.
     page.keyboard.press("c")
     page.locator("#tq-one .lf-pick").first.focus()
     picked = page.locator("#tq-one .lf-address").first
     expect(picked).to_be_visible()
+    option = faces(page, "#tq-one .lf-address")[0]
     page.keyboard.press("g")
     addressed = page.locator(CHIPS).first.locator("kbd").last
     expect(addressed).to_be_visible()
+    assert addressed.get_attribute("data-lf-key-state") == "neutral"
+    chord, legend = faces(
+        page,
+        f"{CHIPS} kbd:last-child",
+        '.lf-keyline .lf-key[data-lf-commands~="navigation.target"] kbd:last-child',
+    )
 
-    # The option's address and the chord's digit keep one physical key face. Both are
+    # The option's address and the chord's letter keep one physical key face. Both are
     # ordinary available bindings, so geometry and emphasis stay the same.
-    faces = """() => {
-        const read = el => { const s = getComputedStyle(el);
-            return Object.fromEntries(["min-width", "height", "padding", "box-sizing",
-                "border-top-width", "border-top-style", "border-radius", "font-family",
-                "font-size", "line-height", "text-align"]
-                .map(p => [p, s.getPropertyValue(p)])); };
-        return [read(document.querySelector('#tq-one .lf-address')),
-                read(document.querySelector(
-                  '.lf-goto-targets > .lf-chord-address kbd:last-child'))]; }"""
-    option_key, chord_key = page.evaluate(faces)
-    assert option_key == chord_key, (
+    assert option["key"] == chord["key"], (
         "one physical key has two geometries:\n  "
         + "\n  ".join(
-            f"{k}: {option_key[k]!r} vs {chord_key[k]!r}"
-            for k in option_key
-            if option_key[k] != chord_key[k]
+            f"{k}: {option['key'][k]!r} vs {chord['key'][k]!r}"
+            for k in option["key"]
+            if option["key"][k] != chord["key"][k]
         )
     )
-    assert "mono" in option_key["font-family"]
-    assert addressed.get_attribute("data-lf-key-state") == "neutral"
-    emphasis = page.evaluate(
-        """() => ['#tq-one .lf-address',
-          '.lf-goto-targets > .lf-chord-address kbd:last-child',
-          '.lf-keyline .lf-key[data-lf-commands~="navigation.target"] kbd:last-child']
-          .map(sel => { const s = getComputedStyle(document.querySelector(sel));
-            return {border: s.borderTopColor, ground: s.backgroundColor, ink: s.color};
-          })"""
-    )
-    option_emphasis, chord_emphasis, legend_emphasis = emphasis
-    assert option_emphasis == chord_emphasis == legend_emphasis
+    assert "mono" in option["key"]["font-family"]
+    assert option["emphasis"] == chord["emphasis"] == legend["emphasis"]
 
     # Item selection uses letters rather than digits, but it names the same physical
     # keys. Closing the address chord and opening selection must not reveal a fourth face.
     page.keyboard.press("Escape")
     page.keyboard.press("s")
-    target = page.locator(".lf-target-hint").first
-    expect(target).to_be_visible()
+    hint = page.locator(".lf-target-hint").first
+    expect(hint).to_be_visible()
     # The standing paint can replace the hint layer between browser round trips. Read
     # the one rendered face in one task so geometry and emphasis cannot come from two
     # successive hint elements.
-    target_face = page.evaluate(
-        """() => { const s = getComputedStyle(
-          document.querySelector('.lf-target-hint'));
-          return {
-            key: Object.fromEntries(
-              ["min-width", "height", "padding", "box-sizing", "border-top-width",
-               "border-top-style", "border-radius", "font-family", "font-size",
-               "line-height", "text-align"]
-              .map(p => [p, s.getPropertyValue(p)])),
-            emphasis: {
-              border: s.borderTopColor, ground: s.backgroundColor, ink: s.color},
-          }; }"""
-    )
-    assert target_face["key"] == option_key
-    assert target_face["emphasis"] == option_emphasis
+    hint_face = faces(page, ".lf-target-hint")[0]
+    assert hint_face["key"] == option["key"]
+    assert hint_face["emphasis"] == option["emphasis"]
     assert errors == []
     page.close()
 

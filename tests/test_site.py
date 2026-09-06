@@ -551,7 +551,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         toggle.click()
         assert page.evaluate("window.pauseProbe.playState") == "running"
         page.evaluate("window.pauseProbe.cancel()")
-        expect(status).to_have_text("Accept a suggestion · Complete")
+        expect(status).to_have_text("Accept a suggestion · Complete", timeout=10_000)
         expect(toggle).to_have_text("Played")
         expect(toggle).to_be_disabled()
         expect(replay).to_be_enabled()
@@ -559,20 +559,33 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         assert read_events(page_dir) == before
 
         gallery.get_by_role("tab", name="Move a card").click()
-        expect(status).to_have_text("Move a card · Complete")
+        expect(status).to_have_text("Move a card · Complete", timeout=10_000)
         assert card.evaluate("card => card.parentElement.id") == "bg-motion-tried"
         assert read_events(page_dir) == before
 
         gallery.locator("[data-interaction-replay]").click()
         expect(status).to_have_text("Move a card · Playing")
         assert card.evaluate("card => card.parentElement.id") == "bg-motion-ready"
-        expect(status).to_have_text("Move a card · Complete")
+        expect(status).to_have_text("Move a card · Complete", timeout=10_000)
         assert card.evaluate("card => card.parentElement.id") == "bg-motion-tried"
         assert read_events(page_dir) == before
         page.set_viewport_size({"width": 390, "height": 844})
         assert gallery.locator("#bg-motion-board").evaluate(
             "board => board.scrollWidth === board.clientWidth"
         )
+
+        replacement_installed = gallery.evaluate(
+            """gallery => {
+                const replacement = gallery.cloneNode(true);
+                replacement.removeAttribute('data-interaction-installed');
+                gallery.replaceWith(replacement);
+                document.dispatchEvent(new Event('lf-actions'));
+                return new Promise(resolve => requestAnimationFrame(() =>
+                    resolve(replacement.dataset.interactionInstalled === '1')
+                ));
+            }"""
+        )
+        assert replacement_installed
         page.emulate_media(media="print")
         expect(toggle).to_be_hidden()
         expect(replay).to_be_hidden()
@@ -597,7 +610,7 @@ def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
         page.wait_for_timeout(900)
         assert accept.get_attribute("data-lf-state") is None
         gallery.locator("[data-interaction-toggle]").click()
-        expect(status).to_have_text("Accept a suggestion · Complete")
+        expect(status).to_have_text("Accept a suggestion · Complete", timeout=10_000)
         expect(accept).to_have_attribute("data-lf-state", "accept")
         assert not errors, errors[:3]
     finally:

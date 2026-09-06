@@ -7,6 +7,10 @@
 
 class StaleDemo extends Error {}
 
+const ARRIVAL_PAUSE = 1800;
+const POINTER_TRAVEL = 1400;
+const RESULT_PAUSE = 1200;
+
 const delay = (demo, ms, generation) =>
   demo.animate(
     demo.stage,
@@ -160,7 +164,7 @@ class Demo {
         { transform: `translate(${from.x}px, ${from.y}px)` },
         { transform: `translate(${to.x}px, ${to.y}px)` },
       ],
-      { duration: 760, easing: "cubic-bezier(.22,.7,.2,1)" },
+      { duration: POINTER_TRAVEL, easing: "cubic-bezier(.22,.7,.2,1)" },
       generation,
     );
     this.pointerPosition = to;
@@ -177,7 +181,7 @@ class Demo {
         { transform: `translate(${x}px, ${y}px) scale(.78)`, offset: 0.48 },
         { transform: `translate(${x}px, ${y}px) scale(1)` },
       ],
-      { duration: 180, easing: "ease-out" },
+      { duration: 260, easing: "ease-out" },
       generation,
     );
     this.pointer.style.transform = `translate(${x}px, ${y}px)`;
@@ -188,7 +192,7 @@ class Demo {
     const animation = await this.animate(
       this.pointer,
       [{ opacity: 1 }, { opacity: 0 }],
-      { duration: 180, easing: "linear" },
+      { duration: 220, easing: "linear" },
       generation,
     );
     animation.cancel();
@@ -215,7 +219,7 @@ const scenarios = {
         .renderState({ settlement: { value: null } });
     },
     async play(demo, generation) {
-      await demo.wait(700, generation);
+      await demo.wait(ARRIVAL_PAUSE, generation);
       const suggestion = document.querySelector("#bg-motion-accept");
       const accept = await demo.waitFor(
         () =>
@@ -226,7 +230,7 @@ const scenarios = {
         generation,
       );
       await demo.movePointer(accept, generation);
-      await demo.wait(240, generation);
+      await demo.wait(360, generation);
       await demo.press(generation);
       suggestion.renderState({ settlement: { value: "accept" } });
       await demo.waitFor(
@@ -234,7 +238,7 @@ const scenarios = {
         "the suggestion did not settle",
         generation,
       );
-      await demo.wait(700, generation);
+      await demo.wait(RESULT_PAUSE, generation);
       await demo.hidePointer(generation);
     },
   },
@@ -245,7 +249,7 @@ const scenarios = {
         .renderState({ placement: { value: placements.ready } });
     },
     async play(demo, generation) {
-      await demo.wait(700, generation);
+      await demo.wait(ARRIVAL_PAUSE, generation);
       const board = document.querySelector("#bg-motion-board");
       const grip = await demo.waitFor(
         () => document.querySelector("#bg-motion-card > .lf-grip"),
@@ -255,7 +259,7 @@ const scenarios = {
       await demo.movePointer(grip, generation);
       await demo.press(generation);
       grip.focus({ preventScroll: true });
-      await demo.wait(320, generation);
+      await demo.wait(480, generation);
       board.renderState({ placement: { value: placements.tried } });
       await demo.waitFor(
         () =>
@@ -264,15 +268,22 @@ const scenarios = {
         "the card did not move",
         generation,
       );
-      await demo.wait(700, generation);
+      await demo.wait(RESULT_PAUSE, generation);
       await demo.hidePointer(generation);
     },
   },
 };
 
+let installedGallery = null;
+let uninstallGallery = () => {};
+
 export function installInteractionGallery() {
   const gallery = document.querySelector("[data-interaction-gallery]");
-  if (!gallery || gallery.dataset.interactionInstalled) return;
+  if (gallery === installedGallery) return;
+  uninstallGallery();
+  installedGallery = gallery;
+  uninstallGallery = () => {};
+  if (!gallery) return;
   gallery.dataset.interactionInstalled = "1";
   const tabs = gallery.querySelector("lf-tabs");
   const panels = [...tabs.querySelectorAll(":scope > lf-tab")];
@@ -337,31 +348,48 @@ export function installInteractionGallery() {
     maybePlay();
   }
 
-  toggle.addEventListener("click", () => {
+  const togglePlayback = () => {
     if (active?.state === "playing") active.pause();
     else if (active?.state === "paused") active.resume();
     else void active?.play();
-  });
-  replay.addEventListener("click", () => void active?.replay());
+  };
+  const replayActive = () => void active?.replay();
+  toggle.addEventListener("click", togglePlayback);
+  replay.addEventListener("click", replayActive);
 
-  new MutationObserver(syncActive).observe(tabs, {
+  const tabObserver = new MutationObserver(syncActive);
+  tabObserver.observe(tabs, {
     attributes: true,
     attributeFilter: ["class", "hidden"],
     subtree: true,
   });
-  new window.IntersectionObserver(
+  const viewObserver = new window.IntersectionObserver(
     ([entry]) => {
       onScreen = entry.isIntersecting;
       if (onScreen) maybePlay();
       else active?.pause(true);
     },
     { threshold: 0.2 },
-  ).observe(gallery);
-  reduced.addEventListener("change", () => {
+  );
+  viewObserver.observe(gallery);
+  const motionPreferenceChanged = () => {
     if (reduced.matches) active?.pause();
     else maybePlay();
     renderControls();
-  });
+  };
+  reduced.addEventListener("change", motionPreferenceChanged);
+
+  uninstallGallery = () => {
+    for (const demo of demos.values()) {
+      demo.generation += 1;
+      demo.stopAnimations();
+    }
+    tabObserver.disconnect();
+    viewObserver.disconnect();
+    toggle.removeEventListener("click", togglePlayback);
+    replay.removeEventListener("click", replayActive);
+    reduced.removeEventListener("change", motionPreferenceChanged);
+  };
 
   syncActive();
 }

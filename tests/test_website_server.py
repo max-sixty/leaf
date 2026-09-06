@@ -18,6 +18,11 @@ _spec = importlib.util.spec_from_file_location(
 )
 website_server = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(website_server)
+_previews_spec = importlib.util.spec_from_file_location(
+    "example_previews", ROOT / "scripts" / "example-previews.py"
+)
+example_previews = importlib.util.module_from_spec(_previews_spec)
+_previews_spec.loader.exec_module(example_previews)
 
 
 def get(url: str) -> tuple[bytes, dict]:
@@ -212,3 +217,19 @@ def test_an_agent_reply_is_dropped_when_a_newer_reader_turn_overtakes_it(
         httpd.shutdown()
         httpd.server_close()
         thread.join(timeout=2)
+
+
+def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    (site / "sitenote.js").write_text("document.body.dataset.site = 'example';\n")
+
+    with example_previews.serve_examples(site) as root:
+        state = json.loads(get(f"{root}/examples/decision/api/state")[0])
+
+    assert state["example"] == {
+        "agent": "Leaf guide",
+        "install_url": "/#install",
+    }

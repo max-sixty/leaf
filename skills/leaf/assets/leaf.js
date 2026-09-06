@@ -219,6 +219,7 @@ import { letGo } from "./runtime/keyboard/page.js";
 import { mountChrome } from "./runtime/chrome.js";
 import { restoreArrangements } from "./runtime/arrangements.js";
 import { captureAuthoredFacets } from "./runtime/projection/authored.js";
+import { layoutMarginRows } from "./runtime/margin-layout.js";
 
 // The register's repaint frame paints the standing chrome: registered here, first,
 // because the painter imports every owner and no owner may import it.
@@ -290,6 +291,17 @@ function presentPage() {
   // anchor reading fail, so durable controls remain withheld on that partial page.
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
   updateFab();
+  // Repaint the remaining state-dependent chrome and controls in this same task. Replay
+  // is already complete, so the presented attribute opens interaction on the state it names.
+  restoreTray();
+  showNews(othersBtn, leavesOffered());
+  paintKeys();
+  document.dispatchEvent(new Event("lf-actions"));
+  layoutMarginRows();
+  paintApproval();
+  // Fragment arrival reads after those controls have taken their final space. Margin
+  // placement normally batches into a frame; a fresh arrival runs that pending layout
+  // now so a docked row above the target cannot move it again after the landing.
   paintHere();
   landArrival();
   if (savedView && savedView.revision < runtime.currentRevision)
@@ -300,13 +312,6 @@ function presentPage() {
       about: savedComposer.about ?? null,
       drawing: savedComposer.drawing ?? null,
     });
-  // Repaint the remaining state-dependent chrome and controls in this same task. Replay
-  // is already complete, so the presented attribute opens interaction on the state it names.
-  restoreTray();
-  showNews(othersBtn, leavesOffered());
-  paintKeys();
-  document.dispatchEvent(new Event("lf-actions"));
-  paintApproval();
   promoteDeferredModals();
 }
 

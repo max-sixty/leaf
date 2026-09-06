@@ -31,10 +31,9 @@ from render_support import (
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
     SEATED_QUESTION_PAGE,
-    _traffic,
-    _until,
     draw_edge,
     edge_settled,
+    holding,
     in_threads_scrollport,
     leaf_page,
     open_page,
@@ -1447,13 +1446,12 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
     elif kind == "reply":
         thread.locator("textarea").fill("A reply whose delivery is held.")
 
-    before = _traffic(page).sends
     thread.get_by_role(
         "button",
         name={"unresolve": "Reopen", "resolve": "Resolve", "reply": "Send"}[kind],
         exact=True,
     ).click()
-    _until(page, lambda traffic: traffic.sends > before, "held the thread operation")
+    holding(page, held, 1, "the thread operation")
 
     later = page.locator(f'.lf-thread[data-id="{roots["bg-crowded"]}"] textarea')
     changes = page.locator("#bg-history summary")

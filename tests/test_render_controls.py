@@ -3043,13 +3043,11 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("Escape")
     expect(page.locator(".lf-help")).to_be_hidden()
 
-    # And the chord's chips, which are painted over the page rather than in it. Narrow to
-    # hyperlinks so every visible chip belongs to the surface under test.
+    # And the chord's generated target hints, painted over the visible page rather than
+    # inserted into it.
     page.keyboard.press("g")
-    page.keyboard.press("h")
-    expect(page.locator(".lf-addresses > .lf-address").first).to_be_visible()
-    sweep("with the chord aimed at the hyperlinks")
-    page.keyboard.press("Escape")
+    expect(page.locator(".lf-goto-targets > .lf-chord-address").first).to_be_visible()
+    sweep("with the visible-target chord armed")
     page.keyboard.press("Escape")
     assert errors == []
     page.close()

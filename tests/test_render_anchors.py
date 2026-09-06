@@ -598,15 +598,14 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
         events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
 
-    # Focus inside the first panel ask paints that group's digits; g h then aims the
-    # chord at the document's hyperlinks, which paints its own numeric addresses.
+    # Focus inside the first panel Ask paints that group's predictable digits. Bare g
+    # paints the page's generated target letters without replacing the Ask projection.
     page.keyboard.press("g")
     page.keyboard.press("c")
     page.locator("#tq-one .lf-pick").first.focus()
     picked = page.locator("#tq-one .lf-address").first
     expect(picked).to_be_visible()
     page.keyboard.press("g")
-    page.keyboard.press("h")
     addressed = page.locator(CHIPS).first.locator("kbd").last
     expect(addressed).to_be_visible()
 
@@ -620,7 +619,7 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
                 .map(p => [p, s.getPropertyValue(p)])); };
         return [read(document.querySelector('#tq-one .lf-address')),
                 read(document.querySelector(
-                  '.lf-addresses > .lf-address kbd:last-child'))]; }"""
+                  '.lf-goto-targets > .lf-chord-address kbd:last-child'))]; }"""
     option_key, chord_key = page.evaluate(faces)
     assert option_key == chord_key, (
         "one physical key has two geometries:\n  "
@@ -634,8 +633,8 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     assert addressed.get_attribute("data-lf-key-state") == "neutral"
     emphasis = page.evaluate(
         """() => ['#tq-one .lf-address',
-          '.lf-addresses > .lf-address kbd:last-child',
-          '.lf-keyline .lf-key[data-lf-commands~="navigation.link"] kbd:last-child']
+          '.lf-goto-targets > .lf-chord-address kbd:last-child',
+          '.lf-keyline .lf-key[data-lf-commands~="navigation.target"] kbd:last-child']
           .map(sel => { const s = getComputedStyle(document.querySelector(sel));
             return {border: s.borderTopColor, ground: s.backgroundColor, ink: s.color};
           })"""
@@ -645,7 +644,6 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
 
     # Item selection uses letters rather than digits, but it names the same physical
     # keys. Closing the address chord and opening selection must not reveal a fourth face.
-    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     page.keyboard.press("s")
     target = page.locator(".lf-target-hint").first

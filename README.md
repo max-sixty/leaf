@@ -21,9 +21,10 @@ Claude Code and Codex so far.
 ![leaf demo](docs/demo.gif)
 
 <https://leaf.page/> is the tour, the mechanism, the example pages, and the guide to
-themes and project widgets. Each product page is itself a leaf using the theme and
-widgets it describes. From a checkout, `uv run scripts/site.py --serve` assembles and
-serves the complete site from the sources in [`docs/`](docs/).
+themes and project widgets. Each product page is a standalone Leaf export rendered
+with the theme and widgets it describes; the examples are live private sessions. From
+a checkout, `uv run scripts/site.py --serve` assembles and serves the complete site
+from the sources in [`docs/`](docs/).
 
 ## Install
 

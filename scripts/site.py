@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """Assemble the published site (https://leaf.page/) into .tmp/site.
 
-Every product document under `docs/` is a Leaf source: it carries the exact scaffold
-the version checker accepts, uses root-absolute public routes, and is published without
-rewriting. The five sources become live-root directory routes, so the same runtime
-addressing used by a served Leaf applies without a site-only exception.
+Every product document under `docs/` is a Leaf source. The build checks all five in one
+temporary page directory, then publishes their browser-drawn standalone exports through
+one shared browser. Each export gets an isolated browser context, inlines the composed
+theme and media, retains the rendered widgets, and removes runtime scripts and controls.
 
 The worked examples and developer feature gallery become complete Leaf page directories
 under examples/<name>/. The same preparation path that serves a local fixture vendors
 each page's selected layer, stamps its authored versions, applies its companion event
 log and data, and closes the finished page without claiming it for an agent. The Worker
 gives each browser a private copy of those directories and the canonical server projects
-their virtual routes. Product routes remain exact authored drafts and continue to use
-the site's static session.
+their virtual routes.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
@@ -31,6 +30,10 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from leaf.exporting import export_page
+from leaf.http import scope_document_routes
+from leaf.render_gate.browser import browser_hint, launch_browser
+from leaf.render_gate.preview import preview_server
 from preview import prepare
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -44,11 +47,6 @@ OUT = (
 )  # gitignored; both the Worker asset binding and its container image consume it
 WRANGLER = ROOT / "worker" / "node_modules" / ".bin" / "wrangler"
 
-# Product documents share one static layer at the site root. Their /leaf.js adapter
-# imports the unmodified vendored entry under this name. Published examples carry their
-# own complete layers and never enter that adapter.
-RUNTIME = "runtime.js"
-
 PRODUCT_ROUTES = {
     "index.html": "/",
     "examples.html": "/examples/",
@@ -56,7 +54,6 @@ PRODUCT_ROUTES = {
     "packages.html": "/packages/",
     "registry.html": "/registry/",
 }
-SITE_SUPPORT = ("leaf.js", "session.js", "sitenote.js")
 SITE_PACKAGE = "./docs/package"
 
 
@@ -73,7 +70,10 @@ class Links(HTMLParser):
                 continue
             if name in ("href", "src"):
                 self.found.append(value)
-            elif name == "srcset":
+            elif name == "srcset" and not value.lstrip().startswith("data:"):
+                # Exported media is one data URL whose payload contains a comma. It is
+                # already self-contained, so do not parse that comma as a candidate
+                # boundary. Authored local candidates use the ordinary srcset form.
                 self.found += [
                     c.strip().split()[0] for c in value.split(",") if c.strip()
                 ]
@@ -104,12 +104,15 @@ def resolves(out: Path, page: Path, target: str) -> bool:
 
 
 def check_links(out: Path) -> None:
-    dead = [
-        f"{page.relative_to(out)} → {target}"
-        for page in sorted(out.rglob("*.html"))
-        for target in local_targets(page.read_text(encoding="utf-8"))
-        if not resolves(out, page, target)
-    ]
+    dead = []
+    for page in sorted(out.rglob("*.html")):
+        relative = page.relative_to(out)
+        html = page.read_bytes()
+        if len(relative.parts) >= 3 and relative.parts[0] == "examples":
+            html = scope_document_routes(html, f"/examples/{relative.parts[1]}")
+        for target in local_targets(html.decode()):
+            if not resolves(out, page, target):
+                dead.append(f"{relative} → {target}")
     if dead:
         sys.exit(
             "the site would publish links that reach nothing:\n  " + "\n  ".join(dead)
@@ -171,46 +174,75 @@ def product_target(out: Path, route: str) -> Path:
     return out / "index.html" if route == "/" else out / route.strip("/") / "index.html"
 
 
-def publish_product_pages(page: Path, out: Path, env: dict) -> None:
-    """Check each product document as a Leaf, then publish its exact source bytes."""
-    empty_data = json.dumps({"revision": 0, "sources": {}}) + "\n"
+def checked_product_sources(page: Path, env: dict) -> list[tuple[Path, bytes]]:
+    """Validate every product document before publishing any of them."""
+    checked = []
     for source in product_sources():
-        markup = source.read_text(encoding="utf-8")
-        (page / "index.html").write_text(markup, encoding="utf-8")
+        markup = source.read_bytes()
+        (page / "index.html").write_bytes(markup)
         leaf(env, "version", "check", str(page))
+        checked.append((source, markup))
+    return checked
+
+
+def publish_product_pages(
+    page: Path, out: Path, products: list[tuple[Path, bytes]], browser
+) -> None:
+    """Publish validated product documents through one shared browser."""
+    for source, markup in products:
+        (page / "index.html").write_bytes(markup)
+        with preview_server(page, markup, 1) as url:
+            exported = export_page(browser, url, page, source.name)
         target = product_target(out, PRODUCT_ROUTES[source.name])
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(markup, encoding="utf-8")
-        (target.parent / "data.json").write_text(empty_data, encoding="utf-8")
-        (target.parent / "events.jsonl").write_text("", encoding="utf-8")
+        target.write_text(exported, encoding="utf-8")
 
 
 def publish_pages(out: Path, env: dict) -> None:
-    """The site's vendored layer, product documents, and interactive pages."""
+    """Standalone product documents and canonical interactive pages."""
     with tempfile.TemporaryDirectory() as tmp:
-        page = Path(tmp) / "page"
+        product_page = Path(tmp) / "product-page"
         packages = json.loads((EXAMPLES / "layer.json").read_text(encoding="utf-8"))
         selection_args = [arg for name in packages for arg in ("--package", name)]
         selection_args.extend(("--package", SITE_PACKAGE))
-        leaf(env, "page", "init", *selection_args, str(page))
-        # The page's content, named by the hash of its bytes and served from the root the
-        # markup names it at (/media/…). It goes in the page directory rather than
-        # straight to the site, because `version check` refuses a reference the directory
-        # can't answer — and from there it is published with everything else below.
-        shutil.copytree(EXAMPLES / "media", page / "media", dirs_exist_ok=True)
+        leaf(env, "page", "init", *selection_args, str(product_page))
+        # Put the authored images behind the content-addressed paths the product
+        # sources name before validating and rendering them.
         product_media = sorted(
             path
             for pattern in ("*.gif", "*.jpg", "*.png")
             for path in DOCS.glob(pattern)
         )
-        leaf(env, "page", "media", str(page), *(str(path) for path in product_media))
-        for item in sorted(page.iterdir()):
-            target = out / (RUNTIME if item.name == "leaf.js" else item.name)
-            (shutil.copytree if item.is_dir() else shutil.copy2)(item, target)
-
-        for name in SITE_SUPPORT:
-            shutil.copy2(DOCS / name, out / name)
-        publish_product_pages(page, out, env)
+        leaf(
+            env,
+            "page",
+            "media",
+            str(product_page),
+            *(str(path) for path in product_media),
+        )
+        products = checked_product_sources(product_page, env)
+        try:
+            from playwright.sync_api import Error as PlaywrightError
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            sys.exit("the site build needs Playwright to render its product pages")
+        with sync_playwright() as playwright:
+            try:
+                browser, _ = launch_browser(playwright)
+            except PlaywrightError as error:
+                sys.exit(
+                    "the site build needs a browser, and none launched "
+                    f"({str(error).strip().splitlines()[0]}). {browser_hint()}"
+                )
+            try:
+                publish_product_pages(product_page, out, products, browser)
+            finally:
+                browser.close()
+        # The social card is the reference that keeps this: every page names its
+        # og:image at an absolute https://leaf.page/media/… URL, which no export
+        # inlines and no link check can see. The rest is already in the exports.
+        shutil.copytree(product_page / "media", out / "media")
+        shutil.copy2(DOCS / "sitenote.js", out / "sitenote.js")
 
         for source in published_page_sources():
             published = out / "examples" / source.stem

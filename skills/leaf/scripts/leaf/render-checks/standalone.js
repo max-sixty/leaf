@@ -129,6 +129,9 @@ export function bake() {
   }
   document.adoptedStyleSheets = [];
   document.documentElement.removeAttribute("data-lf-traffic");
+  // The reading identifies one live server response. It is neither stable across
+  // exports nor meaningful once the scripts and server are gone.
+  document.body.removeAttribute("data-lf-reading");
   // A live report is runtime chrome even where its seat is in the page rather than
   // under .lf-chrome, so it is answered here, in the document and in every open shadow
   // root, before those roots are serialized below.
@@ -192,6 +195,9 @@ export function bake() {
   if (icon) {
     icon.href = icon.dataset.lfRest;
     icon.removeAttribute("data-lf-rest");
+    document
+      .querySelectorAll('link[rel="icon"]')
+      .forEach((other) => other !== icon && other.remove());
   }
   // hidden="until-found" is the page saying "collapsed, but the reader can still
   // get here" — a tab's inactive panel, a settled group's cards. In a copy the
@@ -436,5 +442,5 @@ export function bake() {
         ` ${a.name}="${a.value.replaceAll("&", "&amp;").replaceAll('"', "&quot;")}"`,
     )
     .join("");
-  return `<html${attrs}>${root.getHTML({ serializableShadowRoots: true })}</html>`;
+  return `<!doctype html><html${attrs}>${root.getHTML({ serializableShadowRoots: true })}</html>`;
 }

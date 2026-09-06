@@ -1,8 +1,8 @@
 """The published site: what the build assembles, and what a reader gets.
 
-The site is the repo's own pages plus its examples and developer feature gallery as live
-pages, so most of what could go wrong is a path that meant one thing in a checkout and
-another on a host.
+The site is the repo's standalone product pages plus its examples and developer feature
+gallery as live pages, so most of what could go wrong is a path that meant one thing in
+a checkout and another on a host.
 The build resolves every local link it wrote and stops on one that reaches
 nothing, which is the failure a static host answers with a 404 and no other
 signal; these tests hold the rest — that the theme a page links is the shipped
@@ -10,11 +10,11 @@ file, that an example served here is a working page rather than a picture of one
 and that a site claiming to ride the theme's tokens actually changes colour when
 the theme's palette does.
 
-Every page is reached over HTTP: product sources use the site's root layer, while each
-example uses its page-scoped vendored layer through the canonical server. file:// is no
-longer a second supported document mode for either one.
+Every page is reached over HTTP: product sources are rendered into self-contained files,
+while each example uses its page-scoped vendored layer through the canonical server.
 """
 
+import base64
 import hashlib
 import importlib.util
 import json
@@ -27,7 +27,6 @@ from pathlib import Path
 
 import pytest
 from example_data import data_operations, example_versions
-from interact_support import SHIPPED_PACKAGES
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf.event_log import _parse_events, read_events
@@ -40,7 +39,6 @@ from playwright.sync_api import expect
 from render_support import BOTH_STAMPS, navigate, open_page, select, sending, watched
 
 ROOT = Path(__file__).parent.parent
-ASSETS = ROOT / "skills" / "leaf" / "assets"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
@@ -145,7 +143,7 @@ def served_example(site, tmp_path):
 
 
 def product_url(hosted, name):
-    """The canonical live-root route for one product source."""
+    """The canonical route for one exported product source."""
     return hosted + site_build.PRODUCT_ROUTES[name]
 
 
@@ -162,61 +160,72 @@ def opened(page, errors, url):
     navigate(page, errors, url, wait_until="load")
 
 
-def test_the_pages_link_the_theme_the_site_serves(site):
-    """Every product document asks for the one composed root stylesheet."""
+def test_product_pages_inline_the_composed_theme(site):
+    """Authored sources use the Leaf scaffold; published copies need no stylesheet."""
+    theme_halves = [
+        ROOT / "skills" / "leaf" / "assets" / "theme.css",
+        ROOT / "skills" / "leaf" / "packages" / "default" / "theme.css",
+        *(
+            ROOT / "skills" / "leaf" / "packages" / name / "theme.css"
+            for name in json.loads((EXAMPLES / "layer.json").read_text())
+        ),
+        DOCS / "package" / "theme.css",
+    ]
+    assert all(source.is_file() for source in theme_halves)
     for page in pages_under(DOCS):
         target = site_build.product_target(site, site_build.PRODUCT_ROUTES[page.name])
         published = target.read_text()
-        assert published.count('href="/theme.css"') == 1, page.name
-        for attribute in ('href="../', 'src="../'):
-            assert attribute not in published, f"{page.name} kept a checkout path"
-    served = (site / "theme.css").read_text()
-    # Every half the site's own layer composes, read off examples/layer.json rather
-    # than listed, so a package added there is covered without a second edit here.
-    halves = [
-        *(root / "theme.css" for root in SHIPPED_PACKAGES),
-        DOCS / "package" / "theme.css",
-    ]
-    missing = [source.parent.name for source in halves if not source.is_file()]
-    assert missing == [], f"shipped roots without a theme half: {missing}"
-    for source in halves:
-        assert source.read_text().rstrip() in served, (
-            f"the theme the site serves is missing {source.parent.name}'s half"
-        )
+        source_markup = page.read_text()
+        assert source_markup.count('href="/theme.css"') == 1, page.name
+        assert 'href="/theme.css"' not in published, page.name
+        for theme in theme_halves:
+            assert theme.read_text().rstrip() in published, (
+                f"{page.name} is missing {theme.parent.name}'s theme"
+            )
 
 
-def test_product_pages_are_published_without_a_rewrite_dialect(site):
+def test_product_pages_are_published_as_self_contained_copies(site):
     sources = pages_under(DOCS)
     assert {source.name for source in sources} == set(site_build.PRODUCT_ROUTES)
     for source in sources:
         target = site_build.product_target(site, site_build.PRODUCT_ROUTES[source.name])
+        published = target.read_text()
+        assert 'class="lf-copy' in published, source.name
+        assert "<script" not in published, source.name
+        assert "data-lf-reading" not in published, source.name
+        assert 'src="/media/' not in published, source.name
+        assert not (target.parent / "data.json").exists(), source.name
+        assert not (target.parent / "events.jsonl").exists(), source.name
+
+
+def test_only_canonical_examples_keep_a_runtime_layer(site):
+    """Product exports inline their layer; shared media and the example note remain."""
+    assert (site / "sitenote.js").read_bytes() == (DOCS / "sitenote.js").read_bytes()
+    product_media = {
+        Path(media_url(source)).name: source
+        for source in (
+            path
+            for pattern in ("*.gif", "*.jpg", "*.png")
+            for path in DOCS.glob(pattern)
+        )
+    }
+    assert {path.name for path in (site / "media").iterdir()} == set(product_media)
+    for name, source in product_media.items():
+        target = site / "media" / name
         assert target.read_bytes() == source.read_bytes(), source.name
-
-
-def test_the_site_serves_the_whole_layer_a_page_asks_for(site):
-    """A page asks for its layer by absolute path, so the layer is the site's root. Any
-    one of these missing is a page that opens unstyled, unupgraded, or not at all — and
-    a static host reports none of it."""
-    for name in ("theme.css", "registry.json", "icon.svg", "runtime.js", "leaf.js"):
-        assert (site / name).is_file(), f"the site root has no {name}"
-    generation = json.loads((site / "registry.json").read_text())["$layer"][
-        "generation"
-    ]
-    assert (site / "runtime.js").read_text() == (ASSETS / "leaf.js").read_text(), (
-        "the runtime the site serves is not the shipped file"
-    )
-    client = (ASSETS / "runtime" / "layer-client.js").read_text()
-    assert client.count('"__LEAF_LAYER_GENERATION__"') == 1
-    assert (site / "runtime" / "layer-client.js").read_text() == client.replace(
-        '"__LEAF_LAYER_GENERATION__"', json.dumps(generation)
-    ), "the layer client the site serves is not the shipped file, stamped"
-    for sub in ("runtime", "widgets", "vendor", "media"):
-        assert list((site / sub).iterdir()), f"{sub}/ is empty at the site root"
-    site_idioms = json.loads((DOCS / "package" / "registry.json").read_text())[
-        "$idioms"
-    ]
-    registry = json.loads((site / "registry.json").read_text())["$idioms"]
-    assert set(site_idioms) <= set(registry)
+    for name in (
+        "leaf.js",
+        "session.js",
+        "runtime.js",
+        "theme.css",
+        "registry.json",
+        "icon.svg",
+        "data.json",
+        "events.jsonl",
+    ):
+        assert not (site / name).exists(), f"obsolete product runtime asset: {name}"
+    for name in ("runtime", "widgets", "vendor"):
+        assert not (site / name).exists(), f"obsolete product runtime directory: {name}"
 
 
 def test_every_published_page_keeps_its_canonical_page_record(site):
@@ -332,53 +341,54 @@ def test_a_website_example_keeps_its_version_identity_and_history(
         page.close()
 
 
-def test_every_product_route_is_a_live_leaf(site, hosted, browser):
-    """Each authored product page reaches the real runtime as an independent draft."""
+def test_every_product_route_is_a_standalone_leaf_copy(site, hosted, browser):
+    """Each product route is rendered, self-contained, and free of live controls."""
     names = list(site_build.PRODUCT_ROUTES)
-    page, errors = open_page(browser, product_url(hosted, names[0]))
+    page = browser.new_page()
+    errors = watched(page)
+    failed = []
+    page.on(
+        "response",
+        lambda response: (
+            failed.append(f"{response.status} {response.url}")
+            if response.status >= 400
+            else None
+        ),
+    )
     try:
         for name in names:
-            opened(page, errors, product_url(hosted, name))
-            expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-            expect(page.locator(".lf-banner .lf-version")).to_have_text("Draft ▾")
-            expect(page.locator(".lf-status-text")).to_contain_text(
-                "Nobody is behind this page"
-            )
+            page.goto(product_url(hosted, name), wait_until="load")
+            expect(page.locator("html")).to_have_class(re.compile(r"\blf-copy\b"))
+            assert page.evaluate("document.compatMode") == "CSS1Compat", name
+            source = (DOCS / name).read_text(encoding="utf-8")
+            expected_title = re.search(r"<title>(.*?)</title>", source, re.DOTALL)
+            expected_h1 = re.search(r"<h1>(.*?)</h1>", source, re.DOTALL)
+            assert expected_title and expected_h1
+            assert page.title() == expected_title.group(1).strip(), name
+            expect(page.locator("h1")).to_have_text(expected_h1.group(1).strip())
+            expect(page.locator("script, .lf-chrome")).to_have_count(0)
+            expect(page.locator('link[rel="stylesheet"]')).to_have_count(0)
             expect(page.locator("main > .sitenote")).to_have_count(0)
-            state = page.evaluate("() => fetch('/api/state').then(r => r.json())")
-            assert state["active"] == {
-                "revision": 1,
-                "version": None,
-                "url": site_build.PRODUCT_ROUTES[name],
-                "label": "Draft",
-                "activated_at": None,
-            }
-            assert state["versions"] == []
+            if "<lf-toc" in source:
+                assert page.locator("lf-toc a").count() > 0, (
+                    f"{name}: the exported table of contents has no links"
+                )
+            assert page.locator("lf-specimen button").count() == 0, (
+                f"{name}: a quoted specimen kept a live control"
+            )
             assert not errors, f"{name}: {errors[:3]}"
+            assert not failed, f"{name}: {failed[:3]}"
     finally:
         page.close()
 
 
-def test_a_product_route_refuses_a_missing_session_file(hosted, browser):
-    """Every static route has complete session inputs or fails before Leaf loads."""
-    for name in ("registry.json", "data.json", "events.jsonl"):
-        page = browser.new_page()
-        page.route(f"**/{name}", lambda route: route.fulfill(status=404, body=""))
-        try:
-            with page.expect_event("pageerror") as raised:
-                page.goto(product_url(hosted, "index.html"), wait_until="load")
-            assert f"/{name} returned HTTP 404" in str(raised.value)
-            assert page.locator("body").get_attribute("data-lf-presented") is None
-        finally:
-            page.unroute_all(behavior="wait")
-            page.close()
-
-
 def test_the_product_diagram_fits_without_its_own_scroll(hosted, browser):
     """The architecture is one sequence, so the diagram must fit its content box."""
-    page, errors = open_page(browser, product_url(hosted, "how-it-works.html"))
+    page = browser.new_page()
+    errors = watched(page)
     try:
         page.set_viewport_size({"width": 1200, "height": 900})
+        page.goto(product_url(hosted, "how-it-works.html"), wait_until="load")
         diagram = page.locator("#arch")
         expect(diagram).to_be_visible()
         width = diagram.evaluate(
@@ -448,7 +458,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     page.on("pageerror", lambda error: errors.append(str(error)))
     try:
         page.goto(f"{hosted}/examples/", wait_until="load")
-        page.wait_for_function(BOTH_STAMPS)
+        expect(page.locator("html")).to_have_class(re.compile(r"\blf-copy\b"))
         entries = page.locator(".example-catalog > li .example-link")
         assert entries.count() == len(expected)
         pairs = entries.evaluate_all(
@@ -462,7 +472,11 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
             match = re.fullmatch(r"/examples/([a-z0-9-]+)/", pair["href"])
             assert match, pair
             stem = match.group(1)
-            assert pair["image"] == media_url(DOCS / f"example-{stem}.jpg")
+            prefix, encoded = pair["image"].split(",", 1)
+            assert prefix == "data:image/jpeg;base64"
+            assert (
+                base64.b64decode(encoded) == (DOCS / f"example-{stem}.jpg").read_bytes()
+            )
             reached.add(stem)
         assert reached == expected
 
@@ -685,33 +699,6 @@ def test_a_shipped_data_snapshot_opens_in_its_package_projection(
         page.close()
 
 
-def test_the_product_site_accepts_a_leaf_comment(site, hosted, browser):
-    """The tour completes the same comment/projection loop as a published example."""
-    page, errors = open_page(browser, product_url(hosted, "index.html"))
-    try:
-        box = page.locator("#lede").bounding_box()
-        select(
-            page,
-            (box["x"] + 4, box["y"] + 8),
-            (box["x"] + box["width"] - 40, box["y"] + box["height"] - 8),
-        )
-        expect(page.locator(".lf-fab-input")).to_be_visible()
-        page.locator(".lf-composer textarea").fill("Can the page itself carry this?")
-        page.keyboard.press("ControlOrMeta+Enter")
-
-        thread = page.locator(
-            ".lf-panel .lf-thread", has_text="Can the page itself carry this?"
-        )
-        expect(thread).to_contain_text("Can the page itself carry this?")
-        expect(thread.locator("blockquote")).to_contain_text(
-            "Your agent builds you the page"
-        )
-        expect(thread.locator('a[href="/#install"]')).to_have_count(1)
-        assert not errors, errors[:3]
-    finally:
-        page.close()
-
-
 def test_a_comment_persists_without_inventing_an_agent_reply(served_example, browser):
     """The real backend stores the reader's anchored words without impersonating an agent."""
     _, url = served_example("design-decision")
@@ -860,33 +847,13 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(served_example, browser):
         page.close()
 
 
-def test_product_routes_do_not_share_page_state(site, hosted, browser):
-    page, errors = open_page(browser, product_url(hosted, "index.html"))
-    try:
-        page.locator(".lf-threads-toggle").click()
-        page.locator(".lf-general textarea").fill("This belongs to the tour.")
-        page.locator(".lf-general .lf-btn.primary").click()
-        expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
-        page.evaluate(
-            "() => document.scrollingElement.scrollTo({top: 1500, behavior: 'instant'})"
-        )
-        assert page.evaluate("() => document.scrollingElement.scrollTop") > 0
-
-        opened(page, errors, product_url(hosted, "how-it-works.html"))
-        expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
-        assert page.evaluate("() => document.scrollingElement.scrollTop") == 0
-        assert not errors, errors[:3]
-    finally:
-        page.close()
-
-
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_the_site_takes_its_palette_from_the_theme(site, hosted, browser, scheme):
     page = browser.new_page(color_scheme=scheme)
     errors = watched(page)
     try:
         for name in site_build.PRODUCT_ROUTES:
-            opened(page, errors, product_url(hosted, name))
+            page.goto(product_url(hosted, name), wait_until="load")
             assert (
                 page.evaluate("getComputedStyle(document.body).backgroundColor")
                 == (PAPER[scheme])
@@ -898,17 +865,12 @@ def test_the_site_takes_its_palette_from_the_theme(site, hosted, browser, scheme
 
 def test_the_pages_fit_a_phone(site, hosted, browser):
     """Nothing scrolls sideways at 390px — the nav wraps, the screenshots scale,
-    and a command too long for the column scrolls inside its own block.
-
-    The site's own pages, not the examples it publishes: a page with a suggestion
-    on it hangs the accept/reject controls in the margin, and at 390px
-    there is no margin to hang them in. That is the live page's question rather
-    than the site's, and it is not answered here."""
+    and a command too long for the column scrolls inside its own block."""
     page = browser.new_page(viewport=PHONE)
     errors = watched(page)
     try:
         for name in site_build.PRODUCT_ROUTES:
-            opened(page, errors, product_url(hosted, name))
+            page.goto(product_url(hosted, name), wait_until="load")
             overflow = page.evaluate(
                 "() => { const b = document.body;"
                 " return b.scrollWidth - b.clientWidth; }"

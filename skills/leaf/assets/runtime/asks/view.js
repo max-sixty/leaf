@@ -98,10 +98,7 @@
    ask keeps its centred arrival in the panel's own list. */
 
 import { shownBox, shownParts } from "../geometry.js";
-import {
-  addressPlacement,
-  MAX_NUMBERED_ADDRESSES,
-} from "../keyboard/address-placement.js";
+import { addressPlacement } from "../keyboard/address-placement.js";
 import {
   ariaShortcuts,
   bindings,
@@ -540,6 +537,7 @@ function ownedAskControl(askSource, commandSource) {
   ).join(",");
   return !selector || closestAcross(commandSource, selector) === askSource;
 }
+const MAX_ASK_ACTIONS = 9;
 const availableActions = () => {
   const ask = standingIn();
   if (!ask) return [];
@@ -559,9 +557,7 @@ const availableActions = () => {
   // as declared package keys; otherwise a non-character action can keep the row live
   // while its words still name contextual actions the dispatcher has removed.
   const contextual = bindings({
-    keys: Array.from({ length: MAX_NUMBERED_ADDRESSES }, (_, index) =>
-      String(index + 1),
-    ),
+    keys: Array.from({ length: MAX_ASK_ACTIONS }, (_, index) => String(index + 1)),
   }).filter((binding) => !reserved.has(binding));
   return actions.flatMap((action) => {
     const resolvedBinding = action.binding ?? contextual.shift();

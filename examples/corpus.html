@@ -1718,10 +1718,10 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
 </lf-tab>
 
 <lf-tab id="corpus-feature-gallery" label="Features">
-<h1 id="bg-title">Leaf feature gallery</h1>
+<h1 id="bg-title">Leaf product gallery</h1>
       <p class="lede" id="bg-lede">
         Try Leaf’s working features on one synthetic page. Each section names a feature
-        and provides a live example.
+        and provides a live example, including focused replays of its motion.
       </p>
       <p id="bg-start">
         Use the contents spine or Map to find a feature; each eyebrow lists its element
@@ -2385,6 +2385,71 @@ gallery/
             after="/media/a99a1b63048502d0.png"
           ></lf-shot>
         </section>
+      </section>
+
+      <section
+        class="interaction-gallery"
+        id="bg-interactions"
+        aria-labelledby="bg-interactions-heading"
+        data-interaction-gallery
+      >
+        <p class="eyebrow bg-feature-elements">
+          lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board · lf-column ·
+          lf-card
+        </p>
+        <h2 id="bg-interactions-heading">
+          <strong>Interactions</strong
+          ><span class="bg-feature-detail">: motion and input sequences</span>
+        </h2>
+        <p id="bg-interactions-guide">
+          Play, pause, or replay a focused sequence against Leaf’s real widgets. The
+          preview applies state locally, so watching it does not add decisions to the
+          page’s event log.
+        </p>
+
+        <lf-tabs id="bg-interaction-tabs">
+          <lf-tab id="bg-interaction-accept" label="Accept a suggestion">
+            <figure class="interaction-demo" data-interaction-demo="accept">
+              <div class="interaction-stage">
+                <p class="eyebrow">proposed release note</p>
+                <p class="interaction-stage-copy" id="bg-motion-accept-copy">
+                  The importer now
+                  <lf-suggestion id="bg-motion-accept"
+                    ><lf-old>usually finishes</lf-old
+                    ><lf-new>finishes</lf-new></lf-suggestion
+                  >
+                  before the next run begins.
+                </p>
+                <span class="interaction-pointer" hidden aria-hidden="true"></span>
+              </div>
+              <figcaption>
+                The pointer presses Accept; Leaf folds away the retired wording and
+                leaves the sentence in its settled state.
+              </figcaption>
+            </figure>
+          </lf-tab>
+
+          <lf-tab id="bg-interaction-move" label="Move a card">
+            <figure class="interaction-demo" data-interaction-demo="move-card">
+              <div class="interaction-stage interaction-board-stage">
+                <lf-board id="bg-motion-board">
+                  <lf-column id="bg-motion-ready" label="Ready">
+                    <lf-card id="bg-motion-card">
+                      <strong>Verify migration</strong>
+                      Run the schema sample.
+                    </lf-card>
+                  </lf-column>
+                  <lf-column id="bg-motion-tried" label="Tried"></lf-column>
+                </lf-board>
+                <span class="interaction-pointer" hidden aria-hidden="true"></span>
+              </div>
+              <figcaption>
+                The pointer finds the card’s grip, then Leaf plays the same placement
+                transition used after a keyboard or drag move.
+              </figcaption>
+            </figure>
+          </lf-tab>
+        </lf-tabs>
       </section>
 
       <section id="bg-version-changes">

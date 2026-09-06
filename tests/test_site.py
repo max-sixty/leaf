@@ -481,17 +481,154 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
                 560,
             ]
 
-        assert page.locator("iframe, lf-tabs").count() == 0
+        developer_galleries = page.locator("#developer-galleries")
+        expect(developer_galleries).to_be_visible()
+        developer_galleries.scroll_into_view_if_needed()
+        expect(developer_galleries.locator("a.developer-gallery-link")).to_have_count(2)
+        expect(page.locator("iframe, lf-tabs")).to_have_count(0)
         published = {
             path.name for path in (site / "examples").iterdir() if path.is_dir()
         }
         assert published == expected | {FEATURE_GALLERY.stem}
-        gallery = page.locator("#feature-gallery a")
-        expect(gallery).to_have_text("feature gallery")
-        expect(gallery).to_have_attribute("href", "/examples/feature-gallery/")
+        assert page.evaluate(
+            "() => Boolean(document.querySelector('#pages')"
+            ".compareDocumentPosition(document.querySelector('#developer-galleries'))"
+            " & Node.DOCUMENT_POSITION_FOLLOWING)"
+        )
+        product_gallery = developer_galleries.locator("#product-gallery")
+        expect(product_gallery).to_contain_text("Product gallery")
+        expect(product_gallery).to_have_attribute("href", "/examples/feature-gallery/")
+        interaction_gallery = developer_galleries.locator("#interaction-gallery")
+        expect(interaction_gallery).to_contain_text("Interaction gallery")
+        expect(interaction_gallery).to_have_attribute(
+            "href", "/examples/feature-gallery/#bg-interactions"
+        )
         assert not errors, errors[:3]
     finally:
         page.close()
+
+
+def test_the_interaction_gallery_drives_real_widgets(serve, browser):
+    """The runner pauses its real widgets, resumes them, and resets between scenes.
+
+    Playback calls each upgraded widget's canonical rendering surface without
+    dispatching its input gesture, so a developer can inspect the transition without
+    the demonstration becoming durable page state.
+    """
+    url = serve(FEATURE_GALLERY)
+    page_dir = serve.page_dir
+    page, errors = open_page(browser, f"{url}#bg-interactions")
+    try:
+        before = read_events(page_dir)
+        gallery = page.locator("#bg-interactions")
+        status = gallery.locator("[data-interaction-status]")
+        toggle = gallery.locator("[data-interaction-toggle]")
+        replay = gallery.locator("[data-interaction-replay]")
+        accept = gallery.locator("#bg-motion-accept")
+        card = gallery.locator("#bg-motion-card")
+
+        expect(status).to_have_text("Accept a suggestion · Playing")
+        expect(gallery.locator(".interaction-pointer").first).to_be_visible()
+        toggle_box = toggle.bounding_box()
+        assert toggle_box["y"] + toggle_box["height"] <= 900
+        gallery.locator(".interaction-stage").first.evaluate(
+            "stage => { window.pauseProbe = stage.animate([{}, {}], {duration: 10000}); }"
+        )
+        toggle.click()
+        expect(status).to_have_text("Accept a suggestion · Paused")
+        assert page.evaluate("window.pauseProbe.playState") == "paused"
+        page.wait_for_timeout(800)
+        assert accept.get_attribute("data-lf-state") is None
+        toggle.click()
+        assert page.evaluate("window.pauseProbe.playState") == "running"
+        page.evaluate("window.pauseProbe.cancel()")
+        expect(status).to_have_text("Accept a suggestion · Complete", timeout=10_000)
+        expect(toggle).to_have_text("Played")
+        expect(toggle).to_be_disabled()
+        expect(replay).to_be_enabled()
+        assert gallery.evaluate(
+            """async gallery => {
+                const { pageWords, says } = await import('/runtime/passages.js');
+                const toggle = gallery.querySelector('[data-interaction-toggle]');
+                const status = gallery.querySelector('[data-interaction-status]');
+                return !pageWords(toggle.firstChild)
+                    && !pageWords(status.firstChild)
+                    && !says(gallery).includes(status.textContent);
+            }"""
+        )
+        assert gallery.locator(
+            ".interaction-control, .interaction-status"
+        ).evaluate_all(
+            "nodes => nodes.map(node => getComputedStyle(node).fontSize)"
+        ) == ["11.5px", "11.5px", "11.5px"]
+        expect(accept).to_have_attribute("data-lf-state", "accept")
+        assert read_events(page_dir) == before
+
+        move_tab = gallery.get_by_role("tab", name="Move a card")
+        move_tab.click()
+        expect(status).to_have_text("Move a card · Complete", timeout=10_000)
+        assert card.evaluate("card => card.parentElement.id") == "bg-motion-tried"
+        assert move_tab.evaluate("tab => document.activeElement === tab")
+        assert read_events(page_dir) == before
+
+        gallery.locator("[data-interaction-replay]").click()
+        expect(status).to_have_text("Move a card · Playing")
+        assert card.evaluate("card => card.parentElement.id") == "bg-motion-ready"
+        assert card.evaluate("card => card.getAnimations().length") == 0
+        expect(status).to_have_text("Move a card · Complete", timeout=10_000)
+        assert card.evaluate("card => card.parentElement.id") == "bg-motion-tried"
+        assert read_events(page_dir) == before
+        page.set_viewport_size({"width": 390, "height": 844})
+        assert gallery.locator("#bg-motion-board").evaluate(
+            "board => board.scrollWidth === board.clientWidth"
+        )
+        assert gallery.locator("#bg-motion-board").evaluate(
+            "board => getComputedStyle(board).gridAutoFlow === 'row'"
+        )
+        assert status.evaluate("status => getComputedStyle(status).marginLeft") == "0px"
+
+        replacement_installed = gallery.evaluate(
+            """gallery => {
+                const replacement = gallery.cloneNode(true);
+                replacement.removeAttribute('data-interaction-installed');
+                replacement.querySelector('.interaction-controls')?.remove();
+                gallery.replaceWith(replacement);
+                document.dispatchEvent(new Event('lf-actions'));
+                return new Promise(resolve => requestAnimationFrame(() =>
+                    resolve(replacement.dataset.interactionInstalled === '1')
+                ));
+            }"""
+        )
+        assert replacement_installed
+        page.emulate_media(media="print")
+        expect(toggle).to_be_hidden()
+        expect(replay).to_be_hidden()
+        assert not errors, errors[:3]
+    finally:
+        page.close()
+
+
+def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
+    url = serve(FEATURE_GALLERY)
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 1280, "height": 900}
+    )
+    page, errors = open_page(browser, f"{url}#bg-interactions", context=context)
+    try:
+        gallery = page.locator("#bg-interactions")
+        status = gallery.locator("[data-interaction-status]")
+        accept = gallery.locator("#bg-motion-accept")
+        expect(status).to_have_text(
+            "Accept a suggestion · Ready — motion will start only when you press Play"
+        )
+        page.wait_for_timeout(900)
+        assert accept.get_attribute("data-lf-state") is None
+        gallery.locator("[data-interaction-toggle]").click()
+        expect(status).to_have_text("Accept a suggestion · Complete", timeout=10_000)
+        expect(accept).to_have_attribute("data-lf-state", "accept")
+        assert not errors, errors[:3]
+    finally:
+        context.close()
 
 
 def test_every_published_page_stands_as_a_live_page(served_example, browser):

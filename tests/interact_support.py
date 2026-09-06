@@ -172,7 +172,7 @@ PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>t</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>

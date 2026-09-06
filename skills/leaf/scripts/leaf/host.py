@@ -105,8 +105,8 @@ def state_home() -> Path:
     """$XDG_STATE_HOME/leaf (~/.local/state/leaf/) — pages/ holds page
     directories by convention, claims/ the last claimant of every known page,
     sessions/ the live watcher leases, page-locks/ the stable per-path transition
-    leases, and access.json the one key every page here is served with
-    (`host_key`). State, not config:
+    leases, packages/ the packages `package install` copied here, and access.json
+    the one key every page here is served with (`host_key`). State, not config:
     claim records carry pids and absolute paths, while page service records
     carry ports, so this state is bound to this machine, as is the key that
     reaches it.
@@ -121,6 +121,15 @@ def state_home() -> Path:
     )
     home.mkdir(mode=0o700, parents=True, exist_ok=True)
     return home
+
+
+def package_store() -> Path:
+    """~/.local/state/leaf/packages/ — where `package install` puts a package so
+    that `--package NAME` reaches it.
+
+    Not the install tree, which a plugin update replaces wholesale, and not
+    ~/.config/leaf, which is one package rather than a directory of them."""
+    return state_home() / "packages"
 
 
 def host_identity() -> dict | None:

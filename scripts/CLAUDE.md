@@ -48,3 +48,10 @@ so a diff from either can be an upstream patch rather than drift.
 
 Rerun a bundle after changing its pin or the registry input it reads; do not patch a
 generated bundle or `examples/corpus.html` directly.
+
+## Lint harness
+
+`evaluation-order-faults.mjs` plants the faults that pin `eslint.config.mjs`'s
+`leaf/evaluation-order` rule, which `skills/leaf/assets/CLAUDE.md` describes. Run it
+through its pre-commit hook, `eslint-evaluation-order`, which supplies the node and the
+pinned eslint it needs on `PATH`.

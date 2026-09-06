@@ -357,7 +357,7 @@ body { position: static; box-sizing: border-box; }
    and tab stop from standing reaction marks, which retain their shape without
    promising a press. A status keeps its ghost ring in the page-map walk, while its
    hand and hover response go. */
-.lf-margin-button:is(button, [role="button"]):not([data-lf-behavior="status"]) {
+.lf-margin-button:is(button, [role="button"]):not([data-lf-behavior="status"]):not(:disabled):not([aria-disabled="true"]) {
   cursor: pointer;
 }
 .lf-margin-button:is(button, [role="button"]):not([data-lf-behavior="status"]):hover:not([aria-disabled="true"]) {

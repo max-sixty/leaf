@@ -162,7 +162,7 @@ def implicit_closes(open_tags: list, tag: str) -> int:
     return closed
 
 
-class _StructParser(HTMLParser):
+class StructParser(HTMLParser):
     """Tracks a tag stack to catch unclosed and mismatched tags, and collects what the
     rest of `version check` reads off a version: element ids and the widget each
     stands in, every <script src> tag, stylesheet links, each lf-* element
@@ -576,10 +576,10 @@ class _StructParser(HTMLParser):
             )
 
 
-def parse_structure(markup: str) -> _StructParser:
+def parse_structure(markup: str) -> StructParser:
     """One structural reading of a document or fragment — fed and closed, so
     every reader gets the flushed parse rather than each restating the ritual."""
-    parser = _StructParser()
+    parser = StructParser()
     parser.feed(markup)
     parser.close()
     return parser
@@ -588,7 +588,7 @@ def parse_structure(markup: str) -> _StructParser:
 _revisions = {}  # revision file -> (its stamp, the structural reading of it)
 
 
-def parse_revision(page_dir: Path, revision: int) -> _StructParser:
+def parse_revision(page_dir: Path, revision: int) -> StructParser:
     """One cached structural reading of an immutable working revision."""
     path = revision_path(page_dir, revision)
     stamp = file_stamp(path)

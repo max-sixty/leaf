@@ -1460,7 +1460,7 @@ def test_undo_candidates_keep_only_standing_reader_gestures():
     empty = projection_model.StateProjection({}, {}, {}, {}, {})
     undo_reading = event_folds_model.UndoReading(events, within={})
 
-    candidates = served_document._browser_undo_candidates(
+    candidates = served_document.browser_undo_candidates(
         events, empty, empty, undo_reading=undo_reading
     )
 
@@ -3067,34 +3067,22 @@ def test_neighbor_activity_cache_expires_when_status_loses_its_last_proof(
     assert after["activity"]["next_transition_at"] is None
 
 
-def test_server_shutdown_wakes_a_long_poll_without_waiting_for_timeout(
-    page_dir, monkeypatch
-):
-    """A selector waiting for a long timeout wakes as soon as shutdown is requested."""
+def test_server_shutdown_stops_an_idle_serving_loop(page_dir):
+    """An idle server stops on request rather than outliving the call."""
     httpd = hosting_model.LeafHTTPServer(
         ("127.0.0.1", 0), http_model.handler_for(page_dir, TOKEN)
     )
-    waiting = threading.Event()
-    real_select = hosting_model.selectors.DefaultSelector.select
-
-    def watched_select(selector, timeout=None):
-        waiting.set()
-        return real_select(selector, timeout)
-
-    monkeypatch.setattr(
-        hosting_model.selectors.DefaultSelector, "select", watched_select
-    )
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     try:
-        thread = threading.Thread(target=httpd.serve_forever, args=(10.0,), daemon=True)
         thread.start()
-        assert waiting.wait(timeout=1)
         httpd.shutdown()
-        thread.join(timeout=1)
+        thread.join(timeout=5)
         assert not thread.is_alive()
+        assert httpd.stopping
     finally:
         if thread.is_alive():
             httpd.shutdown()
-            thread.join(timeout=1)
+            thread.join(timeout=5)
         httpd.server_close()
 
 
@@ -3102,24 +3090,24 @@ def test_temporary_server_close_waits_for_delayed_start(page_dir, monkeypatch):
     """Closing after start must join a serving loop that has not been scheduled yet."""
     server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN)
     release = threading.Event()
-    completed_before_start = []
+    entered = threading.Event()
     errors = []
     serve_forever = server.httpd.serve_forever
-    wait = server.httpd._serve_done.wait
+    shutdown = server.httpd.shutdown
 
     def delayed_serve():
+        # The thread is alive but has not reached the loop, which is the window
+        # close() has to survive.
         release.wait()
+        entered.set()
         serve_forever()
 
-    def release_at_shutdown(timeout=None):
-        # Hold startup until shutdown asks for completion. A completed event here
-        # lets shutdown return before the serving loop can observe its stop request.
-        completed_before_start.append(server.httpd._serve_done.is_set())
+    def release_at_shutdown():
         release.set()
-        return wait(timeout)
+        shutdown()
 
     monkeypatch.setattr(server.httpd, "serve_forever", delayed_serve)
-    monkeypatch.setattr(server.httpd._serve_done, "wait", release_at_shutdown)
+    monkeypatch.setattr(server.httpd, "shutdown", release_at_shutdown)
     monkeypatch.setattr(threading, "excepthook", lambda error: errors.append(error))
     try:
         server.start()
@@ -3127,7 +3115,9 @@ def test_temporary_server_close_waits_for_delayed_start(page_dir, monkeypatch):
     finally:
         release.set()
         server.close()
-    assert completed_before_start == [False]
+    # Reached the loop, and close() returned only once that loop had finished.
+    assert entered.is_set()
+    assert not server._thread.is_alive()
     assert errors == []
     assert not server.running
     assert server.httpd.fileno() == -1

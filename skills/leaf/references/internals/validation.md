@@ -99,7 +99,7 @@ and unresolved ambiguous passages are refused before append.
 ## Parsed source
 
 A page source is written in more than one language, and each language is read by a
-parser for that language: _StructParser for what the markup declares,
+parser for that language: StructParser for what the markup declares,
 page_passages for what it says, tinycss2 for the CSS a <style> block holds. A
 new question about a page becomes a field on one of those readings rather
 than a pattern over the file's text, because a pattern answers something

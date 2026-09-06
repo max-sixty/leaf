@@ -37,6 +37,63 @@
       .catalog {
         margin-top: 56px;
       }
+      .developer-galleries {
+        margin: 96px 0 80px;
+        padding-top: 36px;
+        border-top: 1px solid var(--border-2);
+      }
+      .developer-galleries-copy > p:last-of-type {
+        max-width: 62ch;
+      }
+      .developer-gallery-link {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 24px;
+        align-items: center;
+        padding: 18px 0;
+        border-top: 1px solid var(--border-2);
+        color: inherit;
+        text-decoration: none;
+      }
+      .developer-gallery-link:first-of-type {
+        margin-top: 24px;
+      }
+      .developer-gallery-link:last-of-type {
+        border-bottom: 1px solid var(--border-2);
+      }
+      .developer-gallery-link strong,
+      .developer-gallery-description {
+        display: block;
+      }
+      .developer-gallery-link strong {
+        font: 600 var(--t-3) / 1.25 var(--serif);
+        letter-spacing: -0.008em;
+      }
+      .developer-gallery-description {
+        max-width: 52ch;
+        margin-top: 5px;
+        color: var(--ink-2);
+        font-size: var(--t-5);
+        line-height: 1.5;
+      }
+      .developer-gallery-open {
+        color: var(--accent);
+        font: 600 var(--t-6) / 1.4 var(--sans);
+        letter-spacing: 0.035em;
+        text-transform: uppercase;
+      }
+      .developer-gallery-open span {
+        display: inline-block;
+        margin-left: 2px;
+        transition: transform 160ms ease;
+      }
+      .developer-gallery-link:is(:hover, :focus-visible) .developer-gallery-open span {
+        transform: translate(2px, -2px);
+      }
+      .developer-gallery-link:focus-visible {
+        outline: var(--here-ring);
+        outline-offset: var(--here-ring-gap);
+      }
       .example-catalog {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -126,7 +183,8 @@
       }
       @media (prefers-reduced-motion: reduce) {
         .example-preview,
-        .example-open span {
+        .example-open span,
+        .developer-gallery-open span {
           transition: none;
         }
       }
@@ -137,6 +195,14 @@
         }
         .example-catalog > li:nth-child(even) {
           margin-top: 0;
+        }
+        .developer-galleries {
+          margin-block: 72px 64px;
+          padding-top: 28px;
+        }
+        .developer-gallery-link {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 9px;
         }
       }
     </style>
@@ -412,10 +478,53 @@
           The <a href="/">tour</a> records the same loop end to end, if you would rather
           watch it than run it.
         </p>
-        <p id="feature-gallery">
-          The <a href="/examples/feature-gallery/">feature gallery</a> collects Leaf’s
-          controls and widgets on one synthetic page for inspection.
-        </p>
+      </section>
+
+      <section
+        class="developer-galleries"
+        id="developer-galleries"
+        aria-labelledby="developer-galleries-title"
+      >
+        <div class="catalog-prose developer-galleries-copy">
+          <p class="eyebrow">developer tools</p>
+          <h2 id="developer-galleries-title">Inspect the product</h2>
+          <p>
+            These developer views are for debugging Leaf itself. The product gallery
+            puts every shipped control on one page; the interaction gallery jumps to
+            focused motion and input sequences on that same page.
+          </p>
+          <a
+            class="developer-gallery-link"
+            id="product-gallery"
+            href="/examples/feature-gallery/"
+          >
+            <span>
+              <strong>Product gallery</strong>
+              <span class="developer-gallery-description"
+                >Every shipped control and widget on one synthetic page.</span
+              >
+            </span>
+            <span class="developer-gallery-open"
+              >Open gallery <span aria-hidden="true">↗</span></span
+            >
+          </a>
+          <a
+            class="developer-gallery-link"
+            id="interaction-gallery"
+            href="/examples/feature-gallery/#bg-interactions"
+          >
+            <span>
+              <strong>Interaction gallery</strong>
+              <span class="developer-gallery-description"
+                >Replay focused motion and input sequences against Leaf’s real
+                widgets.</span
+              >
+            </span>
+            <span class="developer-gallery-open"
+              >Open gallery <span aria-hidden="true">↗</span></span
+            >
+          </a>
+        </div>
       </section>
 
       <footer class="catalog-prose site-footer" id="colophon">

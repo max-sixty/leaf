@@ -128,6 +128,8 @@ the fold that decides which of the banner's addresses stand on its row and which
 stand in its menu;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
+`runtime/interaction-gallery.js` owns the Product Gallery's opt-in, ephemeral
+interaction replays and their playback controls;
 `runtime/markdown.js` owns safe, lazy Markdown rendering for runtime-supplied text;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
 report, and work-claim feeds;

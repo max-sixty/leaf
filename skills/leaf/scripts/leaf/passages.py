@@ -475,9 +475,8 @@ def active_enclosing(page_dir: Path) -> dict:
 
     The newest valid revision is the live page. A page with no valid revision has
     nowhere for an element to sit."""
-    try:
-        revision = latest_revision(page_dir)
-    except SystemExit:
+    revision = latest_revision(page_dir)
+    if revision is None:
         return {}
     html = revision_path(page_dir, revision).read_text(encoding="utf-8")
     return enclosing_ids(html)

@@ -398,5 +398,5 @@ class EventEndpoint:
                 if rejection := validation.rejection():
                     return rejection
                 event["author"] = "page" if event["kind"] == "error" else "user"
-                page.append_event(event)
+                page.append_event(event, validation.vendored)
         return 200, {"ok": True, "state": state()}

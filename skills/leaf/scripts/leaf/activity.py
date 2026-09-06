@@ -51,9 +51,8 @@ def transition_due(activity: dict, now_iso: str) -> bool:
 
 
 def _canonical_interactions(
-    evidence: list[dict], present: dict, now: datetime
+    evidence: list[dict], present: dict, now: datetime, *, held: bool
 ) -> list[dict]:
-    held = present["session_alive"] is not False
     result = []
     for raw in evidence:
         item = dict(raw)
@@ -94,17 +93,22 @@ def canonical_activity(
     """Return the one current reading of agent activity for a page snapshot."""
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
-    interactions = _canonical_interactions(interaction_evidence, present, now)
-
     status_quiet = _quiet(status.get("ts"), now, WORKING_GRACE)
     status_dropped = _dropped(status.get("ts"), present.get("turn_closed"), now)
     status_quiet = status_quiet or status_dropped
     unheld = present["session_alive"] is False or (
         present["session_alive"] is None and not present["listening"] and status_quiet
     )
+    held = not present.get("unattended") and not unheld
+    interactions = _canonical_interactions(
+        interaction_evidence, present, now, held=held
+    )
 
     deadlines = []
-    if status["state"] == "working":
+    # Status age and turn closure can change the primary activity reading for any
+    # non-idle declaration. Emit every such boundary; consumers decide nothing
+    # locally and ask this fold for the next reading when it arrives.
+    if status["state"] != "idle":
         if due := _deadline(status.get("ts"), WORKING_GRACE, now):
             deadlines.append(due)
         if due := _deadline(present.get("turn_closed"), TURN_RENEWAL_GRACE, now):
@@ -190,13 +194,12 @@ def canonical_activity(
         latest = max(left_in_old_turn, key=lambda item: item.get("delivery_seq") or 0)
         kind, ts, quiet, dropped = "picked_up", latest["ts"], False, True
         count = len(left_in_old_turn)
-    elif pending:
-        latest = max(pending, key=lambda item: item["seq"])
-        kind, ts, quiet, dropped = "pending", latest["ts"], False, False
-        count = len(pending)
     elif status["state"] == "working":
-        detail = status.get("detail", "")
-        kind = "stalled" if present["listening"] else "away"
+        if status_quiet:
+            detail = status.get("detail", "")
+            kind = "stalled" if present["listening"] else "away"
+        elif present["listening"]:
+            kind = "listening"
     elif present["listening"]:
         kind, detail, quiet, dropped = (
             "listening",
@@ -207,7 +210,7 @@ def canonical_activity(
 
     return {
         "kind": kind,
-        "held": kind not in {"unheld", "unattended"},
+        "held": held,
         "quiet": quiet,
         "dropped": dropped,
         "detail": detail,

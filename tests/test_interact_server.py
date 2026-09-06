@@ -2978,6 +2978,9 @@ def test_neighbor_activity_cache_expires_at_the_projected_transition(
         neighbour / "status.json",
         {"state": "waiting", "detail": "", "ts": event_model.now_iso(), "after": 0},
     )
+    status_at = datetime.fromisoformat(
+        files_model.read_json(neighbour / "status.json")["ts"]
+    )
     comment = event_model.append_event(
         neighbour, {"kind": "comment", "author": "user", "text": "hello"}
     )
@@ -2999,6 +3002,54 @@ def test_neighbor_activity_cache_expires_at_the_projected_transition(
     )
     [after] = presence_model.other_leaves(page_dir)
     assert after["activity"]["interactions"][0]["phase"] == "waiting"
+    assert (
+        after["activity"]["next_transition_at"]
+        == (status_at + timedelta(minutes=15)).isoformat()
+    )
+
+
+def test_neighbor_activity_cache_expires_when_status_loses_its_last_proof(
+    page_dir, monkeypatch
+):
+    """A waiting declaration with no owner becomes unheld on its own deadline."""
+    neighbour = host_model.state_home() / "pages" / "neighbor-status-deadline"
+    neighbour_page(neighbour, title="Timed status neighbor")
+    started = datetime.now().astimezone()
+    files_model.write_json(
+        neighbour / "status.json",
+        {
+            "state": "waiting",
+            "detail": "",
+            "ts": started.isoformat(),
+            "after": 0,
+        },
+    )
+    monkeypatch.setattr(
+        presence_model,
+        "now_iso",
+        lambda: (started + timedelta(minutes=14)).isoformat(),
+    )
+
+    [before] = presence_model.other_leaves(page_dir)
+    assert (before["activity"]["kind"], before["activity"]["held"]) == (
+        "away",
+        True,
+    )
+    assert (
+        before["activity"]["next_transition_at"]
+        == (started + timedelta(minutes=15)).isoformat()
+    )
+
+    monkeypatch.setattr(
+        presence_model,
+        "now_iso",
+        lambda: (started + timedelta(minutes=15)).isoformat(),
+    )
+    [after] = presence_model.other_leaves(page_dir)
+    assert (after["activity"]["kind"], after["activity"]["held"]) == (
+        "unheld",
+        False,
+    )
     assert after["activity"]["next_transition_at"] is None
 
 
@@ -3954,6 +4005,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "claim_session": "s1",
             "claim_turn": "turn-1",
             "session_cwd": str(Path.cwd()),
+            "activity": {**unclaimed["activity"], "held": False},
         },
         {
             "title": "The other page",

@@ -1405,8 +1405,8 @@ function collectEntries() {
   const projection = stateProjection();
   const claimActivity = new Map(
     acknowledgments()
-      .filter((item) => item.phase === "active" && !item.event)
-      .map((item) => [item.id.slice("claim:".length), item]),
+      .filter((item) => item.phase === "active")
+      .map((item) => [`${item.target.kind}:${item.target.id}`, item]),
   );
   const activityAlreadyShown = new Set();
   for (const [coordinate, entry] of projection.desired) {
@@ -1468,7 +1468,8 @@ function collectEntries() {
         update.target.kind === "thread"
           ? placedAt(update.target.id)?.element
           : elementById(update.target.id);
-      const quiet = claimActivity.get(update.id)?.quiet ?? false;
+      const quiet =
+        claimActivity.get(`${update.target.kind}:${update.target.id}`)?.quiet ?? false;
       const account = [
         update.agent || "Agent",
         update.text || humanized(update.action),

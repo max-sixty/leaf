@@ -17,7 +17,7 @@ import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -403,6 +403,30 @@ def test_direct_delivery_is_the_canonical_activity_until_the_reply(claimed, caps
     lease.close()
 
 
+def test_unheld_activity_drops_interaction_claims_from_the_same_reading(page_dir):
+    """One held decision governs both the page and its interaction receipts."""
+    serving(page_dir, 1)
+    comment = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "new input"}
+    )
+    claimed = _status(page_dir, "working", "reading it", "--on", comment["id"])
+    assert claimed.exit_code == 0, claimed.output
+    status = files_model.read_json(page_dir / "status.json")
+    files_model.write_json(
+        page_dir / "status.json",
+        {
+            **status,
+            "ts": (datetime.now().astimezone() - timedelta(minutes=20)).isoformat(),
+        },
+    )
+
+    activity = page_state(page_dir)["activity"]
+    assert (activity["kind"], activity["held"]) == ("unheld", False)
+    [receipt] = activity["interactions"]
+    assert receipt["phase"] == "sent"
+    assert (receipt["agent"], receipt["detail"]) == (None, None)
+
+
 def test_revendoring_can_change_x_work_while_the_target_button_holds_a_claim(page_dir):
     """x-work admits an initial claim; it is not the claim's only later seat.
 
@@ -478,7 +502,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     before_pickup = page_state(page_dir)["activity"]
     acknowledgments = before_pickup["interactions"]
     assert any(receipt["event"] == answer["id"] for receipt in acknowledgments)
-    assert before_pickup["kind"] == "pending"
+    assert before_pickup["kind"] == "away"
     assert before_pickup["counts"]["total"] == 1
     assert before_pickup["obligations"] == []
 

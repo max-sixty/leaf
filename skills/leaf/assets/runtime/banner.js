@@ -49,7 +49,6 @@ const TONE = {
   handling: "working",
   queued: "away",
   picked_up: "away",
-  pending: "away",
   listening: "listening",
   stalled: "away",
   away: "away",
@@ -281,8 +280,6 @@ function renderStatusNow(state) {
     text = `${obligations} update${obligations === 1 ? " is" : "s are"} queued for ${agentName()}`;
   } else if (kind === "picked_up") {
     text = `${agentName()} picked up ${obligations} update${obligations === 1 ? "" : "s"}, but that turn ended. ${saved}`;
-  } else if (kind === "pending") {
-    text = `${obligations} update${obligations === 1 ? " is" : "s are"} waiting for ${agentName()} to pick up`;
   } else if (kind === "listening") {
     // Attendance is half the news; the other half is what the page wants back. The
     // Asks count beside it says how many things are unanswered and nothing about what
@@ -290,13 +287,13 @@ function renderStatusNow(state) {
     // the way a `working` claim's says what it is doing. With nothing declared it is
     // the standing instruction, which is what a page asking nothing wanted anyway.
     //
-    // "awaits" while the judged kind stays `listening`: they name different things.
-    // The kind and the server field behind it are the evidence — a watcher live on the
-    // other end — and the words are the stance it supports, which is the registry's
-    // own word for a standing Ask for the reader (x-awaits). Wording is the seat's,
-    // per `presented`, so a row in the leaves panel leads with the bare word and
-    // carries the same Ask behind it.
-    text = `${agentName()} awaits — ${detail || "select text to comment"}`;
+    // With no pending update, "awaits" states the stance a live watcher supports and
+    // uses the registry's word for a standing Ask for the reader (x-awaits). Once a
+    // reader move is pending, the same listening evidence remains primary while the
+    // words lead with what was saved.
+    text = activity.counts.pending
+      ? `${saved} ${agentName()} is listening${detail ? " — " + detail : ""}.`
+      : `${agentName()} awaits — ${detail || "select text to comment"}`;
   } else if (kind === "stalled") {
     // The claim stands, dated, with no remedy attached: a watcher is live, so the
     // reader's next word reaches the agent without anyone touching a terminal. What

@@ -1968,13 +1968,13 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     And a page nothing is behind must read differently from either, without reading as
     a fault: a standing page spends the night that way, so the words are the plain
     computed fact and the dot is not the amber it wears for a session falling behind."""
-    page, _ = open_page(browser, serve(LONG_PAGE))
+    page, _ = open_page(browser, serve(LONG_PAGE, comments=1))
     d = serve.page_dir
     # The banner's own dot: the leaves panel mirrors this page as a row, so a
     # bare .lf-dot resolves to that row's copy too.
     text, dot = page.locator(".lf-status-text"), page.locator(".lf-banner .lf-dot")
     UNHELD = (
-        "No session holds this page. Your comments are saved."
+        "No session holds this page. 1 update is saved."
         " It picks up again when a session does."
     )
 
@@ -2027,7 +2027,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
 
     declare("waiting")
     with live_watcher(d, page):
-        expect(text).to_have_text("Claude awaits — select text to comment")
+        expect(text).to_have_text("1 update is saved. Claude is listening.")
         expect(dot).to_have_class(re.compile(r"\blistening\b"))
 
         # A claim of work that has gone quiet is still a claim of work, and a live
@@ -2039,16 +2039,14 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # remedy — nobody needs to touch a terminal for a comment to reach a live wait.
         declare("working", "revising the plan", quiet_for=20 * 60)
         expect(text).to_have_text(
-            "Claude last checked in 20m ago: revising the plan. Your comments are saved."
+            "Claude last checked in 20m ago: revising the plan. 1 update is saved."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
         # And with no detail it is the bare silence, which is the same sentence with
         # nothing to say after the colon rather than a second wording for it.
         declare("working", quiet_for=20 * 60)
-        expect(text).to_have_text(
-            "Claude last checked in 20m ago. Your comments are saved."
-        )
+        expect(text).to_have_text("Claude last checked in 20m ago. 1 update is saved.")
 
         # The same silence reached by evidence rather than by the clock. A claim is
         # written by a model's turn, and a turn ends without running anything — so
@@ -2060,7 +2058,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=6 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude left this when its turn ended 5m ago: revising the plan."
-            " Your comments are saved."
+            " 1 update is saved."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -2071,7 +2069,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=5 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude left this when its turn ended 5m ago: revising the plan."
-            " Your comments are saved."
+            " 1 update is saved."
         )
 
         # A turn that has only just ended still holds it. The agent claims the work,
@@ -2093,13 +2091,17 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # The whole line is the tooltip too: it is the first thing on the row to be
         # clipped, and a narrow window must not be why the decision goes unread.
         declare("waiting", "pick a storage engine")
-        expect(text).to_have_text("Claude awaits — pick a storage engine")
-        expect(text).to_have_attribute("title", "Claude awaits — pick a storage engine")
+        expect(text).to_have_text(
+            "1 update is saved. Claude is listening — pick a storage engine."
+        )
+        expect(text).to_have_attribute(
+            "title", "1 update is saved. Claude is listening — pick a storage engine."
+        )
 
     # No watcher, but Claude checked in moments ago, so it is between turns.
     declare("waiting")
     expect(text).to_have_text(
-        "Claude isn't watching right now. Your comments are saved."
+        "Claude isn't watching right now. 1 update is saved."
         " It picks them up next turn."
     )
 
@@ -2107,7 +2109,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # next word has nowhere to land until a session picks the page up again.
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
-        "Claude left this when its turn ended 5m ago. Your comments are saved."
+        "Claude left this when its turn ended 5m ago. 1 update is saved."
         " Nudge it in the terminal."
     )
     expect(dot).to_have_class(re.compile(r"\baway\b"))
@@ -2476,12 +2478,16 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     alone leaves the reader doing the arithmetic against a threshold only the page
     knows. `ago` stays rendered whole beside the word rather than reworded to absorb
     it, so one elapsed line reads the same wherever it appears."""
-    page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
+    page, errors = open_page(
+        browser, serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")])
+    )
     d = serve.page_dir
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
     work_line = page.locator(".lf-receipt")
+    work_button = page.locator('.lf-margin-reading-option[data-lf-kinds~="activity"]')
+    notice = page.locator(".lf-banner-status .lf-notice")
 
     def claim(claim_ts, session="s"):
         """A page claim made now, carrying local work last renewed whenever."""
@@ -2515,6 +2521,9 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     # A claim somebody is keeping says nothing about silence.
     expect(work_line).to_have_count(1)
     expect(work_line).not_to_contain_text("quiet")
+    expect(work_button).to_have_count(1)
+    work_button.click()
+    expect(notice).to_have_text("Claude · reading the reconnect traces")
 
     quiet_ts = (datetime.now().astimezone() - timedelta(minutes=40)).isoformat(
         timespec="seconds"
@@ -2527,6 +2536,8 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     )
     expect(work_line).to_contain_text("quiet")
     expect(work_line.locator("time")).to_have_text("40m ago")
+    work_button.click()
+    expect(notice).to_have_text("Claude · reading the reconnect traces · quiet")
 
     # The other question the banner asks, asked here too: a claim left behind by a turn
     # that ended is quiet without waiting out the rope. Six minutes is nothing on that
@@ -2567,6 +2578,8 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     )
     expect(work_line).not_to_contain_text("quiet")
     expect(work_line.locator("time")).to_have_text("6m ago")
+    work_button.click()
+    expect(notice).to_have_text("Claude · reading the reconnect traces")
 
     # And it goes when the claim is kept again, so the word tracks the claim rather
     # than latching on the first time it is late.
@@ -2574,6 +2587,8 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     claim(events_model.now_iso())
     expect(work_line).not_to_contain_text("quiet")
     expect(work_line).to_have_count(1)
+    work_button.click()
+    expect(notice).to_have_text("Claude · reading the reconnect traces")
     assert errors == []
     page.close()
 

@@ -2385,17 +2385,20 @@ def test_a_panel_row_follows_its_pages_status_live(
             "over the row's whole account"
         )
         # A leaf holding words of the reader's that nobody has read is a reason to go
-        # to it, and no row draws that either: the banner says this number for the page
-        # it stands on, and the tray says it for every page on the machine.
+        # to it. The row keeps the live watcher as its primary state and carries the
+        # pending count beside it, rather than letting either fact hide the other.
         comment = events_model.append_event(
             other_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": "Mine."},
         )
         told(page)
-        expect(row.locator(".lf-others-line")).to_have_text("Waiting for pickup")
+        expect(row.locator(".lf-others-line")).to_have_text(
+            "Listening — pick a storage engine · 1 update waiting"
+        )
         expect(row).to_have_attribute(
             "title",
-            f"The other leaf\n{tmp_path / 'other-work'}\nWaiting for pickup"
+            f"The other leaf\n{tmp_path / 'other-work'}\n"
+            "Listening — pick a storage engine · 1 update waiting"
             "\n1 update waiting",
         )
         # Pickup advances the same canonical activity row that the thread receipt

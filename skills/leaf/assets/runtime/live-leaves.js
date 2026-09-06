@@ -53,7 +53,7 @@ export function declareLeavesKeys() {
 // same judgment the banner's sentences come from — the judgment is shared, the
 // wording is the seat's.
 function rowPresence(entry) {
-  const { kind, quiet, dropped, detail, ts } = entry.activity;
+  const { kind, quiet, dropped, detail, ts, counts } = entry.activity;
   // The same join for both kinds that have words of their own. The reader opens this
   // panel to find which page needs them, so a bare `Awaits` beside a neighbour's
   // `Working — recording the demo` said least about the one row they are here to act
@@ -62,7 +62,7 @@ function rowPresence(entry) {
   const stated = (word) => word + (detail ? " — " + detail : "");
   // The banner's two silences, dated the same way and worded for a row.
   const silence = dropped ? `Left (${ago(entry.turn_closed)})` : `Quiet (${ago(ts)})`;
-  const line =
+  const primary =
     kind === "working"
       ? stated("Working")
       : kind === "handling"
@@ -71,21 +71,25 @@ function rowPresence(entry) {
           ? "Queued"
           : kind === "picked_up"
             ? "Picked up; turn ended"
-            : kind === "pending"
-              ? "Waiting for pickup"
-              : kind === "listening"
-                ? stated("Awaits")
-                : kind === "stalled"
-                  ? stated(silence)
-                  : kind === "away"
-                    ? quiet
-                      ? silence
-                      : "Away"
-                    : kind === "unheld"
-                      ? "Unheld"
-                      : kind === "unattended"
-                        ? "Unattended"
-                        : "Closed";
+            : kind === "listening"
+              ? counts.pending
+                ? stated("Listening")
+                : stated("Awaits")
+              : kind === "stalled"
+                ? stated(silence)
+                : kind === "away"
+                  ? quiet
+                    ? silence
+                    : "Away"
+                  : kind === "unheld"
+                    ? "Unheld"
+                    : kind === "unattended"
+                      ? "Unattended"
+                      : "Closed";
+  const pending = counts.pending
+    ? `${counts.pending} update${counts.pending === 1 ? "" : "s"} waiting`
+    : null;
+  const line = pending ? `${primary} · ${pending}` : primary;
   return { tone: toneFor(kind), line };
 }
 

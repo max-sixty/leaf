@@ -14,9 +14,9 @@ file says which script owns what, and the rules that hold across them.
   `--export` writes the browser-drawn result as one standalone file instead.
 - `corpus.py` generates the internal `examples/corpus.html` stress fixture and its
   companion data from the public examples and the developer feature gallery.
-- `example-previews.py` draws the stills for `docs/examples.html`, the public gallery,
-  whose visual catalog links only to user examples and reaches the developer feature
-  gallery through a text link below it.
+- `example-previews.py` draws the stills for `docs/examples.html` through the live
+  published-example server. It uses the locked Playwright headless shell and refuses
+  fallback fonts that would replace the macOS image corpus.
 
 Edit a source page, then regenerate the corpus. `examples/CLAUDE.md` owns the fixture
 rules a new or changed example has to meet.

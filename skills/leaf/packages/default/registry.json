@@ -140,6 +140,7 @@
     ],
     "additionalProperties": false,
     "x-content": "none",
+    "x-outline": true,
     "x-upgrade": true,
     "x-example": "<h1>Migration plan</h1>\n<aside class=\"sidebar\" id=\"plan-sidebar\">\n  <lf-toc id=\"plan-contents\"></lf-toc>\n</aside>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
   },
@@ -851,12 +852,12 @@
   },
   "$reactions": {
     "tokens": {
-      "ok":   {"glyph": "✓", "means": "settled — no change asked", "settles": true},
-      "no":   {"glyph": "×", "means": "this is wrong; the passage is the referent"},
-      "lost": {"glyph": "??", "means": "unclear — rewrite it so it lands"},
-      "cut":  {"glyph": "−", "means": "does not earn its length — shorten or drop"},
-      "more": {"glyph": "+", "means": "expand here"},
-      "this": {"glyph": "⌖", "means": "look at this — attention, no verdict"}
+      "ok":   {"glyph": "👍", "means": "good — keep this; no change asked", "settles": true},
+      "no":   {"glyph": "❌", "means": "wrong — change this"},
+      "lost": {"glyph": "🤔", "means": "unclear — rewrite or explain this"},
+      "cut":  {"glyph": "✂️", "means": "too long — shorten or remove this"},
+      "more": {"glyph": "🔎", "means": "needs support — expand or substantiate this"},
+      "this": {"glyph": "👀", "means": "pay attention here — no verdict"}
     }
   }
 }

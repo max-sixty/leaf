@@ -260,6 +260,21 @@
   --here-ring-w: 2px;
   --here-ring: var(--here-ring-w) solid var(--accent); --here-ring-gap: 3px;
   --here-ring-room: calc(var(--here-ring-w) + var(--here-ring-gap));
+  /* The same band cast as a shadow, for the boxes that cannot spend an outline on it:
+     the anchored response bar, whose focused states already write `outline: none` so
+     the field and its choices keep one silhouette, and an item hint, a chip in a layer
+     nothing can focus. A spread with no offsets and no blur draws exactly what the
+     outline draws, and reads through the same width, so there is still one place the
+     band's thickness is decided.
+
+     The ink follows the token instead of living in it, because these two lay down
+     different strengths of the accent — a bar already carrying an accent border wants
+     less of it than a chip standing over the page's own words — and a shadow takes its
+     colour in either position. Naming this token is how a shadow-drawn ring joins the
+     population the corpus floor divides by, exactly as naming --here-ring is for an
+     outline-drawn one; the ring itself is still what the box paints, not what it
+     names. */
+  --here-shadow: 0 0 0 var(--here-ring-w);
   --status-trace-w: 1.5px;
   --status-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
   /* A keyboard address chip's box: the line box, which is a ratio of the font, plus
@@ -1283,6 +1298,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-thread + .lf-conversation-thread {
           border-top: 1px solid var(--rule); margin-top: var(--sp-3); padding-top: var(--sp-3); }
 .lf-conversation-msg { margin: var(--sp-2) 0; }
+.lf-conversation-msg.claude { position: relative; }
 .lf-conversation-head { display: flex; align-items: baseline; gap: var(--sp-2);
           font-size: var(--t-6); }
 .lf-conversation-msg.claude .lf-conversation-head b { color: var(--accent); }
@@ -1330,16 +1346,42 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-react-trigger { color: var(--muted); }
 .lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .lf-react-open > .lf-react-trigger { display: none; }
+.lf-react-surface:not(.lf-react-open) .lf-react:not([aria-pressed="true"]) {
+          display: none; }
 .lf-react-strip:not(.lf-react-open) > .lf-react-palette:not(:has(> [aria-pressed="true"])) {
           display: none; }
 .lf-react { display: inline-flex; align-items: center; justify-content: center; gap: 4px;
           min-width: 26px; }
-.lf-react > .lf-react-word { display: none; }
-.lf-react[aria-pressed="true"] > .lf-react-word { display: inline; }
 .lf-react[aria-pressed="true"] { background: var(--chip); }
 .lf-react[aria-busy="true"] { opacity: .55; }
 .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
-          margin-top: 6px; }
+          margin-top: 0; }
+.lf-react-strip:has(.lf-react[aria-pressed="true"]) { margin-top: 4px; }
+.lf-react-strip.lf-react-open { position: relative; min-height: 36px; margin-top: 4px; }
+.lf-react-strip > .lf-react-trigger {
+          appearance: none; position: absolute; z-index: 2;
+          inset-block-start: -3px; inset-inline-end: -2px;
+          box-sizing: border-box; inline-size: 26px; block-size: 26px; padding: 0;
+          display: inline-flex; align-items: center; justify-content: center;
+          border: 1px solid transparent; border-radius: 50%; background: var(--card);
+          opacity: 0; cursor: pointer; }
+.lf-react-strip.lf-react-open > .lf-react-trigger { display: none; }
+.lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
+          fill: none; stroke: currentColor; stroke-width: 1.6;
+          stroke-linecap: round; stroke-linejoin: round; }
+.lf-conversation-msg.claude:is(:hover, :focus-within)
+          > .lf-react-strip > .lf-react-trigger,
+.lf-react-strip > .lf-react-trigger:is(:focus-visible, .lf-focus-visible) {
+          opacity: 1; }
+.lf-conversation-msg.claude:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
+.lf-react-strip.lf-react-open > .lf-react-palette {
+          position: absolute; z-index: 3; inset-block-start: 0;
+          inset-inline-end: -2px; width: max-content; padding: 4px;
+          border: 1px solid var(--border-2); border-radius: 999px;
+          background: var(--card); box-shadow: 0 4px 12px var(--shade); }
+@media (hover: none) {
+  .lf-react-strip > .lf-react-trigger { opacity: 1; }
+}
 .lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]) { color: var(--muted);
           border-color: transparent; background: transparent; }
 .lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]):is(:hover, :focus-visible,

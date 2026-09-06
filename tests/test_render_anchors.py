@@ -4134,10 +4134,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     strip = thread.locator(
         f'.lf-conversation-msg[data-event="{reply["id"]}"] .lf-react-strip'
     )
-    expect(strip.locator(".lf-react-trigger")).to_be_visible()
-    # The trigger wears the register's verb and the disclosure suffix: a bare "…" under a
-    # reply was a control nobody could name without hovering it.
-    expect(strip.locator(".lf-react-trigger")).to_have_text("React…")
+    trigger = strip.locator(".lf-react-trigger")
+    assert trigger.evaluate("b => getComputedStyle(b).opacity") == "0"
+    expect(trigger).to_have_attribute("aria-label", "Add reaction")
+    expect(trigger.locator('svg[data-lf-icon="reaction"]')).to_be_visible()
+    trigger.focus()
+    assert trigger.evaluate("b => getComputedStyle(b).opacity") == "1"
     strip.locator(".lf-react-trigger").click()
     expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
     expect(strip.locator('.lf-react[data-token="no"]')).to_be_visible()

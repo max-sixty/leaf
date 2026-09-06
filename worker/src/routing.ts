@@ -5,6 +5,7 @@ export const HTTP_SESSION_COOKIE = "leaf-example-local";
 
 const EXAMPLE_PATH = /^\/examples\/[a-z0-9-]+(?:\/|$)/;
 const EXAMPLE_WITHOUT_SLASH = /^\/examples\/[a-z0-9-]+$/;
+const EXAMPLE_ROUTE = /^\/examples\/([a-z0-9-]+)(?:\/(.*))?$/;
 const SESSION_ID = /^[0-9a-f]{32}$/;
 
 export function isExampleRequest(pathname: string): boolean {
@@ -13,6 +14,18 @@ export function isExampleRequest(pathname: string): boolean {
 
 export function needsExampleSlash(pathname: string): boolean {
   return EXAMPLE_WITHOUT_SLASH.test(pathname);
+}
+
+export function exampleRoute(
+  pathname: string,
+): { slug: string; inside: string } | null {
+  const match = EXAMPLE_ROUTE.exec(pathname);
+  if (match === null) return null;
+  return { slug: match[1], inside: match[2] ?? "" };
+}
+
+export function isPrivateExampleRequest(pathname: string): boolean {
+  return exampleRoute(pathname)?.inside.startsWith("_leaf/") ?? false;
 }
 
 export function sessionFromCookie(cookie: string | null, secure: boolean): string | null {

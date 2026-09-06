@@ -18,12 +18,14 @@ when `/leaf` is invoked on a widget to build or a look to change.
 | Leaf's bundled default package | every page |
 
 Presentation used by only one page stays in that version's `<style>`. Everything
-reusable belongs to a package. Leaf creates and validates the whole directory:
+reusable belongs to a package. Leaf creates, checks, and installs the whole
+directory:
 
 ```bash
 leaf package init PACKAGE
 leaf package init PACKAGE --widget lf-callout
 leaf package check PACKAGE
+leaf package install PACKAGE
 ```
 
 `package init` creates `registry.json`, `theme.css`, `guidance/`, `runtime/`,
@@ -44,6 +46,21 @@ leaf page init --package packages/callout PAGE
 An explicit directory keeps a contribution separately owned and selectable. `.leaf`
 is the project package and `~/.config/leaf` is the user package. Inside a repository
 dedicated to one package, use `.` as the package path.
+
+`leaf package install SOURCE` checks that directory and copies it into
+`~/.local/state/leaf/packages/`, where `--package NAME` reaches it by its directory
+name from any project on this machine:
+
+```bash
+leaf package install packages/callout
+leaf page init --package callout PAGE
+```
+
+The copy holds the package contract below and nothing else in the source directory,
+so a README and the author's own tests stay behind. A name that a bundled or already
+installed package answers to is refused rather than replaced; remove the installed
+directory to replace one. A page records the bare name, so re-vendoring it on another
+machine needs the same package installed there.
 
 Leaf also ships optional packages that select by bare name. `diagram` adds `lf-diagram`
 and the Beautiful Mermaid renderer it draws with; `diff` adds `lf-diff`, the
@@ -115,8 +132,8 @@ order, user package, then project package. Later packages win collisions. `page 
 records package selections under `$layer.packages`; a plain re-init resolves them again
 in the same order. `page init --no-packages PAGE` clears the explicit list.
 
-A bare package name selects an optional bundled package and never means a path; use
-`./name` for a same-shaped project directory. Other package paths are project-relative
+A bare package name selects an installed or bundled package and never means a path;
+use `./name` for a same-shaped project directory. Other package paths are project-relative
 or start with `~`. Absolute paths are refused because the vendored registry is public.
 The always-present `default` package cannot be selected explicitly. A package may
 contain zero, one, or many widgets. Those cardinalities do not change its contract.

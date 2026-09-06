@@ -81,7 +81,7 @@ Commands:
   edit        Edit one of this agent session's messages.
   events      Print the event log as JSON lines.
   mcp         Run Leaf's bundled MCP Apps server.
-  package     Create and check packages.
+  package     Create, check, and install packages.
   page        Create pages and add media.
   receipt     Record the terminal outcome of a reader request.
   reply       Reply to a thread as the agent.
@@ -129,14 +129,15 @@ Commands:
             ["package", "--help"],
             """Usage: leaf package [OPTIONS] COMMAND [ARGS]...
 
-  Create and check packages.
+  Create, check, and install packages.
 
 Options:
   --help  Show this message and exit.
 
 Commands:
-  check  Check a package as one unit.
-  init   Create a package directory.
+  check    Check a package as one unit.
+  init     Create a package directory.
+  install  Install a package for selection by name.
 """,
             id="package",
         ),
@@ -2282,6 +2283,119 @@ def test_package_init_creates_independently_selectable_packages(tmp_path, monkey
     assert (page / "widgets" / "lf-callout.js").is_file()
 
 
+def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch):
+    """An installed package is a bundled one kept somewhere else.
+
+    The store holds the package contract and none of the rest of the author's
+    working directory, and the page reads the store rather than the source, which
+    is gone by the time it is vendored.
+    """
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    source = tmp_path / "src" / "callout"
+    created = runner.invoke(cli_model.cli, ["package", "init", str(source)])
+    assert created.exit_code == 0, created.output
+    add_test_widget(source, "lf-callout", upgrade=True)
+    (source / "README.md").write_text("How to work on this package.\n")
+    (source / "spec").mkdir()
+    (source / "spec" / "case.txt").write_text("the author's own test\n")
+
+    installed = runner.invoke(cli_model.cli, ["package", "install", str(source)])
+
+    stored = host_model.package_store() / "callout"
+    assert installed.exit_code == 0, installed.output
+    assert installed.output == f"installed {stored}\n"
+    assert sorted(path.name for path in stored.iterdir()) == [
+        "guidance",
+        "registry.json",
+        "runtime",
+        "theme.css",
+        "vendor",
+        "widgets",
+    ]
+
+    shutil.rmtree(source)
+    page = tmp_path / "page"
+    vendored = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "callout", str(page)]
+    )
+
+    assert vendored.exit_code == 0, vendored.output
+    registry = json.loads((page / "registry.json").read_text())
+    assert registry["$layer"]["packages"] == ["callout"]
+    assert "lf-callout" in registry
+    assert (page / "widgets" / "lf-callout.js").is_file()
+
+
+def test_package_install_never_changes_which_directory_a_name_means(
+    tmp_path, monkeypatch
+):
+    """A taken name is refused, whichever root already answers to it.
+
+    Installed and bundled are one refusal because they come from the one lookup
+    `--package` resolves through.
+    """
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    store = host_model.package_store()
+    for name in ("callout", "diagram"):
+        created = runner.invoke(cli_model.cli, ["package", "init", f"src/{name}"])
+        assert created.exit_code == 0, created.output
+    first = runner.invoke(cli_model.cli, ["package", "install", "src/callout"])
+    assert first.exit_code == 0, first.output
+    (store / "callout" / "theme.css").write_text("lf-callout { color: teal; }\n")
+    before = {
+        path.relative_to(store): path.read_bytes()
+        for path in store.rglob("*")
+        if path.is_file()
+    }
+
+    standing = runner.invoke(cli_model.cli, ["package", "install", "src/callout"])
+    bundled = runner.invoke(cli_model.cli, ["package", "install", "src/diagram"])
+
+    assert standing.exit_code != 0
+    assert f"'callout' already resolves to {store / 'callout'}" in standing.output
+    assert "remove that directory to replace it" in standing.output
+    assert bundled.exit_code != 0
+    assert (
+        f"'diagram' already resolves to {schema_model.BUNDLED_PACKAGES / 'diagram'}"
+        in bundled.output
+    )
+    assert "rename the source directory" in bundled.output
+    assert {
+        path.relative_to(store): path.read_bytes()
+        for path in store.rglob("*")
+        if path.is_file()
+    } == before
+
+
+def test_package_install_refuses_a_source_it_cannot_check_or_name(
+    tmp_path, monkeypatch
+):
+    """The install door is `package check` plus a name a page can select.
+
+    A package that fails composition, and one whose directory name is not a name
+    `--package` accepts, are both refused before the store exists.
+    """
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    broken = tmp_path / "src" / "broken"
+    unnamable = tmp_path / "src" / "Callout Package"
+    for source in (broken, unnamable):
+        created = runner.invoke(cli_model.cli, ["package", "init", str(source)])
+        assert created.exit_code == 0, created.output
+    (broken / "theme.css").write_text(".bad { color red; }\n")
+
+    failed = runner.invoke(cli_model.cli, ["package", "install", str(broken)])
+    misnamed = runner.invoke(cli_model.cli, ["package", "install", str(unnamable)])
+
+    assert failed.exit_code != 0
+    assert f"{broken / 'theme.css'} syntax error" in failed.output
+    assert misnamed.exit_code != 0
+    assert "'Callout Package' cannot be selected by name" in misnamed.output
+    assert not host_model.package_store().exists()
+
+
 def test_package_init_names_a_wrong_kind_lower_package(tmp_path, monkeypatch):
     project = tmp_path / "project"
     project.mkdir()
@@ -3013,7 +3127,8 @@ def test_page_init_does_not_treat_an_unknown_bare_name_as_a_path(tmp_path, monke
     )
 
     assert result.exit_code == 1
-    assert "unknown bundled package 'solo'" in result.output
+    assert "unknown package 'solo'" in result.output
+    assert "run `leaf package install`" in result.output
     assert "use './solo'" in result.output
     assert not page.exists()
 

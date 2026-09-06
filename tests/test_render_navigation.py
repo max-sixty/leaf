@@ -5366,6 +5366,10 @@ def test_the_other_response_row_can_turn_the_compact_field_into_a_suggestion(
     box = page.locator(".lf-fab-input")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(box).not_to_be_focused()
+    expect(box).to_have_attribute("placeholder", "Comment… · c")
+    expect(page.locator(".lf-general textarea")).to_have_attribute(
+        "placeholder", "Comment on the page"
+    )
     page.keyboard.press("c")
     expect(box).to_be_focused()
     expect(box).to_have_attribute(
@@ -5450,9 +5454,14 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
     page.locator(".lf-threads-toggle").click()
     general = page.locator(".lf-general textarea")
     replies = page.locator(".lf-thread textarea")
+    assert general.get_attribute("placeholder") == "Comment on the page · c"
+    page.locator(".lf-find-box").focus()
+    key_line(page)
+    assert general.get_attribute("placeholder") == "Comment on the page"
     general.focus()
     key_line(page)
     assert re.search(r"(⌘⏎|Ctrl\+⏎)$", general.get_attribute("placeholder"))
+    assert general.get_attribute("aria-label") == "Comment on the page"
 
     # Cross A -> B (and sync B) -> C in one turn, before the coalesced focus paint.
     replies.evaluate_all(
@@ -5463,8 +5472,21 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
         }"""
     )
     key_line(page)
-    assert general.get_attribute("placeholder") == "Comment on the page · c"
+    assert general.get_attribute("placeholder") == "Comment on the page"
+    assert general.get_attribute("aria-label") == "Comment on the page"
     assert replies.nth(0).get_attribute("placeholder") == "Reply"
+    assert replies.nth(0).get_attribute("aria-label") == "Reply"
+    assert re.search(r"(⌘⏎|Ctrl\+⏎)$", replies.nth(1).get_attribute("placeholder"))
+    assert replies.nth(1).get_attribute("aria-label") == "Reply"
+
+    replies.nth(1).evaluate(
+        "box => box.closest('.lf-thread, .lf-conversation-thread').focus()"
+    )
+    key_line(page)
+    assert replies.nth(1).get_attribute("placeholder") == "Reply · c"
+    page.keyboard.press("c")
+    expect(replies.nth(1)).to_be_focused()
+    key_line(page)
     assert re.search(r"(⌘⏎|Ctrl\+⏎)$", replies.nth(1).get_attribute("placeholder"))
     assert errors == []
     page.close()

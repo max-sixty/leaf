@@ -286,6 +286,7 @@ function commentDestination() {
       ...commenting(
         anchor.quote ? "selection" : itemWord(elementById(anchor.section)) || "item",
       ),
+      box: fabInput,
       go: focusFabComment,
       returnFrame: composerReturnFrame,
     };
@@ -296,6 +297,7 @@ function commentDestination() {
   if (said)
     return {
       ...commenting("thread"),
+      box: said.box,
       go: () => landIn(said),
       returnFrame: () => boxReturnFrame(said.held, said.box),
     };
@@ -303,11 +305,13 @@ function commentDestination() {
   if (here)
     return {
       ...commenting(itemWord(here)),
+      box: fabInput,
       go: () => commentOnItem(here),
       returnFrame: composerReturnFrame,
     };
   return {
     ...commenting("page"),
+    box: generalInput,
     go: () => {
       setPanel(true);
       generalInput.focus({ preventScroll: true });
@@ -348,6 +352,32 @@ function commentKey() {
   updateFab(); // the selection may be newer than the mouseup that last placed the bar
   commentDestination().go();
 }
+
+// The destination's box is the identity chrome uses to place a contextual address.
+// Dispatch still decides whether either Comment row can be reached from the current scope.
+export const commentBox = () => commentDestination().box;
+
+export const COMMENT_CREATE = {
+  id: "comment.create",
+  keys: ["c"],
+  // One key, four destinations, and the surfaces name the one in front of the reader:
+  // a live selection, the item a click raised the 💬 on, the box belonging to whatever
+  // the reader is standing in, or — when none of those is in hand — the page itself.
+  // "Comment" covered them all and so promised none of them. All four enter their
+  // actual box; the panel's contextual c reaches the same general box from its list.
+  does: () => commentDestination().does,
+  line: () => commentDestination().line,
+  // A selection made before the anchor pass has run can't be quoted yet, and
+  // commenting on the page instead is not what the reader asked for — so the press
+  // waits, and the row's own liveness is where that is said rather than a refusal
+  // inside run that no surface can see.
+  when: () => anchoringIsReady() || !pageSelection(),
+  returnFrame: () => {
+    updateFab();
+    return commentDestination().returnFrame?.() ?? null;
+  },
+  run: commentKey,
+};
 
 // Pages are authored documents where typing can start at any moment, so a scope whose keys
 // are bare letters stands down wherever a letter is a keystroke. That is the whole of the
@@ -1143,27 +1173,7 @@ export function pageScopes() {
       actionRow,
       // Comment can act immediately because the page itself is its target. Selecting a
       // more particular target is the second step; only then does React become an action.
-      {
-        id: "comment.create",
-        keys: ["c"],
-        // One key, four destinations, and the surfaces name the one in front of the reader:
-        // a live selection, the item a click raised the 💬 on, the box belonging to whatever
-        // the reader is standing in, or — when none of those is in hand — the page itself.
-        // "Comment" covered them all and so promised none of them. All four enter their
-        // actual box; the panel's contextual c reaches the same general box from its list.
-        does: () => commentDestination().does,
-        line: () => commentDestination().line,
-        // A selection made before the anchor pass has run can't be quoted yet, and
-        // commenting on the page instead is not what the reader asked for — so the press
-        // waits, and the row's own liveness is where that is said rather than a refusal
-        // inside run that no surface can see.
-        when: () => anchoringIsReady() || !pageSelection(),
-        returnFrame: () => {
-          updateFab();
-          return commentDestination().returnFrame?.() ?? null;
-        },
-        run: commentKey,
-      },
+      COMMENT_CREATE,
       {
         id: "selection.open",
         keys: ["s"],
@@ -1476,12 +1486,8 @@ export function midComposition() {
   );
 }
 
-// The row whose key opens that box, standing here beside the sentence they share rather
-// than down among the panel's other rows. The box paints its placeholder as `wireInput`
-// builds it, and the placeholder names this row's key — read off the row, so rebinding it
-// corrects the box too. Built later, the row is still in its dead zone at that first
-// paint and the whole layer stops on the reference. The comment above already calls the
-// two a pair; this is the pair being one thing rather than two that agree by hand.
+// The panel's local route to the contextual Comment capability. Both scoped rows are
+// exposed together below so the placeholder can project whichever one dispatch reaches.
 export const PANEL_SAY = {
   // From the Threads list this puts the reader in the page-comment box. Page c reaches
   // the same box directly; this is the same contextual intent from a surface whose local
@@ -1515,3 +1521,5 @@ export const PANEL_SAY = {
   }),
   run: () => generalInput.focus({ preventScroll: true }),
 };
+
+export const commentRows = () => [COMMENT_CREATE, PANEL_SAY];

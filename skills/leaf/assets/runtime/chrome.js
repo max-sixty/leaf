@@ -22,7 +22,8 @@ import { liveEl } from "./notifications.js";
 import { FOCUSABLE } from "./reach.js";
 import { mountLayout } from "./chrome-layout.js";
 import { declareLeavesKeys } from "./live-leaves.js";
-import { declareFindBoxKeys } from "./keyboard/page.js";
+import { commentBox, commentRows, declareFindBoxKeys } from "./keyboard/page.js";
+import { activeRowLabel } from "./keyboard/dispatch.js";
 import { wireFabInput } from "./composing/surface.js";
 import { mountAnchors } from "./anchors.js";
 import { wireThreadLanding } from "./conversation/landing.js";
@@ -34,6 +35,11 @@ import { wireThreadCards } from "./conversation/thread-card.js";
 import { mediaViewer } from "./media.js";
 import { configureInput } from "./composing/input.js";
 import { uploadMedia } from "./layer-client.js";
+
+const commentAddress = () => ({
+  box: commentBox(),
+  label: activeRowLabel(commentRows()),
+});
 
 // The one scope root for the chrome's private rules: they match nothing outside this
 // container. A div, not a lf-* element — the render gate reads a lf-* ancestor as
@@ -73,7 +79,7 @@ skipToChrome.onclick = () => {
 
 // Every part in the layer's stacking order, named, and the root put in the document.
 export function mountChrome() {
-  configureInput(uploadMedia);
+  configureInput({ upload: uploadMedia, address: commentAddress });
   mountBanner();
   // The runtime's parts, named: a design comment can point at one, and an anchor names an
   // element by id, so each part that is a thing to point at carries a stable one under the

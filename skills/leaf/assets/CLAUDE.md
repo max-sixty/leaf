@@ -564,6 +564,12 @@ answer—a selection, item, or conversation—the page row enters that box inste
 The rows are mutually exclusive, so the register never asks the reader to choose
 between two meanings for `c`.
 
+Each composition box's placeholder — the general box, each per-thread reply, the compact
+anchored composer, and composition boxes contributed by widgets — adds the live key that
+enters that exact box when one exists. Once focused, it adds the box's registered
+submission chord. The accessible name states the box's purpose without either key, and
+placeholder text uses the theme's muted text color at full opacity.
+
 That the page row reaches into Threads is not an exception. Page scope already crosses
 surfaces: `t`/`T` can land on inline or panel thread cards, and `a`/`A` can land on an ask
 an agent sent inside a thread. A page key that takes the reader somewhere owes them an

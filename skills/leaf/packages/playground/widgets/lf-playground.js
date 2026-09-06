@@ -436,7 +436,6 @@ customElements.define(
         const name = slot.getAttribute("for");
         slot.textContent = this.#formatted(this.#controlByName.get(name), values[name]);
       }
-      if (this.#copy) this.#copy.textContent = "Copy instruction";
       this.#paintPresets();
       if (remember) tabStore.set(this.#storeKey(), JSON.stringify(values));
       this.dispatchEvent(
@@ -475,7 +474,6 @@ customElements.define(
     async #copyInstruction() {
       try {
         await navigator.clipboard.writeText(this.#instruction());
-        this.#copy.textContent = "Copied";
         notice("Instruction copied");
       } catch (error) {
         notice(`Could not copy: ${error.message}`);

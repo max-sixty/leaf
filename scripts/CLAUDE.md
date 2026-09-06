@@ -14,9 +14,11 @@ file says which script owns what, and the rules that hold across them.
   `--export` writes the browser-drawn result as one standalone file instead.
 - `corpus.py` generates the internal `examples/corpus.html` stress fixture and its
   companion data from the public examples and the developer feature gallery.
-- `example-previews.py` draws the stills for `docs/examples.html` through the live
-  published-example server. It uses the locked Playwright headless shell and refuses
-  fallback fonts that would replace the macOS image corpus.
+- `example_assets.py` fetches the immutable `max-sixty/leaf-assets` commit named by
+  `example-previews.json` into `.tmp`; `site.py` calls it when that revision is absent.
+- `example-previews.py`, invoked as `wt refresh-previews`, draws the stills for
+  `docs/examples.html` through the live published-example server. It refuses fallback
+  fonts, pushes the complete image set, and updates the tracked commit pin and catalog.
 
 Edit a source page, then regenerate the corpus. `examples/CLAUDE.md` owns the fixture
 rules a new or changed example has to meet.

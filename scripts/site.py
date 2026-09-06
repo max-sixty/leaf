@@ -3,8 +3,10 @@
 
 Every product document under `docs/` is a Leaf source. The build checks all five in one
 temporary page directory, then publishes their browser-drawn standalone exports through
-one shared browser. Each export gets an isolated browser context, inlines the composed
-theme and media, retains the rendered widgets, and removes runtime scripts and controls.
+one shared browser. The catalog previews come from the external revision pinned in
+`example-previews.json`. Each export gets an isolated browser context, inlines the
+composed theme and media, retains the rendered widgets, and removes runtime scripts and
+controls.
 
 The worked examples and developer feature gallery become complete Leaf page directories
 under examples/<name>/. The same preparation path that serves a local fixture vendors
@@ -34,6 +36,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from example_assets import example_previews
 from leaf.exporting import export_page
 from leaf.http import scope_document_routes
 from leaf.render_gate.browser import browser_hint, launch_browser
@@ -223,7 +226,9 @@ def publish_product_pages(
         target.write_text(exported, encoding="utf-8")
 
 
-def publish_pages(out: Path, env: dict, browser=None) -> None:
+def publish_pages(
+    out: Path, env: dict, browser=None, catalog_previews: Path | None = None
+) -> None:
     """Standalone product documents and canonical interactive pages."""
     with tempfile.TemporaryDirectory() as tmp:
         product_page = Path(tmp) / "product-page"
@@ -234,10 +239,10 @@ def publish_pages(out: Path, env: dict, browser=None) -> None:
         # Put the authored images behind the content-addressed paths the product
         # sources name before validating and rendering them.
         product_media = sorted(
-            path
-            for pattern in ("*.gif", "*.jpg", "*.png")
-            for path in DOCS.glob(pattern)
+            path for pattern in ("*.gif", "*.png") for path in DOCS.glob(pattern)
         )
+        preview_source = catalog_previews or example_previews()
+        product_media.extend(sorted(preview_source.glob("example-*.jpg")))
         leaf(
             env,
             "page",
@@ -286,7 +291,13 @@ def publish_pages(out: Path, env: dict, browser=None) -> None:
             print(f"  {source.stem}")
 
 
-def build(out: Path, *, verify_links: bool = True, browser=None) -> None:
+def build(
+    out: Path,
+    *,
+    verify_links: bool = True,
+    browser=None,
+    catalog_previews: Path | None = None,
+) -> None:
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
 
@@ -305,7 +316,7 @@ def build(out: Path, *, verify_links: bool = True, browser=None) -> None:
     env.pop("CODEX_THREAD_ID", None)
     with tempfile.TemporaryDirectory() as config_home:
         env["XDG_CONFIG_HOME"] = config_home
-        publish_pages(out, env, browser)
+        publish_pages(out, env, browser, catalog_previews)
 
     if verify_links:
         check_links(out)

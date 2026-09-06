@@ -283,11 +283,9 @@ export function bake() {
   //
   // A *valued* marker, because `offer` writes the empty one on the boxes a widget builds
   // to hold its controls — a suggestion's ✓/✗ row among them — and those are not presses
-  // to take away. Matched on the bare attribute this loop removed the box outright, with
-  // whatever the copy keeps still inside it: the "Accepted" status a decided change
-  // speaks through went out with the row it stood in, and the rail the copy holds open for that
-  // record had nothing left to show. What empties a box is the walk below, which is the
-  // reading that was already right.
+  // to take away. Matched on the bare attribute this loop removed the box outright with
+  // any static words the copy keeps inside it, such as a failed-delivery receipt. What
+  // empties a box is the walk below, after it removes the offered controls.
   const browserControl =
     "input:not([data-lf-offer]), select:not([data-lf-offer]), textarea:not([data-lf-offer]), " +
     "a[href]:not([data-lf-offer]), button:not([data-lf-offer]), summary:not([data-lf-offer])";

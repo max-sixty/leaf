@@ -87,7 +87,7 @@ import { letGo, takesLetters } from "../keyboard/page.js";
 import { closeVersionMenu, versionMenuIsOpen } from "../version.js";
 import { pointerAt } from "../pointer.js";
 import { anchorLabel } from "../conversation/messages.js";
-import { showThread } from "../conversation/landing.js";
+import { openPageThread } from "../living-margin.js";
 import { reactionsOn } from "../conversation/model.js";
 import { isDrawing } from "./drawing.js";
 
@@ -761,7 +761,7 @@ document.addEventListener("click", (ev) => {
   // for wherever the pointer is parked, so that one keeps reading the event.
   const point = ev.detail ? pointerAt() : { x: ev.clientX, y: ev.clientY };
   const threadId = markAt(point.x, point.y);
-  if (threadId) return showThread(threadId);
+  if (threadId) return openPageThread(threadId);
 });
 
 export const fabAnchorAt = () => fabAnchor;

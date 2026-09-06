@@ -86,6 +86,13 @@ class PageTransaction:
         previous = self.claim
         path = claim_path(self.page_dir)
         path.parent.mkdir(parents=True, exist_ok=True)
+        same_open_turn = bool(
+            previous
+            and claim_is_active(previous)
+            and previous["released"] is None
+            and previous["id"] == identity["id"]
+            and previous.get("turn_closed") is None
+        )
         claim = {
             "page": str(self.page_dir),
             "id": identity["id"],
@@ -95,6 +102,11 @@ class PageTransaction:
             "cwd": os.getcwd(),
             "ts": now_iso(),
             "released": None,
+            # Opaque identity of the currently open agent turn on this page.
+            # Delivery transitions name it, so an unresolved pickup from an old
+            # turn cannot become "being handled" merely because a later prompt
+            # opened another turn in the same session.
+            "turn": previous["turn"] if same_open_turn else secrets.token_hex(8),
             # When this session's last turn ended. None until one has, and
             # cleared again when a batch delivered to this session opens the
             # next turn. See close_turn and open_turn.
@@ -145,17 +157,16 @@ class PageTransaction:
         if claim and claim["released"] is None and claim["id"] == session_id:
             write_json(claim_path(self.page_dir), {**claim, "turn_closed": now_iso()})
 
-    def open_turn(self, session_id: str) -> None:
+    def open_turn(self, session_id: str) -> str | None:
         """Record that a turn of this session's is running again.
 
         `close_turn` is stamped by the Stop hook, and until this it was stamped
         by nothing else — so the page could see a turn end but never see the
-        next one begin. That is not symmetric bookkeeping for its own sake: two
-        minutes past the stamp the browser stops believing the claim under it
-        (`droppedAt`), and a session that came back and worked for longer than
-        that without writing a status was read as one that had walked away. The
-        reader was told the agent left when its turn ended and to nudge it in
-        the terminal, over a turn that was running.
+        next one begin. That is not symmetric bookkeeping for its own sake: the
+        canonical activity fold stops believing a declaration left behind by a
+        closed turn, and an opened delivery belongs to the current turn only by
+        exact turn identity. Without an opening, a session that came back could
+        be presented as one that had walked away.
 
         Two things observe the beginning. A prompt is one: the hook that mirrors
         the Stop hook fires with the turn already running, whoever caused it —
@@ -172,13 +183,16 @@ class PageTransaction:
         own age still catches a turn that ends without a Stop to stamp it.
         """
         claim = self.claim
-        if (
-            claim
-            and claim["released"] is None
-            and claim["id"] == session_id
-            and claim.get("turn_closed") is not None
-        ):
-            write_json(claim_path(self.page_dir), {**claim, "turn_closed": None})
+        if not claim or claim["released"] is not None or claim["id"] != session_id:
+            return None
+        if claim.get("turn_closed") is not None:
+            claim = {
+                **claim,
+                "turn": secrets.token_hex(8),
+                "turn_closed": None,
+            }
+            write_json(claim_path(self.page_dir), claim)
+        return claim.get("turn")
 
     @property
     def status(self) -> dict:
@@ -205,7 +219,14 @@ class PageTransaction:
         A new claim replaces the old claim on its semantic subject; `idle`
         clears them all with the leaf.
         """
-        status = {"state": state, "detail": detail, "ts": now_iso()}
+        status = {
+            "state": state,
+            "detail": detail,
+            "ts": now_iso(),
+            # Order the agent's declaration against delivery transitions without
+            # comparing wall-clock timestamps that are only precise to a second.
+            "after": self.events[-1]["seq"] if self.events else 0,
+        }
         claims = [] if state == "idle" else list(self.status.get("work", []))
         if work:
             identity = message_identity()

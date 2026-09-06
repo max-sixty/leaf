@@ -10,7 +10,7 @@
     <meta name="lf-review" content="sign-off" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
     />
     <link rel="stylesheet" href="/theme.css" />
     <style>
@@ -146,7 +146,9 @@
 Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-draft>
         <p id="bg-history-guide">
-          <strong>Picked up</strong> means the saved edit reached the agent.
+          <strong>Picked up</strong> means the saved edit entered an agent turn. The
+          receipt and top bar derive their words from the same delivery, turn, and work
+          evidence.
         </p>
         <lf-draft id="bg-history">
           <pre>The sample workshop is in the blue room.</pre>
@@ -154,14 +156,19 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-conversations">
-        <p class="eyebrow bg-feature-elements">Thread Button · Threads panel</p>
+        <p class="eyebrow bg-feature-elements">
+          Thread Button · inline thread · Threads panel
+        </p>
         <h2 id="bg-conversations-heading">
           <strong>Threads</strong
           ><span class="bg-feature-detail">: anchored conversations</span>
         </h2>
         <p id="bg-conversations-guide">
-          A Thread Button opens the conversation attached to a passage. Its count shows
-          how many conversations share that passage.
+          With Threads closed, a Thread Button or marked passage opens the conversation
+          inline; t moves to the next inline card and T to the previous one. Open
+          Threads while one is focused, including with g T, and the same thread stays
+          focused in the panel. Its count shows how many conversations share that
+          passage.
         </p>
         <p id="bg-thread-text">
           <strong>An existing conversation.</strong> The sample agenda has room for one

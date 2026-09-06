@@ -46,7 +46,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .structure import PAGE_CSP, parse_structure
+from .structure import FRAME_ANCESTORS_CSP, PAGE_CSP, parse_structure
 
 # How often an open news stream re-reads the page, and how long it may go without a
 # word before saying it is still there. The look is a re-stat rather than an in-process
@@ -216,8 +216,9 @@ def supervised_document(
 ) -> bytes:
     """Supervise HTTP startup before the module graph or stylesheet can load.
 
-    The authored source keeps its canonical script and CSP. Only the served
-    document gains the exact bootstrap hash and the server incarnation probe.
+    The authored source keeps its canonical script. The served document receives
+    the current layer CSP, the exact bootstrap hash, and the server incarnation
+    probe, so historical sources inherit the current delivery boundary.
     """
     source = runtime_document(source, revision, version).decode()
     parsed = parse_structure(source)
@@ -261,6 +262,7 @@ class Handler(BaseHTTPRequestHandler):
     # Their banner reads this explicit presentation fact instead of mistaking the
     # deliberately unattended page for an abandoned ordinary Leaf.
     example = None
+    frame_ancestors_policy = FRAME_ANCESTORS_CSP
 
     def _state_service(self) -> PageStateService:
         return PageStateService(
@@ -478,7 +480,8 @@ class Handler(BaseHTTPRequestHandler):
         super().end_headers()
 
     def _send(self, status: int, ctype: str, body: bytes) -> None:
-        if ctype.startswith("text/html"):
+        is_html = ctype.startswith("text/html")
+        if is_html:
             body = scope_document_routes(body, self.page_root)
         elif ctype.startswith(
             ("text/css", "text/javascript", "application/javascript")
@@ -488,6 +491,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if is_html and self.frame_ancestors_policy:
+            self.send_header("Content-Security-Policy", self.frame_ancestors_policy)
         if self.close_connection:
             self.send_header("Connection", "close")
         self.end_headers()

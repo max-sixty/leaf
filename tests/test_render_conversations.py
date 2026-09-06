@@ -855,7 +855,7 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
     # The survivor stays the same node.
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply"
+        "placeholder", "Reply · c"
     )
     assert page.evaluate(
         """(id) => window.__second === document.querySelector(`.lf-thread[data-id="${id}"]`)""",
@@ -1602,7 +1602,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "placeholder", "Reply"
     )
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply"
+        "placeholder", "Reply · c"
     )
 
     # Half way down, the outcome is still on screen. A fold from the bottom takes the
@@ -2361,6 +2361,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     # being either kind.
     assert {c for c in surface["global"] if c.startswith("lf-")} == {
         "lf-copy",
+        # Drawing is a body state, and an inline conversation lives inside authored
+        # widget markup. Both deliberately cross the chrome scope so drawing can spare
+        # the conversation's controls.
+        "lf-conversation",
+        "lf-drawing",
         # The compact response field, named the same way: the general text box's rule
         # excludes it at document level because the field takes its whole geometry from
         # the response controls it shares a baseline with, inside the chrome's own scope.

@@ -111,6 +111,13 @@ does not reconstruct widgets or replay baseline actions into the DOM. Page-widge
 state is bounded by document version; widgets frozen into thread markup use the
 conversation window.
 
+Python also derives one top-level `activity` reading from the agent's status
+declaration, claim and turn identity, watcher lease, pickup events, and unsettled
+reader moves. The banner, thread receipts, margin receipts, neighboring-page rows,
+agent state, and stop guard consume that projection. JavaScript may schedule a new
+state read at its `next_transition_at`; it does not age, override, or independently
+combine those facts.
+
 The page directory is the durable record and deployment unit. `index.html` is
 mutable author source; revisions are immutable, and append-only notes bind public
 versions to them. The event log is append-only, while `data.json` is the explicit

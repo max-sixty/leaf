@@ -6,13 +6,13 @@ the version checker accepts, uses root-absolute public routes, and is published 
 rewriting. The five sources become live-root directory routes, so the same runtime
 addressing used by a served Leaf applies without a site-only exception.
 
-The examples begin as complete Leaf page directories under examples/<name>/. The same
-preparation path that serves a local example vendors each page's selected layer,
-stamps its authored versions, applies its companion event log and data, and closes the
-finished page without claiming it for an agent. The Worker gives each browser a private
-copy of those directories and the canonical server projects their virtual routes.
-Product routes remain exact authored drafts and continue to use the site's static
-session.
+The worked examples and developer feature gallery become complete Leaf page directories
+under examples/<name>/. The same preparation path that serves a local fixture vendors
+each page's selected layer, stamps its authored versions, applies its companion event
+log and data, and closes the finished page without claiming it for an agent. The Worker
+gives each browser a private copy of those directories and the canonical server projects
+their virtual routes. Product routes remain exact authored drafts and continue to use
+the site's static session.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
@@ -38,6 +38,7 @@ LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 INTERNAL_EXAMPLES = {"corpus"}
+FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
 OUT = (
     ROOT / ".tmp" / "site"
 )  # gitignored; both the Worker asset binding and its container image consume it
@@ -132,8 +133,8 @@ def leaf(env: dict, *args: str, input_text: str | None = None) -> None:
         sys.exit(f"leaf {' '.join(args)}:\n{done.stdout}{done.stderr}")
 
 
-def example_sources() -> list[Path]:
-    """Authored examples the public site publishes, never derived test surfaces."""
+def worked_example_sources() -> list[Path]:
+    """Authored worked examples, never derived or developer test surfaces."""
     sources = [
         source
         for source in sorted(EXAMPLES.glob("*.html"))
@@ -142,6 +143,13 @@ def example_sources() -> list[Path]:
     if not sources:
         sys.exit("examples/ holds no authored pages to publish")
     return sources
+
+
+def published_page_sources() -> list[Path]:
+    """Authored pages the public site publishes, including its developer reference."""
+    if not FEATURE_GALLERY.is_file():
+        sys.exit("the developer feature gallery is missing")
+    return [*worked_example_sources(), FEATURE_GALLERY]
 
 
 def product_sources() -> list[Path]:
@@ -178,7 +186,7 @@ def publish_product_pages(page: Path, out: Path, env: dict) -> None:
 
 
 def publish_pages(out: Path, env: dict) -> None:
-    """The site's vendored layer, product documents, and authored examples."""
+    """The site's vendored layer, product documents, and interactive pages."""
     with tempfile.TemporaryDirectory() as tmp:
         page = Path(tmp) / "page"
         packages = json.loads((EXAMPLES / "layer.json").read_text(encoding="utf-8"))
@@ -204,7 +212,7 @@ def publish_pages(out: Path, env: dict) -> None:
             shutil.copy2(DOCS / name, out / name)
         publish_product_pages(page, out, env)
 
-        for source in example_sources():
+        for source in published_page_sources():
             published = out / "examples" / source.stem
             prepare(
                 source,

@@ -11,10 +11,10 @@ names the real control or gesture, seeds the state it needs, and tells the
 developer what result to inspect. For injected chrome whose state comes from
 outside one document, name that condition and exercise it in the gallery's browser
 test. The gallery uses the same companion version, log, and data conventions as an
-example, but the website does not publish it. `corpus.html` and `corpus.data.json`
-are generated from both sets; edit the source page and regenerate the corpus
-instead of patching either output (`test_corpus_is_generated_from_the_examples`
-holds the two to their sources).
+example. The website publishes it as a developer reference linked outside the visual
+examples catalog. `corpus.html` and `corpus.data.json` are generated from both sets;
+edit the source page and regenerate the corpus instead of patching either output
+(`test_corpus_is_generated_from_the_examples` holds the two to their sources).
 
 ## Every widget and idiom in the vocabulary stands here
 

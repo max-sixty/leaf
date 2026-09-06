@@ -101,7 +101,7 @@ import { awaitsReader } from "../conversation/model.js";
 import { replyBoxHasDraft } from "../conversation/replies.js";
 
 export function pageParts(sel) {
-  return [...document.querySelectorAll(sel)].filter((el) => !inChrome(el));
+  return pageQueryAll(sel).filter((el) => !inChrome(el));
 }
 
 // ---------- what the page's keys are live over ----------
@@ -916,11 +916,12 @@ const THREAD = {
 // parts rather than a widget's own declaration. The control scope below cannot cover
 // these: it works a span `offer` made pressable, where these arrive with platform keys
 // already bound. Enter follows an <a> while Space scrolls the page out from under it;
-// both work a disclosure. `g f` puts the reader on a disclosure, and Tab can put them on
-// either. Until a scope existed the line went quiet at exactly the moment they arrived,
+// both work a disclosure. A generated `g` hint puts the reader on a disclosure, and Tab
+// can put them on either. Until a scope existed the line went quiet at exactly the moment
+// they arrived,
 // with the press that finishes the motion unnamed.
 //
-// The page's parts and not every one, which is the reading the addresses take as well:
+// The page's parts and not every one, which is the reading the target map takes as well:
 // the chrome's own links are the leaves tray's and its resolved comments are the panel's,
 // and both of those declare what they answer themselves. Asked of the document at large,
 // "On a link" was had by every page — a machine with one neighbour has a tray full of

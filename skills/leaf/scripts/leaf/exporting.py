@@ -86,10 +86,10 @@ def inline_assets(html: str, page_dir: Path) -> str:
 def export_page(browser, url: str, page_dir: Path, name: str) -> str:
     """The served document named by `name`, copied as one self-contained file.
 
-    One implementation has two callers, as `render_version` does: `version export`
-    supplies the host's browser, while the suite drives this over the shipped
-    examples with its Chromium headless shell. That keeps the export behavior in
-    one function without claiming that the two browser launch paths are identical.
+    Callers own the browser lifetime: `version export` launches the host's browser,
+    the site builder reuses one across its product documents, and the suite drives
+    shipped examples with its Chromium headless shell. The rendering and bake remain
+    one implementation without claiming those browser launch paths are identical.
 
     The user's decisions come with it. Replay is what puts them on the page, so
     this waits for the runtime's caught-up stamp exactly as the gate does, and a page

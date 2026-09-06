@@ -50,15 +50,15 @@ gallery.
 
 ## Website and demo
 
-`site.py` builds <https://leaf.page/> in `.tmp/site`. The build publishes the product
-pages and their shared static layer plus each example as a complete page directory,
-rewrites checkout-relative assets, and refuses unresolved local links. The website
-Worker serves the product assets directly and sends example routes to Leaf's canonical
-Python server in a private Cloudflare Container; that server supplies the virtual
-version routes. `.github/workflows/publish-site.yaml` deploys both halves for relevant
-pushes to `main`. After `npm ci --prefix worker`, pass `--serve` with Docker running to
-build the site and open the same Wrangler/container boundary locally, including the
-public examples gallery and every standalone route.
+`site.py` builds <https://leaf.page/> in `.tmp/site`. The build publishes each product
+page as a standalone browser-rendered Leaf export and each example as a complete page
+directory, rewrites checkout-relative assets, and refuses unresolved local links. The
+website Worker serves the product files directly and sends example routes to Leaf's
+canonical Python server in a private Cloudflare Container; that server supplies the
+virtual version routes. `.github/workflows/publish-site.yaml` deploys both halves for
+relevant pushes to `main`. After `npm ci --prefix worker`, pass `--serve` with Docker
+running to build the site and open the same Wrangler/container boundary locally,
+including the public examples gallery and every standalone route.
 
 `record-demo.sh` drives the shipped server and Chrome to regenerate
 `docs/demo.gif`. `record-demo.py` draws the Leaf screenshots used by that demo;

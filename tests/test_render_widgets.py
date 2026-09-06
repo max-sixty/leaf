@@ -1552,6 +1552,10 @@ def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
         "Use a 17px radius, compact spacing set to true, a bold tone, #8b4a5f accents, "
         "and the title Ridge note; alert."
     )
+    expect(page.locator("#card-instruction")).to_have_css(
+        "font-family", "ui-monospace, SFMono-Regular, Menlo, monospace"
+    )
+    expect(page.locator("#card-instruction")).to_have_css("font-size", "12.5px")
 
     with sending(page, "the playground configuration"):
         playground.get_by_role("button", name="Use these settings").click()

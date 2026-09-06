@@ -1232,7 +1232,7 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
 
 
 def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve):
-    """Projecting a visual mark must not erase the provider's focus indication."""
+    """A focused visual paints one ring through the projected mark."""
     url = serve(WIDE_DIAGRAM_PAGE)
     events_model.append_event(
         serve.page_dir,
@@ -1251,6 +1251,7 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     expect(diagram).to_have_attribute("tabindex", "0")
     diagram.focus()
     assert diagram.evaluate("element => element.matches(':focus-visible')")
+    expect(diagram).to_have_css("outline-style", "none")
 
     mark = page.locator(".lf-visual-mark")
     expect(mark).to_have_class(re.compile(r"\blf-visual-mark-focus\b"))

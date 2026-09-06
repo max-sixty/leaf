@@ -660,11 +660,12 @@ html.lf-copy mark.lf-react { background: var(--react); color: inherit;
    and not the mark's own "open this thread". */
 body:is(.lf-aiming, .lf-design) .lf-mark-el { cursor: default; }
 body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
-/* A declared visual target keeps these classes for hit-testing and thread ownership,
-   while the chrome layer draws its surface contour or rectangular fallback above the
-   package's own paint. Suppress only that duplicate representation; ordinary anchors
-   stay on the outline path. */
-:is(.lf-mark-el, .lf-react-el, .lf-action-target).lf-shaped-mark { outline: none;
+/* The chrome layer draws a shaped target's contour or rectangular fallback above the
+   package's own paint, so its native outline would duplicate the overlay. Anchor
+   classes can also carry a background wash; suppress that only when it duplicates
+   shaped paint. */
+.lf-shaped-mark { outline: none; }
+:is(.lf-mark-el, .lf-react-el, .lf-action-target).lf-shaped-mark {
   background-image: none; }
 /* Keyboard access to a picture is runtime chrome beside the provider's drawing rather
    than a role written onto that drawing. Resting it is a conventional clipped control;

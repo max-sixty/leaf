@@ -40,6 +40,11 @@ that path beneath the absolute page directory named by the delivered batch and i
 the image itself before replying; alt text is a label, not evidence of what the pixels
 show.
 
+Send one the same way: run `leaf page media <page> <file>` and write the printed path as
+an ordinary Markdown image in the message's text. The door refuses a `/media/…` name the
+page directory cannot answer, in text as in markup, because the log is append-only and a
+broken image posted to it stays broken.
+
 `--text` takes inline text; stdin accepts Markdown:
 
 ```bash

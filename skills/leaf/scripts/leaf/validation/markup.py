@@ -1,9 +1,16 @@
 """Shared structural and authored-markup validation rules."""
 
+import re
 from pathlib import Path
 
+from leaf.schema import _DIR_FILES, MEDIA_DIR
 from leaf.structure import OPTIONAL_END, SECTIONING_TAGS, _StructParser
 from leaf.styles import inline_presentation_override_errors
+
+# One media reference as a message's Markdown writes it, read with the layer's own
+# naming rather than a second spelling of it: the digest is what tells a real
+# reference from the word "/media/" standing in a sentence.
+MEDIA_REFERENCE = re.compile(rf"/{MEDIA_DIR}/{_DIR_FILES[MEDIA_DIR]}")
 
 
 def reserved_ids_error(ids: list) -> str:
@@ -175,8 +182,27 @@ def media_errors(parser: _StructParser, page_dir: Path) -> list:
 
     Asked at each door rather than in the vocabulary contract, for the reason
     `check_markup` gives where that choice is made."""
+    return _unanswered_media(parser.media_refs, page_dir)
+
+
+def text_media_errors(text: str, page_dir: Path) -> list:
+    """The same reference in a message's prose, which is the other way one arrives.
+
+    Markup names a picture in an attribute, where the parsed reading above finds it;
+    a message names one in Markdown, which that reading cannot see — so an agent
+    sending a screenshot, the very shape `media_errors` was written for, came through
+    the one door that never asked. `check_markup` runs only when `--markup` is given,
+    and text on its own reached the log unread.
+
+    Read by the layer's own name for a file rather than by scanning for the word:
+    `/media/` in a sentence is the author's prose, and a content-addressed digest is
+    a reference. What the shape lets through, the file below answers for."""
+    return _unanswered_media(set(MEDIA_REFERENCE.findall(text)), page_dir)
+
+
+def _unanswered_media(refs, page_dir: Path) -> list:
     return [
         f"{ref} isn't in the page directory; `leaf page media` puts it there"
-        for ref in sorted(parser.media_refs)
+        for ref in sorted(refs)
         if not (page_dir / ref.lstrip("/")).is_file()
     ]

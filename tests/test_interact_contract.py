@@ -3865,6 +3865,52 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
     assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
 
 
+def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir):
+    """A message names its picture in Markdown, where the markup reading cannot see it.
+
+    `check_markup` runs only when `--markup` is given, and the reference it asks about
+    lives in an attribute. An agent sending a screenshot writes it in the words instead,
+    so the shape `media_errors` was written for — here is what it looks like now — came
+    through the one door that never asked, and the log is append-only: a picture the
+    directory hasn't got is broken for as long as the page exists.
+
+    The reading is the layer's own name for a file rather than a scan for the word, so
+    `/media/` standing in a sentence is prose and a content-addressed digest is a
+    reference the directory has to answer."""
+    publish(page_dir)
+    missing = "/media/deadbeefdeadbeef.png"
+    posted = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--text", f"the panel now:\n\n![shot]({missing})"],
+    )
+    assert posted.exit_code == 1, (
+        f"the comment door froze a picture the page has not got into the log:\n"
+        f"{posted.output}"
+    )
+    assert f"{missing} isn't in the page directory" in posted.output, posted.output
+    assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "comment"]
+
+    prose = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--text", "put the shot under /media/ as usual"],
+    )
+    assert prose.exit_code == 0, (
+        f"the word /media/ in a sentence is the author's prose, not a reference:\n"
+        f"{prose.output}"
+    )
+
+    (page_dir / "media").mkdir(exist_ok=True)
+    (page_dir / "media" / "deadbeefdeadbeef.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    answered = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--text", f"the panel now:\n\n![shot]({missing})"],
+    )
+    assert answered.exit_code == 0, (
+        f"a reference the directory answers is the whole point of the door:\n"
+        f"{answered.output}"
+    )
+
+
 def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     server, page_dir
 ):

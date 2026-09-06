@@ -123,6 +123,9 @@ follow, since a message outlives the version it was written on. Raw HTML in a
 body renders as its own characters. A widget in a message rides the event's
 `markup` field instead, whose one door is `leaf comment`/`leaf reply`, where it
 is validated against the vendored registry; the browser door refuses the field.
+An agent's body is read for `/media/<digest>.<ext>` at that same door, whether it
+arrives as text or markup, since either names a file the page directory has to
+have; the browser's own paste stores the image before the reference exists.
 
 A raster image pasted into a browser text box is stored first as content-addressed page
 media. Its durable draft carries an ordinary Markdown image at

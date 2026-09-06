@@ -27,7 +27,7 @@ def specification() -> tuple[str, str]:
     repository = locked["repository"]
     revision = locked["revision"]
     if not isinstance(repository, str) or not isinstance(revision, str):
-        raise RuntimeError(
+        raise TypeError(
             f"{LOCK.name} must contain string repository and revision values"
         )
     if len(revision) != 40 or any(
@@ -47,9 +47,10 @@ def _download(repository: str, revision: str, target: Path) -> None:
         ) as raw:
             staging = Path(raw)
             archive = staging / "assets.tar.gz"
-            with urllib.request.urlopen(url, timeout=60) as response, archive.open(
-                "wb"
-            ) as output:
+            with (
+                urllib.request.urlopen(url, timeout=60) as response,
+                archive.open("wb") as output,
+            ):
                 shutil.copyfileobj(response, output)
 
             previews = staging / "payload" / "examples"
@@ -79,15 +80,15 @@ def _download(repository: str, revision: str, target: Path) -> None:
                     target_name = PurePosixPath(member.name).name
                     with source, (previews / target_name).open("wb") as output:
                         shutil.copyfileobj(source, output)
-            (staging / "payload" / ".complete").write_text(
-                revision, encoding="utf-8"
-            )
+            (staging / "payload" / ".complete").write_text(revision, encoding="utf-8")
             try:
                 (staging / "payload").rename(target)
             except FileExistsError:
                 # Another build may have completed the same immutable revision first.
                 if not (target / ".complete").is_file():
-                    raise RuntimeError(f"incomplete asset cache already exists: {target}")
+                    raise RuntimeError(
+                        f"incomplete asset cache already exists: {target}"
+                    )
     except (OSError, tarfile.TarError, urllib.error.URLError) as error:
         raise RuntimeError(
             f"could not fetch {repository}@{revision}: {error}"

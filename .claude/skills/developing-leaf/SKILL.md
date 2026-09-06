@@ -1,9 +1,9 @@
 ---
-name: developing-with-leaf
-description: Uses the current Leaf checkout to author or revise pages and shipped guidance, preview examples, or test changes in the real browser loop.
+name: developing-leaf
+description: Develops Leaf from the current checkout by previewing examples, comparing runtimes, refreshing catalog stills, and testing page changes in the browser.
 ---
 
-# Develop with the checkout's Leaf
+# Develop Leaf from this checkout
 
 Resolve the repository root three directories above this `SKILL.md`, then resolve
 `<root>/bin/leaf` to an absolute path. Run that launcher with `--version` and

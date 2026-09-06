@@ -70,7 +70,9 @@ A page directory holds:
                          carries only the surrounding manifest, and `/api/data` reads
                          one keyed payload from this same revision on demand. No split
                          payload becomes a second authority.
-    status.json          the agent's declared state: {"state": working|waiting|idle, "detail", "ts"};
+    status.json          the agent's declared state: {"state": working|waiting|idle,
+                         "detail", "ts", "after"}; `after` is the exact event-log
+                         floor observed when the declaration was written;
                          detail is the finer grain the banner reads out after the
                          state — what the agent is doing while working, what it
                          needs from the reader while waiting;
@@ -79,7 +81,8 @@ A page directory holds:
                          private records become canonical claim updates, which
                          their local receipts show beside the page-wide banner
                          (`leaf status … --on`). Delivery pickup never writes
-                         this file; it is a page-owned event in events.jsonl
+                         this file; its queued/opened phase, session, and turn are
+                         page-owned evidence in events.jsonl
     waiter.lock          bare-shell `leaf wait` lease, held open and locked for
                          the command's life. A host session holds one lease at
                          sessions/<id>.wait instead, because one wait watches all

@@ -399,6 +399,7 @@ def record_claim(page, **fields):
         "cwd": str(Path.cwd()),
         "ts": "t",
         "released": None,
+        "turn": "turn-1",
         "turn_closed": None,
         **fields,
     }

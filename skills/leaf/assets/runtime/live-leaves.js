@@ -1,5 +1,5 @@
 /* This module owns the machine-leaves tray's rows, presence words, and walk. */
-import { ago, clocked, presented } from "./presence.js";
+import { ago, clocked } from "./presence.js";
 import { pagePresented } from "./presentation.js";
 import { leavesList, openTray, othersBtn, othersPanel } from "./trays.js";
 import { showNews } from "./banner-shelf.js";
@@ -53,7 +53,7 @@ export function declareLeavesKeys() {
 // same judgment the banner's sentences come from — the judgment is shared, the
 // wording is the seat's.
 function rowPresence(entry) {
-  const { kind, quiet, dropped, detail } = presented(entry);
+  const { kind, quiet, dropped, detail, ts, counts } = entry.activity;
   // The same join for both kinds that have words of their own. The reader opens this
   // panel to find which page needs them, so a bare `Awaits` beside a neighbour's
   // `Working — recording the demo` said least about the one row they are here to act
@@ -61,25 +61,35 @@ function rowPresence(entry) {
   // first is the whole question the panel was opened to answer.
   const stated = (word) => word + (detail ? " — " + detail : "");
   // The banner's two silences, dated the same way and worded for a row.
-  const silence = dropped
-    ? `Left (${ago(entry.turn_closed)})`
-    : `Quiet (${ago(entry.status.ts)})`;
-  const line =
+  const silence = dropped ? `Left (${ago(entry.turn_closed)})` : `Quiet (${ago(ts)})`;
+  const primary =
     kind === "working"
       ? stated("Working")
-      : kind === "listening"
-        ? stated("Awaits")
-        : kind === "stalled"
-          ? stated(silence)
-          : kind === "away"
-            ? quiet
-              ? silence
-              : "Away"
-            : kind === "unheld"
-              ? "Unheld"
-              : kind === "unattended"
-                ? "Unattended"
-                : "Closed";
+      : kind === "handling"
+        ? "Handling updates"
+        : kind === "queued"
+          ? "Queued"
+          : kind === "picked_up"
+            ? "Picked up; turn ended"
+            : kind === "listening"
+              ? counts.pending
+                ? stated("Listening")
+                : stated("Awaits")
+              : kind === "stalled"
+                ? stated(silence)
+                : kind === "away"
+                  ? quiet
+                    ? silence
+                    : "Away"
+                  : kind === "unheld"
+                    ? "Unheld"
+                    : kind === "unattended"
+                      ? "Unattended"
+                      : "Closed";
+  const pending = counts.pending
+    ? `${counts.pending} update${counts.pending === 1 ? "" : "s"} waiting`
+    : null;
+  const line = pending ? `${primary} · ${pending}` : primary;
   return { tone: toneFor(kind), line };
 }
 
@@ -94,16 +104,26 @@ function rowPresence(entry) {
 // overlap, so a title left on the line would answer the hover most likely to be asking
 // this question — a reader pointing at the words that ran out of room — with the one
 // part of the account they can already read.
+const activityAccount = ({ counts }) => {
+  const noun = (count) => `${count} update${count === 1 ? "" : "s"}`;
+  const parts = [];
+  if (counts.active) parts.push(`${noun(counts.active)} active`);
+  if (counts.handling) parts.push(`${noun(counts.handling)} being handled`);
+  if (counts.queued) parts.push(`${noun(counts.queued)} queued`);
+  if (counts.picked_up) parts.push(`${noun(counts.picked_up)} picked up; turn ended`);
+  if (counts.pending) parts.push(`${noun(counts.pending)} waiting`);
+  return parts.length ? parts.join("; ") : null;
+};
+
 const rowAccount = (entry, title, line) =>
   [
     title,
     entry.session_cwd,
     line,
-    // The reader's own words that page's agent hasn't taken in. The banner says this
-    // number for this page; the tray says it for every page, which is the seat's
-    // whole point — a leaf holding something of yours that nobody has read is a
-    // reason to go there, and nothing else on the row says so.
-    entry.pending && `${entry.pending} update${entry.pending === 1 ? "" : "s"} waiting`,
+    // The same canonical agent obligations the line summarizes, expanded for the
+    // row's hover. A raw cursor count cannot say whether those words are queued,
+    // opened in this turn, or still waiting for delivery.
+    activityAccount(entry.activity),
   ]
     .filter(Boolean)
     .join("\n");
@@ -117,10 +137,10 @@ function renderOthersNow(state) {
   // so: its server stays up so the page stays readable — a standing one for good —
   // so nothing else would ever take the row off, and a count the reader glances at
   // to find who needs them would silently become a tally of everything that has run
-  // here. Judged by the same `presented` the rows read, never by a second reading of
-  // the status the server ships. This page's own row is not in the list and so is
+  // here. Judged by the same canonical `activity` the rows read, never by a second
+  // reading of the status the server ships. This page's own row is not in the list and so is
   // never dropped: a reader looking at a closed page is still looking at it.
-  others = (state.others ?? []).filter((entry) => presented(entry).kind !== "closed");
+  others = (state.others ?? []).filter((entry) => entry.activity.kind !== "closed");
   const wanted = [
     { key: "self", title: document.title, entry: state },
     ...others.map((entry) => ({ key: entry.url, title: entry.title, entry })),

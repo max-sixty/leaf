@@ -402,7 +402,12 @@ def _commit_layer(
         # latter's event-log flock for an existing directory missing status.
         write_json(
             page_dir / "status.json",
-            {"state": "working", "detail": "Writing the page", "ts": now_iso()},
+            {
+                "state": "working",
+                "detail": "Writing the page",
+                "ts": now_iso(),
+                "after": 0,
+            },
         )
     # State names this as the canonical values file even before the page binds a
     # source. Make the empty revision concrete so an agent can always follow the

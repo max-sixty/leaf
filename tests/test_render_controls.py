@@ -11,6 +11,8 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import schema as schema_model
+from leaf import service as service_model
+from leaf import session as session_model
 from leaf.registry import storage as registry_storage
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -2383,17 +2385,47 @@ def test_a_panel_row_follows_its_pages_status_live(
             "over the row's whole account"
         )
         # A leaf holding words of the reader's that nobody has read is a reason to go
-        # to it, and no row draws that either: the banner says this number for the page
-        # it stands on, and the tray says it for every page on the machine.
-        events_model.append_event(
+        # to it. The row keeps the live watcher as its primary state and carries the
+        # pending count beside it, rather than letting either fact hide the other.
+        comment = events_model.append_event(
             other_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": "Mine."},
         )
         told(page)
+        expect(row.locator(".lf-others-line")).to_have_text(
+            "Listening — pick a storage engine · 1 update waiting"
+        )
         expect(row).to_have_attribute(
             "title",
-            f"The other leaf\n{tmp_path / 'other-work'}\nAwaits — pick a storage engine"
+            f"The other leaf\n{tmp_path / 'other-work'}\n"
+            "Listening — pick a storage engine · 1 update waiting"
             "\n1 update waiting",
+        )
+        # Pickup advances the same canonical activity row that the thread receipt
+        # reads. A latent page-wide waiting declaration cannot contradict exact
+        # delivery into the current turn.
+        with service_model.PageTransaction(other_dir) as transaction:
+            session_model.record_pickup(transaction, [comment])
+        told(page)
+        expect(row.locator(".lf-others-line")).to_have_text("Handling updates")
+        expect(row).to_have_attribute(
+            "title",
+            f"The other leaf\n{tmp_path / 'other-work'}\nHandling updates"
+            "\n1 update being handled",
+        )
+        events_model.append_event(
+            other_dir,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "parent": comment["id"],
+                "revision": 1,
+                "text": "Use the existing page directory.",
+            },
+        )
+        told(page)
+        expect(row.locator(".lf-others-line")).to_have_text(
+            "Awaits — pick a storage engine"
         )
     # The claim still says waiting; its claimant is gone. The row reports what the
     # directory can prove, exactly as the neighbour's own banner would.

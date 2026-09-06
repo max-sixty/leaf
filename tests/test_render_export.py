@@ -1135,7 +1135,14 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     ][-1]
     events_model.append_event(
         serve.page_dir,
-        {"kind": "pickup", "author": "page", "events": [in_flight["id"]]},
+        {
+            "kind": "pickup",
+            "author": "page",
+            "events": [in_flight["id"]],
+            "phase": "opened",
+            "session": None,
+            "turn": None,
+        },
     )
 
     live = browser.new_page(viewport={"width": 1200, "height": 900})

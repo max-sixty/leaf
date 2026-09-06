@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from ..acknowledgments import canonical_acknowledgments
+from ..activity import canonical_activity
 from ..events import UndoReading, build_threads, taken_back
 from ..files import list_revisions, revision_path
 from ..passages import enclosing_of
@@ -18,9 +19,10 @@ def browser_state(
     events: list,
     registry: dict,
     active_revision: int,
-    claims: list,
+    present: dict,
     active: dict,
     view_revisions: set[int],
+    now: str,
 ) -> dict:
     """The browser's derived reading of one transaction-consistent page snapshot.
 
@@ -86,7 +88,9 @@ def browser_state(
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
             "document": document,
-            "updates": canonical_updates(projection, claims, threads, events),
+            "updates": canonical_updates(
+                projection, present["claims"], threads, events
+            ),
             "undo": _browser_undo_candidates(
                 events,
                 projection,
@@ -96,20 +100,21 @@ def browser_state(
             "coverage": coverage,
             "published_at": published_at,
         }
+    interaction_evidence = canonical_acknowledgments(
+        events,
+        present["claims"],
+        threads,
+        active_projection,
+        active_parser,
+        active_spk,
+        conversation_reading,
+        registry,
+    )
     return {
         "basis": {"through_seq": through_seq},
         "views": views,
         "conversation": conversation,
-        "acknowledgments": canonical_acknowledgments(
-            events,
-            claims,
-            threads,
-            active_projection,
-            active_parser,
-            active_spk,
-            conversation_reading,
-            registry,
-        ),
+        "activity": canonical_activity(present, interaction_evidence, now),
         "receipts": [event for event in events if event.get("attempt")],
         "version_notes": {
             str(event["version"]): event["text"]
@@ -124,7 +129,8 @@ def project_browser_state(
     events: list,
     view_revision: int | None,
     active: dict | None,
-    claims: list,
+    present: dict,
+    now: str,
     source_overrides: dict[int, str] | None = None,
     *,
     include_active_view: bool = True,
@@ -163,7 +169,8 @@ def project_browser_state(
         events,
         registry,
         active_revision,
-        claims,
+        present,
         active,
         wanted if include_active_view else {requested_revision},
+        now,
     )

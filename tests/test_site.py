@@ -561,6 +561,16 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         ).evaluate_all(
             "nodes => nodes.map(node => getComputedStyle(node).fontSize)"
         ) == ["11.5px", "11.5px", "11.5px"]
+        # The live line stands under the two presses at every width rather than beside
+        # them, because the runtime rewrites it as the demo runs and prose that changes
+        # length on a button's line moves the row while the reader is aiming at it.
+        assert gallery.evaluate(
+            """gallery => {
+                const toggle = gallery.querySelector('[data-interaction-toggle]');
+                const status = gallery.querySelector('[data-interaction-status]');
+                return status.offsetTop >= toggle.offsetTop + toggle.offsetHeight;
+            }"""
+        )
         expect(accept).to_have_attribute("data-lf-state", "accept")
         assert read_events(page_dir) == before
 
@@ -585,7 +595,6 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         assert gallery.locator("#bg-motion-board").evaluate(
             "board => getComputedStyle(board).gridAutoFlow === 'row'"
         )
-        assert status.evaluate("status => getComputedStyle(status).marginLeft") == "0px"
 
         replacement_installed = gallery.evaluate(
             """gallery => {

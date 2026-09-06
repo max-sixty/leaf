@@ -100,7 +100,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
 
     page.locator(".lf-asks").click()
     asks = page.locator("button.lf-asks-row")
-    expect(asks).to_have_count(11)
+    expect(asks).to_have_count(12)
     expect(asks.first.locator(".lf-asks-kind")).to_have_text("ask")
     expect(asks.first.locator(".lf-asks-says")).to_contain_text(
         "Which map should the sample team carry?"
@@ -133,7 +133,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.locator(".lf-threads-toggle").click()
 
     page.locator(".lf-version").click()
-    expect(page.locator(".lf-version-menu .lf-version-row")).to_have_count(2)
+    expect(page.locator(".lf-version-menu .lf-version-row")).to_have_count(3)
     page.keyboard.press("Escape")
 
     page.keyboard.press("?")

@@ -37,6 +37,10 @@
         margin-top: 14px;
       }
 
+      /* Shape only. The runtime built these two, so the layer's own pressable rules
+         already carry the hand, the hover tint, the disabled treatment, and the here
+         ring that names itself to the ring census; a page drawing any of them again
+         would be a second answer to a question the layer has already settled. */
       .interaction-gallery .interaction-control {
         min-height: var(--aim-floor);
         padding: 6px 13px;
@@ -45,7 +49,14 @@
         background: var(--card);
         color: var(--ink);
         font: 600 var(--t-6) / 1.2 var(--sans);
-        cursor: pointer;
+      }
+
+      /* The runtime rewrites this one's word as the demo runs — Loading…, Play, Pause,
+         Played — and Replay stands beside it, so one width for every word is what keeps
+         that button still. The word for a demo that could not load is the exception: it
+         is far the longest, and it arrives only where the row has nothing left to hold. */
+      .interaction-gallery .interaction-control[data-interaction-toggle] {
+        min-width: 9ch;
       }
 
       .interaction-gallery
@@ -53,18 +64,11 @@
         border-color: var(--accent);
       }
 
-      .interaction-gallery .interaction-control:focus-visible {
-        outline: var(--here-ring);
-        outline-offset: var(--here-ring-gap);
-      }
-
-      .interaction-gallery .interaction-control:disabled {
-        color: var(--muted-2);
-        cursor: default;
-      }
-
+      /* Under the two presses rather than beside them, at every width. The runtime
+         rewrites this line as the demo runs, and prose that changes length on the line a
+         button stands on moves the row while the reader is aiming at it. */
       .interaction-gallery .interaction-status {
-        margin-left: 5px;
+        flex-basis: 100%;
         color: var(--muted);
         font: var(--t-6) / 1.4 var(--sans);
       }
@@ -160,11 +164,6 @@
         .interaction-board-stage lf-card {
           font-size: 13px;
           line-height: 1.4;
-        }
-
-        .interaction-gallery .interaction-status {
-          flex-basis: 100%;
-          margin-left: 0;
         }
       }
 

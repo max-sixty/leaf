@@ -47,7 +47,13 @@ page. The browser gate is the guarantee (`leaf version check --render` and the
 everyday smoke test read page errors); the lint rule is the early, line-precise word:
 it refuses a module-scope read of a cycle binding or call of a cycle function, over the
 whole runtime directory whenever a runtime file is committed, and it does not see a
-callback another module runs during evaluation.
+callback another module runs during evaluation. The register closes the one such path
+it owns: `keys()` checks a declaration's shape and publishes it unread, and the repaint
+frame — which lands after every module body — is where a scope is first read, where its
+capability and row `when` predicates first run, where an ambiguous scope is refused, and
+where `aria-keyshortcuts` is first written. The `eslint-evaluation-order` pre-commit
+hook runs `scripts/evaluation-order-faults.mjs`, which feeds eslint the faults above at
+a real cycle path and checks that the rule refuses each on the right line.
 `runtime/chrome.js` owns the chrome's root, the order its parts stack in, and
 `mountChrome`, the one step that puts them in the document and wires what needs them
 there;

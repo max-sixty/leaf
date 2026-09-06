@@ -170,7 +170,8 @@ visual;
 `runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, the document
 room left after the panel and trays, the final-layout column motion between workspace
 states, and page repaint caused by shell motion or reflow;
-`runtime/presentation.js` owns runtime paint and the words it projects;
+`runtime/presentation.js` owns runtime paint, optional page-interface settlement, and
+the words it projects;
 `runtime/reach.js` owns keyboard access to overflow and the containing block a
 scroller owes what it scrolls;
 `runtime/shadow.js` owns declared shadow roots, their theme slice, shared
@@ -275,26 +276,26 @@ Startup order is load-bearing:
    contains, and no others.
 7. Wait for module settlement, then run the shared dressing passes.
 8. Capture authored record facets from the upgraded, authored state.
-9. Mark `body` `data-lf-upgraded="1"`.
-10. Start the state feed; its first answer is applied, reconciled, and presents the
+9. Settle optional runtime-owned page interface that composes those widgets.
+10. Mark `body` `data-lf-upgraded="1"`.
+11. Start the state feed; its first answer is applied, reconciled, and presents the
     page.
 
 Authored HTML paints immediately on every page. Its prose, ordinary links, scrolling,
 and layout remain usable while widgets upgrade and the first state read is pending.
-`data-lf-presented` does not release paint: it releases recorded widget actions and
-authored top-layer UI once the first state read has either applied or established that
-the server is unavailable. Modules must consult `actionAvailable` or
-`requestAvailable` before optimistic mutation as well as before sending; their common
-send doors repeat the check. Fixed status and unanchored discussion chrome remain usable
-while a live page waits; selecting a passage does not raise the anchored composer until
-the passage has survived the first projection.
+Generated interface inside the page participates in layout but stays invisible until
+`data-lf-presented` releases it with recorded widget actions and authored top-layer UI.
+Fixed status and unanchored discussion chrome remain usable while a live page waits.
+Modules must consult `actionAvailable` or `requestAvailable` before optimistic mutation
+as well as before sending; their common send doors repeat the check. Selecting a passage
+does not raise the anchored composer until the passage has survived the first projection.
 
 `presentPage` owns the one transition from arrival to stateful interaction. Motion
-helpers and the stylesheet collapse arrival animations until that boundary, and the
-stylesheet withholds only dialogs and popovers rather than the authored document.
-After it, a state change may animate only where motion helps the reader follow a
-change. A failed startup does not stamp the page presented as if it had read the
-log.
+helpers and the stylesheet collapse arrival animations until that boundary. Its final
+synchronous `PRESENTATION` signal lets box-derived page apparatus replace provisional
+geometry before the browser can paint the presented state. After it, a state change may
+animate only where motion helps the reader follow a change. A failed startup does not
+stamp the page presented as if it had read the log.
 
 ## What crosses to the server
 
@@ -485,6 +486,12 @@ box, but it must not move controls adjacent to the gesture that caused it. News
 arriving without a gesture must not move any chrome control. A content change
 the reader requested may reflow the content it replaces, provided the change is
 shown as trackable motion rather than an unexplained jump.
+
+During startup, generated interface first appears in its authoritative position. An
+asynchronous producer joins the applicable widget, data, or page-interface settlement
+before presentation. Apparatus that derives its position from final boxes takes one
+synchronous reading on `PRESENTATION`, then uses `ResizeObserver` or the shared layout
+signal for later changes. Provisional defaults may reserve space, but they do not paint.
 
 Control state is paint: ink, fill, border, or an inset ring. Do not express it by
 changing font weight, size, padding, border width, or another metric. Reserve

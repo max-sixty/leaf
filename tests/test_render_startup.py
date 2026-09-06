@@ -588,7 +588,8 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     """Paint readiness and semantic-interaction readiness are separate facts.
 
     The authored document is useful while the first state response is held: its text,
-    link, structure, and shadow-rendered diff paint. A choice based on that not-yet-
+    link, structure, and shadow-rendered diff paint. Generated interface in light and
+    shadow DOM reserves its room without painting. A choice based on that not-yet-
     reconciled document cannot mutate or post, and authored top-layer UI stays withheld.
     Releasing the response applies the standing decision and opens interaction once."""
     url = serve(
@@ -652,11 +653,13 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
         assert held, "the positive control did not hold the first state response"
         choice = page.locator("#startup-choice .lf-pick").first
         expect(choice).to_have_attribute("aria-disabled", "true")
+        expect(choice).not_to_be_visible()
         choice.dispatch_event("click")
         expect(page.locator("#startup-a")).not_to_have_attribute("chosen", "")
         suggestion_accept = page.locator(
-            ".lf-sug-actions[data-lf-for='sug']"
-        ).get_by_role("button", name=re.compile("^Accept the suggested change"))
+            ".lf-sug-actions[data-lf-for='sug'] "
+            "button[aria-label^='Accept the suggested change']"
+        )
         expect(suggestion_accept).to_have_attribute("aria-disabled", "true")
         expect(suggestion_accept).to_have_attribute("tabindex", "-1")
         assert suggestion_accept.evaluate(
@@ -725,6 +728,13 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             "() => document.querySelector('#shadowed').shadowRoot.querySelector('pre')"
             ".checkVisibility({opacityProperty: true, visibilityProperty: true})"
         ), "ordinary authored shadow content did not paint before replay"
+        assert page.evaluate(
+            """() => {
+              const ui = document.querySelector('#shadowed').shadowRoot
+                .querySelector('.lf-ui');
+              return ui && !ui.checkVisibility({visibilityProperty: true});
+            }"""
+        ), "generated shadow interface painted before replay"
         assert not page.locator("#stale-dialog").is_visible(), (
             "authored top-layer content painted before replay"
         )
@@ -815,6 +825,11 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
         expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
         expect(page.locator("#sug lf-old")).to_be_hidden()
         expect(choice).to_have_attribute("aria-disabled", "false")
+        expect(choice).to_be_visible()
+        assert page.evaluate(
+            """() => document.querySelector('#shadowed').shadowRoot
+              .querySelector('.lf-ui').checkVisibility({visibilityProperty: true})"""
+        ), "generated shadow interface remained withheld after replay"
         assert not page.locator("#stale-dialog").evaluate(
             "dialog => dialog.open || dialog.matches(':modal')"
         ), "replay retired a dialog but presentation promoted it anyway"
@@ -846,6 +861,35 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             ".querySelector('#shadow-stale-popover').hidePopover()"
         )
         assert page.evaluate("() => window.__lfPresentation.releases") == 1
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
+    """An opt-in runtime surface is part of the page's first stable UI.
+
+    The interaction gallery loads its own module and inserts controls. Holding replay
+    proves that work completes by the widget-upgrade stamp, with its reserved controls
+    withheld until presentation instead of appearing in a later frame."""
+    url = serve(FEATURE_GALLERY)
+    held = []
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    errors = watched(page)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(url, wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        assert held, "the positive control did not hold the first state response"
+        gallery = page.locator("#bg-interactions")
+        expect(gallery).to_have_attribute("data-interaction-installed", "1")
+        controls = gallery.locator(".interaction-controls")
+        expect(controls).to_have_count(1)
+        expect(controls).not_to_be_visible()
+
+        held.pop(0).continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        expect(controls).to_be_visible()
         assert errors == []
     finally:
         page.close()

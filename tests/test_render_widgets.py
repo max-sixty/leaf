@@ -73,6 +73,7 @@ from render_support import (
     resized,
     round_trip,
     select,
+    sending,
     sent_events,
     stamp_version_file,
     told,
@@ -104,6 +105,56 @@ SWIPE_PAGE = leaf_page(
       <lf-swipe-card id="already-kept"><strong>Delete session keys</strong><p>The revocation primitive.</p></lf-swipe-card>
     </lf-swipe-pile>
   </lf-swipe-deck>
+</lf-ask>
+""",
+)
+
+PLAYGROUND_PAGE = leaf_page(
+    "card playground",
+    """
+<h1>Card playground</h1>
+<style>
+  #playground-card {
+    --lf-frame: 1;
+    border: 2px solid var(--playground-accent);
+    border-radius: var(--playground-radius);
+    padding: 24px;
+  }
+  #playground-card::before { content: var(--playground-title); }
+  #card-playground[data-playground-compact="true"] #playground-card { padding: 8px; }
+  #card-playground[data-playground-tone="bold"] #playground-card { font-weight: 700; }
+</style>
+<lf-ask id="card-playground-ask">
+  <h2>How should the card look?</h2>
+  <lf-playground id="card-playground">
+    <lf-playground-control name="radius" label="Corner radius" kind="range"
+      value="12" min="0" max="28" step="1" unit="px"></lf-playground-control>
+    <lf-playground-control name="compact" label="Compact spacing" kind="toggle"
+      value="false"></lf-playground-control>
+    <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
+      <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
+      <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+    </lf-playground-control>
+    <lf-playground-control name="accent" label="Accent" kind="color"
+      value="#4f766f"></lf-playground-control>
+    <lf-playground-control name="title" label="Title" kind="text"
+      value="Field note" placeholder="Card title"></lf-playground-control>
+    <lf-playground-preset label="Dense">
+      <lf-playground-setting for="radius" value="4"></lf-playground-setting>
+      <lf-playground-setting for="compact" value="true"></lf-playground-setting>
+      <lf-playground-setting for="tone" value="bold"></lf-playground-setting>
+    </lf-playground-preset>
+    <lf-playground-preview id="card-preview">
+      <article id="playground-card"><strong>Card preview</strong><p>Open until dusk.</p></article>
+    </lf-playground-preview>
+    <lf-playground-output id="card-instruction">Use a
+      <lf-playground-value for="radius"></lf-playground-value> radius,
+      compact spacing set to <lf-playground-value for="compact"></lf-playground-value>,
+      a <lf-playground-value for="tone"></lf-playground-value> tone,
+      <lf-playground-value for="accent"></lf-playground-value> accents, and the title
+      <lf-playground-value for="title"></lf-playground-value>.
+    </lf-playground-output>
+  </lf-playground>
 </lf-ask>
 """,
 )
@@ -1407,6 +1458,259 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         "    - strong: Squirrel baffle\n"
         "    - 'button \"Move: Squirrel baffle — Done — your move\"': ⠿"
     )
+    assert errors == []
+    page.close()
+
+
+def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
+    browser, serve
+):
+    page, errors = open_page(browser, serve(PLAYGROUND_PAGE))
+    playground = page.locator("#card-playground")
+    before = len(sent_events(serve.page_dir))
+    changes = playground.evaluate(
+        """root => {
+          window.playgroundChanges = [];
+          root.addEventListener('lf-playground-change', event =>
+            window.playgroundChanges.push(event.detail.values));
+          return root.values;
+        }"""
+    )
+    assert changes == {
+        "accent": "#4f766f",
+        "compact": False,
+        "radius": 12,
+        "title": "Field note",
+        "tone": "quiet",
+    }
+
+    page.locator('lf-playground-control[name="radius"] input').fill("17")
+    page.locator('lf-playground-control[name="compact"] input').check()
+    page.locator('lf-playground-choice[value="bold"]').click()
+    page.locator('lf-playground-control[name="accent"] input').fill("#8b4a5f")
+    page.locator('lf-playground-control[name="title"] input').fill("Ridge note; alert")
+
+    assert len(sent_events(serve.page_dir)) == before
+    assert playground.evaluate("root => root.values") == {
+        "accent": "#8b4a5f",
+        "compact": True,
+        "radius": 17,
+        "title": "Ridge note; alert",
+        "tone": "bold",
+    }
+    assert playground.evaluate("root => window.playgroundChanges.at(-1)")["title"] == (
+        "Ridge note; alert"
+    )
+    expect(page.locator("#playground-card")).to_have_css("border-radius", "17px")
+    expect(page.locator("#playground-card")).to_have_css("padding", "8px")
+    assert (
+        page.locator("#playground-card").evaluate(
+            "element => getComputedStyle(element, '::before').content"
+        )
+        == '"Ridge note; alert"'
+    )
+    expect(page.locator("#card-instruction")).to_have_text(
+        "Use a 17px radius, compact spacing set to true, a bold tone, #8b4a5f accents, "
+        "and the title Ridge note; alert."
+    )
+
+    with sending(page, "the playground configuration"):
+        playground.get_by_role("button", name="Use these settings").click()
+    action = sent_events(serve.page_dir)[-1]
+    assert action["action"] == "choose"
+    assert action["detail"] == {
+        "values": {
+            "accent": "#8b4a5f",
+            "compact": True,
+            "radius": 17,
+            "title": "Ridge note; alert",
+            "tone": "bold",
+        },
+        "instruction": (
+            "Use a 17px radius, compact spacing set to true, a bold tone, #8b4a5f accents, "
+            "and the title Ridge note; alert."
+        ),
+    }
+
+    page.reload()
+    expect(page.locator("#card-instruction")).to_contain_text("17px radius")
+    assert playground.evaluate("root => root.values")["title"] == "Ridge note; alert"
+    undo(page)
+    expect(page.locator("#card-instruction")).to_contain_text("12px radius")
+    assert playground.evaluate("root => root.values")["compact"] is False
+    assert errors == []
+    page.close()
+
+
+def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(
+    browser, serve
+):
+    page, errors = open_page(browser, serve(PLAYGROUND_PAGE))
+    playground = page.locator("#card-playground")
+    choose = playground.get_by_role("button", name="Use these settings")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+
+    choose.evaluate("button => { button.click(); button.click(); }")
+    holding(page, held, 1, "the playground choice")
+    expect(choose).to_be_disabled()
+    expect(choose).to_have_attribute("aria-busy", "true")
+    page.wait_for_timeout(100)
+    assert len(held) == 1
+
+    held[0].continue_()
+    round_trip(page)
+    expect(choose).to_be_enabled()
+    expect(choose).not_to_have_attribute("aria-busy", "true")
+    assert len(actions(serve.page_dir)) == 1
+    assert errors == []
+    page.close()
+
+
+def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
+    browser, serve
+):
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page, errors = open_page(browser, serve(PLAYGROUND_PAGE), context=context)
+    playground = page.locator("#card-playground")
+    expect(playground.get_by_role("group", name="Starting points")).to_be_visible()
+    expect(playground.get_by_role("group", name="Controls")).to_be_visible()
+
+    playground.get_by_role("button", name="Dense").click()
+    expect(playground.get_by_role("button", name="Dense")).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    assert playground.evaluate("root => root.values") == {
+        "accent": "#4f766f",
+        "compact": True,
+        "radius": 4,
+        "title": "Field note",
+        "tone": "bold",
+    }
+    page.locator('lf-playground-control[name="radius"] input').fill("5")
+    expect(playground.get_by_role("button", name="Dense")).to_have_attribute(
+        "aria-pressed", "false"
+    )
+    playground.get_by_role("button", name="Dense").click()
+    playground.get_by_role("button", name="Copy instruction").click()
+    expect(playground.get_by_role("button", name="Copied")).to_be_visible()
+    assert page.evaluate("navigator.clipboard.readText()") == (
+        "Use a 4px radius, compact spacing set to true, a bold tone, #4f766f accents, "
+        "and the title Field note."
+    )
+
+    playground.get_by_role("button", name="Reset").click()
+    assert playground.evaluate("root => root.values")["radius"] == 12
+    resized(page, 420, 760)
+    assert page.evaluate("document.documentElement.scrollWidth") == 420
+    assert " " not in playground.evaluate(
+        "root => getComputedStyle(root).gridTemplateColumns"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_playground_rejects_restored_values_that_do_not_match_its_controls(
+    browser, serve
+):
+    url = serve(PLAYGROUND_PAGE)
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "card-playground",
+            "action": "choose",
+            "detail": {
+                "values": {
+                    "accent": "#4f766f",
+                    "compact": False,
+                    "radius": 12,
+                    "title": "Field note",
+                    "tone": "quiet",
+                    "unknown": "value",
+                },
+                "instruction": "Use the unknown setting.",
+            },
+        },
+    )
+
+    page, errors = open_page(browser, url)
+    expect(page.locator("#card-playground .lf-error")).to_contain_text(
+        "configuration needs exactly these controls"
+    )
+    assert any(
+        "configuration needs exactly these controls" in error for error in errors
+    ), errors
+    page.close()
+
+
+def test_a_playground_rejects_range_values_that_do_not_land_on_its_step(browser, serve):
+    source = PLAYGROUND_PAGE.replace('value="12" min="0"', 'value="12.5" min="0"')
+    page, errors = open_page(browser, serve(source))
+
+    expect(page.locator("#card-playground .lf-error")).to_contain_text(
+        "control radius has a value off its step"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_playground_export_keeps_the_chosen_preview_and_instruction(
+    browser, serve, tmp_path
+):
+    url = serve(PLAYGROUND_PAGE)
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "card-playground",
+            "action": "choose",
+            "detail": {
+                "values": {
+                    "accent": "#8b4a5f",
+                    "compact": True,
+                    "radius": 17,
+                    "title": "Ridge note",
+                    "tone": "bold",
+                },
+                "instruction": "Use the chosen card settings.",
+            },
+        },
+    )
+    out = tmp_path / "playground-copy.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    copy = browser.new_page(viewport={"width": 900, "height": 800})
+    copy.goto(out.as_uri(), wait_until="load")
+
+    expect(copy.locator("script")).to_have_count(0)
+    expect(copy.locator("#card-playground .lf-playground-controls")).to_be_hidden()
+    expect(copy.locator("#card-playground").get_by_role("button")).to_have_count(0)
+    expect(copy.locator("#playground-card")).to_have_css("border-radius", "17px")
+    expect(copy.locator("#playground-card")).to_have_css("padding", "8px")
+    expect(copy.locator("#card-instruction")).to_contain_text("Ridge note")
+    copy.close()
+
+
+def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
+    browser, serve
+):
+    source = PLAYGROUND_PAGE.replace(
+        '<lf-ask id="card-playground-ask">',
+        '<lf-specimen id="playground-example" label="card playground">',
+    ).replace("</lf-ask>", "</lf-specimen>")
+    page, errors = open_page(browser, serve(source))
+    playground = page.locator("#card-playground")
+
+    expect(playground.get_by_role("button")).to_have_count(0)
+    expect(playground.locator("lf-playground-control:visible")).to_have_count(0)
+    expect(playground.locator("lf-playground-preset:visible")).to_have_count(0)
+    expect(playground.locator("#playground-card")).to_be_visible()
+    expect(playground.locator("#card-instruction")).to_contain_text("12px radius")
+    assert playground.evaluate("root => root.values")["compact"] is False
     assert errors == []
     page.close()
 

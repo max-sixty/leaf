@@ -2342,6 +2342,185 @@ gallery/
           </lf-tabs>
         </section>
 
+        <section id="bg-playground">
+          <p class="eyebrow bg-feature-elements">
+            lf-playground · lf-playground-control · lf-playground-choice ·
+            lf-playground-preset · lf-playground-setting · lf-playground-preview ·
+            lf-playground-output · lf-playground-value
+          </p>
+          <h3 id="bg-playground-heading">
+            <strong>Playground</strong
+            ><span class="bg-feature-detail">: configure, preview, and choose</span>
+          </h3>
+          <p id="bg-playground-guide">
+            Start with one of the agent’s three recommendations, then tune the controls.
+            The card and instruction update at once while the event log stays unchanged;
+            Apply card sends the complete configuration as one decision.
+          </p>
+          <lf-ask id="bg-card-playground-ask">
+            <h4 id="bg-card-playground-question">How should the sample card look?</h4>
+            <lf-playground id="bg-card-playground" submit-label="Apply card">
+              <lf-playground-control
+                name="radius"
+                label="Corner radius"
+                kind="range"
+                value="12"
+                min="0"
+                max="28"
+                step="1"
+                unit="px"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="compact"
+                label="Compact spacing"
+                kind="toggle"
+                value="false"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="tone"
+                label="Tone"
+                kind="choice"
+                value="quiet"
+              >
+                <lf-playground-choice
+                  value="quiet"
+                  label="Quiet"
+                ></lf-playground-choice>
+                <lf-playground-choice
+                  value="tinted"
+                  label="Tinted"
+                ></lf-playground-choice>
+                <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+              </lf-playground-control>
+              <lf-playground-control
+                name="alignment"
+                label="Alignment"
+                kind="choice"
+                value="left"
+              >
+                <lf-playground-choice value="left" label="Left"></lf-playground-choice>
+                <lf-playground-choice
+                  value="center"
+                  label="Center"
+                ></lf-playground-choice>
+              </lf-playground-control>
+              <lf-playground-control
+                name="elevated"
+                label="Lift from page"
+                kind="toggle"
+                value="false"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="accent"
+                label="Accent"
+                kind="color"
+                value="#4f766f"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="title"
+                label="Instruction title"
+                kind="text"
+                value="Field note"
+                placeholder="Card title"
+              ></lf-playground-control>
+              <lf-playground-preset label="Field note">
+                <lf-playground-setting for="radius" value="12"></lf-playground-setting>
+                <lf-playground-setting
+                  for="compact"
+                  value="false"
+                ></lf-playground-setting>
+                <lf-playground-setting for="tone" value="quiet"></lf-playground-setting>
+                <lf-playground-setting
+                  for="alignment"
+                  value="left"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="elevated"
+                  value="false"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="accent"
+                  value="#4f766f"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="title"
+                  value="Field note"
+                ></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preset label="Trail alert">
+                <lf-playground-setting for="radius" value="4"></lf-playground-setting>
+                <lf-playground-setting
+                  for="compact"
+                  value="true"
+                ></lf-playground-setting>
+                <lf-playground-setting for="tone" value="bold"></lf-playground-setting>
+                <lf-playground-setting
+                  for="alignment"
+                  value="left"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="elevated"
+                  value="true"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="accent"
+                  value="#b6533c"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="title"
+                  value="Trail alert"
+                ></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preset label="Evening invite">
+                <lf-playground-setting for="radius" value="24"></lf-playground-setting>
+                <lf-playground-setting
+                  for="compact"
+                  value="false"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="tone"
+                  value="tinted"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="alignment"
+                  value="center"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="elevated"
+                  value="true"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="accent"
+                  value="#8b4a5f"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="title"
+                  value="Evening walk"
+                ></lf-playground-setting>
+              </lf-playground-preset>
+
+              <lf-playground-preview id="bg-card-preview">
+                <article id="bg-playground-card">
+                  <strong>Card preview</strong>
+                  <p>Ridge route at dusk</p>
+                </article>
+              </lf-playground-preview>
+              <lf-playground-output id="bg-card-instruction">
+                Style the card with a
+                <lf-playground-value for="radius"></lf-playground-value> corner radius,
+                compact spacing set to
+                <lf-playground-value for="compact"></lf-playground-value>, a
+                <lf-playground-value for="tone"></lf-playground-value> tone,
+                <lf-playground-value for="alignment"></lf-playground-value> alignment,
+                elevation set to
+                <lf-playground-value for="elevated"></lf-playground-value>, and
+                <lf-playground-value for="accent"></lf-playground-value> accents. Keep
+                the title “<lf-playground-value for="title"></lf-playground-value>.”
+              </lf-playground-output>
+            </lf-playground>
+          </lf-ask>
+        </section>
+
         <section id="bg-quoted-and-visual">
           <p class="eyebrow bg-feature-elements">
             lf-specimen · lf-shot · lf-options · lf-option · lf-swipe-deck ·

@@ -21,6 +21,7 @@ import {
   alignText,
   commands,
   FOLD_MS,
+  keeps,
   marginButton,
   marginButtonState,
   motion,
@@ -304,7 +305,8 @@ customElements.define(
       const outcome = this.dataset.lfState;
       if (outcome && !this.#failed) {
         this.#receipt ??= document.createElement("span");
-        this.#receipt.className = "lf-sug-receipt";
+        if (this.#receipt.className !== "lf-sug-receipt")
+          this.#receipt.className = "lf-sug-receipt";
         relabel(this.#receipt, outcome === "accept" ? "Accepted" : "Rejected", {
           says: true,
         });
@@ -316,13 +318,14 @@ customElements.define(
           press: () => this.#undoOutcome(),
         });
         marginButtonState(this.#undo, this.#undoing ? "busy" : "settled");
-        this.#undo.setAttribute("aria-disabled", String(this.#undoing));
-        this.#undo.setAttribute(
+        keeps(this.#undo, "aria-disabled", String(this.#undoing));
+        keeps(
+          this.#undo,
           "aria-label",
           `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change}`,
         );
-        this.#row.dataset.lfOutcome = outcome;
-        this.#row.dataset.lfMarginReceipt = "settled";
+        keeps(this.#row, "data-lf-outcome", outcome);
+        keeps(this.#row, "data-lf-margin-receipt", "settled");
         this.#replaceControls(
           ...(undoableAction(this, outcome) ? [this.#undo] : []),
           this.#receipt,
@@ -333,7 +336,8 @@ customElements.define(
       delete this.#row.dataset.lfOutcome;
       if (this.#failed) {
         this.#receipt ??= document.createElement("span");
-        this.#receipt.className = "lf-sug-receipt";
+        if (this.#receipt.className !== "lf-sug-receipt")
+          this.#receipt.className = "lf-sug-receipt";
         relabel(
           this.#receipt,
           this.#failed.undo
@@ -357,7 +361,7 @@ customElements.define(
         });
         for (const control of [this.#retry, this.#cancelFailure])
           marginButtonState(control, "failed");
-        this.#row.dataset.lfMarginReceipt = "failed";
+        keeps(this.#row, "data-lf-margin-receipt", "failed");
         this.#replaceControls(this.#retry, this.#cancelFailure, this.#receipt);
         return;
       }

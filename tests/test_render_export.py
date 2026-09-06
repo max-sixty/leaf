@@ -1361,13 +1361,17 @@ def test_an_exported_page_fixture_stands_on_its_own(
                 held(box.right, box.right + right) && 'right',
             ].filter(Boolean);
         })(document.querySelector('main')),
-        unshown: [...document.querySelectorAll('main *')]
-            .filter(el => el.textContent.trim() && !el.checkVisibility()
-                          // A disclosure the reader can still work, a control's own
-                          // label, and an element with no box by design are all fine;
-                          // what is not is the page's words with nothing to reveal them.
-                          && !el.closest('details, [data-lf-offer], .lf-ui, style, script')
-                          && getComputedStyle(el).display !== 'contents')
+            unshown: [...document.querySelectorAll('main *')]
+                .filter(el => el.textContent.trim() && !el.checkVisibility()
+                              // A disclosure the reader can still work, a control's own
+                              // label, a slot a standing decision deliberately retired,
+                              // and an element with no box by design are all fine;
+                              // what is not is the page's words with nothing to reveal them.
+                              && !el.closest(
+                                  'details, [data-lf-offer], [data-lf-retired], '
+                                  + '.lf-ui, style, script'
+                              )
+                              && getComputedStyle(el).display !== 'contents')
             .map(el => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '')),
         // A press a widget injected is a tab stop wearing an interactive role, and the
         // handler that answered both went with the scripts. Asked of the chrome marker
@@ -1386,14 +1390,16 @@ def test_an_exported_page_fixture_stands_on_its_own(
                         .filter(el => !el.querySelector(
                             'input, select, textarea, a[href], button'))]
             .map(el => el.className || el.tagName.toLowerCase()),
-        // The claim a disarmed attribute leaves standing, since a control nothing can
-        // work is still a control on the page. What a copy may show of a widget's
-        // chrome is one the browser works itself and a label the page speaks through
-        // (data-lf-said); the rest belonged to a runtime the file has not got, so a
-        // mark reading "choose one" invites a reader who cannot answer it.
-            inert: [...document.querySelectorAll('[data-lf-offer]:not([data-lf-said])')]
-                .filter(el => el.checkVisibility() && el.textContent.trim()
-                              && !el.matches(':has(input, select, textarea, a[href], button)')
+            // The claim a disarmed attribute leaves standing, since a control nothing can
+            // work is still a control on the page. What a copy may show of a widget's
+            // chrome is one the browser works itself and a label the page speaks through
+            // (data-lf-said), including the generated row that holds that label; the rest
+            // belonged to a runtime the file has not got, so a mark reading "choose one"
+            // invites a reader who cannot answer it.
+                inert: [...document.querySelectorAll('[data-lf-offer]:not([data-lf-said])')]
+                    .filter(el => el.checkVisibility() && el.textContent.trim()
+                                  && !el.querySelector('[data-lf-said]')
+                                  && !el.matches(':has(input, select, textarea, a[href], button)')
                               // A label may name a native control outside its offered
                               // wrapper. `label.control` is the platform's resolved
                               // association, so this is just as live as a descendant.

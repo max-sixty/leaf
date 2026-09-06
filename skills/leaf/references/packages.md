@@ -50,7 +50,8 @@ and the Beautiful Mermaid renderer it draws with; `diff` adds `lf-diff`, the
 `unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
 technical backlog deck; `command-hub` adds multi-agent orchestration widgets;
 `pr-review` adds a typed pull-request brief with a safe Markdown description and compact
-checks table, plus a data-backed unified call diff:
+checks table, plus a data-backed unified call diff. `gallery` adds the static Button atlas
+used only by the developer feature gallery, so ordinary pages do not select it:
 
 ```bash
 leaf page init --package diagram PAGE

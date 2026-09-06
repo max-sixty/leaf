@@ -456,8 +456,8 @@ export function relabel(node, label, { says } = {}) {
       `relabel(${label}): say whether this label is the page speaking — ` +
         `true, false, or "echo" for a copy of words it says elsewhere`,
     );
-  node.textContent = label;
-  node.dataset.lfGen = "1";
+  if (node.textContent !== label) node.textContent = label;
+  keeps(node, "data-lf-gen", "1");
   node.toggleAttribute("data-lf-said", says === true);
   node.toggleAttribute("data-lf-echo", says === "echo");
 }

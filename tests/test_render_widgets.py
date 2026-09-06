@@ -590,6 +590,42 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     direct.close()
 
 
+def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serve):
+    """The author decides which semantic levels belong in the page route.
+
+    Deeper headings remain ordinary page headings: the contents widget neither links
+    them nor adds generated fragment targets beside them."""
+    source = leaf_page(
+        "bounded contents",
+        """
+<h1>Migration plan</h1>
+<lf-toc id="contents" max-level="3"></lf-toc>
+<section>
+  <h2 id="prepare">Prepare the readers</h2>
+  <h3>Move one cohort</h3>
+  <h4>Verify its checksum</h4>
+</section>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    toc = page.get_by_role("navigation", name="On this page")
+
+    assert toc.get_by_role("link").all_text_contents() == [
+        "Prepare the readers",
+        "Move one cohort",
+    ]
+    assert page.locator("h2, h3, h4").evaluate_all(
+        "nodes => nodes.map(node => [node.localName, node.getAttribute('id'), "
+        "node.previousElementSibling?.className || null])"
+    ) == [
+        ["h2", "prepare", None],
+        ["h3", None, "lf-toc-target lf-ui"],
+        ["h4", None, None],
+    ]
+    assert errors == []
+    page.close()
+
+
 def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, serve):
     """An eyebrow is the heading's label, so its small bottom margin is the room inside
     the title while the heading level's larger top margin remains outside the pair.
@@ -843,7 +879,13 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     capacity_label = capacity.bounding_box()
     limits_label = limits.bounding_box()
     assert capacity_label is not None and limits_label is not None
-    assert capacity_label["y"] + capacity_label["height"] <= limits_label["y"] + 1
+    label_gap = capacity.evaluate(
+        "node => parseFloat(getComputedStyle(node.closest('nav')).lineHeight) / 2"
+    )
+    assert (
+        capacity_label["y"] + capacity_label["height"] + label_gap
+        <= limits_label["y"] + 1
+    )
 
     # The start row and top-level sections share one typographic edge. Depth changes
     # indentation, never the spine or the marker position.
@@ -1124,18 +1166,15 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
 
 
 def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser, serve):
-    """Density may make labels terser, never make the map taller than its spine.
+    """Density leaves enough room to distinguish labels before showing them together.
 
-    Two-line labels establish a real flex minimum. Enough of them once stretched an
-    810px map past 1200px, so the lens described one coordinate system while the lower
-    markers occupied another. In the dense voice labels leave the flex geometry and the
-    row under the pointer reveals alone, keeping every destination without painting an
-    unreadable stack of sixty lines."""
+    The labels fit inside the map without overflowing, but leave less than half a line
+    between neighbors. The dense voice reveals one destination while retaining every
+    marker and the document scale."""
     sections = "\n".join(
-        f"<section><h2 id='part-{index}'>Part {index}: preserve the active readers "
-        f"while the longer migration window remains open</h2>"
+        f"<section><h2 id='part-{index}'>Migration part {index}</h2>"
         f"<p>Move cohort {index} only after its reading is stable.</p></section>"
-        for index in range(1, 61)
+        for index in range(1, 31)
     )
     source = leaf_page(
         "dense contents map",

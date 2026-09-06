@@ -10,7 +10,7 @@
     <meta name="lf-review" content="sign-off" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
     />
     <link rel="stylesheet" href="/theme.css" />
     <style>
@@ -146,7 +146,9 @@
 Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-draft>
         <p id="bg-history-guide">
-          <strong>Picked up</strong> means the saved edit reached the agent.
+          <strong>Picked up</strong> means the saved edit entered an agent turn. The
+          receipt and top bar derive their words from the same delivery, turn, and work
+          evidence.
         </p>
         <lf-draft id="bg-history">
           <pre>The sample workshop is in the blue room.</pre>

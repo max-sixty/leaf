@@ -937,6 +937,73 @@ flowchart LR
     page.close()
 
 
+def test_a_quoted_label_holding_its_own_closer_is_refused(browser, serve):
+    """A label the renderer would cut takes the diagram down rather than a node.
+
+    Beautiful Mermaid reads a node label as the text up to the first closing
+    delimiter and never notices the quotes Mermaid uses to hold one, so
+    `A["list[str]"]` is cut at the inner bracket and the rest of the line — the
+    node the edge points at included — is dropped. A reader cannot see that a box
+    is missing, so the source is refused instead. The refusal is exact: a label
+    whose closer is doubled, a pipe-delimited edge label, and a subgraph title —
+    which the parser reads with its own end-anchored regex rather than through the
+    node patterns — and a commented-out line, which the parser drops before any
+    pattern sees it, all reach the renderer whole.
+    """
+    labels = leaf_page(
+        "diagram labels",
+        """
+<h1 id="title">Diagram labels</h1>
+<lf-diagram id="cut-rectangle"><pre>
+flowchart LR
+  A["names: list[str]"] --&gt; B[plain]
+</pre></lf-diagram>
+<lf-diagram id="cut-diamond"><pre>
+flowchart LR
+  A{"m{k}"} --&gt; B[plain]
+</pre></lf-diagram>
+<lf-diagram id="doubled-closer" parts="node:A node:B"><pre>
+flowchart LR
+  A[["names: list[str]"]] --&gt; B[plain]
+</pre></lf-diagram>
+<lf-diagram id="edge-label" parts="node:A node:B"><pre>
+flowchart LR
+  A --&gt;|"list[str]"| B
+</pre></lf-diagram>
+<lf-diagram id="subgraph-title" parts="node:S node:A node:B"><pre>
+flowchart LR
+  subgraph S["Stage [1]"]
+    A[x] --&gt; B[y]
+  end
+</pre></lf-diagram>
+<lf-diagram id="commented-out" parts="node:A node:B"><pre>
+flowchart LR
+  %% A["names: list[str]"] --&gt; B[plain]
+  A[x] --&gt; B[y]
+</pre></lf-diagram>
+""",
+    )
+    page, _ = open_page(browser, serve(labels))
+
+    for diagram, label in (
+        ("cut-rectangle", "names: list[str]"),
+        ("cut-diamond", "m{k}"),
+    ):
+        expect(page.locator(f"#{diagram} .lf-error")).to_contain_text(label)
+        expect(page.locator(f"#{diagram} svg")).to_have_count(0)
+
+    for diagram in ("doubled-closer", "edge-label", "subgraph-title", "commented-out"):
+        expect(page.locator(f"#{diagram} .lf-error")).to_have_count(0)
+        expect(page.locator(f'#{diagram} g[data-id="B"]')).to_be_visible()
+    expect(page.locator('#doubled-closer g[data-id="A"] text')).to_have_text(
+        "names: list[str]"
+    )
+    expect(page.locator('#subgraph-title g[data-id="S"] text')).to_have_text(
+        "Stage [1]"
+    )
+    page.close()
+
+
 def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
     """A diagram keeps the natural geometry its renderer laid out.
 

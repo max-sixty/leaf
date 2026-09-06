@@ -136,8 +136,8 @@ def leaf(env: dict, *args: str, input_text: str | None = None) -> None:
         sys.exit(f"leaf {' '.join(args)}:\n{done.stdout}{done.stderr}")
 
 
-def example_sources() -> list[Path]:
-    """Worked examples the public site publishes, never derived test surfaces."""
+def worked_example_sources() -> list[Path]:
+    """Authored worked examples, never derived or developer test surfaces."""
     sources = [
         source
         for source in sorted(EXAMPLES.glob("*.html"))
@@ -149,10 +149,10 @@ def example_sources() -> list[Path]:
 
 
 def published_page_sources() -> list[Path]:
-    """Worked examples plus the linked developer reference."""
+    """Authored pages the public site publishes, including its developer reference."""
     if not FEATURE_GALLERY.is_file():
         sys.exit("the developer feature gallery is missing")
-    return [*example_sources(), FEATURE_GALLERY]
+    return [*worked_example_sources(), FEATURE_GALLERY]
 
 
 def product_sources() -> list[Path]:

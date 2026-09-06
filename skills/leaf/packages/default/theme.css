@@ -32,7 +32,8 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
   opacity: 0; pointer-events: none;
 }
 lf-gloss:has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
-  outline: var(--here-ring); --lf-here-ring: gloss-mark; outline-offset: var(--here-ring-gap);
+  outline: var(--here-ring); --lf-here-ring: gloss-mark;
+  outline-offset: calc(-1 * var(--here-ring-w));
 }
 .lf-gloss-popover {
   position: fixed; inset: auto; position-area: block-end center;

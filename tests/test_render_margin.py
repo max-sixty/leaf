@@ -10,6 +10,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf.served_state import page as served_page
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
@@ -2169,7 +2170,7 @@ def test_a_buttons_walk_position_stays_out_of_its_visible_word(browser, serve):
 
 
 def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosure(
-    browser, serve
+    browser, serve, monkeypatch
 ):
     """A fitting keeps the Button family visible without promising a press.
 
@@ -2370,8 +2371,18 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         stops
     )
 
-    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(minutes=3))
-    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    # Waiting is a server-folded phase now. Advance the threaded test server's clock,
+    # then let the ordinary state read advance the retained Button in place.
+    sent_at = datetime.fromisoformat(logged_action["ts"])
+    advanced = (sent_at + timedelta(minutes=3)).isoformat()
+
+    def advanced_now():
+        return advanced
+
+    for clock_owner in (served_page, events_model, service_model):
+        monkeypatch.setattr(clock_owner, "now_iso", advanced_now)
+    session_model.cmd_status(page_dir, "idle", "")
+    told(page)
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
     assert_status("Waiting for pickup", "Sent 3m ago")
 
@@ -3544,6 +3555,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     that floor the same inline card overlays the page rather than opening Threads."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
     page, errors = open_page(browser, serve(example))
+    page.emulate_media(reduced_motion="reduce")
     resized_shell(page, 1536, 900)
     marker = page.get_by_role(
         "group", name=re.compile(r"Page actions for task · iOS reconnect stall")
@@ -3564,6 +3576,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     expect(
         thread.get_by_role("button", name="Open interactive reply in Threads")
     ).to_have_count(1)
+    expect(thread.locator("textarea")).to_be_focused()
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -3571,6 +3584,8 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
           const marker = markerNode.getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           const title = document.querySelector('.lf-margin-preview-title')
+            .getBoundingClientRect();
+          const reply = document.querySelector('.lf-margin-thread .lf-say')
             .getBoundingClientRect();
           const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
           return {bannerBottom: banner.bottom, mainRight: main.right,
@@ -3582,7 +3597,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
                   borderLeft: cardStyle.borderLeftWidth,
                   borderRight: cardStyle.borderRightWidth,
                   titleLeft: title.left, titleTop: title.top,
-                  cardScroll: document.querySelector('.lf-margin-preview').scrollTop,
+                  replyTop: reply.top, replyBottom: reply.bottom,
                   panelOpen: document.querySelector('.lf-panel').classList.contains('open')};
         }"""
     )
@@ -3599,7 +3614,8 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert geometry["cardTop"] <= geometry["markerMiddle"] <= geometry["cardBottom"], (
         geometry
     )
-    assert geometry["cardScroll"] == 0, geometry
+    assert geometry["replyTop"] >= geometry["cardTop"], geometry
+    assert geometry["replyBottom"] <= geometry["cardBottom"], geometry
     assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
     assert geometry["titleLeft"] == pytest.approx(geometry["cardLeft"] + 13, abs=0.5)
     assert not geometry["panelOpen"], geometry

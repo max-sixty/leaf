@@ -57,7 +57,7 @@ PINS = {
     "entities": "7.0.1",
     "sortablejs": "1.15.7",
     "@observablehq/plot": "0.6.17",
-    "@pierre/diffs": "1.3.6",
+    "@pierre/diffs": "1.4.1",
     "@modelcontextprotocol/ext-apps": "1.7.5",
     "shiki": "4.4.3",
     "esbuild": "0.28.2",
@@ -601,14 +601,59 @@ REBUILDS = {
 }
 
 
-def report_pins() -> None:
-    """Every pin against upstream's latest, with the bundle to rebuild if it moved."""
-    for package, pinned in PINS.items():
-        latest = run(
-            "npm", "view", f"{package}@latest", "version", cwd=ROOT, capture=True
+# Two pins are not Leaf's own choice of version. beautiful-mermaid imports elkjs and
+# entities, and they are pinned here only because the bundle is self-contained: esbuild
+# resolves those bare imports itself, so the versions have to be named. A release
+# outside the range beautiful-mermaid declares is therefore not a pin to take. npm
+# would install the declared version nested under it, esbuild would bundle that one,
+# and the table would say one thing while the bundle carried another. Their rows read
+# against the dependant's range, so what the report calls movement is movement that can
+# actually be taken.
+HELD_BY = {"elkjs": "beautiful-mermaid", "entities": "beautiful-mermaid"}
+
+
+def newest(package: str, within: str = "latest") -> str:
+    """Upstream's newest release of a package, bounded by a range where one is given.
+
+    A range answers with every match, and npm prints them in packument order rather
+    than semver order, so the last one is the range's most recently published release.
+    That is its newest while a range's releases go out in order; a patch backported
+    inside the range after a higher one would be read in its place.
+    """
+    found = json.loads(
+        run(
+            "npm",
+            "view",
+            f"{package}@{within}",
+            "version",
+            "--json",
+            cwd=ROOT,
+            capture=True,
         )
+    )
+    return found[-1] if isinstance(found, list) else found
+
+
+def report_pins() -> None:
+    """Every pin against the newest release it could take, and the bundle to rebuild."""
+    for package, pinned in PINS.items():
+        holder = HELD_BY.get(package)
+        allowed = (
+            run(
+                "npm",
+                "view",
+                spec(holder),
+                f"dependencies.{package}",
+                cwd=ROOT,
+                capture=True,
+            )
+            if holder
+            else "latest"
+        )
+        latest = newest(package, allowed)
         rebuild = " ".join(REBUILDS[package])
-        moved = "" if latest == pinned else f"latest {latest}"
+        held = f" (held to {holder}'s {allowed})" if holder else ""
+        moved = "" if latest == pinned else f"latest {latest}{held}"
         print(f"{package:22} {pinned:10} {rebuild:24} {moved}".rstrip())
 
 
@@ -619,7 +664,10 @@ def main() -> None:
     parser.add_argument(
         "--pins",
         action="store_true",
-        help="read every pin against upstream's latest, and name what to rebuild",
+        help=(
+            "read every pin against the newest release it could take, "
+            "and name what to rebuild"
+        ),
     )
     args = parser.parse_args()
 

@@ -67,7 +67,8 @@ def main() -> None:
     # Its other links still resolve; the ordinary verified rebuild below checks all of
     # them once the new bytes exist.
     expected = {
-        DOCS / f"example-{source.stem}.jpg" for source in site_build.example_sources()
+        DOCS / f"example-{source.stem}.jpg"
+        for source in site_build.worked_example_sources()
     }
     update_catalog({preview for preview in expected if preview.is_file()})
     site_build.build(site_build.OUT, verify_links=False)
@@ -84,7 +85,7 @@ def main() -> None:
             page = browser.new_page(viewport=VIEWPORT, color_scheme="light")
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
-            for source in site_build.example_sources():
+            for source in site_build.worked_example_sources():
                 errors.clear()
                 page.goto(f"{origin}/examples/{source.stem}/", wait_until="load")
                 page.wait_for_function(READY)
@@ -108,7 +109,7 @@ def main() -> None:
         print(f"  removed {stale.relative_to(ROOT)}")
     update_catalog(previews)
     site_build.build(site_build.OUT)
-    print(f"✓ {len(site_build.example_sources())} previews")
+    print(f"✓ {len(site_build.worked_example_sources())} previews")
 
 
 if __name__ == "__main__":

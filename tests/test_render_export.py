@@ -1137,7 +1137,14 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     ][-1]
     events_model.append_event(
         serve.page_dir,
-        {"kind": "pickup", "author": "page", "events": [in_flight["id"]]},
+        {
+            "kind": "pickup",
+            "author": "page",
+            "events": [in_flight["id"]],
+            "phase": "opened",
+            "session": None,
+            "turn": None,
+        },
     )
 
     live = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -1164,6 +1171,51 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     )
     assert errors == []
     page.close()
+
+
+def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
+    source = leaf_page(
+        "Export CSP",
+        """
+<h1>Export CSP</h1>
+<a id="relative" href="relative-target">Relative target</a>
+<form id="escape" action="https://outside.invalid/collect" method="post">
+  <input name="page-state" value="reader decision">
+  <button type="submit">Send page state</button>
+</form>
+""",
+        head='<base href="https://outside.invalid/rebased/">',
+    )
+    url = serve(source)
+    out = tmp_path / "standalone.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.add_init_script(
+        """
+          window.__cspViolations = [];
+          document.addEventListener('securitypolicyviolation', event => {
+            window.__cspViolations.push(event.effectiveDirective);
+          });
+        """
+    )
+    escaped = []
+    page.route(
+        "https://outside.invalid/**",
+        lambda route: (
+            escaped.append(route.request.url),
+            route.fulfill(status=204, body=""),
+        ),
+    )
+    try:
+        page.goto(out.as_uri(), wait_until="load")
+        page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
+        assert page.locator("#relative").evaluate("link => link.protocol") == "file:"
+        page.locator("#escape").evaluate("form => form.requestSubmit()")
+        page.wait_for_function("() => window.__cspViolations.includes('form-action')")
+        assert escaped == []
+    finally:
+        page.close()
 
 
 @pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)

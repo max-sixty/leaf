@@ -62,6 +62,7 @@ def test_process_server_multiplexes_pages_on_one_exact_origin(page_dir, tmp_path
         with urllib.request.urlopen(first_url) as response:
             html = response.read().decode()
             assert response.headers.get("Set-Cookie") is None
+            assert response.headers.get("Content-Security-Policy") is None
         root = urlsplit(first_url).path.rstrip("/")
         assert f'src="{root}/leaf.js"' in html
         assert f'href="{root}/theme.css"' in html
@@ -92,6 +93,7 @@ def test_process_server_multiplexes_pages_on_one_exact_origin(page_dir, tmp_path
         with urllib.request.urlopen(
             f"{pages.origin}{state['versions'][0]['url']}"
         ) as response:
+            assert response.headers.get("Content-Security-Policy") is None
             assert f'src="{root}/leaf.js"' in response.read().decode()
 
         try:

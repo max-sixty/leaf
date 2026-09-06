@@ -14,6 +14,7 @@ export { DISCLOSE } from "./keyboard/disclosure.js";
 export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 export { focused, keys as commands, paintKeys, saying } from "./keyboard/scopes.js";
 export {
+  BUTTON_GRAMMAR,
   marginButton,
   marginButtonState,
   registerMarginItem,

@@ -31,6 +31,19 @@ the relevant design note or in git history.
   idiom for owner state other owners read: `export let` bindings or reader functions,
   not both.
 
+- **Give the touch grip room of its own, then fit more thread cards.** At a coarse
+  pointer the panel's resize grip is a 44px square laid over the list, and nothing
+  reserves that space: cards run under it at every scroll position, so whether its
+  focus ring lands on a button is luck. Tightening the cards' spacing (reverted in
+  this branch) moved one Send button up onto it and
+  `test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll` said so.
+  Reserving a full-height gutter would contradict the grip's own design — a local
+  handle, not a scroll-blocking wall — so settle what the phone sheet owes it first.
+  Spacing alone does not fit a third card either: the card's own content already
+  exceeds a third of the list's height, which is the reply box and Send/Resolve row
+  every card carries. Collapsing that to a single Reply affordance until the reader
+  enters the card is the change that would.
+
 - **Make the MCP bundle fail loud on an evaluation-order fault.** esbuild hoists
   cross-module `let`/`const` into `var`s, so a fault the browser throws on reads
   `undefined` in the bundle; give `test_render_mcp` a probe that would see it, or build

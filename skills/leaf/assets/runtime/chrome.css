@@ -1315,7 +1315,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      a second description of it. What .lf-going adds is the clip the fold needs and
      the outcome said in paint: the box is on its way out and may not also state
      that in metrics the fold is animating. */
-  .lf-thread, .lf-going { --lf-thread-pad: 6px; position: relative; border: 1px solid var(--rule); border-radius: var(--r); padding: var(--lf-thread-pad); margin-bottom: 8px; --lf-frame: 1; }
+  .lf-thread, .lf-going { --lf-thread-pad: 10px; position: relative; border: 1px solid var(--rule); border-radius: var(--r); padding: var(--lf-thread-pad); margin-bottom: 12px; --lf-frame: 1; }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long
      conversation one off-screen wash. The fallback keeps a custom theme without the
@@ -1429,7 +1429,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* The general Send stays beside its field; a thread gives the field its own row. */
   .lf-general { display: flex; gap: 6px; margin-top: 8px; align-items: flex-end; }
   .lf-general textarea { flex: 1; min-width: 0; }
-  .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 4px; }
+  .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
   .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
   .lf-thread-action:hover { color: var(--ok); }
   /* Reopen stands in the same row as Resolve and answers the same question from the

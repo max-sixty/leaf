@@ -722,8 +722,10 @@
               <details class="reference-more">
                 <summary aria-label="Full x-visual contract">Full contract</summary>
                 <p>
-                  <code>whole</code> anchors the picture on the authored widget. For
-                  <code>{parts: ATTR}</code>, its module calls
+                  <code>whole</code> anchors the picture on the authored widget. Every
+                  declared provider also supplies its own visual surface for
+                  whole-widget aim and marks, so chrome paint stays above the widget's
+                  drawing. For <code>{parts: ATTR}</code>, its module calls
                   <code>registerVisualParts(source, read)</code> once;
                   <code>read</code> returns the complete current
                   <code>{id, element, label, surface?}</code> inventory. Core admits

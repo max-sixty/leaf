@@ -1,5 +1,6 @@
 """File-authored anchors, drawings, width, and handover tests."""
 
+import io
 import json
 import math
 import re
@@ -16,6 +17,7 @@ from leaf import structure as structure_model
 from leaf.passages import enclosing_ids
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import version as render_gate_model
+from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_support import (
     AT_THE_HANDOVER,
@@ -762,13 +764,19 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     # belongs to the widget that holds it, which is the element the page gave a name.
     page.locator("#flow svg").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
-    page.locator("#flow.lf-mark-el.lf-pending").wait_for()
+    page.locator("#flow.lf-mark-el.lf-pending.lf-shaped-mark").wait_for()
+    expect(page.locator(".lf-visual-mark-pending")).to_be_visible()
     assert not composer_quote(page)["shown"], "a picture has no words to quote back"
     page.keyboard.press("Escape")
 
     page.locator("#tree").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
-    page.locator("#tree.lf-mark-el.lf-pending").wait_for()
+    page.locator("#tree.lf-mark-el.lf-pending.lf-shaped-mark").wait_for()
+    overlay = page.locator(".lf-visual-mark-pending")
+    expect(overlay).to_be_visible()
+    assert overlay.evaluate("el => getComputedStyle(el).backgroundImage !== 'none'"), (
+        "the rectangular visual painter dropped the pending comment wash"
+    )
     page.keyboard.press("Escape")
 
     # And a paragraph is still text: the click reaches no picture and raises nothing.
@@ -777,6 +785,164 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
         page.locator(".lf-fab-input"),
         "a click on prose was read as a click on a picture",
     ).not_to_be_visible()
+    assert errors == []
+    page.close()
+
+
+def _edge_ink_changes(quiet, painted, target, clip, ink):
+    """Count newly painted target ink on each edge of a clipped screenshot."""
+    difference = ImageChops.difference(quiet, painted)
+    left = target["x"] - clip["x"]
+    top = target["y"] - clip["y"]
+    right = left + target["width"]
+    bottom = top + target["height"]
+    boxes = {
+        "left": (
+            math.floor(left) - 1,
+            math.floor(top) + 4,
+            math.ceil(left) + 2,
+            math.ceil(bottom) - 4,
+        ),
+        "right": (
+            math.floor(right) - 2,
+            math.floor(top) + 4,
+            math.ceil(right) + 1,
+            math.ceil(bottom) - 4,
+        ),
+        "top": (
+            math.floor(left) + 4,
+            math.floor(top) - 1,
+            math.ceil(right) - 4,
+            math.ceil(top) + 2,
+        ),
+        "bottom": (
+            math.floor(left) + 4,
+            math.floor(bottom) - 2,
+            math.ceil(right) - 4,
+            math.ceil(bottom) + 1,
+        ),
+    }
+    changed = {
+        name: sum(
+            delta != (0, 0, 0)
+            and max(abs(channel - expected) for channel, expected in zip(pixel, ink))
+            <= 40
+            for pixel, delta in zip(
+                painted.crop(edge).get_flattened_data(),
+                difference.crop(edge).get_flattened_data(),
+            )
+        )
+        for name, edge in boxes.items()
+    }
+    missing = [
+        name
+        for name, count in changed.items()
+        if count < max(difference.crop(boxes[name]).size) / 2
+    ]
+    return changed, missing
+
+
+def test_a_screenshot_comment_mark_paints_above_its_edge_to_edge_frame(browser, serve):
+    """A declared visual is painted in chrome, above its package-owned children.
+
+    lf-shot is the causal case: its positioned frame reaches every side of a host with
+    no border of its own. A source-element outline sits below that frame and disappears
+    down both sides. Pixel differences on all four edge bands prove the projected mark
+    is visible paint rather than merely a class or an occluded outline.
+    """
+    example = next(path for path in EXAMPLES if path.stem == "release-notes")
+    page, errors = open_page(browser, serve(example))
+    shot = page.locator("#rn-console-shot")
+    shot.scroll_into_view_if_needed()
+    box = shot.bounding_box()
+    clip = {
+        "x": math.floor(box["x"]) - 2,
+        "y": math.floor(box["y"]) - 2,
+        "width": math.ceil(box["x"] + box["width"]) - math.floor(box["x"]) + 4,
+        "height": math.ceil(box["y"] + box["height"]) - math.floor(box["y"]) + 4,
+    }
+
+    def screenshot():
+        return Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+
+    quiet = screenshot()
+    shot.locator(".lf-shotflip").click(modifiers=["Alt"])
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    expect(shot).to_have_class(re.compile(r"\blf-shaped-mark\b"))
+    overlay = page.locator(".lf-visual-mark-pending")
+    expect(overlay).to_be_visible()
+    ink = overlay.evaluate(
+        """element => getComputedStyle(element).borderLeftColor
+          .match(/[0-9.]+/g).slice(0, 3).map(Number)"""
+    )
+    marked = screenshot()
+
+    changed, missing = _edge_ink_changes(quiet, marked, box, clip, ink)
+    assert not missing, (
+        f"the screenshot frame covered the mark's {missing} edge: {changed} ink pixels"
+    )
+
+    assert errors == []
+    page.close()
+
+
+def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, serve):
+    """A margin control traces a visual target above its edge-to-edge children."""
+    example = next(path for path in EXAMPLES if path.stem == "release-notes")
+    page, errors = open_page(browser, serve(example))
+    resized(page, 1200, 900)
+    margins_laid_out(page)
+    shot = page.locator("#rn-console-shot")
+    shot.scroll_into_view_if_needed()
+    box = shot.bounding_box()
+    clip = {
+        "x": math.floor(box["x"]) - 2,
+        "y": math.floor(box["y"]) - 2,
+        "width": math.ceil(box["x"] + box["width"]) - math.floor(box["x"]) + 4,
+        "height": math.ceil(box["y"] + box["height"]) - math.floor(box["y"]) + 4,
+    }
+
+    def screenshot():
+        return Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+
+    quiet = screenshot()
+    toggle = page.get_by_role(
+        "button",
+        name="Show after — the run list with and without a status column",
+    )
+    toggle.hover()
+    trace = page.locator('.lf-target-trace[data-for="rn-console-shot"]')
+    expect(trace).to_be_visible()
+    correspondence = toggle.evaluate(
+        """control => {
+          const line = getComputedStyle(control.closest('.lf-margin-item'), '::before');
+          const contour = getComputedStyle(document.querySelector('.lf-target-trace'));
+          return {
+            line: [line.borderTopWidth, line.borderTopColor],
+            contour: [contour.borderTopWidth, contour.borderTopColor],
+          };
+        }"""
+    )
+    assert correspondence["line"] == correspondence["contour"]
+    ink = trace.evaluate(
+        """element => {
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          context.fillStyle = getComputedStyle(element).borderLeftColor;
+          context.fillRect(0, 0, 1, 1);
+          return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+        }"""
+    )
+    traced = screenshot()
+
+    changed, missing = _edge_ink_changes(quiet, traced, box, clip, ink)
+    assert not missing, (
+        f"the screenshot frame covered the trace's {missing} edge: {changed} ink pixels"
+    )
+    assert shot.evaluate("element => getComputedStyle(element).outlineStyle") == "none"
+    toggle.click()
+    expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
+
     assert errors == []
     page.close()
 
@@ -1061,6 +1227,35 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
     )
     assert narrow["scrolls"], "a drawing wider than the room must scroll inside its box"
     assert narrow["sideways"] == 0, "nor may the page scroll sideways for it"
+    assert errors == []
+    page.close()
+
+
+def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve):
+    """Projecting a visual mark must not erase the provider's focus indication."""
+    url = serve(WIDE_DIAGRAM_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "diagram-comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep the focus visible.",
+            "anchor": {"section": "flow"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    resized(page, 760, 900)
+    diagram = page.locator("#flow")
+    expect(diagram).to_have_attribute("tabindex", "0")
+    diagram.focus()
+    assert diagram.evaluate("element => element.matches(':focus-visible')")
+
+    mark = page.locator(".lf-visual-mark")
+    expect(mark).to_have_class(re.compile(r"\blf-visual-mark-focus\b"))
+    expect(mark).to_have_css("border-width", "2px")
+    expect(mark).to_have_css("border-style", "solid")
     assert errors == []
     page.close()
 

@@ -261,7 +261,8 @@ subscription lifetime to `owner`, and returns an explicit cleanup function. Pack
 not listen to Leaf's internal `lf-actions` invalidation event.
 
 `x-visual` exposes stable Comment targets on a rendered picture. The value `whole` uses
-the widget's authored id. A widget declaring `{parts: ATTR}` calls
+the widget's authored id and the widget itself as the visual surface, so aim and marks
+paint above its rendering. A widget declaring `{parts: ATTR}` calls
 `registerVisualParts(source, read)` once at upgrade. `read` returns the complete current
 inventory as `{id, element, label, surface?}` records. Leaf admits the ids authored in
 ATTR, derives token lookup and deepest-part hit testing from that one inventory, and

@@ -2394,10 +2394,38 @@ def test_registered_control_keys_activate_once(browser, serve):
     expect(pencil).to_have_attribute("type", "button")
     pencil.focus()
     page.keyboard.press("Enter")
-    expect(page.locator("#draft-ops textarea")).to_be_focused()
-    assert page.locator("#draft-ops").evaluate(
-        "el => getComputedStyle(el).outlineStyle !== 'none'"
-    ), "the draft editor received focus without a visible focus indicator"
+    editor = page.locator("#draft-ops textarea")
+    expect(editor).to_be_focused()
+    focus_paint = page.locator("#draft-ops").evaluate(
+        """host => {
+          const editor = host.querySelector('textarea');
+          const hs = getComputedStyle(host), es = getComputedStyle(editor);
+          return {
+            host: {outline: hs.outlineStyle, width: parseFloat(hs.outlineWidth)},
+            editor: {outline: es.outlineStyle, shadow: es.boxShadow,
+                     ring: es.getPropertyValue('--lf-here-ring').trim()},
+          };
+        }"""
+    )
+    assert focus_paint["host"]["outline"] != "none"
+    assert focus_paint["host"]["width"] >= 2
+    assert focus_paint["editor"] == {
+        "outline": "none",
+        "shadow": "none",
+        "ring": "none",
+    }, "the draft's one editing surface acquired a second focus box"
+    page.emulate_media(forced_colors="active")
+    forced = page.locator("#draft-ops").evaluate(
+        """host => {
+          const editor = host.querySelector('textarea');
+          return {
+            host: getComputedStyle(host).outlineStyle,
+            editor: getComputedStyle(editor).outlineStyle,
+          };
+        }"""
+    )
+    assert forced == {"host": "solid", "editor": "none"}
+    page.emulate_media(forced_colors="none")
     page.keyboard.press("Escape")
 
     mark = page.locator("#opts .lf-pick").first

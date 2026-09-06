@@ -567,28 +567,10 @@ body.lf-drawing main * { cursor: crosshair !important; }
 body.lf-drawing main .lf-conversation,
 body.lf-drawing main .lf-conversation * { cursor: auto !important; }
 /* One pixel, just inside the border box, because both sides of that edge belong to
-   somebody else. Outside it, the mark belongs to whatever encloses the element: a board
-   scrolls (overflow-x: auto), its columns sit flush against its padding box on three
-   sides, and a mark drawn outside a column was clipped down to the single vertical line
-   that fell in the gutter. Deeper inside, it belongs to what the element paints over
-   itself: an outline is painted before positioned descendants, so a container whose cells
-   carry a background — every choose group, since lf-option is relative — wipes out
-   whatever of the mark reaches past its own border. Containers are exactly what element
-   anchoring is for, so neither is a corner, and the second was what a reader reported: a
-   2px mark two pixels in came out a hairline on three sides of the group they had just
-   commented on and stayed 2px along the bottom, where the last cell stops short, so the
-   box was thicker at the bottom than the top. One pixel in is inside every ancestor's
-   clip and, wherever the element has a border of its own, outside every child's paint,
-   which is 72 of the 73 markable elements measured across the examples — the odd one a
-   diagram node whose fractional width antialiases a device pixel either way.
-   The 73rd is the shape this does not reach, and it is worth naming because the fix
-   stops there rather than because it arrived with it: an element with no border of its
-   own whose positioned child is flush to the border box has no such band, so lf-shot
-   paints its frame over the mark's left and right and the reader gets a rule above and
-   below the figure and nothing down its sides. That was equally true at 2px two pixels
-   in — nothing here regressed it — and it is not reachable from a stylesheet, since the
-   only band left is outside, where a scrolling ancestor takes it. What would reach it is
-   a widget declaring that it paints to its own edge, and no widget needs to yet.
+   somebody else. Outside it, the mark belongs to whatever encloses the element; deeper
+   inside, it belongs to what the element paints over itself. Ordinary elements keep this
+   outline. Widgets that declare a visual surface project the same mark through the
+   chrome's target painter, above package paint, so an edge-to-edge child cannot cover it.
    A hairline is not a fainter mark than the 2px was: --mark-ink clears 9.0:1 on the
    paper where the burnt orange it replaced cleared 3.4, so this reads as an annotation
    where a saturated 2px rectangle read as a validation error. It takes the element's own
@@ -677,10 +659,10 @@ html.lf-copy mark.lf-react { background: var(--react); color: inherit;
    and not the mark's own "open this thread". */
 body:is(.lf-aiming, .lf-design) .lf-mark-el { cursor: default; }
 body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
-/* A semantic visual part keeps these classes for hit-testing and thread ownership,
-   while the chrome layer draws its registered surface contour or rectangular fallback
-   above the package's own paint. Suppress only that duplicate representation;
-   ordinary anchors stay on the outline path. */
+/* A declared visual target keeps these classes for hit-testing and thread ownership,
+   while the chrome layer draws its surface contour or rectangular fallback above the
+   package's own paint. Suppress only that duplicate representation; ordinary anchors
+   stay on the outline path. */
 :is(.lf-mark-el, .lf-react-el, .lf-action-target).lf-shaped-mark { outline: none;
   background-image: none; }
 /* Keyboard access to a picture is runtime chrome beside the provider's drawing rather
@@ -865,13 +847,16 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      response bar, and inspect in their ordinary order within it. */
   :is(.lf-page-paint, .lf-target-paint) { z-index: 8890; }
   .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: 9060; }
-  .lf-margin-status-trace { position: absolute; display: none; pointer-events: none;
-    box-sizing: border-box; border: var(--status-trace-w) solid var(--status-trace-ink);
-    --lf-shape-ink: var(--status-trace-ink); --lf-shape-stroke: var(--status-trace-w);
+  /* Every living-margin control traces the content it concerns through one quiet
+     overlay. Painting above the target keeps a package-owned frame from covering the
+     contour; the keyboard's stronger accent ring remains a separate focus fact. */
+  .lf-target-trace { position: absolute; display: none; pointer-events: none;
+    box-sizing: border-box; border: var(--target-trace-w) solid var(--target-trace-ink);
+    --lf-shape-ink: var(--target-trace-ink); --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none; }
-  .lf-margin-status-trace.lf-shaped {
+  .lf-target-trace.lf-shaped {
     border: 0; border-radius: 0 !important; background: none; }
-  .lf-margin-status-trace-shape {
+  .lf-target-trace-shape {
     display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
     display: flex;
@@ -1609,15 +1594,26 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     --lf-shape-ink: var(--mark-ink); --lf-shape-stroke: 1px;
     --lf-shape-dash: none;
     border: var(--lf-shape-stroke) solid var(--lf-shape-ink); }
-  .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important; }
+  .lf-visual-mark.lf-visual-mark-comment {
+    background-image: linear-gradient(var(--mark), var(--mark)); }
   .lf-visual-mark.lf-visual-mark-reaction {
-    --lf-shape-dash: 3px 2px; border-style: dashed; }
+    --lf-shape-dash: 3px 2px; border-style: dashed;
+    background-image: linear-gradient(var(--react), var(--react)); }
+  .lf-visual-mark.lf-visual-mark-pending {
+    background-image: linear-gradient(var(--mark-pending), var(--mark-pending)); }
   .lf-visual-mark.lf-visual-mark-action { --lf-shape-ink: var(--accent); }
-  .lf-visual-mark:is(.lf-visual-mark-hover, .lf-visual-mark-here) {
+  .lf-visual-mark:is(
+      .lf-visual-mark-hover,
+      .lf-visual-mark-focus,
+      .lf-visual-mark-here
+    ) {
     --lf-shape-stroke: var(--here-ring-w); }
   .lf-visual-mark:is(.lf-visual-mark-pending, .lf-visual-mark-here) {
     --lf-shape-ink: var(--accent); }
-  .lf-visual-mark.lf-visual-mark-here { --lf-shape-dash: none; }
+  .lf-visual-mark.lf-visual-mark-here {
+    --lf-shape-dash: none; border-style: solid; }
+  .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important;
+    background-image: none; }
   .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-composer { display: none; }
   .lf-fab-bar .lf-composer > :not(.lf-fab-input, .lf-composer-media) {

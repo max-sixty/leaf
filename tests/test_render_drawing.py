@@ -769,9 +769,7 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     expect(thread).to_be_visible()
     expect(page.locator(".lf-drawing-preview")).to_have_count(0)
     expect(thread.locator(".lf-drawing-reference")).to_have_text("Drawing comment")
-    expect(page.locator("#prose")).not_to_have_class(
-        re.compile(r"\blf-mark-el\b|\blf-margin-target\b")
-    )
+    expect(page.locator("#prose")).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     assert errors == []
     page.close()
 

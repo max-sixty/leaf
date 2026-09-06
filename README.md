@@ -89,6 +89,26 @@ as Leaf's next immutable revision inside that page directory; it does not edit t
 source, append an event, or write outside Leaf's revision store. Only a snapshot
 comment append requests write approval.
 
+## Development
+
+Install [Worktrunk](https://worktrunk.dev), `uv`, `jq` 1.6 or newer, and Node 22 or
+newer. Then install the browser binaries and website dependencies:
+
+```sh
+wt setup
+```
+
+The everyday gate is `uv run pytest tests`. Docker is additionally required for the
+complete website preview and the Linux CI mirror. The catalog stills are generated
+from the live published-example routes on macOS:
+
+```sh
+uv run scripts/example-previews.py
+```
+
+That command captures every worked example with the Playwright version pinned in
+`uv.lock`, updates the content-addressed catalog links, and rebuilds `.tmp/site`.
+
 ## Packages
 
 A package carries a reusable theme, widget, browser module, data contract, or role
@@ -104,11 +124,9 @@ dashboard meant to change as work finishes. They are live in the visual index at
 <https://leaf.page/examples/>; every example opens as its own complete, private,
 temporary Leaf session. It has the canonical event log and projection but no agent
 behind it.
-From a checkout, install the website dependencies and run the same Worker/container
-boundary used in production:
+After `wt setup`, run the same Worker/container boundary used in production:
 
 ```sh
-npm ci --prefix worker
 uv run scripts/site.py --serve
 ```
 

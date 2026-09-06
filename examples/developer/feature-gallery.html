@@ -23,6 +23,38 @@
         margin-bottom: 4px;
       }
 
+      #bg-playground-card {
+        --lf-frame: 1;
+        width: min(100%, 19rem);
+        padding: var(--sp-4);
+        border: 2px solid var(--playground-accent);
+        border-radius: var(--playground-radius);
+        background: var(--card);
+        box-shadow: none;
+        text-align: left;
+      }
+
+      #bg-card-playground[data-playground-compact="true"] #bg-playground-card {
+        padding: var(--sp-2);
+      }
+
+      #bg-card-playground[data-playground-tone="bold"] #bg-playground-card {
+        background: var(--ink);
+        color: var(--paper);
+      }
+
+      #bg-card-playground[data-playground-tone="tinted"] #bg-playground-card {
+        background: color-mix(in srgb, var(--playground-accent) 12%, var(--card));
+      }
+
+      #bg-card-playground[data-playground-alignment="center"] #bg-playground-card {
+        text-align: center;
+      }
+
+      #bg-card-playground[data-playground-elevated="true"] #bg-playground-card {
+        box-shadow: 0 12px 30px color-mix(in srgb, var(--ink) 12%, transparent);
+      }
+
       .interaction-gallery lf-tabs {
         margin-top: 14px;
         margin-bottom: 0;
@@ -349,26 +381,27 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           ><span class="bg-feature-detail">: short verdicts on a passage</span>
         </h2>
         <p id="bg-reactions-guide">
-          Select words and press R to add a reaction. A square Button shows a saved
-          reaction; press it to remove that reaction.
+          Select words and press R, or hover an agent reply and use its corner control.
+          The picker is feedback for the agent, not chat decoration. A saved reaction
+          leaves only its emoji; press that emoji to remove it.
         </p>
         <p id="bg-react-ok">
-          <strong>1 · ok · settled.</strong> The spare key is with reception.
+          <strong>1 · 👍 · keep this.</strong> The spare key is with reception.
         </p>
         <p id="bg-react-no">
-          <strong>2 · no · wrong.</strong> This sample claims Tuesday follows Thursday.
+          <strong>2 · ❌ · wrong.</strong> This sample claims Tuesday follows Thursday.
         </p>
         <p id="bg-react-lost">
-          <strong>3 · lost · unclear.</strong> Bring the thing from the other place.
+          <strong>3 · 🤔 · unclear.</strong> Bring the thing from the other place.
         </p>
         <p id="bg-react-cut">
-          <strong>4 · cut · too long.</strong> At this point in time, we can now begin.
+          <strong>4 · ✂️ · shorten.</strong> At this point in time, we can now begin.
         </p>
         <p id="bg-react-more">
-          <strong>5 · more · needs detail.</strong> The exercise involves a map.
+          <strong>5 · 🔎 · substantiate.</strong> The exercise involves a map.
         </p>
         <p id="bg-react-this">
-          <strong>6 · this · look here.</strong> The side entrance closes early.
+          <strong>6 · 👀 · pay attention.</strong> The side entrance closes early.
         </p>
       </section>
 
@@ -808,6 +841,185 @@ gallery/
               <p id="bg-tab-context-text">The earlier route crossed the courtyard.</p>
             </lf-tab>
           </lf-tabs>
+        </section>
+
+        <section id="bg-playground">
+          <p class="eyebrow bg-feature-elements">
+            lf-playground · lf-playground-control · lf-playground-choice ·
+            lf-playground-preset · lf-playground-setting · lf-playground-preview ·
+            lf-playground-output · lf-playground-value
+          </p>
+          <h3 id="bg-playground-heading">
+            <strong>Playground</strong
+            ><span class="bg-feature-detail">: configure, preview, and choose</span>
+          </h3>
+          <p id="bg-playground-guide">
+            Start with one of the agent’s three recommendations, then tune the controls.
+            The card and instruction update at once while the event log stays unchanged;
+            Apply card sends the complete configuration as one decision.
+          </p>
+          <lf-ask id="bg-card-playground-ask">
+            <h4 id="bg-card-playground-question">How should the sample card look?</h4>
+            <lf-playground id="bg-card-playground" submit-label="Apply card">
+              <lf-playground-control
+                name="radius"
+                label="Corner radius"
+                kind="range"
+                value="12"
+                min="0"
+                max="28"
+                step="1"
+                unit="px"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="compact"
+                label="Compact spacing"
+                kind="toggle"
+                value="false"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="tone"
+                label="Tone"
+                kind="choice"
+                value="quiet"
+              >
+                <lf-playground-choice
+                  value="quiet"
+                  label="Quiet"
+                ></lf-playground-choice>
+                <lf-playground-choice
+                  value="tinted"
+                  label="Tinted"
+                ></lf-playground-choice>
+                <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+              </lf-playground-control>
+              <lf-playground-control
+                name="alignment"
+                label="Alignment"
+                kind="choice"
+                value="left"
+              >
+                <lf-playground-choice value="left" label="Left"></lf-playground-choice>
+                <lf-playground-choice
+                  value="center"
+                  label="Center"
+                ></lf-playground-choice>
+              </lf-playground-control>
+              <lf-playground-control
+                name="elevated"
+                label="Lift from page"
+                kind="toggle"
+                value="false"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="accent"
+                label="Accent"
+                kind="color"
+                value="#4f766f"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="title"
+                label="Instruction title"
+                kind="text"
+                value="Field note"
+                placeholder="Card title"
+              ></lf-playground-control>
+              <lf-playground-preset label="Field note">
+                <lf-playground-setting for="radius" value="12"></lf-playground-setting>
+                <lf-playground-setting
+                  for="compact"
+                  value="false"
+                ></lf-playground-setting>
+                <lf-playground-setting for="tone" value="quiet"></lf-playground-setting>
+                <lf-playground-setting
+                  for="alignment"
+                  value="left"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="elevated"
+                  value="false"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="accent"
+                  value="#4f766f"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="title"
+                  value="Field note"
+                ></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preset label="Trail alert">
+                <lf-playground-setting for="radius" value="4"></lf-playground-setting>
+                <lf-playground-setting
+                  for="compact"
+                  value="true"
+                ></lf-playground-setting>
+                <lf-playground-setting for="tone" value="bold"></lf-playground-setting>
+                <lf-playground-setting
+                  for="alignment"
+                  value="left"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="elevated"
+                  value="true"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="accent"
+                  value="#b6533c"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="title"
+                  value="Trail alert"
+                ></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preset label="Evening invite">
+                <lf-playground-setting for="radius" value="24"></lf-playground-setting>
+                <lf-playground-setting
+                  for="compact"
+                  value="false"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="tone"
+                  value="tinted"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="alignment"
+                  value="center"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="elevated"
+                  value="true"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="accent"
+                  value="#8b4a5f"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="title"
+                  value="Evening walk"
+                ></lf-playground-setting>
+              </lf-playground-preset>
+
+              <lf-playground-preview id="bg-card-preview">
+                <article id="bg-playground-card">
+                  <strong>Card preview</strong>
+                  <p>Ridge route at dusk</p>
+                </article>
+              </lf-playground-preview>
+              <lf-playground-output id="bg-card-instruction">
+                Style the card with a
+                <lf-playground-value for="radius"></lf-playground-value> corner radius,
+                compact spacing set to
+                <lf-playground-value for="compact"></lf-playground-value>, a
+                <lf-playground-value for="tone"></lf-playground-value> tone,
+                <lf-playground-value for="alignment"></lf-playground-value> alignment,
+                elevation set to
+                <lf-playground-value for="elevated"></lf-playground-value>, and
+                <lf-playground-value for="accent"></lf-playground-value> accents. Keep
+                the title “<lf-playground-value for="title"></lf-playground-value>.”
+              </lf-playground-output>
+            </lf-playground>
+          </lf-ask>
         </section>
 
         <section id="bg-quoted-and-visual">

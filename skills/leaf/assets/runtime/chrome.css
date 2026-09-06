@@ -1380,6 +1380,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      paintAnchors for the one thing that wears this and why. */
   .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
   .lf-msg { margin: 8px 0; }
+  .lf-msg.claude { position: relative; }
   /* Who and when, on one line above the words: apparatus, so the row states the
      apparatus rung once and the two differ by weight and ink rather than by size. They
      carried 12.5px and 11.5px, a pixel apart for no reason either could give, and the
@@ -1538,23 +1539,47 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-react-strip:not(.lf-react-open) > .lf-react-palette:not(:has(> [aria-pressed="true"])) {
     display: none; }
   .lf-fab-bar:not(.lf-react-open) > .lf-react-palette { display: none; }
-  /* A standing token keeps a neutral fill and shows its word as a receipt. */
+  /* A standing token keeps a neutral fill. The floating response bar names choices in
+     words through its own response-control anatomy; a message strip stays emoji-sized
+     and carries the full meaning through its accessible name and hover title. */
   .lf-react { display: inline-flex; align-items: center; gap: 4px; min-width: 26px;
     justify-content: center; }
-  .lf-react > .lf-react-word { display: none; }
-  .lf-fab-bar.lf-react-open .lf-react-word { display: inline; }
-  .lf-react[aria-pressed="true"] > .lf-react-word { display: inline; }
   .lf-react[aria-pressed="true"] { background: var(--chip); }
   .lf-react[aria-busy="true"] { opacity: .55; }
+  /* A reply with no feedback keeps no row. Its add control sits over the unused
+     top-right corner and appears only for the message under pointer or keyboard focus.
+     Opening it temporarily gives the popover a row; at rest only feedback already left
+     earns flow space. */
   .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
-    margin-top: 6px; }
-  /* The latest agent reply keeps its React… trigger visible. Older replies expose
-     theirs while the reader is in the thread; a standing mark remains visible at rest. */
-  .lf-thread:not(:hover, :focus-within, .lf-focus-within)
-    .lf-react-strip:not(.lf-open, .lf-react-open) > .lf-react-trigger { display: none; }
-  .lf-thread:not(:hover, :focus-within, .lf-focus-within)
-    .lf-react-strip:not(.lf-open, .lf-react-open):not(:has([aria-pressed="true"])) {
-      margin-top: 0; }
+    margin-top: 0; }
+  .lf-react-strip:has(.lf-react[aria-pressed="true"]) { margin-top: 4px; }
+  .lf-react-strip.lf-react-open { position: relative; min-height: 36px; margin-top: 4px; }
+  .lf-react-strip > .lf-react-trigger {
+    appearance: none; position: absolute; z-index: 2;
+    inset-block-start: -3px; inset-inline-end: -2px;
+    box-sizing: border-box; inline-size: 26px; block-size: 26px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid transparent; border-radius: 50%; background: var(--card);
+    opacity: 0; cursor: pointer;
+  }
+  .lf-react-strip.lf-react-open > .lf-react-trigger { display: none; }
+  .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
+    fill: none; stroke: currentColor; stroke-width: 1.6;
+    stroke-linecap: round; stroke-linejoin: round; }
+  .lf-msg.claude:is(:hover, :focus-within) > .lf-react-strip > .lf-react-trigger,
+  .lf-react-strip > .lf-react-trigger:is(:focus-visible, .lf-focus-visible) {
+    opacity: 1;
+  }
+  .lf-msg.claude:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
+  .lf-react-strip.lf-react-open > .lf-react-palette {
+    position: absolute; z-index: 3; inset-block-start: 0;
+    inset-inline-end: -2px; width: max-content; padding: 4px;
+    border: 1px solid var(--border-2); border-radius: 999px;
+    background: var(--card); box-shadow: 0 4px 12px var(--shade);
+  }
+  @media (hover: none) {
+    .lf-react-strip > .lf-react-trigger { opacity: 1; }
+  }
   .lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]) { border-color: transparent;
     background: transparent; color: var(--muted); }
   .lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-busy="true"]),

@@ -1030,8 +1030,8 @@ def test_a_run_of_threads_says_which_part_of_the_page_it_is_about(browser, serve
     past its landmarks inside one gesture, so a heading that scrolled away with its own
     threads would answer "where am I" only at the moment the reader already knew.
 
-    Pressing one takes the reader to that part of the page, the move a thread's quote
-    makes for one passage made here for the section it is in."""
+    Pressing one puts that section's heading at the readable start of the page, where a
+    heading reached through page navigation belongs."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     for i in range(6):
@@ -1078,7 +1078,10 @@ def test_a_run_of_threads_says_which_part_of_the_page_it_is_about(browser, serve
     heading.click()
     page.wait_for_function(
         """() => { const r = document.getElementById('h-merge').getBoundingClientRect();
-                   return Math.abs(r.top + r.height / 2 - innerHeight / 2) < 2; }"""
+                   const clear = parseFloat(
+                     getComputedStyle(document.scrollingElement).scrollPaddingTop
+                   ) || 0;
+                   return Math.abs(r.top - clear) < 2; }"""
     )
     assert errors == []
     page.close()
@@ -2369,8 +2372,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-open",
         "lf-react-palette",
         "lf-react-strip",
+        "lf-react-surface",
         "lf-react-trigger",
-        "lf-react-word",
+        "lf-react-trigger-icon",
         "lf-resolve",
     }, "the authored-theme class surface changed: widen the exception on purpose"
     # Every one of these is worn by something the runtime puts inside the page rather than

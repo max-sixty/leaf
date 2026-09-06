@@ -260,6 +260,21 @@
   --here-ring-w: 2px;
   --here-ring: var(--here-ring-w) solid var(--accent); --here-ring-gap: 3px;
   --here-ring-room: calc(var(--here-ring-w) + var(--here-ring-gap));
+  /* The same band cast as a shadow, for the boxes that cannot spend an outline on it:
+     the anchored response bar, whose focused states already write `outline: none` so
+     the field and its choices keep one silhouette, and an item hint, a chip in a layer
+     nothing can focus. A spread with no offsets and no blur draws exactly what the
+     outline draws, and reads through the same width, so there is still one place the
+     band's thickness is decided.
+
+     The ink follows the token instead of living in it, because these two lay down
+     different strengths of the accent — a bar already carrying an accent border wants
+     less of it than a chip standing over the page's own words — and a shadow takes its
+     colour in either position. Naming this token is how a shadow-drawn ring joins the
+     population the corpus floor divides by, exactly as naming --here-ring is for an
+     outline-drawn one; the ring itself is still what the box paints, not what it
+     names. */
+  --here-shadow: 0 0 0 var(--here-ring-w);
   --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
   /* A keyboard address chip's box: the line box, which is a ratio of the font, plus

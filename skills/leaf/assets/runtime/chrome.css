@@ -37,10 +37,11 @@
    no second carrier, while the band also has the washed cell and the address chips.
 
    Every rule that draws the ring names it in `--lf-here-ring`, in the same declaration
-   (theme.css carries why). Whether a box wears a ring is the outline's answer; the name
-   says which rule drew it, so nothing re-runs the layer's selectors to find that out. The
-   property is registered non-inheriting, so a name means the box rather than each of its
-   words.
+   (theme.css carries why). Whether a box wears a ring is the paint's answer — the
+   outline's, or the shadow's where the box draws the band as `var(--here-shadow)`
+   instead; the name says which rule drew it, so nothing re-runs the layer's selectors to
+   find that out. The property is registered non-inheriting, so a name means the box
+   rather than each of its words.
 
    The ring is drawn outside the box it names, so wherever the reader can be standing,
    something has to have kept room for it. Two rules cover every case, and which one
@@ -1469,10 +1470,16 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     color: var(--ink-2); font-weight: 400; line-height: 1.3;
     padding-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
     box-shadow: 0 2px 8px var(--shade); }
+  /* The bar keeps one silhouette through every state it has, so the here ring is cast
+     as a shadow beside the lift rather than drawn as an outline the corner would have
+     to be re-stated for. It is still the layer's band (--here-shadow, theme.css), and
+     the name goes with it: this rule takes the outline off the pressables the bar holds,
+     so without one they would credit the floor's `pressable` for a ring the floor is no
+     longer drawing. */
   .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
-    outline: none;
+    outline: none; --lf-here-ring: response-control;
     border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent),
+    box-shadow: var(--here-shadow) color-mix(in srgb, var(--accent) 25%, transparent),
       0 2px 8px var(--shade); }
   /* The field takes the size its words want. A short note is the one-line pill; a
      longer one widens to a readable measure before it wraps, then grows down as far as
@@ -1766,11 +1773,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     .lf-page-map-action:focus-visible {
       outline: 2px solid Highlight; }
   }
-  /* The key line: two contextual hints and the More control, rendered from the
-     register the dispatcher walks (see the module docstring). A chord shows its whole
-     live scope; More unfolds the remaining current register before it opens the complete
-     reference. Each hint is the eye's copy of facts spoken elsewhere and stays
-     aria-hidden; More is a real control.
+  /* The key line is a compact status line: transient Ask or Thread position first,
+     then two contextual hints and the More control rendered from the register the
+     dispatcher walks (see the module docstring). A chord shows its whole live scope;
+     More unfolds the remaining current register before it opens the complete reference.
+     Position and hints are the eye's copy of facts spoken elsewhere and stay aria-hidden;
+     More is a real control.
      syncLayout keeps the line out of a side-by-side thread panel and, over a covering
      panel, lifts it only when its rendered box actually meets the panel foot. The
      chrome root reserves the line's whole footprint — the band from its top to the foot
@@ -1786,11 +1794,18 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     padding: 5px 10px; }
   .lf-keyline[data-lf-wrap="true"] { width: max-content; flex-wrap: wrap;
     row-gap: 6px; align-items: baseline; }
-  .lf-keyline:empty { display: none; }
-  /* A touch device has no keyboard to advertise, so the line has nothing to say and
-     stands down whole rather than shrinking. Every hint on it names a key the reader
-     cannot press, and the box they cost stands over the words and the controls of a
-     page whose window is the smallest one there is.
+  .lf-keyline:not(:has(> :not([hidden]))) { display: none; }
+  .lf-walk-position { flex: none; color: var(--ink-2);
+    font-variant-numeric: tabular-nums; }
+  .lf-walk-position[hidden] { display: none; }
+  @media (width <= 560px) {
+    .lf-keyline[data-lf-walk] .lf-walk-position { flex-basis: 100%; }
+  }
+  /* A touch device has no keyboard hints to advertise, so the resting line stands down
+     whole rather than shrinking. Every hint on it names a key the reader cannot press,
+     and the box they cost stands over the words and the controls of a page whose window
+     is the smallest one there is. An attached keyboard can still begin a category walk;
+     its position is useful without the hidden hints, so that one reading stands alone.
      It takes the More control with it, and that is the cost rather than an oversight:
      More is the only pointer route to the reference, so a tablet with a keyboard
      attached reaches the reference by the question-mark key, and a reader who has also
@@ -1798,8 +1813,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      Every reader of the line's box asks whether there is one — syncLayout for the room
      it reserves, targets for how far down the page is reachable, the address chips and
      the floats for what they must not stand on. A zero box is the same state the empty
-     rule above has always had, so none of them is new. */
-  @media (pointer: coarse) { .lf-keyline { display: none; } }
+     line has always had, so none of them is new. */
+  @media (pointer: coarse) {
+    .lf-keyline { display: none; }
+    .lf-keyline[data-lf-walk] { display: flex; }
+    .lf-keyline[data-lf-walk] > :not(.lf-walk-position) { display: none; }
+  }
   .lf-keyline .lf-key { display: inline-flex; gap: 5px; align-items: baseline; }
   .lf-keyline .lf-key[hidden] { display: none; }
   .lf-keyline .lf-chord-control { margin-inline-start: 4px;
@@ -1865,8 +1884,11 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-goto-targets > .lf-chord-address { min-width: 0; height: auto; padding: 0;
     border: 0; background: transparent; }
   .lf-targets > .lf-target-hint.lf-in { transform: translate(-50%, 0); }
+  /* The hint the keyboard is browsing is where the reader is standing in this mode, so
+     it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
+     focus has no outline state to hang it on. */
   .lf-targets > .lf-target-hint.lf-current { font-weight: 700;
-    box-shadow: 0 0 0 2px var(--accent); }
+    --lf-here-ring: target-hint; box-shadow: var(--here-shadow) var(--accent); }
   /* Search has one active result, painted as a quiet wash rather than a second native
      selection. The real Selection is made only on Enter, when the ordinary comment
      surface takes over. One inset line survives over both light and dark authored fills

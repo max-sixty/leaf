@@ -1,11 +1,13 @@
 {
   "compilerOptions": {
-    "lib": ["ES2023"],
+    "lib": ["ESNext"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "customConditions": ["workerd"],
     "noEmit": true,
+    "skipLibCheck": true,
     "strict": true,
-    "types": ["@cloudflare/workers-types"]
+    "types": ["@cloudflare/workers-types", "node"]
   },
   "include": ["src/**/*.ts"]
 }

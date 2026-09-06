@@ -57,8 +57,8 @@ dev = [
   "pytest-xdist>=3",
   "axe-playwright-python>=0.1.4",
   "pre-commit>=4.6.2",
-  # scripts/record-demo.py, which draws its frames.
-  "pillow>=11",
+  # Browser screenshot assertions and scripts/record-demo.py's frames.
+  "pillow>=12",
 ]
 
 # The suite is round trips through a real browser rather than computation, so tests

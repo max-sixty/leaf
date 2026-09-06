@@ -324,7 +324,7 @@ export function offer(tag, cls, label) {
 // the lend leaves with the first blur, so a paragraph the address chord landed on is a
 // paragraph again once the reader moves off it, and `tabindex` never becomes a thing the
 // runtime leaves behind on an author's element. An element that already declares a stop
-// keeps its own. Four arrivals want this and none owns the element: a numbered address
+// keeps its own. Four arrivals want this and none owns the element: a go-to hint
 // completing on a fold, a heading or a link's fragment; a document swap handing back the
 // place the reader stood in; the reference handing a reader back to the block they were
 // reading; and the skip link landing on the banner when none of its controls will take

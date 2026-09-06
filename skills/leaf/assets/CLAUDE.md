@@ -104,7 +104,8 @@ of rows applies; `dispatch.js` which scope answers a press and what it owes the
 platform; `return-stack.js` what a keyboard entry owes on the way back out;
 `keyline.js` the short help at the foot of the page and its More control;
 `reference.js` the complete listing behind `?`; `address.js` the go-to chord;
-`address-placement.js` the one-digit address vocabulary and its placement pass;
+`address-placement.js` shared address visibility and the numeric Ask placement pass;
+`hints.js` prefix-free transient labels and their no-drop placement pass;
 `presentation.js` how a chord row's presses are shown;
 `runtime/keyboard/disclosure.js` owns the shared disclosure bindings and the
 disclosure watch; `runtime/keyboard/page.js` owns the page's own scopes and rows;
@@ -609,9 +610,9 @@ whether the box can take focus, and choosing among the boxes a seat holds once i
 carries threads. One route answers those by not asking them.
 
 `LINK` and `DISCLOSURE` describe the platform controls a reader may land on and the
-immediate word for their next press. An addressed fold lands on its summary after
-opening it; a link reached through Tab still says that Enter follows it. A summary
-says whether it will open or close from its current state. This avoids one scope per
+immediate word for their next press. A fold reached by a generated hint lands on its
+summary after opening it; a link reached through Tab still says that Enter follows it.
+A summary says whether it will open or close from its current state. This avoids one scope per
 native tag while keeping the next press visible.
 
 ### Standing somewhere

@@ -844,15 +844,13 @@ def live_url(version_url):
 
 
 # A live page a reader is mid-press on when the next revision lands: hyperlinks for the
-# address chord to count, and a decision whose pick mark the key line offers digits over.
+# generated target map, and a decision whose pick mark the key line offers digits over.
 # The second revision adds a paragraph above everything and takes the middle link away,
-# so a restored place has moved and an address has gone; the third adds another.
+# so a restored place has moved and a target has gone; the third adds another.
 #
-# The first two links are set a clause apart rather than side by side. Two addresses
-# starting within a chip's width of each other stack, and the chord takes the second chip
-# down rather than draw a digit the reader would read off its neighbour — which is the
-# right answer to a crowded line and the wrong fixture for a test about a page moving
-# under a press, since the address it wanted to count was never on screen to count.
+# The first two links are set a clause apart rather than side by side. Generated chips
+# still have to remain distinct where their source boxes are close: every visible target
+# belongs in the map while the page is moving under a press.
 LIVE_KEYS_V1 = leaf_page(
     "Live keys first",
     """

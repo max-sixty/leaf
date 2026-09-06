@@ -288,7 +288,7 @@ instances use it instead of display prose. If one compact row binds keys with di
 meanings, add `routes` with an `id`, `binding`, and action sentence for each meaning. The
 key line stays compact, while the complete reference lists and runs each route on its own.
 Use `runFromReference: false` only for a parameterized step that cannot be run without a
-choice the reference does not have, such as the member digit of a numbered address. An
+choice the reference does not have, such as a generated hint tied to the live viewport. An
 optional `reach` on a row or scope supplies the short place phrase shown when a command
 is not available (for example, `in an open draft editor`).
 

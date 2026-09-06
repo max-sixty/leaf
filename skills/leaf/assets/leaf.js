@@ -129,23 +129,24 @@
  * are one entry: page `c` enters the page-comment box, while `g T` enters the Threads list.
  * A later `c` from that list is a second entry, so two Escapes unwind both in reverse.
  *
- * Three page modes make a destination explicit before acting on it. `s` draws short,
+ * Four page modes make a destination explicit before acting on it. `s` draws short,
  * viewport-local hints on stable items and declared visual parts. `/` searches all page
  * text directly or from those hints, Tab walks repeated matches, and Enter turns the
  * current result into an ordinary native selection. Both routes end at the same passage
  * or item the pointer path uses, so the existing `c` comments on it and no second anchor
- * vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
- * document list. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves;
+ * vocabulary exists. `g` arms a mode in which a mnemonic names a panel or generated
+ * hints name the visible things the reader can go to. `g T`, `g A`, and `g L` land in
+ * Threads, Asks, and All leaves;
  * `g M` opens the complete Page map, and `g V` opens Versions, each through the same
  * door as its banner control. `w` claims one freehand drag on the page, attaching its
  * vector mark to the semantic item under or beside the first point, or to the page whole
  * where none shares that line.
- * A lowercase mnemonic starts a numbered document list, so `g m 3` is the third
- * Page-map location and `g h 3` is the third hyperlink; `g g` and `g G` are the page's
- * top and bottom edges.
+ * Lowercase letters label the visible Page-map locations, tabs, links, and folds in one
+ * prefix-free namespace; the namespace grows to two letters when one-letter hints run
+ * out. `g g` and `g G` remain the page's top and bottom edges.
  * Arming shows every complete route in the key line. Pressed keys use the blue face and
  * pending keys use the ordinary face. Visible members show the same complete route in
- * adjacent fixed keycaps. A list letter narrows those inline hints without moving the
+ * adjacent fixed keycaps. A typed prefix narrows those inline hints without moving the
  * remaining routes. Any other key disarms the window and keeps its
  * ordinary meaning, which the dispatcher spells as disarming and walking the stack again.
  * Escape is a binding like any other. A control-specific inner step precedes the latest

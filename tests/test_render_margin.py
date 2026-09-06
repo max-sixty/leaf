@@ -15,6 +15,7 @@ from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
     BOTH_STAMPS,
+    CHIPS,
     EXAMPLES,
     FEATURE_GALLERY,
     GENERIC_VISUAL_LAYER,
@@ -25,7 +26,9 @@ from render_support import (
     _publish,
     _traffic,
     _until,
+    address_code,
     compare_with,
+    go_to_address,
     leaf_page,
     live_url,
     margins_laid_out,
@@ -1512,24 +1515,19 @@ def test_open_page_map_uses_the_canonical_button_record_and_live_state(browser, 
     page.close()
 
 
-def test_g_m_addresses_the_visible_window_and_g_shift_m_opens_the_complete_page_map(
+def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_page_map(
     browser, serve
 ):
-    """Visible locations start at one while the complete Map keeps every location."""
+    """Visible locations get local hints while the complete Map keeps every location."""
     page, errors = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
     resized(page, 1440, 300)
 
     page.keyboard.press("g")
-    page.keyboard.press("m")
-    route = page.locator(
-        '.lf-keyline [data-lf-commands~="navigation.page-map-item"] .lf-key-sequence'
-    )
-    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
     expect(page.locator(".lf-page-map-sheet")).to_be_hidden()
-    expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
+    locations = page.locator(f'{CHIPS}[data-lf-address-kind="Page-map location"]')
+    expect(locations).to_have_count(1)
 
-    # When the motion settles, number the newly visible window from one. Location 11 is
-    # outside the document's old one-digit prefix.
+    # When the motion settles, regenerate the map over the newly visible window.
     page.evaluate(
         """() => new Promise(resolve => {
           addEventListener('scrollend', resolve, {once: true});
@@ -1537,9 +1535,8 @@ def test_g_m_addresses_the_visible_window_and_g_shift_m_opens_the_complete_page_
           document.scrollingElement.scrollTo(0, target.offsetTop - 100);
         })"""
     )
-    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
-    expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
-    page.keyboard.press("1")
+    expect(locations).to_have_count(1)
+    page.keyboard.type(address_code(page, "Page-map location", "map-11"))
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(preview).to_contain_text("Map note 11")
@@ -1574,7 +1571,7 @@ def test_g_m_addresses_the_visible_window_and_g_shift_m_opens_the_complete_page_
     page.close()
 
 
-def test_g_m_numbers_a_late_visible_action_only_location_from_one(browser, serve):
+def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     """A late action-only location is reachable while it is visible."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
@@ -1593,13 +1590,10 @@ def test_g_m_numbers_a_late_visible_action_only_location_from_one(browser, serve
     expect(show_after).to_be_visible()
 
     page.keyboard.press("g")
-    page.keyboard.press("m")
-    route = page.locator(
-        '.lf-keyline [data-lf-commands~="navigation.page-map-item"] .lf-key-sequence'
+    target = show_after.evaluate(
+        "button => button.closest('[data-lf-margin-for]').dataset.lfMarginFor"
     )
-    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
-    expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
-    page.keyboard.press("1")
+    page.keyboard.type(address_code(page, "Page-map location", target))
     expect(
         page.get_by_role(
             "button",
@@ -1623,9 +1617,7 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
     )
     page.mouse.move(pointer["x"], pointer["y"])
 
-    page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press("1")
+    go_to_address(page, "Page-map location", "bg-choice-ask")
     page.keyboard.press("Escape")
 
     page.wait_for_function(
@@ -1704,8 +1696,8 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
     page.close()
 
 
-def test_g_m_presses_the_first_button_at_each_location(browser, serve):
-    """A location address has the same native press as its first available Button."""
+def test_g_hints_press_the_first_button_at_each_location(browser, serve):
+    """A location hint has the same native press as its first available Button."""
     page, errors = open_page(
         browser,
         serve(
@@ -1727,9 +1719,7 @@ def test_g_m_presses_the_first_button_at_each_location(browser, serve):
     )
     disclosure = page.get_by_role("button", name="Edit address-disclosure", exact=True)
     with sending(page, "the addressed suggestion's acceptance"):
-        page.keyboard.press("g")
-        page.keyboard.press("m")
-        page.keyboard.press("1")
+        go_to_address(page, "Page-map location", "address-action")
     expect(page.locator("#address-action lf-old")).to_be_hidden()
     expect(page.locator("#address-action lf-new")).to_be_visible()
 
@@ -1746,8 +1736,13 @@ def test_g_m_presses_the_first_button_at_each_location(browser, serve):
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press("2")
+    expect(
+        page.locator(
+            f'{CHIPS}[data-lf-address-kind="Page-map location"]'
+            '[data-lf-address-for="address-disclosure"]'
+        )
+    ).to_have_count(0)
+    page.keyboard.press("Escape")
     expect(page.locator("#address-disclosure textarea")).to_have_count(0)
 
     disclosure.evaluate(
@@ -1757,9 +1752,7 @@ def test_g_m_presses_the_first_button_at_each_location(browser, serve):
           button.tabIndex = 0;
         }"""
     )
-    page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press("2")
+    go_to_address(page, "Page-map location", "address-disclosure")
     expect(page.locator("#address-disclosure textarea")).to_be_focused()
     expect(disclosure).to_be_hidden()
 
@@ -2604,11 +2597,11 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         "rows => rows.some(row => row.tabIndex === 0)"
     ), "no Button is left for Tab to enter the rail by"
 
-    # The reader listening still reaches the phase by its numbered address.
-    place = int(re.search(r"(\d+) of ", marker.get_attribute("aria-label")).group(1))
-    page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press(str(place))
+    # The reader listening still reaches the phase through its visible generated hint.
+    target = marker.evaluate(
+        "row => row.closest('[data-lf-margin-for]').dataset.lfMarginFor"
+    )
+    go_to_address(page, "Page-map location", target)
     expect(marker).to_be_focused()
 
     # Standing there is not the same as being the way in. A repaint under the reader

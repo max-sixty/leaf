@@ -456,7 +456,9 @@ def test_a_margin_start_uses_the_item_alongside_it_as_context(browser, serve):
 
     expect(page.locator(".lf-fab-input")).to_be_focused()
     with sending(page, "the margin drawing"):
-        page.locator(".lf-composer-row .primary").evaluate("button => button.click()")
+        page.locator(".lf-composer .lf-compose-field .primary").evaluate(
+            "button => button.click()"
+        )
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["anchor"] == {"section": "prose"}
     assert "text" not in event
@@ -755,7 +757,7 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     draw_over(page, page.locator("#prose"))
     field = page.locator(".lf-fab-input")
     expect(field).to_have_value("")
-    expect(page.locator(".lf-composer-row .primary")).to_have_attribute(
+    expect(page.locator(".lf-composer .lf-compose-field .primary")).to_have_attribute(
         "aria-disabled", "false"
     )
     with sending(page, "the drawing-only comment"):

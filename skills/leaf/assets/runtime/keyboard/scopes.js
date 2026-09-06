@@ -141,11 +141,9 @@ export function merge(sections, { title, when, at, claims, rows }) {
  * machine have neighbours to walk, does this page have a second version — and it gates the
  * reference. The row's is whether this press would move now — is a card held, has this
  * thread a box to reply into — and it gates the line, where the reader is standing in the
- * scope and can see the answer. So the reference names `x` wherever the page has threads,
- * which is what a reader learning the keyboard needs, and the line offers it only on a
- * thread that has something to resolve, which is what "a key on screen is a key that
- * works" asks for. One `when` answering both left `x` and Enter live over the whole page,
- * where the press no-opped.
+ * scope and can see the answer. So the reference names Enter wherever the page has
+ * threads, and the line offers it only on a focused thread with a reply or reopen action.
+ * One `when` answering both left Enter live over the whole page, where the press no-opped.
  *
  * A control whose keys change with its state declares every state's rows at once, each
  * gated by its own row `when`, and calls paintKeys() when the state moves — a grab is

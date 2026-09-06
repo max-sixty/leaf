@@ -2342,10 +2342,10 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     ), "no Button is left for Tab to enter the rail by"
 
     # The reader listening still reaches the phase through its visible generated hint.
-    target = marker.evaluate(
+    target_id = marker.evaluate(
         "row => row.closest('[data-lf-margin-for]').dataset.lfMarginFor"
     )
-    go_to_address(page, "Page-map location", target)
+    go_to_address(page, "Page-map location", target_id)
     expect(marker).to_be_focused()
 
     # Standing there is not the same as being the way in. A repaint under the reader
@@ -3169,6 +3169,43 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).not_to_contain_text("options · choose")
+    close = preview.get_by_role("button", name="Close thread", exact=True)
+    resolve = preview.get_by_role("button", name="Resolve thread", exact=True)
+    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+    expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
+    expect(close).to_have_text("")
+    expect(resolve).to_have_text("")
+    geometry = preview.evaluate(
+        """preview => {
+          const thread = preview.querySelector('.lf-conversation-thread');
+          const textarea = thread.querySelector('textarea');
+          const close = preview.querySelector('.lf-margin-preview-close');
+          const resolve = thread.querySelector('.lf-resolve');
+          const head = thread.querySelector('.lf-conversation-head');
+          const tr = thread.getBoundingClientRect();
+          const ta = textarea.getBoundingClientRect();
+          const hr = head.getBoundingClientRect();
+          const rr = resolve.getBoundingClientRect();
+          return {
+            threadRight: tr.right,
+            textareaRight: ta.right,
+            closeBorder: getComputedStyle(close).borderTopWidth,
+            resolveBorder: getComputedStyle(resolve, '::before').borderTopWidth,
+            head: {top: hr.top, right: hr.right, bottom: hr.bottom},
+            resolve: {top: rr.top, right: rr.right, bottom: rr.bottom},
+          };
+        }"""
+    )
+    assert geometry["textareaRight"] == pytest.approx(geometry["threadRight"], abs=1)
+    assert float(geometry["closeBorder"][:-2]) == 0
+    assert float(geometry["resolveBorder"][:-2]) >= 1
+    assert geometry["resolve"]["top"] == pytest.approx(geometry["head"]["top"], abs=1)
+    assert geometry["resolve"]["right"] == pytest.approx(
+        geometry["head"]["right"], abs=1
+    )
+    assert geometry["resolve"]["bottom"] == pytest.approx(
+        geometry["head"]["bottom"], abs=1
+    )
     page.locator(".lf-margin-preview-close").click()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()

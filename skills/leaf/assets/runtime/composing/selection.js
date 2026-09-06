@@ -81,10 +81,8 @@ const composerInput = fabInput;
 // announced on focus — which is more than the visible quote ever said, since nothing
 // pointed a reader at it.
 composerInput.setAttribute("aria-describedby", composerQuote.id);
-const composerRow = el("div", "lf-composer-row");
 const composerSend = el("button", "lf-btn primary", "Comment");
-composerRow.append(composerSend);
-composer.append(composerQuote, suggestRow, composerInput, composerRow);
+composer.append(composerQuote, suggestRow, composerInput, composerSend);
 fabBar.prepend(composer);
 
 export let pendingAnchor = null;
@@ -165,6 +163,7 @@ syncComposer = wireInput(composerInput, {
         ? "About the layer"
         : "Comment…",
   sends: () => (suggestCheck.checked ? "suggest" : "comment"),
+  icon: "send",
   sendBtn: composerSend,
   allowsMedia: () => !suggestCheck.checked,
   hasContent: (raw) => Boolean(raw.trim() || pendingDrawing),
@@ -251,9 +250,8 @@ function syncSuggestMode() {
   // layer proposes no words, whatever it quotes.
   suggestRow.style.display =
     pendingAnchor?.quote && !pendingAbout && !pendingDrawing ? "flex" : "none";
-  composerSend.textContent = suggestCheck.checked ? "Suggest" : "Comment";
   syncComposer();
-  paintHere(); // the line's send row says which of the two the box will do
+  paintHere(); // the submit action says which of the two the box will do
 }
 export function setSuggestionMode(suggest) {
   suggestCheck.checked = Boolean(suggest);

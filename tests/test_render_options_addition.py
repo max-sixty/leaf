@@ -75,7 +75,8 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert card_field.evaluate(typography) == card_words.evaluate(typography)
     assert abs(card_field.bounding_box()["x"] - card_words.bounding_box()["x"]) < 0.5
 
-    expect(add).to_have_text("Add")
+    expect(add).to_have_text("")
+    expect(add.locator('svg[data-lf-icon="add"]')).to_have_count(1)
     expect(add).to_be_hidden()
     expect(add).to_have_attribute("aria-disabled", "true")
     empty_field_box = field.bounding_box()
@@ -92,39 +93,34 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     add_box = add.bounding_box()
     assert add_box["width"] >= aim_floor
     assert add_box["height"] >= aim_floor
-    assert (
-        abs(field_box["y"] + field_box["height"] - add_box["y"] - add_box["height"]) < 2
-    )
+    assert 0 < form_box["y"] + form_box["height"] - add_box["y"] - add_box["height"] < 8
     field.fill("First line\nSecond line\nThird line")
+    grown_form_box = form.bounding_box()
     grown_field_box = field.bounding_box()
     grown_add_box = add.bounding_box()
     assert grown_field_box["height"] > field_box["height"]
     assert (
-        abs(
-            grown_field_box["y"]
-            + grown_field_box["height"]
-            - grown_add_box["y"]
-            - grown_add_box["height"]
-        )
-        < 2
+        0
+        < grown_form_box["y"]
+        + grown_form_box["height"]
+        - grown_add_box["y"]
+        - grown_add_box["height"]
+        < 8
     )
-    face = """el => { const s = getComputedStyle(el);
-                       return [s.backgroundColor, s.borderTopColor, s.borderTopStyle,
-                               s.borderTopWidth, s.borderRadius, s.color]; }"""
-    add_face = add.evaluate(face)
-    ordinary_face = page.locator("body").evaluate(
-        """body => {
-          const probe = document.createElement("button");
-          probe.className = "lf-btn";
-          body.append(probe);
-          const s = getComputedStyle(probe);
-          const result = [s.backgroundColor, s.borderTopColor, s.borderTopStyle,
-                          s.borderTopWidth, s.borderRadius, s.color];
-          probe.remove();
-          return result;
+    face = add.evaluate(
+        """el => {
+          const button = getComputedStyle(el);
+          const circle = getComputedStyle(el, '::before');
+          return {
+            button: button.backgroundColor,
+            circle: circle.backgroundColor,
+            radius: circle.borderRadius,
+          };
         }"""
     )
-    assert add_face == ordinary_face
+    assert face["button"] == "rgba(0, 0, 0, 0)"
+    assert face["circle"] != face["button"]
+    assert face["radius"] == "50%"
     page.keyboard.press("Tab")
     expect(add).to_be_focused()
 

@@ -112,7 +112,7 @@ function hasThreads() {
 // The focused thread, one predicate: the row the line paints and the press the dispatcher
 // takes ask the same question, so they cannot disagree about which thread this is. Not a
 // control inside it, whose own press is its own. Open and resolved threads both qualify:
-// each has a primary Enter action and x changes the same resolution state in either direction.
+// each has a primary Enter action for its reply or Reopen path.
 export function focusedThread() {
   const active = focused();
   return active?.matches?.(".lf-thread, .lf-conversation-thread") ? active : null;
@@ -596,11 +596,10 @@ function landInThreadReply(thread) {
 
 const resolutionControl = (thread) =>
   thread?.querySelector(
-    ":scope > .lf-compose > .lf-thread-actions > :is(.lf-resolve, .lf-reopen), " +
-      ":scope > .lf-say > .lf-conversation-actions > :is(.lf-resolve, .lf-reopen), " +
-      ":scope > .lf-thread-actions > :is(.lf-resolve, .lf-reopen), " +
-      ":scope > :is(.lf-conversation-actions, .lf-conversation-resolved) " +
-      ":is(.lf-resolve, .lf-reopen)",
+    ":scope > .lf-msg > .lf-msg-head > .lf-resolve, " +
+      ":scope > .lf-conversation-msg > .lf-conversation-head > .lf-resolve, " +
+      ":scope > .lf-thread-actions > .lf-reopen, " +
+      ":scope > .lf-conversation-resolved .lf-reopen",
   ) ?? null;
 
 const HELP = {
@@ -844,11 +843,11 @@ export const TYPING = {
   ],
 };
 
-// A focused thread: the reply and the resolve are this scope's, not the page's. They said
-// "On a focused thread" in their own sentences and were live over the whole page, so a
-// reader who had focused nothing was offered a press that no-opped — the old page-step bug from the
-// other side. The reopen button tells the two states apart; absent a focused thread, the
-// reference describes the open state readers first meet rather than inventing a third one.
+// A focused thread's primary route is its reply or reopen, not the page's. It said "On a
+// focused thread" and was live over the whole page, so a reader who had focused nothing
+// was offered a press that no-opped — the old page-step bug from the other side. The
+// reopen button tells the two states apart; absent a focused thread, the reference
+// describes the open state readers first meet rather than inventing a third one.
 const THREAD = {
   title: "On a focused thread",
   when: () => threadList().length > 0,
@@ -883,31 +882,6 @@ const THREAD = {
         if (reopen) reopen.click();
         else landInThreadReply(thread);
       },
-    },
-    {
-      id: "thread.resolution.toggle",
-      // `x` and not `r`, though resolve is the word it does: the press beside it in this
-      // same scope is the reply, and a reader meeting `r` on the line reads "reply" before
-      // they read "resolve". A key spelling its own word is the wrong key when the
-      // neighbouring press owns the word it would be read as. `x` is the letter a thing
-      // closes under, and no other scope had claimed it.
-      keys: ["x"],
-      does: () =>
-        resolutionControl(focusedThread())?.matches(".lf-reopen")
-          ? "Reopen it"
-          : "Resolve it",
-      line: () =>
-        resolutionControl(focusedThread())?.matches(".lf-reopen")
-          ? "reopen"
-          : "resolve",
-      // Through the thread's own button, so keyboard and mouse are one behaviour — the
-      // focus landing included. Both states offer exactly one resolution button, and the
-      // row's liveness names that reachable capability instead of hiding a no-op in run.
-      when: () =>
-        resolutionControl(focusedThread())?.matches(
-          ':not(:disabled, [aria-disabled="true"])',
-        ),
-      run: () => resolutionControl(focusedThread()).click(),
     },
   ],
 };

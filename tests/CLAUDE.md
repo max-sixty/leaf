@@ -431,13 +431,11 @@ the page.
 
 For layout, animation, and navigation, identify the final fact precisely.
 `panel_settled` waits for the requested panel class and then for the body's
-finite animations to empty. `reservations_taken` waits for the room the panel's
-settlement controls hold, which lands a ResizeObserver delivery and a frame after
-`panel_settled`. `resized` waits for the resize event to reach listeners and then
-for one rendering update behind it; the document's own scrolling area is
-published in the update after the one the event arrived in. An observer or
-protocol record that outlives a motion is read after `moving` says finite motion
-has ended. An element-anchored quote can cause an instant document scroll
+finite animations to empty. `resized` waits for the resize event to reach listeners
+and then for one rendering update behind it; the document's own scrolling area is
+published in the update after the one the event arrived in. An observer or protocol
+record that outlives a motion is read after `moving` says finite motion has ended. An
+element-anchored quote can cause an instant document scroll
 followed by a smooth scroll, so its first `scrollend` is a real edge but not the
 destination; wait for the mark to reach the computed position or for the final
 document scroll to stop.

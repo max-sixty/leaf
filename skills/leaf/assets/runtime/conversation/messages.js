@@ -141,7 +141,7 @@ export function syncEdited(head, m) {
   }
   if (!edited) {
     edited = el("span", "lf-edited", "edited");
-    head.append(edited);
+    head.insertBefore(edited, head.querySelector(":scope > .lf-resolve"));
   }
   edited.title = `Edited ${ago(m.edited.ts)}`;
 }

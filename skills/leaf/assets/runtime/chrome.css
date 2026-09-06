@@ -1328,16 +1328,9 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     background: var(--warn-tint); font: 600 var(--t-6)/1.25 var(--sans);
     vertical-align: baseline; }
   .lf-going { overflow: hidden; box-sizing: border-box; }
-  /* The outcome rides the closing edge, so it is legible for the whole fold rather
-     than for the frame before the box swallows it: the actions row is the thread's
-     last line, and a fold from the bottom takes it first. Pinned to the box's own
-     bottom padding, which is where it already sits in flow, so the fold starts from
-     the layout the reader was looking at and nothing shifts on the press. It occludes
-     what it passes (background) rather than reading through it, and it says the
-     outcome in ink, since the metrics here are what the fold is animating. */
-  .lf-going .lf-thread-actions { position: absolute; inset: auto var(--lf-thread-pad) var(--lf-thread-pad); background: var(--card); }
   .lf-going .lf-thread-send { visibility: hidden; }
-  .lf-going .lf-resolve { color: var(--ok); }
+  .lf-going .lf-resolve { color: var(--ok-ink); }
+  .lf-going .lf-resolve::before { border-color: var(--ok); background: var(--ok-tint); }
   /* Direct navigation cues the same bounded box it revealed: a short card, one
      message, the reply row, or an oversized editor. */
   .lf-thread.flash, .lf-msg.flash, .lf-compose.flash, .lf-compose textarea.flash {
@@ -1391,6 +1384,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      carried 12.5px and 11.5px, a pixel apart for no reason either could give, and the
      11.5 was --t-6 written out. */
   .lf-msg-head { display: flex; gap: 6px; align-items: baseline; font-size: var(--t-6); }
+  .lf-msg-head:has(> .lf-resolve) { align-items: center; }
   .lf-msg.claude .lf-msg-head b { color: var(--accent); }
   .lf-msg time { color: var(--muted-2); }
   .lf-msg-head .lf-edited { color: var(--muted-2); }
@@ -1425,9 +1419,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      the flex-item margins they had as the panel's own children, and so the one box the
      chrome measures for its lift is the one the reader sees standing there. */
   .lf-panel-foot { display: flex; flex-direction: column; flex: none; }
-  /* The general Send stays beside its field; a thread gives the field its own row. */
+  /* Every composer gives its field the row; its submit action lives inside that field. */
   .lf-general { display: flex; gap: 6px; margin-top: 8px; align-items: flex-end; }
-  .lf-general textarea { flex: 1; min-width: 0; }
   .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
   .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
   .lf-thread-action:hover { color: var(--ok); }
@@ -1500,8 +1493,9 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   textarea.lf-fab-input { --lf-response-min-width: 216px; width: auto;
     min-width: min(var(--lf-response-min-width), var(--lf-response-room, 100vw));
     max-width: min(80ch, var(--lf-response-room, 100vw));
+    min-height: calc(max(28px, var(--aim-floor)) + 12px);
     max-height: var(--lf-float-h, 60vh);
-    padding-inline: 12px;
+    padding-inline: 12px calc(max(28px, var(--aim-floor)) + 12px);
     resize: none;
     field-sizing: content; overflow-y: auto; }
   .lf-response-action { min-width: 30px; padding-inline: 9px;
@@ -1620,7 +1614,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-visual-mark.lf-visual-mark-here { --lf-shape-dash: none; }
   .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-composer { display: none; }
-  .lf-fab-bar .lf-composer > :not(.lf-fab-input, .lf-composer-media) {
+  .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
     display: none !important; }
   .lf-fab-bar .lf-composer-media { display: flex; gap: 6px; flex: none;
     max-width: 148px; padding: 0; overflow-x: auto; }
@@ -1712,7 +1706,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     gap: 8px; }
   .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
     line-height: 1.35; }
-  .lf-margin-preview-close { flex: none; min-width: 30px; padding-inline: 7px; }
+  .lf-margin-preview-close { flex: none; }
   .lf-margin-preview-list { display: grid; gap: 4px; margin-top: 10px; }
   .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }

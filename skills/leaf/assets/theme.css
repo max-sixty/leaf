@@ -1276,15 +1276,15 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-thread > .lf-say:not([hidden]) { display: flex; }
 .lf-say textarea { flex: 1; min-width: 0; }
 .lf-conversation-thread > .lf-say { flex-direction: column; align-items: stretch; }
-.lf-conversation-actions, .lf-conversation-resolved { display: flex;
+.lf-conversation-resolved { display: flex;
           align-items: center; justify-content: space-between; gap: var(--sp-2); }
-.lf-conversation-actions .lf-resolve { margin-left: auto; }
 .lf-conversation > .lf-say { margin-top: 0; }
 .lf-conversation-thread + .lf-conversation-thread {
           border-top: 1px solid var(--rule); margin-top: var(--sp-3); padding-top: var(--sp-3); }
 .lf-conversation-msg { margin: var(--sp-2) 0; }
 .lf-conversation-head { display: flex; align-items: baseline; gap: var(--sp-2);
           font-size: var(--t-6); }
+.lf-conversation-head:has(> .lf-resolve) { align-items: center; }
 .lf-conversation-msg.claude .lf-conversation-head b { color: var(--accent); }
 .lf-conversation-head time { color: var(--muted-2); }
 .lf-conversation-head .lf-edited { color: var(--muted-2); }
@@ -1794,6 +1794,45 @@ html.lf-versioning::view-transition-new(root) {
 .lf-btn.primary:is(:disabled, [aria-disabled="true"]) {
           opacity: 1; color: var(--muted); background: var(--paper);
           border-color: var(--border-2); filter: none; }
+.lf-compose-field { --lf-icon-action-hit: max(28px, var(--aim-floor));
+          position: relative; flex: 1; min-width: 0; }
+.lf-compose-field > textarea:not(.lf-fab-input) { display: block; box-sizing: border-box;
+          width: 100%; min-width: 0; min-height: calc(var(--lf-icon-action-hit) + 12px);
+          padding-inline-end: calc(var(--lf-icon-action-hit) + 12px); }
+.lf-icon-action { --lf-icon-action-hit: max(28px, var(--aim-floor));
+          box-sizing: border-box; width: var(--lf-icon-action-hit);
+          height: var(--lf-icon-action-hit); min-width: var(--lf-icon-action-hit);
+          min-height: var(--lf-icon-action-hit); padding: 0; display: grid;
+          place-items: center; }
+.lf-action-icon { position: relative; z-index: 1; inline-size: 16px; block-size: 16px;
+          overflow: visible; pointer-events: none; fill: none; stroke: currentColor; stroke-width: 1.6;
+          stroke-linecap: round; stroke-linejoin: round; }
+/* Closing changes the view; resolving changes durable thread state. */
+.lf-close-action { border: 0; border-radius: 50%; background: transparent;
+          color: var(--muted); }
+.lf-close-action:hover { background: var(--chip); color: var(--ink); }
+.lf-compose-submit { position: absolute; z-index: 1; inset-inline-end: 6px;
+          inset-block-end: 6px; border: 0; border-radius: 50%;
+          background: transparent; color: var(--paper); filter: none; }
+.lf-compose-submit::before { content: ""; position: absolute; box-sizing: border-box;
+          width: 28px; height: 28px; border-radius: 50%; background: var(--accent); }
+.lf-compose-submit:hover { background: transparent; filter: none; }
+.lf-compose-submit:not(:disabled, [aria-disabled="true"]):hover::before { filter: brightness(.92); }
+.lf-compose-submit:is(:disabled, [aria-disabled="true"]) { opacity: 1;
+          border-color: transparent; background: transparent; color: var(--muted); }
+.lf-compose-submit:is(:disabled, [aria-disabled="true"])::before {
+          border: 1px solid var(--border-2); background: var(--paper); }
+.lf-resolve.lf-icon-action { position: relative; flex: none; margin-inline-start: auto;
+          border: 0; border-radius: 50%; background: transparent; color: var(--ink);
+          box-shadow: none; }
+.lf-resolve.lf-icon-action::before { content: ""; position: absolute;
+          box-sizing: border-box; inline-size: 28px; block-size: 28px;
+          border: 1px solid var(--border-2); border-radius: 50%; background: var(--paper); }
+.lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover {
+          background: transparent; color: var(--ok-ink); box-shadow: none; }
+.lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {
+          border-color: var(--ok); background: var(--ok-tint); }
+.lf-resolve.lf-icon-action .lf-action-icon { inline-size: 15px; block-size: 15px; }
 .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
 /* Draw mode takes page-widget presses before their controls can act. This rule is in
    the shared slice because document selectors do not cross a declared shadow root. */

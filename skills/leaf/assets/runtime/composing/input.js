@@ -2,6 +2,7 @@ import { focused, keys } from "../keyboard/scopes.js";
 import { spell } from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
 import { notice } from "../notifications.js";
+import { iconElement } from "../icons.js";
 // One helper wires every durable composition surface: the general box, each per-thread
 // reply, the compact anchored composer, and composition boxes contributed by widgets.
 // `wireInput` gives every such textarea one input contract: persist each edit, keep the
@@ -16,8 +17,7 @@ import { notice } from "../notifications.js";
 // another tab. When the surface accepts images, a paste uploads bytes to page media. The
 // draft keeps the resulting Markdown, while the textarea shows only the reader's words
 // and a thumbnail projection.
-// The submit binding, and the register's spelling of it: the placeholder, the button's
-// tooltip and the row a box declares all read one string.
+// The submit binding owns the shortcut spelling used by the placeholder and tooltip.
 const SEND = "Mod+Enter";
 let uploadMedia;
 let inputAddress = () => null;
@@ -46,9 +46,8 @@ export const paintInputs = () => {
   paintedInput = input;
   paintedAddress = address;
 };
-// `sends` is the word the box's own send row says — "send", "suggest", "comment" — since
-// a composer in suggestion mode and a thread's reply are the same binding doing different
-// things, and the row is where the surfaces read that from.
+// `sends` and `icon` state the box's own submit action. A composer in suggestion mode,
+// a thread reply, and an added option share the input contract without sharing meaning.
 export function wireInput(
   ta,
   {
@@ -58,6 +57,7 @@ export function wireInput(
     send,
     sendBtn,
     sends,
+    icon,
     altBtn = null,
     altSend = null,
     allowsMedia = () => true,
@@ -66,11 +66,17 @@ export function wireInput(
     layout = () => {},
   },
 ) {
+  const field = document.createElement("div");
+  field.className = "lf-compose-field";
+  ta.before(field);
+  field.append(ta, sendBtn);
+  sendBtn.classList.add("lf-icon-action", "lf-compose-submit");
+  sendBtn.replaceChildren(iconElement(icon, "lf-action-icon"));
   const mediaShelf = document.createElement("div");
   mediaShelf.className = "lf-composer-media";
   mediaShelf.setAttribute("role", "group");
   mediaShelf.setAttribute("aria-label", "Pasted images");
-  ta.before(mediaShelf);
+  field.before(mediaShelf);
   let pastedMedia = [];
   let visibleValue = ta.value;
   const draftValue = () => writePastedMedia(ta.value, pastedMedia);
@@ -122,6 +128,11 @@ export function wireInput(
   const name = () =>
     typeof accessibleName === "function" ? accessibleName() : accessibleName;
   const sendKeys = spell(SEND);
+  const sendWord = () => (typeof sends === "function" ? sends() : sends);
+  const sendLabel = () => {
+    const word = sendWord();
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  };
   const paint = (addressed = inputAddress()) => {
     // Read the shared logical focus so this hint agrees with the key line and rings.
     const standing = focused() === ta;
@@ -134,7 +145,10 @@ export function wireInput(
   };
   inputPaints.set(ta, paint);
   const repaint = () => {
-    sendBtn.title = `${sendBtn.textContent.trim()} (${sendKeys})`;
+    const label = sendLabel();
+    if (sendBtn.getAttribute("aria-label") !== label)
+      sendBtn.setAttribute("aria-label", label);
+    sendBtn.title = `${label} (${sendKeys})`;
     if (focused() === ta) paintInputs();
     else paint();
   };
@@ -171,10 +185,7 @@ export function wireInput(
     // (the notice announces too).
     const raw = draftValue();
     const text = raw.trim();
-    if (!hasContent(raw))
-      return notice(
-        `Nothing to ${sendBtn.textContent.trim().toLowerCase()} — the box is empty`,
-      );
+    if (!hasContent(raw)) return notice(`Nothing to ${sendWord()} — the box is empty`);
     sending = true;
     refresh();
     try {

@@ -826,9 +826,14 @@ preview.setAttribute("popover", "auto");
 preview.setAttribute("role", "dialog");
 const previewHead = el("div", "lf-margin-preview-head");
 const previewTitle = el("strong", "lf-margin-preview-title");
-const previewClose = el("button", "lf-btn lf-margin-preview-close", "×");
+const previewClose = el(
+  "button",
+  "lf-btn lf-icon-action lf-close-action lf-margin-preview-close",
+);
+previewClose.append(iconElement("cross", "lf-action-icon"));
 previewClose.type = "button";
 previewClose.setAttribute("aria-label", "Close thread");
+previewClose.title = "Close thread (Esc)";
 previewHead.append(previewTitle, previewClose);
 const previewList = el("div", "lf-margin-preview-list");
 preview.append(previewHead, previewList);

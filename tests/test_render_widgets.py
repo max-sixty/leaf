@@ -1197,9 +1197,9 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
 
 def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, serve):
     """The explanation is a glance, not a mouse-only tooltip: the phrase opens it on
-    hover, Tab reaches its raised mark, and a click pins it for touch. In every form the
-    top-layer card remains inside the viewport, and both the phrase and explanation
-    remain the page's authored words."""
+    hover, Tab reaches its Explain control, and a click pins it for mouse or touch. In
+    every form the top-layer card remains inside the viewport, and both the phrase and
+    explanation remain the page's authored words."""
     source = leaf_page(
         "gloss",
         """
@@ -1223,31 +1223,45 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
         """el => {
           const phrase = getComputedStyle(el);
           const mark = el.querySelector('.lf-gloss-mark');
-          const badge = getComputedStyle(mark);
+          const words = document.createRange();
+          words.selectNodeContents(el.childNodes[0]);
           const tokens = document.createElement('span');
-          tokens.style.cssText = 'color: var(--accent); background: var(--card)';
+          tokens.style.cssText = 'color: var(--accent)';
           document.body.append(tokens);
           const tokenStyle = getComputedStyle(tokens);
           const accent = tokenStyle.color;
-          const card = tokenStyle.backgroundColor;
           tokens.remove();
           return {
             accent,
-            card,
+            extraWidth: el.getBoundingClientRect().width - words.getBoundingClientRect().width,
             underline: phrase.textDecorationColor,
-            mark: mark.textContent,
-            markBackground: badge.backgroundColor,
-            markColor: badge.color,
+            markOpacity: getComputedStyle(mark).opacity,
+            markText: mark.textContent,
+            markWidth: mark.getBoundingClientRect().width,
+            pointer: phrase.cursor,
           };
         }"""
     )
-    assert affordance["mark"] == "i"
+    assert affordance["markText"] == ""
+    assert affordance["markWidth"] == 1
+    assert affordance["markOpacity"] == "0"
+    assert affordance["pointer"] == "help"
+    assert affordance["extraWidth"] == pytest.approx(0, abs=1)
     assert affordance["underline"] == affordance["accent"]
-    assert affordance["markBackground"] == affordance["accent"]
-    assert affordance["markColor"] == affordance["card"]
     gloss.hover()
     expect(bubble).to_be_visible()
     expect(bubble).to_have_text("A thin, end-to-end path through the real system.")
+
+    # Auto popovers light-dismiss on a press outside the card. The phrase is outside
+    # the card too, so the click that pins a hovered explanation must reconcile the
+    # browser's just-closed popover with the widget state before the pointer leaves.
+    gloss.click(position={"x": 20, "y": 8})
+    page.mouse.move(0, 0)
+    expect(bubble).to_be_visible()
+    page.locator("h1").click()
+    expect(bubble).to_be_hidden()
+    gloss.hover()
+    expect(bubble).to_be_visible()
 
     rect = bubble.evaluate("el => el.getBoundingClientRect()")
     viewport = page.evaluate("() => ({ width: innerWidth, height: innerHeight })")
@@ -1270,6 +1284,7 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     page.keyboard.press("Tab")
     expect(mark).to_be_focused()
     expect(bubble).to_be_visible()
+    expect(gloss).to_have_css("outline-style", "solid")
     page.keyboard.press("Escape")
     expect(bubble).to_be_hidden()
 
@@ -1294,34 +1309,6 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     assert touch_errors == []
     touch.close()
     context.close()
-
-
-def test_a_gloss_aim_box_does_not_make_its_table_scroll_sideways(browser, serve):
-    """The mark's aim box is outside layout but not outside overflow. A gloss that ends
-    a cell puts the badge against the table's inline edge, and an aim box straddling the
-    badge would hang half its width past that edge — leaving a table the reader can drag
-    sideways over a target nothing draws."""
-    page, errors = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "gloss at the edge",
-                """
-<h1>Areas</h1>
-<table id="edge-table" style="width: fit-content">
-  <tbody><tr><td style="padding: 0"><lf-gloss
-    tip="The test reads the index before and after."
-    >byte-identical</lf-gloss></td></tr></tbody>
-</table>
-""",
-            )
-        ),
-    )
-    expect(page.locator("#edge-table .lf-gloss-mark")).to_be_visible()
-    room = page.locator("#edge-table").evaluate("el => el.scrollWidth - el.clientWidth")
-    assert room <= 1, f"the table scrolls {room}px sideways"
-    assert errors == []
-    page.close()
 
 
 def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):

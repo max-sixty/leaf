@@ -684,6 +684,10 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     expect(nums.first).to_be_hidden()
 
     page.keyboard.press("a")
+    position = page.locator(".lf-walk-position")
+    expect(position).to_have_text("Ask 1 of 4 open")
+    expect(position).to_have_attribute("aria-hidden", "true")
+    expect(position.locator("xpath=parent::*")).to_have_class(re.compile("lf-keyline"))
     marks = page.locator("#live-question .lf-pick")
     # The arrival stands on the Ask, which wears its options' digits; the marks
     # are the next Tab stops.
@@ -692,6 +696,7 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
+    expect(position).to_have_text("Ask 1 of 4 open")
     expect(
         page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_text(["1", "2"])
@@ -714,11 +719,60 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     page.keyboard.press("1")
     expect(page.locator("#lq-keep")).to_have_attribute("chosen", "")
     round_trip(page)
+    expect(position).to_be_hidden()
     acts = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
     assert acts[-1]["widget"] == "live-question"
     assert acts[-1]["detail"] == {"options": ["lq-keep"]}
+    assert errors == []
+    page.close()
+
+
+def test_the_ask_walk_position_leads_the_narrow_status_line(browser, serve):
+    """Navigation context gets the first row without acquiring a second box."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    resized(page, 390, 780)
+    position = page.locator(".lf-walk-position")
+    expect(position).to_be_hidden()
+    expect(page.locator(".lf-banner-menu > .lf-asks")).to_have_count(1)
+
+    page.keyboard.press("a")
+    expect(position).to_have_text("Ask 1 of 4 open")
+    geometry = page.evaluate(
+        """() => {
+          const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+          const position = box('.lf-walk-position');
+          const hint = box('.lf-keyline .lf-key:not([hidden])');
+          const line = box('.lf-keyline');
+          const style = getComputedStyle(document.querySelector('.lf-walk-position'));
+          return {position: {left: position.left, right: position.right,
+                             top: position.top, bottom: position.bottom},
+                  hint: {top: hint.top},
+                  line: {left: line.left, right: line.right},
+                  first: document.querySelector('.lf-keyline').firstElementChild
+                    .className,
+                  parent: document.querySelector('.lf-walk-position').parentElement
+                    .className,
+                  face: {background: style.backgroundColor,
+                         border: style.borderTopWidth, shadow: style.boxShadow},
+                  userSelect: style.userSelect};
+        }"""
+    )
+    assert "lf-walk-position" in geometry["first"], geometry
+    assert "lf-keyline" in geometry["parent"], geometry
+    assert geometry["position"]["bottom"] <= geometry["hint"]["top"], geometry
+    assert geometry["line"]["left"] <= geometry["position"]["left"], geometry
+    assert geometry["position"]["right"] <= geometry["line"]["right"], geometry
+    assert geometry["face"] == {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px",
+        "shadow": "none",
+    }, geometry
+    assert geometry["userSelect"] == "none", geometry
+
+    page.locator("#h").click()
+    expect(position).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -1160,8 +1214,15 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     page.fill(".lf-find-box", "neighbouring block")
     expect(page.locator(f'.lf-thread[data-id="{roots[0]}"]')).to_be_hidden()
     expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_visible()
+    position = page.locator(".lf-walk-position")
+    page.locator(".lf-threads").focus()
+    page.keyboard.press("t")
+    expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_focused()
+    expect(position).to_have_text("Thread 1 of 1 shown")
+    expect(position.locator("xpath=parent::*")).to_have_class(re.compile("lf-keyline"))
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, False)
+    expect(position).to_be_hidden()
 
     page.keyboard.press("t")
     first = page.locator(
@@ -1169,6 +1230,8 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     )
     expect(first).to_be_focused()
     expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(position).to_have_text("Thread 1 of 2")
+    expect(position).to_have_attribute("aria-hidden", "true")
 
     page.keyboard.press("t")
     second = page.locator(
@@ -1176,9 +1239,11 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     )
     expect(second).to_be_focused()
     expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(position).to_have_text("Thread 2 of 2")
 
     page.keyboard.press("Shift+t")
     expect(first).to_be_focused()
+    expect(position).to_have_text("Thread 1 of 2")
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -4748,23 +4813,16 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     page.close()
 
 
-def test_a_coarse_pointer_is_given_no_key_line_and_keeps_no_room_for_one(
-    browser, serve
-):
-    """A touch device has no keyboard to advertise, so the line has nothing to say and
-    stands down whole rather than shrinking: every hint on it names a key the reader
-    cannot press, and it spends a box on them over the words of a page whose window is
-    the smallest one there is.
+def test_a_coarse_pointer_gets_only_active_navigation_context(browser, serve):
+    """Touch hides key hints, but an attached-keyboard walk still says where it arrived.
 
-    The room goes with it. syncLayout reads the standing line's own box, so the band
-    reserved at the foot of the document and of either list is the line's footprint or
-    nothing at all — a reservation for a line nobody is shown is a strip of blank paper
-    under the last paragraph."""
+    The room follows the rendered state. At rest no box spends page room; while the
+    position stands, syncLayout reserves its measured footprint."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
     try:
-        page, errors = open_page(browser, serve(NOTED_PAGE), context=context)
+        page, errors = open_page(browser, serve(ASKS_PAGE), context=context)
         assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
             "the touch fixture never reached Leaf's coarse-pointer rules"
         )
@@ -4797,6 +4855,24 @@ def test_a_coarse_pointer_is_given_no_key_line_and_keeps_no_room_for_one(
         page.keyboard.press("s")
         expect(page.locator(".lf-target-hint").first).to_be_visible()
         page.keyboard.press("Escape")
+
+        page.keyboard.press("a")
+        line = page.locator(".lf-keyline")
+        expect(line).to_be_visible()
+        expect(line.locator(".lf-walk-position")).to_have_text("Ask 1 of 4 open")
+        expect(line.locator(":scope > :visible")).to_have_count(1)
+        active_room = page.evaluate(
+            """() => ({
+              height: document.querySelector('.lf-keyline').getBoundingClientRect().height,
+              reserved: parseFloat(getComputedStyle(
+                document.querySelector('.lf-chrome')).paddingBottom),
+            })"""
+        )
+        assert active_room["height"] > 0, active_room
+        assert active_room["reserved"] > active_room["height"], active_room
+
+        page.locator("#h").click()
+        expect(line).to_be_hidden()
         assert errors == []
         page.close()
     finally:

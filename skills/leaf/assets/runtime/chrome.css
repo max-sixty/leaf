@@ -1777,11 +1777,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     .lf-page-map-action:focus-visible {
       outline: 2px solid Highlight; }
   }
-  /* The key line: two contextual hints and the More control, rendered from the
-     register the dispatcher walks (see the module docstring). A chord shows its whole
-     live scope; More unfolds the remaining current register before it opens the complete
-     reference. Each hint is the eye's copy of facts spoken elsewhere and stays
-     aria-hidden; More is a real control.
+  /* The key line is a compact status line: transient Ask or Thread position first,
+     then two contextual hints and the More control rendered from the register the
+     dispatcher walks (see the module docstring). A chord shows its whole live scope;
+     More unfolds the remaining current register before it opens the complete reference.
+     Position and hints are the eye's copy of facts spoken elsewhere and stay aria-hidden;
+     More is a real control.
      syncLayout keeps the line out of a side-by-side thread panel and, over a covering
      panel, lifts it only when its rendered box actually meets the panel foot. The
      chrome root reserves the line's whole footprint — the band from its top to the foot
@@ -1797,11 +1798,18 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     padding: 5px 10px; }
   .lf-keyline[data-lf-wrap="true"] { width: max-content; flex-wrap: wrap;
     row-gap: 6px; align-items: baseline; }
-  .lf-keyline:empty { display: none; }
-  /* A touch device has no keyboard to advertise, so the line has nothing to say and
-     stands down whole rather than shrinking. Every hint on it names a key the reader
-     cannot press, and the box they cost stands over the words and the controls of a
-     page whose window is the smallest one there is.
+  .lf-keyline:not(:has(> :not([hidden]))) { display: none; }
+  .lf-walk-position { flex: none; color: var(--ink-2);
+    font-variant-numeric: tabular-nums; }
+  .lf-walk-position[hidden] { display: none; }
+  @media (width <= 560px) {
+    .lf-keyline[data-lf-walk] .lf-walk-position { flex-basis: 100%; }
+  }
+  /* A touch device has no keyboard hints to advertise, so the resting line stands down
+     whole rather than shrinking. Every hint on it names a key the reader cannot press,
+     and the box they cost stands over the words and the controls of a page whose window
+     is the smallest one there is. An attached keyboard can still begin a category walk;
+     its position is useful without the hidden hints, so that one reading stands alone.
      It takes the More control with it, and that is the cost rather than an oversight:
      More is the only pointer route to the reference, so a tablet with a keyboard
      attached reaches the reference by the question-mark key, and a reader who has also
@@ -1809,8 +1817,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      Every reader of the line's box asks whether there is one — syncLayout for the room
      it reserves, targets for how far down the page is reachable, the address chips and
      the floats for what they must not stand on. A zero box is the same state the empty
-     rule above has always had, so none of them is new. */
-  @media (pointer: coarse) { .lf-keyline { display: none; } }
+     line has always had, so none of them is new. */
+  @media (pointer: coarse) {
+    .lf-keyline { display: none; }
+    .lf-keyline[data-lf-walk] { display: flex; }
+    .lf-keyline[data-lf-walk] > :not(.lf-walk-position) { display: none; }
+  }
   .lf-keyline .lf-key { display: inline-flex; gap: 5px; align-items: baseline; }
   .lf-keyline .lf-key[hidden] { display: none; }
   .lf-keyline .lf-chord-control { margin-inline-start: 4px;

@@ -613,7 +613,13 @@ HELD_BY = {"elkjs": "beautiful-mermaid", "entities": "beautiful-mermaid"}
 
 
 def newest(package: str, within: str = "latest") -> str:
-    """Upstream's newest release of a package, bounded by a range where one is given."""
+    """Upstream's newest release of a package, bounded by a range where one is given.
+
+    A range answers with every match, and npm prints them in packument order rather
+    than semver order, so the last one is the range's most recently published release.
+    That is its newest while a range's releases go out in order; a patch backported
+    inside the range after a higher one would be read in its place.
+    """
     found = json.loads(
         run(
             "npm",
@@ -636,7 +642,7 @@ def report_pins() -> None:
             run(
                 "npm",
                 "view",
-                f"{holder}@{PINS[holder]}",
+                spec(holder),
                 f"dependencies.{package}",
                 cwd=ROOT,
                 capture=True,
@@ -658,7 +664,10 @@ def main() -> None:
     parser.add_argument(
         "--pins",
         action="store_true",
-        help="read every pin against upstream's latest, and name what to rebuild",
+        help=(
+            "read every pin against the newest release it could take, "
+            "and name what to rebuild"
+        ),
     )
     args = parser.parse_args()
 

@@ -543,6 +543,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     expect(
         page.locator(".lf-composer")
     ).to_be_hidden()  # the press decided, it didn't compose
+    assert page.evaluate("getSelection().isCollapsed")
     assert errors == []
     page.close()
 

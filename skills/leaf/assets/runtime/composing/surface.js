@@ -699,6 +699,7 @@ document.addEventListener("keyup", (ev) => {
 // working, which is the tray's point. Each closes by its own button, its key, or Esc.
 export function standDown(target) {
   const visual = visualAt(target);
+  const actionControl = target.closest?.("[data-lf-offer]");
   const sameVisual =
     visual &&
     !fabAnchor?.quote &&
@@ -709,6 +710,10 @@ export function standDown(target) {
     !target.closest?.(".lf-react-surface, .lf-composer") &&
     !reactionContextContains(target)
   ) {
+    // A control press chooses its action rather than the old page selection. Clear that
+    // range before the action can replace its nodes: otherwise the browser preserves a
+    // relocated range and a later state application raises the Comment field again.
+    if (actionControl) pageSelection()?.removeAllRanges();
     if (composerOpen) hideComposer();
     showFab(null, null, { returnFocus: "page" });
     // The armed react press goes with the bar it was armed on.

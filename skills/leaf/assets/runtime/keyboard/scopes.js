@@ -34,11 +34,18 @@ import { upFrom } from "../shadow.js";
 //
 // Coalesced to a frame: a focus move is a focusout then a focusin, and painting between
 // them would flash the scope of nowhere and drop the ring for a frame. The frame is also
-// what puts the first paint after every module has evaluated.
+// what puts the first paint after every module has evaluated, which is what makes it the
+// boundary a declaration's rows are first read at (`keys`, below).
 let painter = null;
 export function paintsHere(paint) {
   painter = paint;
 }
+// The scopes still owed a first paint. A declaration joins here and `reflectShortcuts`
+// takes it out again, so one reading is owed per declaration whether that reading stands
+// or refuses it. Transient by construction: `keys` schedules the frame that drains the set
+// in the same breath as it adds to it, and a `paintKeys` landing before that frame reads
+// the connected ones on its own way through.
+const unpainted = new Set();
 let herePending = false;
 export function paintHere() {
   if (herePending) return;
@@ -49,6 +56,9 @@ export function paintHere() {
     // first step registers the painter — and it fails here rather than painting nothing.
     if (!painter)
       throw new Error("leaf: leaf.js did not boot; nothing paints the standing chrome");
+    // Ahead of the painting, so an ambiguous scope is refused under its own title rather
+    // than under whichever surface reads its rows first.
+    for (const scope of unpainted) reflectShortcuts(scope);
     painter();
   });
 }
@@ -155,6 +165,17 @@ export function merge(sections, { title, when, at, claims, rows }) {
  * enumerable reference prunes its element when it disconnects. A connected control that
  * stops answering a key says so in the row's `when`, where every surface can read it.
  *
+ * Declaring is not reading. `checked` reads the rows as written — ids, shapes, canonical
+ * spellings — and refuses a malformed declaration here, where the caller wrote it. What
+ * those rows mean right now waits for the scope's first paint: the scene is the scope's
+ * `when` and each row's own, callbacks over their owner's state, and a scope declared
+ * while modules are still evaluating would run them against an owner that has not
+ * evaluated yet — the one evaluation-order path `leaf/evaluation-order` cannot see, since
+ * the rule reads module bodies and not the callbacks another module runs. The frame is
+ * after every module body, so the ambiguous scene and the `aria-keyshortcuts` projection
+ * are both settled there; a first paint that refuses a scope retracts it from both
+ * indexes.
+ *
  * Returns the rows, so a widget that says its own keys out loud — a grip announcing what a
  * grabbed card answers — reads them back off the declaration rather than restating them.
  */
@@ -172,23 +193,19 @@ export function keys(where, title, rows, options) {
     rows: checked(rows, title ?? "a scope"),
     when,
     answer,
+    validated: false,
   };
-  // Validate before publishing to either index. A rejected declaration must not leave a
-  // bad scope installed where every later paint fails on it. A capability-gated scope may
-  // depend on state its owner is still initializing, so its first paint remains the gate;
-  // an immediately readable scope can be checked in full now.
-  if (!scope.when) validateRows(scope.rows, title ?? "a scope");
-  scope.validated = !scope.when;
-  const shortcuts = !scope.when
-    ? ariaShortcuts(scope.rows, true, scope.title ?? "a scope")
-    : "";
+  // A declaration this one replaces before its first paint is owed nothing: read at
+  // the frame, a stale scope that refused would retract the element's standing
+  // declaration along with itself.
+  unpainted.delete(elementScopes.get(where));
   elementScopes.set(where, scope);
   rememberScopedElement(where);
-  // A scope capability may read state whose owner has not finished initializing while
-  // modules are still registering. State renderers call paintKeys once that boundary is
-  // complete; scopes with no capability gate are safe to expose immediately.
-  if (shortcuts) where.setAttribute("aria-keyshortcuts", shortcuts);
-  else where.removeAttribute("aria-keyshortcuts");
+  // Published unread, and read at the frame below. The element keeps whatever
+  // `aria-keyshortcuts` it already stood with until that paint answers, rather than
+  // losing it for a frame or claiming a set of keys this declaration has not been read
+  // for.
+  unpainted.add(scope);
   paintHere();
   return rows;
 }
@@ -233,14 +250,20 @@ export const commandScopesWithin = (root) =>
     source,
     answer: scope.answer,
   }));
+// One scope painted: its rows read for the scene they are in, and that reading projected
+// onto the element. This is the whole of a scope's first paint, so the attempt is what
+// takes it out of `unpainted` — a refusal retracts the scope rather than leaving it owed
+// a second reading.
 function reflectShortcuts(scope) {
+  unpainted.delete(scope);
   const available = !scope.when || scope.when();
   try {
     if (available) validateRows(scope.rows, scope.title ?? "a scope");
   } catch (error) {
-    // Capability-gated scopes may only become readable after registration. If that first
-    // validation fails, retract the unpublished contract completely; leaving it in the
-    // weak map would make every later paint fail after the caller handled the one error.
+    // A scope is published before it is read, and a capability-gated one may only become
+    // readable some paints later. If the reading that first reaches it fails, retract the
+    // unpublished contract completely; leaving it in the weak map would make every later
+    // paint fail after the caller handled the one error.
     if (!scope.validated) {
       elementScopes.delete(scope.el);
       forgetScopedElement(scope.el);

@@ -32,6 +32,7 @@ from leaf.validation.instances import (
 from leaf.validation.markup import (
     id_errors,
     media_errors,
+    missing_outline,
     page_boundary_errors,
     structure_errors,
     unpointable_blocks,
@@ -238,6 +239,7 @@ def _source_advice(
             )
         ),
         *unpointable_blocks(parser),
+        *missing_outline(parser, registry or {}),
     ]
 
 

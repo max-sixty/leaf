@@ -221,6 +221,8 @@ function demoThreads() {
       const message = { ...event };
       messages.set(message.id, message);
       thread.msgs.push(message);
+      // A reply that carries an anchor moves the thread there, and the opening
+      // comment keeps its own as history (build_threads, events.py).
       if ("anchor" in event) thread.anchor = event.anchor;
       threadFor.set(message.id, thread);
     } else if (event.kind === "edit") {
@@ -253,10 +255,8 @@ function demoThreads() {
       ),
       bare_reaction: Boolean(thread.root.token && spoken.length === 0),
       seat:
-        !thread.root.about &&
-        thread.root.anchor &&
-        Object.keys(thread.root.anchor).length === 1
-          ? (thread.root.anchor.section ?? null)
+        !thread.root.about && thread.anchor && Object.keys(thread.anchor).length === 1
+          ? (thread.anchor.section ?? null)
           : null,
     };
   });

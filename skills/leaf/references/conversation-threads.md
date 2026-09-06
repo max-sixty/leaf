@@ -41,9 +41,10 @@ the image itself before replying; alt text is a label, not evidence of what the 
 show.
 
 Send one the same way: run `leaf page media <page> <file>` and write the printed path as
-an ordinary Markdown image in the message's text. The door refuses a `/media/…` name the
-page directory cannot answer, in text as in markup, because the log is append-only and a
-broken image posted to it stays broken.
+an ordinary Markdown image in the message's text. The door refuses a `/media/…` the page
+directory cannot answer, in text as in markup, because the log is append-only and a
+broken image posted to it stays broken. It reads the link and image destinations the
+runtime resolves, so a path written about in a sentence stays prose.
 
 `--text` takes inline text; stdin accepts Markdown:
 

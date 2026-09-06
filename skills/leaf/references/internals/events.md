@@ -125,7 +125,9 @@ body renders as its own characters. A widget in a message rides the event's
 is validated against the vendored registry; the browser door refuses the field.
 An agent's body is read for `/media/<digest>.<ext>` at that same door, whether it
 arrives as text or markup, since either names a file the page directory has to
-have; the browser's own paste stores the image before the reference exists.
+have. Text is read where the runtime resolves one — a Markdown link or image
+destination — so a path quoted in prose is words, as it is in authored markup;
+the browser's own paste stores the image before the reference exists.
 
 A raster image pasted into a browser text box is stored first as content-addressed page
 media. Its durable draft carries an ordinary Markdown image at

@@ -3874,9 +3874,9 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
     through the one door that never asked, and the log is append-only: a picture the
     directory hasn't got is broken for as long as the page exists.
 
-    The reading is the layer's own name for a file rather than a scan for the word, so
-    `/media/` standing in a sentence is prose and a content-addressed digest is a
-    reference the directory has to answer."""
+    The reading is the link or image destination the runtime resolves rather than a scan
+    of the words, so the same path quoted in a sentence — a page explaining leaf writes
+    one, and `version check` has always let it through — stays the author's prose."""
     publish(page_dir)
     missing = "/media/deadbeefdeadbeef.png"
     posted = CliRunner().invoke(
@@ -3890,13 +3890,22 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
     assert f"{missing} isn't in the page directory" in posted.output, posted.output
     assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "comment"]
 
-    prose = CliRunner().invoke(
+    mention = CliRunner().invoke(
         cli_model.cli,
-        ["comment", str(page_dir), "--text", "put the shot under /media/ as usual"],
+        ["comment", str(page_dir), "--text", f"write it as `{missing}` in the message"],
     )
-    assert prose.exit_code == 0, (
-        f"the word /media/ in a sentence is the author's prose, not a reference:\n"
-        f"{prose.output}"
+    assert mention.exit_code == 0, (
+        f"a path named in a sentence is the author's words, the reading the markup "
+        f"door already keeps, not a picture the page owes:\n{mention.output}"
+    )
+
+    linked = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--text", f'[the panel](<{missing}> "shot")'],
+    )
+    assert linked.exit_code == 1, (
+        f"a link destination points at the same file an image does, angle brackets "
+        f"and title included:\n{linked.output}"
     )
 
     (page_dir / "media").mkdir(exist_ok=True)

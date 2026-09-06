@@ -7,10 +7,10 @@ from leaf.schema import _DIR_FILES, MEDIA_DIR
 from leaf.structure import OPTIONAL_END, SECTIONING_TAGS, _StructParser
 from leaf.styles import inline_presentation_override_errors
 
-# One media reference as a message's Markdown writes it, read with the layer's own
-# naming rather than a second spelling of it: the digest is what tells a real
-# reference from the word "/media/" standing in a sentence.
-MEDIA_REFERENCE = re.compile(rf"/{MEDIA_DIR}/{_DIR_FILES[MEDIA_DIR]}")
+# One media reference as a message's Markdown writes it: a link or image destination,
+# read where the runtime's own `isCanonicalMediaUrl` reads one, so a path standing in a
+# sentence or a fence keeps being the author's words rather than a file the page owes.
+MEDIA_REFERENCE = re.compile(rf"\]\(\s*<?(/{MEDIA_DIR}/{_DIR_FILES[MEDIA_DIR]})")
 
 
 def reserved_ids_error(ids: list) -> str:
@@ -186,17 +186,20 @@ def media_errors(parser: _StructParser, page_dir: Path) -> list:
 
 
 def text_media_errors(text: str, page_dir: Path) -> list:
-    """The same reference in a message's prose, which is the other way one arrives.
+    """The same reference in a message's Markdown, which is the other way one arrives.
 
     Markup names a picture in an attribute, where the parsed reading above finds it;
-    a message names one in Markdown, which that reading cannot see — so an agent
-    sending a screenshot, the very shape `media_errors` was written for, came through
-    the one door that never asked. `check_markup` runs only when `--markup` is given,
-    and text on its own reached the log unread.
+    a message names one as a Markdown destination, which that reading cannot see — so
+    an agent sending a screenshot, the very shape `media_errors` was written for, came
+    through the one door that never asked. `check_markup` runs only when `--markup` is
+    given, and text on its own reached the log unread.
 
-    Read by the layer's own name for a file rather than by scanning for the word:
-    `/media/` in a sentence is the author's prose, and a content-addressed digest is
-    a reference. What the shape lets through, the file below answers for."""
+    A reference is a link or image destination, never a scan of the words: the runtime
+    resolves `/media/…` off a token's href and nowhere else, `version check` says the
+    same of authored markup, and `inline_assets` learned it from an export a text scan
+    crashed. So a path quoted in prose is the author writing about leaf, and only a
+    destination is a file the directory has to answer. The residual is a fence quoting
+    a whole image construct — the one `inline_assets` names and accepts too."""
     return _unanswered_media(set(MEDIA_REFERENCE.findall(text)), page_dir)
 
 

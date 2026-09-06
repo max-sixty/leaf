@@ -57,7 +57,7 @@ PINS = {
     "entities": "7.0.1",
     "sortablejs": "1.15.7",
     "@observablehq/plot": "0.6.17",
-    "@pierre/diffs": "1.3.6",
+    "@pierre/diffs": "1.4.1",
     "@modelcontextprotocol/ext-apps": "1.7.5",
     "shiki": "4.4.3",
     "esbuild": "0.28.2",

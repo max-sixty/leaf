@@ -234,6 +234,17 @@ function renderStatusNow(state) {
     return;
   }
   renderPreview(state);
+  if (state.example) {
+    const install = el("a", "lf-example-install", "Install Leaf");
+    install.href = state.example.install_url;
+    showStatus(
+      "unattended",
+      TONE.unattended,
+      "This is an example on the Leaf website. No agent will respond. ",
+      install,
+    );
+    return;
+  }
   const { activity } = state;
   const { kind, quiet, dropped, detail } = activity;
   const obligations = activity.count;

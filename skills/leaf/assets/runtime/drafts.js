@@ -1,8 +1,8 @@
 /* Durable, cross-tab drafts and their accepted-log reconciliation.
 
-   Every unsent text surface persists:
+   Every unsent composition persists:
 
-   - the general comment box;
+   - the general comment box, including an attached page drawing;
    - each thread reply;
    - the selection composer, including its anchor and mode;
    - a conversation's first message and replies;
@@ -19,9 +19,9 @@
    its box is disconnected, so panel reconciliation does not maintain a parallel map of
    live inputs.
 
-   A draft generation stores `{text, attempt, base}` while active and `{attempt, base,
-   settled: true}` after settlement. Its attempt is minted on the keystroke that creates
-   the generation, not on Send, and is reused by every tab that sends that generation.
+   A draft generation stores `{text, attempt, base, payload?}` while active and
+   `{attempt, base, settled: true}` after settlement. Its attempt is minted when an edit
+   creates the generation, not on Send, and is reused by every tab that sends it.
    A refusal does not mint a new attempt. Pressing Send again re-evaluates the same
    attempt against current server state. A new edit, including replacing text with the
    same characters, creates a new attempt. A successful send settles only the exact
@@ -100,8 +100,10 @@ import { PAGE_SCOPE, draftStore } from "./storage.js";
 const DRAFT = "lf-draft:";
 const DRAFT_NEWS = "lf-drafts";
 const draftCache = new Map(); // context -> {record, durable}
-export const tellDraft = (ctx, value) =>
-  document.dispatchEvent(new CustomEvent(DRAFT_NEWS, { detail: { ctx, value } }));
+export const tellDraft = (ctx, value, payload = undefined) =>
+  document.dispatchEvent(
+    new CustomEvent(DRAFT_NEWS, { detail: { ctx, value, payload } }),
+  );
 const parseDraftRecord = (value) => {
   if (typeof value !== "string") return null;
   try {
@@ -152,7 +154,7 @@ const projectDraftRecord = (ctx, record) =>
     const current = draftCache.get(ctx)?.record ?? null;
     if (!sameDraftRecord(current, record)) return;
     const active = current && !current.settled && !attemptAccepted(current.attempt);
-    tellDraft(ctx, active ? current.text : null);
+    tellDraft(ctx, active ? current.text : null, active ? current.payload : undefined);
   });
 // A nondurable branch may replace exactly the shared generation it was editing, not
 // merely whatever record happens to be there when a failed writer becomes writable
@@ -246,6 +248,7 @@ export const clearDraft = (ctx) => {
   return settleDraft(ctx, current.attempt);
 };
 export const loadDraft = (ctx) => activeDraftRecord(ctx)?.text ?? null;
+export const loadDraftPayload = (ctx) => activeDraftRecord(ctx)?.payload;
 export const draftContexts = () =>
   new Set([
     ...draftCache.keys(),
@@ -302,8 +305,8 @@ export async function sendDraft(ctx, owns, send) {
 // the bus, as it is for replayed actions (watchActions), and that is what supplies the
 // index this needs — from a draft's context to the box on screen — without a map of our
 // own to hold in step with the panel: a box that has left the document takes its view off
-// with it (mirrorDraft). The callback takes the store's vocabulary, so the words now
-// standing arrive as a string and a settlement as null.
+// with it (mirrorDraft). The callback takes the store's vocabulary: active words and
+// their optional submission payload, or null and no payload for settlement.
 //
 // It does not run on subscribe, which is where this parts company with watchActions. The
 // draft a box opens with and the news that another tab changed one are different facts,
@@ -311,7 +314,8 @@ export async function sendDraft(ctx, owns, send) {
 // stays shut for a keystroke made elsewhere, because news arriving has no gesture behind
 // it and so may move nothing.
 export function watchDraft(ctx, callback) {
-  const update = (ev) => ev.detail.ctx === ctx && callback(ev.detail.value);
+  const update = (ev) =>
+    ev.detail.ctx === ctx && callback(ev.detail.value, ev.detail.payload);
   document.addEventListener(DRAFT_NEWS, update);
   return () => document.removeEventListener(DRAFT_NEWS, update);
 }
@@ -337,7 +341,7 @@ addEventListener("storage", (ev) => {
   if (incoming) draftCache.set(ctx, { record: incoming, durable: true });
   else draftCache.delete(ctx);
   const active = incoming && !incoming.settled && !attemptAccepted(incoming.attempt);
-  tellDraft(ctx, active ? incoming.text : null);
+  tellDraft(ctx, active ? incoming.text : null, active ? incoming.payload : undefined);
 });
 
 // One box's view of one draft: sync.value() reads the complete durable value, including

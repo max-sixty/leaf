@@ -127,6 +127,16 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
             )
         ):
             key = f"comment contract: {error}"
+        elif (
+            kind == "reply"
+            and (e.get("anchor") or {}).get("visual")
+            and (
+                error := event_contracts.visual_anchor_error(
+                    e, page(e["revision"]).by_id, incoming
+                )
+            )
+        ):
+            key = f"reply contract: {error}"
         elif kind == "action" and (
             error := event_contracts.declared_action_error(
                 e,

@@ -1095,13 +1095,13 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
 
       <section id="pr-outcome">
         <lf-ask id="pr-outcome-decision">
-          <h2>What would you report on the final revision?</h2>
+          <h2 id="pr-outcome-heading">What would you report on the final revision?</h2>
           <p id="pr-outcome-context">
             Choose the review the agent should enter on the forge. Each option states
             the disposition and the exact work, so the agent can submit it without
             translating a generic label. Digits choose a listed answer;
             <kbd>c</kbd> comments on it. Tab reaches <strong>Another option</strong>,
-            where <kbd>Enter</kbd> submits.
+            where <kbd>Enter</kbd> adds a line and <kbd>Mod+Enter</kbd> adds the answer.
           </p>
           <lf-options id="pr-outcome-choice" choose>
             <lf-option id="pr-outcome-follow-up">
@@ -1938,7 +1938,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-reader-workflows">
         <p class="eyebrow bg-feature-elements">
-          Approve version · Design mode · Requests
+          Approve version · Design mode · Draw mode · Requests
         </p>
         <h2 id="bg-reader-workflows-heading">
           <strong>Reader workflows</strong
@@ -1969,6 +1969,20 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             Press <kbd>l</kbd>, then click <strong>Street map</strong>. Leaf opens a
             comment about <code>lf-option · bg-choice-street</code> without choosing the
             option. Press <kbd>Escape</kbd> to leave design mode.
+          </p>
+        </section>
+
+        <section id="bg-drawing-comments">
+          <p class="eyebrow bg-feature-elements">Draw mode · drawing comment</p>
+          <h3 id="bg-drawing-comments-heading">
+            <strong>Draw mode</strong
+            ><span class="bg-feature-detail">: point with a freehand mark</span>
+          </h3>
+          <p id="bg-drawing-comments-guide">
+            Press <kbd>w</kbd> and draw anywhere across the page. Start over this guide
+            or in its margin to anchor the comment here; empty space with no item
+            alongside comments on the page whole. Send the drawing alone or add words
+            first.
           </p>
         </section>
 

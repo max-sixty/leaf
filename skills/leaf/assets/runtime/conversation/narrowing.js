@@ -38,7 +38,7 @@ export const narrowed = () => Boolean(finding) || onlyNeedsYou;
 // the reader can see and therefore what they would search for.
 const threadWords = (t, group) =>
   [
-    anchorLabel(t.root.anchor, t.root.about),
+    anchorLabel(t.anchor, t.root.about),
     group.label,
     ...t.msgs.map((m) => m.text ?? m.token),
   ]

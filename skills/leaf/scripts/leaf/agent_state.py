@@ -134,7 +134,7 @@ def _base_state(
         "threads": [
             {
                 "id": root,
-                "anchor": thread["root"].get("anchor"),
+                "anchor": thread["anchor"],
                 "resolved": thread["resolved"] and thread["resolved"]["author"],
             }
             for root, thread in threads.items()
@@ -358,11 +358,14 @@ def _write_page_state(
         fragment = thread_reading.structure.fragments.get(event["id"])
         message = {
             "message": event["id"],
-            "text": event.get("text", ""),
             "source": {"kind": "message", "event": event["id"], "seq": event["seq"]},
             "edit": {"kind": "conversation", "thread": thread_id},
             "content": [],
         }
+        if "text" in event:
+            message["text"] = event["text"]
+        if "drawing" in event:
+            message["drawing"] = event["drawing"]
         state["content"].append(message)
         if fragment is None:
             continue

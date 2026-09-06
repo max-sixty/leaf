@@ -66,6 +66,11 @@ ALIVE_S = 5.0
 PRESENCE_S = presence_model.PRESENCE_CACHE_S
 
 
+def reject_json_constant(value: str) -> None:
+    """Reject Python's non-standard NaN and infinity JSON extensions."""
+    raise ValueError(f"invalid JSON constant {value}")
+
+
 _ROOTED_PAGE_ROUTE = re.compile(
     rb'(?P<before>["\'`(])/(?P<path>'
     rb"(?:api|runtime|widgets|vendor|media)/|"
@@ -175,8 +180,8 @@ def scope_page_urls(value, page_root: str):
     return scoped
 
 
-def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
-    """Inject immutable document identity, including non-HTTP delivery surfaces."""
+def canonical_script_offset(source: str) -> int:
+    """Locate the one authored module script that enters Leaf's runtime."""
     parsed = parse_structure(source)
     scripts = [
         script
@@ -186,7 +191,12 @@ def runtime_document(source: str, revision: int, version: int | None = None) -> 
     if len(scripts) != 1:
         raise ValueError("document has no canonical script")
     line, column = scripts[0]["position"]
-    offset = sum(len(part) + 1 for part in source.split("\n")[: line - 1]) + column
+    return sum(len(part) + 1 for part in source.split("\n")[: line - 1]) + column
+
+
+def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
+    """Inject immutable document identity, including non-HTTP delivery surfaces."""
+    offset = canonical_script_offset(source)
     markers = f'<meta name="lf-revision" data-lf-runtime content="{revision}">' + (
         f'<meta name="lf-version" data-lf-runtime content="{version}">'
         if version is not None
@@ -247,6 +257,10 @@ class Handler(BaseHTTPRequestHandler):
     # Empty on the ordinary one-page server. The MCP delivery server sets this to
     # an unguessable `/p/<capability>` prefix and rewrites only Leaf-owned routes.
     page_root = ""
+    # Website examples use the complete server contract without claiming an agent.
+    # Their banner reads this explicit presentation fact instead of mistaking the
+    # deliberately unattended page for an abandoned ordinary Leaf.
+    example = None
 
     def _state_service(self) -> PageStateService:
         return PageStateService(
@@ -254,6 +268,7 @@ class Handler(BaseHTTPRequestHandler):
             preview_source=self.preview_source,
             layer_identity=self.layer_identity,
             preview=self.preview,
+            example=self.example,
         )
 
     def page_state(self, view_revision: int | None = None) -> dict:
@@ -512,7 +527,7 @@ class Handler(BaseHTTPRequestHandler):
         except (TypeError, ValueError, MemoryError):
             return {}, "invalid Content-Length"
         try:
-            posted = json.loads(body)
+            posted = json.loads(body, parse_constant=reject_json_constant)
         except (ValueError, RecursionError):
             return {}, "invalid JSON"
         if not isinstance(posted, dict):
@@ -777,6 +792,7 @@ def handler_for(
     token: str,
     preview_source=None,
     protocol_version="HTTP/1.0",
+    example=None,
 ):
     """A request handler bound to one page, publication view, and key. The key has no
     default: every server over a page directory is reachable by whatever reached the
@@ -798,5 +814,6 @@ def handler_for(
             "layer": identity["generation"],
             "layer_identity": identity,
             "preview": preview_metadata(page_dir),
+            "example": example,
         },
     )

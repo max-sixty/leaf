@@ -620,16 +620,40 @@ def comment(
 @cli.command(short_help="Reply to a thread as the agent.")
 @click.argument("dir", metavar="PAGE")
 @click.option("--to", required=True, metavar="ID", help="comment or reply ID to answer")
+@click.option("--quote", help="new passage text to move this thread onto")
+@click.option("--section", metavar="ID", help="new element ID, or scope for --quote")
+@click.option("--part", metavar="ID", help="new declared visual part within --section")
 @click.option("--text", help="reply text (default: stdin)")
 @click.option("--markup", help="widget markup to render after the text, validated here")
 @click.option("--awaits", is_flag=True, help="mark this reply as waiting on the reader")
 @click.option("--json", "as_json", is_flag=True, help="print the reply event instead")
 def reply(
-    dir: str, to: str, text: str, markup: str, awaits: bool, as_json: bool
+    dir: str,
+    to: str,
+    quote: str,
+    section: str,
+    part: str,
+    text: str,
+    markup: str,
+    awaits: bool,
+    as_json: bool,
 ) -> None:
-    """Post a threaded reply as the agent (--text or stdin)."""
+    """Post a threaded reply as the agent (--text or stdin).
+
+    Supplying --quote, --section, or --part moves the thread's current anchor in
+    the same event. The opening comment keeps its original anchor in the log.
+    """
     page_dir = resolve_dir(dir)
-    accepted = cmd_reply(page_dir, to, text, markup, awaits)
+    accepted = cmd_reply(
+        page_dir,
+        to,
+        text,
+        markup,
+        awaits,
+        quote=quote,
+        section=section,
+        part=part,
+    )
     if as_json:
         print(json.dumps(accepted, ensure_ascii=False))
         return

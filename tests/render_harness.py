@@ -427,6 +427,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
         layer_widgets=None,
         packages=None,
         preview=None,
+        website_example=None,
         seed_log=True,
     ):
         monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
@@ -570,7 +571,11 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
             )
         if preview is not None:
             files_model.write_json(d / schema_model.PREVIEW_FILE, preview)
-        server = hosting_model.TemporaryPageServer(d, token=TOKEN).start()
+        server = hosting_model.TemporaryPageServer(
+            d,
+            token=TOKEN,
+            handler_options={"example": website_example},
+        ).start()
         servers.append(server)
         go.httpd = server.httpd
         go.servers = servers

@@ -758,6 +758,36 @@ def test_server_round_trip(server, page_dir):
     assert design["about"] == "layer" and design["anchor"]["part"] == "Threads"
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert "> § lf-banner · Threads  — about the layer" in transcript.output
+    drawing = {
+        "format": "leaf-drawing/1",
+        "points": [[-20, 74], [50, 10], [120, 74]],
+    }
+    status, _ = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "comment",
+                "revision": 2,
+                "anchor": {"section": "feeder-board"},
+                "drawing": drawing,
+            }
+        ).encode(),
+    )
+    assert status == 200
+    drawn = event_model.read_events(page_dir)[-1]
+    assert drawn["drawing"] == drawing
+    assert "text" not in drawn
+    status, _ = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {"kind": "comment", "revision": 2, "drawing": drawing}
+        ).encode(),
+    )
+    assert status == 200
+    page_drawing = event_model.read_events(page_dir)[-1]
+    assert "anchor" not in page_drawing and page_drawing["drawing"] == drawing
+    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    assert "_(drawing attached; inspect it on the live page)_" in transcript.output
     for bad in [
         {"kind": []},
         {"kind": "action", "action": "move"},  # no widget
@@ -798,7 +828,14 @@ def test_server_round_trip(server, page_dir):
             "detail": {},
             "revision": 3,
         },
-        {"kind": "comment", "revision": 2},  # no text: a blank thread nobody can read
+        {"kind": "comment", "revision": 2},  # no text, token, or drawing
+        {
+            "kind": "comment",
+            "revision": 2,
+            "token": "ok",
+            "anchor": {"section": "feeder-board"},
+            "drawing": drawing,
+        },
         {"kind": "comment", "revision": 2, "text": "x", "anchor": "intro"},
         {"kind": "comment", "revision": 2, "text": "x", "anchor": {"quote": 7}},
         {"kind": "comment", "revision": 2, "text": "x", "anchor": {}},
@@ -816,6 +853,64 @@ def test_server_round_trip(server, page_dir):
         },
         {"kind": "comment", "revision": 2, "text": "x", "suggestion": "yes"},
         {"kind": "comment", "revision": 2, "text": "x", "attempt": "short"},
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board"},
+            "drawing": {
+                "format": "leaf-drawing/1",
+                "points": [[10, 60]],
+            },
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board"},
+            "drawing": {
+                "format": "leaf-drawing/1",
+                "points": [[10], [50, 20]],
+            },
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board"},
+            "drawing": {
+                "format": "leaf-drawing/1",
+                "points": [[10, 60], [33554433, 20]],
+            },
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"quote": "this passage"},
+            "drawing": drawing,
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board", "part": "Move"},
+            "drawing": drawing,
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board"},
+            "drawing": {**drawing, "points": [[0.1, 0.2]] * 257},
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board"},
+            "drawing": {**drawing, "points": [[float("nan"), 0.2], [0.5, 0.2]]},
+        },
         # A design comment is about the layer, and that is the one word the field
         # takes: a browser inventing a second subject is refused at the door.
         {"kind": "comment", "revision": 2, "text": "x", "about": "page"},
@@ -826,6 +921,13 @@ def test_server_round_trip(server, page_dir):
             "revision": 2,
             "text": "hi",
             "suggestion": True,
+        },
+        {
+            "kind": "reply",
+            "parent": posted["id"],
+            "revision": 2,
+            "text": "hi",
+            "anchor": {"section": "plan"},
         },
         {"kind": "reply", "parent": "nope", "revision": 2, "text": "hi"},
         {"kind": "resolve", "parent": "nope"},

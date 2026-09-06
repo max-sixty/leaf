@@ -75,6 +75,7 @@ by the public semantic projection watchers;
 `runtime/composing/surface.js` owns floating comment geometry and page-click routing;
 `runtime/composing/targets.js` owns keyboard item hints and whole-page text search;
 `runtime/composing/aim.js` owns modifier aim and captured presses;
+`runtime/composing/drawing.js` owns one-stroke pointer capture and drawing replay;
 `runtime/composing/input.js` owns shared text input, including the thumbnail projection
 of pasted page media; `runtime/composing/selection.js` owns selection-composer state;
 `runtime/media.js` owns generated image blocks, delivery-route scoping, and the shared
@@ -520,19 +521,21 @@ a control's scope adds only its native or local mechanics. `j`/`k` scroll
 down/up by 60 pixels; `d`/`u` move 60% of
 the reading page. Both follow the active region, share a quick glide, and jump under
 reduced motion. Native Space stays with the platform and focused controls. Other letters come
-from words the surface says: `w` narrows to threads waiting on the reader, while the
-the Go-to chord (`keyboard/address.js`) uses case to separate complete destinations from numbered
+from words the surface says: `w` narrows to threads waiting on the reader while focus is
+in that panel, and enters Draw mode from the page. The Go-to chord
+(`keyboard/address.js`) uses case to separate complete destinations from numbered
 lists. A key spelling something nothing on screen says is a key nobody reaches for twice.
 Approval spends no fixed page letter: its visible button stays in the Tab order and takes
 native Enter or Space, while the Ask-local list gives it a contextual binding. In particular,
 a conditional chord mnemonic must not share its final key
 with a page action, or a dead destination can fall through into a different operation.
 
-`c` is reserved for commenting. Enter keeps native activation, submission, or the
+`c` is reserved for commenting. Enter keeps native activation or text editing, and the
 focused control's local continuation. A page option mark is a checkbox and toggles with
 Space or its Ask digit; it gives Enter no second meaning. The Another option field is an
-ordinary Tab stop, and Enter submits once that field holds focus. In a thread there is no
-second add form, so Enter from its option mark continues into the thread's existing reply.
+ordinary Tab stop and follows the same text-box contract as every other textarea: Enter
+writes a newline and Mod+Enter adds the option. In a thread there is no second add form,
+so Enter from its option mark continues into the thread's existing reply.
 
 A row whose press turns a mode on and off states the mode rather than the toggle.
 `does` and `line` are functions of whether it stands, so the sentence says which

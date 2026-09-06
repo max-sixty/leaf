@@ -18,6 +18,14 @@ import { loadDraft } from "../drafts.js";
 
    A page marker uses an already-open panel; with the panel closed, other comments open
    inline where the layout has room and use the panel at narrower widths. */
+function paintConversationBody(body, message) {
+  const words = message.text ?? "";
+  if (message.suggestion) body.textContent = words;
+  else body.innerHTML = renderMessageMarkdown(words);
+  if (message.drawing)
+    body.append(el("span", "lf-drawing-reference", "Drawing comment"));
+}
+
 function conversationMessageNode(thread, message) {
   let node = thread.querySelector(
     `:scope > .lf-conversation-msg[data-event="${message.id}"]`,
@@ -30,8 +38,7 @@ function conversationMessageNode(thread, message) {
     const body = node.querySelector(":scope > .lf-conversation-body");
     const revision = message.edited?.id ?? "";
     if (node.lfRevision !== revision) {
-      if (message.suggestion) body.textContent = message.text;
-      else body.innerHTML = renderMessageMarkdown(message.text);
+      paintConversationBody(body, message);
       node.lfRevision = revision;
     }
     return node;
@@ -45,8 +52,7 @@ function conversationMessageNode(thread, message) {
   );
   syncEdited(head, message);
   const body = el("div", "lf-conversation-body");
-  if (message.suggestion) body.textContent = message.text;
-  else body.innerHTML = renderMessageMarkdown(message.text);
+  paintConversationBody(body, message);
   node.lfRevision = message.edited?.id ?? "";
   node.append(head, body);
   if (message.markup) {

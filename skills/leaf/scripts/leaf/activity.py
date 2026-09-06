@@ -116,11 +116,10 @@ def canonical_activity(
         elif item["phase"] == "active":
             if due := _deadline(item["ts"], WORKING_GRACE, now):
                 deadlines.append(due)
-            if item.get("session") == present.get("claim_session"):
-                if due := _deadline(
-                    present.get("turn_closed"), TURN_RENEWAL_GRACE, now
-                ):
-                    deadlines.append(due)
+            if item.get("session") == present.get("claim_session") and (
+                due := _deadline(present.get("turn_closed"), TURN_RENEWAL_GRACE, now)
+            ):
+                deadlines.append(due)
 
     # Every unsettled reader move contributes to page activity. ``obligations``
     # is the narrower subset that must receive an agent reply before a turn may
@@ -154,9 +153,7 @@ def canonical_activity(
         # turn it entered is no longer the turn handling it now.
         item["dropped"] = True
     queued = [item for item in outstanding if item["phase"] == "queued"]
-    pending = [
-        item for item in outstanding if item["phase"] in {"sent", "waiting"}
-    ]
+    pending = [item for item in outstanding if item["phase"] in {"sent", "waiting"}]
 
     kind = "away"
     detail = ""

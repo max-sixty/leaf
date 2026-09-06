@@ -9,6 +9,7 @@ export { registerVisualParts } from "./visual-parts.js";
 export { conversationBox } from "./conversation/box.js";
 export { registerThreadSurface } from "./conversation/surfaces.js";
 export { conversationInput, landInConversation } from "./conversation/landing.js";
+export { wireInput } from "./composing/input.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 export { focused, keys as commands, paintKeys, saying } from "./keyboard/scopes.js";

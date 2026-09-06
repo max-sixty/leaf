@@ -37,6 +37,7 @@ from render_support import (
     composer_quote,
     held_stale,
     hold_selection,
+    holding,
     in_threads_scrollport,
     live_url,
     open_page,
@@ -666,7 +667,7 @@ def test_one_shared_draft_edit_appends_one_action_across_tabs(
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     draft_controls(first).get_by_role("button", name="Save").click()
-    _until(first, lambda traffic: traffic.sends == 1, "held the first draft edit")
+    holding(first, held, 1, "the first draft edit")
     draft_controls(second).get_by_role("button", name="Save").click()
     round_trip(second)
 
@@ -704,15 +705,15 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     # is born here, so this selection is the state the generation records.
     first.locator("#job-mounts").evaluate("el => el.setAttribute('chosen', '')")
     text = "Use a heated camera sleeve"
-    first.locator("#jobs > .lf-another input").fill(text)
-    expect(second.locator("#jobs > .lf-another input")).to_have_value(text)
+    first.locator("#jobs > .lf-another textarea").fill(text)
+    expect(second.locator("#jobs > .lf-another textarea")).to_have_value(text)
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     first.locator("#jobs > .lf-another").get_by_role(
         "button", name="Add option", exact=True
     ).click()
-    _until(first, lambda traffic: traffic.sends == 1, "held the first added option")
+    holding(first, held, 1, "the first added option")
 
     second.locator("#jobs > .lf-another").get_by_role(
         "button", name="Add option", exact=True
@@ -807,7 +808,7 @@ def test_a_general_comment_appends_one_event_across_tabs(browser, serve, one_rea
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     first.locator(".lf-general button").click()
-    _until(first, lambda traffic: traffic.sends == 1, "held the first general send")
+    holding(first, held, 1, "the first general send")
     second.locator(".lf-general button").click()
     round_trip(second)
 
@@ -836,7 +837,7 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator(".lf-general button").click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the older general send")
+    holding(page, held, 1, "the older general send")
     box.fill(newer)
 
     held[0].continue_()
@@ -876,7 +877,7 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
     page.locator(f'.lf-thread[data-id="{first_id}"]').get_by_role(
         "button", name="Send", exact=True
     ).click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the first reply send")
+    holding(page, held, 1, "the first reply send")
 
     later.click()
     newer = "The later reply keeps the reader here.\n" * (14 if same_thread else 1)
@@ -921,7 +922,7 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_
     reply = thread.locator("textarea")
     reply.fill("Send this while I return to reading.")
     thread.get_by_role("button", name="Send", exact=True).click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the reply send")
+    holding(page, held, 1, "the reply send")
 
     toggle.click()
     expect(page.locator(".lf-panel")).not_to_be_visible()
@@ -965,7 +966,7 @@ def test_a_held_reply_send_preserves_a_later_scroll(held_events, serve):
     reply = first.locator("textarea")
     reply.fill("A reply whose delivery is slow.")
     page.keyboard.press("ControlOrMeta+Enter")
-    _until(page, lambda traffic: traffic.sends == 1, "held the reply send")
+    holding(page, held, 1, "the reply send")
 
     bounds = page.locator(".lf-threads").bounding_box()
     page.mouse.move(
@@ -1004,7 +1005,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("ControlOrMeta+Enter")
-    _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
+    holding(page, held, 1, "the comment send")
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -1045,7 +1046,7 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("ControlOrMeta+Enter")
-    _until(page, lambda traffic: traffic.sends == 1, "held the filtered comment send")
+    holding(page, held, 1, "the filtered comment send")
     if later_selection:
         page.locator("#p2").click(click_count=3)
         expect(page.locator(".lf-fab-input")).to_be_visible()
@@ -1141,7 +1142,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     page.locator(".lf-composer textarea").fill("The first remark.")
 
     page.keyboard.press("ControlOrMeta+Enter")
-    _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
+    holding(page, held, 1, "the comment send")
 
     # The reader picks out their next passage while the first send is still in the wire.
     page.locator("#p2").click(click_count=3)
@@ -1178,7 +1179,7 @@ def test_a_held_comment_send_leaves_a_later_keyboard_target_selected(
     compose(page, "#p1", "The first remark.")
 
     page.keyboard.press("ControlOrMeta+Enter")
-    _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
+    holding(page, held, 1, "the comment send")
 
     # Leave the sending field, then use the target-first keyboard path to choose p2.
     page.keyboard.press("Escape")
@@ -1356,7 +1357,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     first_say.get_by_role("button", name="Send", exact=True).click()
-    _until(first, lambda t: t.sends == 1, "put the first answer in the wire")
+    holding(first, held, 1, "the first answer")
 
     held[0].continue_()
     first.unroute("**/api/event")
@@ -1409,7 +1410,7 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_read
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     first_thread.get_by_role("button", name="Send", exact=True).click()
-    _until(first, lambda t: t.sends == 1, "put the first reply in the wire")
+    holding(first, held, 1, "the first reply")
     second_thread.get_by_role("button", name="Send", exact=True).click()
     round_trip(second)
 
@@ -1462,7 +1463,7 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     panel.get_by_role("button", name="Send", exact=True).click()
-    _until(first, lambda t: t.sends == 1, "put the older reply in the wire")
+    holding(first, held, 1, "the older reply")
     second_inline.fill(newer_raw)
     expect(inline).to_have_value(newer_raw)
     expect(panel.locator("textarea")).to_have_value(newer_raw)
@@ -1500,7 +1501,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     first_say.get_by_role("button", name="Send", exact=True).click()
-    _until(first, lambda t: t.sends == 1, "put the failing answer in the wire")
+    holding(first, held, 1, "the failing answer")
     second_say.get_by_role("button", name="Send", exact=True).click()
     round_trip(second)
 
@@ -1681,7 +1682,7 @@ def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generatio
     held = []
     older.route("**/api/event", lambda route: held.append(route))
     older_say.get_by_role("button", name="Send", exact=True).click()
-    _until(older, lambda traffic: traffic.sends == 1, "held the nondurable send")
+    holding(older, held, 1, "the nondurable send")
     newer_say.locator("textarea").fill(newer)
     assert newer_tab.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
     newer_tab.close()
@@ -1984,7 +1985,7 @@ def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, ser
     compose(page, "#p3", old)
     box = page.locator(".lf-composer textarea")
     page.keyboard.press("ControlOrMeta+Enter")
-    _until(page, lambda traffic: traffic.sends == 1, "held the selection comment")
+    holding(page, held, 1, "the selection comment")
     box.fill(newer)
 
     held.pop(0).continue_()

@@ -324,7 +324,7 @@ export function offer(tag, cls, label) {
 // the lend leaves with the first blur, so a paragraph the address chord landed on is a
 // paragraph again once the reader moves off it, and `tabindex` never becomes a thing the
 // runtime leaves behind on an author's element. An element that already declares a stop
-// keeps its own. Four arrivals want this and none owns the element: a numbered address
+// keeps its own. Four arrivals want this and none owns the element: a go-to hint
 // completing on a fold, a heading or a link's fragment; a document swap handing back the
 // place the reader stood in; the reference handing a reader back to the block they were
 // reading; and the skip link landing on the banner when none of its controls will take
@@ -463,7 +463,7 @@ export function relabel(node, label, { says } = {}) {
 }
 
 // Room for a word not yet said, taken from the words themselves. A control that will
-// rewrite its own label ("✓ Accept" to "✓ Accepted", a count gaining a digit) must
+// rewrite its own label ("Approve version" to "✓ Version approved", a count gaining a digit) must
 // hold the widest word's room from the start, or the press rewrites the one line a
 // press may not move. Stating that room as a number is a measurement that stops
 // being true silently when the words or the font change, so the control measures the

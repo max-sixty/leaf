@@ -45,12 +45,14 @@ import { notice } from "./notifications.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { accountOutbox } from "./outbox.js";
 import { refreshHover } from "./anchors.js";
+import { paintHere } from "./keyboard/scopes.js";
 import { loadMarked } from "./conversation/messages.js";
 
 // What an application writes to the runtime and a refused one gives back, the three
 // current-document facts included, so the chooser re-renders from the restored state.
 const APPLICATION_RUNTIME_FIELDS = Object.freeze([
   "agent",
+  "activity",
   "browser",
   "currentLabel",
   "currentRevision",
@@ -205,6 +207,7 @@ export async function receiveState(state) {
   let restoreClaimState = () => {};
   const apply = async () => {
     runtime.events = nextEvents;
+    runtime.activity = state.activity;
     runtime.browser = nextBrowser;
     let finishActivation = null;
     runtime.statePhase = "ready";
@@ -223,9 +226,7 @@ export async function receiveState(state) {
     runtime.agent = state.agent || "Claude";
     restoreClaimState = replaceClaimState({
       sources: state.claims || [],
-      presence: state,
-      agentTurnClosed: state.turn_closed || null,
-      claimingSession: state.claim_session || null,
+      held: state.activity.held,
     });
     renderStatus(state);
     renderVersions(state);
@@ -302,6 +303,9 @@ export async function receiveState(state) {
         } finally {
           document.documentElement.classList.remove("lf-versioning");
           refreshHover();
+          // View-transition chrome covered the page while the application painted.
+          // Re-read viewport-local keyboard maps only after that cover is gone.
+          paintHere();
         }
       } else await apply();
     })();

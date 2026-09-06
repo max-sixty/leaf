@@ -257,6 +257,27 @@ def test_page_inspection_retires_idless_slots_and_reads_frozen_construction(
     assert "chosen" in frozen["second"]["attrs"]
     assert frozen["frozen"]["edit"] == {"kind": "conversation", "thread": root["id"]}
     assert message["source"]["event"] == root["id"]
+    drawing = {
+        "format": "leaf-drawing/1",
+        "points": [[-20, 74], [50, 10], [120, 74]],
+    }
+    drawn = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "plan-choice-decision"},
+            "drawing": drawing,
+        },
+    )
+    result = runner.invoke(
+        cli_model.cli, ["page", "state", str(page_dir), "--thread", drawn["id"]]
+    )
+    assert result.exit_code == 0, result.output
+    [drawn_message] = json.loads(result.output)["content"]
+    assert "text" not in drawn_message
+    assert drawn_message["drawing"] == drawing
     refused = runner.invoke(
         cli_model.cli, ["page", "state", str(page_dir), "--thread", "missing"]
     )

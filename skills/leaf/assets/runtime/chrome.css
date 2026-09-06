@@ -357,8 +357,8 @@ body { position: static; box-sizing: border-box; }
 /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
    and tab stop from standing reaction marks, which retain their shape without
    promising a press. A status keeps its ghost ring in the page-map walk, while its
-   hand and hover response go. Decided suggestions export sibling text receipts. */
-.lf-margin-button:is(button, [role="button"]):not([data-lf-behavior="status"]) {
+   hand and hover response go. */
+.lf-margin-button:is(button, [role="button"]):not([data-lf-behavior="status"]):not(:disabled):not([aria-disabled="true"]) {
   cursor: pointer;
 }
 .lf-margin-button:is(button, [role="button"]):not([data-lf-behavior="status"]):hover:not([aria-disabled="true"]) {
@@ -490,6 +490,8 @@ body { position: static; box-sizing: border-box; }
 textarea.lf-ui:where(:not(.lf-fab-input)) { padding: 8px 10px; border: 1px solid var(--border-2);
   border-radius: 6px; background: var(--card); color: inherit; resize: none;
   field-sizing: content; max-height: 50vh; overflow-y: auto; }
+.lf-ui :is(input, textarea)::placeholder,
+:is(input, textarea).lf-ui::placeholder { color: var(--muted); opacity: 1; }
 .lf-ui textarea:where(:not(.lf-fab-input)):is(:focus, .lf-focus),
 textarea.lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--here-ring);
   --lf-here-ring: text-box; outline-offset: 1px; border-color: var(--accent); }
@@ -556,6 +558,15 @@ body.lf-over-mark { cursor: pointer; }
    widget wears. The chrome holds itself out instead, from inside its own scope. */
 body:is(.lf-aiming, .lf-design) { cursor: default; }
 body:is(.lf-aiming, .lf-design).lf-over-item { cursor: pointer; }
+/* Every non-chrome point on the page accepts a drawing press. The crosshair therefore
+   belongs to the whole document plane; an aim box adds semantic context where one is
+   available but no longer decides whether the drag can begin. */
+html:has(body.lf-drawing),
+body.lf-drawing { cursor: crosshair; touch-action: none; }
+body.lf-drawing main,
+body.lf-drawing main * { cursor: crosshair !important; }
+body.lf-drawing main .lf-conversation,
+body.lf-drawing main .lf-conversation * { cursor: auto !important; }
 /* One pixel, just inside the border box, because both sides of that edge belong to
    somebody else. Outside it, the mark belongs to whatever encloses the element: a board
    scrolls (overflow-x: auto), its columns sit flush against its padding box on three
@@ -1500,7 +1511,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     padding-inline: 12px;
     resize: none;
     field-sizing: content; overflow-y: auto; }
-  textarea.lf-fab-input::placeholder { color: var(--muted); opacity: 1; }
   .lf-response-action { min-width: 30px; padding-inline: 9px;
     display: inline-flex; align-items: center; justify-content: center; gap: 0;
     white-space: nowrap; cursor: pointer; }
@@ -1591,6 +1601,17 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-aim.lf-shaped { border: 0; border-radius: 0 !important; background: none; }
   .lf-aim-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-visual-marks { display: contents; }
+  /* Drawing geometry is page-relative data painted through a viewport plane. Keeping
+     the plane fixed and clipped lets an anchored stroke cross content boundaries
+     without making its out-of-flow SVG part of the document's scrollable overflow. */
+  .lf-drawings { position: fixed; inset: 0; overflow: hidden; pointer-events: none;
+  }
+  .lf-drawing-mark { position: absolute; display: block; overflow: visible;
+    pointer-events: none; }
+  .lf-drawing-mark path { fill: none; stroke: var(--mark-ink); stroke-width: 3px;
+    stroke-linecap: round; stroke-linejoin: round; }
+  .lf-drawing-mark:is(.lf-drawing-active, .lf-drawing-pending) path {
+    stroke: var(--accent); }
   .lf-visual-mark { position: absolute; display: none; pointer-events: none;
     --lf-shape-ink: var(--mark-ink); --lf-shape-stroke: 1px;
     --lf-shape-dash: none;
@@ -1836,29 +1857,24 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top
      edge as well. Nothing here is something to press: pointer-events stands down so a
      click still lands on the item the box outlines. */
-  /* The g chord's numbered document destinations. Each visible member keeps the complete
-     route above its starting corner so the keys leave its text clear. Key faces carry
-     progress without changing geometry; the address pass keeps them inside the screen. */
+  /* Predictable numeric addresses belong to local Ask controls. */
   .lf-addresses { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
   .lf-addresses > .lf-address { position: absolute; display: block;
     transform: translate(-50%, -100%); }
   /* Ask addresses sit on the answer control's upper-left corner. Unlike a route name
      above prose, the single digit is a local label for the Button it touches. */
   .lf-ask-addresses > .lf-ask-address { transform: translate(-50%, -50%); }
-  .lf-addresses > .lf-chord-address { min-width: 0; height: auto; padding: 0;
-    border: 0; background: transparent; }
-  /* Item selection borrows the address chip's face but not its meaning. These hints are
-     deliberately local to the viewport: the page gives every visible item a short,
-     prefix-free name for the few seconds this mode stands. Unlike addresses, hints are
-     never dropped for a collision — they are the route itself, not a reminder of a
-     stable route that works without being drawn. Nested targets that begin at the same
-     corner are spread by the hint pass before this layer is shown. */
+  /* Item selection and go-to navigation both give visible targets generated, prefix-free
+     names for the few seconds their mode stands. Every hint remains visible: the face is
+     the route itself, not a reminder of a predictable ordinal. */
   .lf-targets { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
   .lf-targets > .lf-target-hint { position: absolute; display: block;
     transform: translate(-50%, -50%); }
   .lf-target-hint .lf-spent { color: var(--muted); }
   .lf-target-hint .lf-spent + .lf-lit { padding: 0 3px; margin-left: -3px;
     border-radius: 3px; background: var(--accent); color: var(--card); }
+  .lf-goto-targets > .lf-chord-address { min-width: 0; height: auto; padding: 0;
+    border: 0; background: transparent; }
   .lf-targets > .lf-target-hint.lf-in { transform: translate(-50%, 0); }
   /* The hint the keyboard is browsing is where the reader is standing in this mode, so
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
@@ -1900,7 +1916,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      corner instead. */
   .lf-legend-box.lf-in .lf-legend-tag { bottom: auto; top: 0; border: 0;
     border-radius: 0 0 3px 0; }
-  .lf-banner.lf-designing { background: color-mix(in srgb, var(--accent) 14%, var(--veil)); }
+  .lf-banner:is(.lf-designing, .lf-drawing) {
+    background: color-mix(in srgb, var(--accent) 14%, var(--veil)); }
   /* Document-anchored like the box it names (paintInspect adds the scroll), so the
      two move together between the events that re-derive them. */
   .lf-inspect { position: absolute; pointer-events: none; display: none;

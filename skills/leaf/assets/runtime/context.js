@@ -5,6 +5,7 @@
    directly. */
 export const runtime = {
   active: null,
+  activity: null,
   agent: "Claude",
   browser: null,
   currentLabel: null,

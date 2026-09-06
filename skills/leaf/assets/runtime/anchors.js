@@ -9,7 +9,7 @@ import {
   shownBox,
   shownRect,
 } from "./geometry.js";
-import { marginButton, registerMarginItem } from "./living-margin.js";
+import { marginButton, openPageThread, registerMarginItem } from "./living-margin.js";
 import { scheduleMarginLayout } from "./margin-layout.js";
 import {
   resolvedElement,
@@ -31,7 +31,9 @@ import {
   composerQuote,
   pendingAbout,
   pendingAnchor,
+  pendingDrawing,
 } from "./composing/selection.js";
+import { drawingShifted } from "./composing/drawing.js";
 import {
   designName,
   designOn,
@@ -66,7 +68,6 @@ import { renderPanel } from "./conversation/reconcile.js";
 import { commentOnTarget, fabAnchorAt, refreshFab } from "./composing/surface.js";
 import { aimedTarget, aimIsOn } from "./composing/aim.js";
 import { pointerAt } from "./pointer.js";
-import { setPanel } from "./chrome-layout.js";
 import { panel, threadsBox } from "./conversation/panel.js";
 import { withdraw } from "./projection.js";
 import { scrollerFor } from "./navigation.js";
@@ -828,6 +829,7 @@ const marked = new Map(); // thread id -> (Range | Element)[]: the pass's record
 // record answers for the other. Written only by the pass that resolves the anchors, so the
 // two readings can never come from different resolutions.
 const placed = new Map();
+let pendingPlaced = null;
 let pendingMarks = []; // the same record for the open composer's own passage
 let pendingOutline = []; // the elements the open draft outlines, owned by nobody else
 let actionOutline = []; // the visual target whose action bar is standing
@@ -960,16 +962,8 @@ function noteMarks(noted) {
       holder.appendChild(offer("button", NOTE));
     note.lfThreads = threadIds;
     note.onclick = () => {
-      setPanel(true);
-      const shown = (threadId) =>
-        threadsBox.querySelector(
-          `:scope > .lf-thread[data-id="${threadId}"]:not([hidden])`,
-        );
-      const id = note.lfThreads.find(shown);
-      const thread = id && shown(id);
-      if (!thread) return;
-      thread.focus({ preventScroll: true });
-      scrollToThread(id);
+      const id = note.lfThreads[0];
+      if (id) openPageThread(id, { focus: "thread" });
     };
     const n = threadIds.length;
     const said = `${n} comment${n === 1 ? "" : "s"}`;
@@ -1001,8 +995,8 @@ export function paintAnchors(threads = buildThreads()) {
   const seats = new Map(); // block -> the reactions whose passage starts in it
   const noted = new Map(); // element -> ordered thread ids marking something inside it
   for (const t of threads) {
-    if (!t.root.anchor) continue;
-    const found = resolveAnchor(t.root.anchor, text);
+    if (!t.anchor) continue;
+    const found = resolveAnchor(t.anchor, text);
     if (!found) continue;
     // Where the thread's passage lands in this version, recorded for every thread the
     // page still holds — the resolved ones too, which take no paint but do take a place
@@ -1012,6 +1006,7 @@ export function paintAnchors(threads = buildThreads()) {
       exact: true,
       status: "exact",
       ...found,
+      target: targetElement(found) ?? found.place,
       element: found.place,
     });
     if (found.status === "outdated") continue;
@@ -1057,11 +1052,13 @@ export function paintAnchors(threads = buildThreads()) {
       // to the document's origin and drew nothing there. The record is what the pass
       // clears, what the pointer hit-tests, and what the composer stands off, so all
       // three follow the paint by holding the parts rather than the element.
-      const parts = targetParts(found);
-      for (const part of parts) part.classList.add("lf-mark-el");
       rememberVisual(found);
-      marked.set(t.root.id, parts);
-    } else {
+      if (!t.root.drawing) {
+        const parts = targetParts(found);
+        for (const part of parts) part.classList.add("lf-mark-el");
+        marked.set(t.root.id, parts);
+      }
+    } else if (!t.root.drawing) {
       const ranges = targetSegments(found).map((seg) => rangeOf([seg]));
       marked.set(t.root.id, ranges);
       posted.push(...ranges);
@@ -1077,7 +1074,7 @@ export function paintAnchors(threads = buildThreads()) {
     // blocks, and a design comment on a runtime part is on chrome the panel already
     // reads out — an aria-hidden injected note button would be focusable content nobody
     // is told about.
-    for (const holder of blocks.length ? blocks : [sectionOf(t.root.anchor)])
+    for (const holder of blocks.length ? blocks : [sectionOf(t.anchor)])
       if (holder && !inChrome(holder))
         noted.set(holder, [...(noted.get(holder) ?? []), t.root.id]);
   }
@@ -1094,15 +1091,23 @@ export function paintAnchors(threads = buildThreads()) {
   // true state: where the draft stands, and where the next comment would land.
   const draft =
     composerOpen && pendingAnchor ? resolveAnchor(pendingAnchor, text) : null;
+  pendingPlaced = draft
+    ? {
+        ...draft,
+        target: targetElement(draft) ?? draft.place,
+        element: draft.place,
+      }
+    : null;
   // Where the draft's passage is, recorded the way the threads' is. An element a thread
   // already outlines belongs in the record too — it is marked, just in the posted colour
   // rather than the accent.
   const draftMarked = Boolean(draft && draft.status !== "outdated");
-  pendingMarks = draftMarked
-    ? targetElement(draft)
-      ? targetParts(draft)
-      : targetSegments(draft).map((seg) => rangeOf([seg]))
-    : [];
+  pendingMarks =
+    draftMarked && !pendingDrawing
+      ? targetElement(draft)
+        ? targetParts(draft)
+        : targetSegments(draft).map((seg) => rangeOf([seg]))
+      : [];
   if (draft) rememberVisual(draft);
   const pending = [];
   if (targetElement(draft)) {
@@ -1521,7 +1526,7 @@ export async function scrollToThread(id, { land = null } = {}) {
   const intent = ++threadTravelIntent;
   const startingFocus = focused();
   const thread = buildThreads().find((candidate) => candidate.root.id === id);
-  const anchor = thread?.root.anchor;
+  const anchor = thread?.anchor;
   if (anchor?.datum && placed.get(id)?.status !== "outdated") {
     const source = sectionOf(anchor);
     // The line may already exist under a widget-owned filter. Core asks the owner to
@@ -1627,13 +1632,13 @@ function paintHover(id, repaintVisuals = true) {
   );
   if (repaintVisuals) paintVisualStates();
 }
-// Which comment the reader is standing in, said out on the page. The panel has always
-// answered it on its own surface — the thread holds the focus, and a press on a mark
+// Which comment the reader is standing in, said out on the page. The conversation card
+// answers it on its own surface — the thread holds the focus, and a press on a mark
 // flashes the bounded target it opens — while the page answered nothing back: every
 // posted mark wears one wash, so a reader sent from a comment to its passage arrived
 // among a dozen identical marks with no way to tell which one they had asked to see.
-// The t/T walk's comment already called the panel and the page "two views of the same
-// thread"; this is the view that was missing.
+// The thread surface and the page are two views of the same thread; this is the view that
+// was missing.
 //
 // Derived from the focus rather than written where the travel put the reader, for the
 // reason markHere gives about the decision ring: a mark written at the arrival says where the
@@ -1720,6 +1725,7 @@ export function pageShifted() {
   refreshHover();
   refreshAim();
   shifted();
+  drawingShifted();
   // A board scrolled sideways carries its cards out from under their boxes, and the
   // page scrolled brings items into view that had no box yet (shownRect).
   queueLegend();
@@ -1740,6 +1746,9 @@ addEventListener(
 );
 
 export const isMarked = (id) => marked.has(id);
+export function pendingAt() {
+  return pendingPlaced;
+}
 export const placedAt = (id) => placed.get(id);
 export const traceTarget = (target) => {
   const part = target ? visualAt(target, { unclaimed: false })?.part : null;

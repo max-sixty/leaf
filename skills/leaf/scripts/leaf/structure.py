@@ -131,11 +131,18 @@ LF_META = {"lf-review": frozenset({"sign-off"})}
 # script tag is. The vendoring promise — an approved page can't change under its
 # user, and can't phone home — held by convention until the browser enforced it:
 # a vendored module or an inline handler could fetch any origin. 'self' is the
-# page directory whole; data: admits the images `version export` inlines; the
-# theme arrives inline in a <style> on export, hence 'unsafe-inline' for styles
-# (scripts stay 'self'-only, which is what matters). Verified over the corpus —
-# every widget, diagram renderer and tokenizer included — before it was required.
-PAGE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+# page directory whole; base-uri and form-action need their own directives because
+# default-src governs only fetches. data: admits the images `version export` inlines;
+# the theme arrives inline in a <style> on export, hence 'unsafe-inline' for styles
+# (scripts stay 'self'-only). Verified over the corpus — every widget, diagram
+# renderer and tokenizer included — before it was required.
+PAGE_CSP = (
+    "default-src 'self'; base-uri 'none'; form-action 'none'; "
+    "img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+)
+# A meta policy cannot govern the document's ancestors. The ordinary server adds this
+# separate header policy; the capability-scoped MCP transport is deliberately frameable.
+FRAME_ANCESTORS_CSP = "frame-ancestors 'none'"
 # Non-painting document structure that may stand outside the authored main. Head
 # metadata is allowed only while the parser is actually inside head; the canonical
 # module is also allowed beside main because shipped pages use both placements.

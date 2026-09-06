@@ -8,7 +8,8 @@ tags; one direct `<body><main>` contains all authored content; the page carries
 exactly one external script
 (<script type="module" src="/leaf.js">) and one stylesheet link
 (/theme.css), both directly in `<head>` so the presentation boundary exists before
-body paint; every lf-* element validates against the vendored registry
+body paint; its exact CSP keeps fetches local and refuses document-base changes and
+form submissions; every lf-* element validates against the vendored registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real
@@ -20,6 +21,16 @@ element is wider than the readable column (the rule that draws that column claim
 it with `--lf-column: 1`, so the width and the claim come from one block). Near-free
 and deterministic is what makes running it on every save affordable, so keep a new
 check that way; anything needing a browser belongs in `--render`.
+
+## Delivery policy
+
+The document policy cannot restrict ancestors when delivered through `<meta>`. Every
+ordinary served HTML response therefore adds `frame-ancestors 'none'`. Historical
+version routes receive the current document policy and the same header. A standalone
+file has no response header and cannot make this framing guarantee. The process-scoped
+MCP page server omits the header because its exact, ephemeral origin is intentionally
+framed by the host that approved it; the unguessable page path remains that transport's
+access boundary.
 
 ## Browser validation
 

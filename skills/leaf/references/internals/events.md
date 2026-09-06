@@ -5,8 +5,8 @@ Every event carries `id`, `ts`, `author`, `kind`, `seq` (its line number in
 
 | Kind | Author | Door | Fields | Meaning |
 | --- | --- | --- | --- | --- |
-| `comment` | user or agent | `POST /api/event`, `leaf comment` | `text` or `token`; optional `anchor`, `suggestion`, `about: "layer"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
-| `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; `awaits` and `markup` (CLI only) | answers a thread without closing it |
+| `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "layer"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
+| `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; `awaits`, `markup`, and a replacement `anchor` (CLI only) | answers a thread without closing it; an anchored agent reply also moves the thread's current location |
 | `edit` | agent | `leaf edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the reader reopens a resolved thread |
@@ -15,7 +15,7 @@ Every event carries `id`, `ts`, `author`, `kind`, `seq` (its line number in
 | `report` | agent or worker | `leaf report` | as `action`, validated by the widget's `x-report` | provisional state that stands until a stamped revision answers it |
 | `request` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, validated by the holder's `x-request` and its direct-child offers | a durable, non-undoable one-shot instruction to the host |
 | `receipt` | agent | `leaf receipt` | `request`, `succeeded` or `failed`, `text` | exactly one terminal outcome per accepted request |
-| `pickup` | page | the delivery carrier | `events` | the named reader events reached their next consumer; idempotent, never a work claim |
+| `pickup` | page | the delivery carrier | `events`, `phase` (`queued` or `opened`), `session`, `turn` | the named reader events reached the durable Codex queue or entered an exact agent turn; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf version stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the reader |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the reader's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
@@ -27,6 +27,16 @@ projection names an external input, `source` and `data_revision`; `visual` names
 a declared part of a picture and `part` the control a design comment landed on.
 `response: {kind: version, verb}` on a comment says the originating widget
 requires the agent to revise its declared answer state rather than reply.
+
+A `drawing` is one bounded freehand stroke attached to an ordinary comment and may be
+that comment's only content. When the drag starts over a semantic item or in the margin
+alongside it, its element anchor remains the thread coordinate and points are CSS-pixel
+offsets from that target's top-left origin. A drag starting where no item shares its line
+has no anchor and its points are offsets from the document origin. Either stroke may
+continue anywhere across the page. Leaf derives the stroke's frame and owns ink, weight,
+SVG construction, and replay. A drawing is immutable once sent, follows the thread's
+resolution state, and is omitted from the default standalone export with the rest of
+discussion chrome.
 
 ## Undo
 
@@ -97,6 +107,13 @@ The original id, timestamp, author, thread position, anchor, and markup remain
 its own. Markup is not editable because a reader action may already rest on a
 widget frozen into it.
 
+An agent reply may carry an `anchor` captured against its `revision`. The fold uses
+the latest such anchor as the thread's current location while retaining the opening
+comment's anchor on the immutable root event. The anchor and explanatory reply are
+one append, so the page never observes a move without the message that accounts for
+it. A thread whose root `holds` a command goal cannot move, and a version-response
+root takes no reply at all, because those anchors are part of the request's meaning.
+
 A message body is Markdown, stored as typed and rendered by the page's own
 vendored runtime, so the renderer and the panel's styles version together. A
 fragment link in a body (`[the group](#d-channel)`) points at an element of the
@@ -106,6 +123,12 @@ follow, since a message outlives the version it was written on. Raw HTML in a
 body renders as its own characters. A widget in a message rides the event's
 `markup` field instead, whose one door is `leaf comment`/`leaf reply`, where it
 is validated against the vendored registry; the browser door refuses the field.
+An agent's body is read for a `/media/…` reference at that same door, whether it
+arrives as text or markup, since either names a file the page directory has to
+have — and the directory holds `/media/<digest>.<ext>` and nothing else, so any
+other one under that root is a file it can never answer. Text is read where the runtime resolves one — a Markdown link or image
+destination — so a path quoted in prose is words, as it is in authored markup;
+the browser's own paste stores the image before the reference exists.
 
 A raster image pasted into a browser text box is stored first as content-addressed page
 media. Its durable draft carries an ordinary Markdown image at
@@ -130,9 +153,10 @@ first accepts it.
 ## Anchors
 
 The user selects a passage and the browser writes the anchor from the selection;
-`leaf comment` writes its file-confirmable form from a quote by reading authored
-HTML through `leaf.passages`. The browser's anchor pass applies the matching
-rules to the DOM. Projected data has no file-side value to quote: its browser
+`leaf comment`, and `leaf reply` when it moves a thread, write the file-confirmable
+form from a quote by reading authored HTML through `leaf.passages`. The browser's
+anchor pass applies the matching rules to the DOM. Projected data has no file-side
+value to quote: its browser
 anchor adds the projection's section and datum key, and when `projectData` names
 an `x-data` input, the source id and `data_revision`. The append door checks that
 the section displayed that source revision: a racing current-value replacement is

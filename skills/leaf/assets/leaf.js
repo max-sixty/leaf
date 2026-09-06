@@ -104,6 +104,7 @@ function presentPage() {
     openComposer(savedComposer.anchor, savedComposer.text, {
       suggest: Boolean(savedComposer.suggest),
       about: savedComposer.about ?? null,
+      drawing: savedComposer.drawing ?? null,
     });
   // Repaint the remaining state-dependent chrome and controls in this same task. Replay
   // is already complete, so the presented attribute opens interaction on the state it names.

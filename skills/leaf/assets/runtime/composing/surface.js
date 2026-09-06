@@ -56,7 +56,7 @@ import {
   visualActionAnchor,
   visualAt,
 } from "../anchors.js";
-import { documentPoint, shownParts, shownRect } from "../geometry.js";
+import { documentPoint, shownBox, shownParts, shownRect } from "../geometry.js";
 import { targetElement, targetParts, targetSegments } from "../resolved-target.js";
 import {
   composerOpen,
@@ -87,8 +87,9 @@ import { letGo, takesLetters } from "../keyboard/page.js";
 import { closeVersionMenu, versionMenuIsOpen } from "../version.js";
 import { pointerAt } from "../pointer.js";
 import { anchorLabel } from "../conversation/messages.js";
-import { showThread } from "../conversation/landing.js";
+import { openPageThread } from "../living-margin.js";
 import { reactionsOn } from "../conversation/model.js";
+import { isDrawing } from "./drawing.js";
 
 const hideReference = () => showReference(false, false);
 const hasOtherResponses = (anchor) =>
@@ -255,13 +256,16 @@ function placeFab(target = anchorBox(fabAnchor)) {
   if (room <= 0) return false;
   const block = fabAnchor.quote && fabTargetAt();
   const clips = new Map();
+  const parts = block ? shownParts(block) : [];
   const keepClear =
-    (block &&
-      union(
-        shownParts(block)
-          .map((part) => shownRect(part, clips))
-          .filter(Boolean),
-      )) ||
+    union(parts.map((part) => shownRect(part, clips)).filter(Boolean)) ||
+    // Scrolled clear of the viewport, the block keeps its column and loses its shown
+    // rect, so the clipped reading has nothing left to say about where the field may
+    // stand. Its unclipped bounds answer the question the clipped one was asked. The
+    // fall through to the passage did the one thing the rule above forbids: beside a
+    // short selection the field took the words after it, left the free margin, and
+    // came to rest on the sentences the reader had scrolled to.
+    union(parts.map((part) => shownBox(part))) ||
     target;
   fabBar.style.setProperty("--lf-float-w", `${room}px`);
   if (composerOpen) {
@@ -568,6 +572,7 @@ const rememberPointerSelection = () => {
 document.addEventListener(
   "pointerdown",
   (ev) => {
+    if (isDrawing()) return;
     primaryPointerPressed = ev.isPrimary && ev.button === 0;
     if (primaryPointerPressed) pressesBegun++;
     pointerSelecting = primaryPointerPressed && pageWords(ev.target);
@@ -586,6 +591,7 @@ document.addEventListener(
   true,
 );
 document.addEventListener("pointermove", (ev) => {
+  if (isDrawing()) return;
   if (!pointerSelecting || !selectionPressPoint) return;
   if (ev.defaultPrevented) {
     selectionGestureClaimed = true;
@@ -596,6 +602,7 @@ document.addEventListener("pointermove", (ev) => {
     3;
 });
 const finishPointerSelection = (ev) => {
+  if (isDrawing()) return;
   // A mouse pointer is followed by the compatibility mouseup below, which performs the
   // sentence snap before opening the field. Opening from pointerup first would focus the
   // textarea and collapse the still-unsnapped Selection before mouseup can finish it.
@@ -641,6 +648,7 @@ document.addEventListener("selectionchange", () => {
   scheduleSelectionUpdate();
 });
 document.addEventListener("mouseup", (ev) => {
+  if (isDrawing()) return;
   primaryPointerPressed = false;
   pointerSelecting = false;
   const gestureClaimed = selectionGestureClaimed;
@@ -716,7 +724,9 @@ export function standDown(target) {
 // Document listeners see a shadow-tree press retargeted to its host. Read the
 // composed origin so core controls seated in a widget surface remain inside their
 // own composer/reaction layer instead of being dismissed before `click` can fire.
-document.addEventListener("mousedown", (ev) => standDown(ev.composedPath()[0]));
+document.addEventListener("mousedown", (ev) => {
+  if (!isDrawing()) standDown(ev.composedPath()[0]);
+});
 
 // What a plain click on the page means, decided once. Design mode explicitly changes the
 // grammar, and a visible mark opens its thread. Unadorned authored content keeps the
@@ -731,6 +741,7 @@ document.addEventListener("mousedown", (ev) => standDown(ev.composedPath()[0]));
 // file already carries covers it: a guard that reads state another function wrote is a sign
 // the two are one function.
 document.addEventListener("click", (ev) => {
+  if (isDrawing()) return;
   if (!pageWords(ev.target)) return;
   // A press design mode did not take at the press is a press on prose: a drag that
   // selected words has the 💬 (updateFab, on the mouseup) and is not a click on the
@@ -753,7 +764,7 @@ document.addEventListener("click", (ev) => {
   // for wherever the pointer is parked, so that one keeps reading the event.
   const point = ev.detail ? pointerAt() : { x: ev.clientX, y: ev.clientY };
   const threadId = markAt(point.x, point.y);
-  if (threadId) return showThread(threadId);
+  if (threadId) return openPageThread(threadId);
 });
 
 export const fabAnchorAt = () => fabAnchor;

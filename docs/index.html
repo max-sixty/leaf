@@ -8,7 +8,7 @@
     />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
     />
     <title>leaf · generative UI for your agent</title>
     <meta
@@ -148,8 +148,8 @@ v2 (latest), and a banner reading 'Claude awaits'."
         <p id="more">
           The <a href="/examples/">examples</a> are complete pages, one per kind of
           work, published here as the browser draws them.
-          <a href="/how-it-works/">How it works</a> shows the widget system rendering
-          live, and <a href="/packages/">Packages</a> covers how new widgets and themes
+          <a href="/how-it-works/">How it works</a> shows the widget system's rendered
+          forms, and <a href="/packages/">Packages</a> covers how new widgets and themes
           are delivered, whether the agent wrote them or you did.
         </p>
       </section>
@@ -322,8 +322,9 @@ codex plugin add leaf@leaf</code></pre>
           <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>
         <p>
-          This page is a leaf. Its public-site session keeps interactions in this
-          browser; installed pages carry them back to the agent that made them.
+          This page is a standalone Leaf export. Choose a
+          <a href="/examples/">live example from the gallery</a> to try Leaf's controls
+          in a private session.
         </p>
       </footer>
     </main>

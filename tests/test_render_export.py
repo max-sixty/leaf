@@ -31,7 +31,6 @@ from render_support import (
     PAGE_FIXTURES,
     REPORT_PAGE,
     leaf_page,
-    live_url,
     open_page,
     primed,
     refuse,
@@ -826,6 +825,8 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     source = (ROOT / "examples" / "pr-walkthrough.html").read_text(encoding="utf-8")
     title = re.search(r"<h1>(.*?)</h1>", source, re.DOTALL).group(1).strip()
     expect(page.get_by_role("heading", name=title)).to_be_visible()
+    assert page.evaluate("document.compatMode") == "CSS1Compat"
+    assert page.locator("body").get_attribute("data-lf-reading") is None
     assert page.locator("script").count() == 0
     assert page.locator('link[rel="stylesheet"]').count() == 0
     assert page.locator("style").count() > 0
@@ -949,7 +950,7 @@ def test_a_table_of_contents_keeps_native_links_in_a_static_copy(
 def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path):
     """Hover is only the live page's presentation. Print and a standalone export have
     no script or pointer contract, so the author-written x-says tip becomes visible
-    inline and its now-inert raised mark leaves with the rest of the offers."""
+    inline and its now-inert keyboard control leaves with the rest of the offers."""
     source = leaf_page(
         "gloss export",
         """
@@ -1136,7 +1137,14 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     ][-1]
     events_model.append_event(
         serve.page_dir,
-        {"kind": "pickup", "author": "page", "events": [in_flight["id"]]},
+        {
+            "kind": "pickup",
+            "author": "page",
+            "events": [in_flight["id"]],
+            "phase": "opened",
+            "session": None,
+            "turn": None,
+        },
     )
 
     live = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -1165,118 +1173,48 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     page.close()
 
 
-AGENT_SUGGESTION = leaf_page(
-    "agreed",
-    """
-<h1 id="h">One rewrite</h1>
-<p id="replace">The camera survey found two dead zones.
-  <lf-suggestion id="sug-refill">
-    <lf-old>Refill every feeder each morning.</lf-old>
-    <lf-new>Refill a feeder when its camera shows it half-empty.</lf-new>
-  </lf-suggestion></p>
+def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
+    source = leaf_page(
+        "Export CSP",
+        """
+<h1>Export CSP</h1>
+<a id="relative" href="relative-target">Relative target</a>
+<form id="escape" action="https://outside.invalid/collect" method="post">
+  <input name="page-state" value="reader decision">
+  <button type="submit">Send page state</button>
+</form>
 """,
-)
-AGENT_ACCEPT = {
-    "kind": "action",
-    "author": "agent",
-    "revision": 1,
-    "widget": "sug-refill",
-    "action": "accept",
-    "detail": {},
-    "meaning": {
-        "document": {"kind": "page", "revision": 1},
-        "coordinate": ["sug-refill", "sug-refill", "settlement"],
-        "depends": ["sug-refill"],
-        "answer": None,
-    },
-}
-
-FOLDED_SUGGESTION = leaf_page(
-    "agreed, out of sight",
-    """
-<h1 id="h">One rewrite</h1>
-<details id="survey"><summary>The camera survey</summary>
-<p id="replace">The camera survey found two dead zones.
-  <lf-suggestion id="sug-refill">
-    <lf-old>Refill every feeder each morning.</lf-old>
-    <lf-new>Refill a feeder when its camera shows it half-empty.</lf-new>
-  </lf-suggestion></p>
-</details>
-""",
-)
-
-
-def test_a_copy_keeps_a_suggestion_receipt_without_a_page_map_record(
-    browser, serve, tmp_path
-):
-    """Accepted/Rejected is state this widget visibly owns. Export keeps that receipt
-    and applied suggestion state without synthesizing an Outcome status beside it."""
-    url = serve(AGENT_SUGGESTION, events=[AGENT_ACCEPT])
-    item = '[data-lf-margin-for="sug-refill"]'
-    live, live_errors = open_page(browser, live_url(url))
-    resized(live, 1200, 900)
-    expect(live.locator(f"{item} .lf-sug-receipt")).to_have_text("Accepted")
-    expect(live.locator(f"{item} [data-lf-behavior='status']")).to_have_count(0)
-    assert live_errors == []
-    live.close()
-
+        head='<base href="https://outside.invalid/rebased/">',
+    )
+    url = serve(source)
     out = tmp_path / "standalone.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    for width in (1200, 800):
-        page = browser.new_page(viewport={"width": width, "height": 900})
-        errors = watched(page)
+
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.add_init_script(
+        """
+          window.__cspViolations = [];
+          document.addEventListener('securitypolicyviolation', event => {
+            window.__cspViolations.push(event.effectiveDirective);
+          });
+        """
+    )
+    escaped = []
+    page.route(
+        "https://outside.invalid/**",
+        lambda route: (
+            escaped.append(route.request.url),
+            route.fulfill(status=204, body=""),
+        ),
+    )
+    try:
         page.goto(out.as_uri(), wait_until="load")
-        for medium in ("screen", "print"):
-            page.emulate_media(media=medium)
-            expect(page.locator(".lf-sug-receipt")).to_have_text("Accepted")
-            expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
-            expect(page.get_by_text("Outcome", exact=True)).to_have_count(0)
-            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-        assert errors == []
-        page.close()
-
-
-def test_a_copy_keeps_a_withheld_margin_item_out_of_static_layout(
-    browser, serve, tmp_path
-):
-    """A copied row withheld by the live packing pass stays withheld. Print may
-    unfold its target passage through CSS, but a script-free copy cannot rerun packing
-    and must not invent a margin position for the serialized row."""
-    url = serve(FOLDED_SUGGESTION, events=[AGENT_ACCEPT])
-    live, live_errors = open_page(browser, live_url(url))
-    resized(live, 1200, 900)
-    item = live.locator('[data-lf-margin-for="replace"]')
-    expect(item).to_have_class(re.compile(r"\blf-waiting\b"))
-    expect(item.locator(".lf-sug-receipt")).to_have_text("Accepted")
-    assert live_errors == []
-    live.close()
-
-    out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    for width in (1200, 800):
-        page = browser.new_page(viewport={"width": width, "height": 900})
-        errors = watched(page)
-        page.goto(out.as_uri(), wait_until="load")
-        for medium in ("screen", "print"):
-            page.emulate_media(media=medium)
-            assert page.evaluate(
-                """() => [...document.querySelectorAll('.lf-margin-item')].map(el => ({
-                     waiting: el.matches('.lf-waiting'),
-                     shown: el.checkVisibility(),
-                     receipt: el.querySelector('.lf-sug-receipt')?.textContent,
-                     open: document.getElementById('survey').open,
-                     passage: document.getElementById('replace').checkVisibility(),
-                   }))"""
-            ) == [
-                {
-                    "waiting": True,
-                    "shown": False,
-                    "receipt": "Accepted",
-                    "open": False,
-                    "passage": medium == "print",
-                }
-            ], f"{width}px, {medium}"
-        assert errors == []
+        page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
+        assert page.locator("#relative").evaluate("link => link.protocol") == "file:"
+        page.locator("#escape").evaluate("form => form.requestSubmit()")
+        page.wait_for_function("() => window.__cspViolations.includes('form-action')")
+        assert escaped == []
+    finally:
         page.close()
 
 
@@ -1364,9 +1302,11 @@ def test_an_exported_page_fixture_stands_on_its_own(
         unshown: [...document.querySelectorAll('main *')]
             .filter(el => el.textContent.trim() && !el.checkVisibility()
                           // A disclosure the reader can still work, a control's own
-                          // label, and an element with no box by design are all fine;
-                          // what is not is the page's words with nothing to reveal them.
-                          && !el.closest('details, [data-lf-offer], .lf-ui, style, script')
+                          // label, a slot a standing decision deliberately retired, and
+                          // an element with no box by design are all fine; what is not
+                          // is the page's words with nothing to reveal them.
+                          && !el.closest('details, [data-lf-offer], [data-lf-retired], '
+                                         + '.lf-ui, style, script')
                           && getComputedStyle(el).display !== 'contents')
             .map(el => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '')),
         // A press a widget injected is a tab stop wearing an interactive role, and the
@@ -1576,6 +1516,7 @@ def test_a_copy_wears_the_mark_and_claims_no_session(browser, serve, tmp_path):
 
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
+    assert page.locator('link[rel="icon"]').count() == 1
     # The tone is a stylesheet the runtime appends to the mark, so what says the copy is
     # wearing none is the mark carrying only the one its file was written with.
     icon = page.evaluate("""() => {

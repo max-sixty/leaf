@@ -16,6 +16,7 @@ import {
 } from "../passages.js";
 import { shownParts, shownRect } from "../geometry.js";
 import { focused, paintHere } from "../keyboard/scopes.js";
+import { HINT_KEYS, hintCodes, spreadHints } from "../keyboard/hints.js";
 import { announce } from "../notifications.js";
 import { selectTarget, updateFab } from "./surface.js";
 import {
@@ -74,7 +75,6 @@ selectionSearch.append(selectionInput, selectionStatus);
 // The mode keeps `?` available and claims the rest of the page's keyboard while it
 // stands.
 
-const HINT_KEYS = [..."asdfghjklqwertyuiopzxcvbnm"];
 const HINT_INDENT = 10;
 
 let open = false;
@@ -195,26 +195,13 @@ function firstShown(range, owner, cache) {
   );
 }
 
-// Replacing a leaf in the alphabet with all of its children makes a prefix-free code.
-// Most pages therefore get one-letter hints; only the tail pays for a second letter.
-function hintCodes(count) {
-  const codes = [...HINT_KEYS];
-  while (codes.length < count) {
-    const shortest = Math.min(...codes.map((code) => code.length));
-    const at = codes.findLastIndex((code) => code.length === shortest);
-    const parent = codes[at];
-    codes.splice(at, 1, ...HINT_KEYS.map((key) => parent + key));
-  }
-  return codes.slice(0, count);
-}
-
 const sameVisibleBox = (a, b) =>
   Math.abs(a.left - b.left) < 0.5 &&
   Math.abs(a.top - b.top) < 0.5 &&
   Math.abs(a.right - b.right) < 0.5 &&
   Math.abs(a.bottom - b.bottom) < 0.5;
 
-function visibleTargets() {
+export function visibleTargets() {
   const cache = clips();
   const targets = aimTargets()
     .filter(({ element }) => !inChrome(element))
@@ -456,84 +443,6 @@ function hintChip(target) {
   return chip;
 }
 
-const movedTo = (box, left, top) => ({
-  left,
-  right: left + box.width,
-  top,
-  bottom: top + box.height,
-  width: box.width,
-  height: box.height,
-});
-// Nested items can begin at exactly the same corner. Hints are the only route to their
-// targets, so keep every one and step later faces down (or up at the key line) until
-// each is legible. Read every face before moving one, keeping the pass to one layout.
-function spreadHints(hints) {
-  const gap = 2;
-  // The band the browsed hint wears reaches this far past its box (--here-shadow,
-  // theme.css), so a seat against the line or the foot clears the band as well as the
-  // face. Seated to the gap alone it cleared by coincidence, both being 2px.
-  const band =
-    parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--here-ring-w"),
-    ) || 0;
-  const measured = hints.map(({ chip, target }) => {
-    const start = chip.getBoundingClientRect();
-    const line = keylineEl.getBoundingClientRect();
-    const lineBand = {
-      left: line.left,
-      top: line.top,
-      right: line.right,
-      bottom: innerHeight,
-    };
-    // Keep the established top-left/nesting placement unless it puts the face back
-    // over a band already subtracted from its target. A surviving rectangle on the
-    // line's right has a direct horizontal seat; a piece too narrow for the face is
-    // moved above the band in the pass below. The seat clears the line's edge by the
-    // same gap a face keeps from another face, which is also what keeps it clear at
-    // all: a left written back in CSS pixels lands on the layout engine's 1/64px
-    // grid, so a face seated flush on the edge can round a step back under the line.
-    const rightSeat = Math.max(target.left, line.right + gap);
-    const canSitRight = rightSeat + start.width <= target.right;
-    const left =
-      line.height && overlaps(start, lineBand) && canSitRight ? rightSeat : start.left;
-    return [chip, movedTo(start, left, start.top), start, lineBand];
-  });
-  const placed = [];
-  for (const [chip, seated, start, lineBand] of measured) {
-    let box = seated;
-    for (
-      let collisions = placed.filter((other) => overlaps(box, other));
-      collisions.length;
-      collisions = placed.filter((other) => overlaps(box, other))
-    )
-      box = movedTo(
-        box,
-        box.left,
-        Math.max(...collisions.map((other) => other.bottom)) + gap,
-      );
-    const meetsLine = lineBand.bottom > lineBand.top && overlaps(box, lineBand);
-    if (meetsLine || box.bottom + band > innerHeight) {
-      const upperEdge = meetsLine ? lineBand.top : innerHeight;
-      box = movedTo(box, box.left, upperEdge - gap - band - box.height);
-      for (
-        let collisions = placed.filter((other) => overlaps(box, other));
-        collisions.length;
-        collisions = placed.filter((other) => overlaps(box, other))
-      )
-        box = movedTo(
-          box,
-          box.left,
-          Math.min(...collisions.map((other) => other.top)) - gap - box.height,
-        );
-    }
-    const sideShift = box.left - start.left;
-    const shift = box.top - start.top;
-    if (sideShift) chip.style.left = `${parseFloat(chip.style.left) + sideShift}px`;
-    if (shift) chip.style.top = `${parseFloat(chip.style.top) + shift}px`;
-    placed.push(box);
-  }
-}
-
 export function paintTargets() {
   if (!open) {
     if (selectionLayer.childElementCount) selectionLayer.replaceChildren();
@@ -591,7 +500,11 @@ export function paintTargets() {
   // The key line was painted before geometry retired the browsed hint.
   if (wasActive && hintActive < 0) paintHere();
   selectionLayer.replaceChildren(...drawn);
-  if (!searching) spreadHints(hints);
+  if (!searching)
+    spreadHints(hints, {
+      lineBox: keylineEl.getBoundingClientRect(),
+      viewportTop: covered(),
+    });
 }
 
 selectionInput.addEventListener("input", search);
@@ -734,3 +647,4 @@ export const SELECT = {
 
 export const isSelecting = () => open;
 export const startSelecting = () => setOpen(true);
+export const stopSelecting = () => setOpen(false);

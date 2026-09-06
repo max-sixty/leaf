@@ -20,6 +20,7 @@ from render_cases_layout import (
 )
 from render_harness import (
     LONG_PAGE,
+    RENDERED,
     leaf_page,
     told,
 )
@@ -258,23 +259,33 @@ session.</p></details>
         f"<p id='t{i}'>Tail {i}. " + "Words. " * 20 + "</p>" for i in range(12)
     )
 )
-# What the chord's lists are offering, in the order they were drawn. Read through the
-# retrying assertion rather than evaluated: the chips are painted on a frame of the
-# runtime's own (paintHere), so a press and a plain read race each other. Each chip keeps
-# its complete route while the pressed key faces show how far the reader has come.
-CHIPS = ".lf-addresses > .lf-address"
+# Generated go-to hints, painted in their own transient layer. The code is metadata on the
+# chip because its visible text also includes the already-pressed `g` leader.
+CHIPS = ".lf-goto-targets > .lf-chord-address"
 
 
-def expect_address_steps(page, routes):
-    chips = page.locator(CHIPS)
-    expect(chips).to_have_text(["".join(route) for route in routes])
-    assert (
-        chips.evaluate_all(
-            """chips => chips.map(chip => [...chip.querySelectorAll('kbd')]
-          .map(key => key.textContent))"""
-        )
-        == routes
+def address_codes(page):
+    page.evaluate(RENDERED)
+    return page.locator(CHIPS).evaluate_all(
+        "chips => chips.map(chip => chip.dataset.lfAddress)"
     )
+
+
+def address_code(page, kind, target):
+    chip = page.locator(
+        f'{CHIPS}[data-lf-address-kind="{kind}"][data-lf-address-for="{target}"]'
+    )
+    expect(chip).to_have_count(1)
+    code = chip.get_attribute("data-lf-address")
+    assert code
+    return code
+
+
+def go_to_address(page, kind, target):
+    page.keyboard.press("g")
+    code = address_code(page, kind, target)
+    page.keyboard.type(code)
+    return code
 
 
 NOTED_PAGE = leaf_page(

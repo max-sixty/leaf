@@ -36,7 +36,11 @@ Claude Code and Codex install the tracked tree whole. Its main parts are:
 
 `examples/` is the authored-page and render corpus. `tests/` covers the file,
 CLI, browser, and published-site boundaries. `scripts/` owns developer preview,
-site, demo, and vendor tooling.
+site, demo, and vendor tooling. `worker/` is the Cloudflare Worker behind
+<https://leaf.page/> — it serves the built site and routes each example to the
+canonical Python server in a per-reader container — and it is the one part of
+the tree written in TypeScript, with a gate of its own that `tests/` does not
+reach.
 
 Read the scoped instructions for the area being changed:
 
@@ -111,6 +115,13 @@ does not reconstruct widgets or replay baseline actions into the DOM. Page-widge
 state is bounded by document version; widgets frozen into thread markup use the
 conversation window.
 
+Python also derives one top-level `activity` reading from the agent's status
+declaration, claim and turn identity, watcher lease, pickup events, and unsettled
+reader moves. The banner, thread receipts, margin receipts, neighboring-page rows,
+agent state, and stop guard consume that projection. JavaScript may schedule a new
+state read at its `next_transition_at`; it does not age, override, or independently
+combine those facts.
+
 The page directory is the durable record and deployment unit. `index.html` is
 mutable author source; revisions are immutable, and append-only notes bind public
 versions to them. The event log is append-only, while `data.json` is the explicit
@@ -175,6 +186,17 @@ uv run pytest tests
 the Linux suite. `wt merge` runs pre-commit and the everyday suite on the rebased
 tree. Pull requests run the same gate in CI. CI adds the complete nightly suite
 after main moves.
+
+That suite never reads `worker/`, and neither does pre-commit, whose prettier and
+eslint hooks take JavaScript and HTML rather than TypeScript. So a worker change
+carries no gate on either landing path until `ci`'s `website-worker` job runs it,
+which on a `wt merge` is after main has already moved. Run it before landing one:
+
+```sh
+npm ci --prefix worker
+npm run typecheck --prefix worker
+npm test --prefix worker
+```
 
 Re-vendor before trusting a browser result after a runtime, theme, registry, or
 widget change. For a user-visible layer change, an `/ui-sweep` and a look at a

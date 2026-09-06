@@ -64,11 +64,14 @@ from render_support import (
     _traffic,
     _until,
     actions,
+    address_code,
     author_test_widget,
     backdate_note,
     compare_with,
     composer_quote,
     drifting_widget,
+    go_to_address,
+    holding,
     key_line,
     leaf_page,
     live_url,
@@ -328,6 +331,14 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
     observed = page.locator(".lf-pr-observed")
     expect(observed).to_have_text(re.compile(r"^Observed just now$"))
 
+    # Only the browser's clock can be moved from here, and every state answer
+    # recalibrates the page's one measured offset against the server's real `now`
+    # (observeServerNow), which would put the three hours straight back. The page has
+    # a standing reason to ask for one: a served page's status claims work, so its
+    # activity carries a transition deadline the jump crosses, and the feed asks
+    # rather than beats on that tick. Refusing the read is the arrangement the paint
+    # under test needs — no data change, and no answer that could carry one.
+    page.route("**/api/state*", refuse)
     page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
     ticked(page)
     expect(observed).to_have_text(re.compile(r"^Observed 3h ago$"))
@@ -1031,10 +1042,10 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
 ):
     """A revision arriving under a reader mid-press keeps their next press live.
 
-    Two kinds of pending input meet an activation. A chord is the runtime's: `g h` names
-    the hyperlinks, and the chips are read off whichever document is standing, so the
-    window holds through the swap and the digit lands in the new page — minus the
-    address of a link the revision took away, which is the honest reading. The reader's
+    Two kinds of pending input meet an activation. A chord is the runtime's: bare `g`
+    names the visible targets, and the chips are read off whichever document is standing,
+    so the window holds through the swap and a fresh hint lands in the new page — minus
+    the hint for a link the revision took away, which is the honest reading. The reader's
     standing is the document's: the Ask's "1–2 One / Two" actions remain live over a
     focused pick mark, and the swap that replaced main dropped that focus onto body,
     taking the offer down with it — the digit then picked nothing, silently. The place is
@@ -1045,16 +1056,18 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     version_url = serve(LIVE_KEYS_V1)
     page, errors = open_page(browser, live_url(version_url))
     chips = page.locator(".lf-chord-address")
+    link_chips = page.locator('.lf-chord-address[data-lf-address-kind="Link"]')
 
     page.keyboard.press("g")
-    page.keyboard.press("h")
-    expect(chips).to_have_text(["gh1", "gh2", "gh3"])
+    expect(link_chips).to_have_count(3)
     (serve.page_dir / "index.html").write_text(LIVE_KEYS_V2)
     told(page)
     expect(page).to_have_title("Live keys second")
-    expect(chips).to_have_text(["gh1", "gh2"])
-    assert "1–2" in key_line(page), "the chord's range did not follow the new document"
-    page.keyboard.press("2")
+    expect(link_chips).to_have_count(2)
+    assert "visible target" in key_line(page), (
+        "the chord did not follow the new document"
+    )
+    page.keyboard.type(address_code(page, "Link", "lk-link-three"))
     expect(page.locator("#lk-para")).to_be_focused()
     expect(chips).to_have_count(0)
 
@@ -1452,7 +1465,7 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
 
     # A pointer landing inside an open decision is standing in it, though no walk brought
     # them there: the ring renders the focus rather than remembering a press.
-    page.locator("#live-question .lf-another input").click()
+    page.locator("#live-question .lf-another textarea").click()
     expect(question).to_have_attribute("data-lf-ask", "1")
 
     # Answering takes it off with the focus still inside: the ring is for the question
@@ -1555,14 +1568,12 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
         "letting go left the reader holding the control on a page that fits the window"
     )
 
-    # The direct Page-map address arrives the way the walk does and then presses what it
+    # A generated Page-map hint arrives the way the walk does and then presses what it
     # arrived on, so this location's first available Button accepts the suggestion. What
     # unfolds there is that press's own result rather than the arrival's, and the ladder
     # owes what it owed before: one Escape lets go of where the press left the reader.
     with sending(page, "the addressed suggestion's acceptance"):
-        page.keyboard.press("g")
-        page.keyboard.press("m")
-        page.keyboard.press("2")
+        go_to_address(page, "Page-map location", "sug-refill")
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     assert page.evaluate(
@@ -4517,7 +4528,7 @@ def test_a_done_press_says_it_is_waiting_and_answers_once(browser, serve):
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     done.click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the answer in the wire")
+    holding(page, held, 1, "the answer")
 
     expect(done).to_have_attribute("aria-busy", "true")
     # The press is acknowledged; the answer it asks for is not painted, the log not

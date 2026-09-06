@@ -14,9 +14,9 @@ import { inspectEl, legendRoot } from "./design.js";
 import { addressLayer } from "./keyboard/address.js";
 import { askActionLayer } from "./asks/view.js";
 import { selectionLayer, selectionSearch } from "./composing/targets.js";
-import { mountTargetPaint, visualMarkLayer } from "./target-paint.js";
+import { mountTargetPaint, targetTraceBox, visualMarkLayer } from "./target-paint.js";
 import { drawingLayer } from "./composing/drawing.js";
-import { marginTraceBox, mountMargin } from "./living-margin.js";
+import { mountMargin } from "./living-margin.js";
 import { aimBox } from "./composing/aim.js";
 import { liveEl } from "./notifications.js";
 import { FOCUSABLE } from "./reach.js";
@@ -114,7 +114,7 @@ export function mountChrome() {
     selectionSearch,
     visualMarkLayer,
     drawingLayer,
-    marginTraceBox,
+    targetTraceBox,
     aimBox,
     fabBar,
     liveEl,

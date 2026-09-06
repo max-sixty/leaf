@@ -189,14 +189,14 @@
    belongs to the name alone. Painted beside the phase, the same words read as progress
    rather than position.
 
-   Hover or focus on any interactive fitting illuminates its exact target, including a
-   cluster displaced by packing. Hovering a status shows its label and connects it to the
-   target with a softer neutral trace, without lifting the fitting or borrowing the accent
-   ring that promises interaction. A generated Page-map arrival may still focus it and
-   illuminate the target deliberately. Labels stay inside the viewport without moving the
-   fitting. Dense and narrow-screen tests must exercise that association and activate an
-   excess action through Page map; counting hidden DOM nodes is not evidence of
-   reachability.
+   Hover or focus on any interactive fitting connects it to its exact target with the same
+   quiet neutral trace, including when packing displaced the cluster. The trace is
+   correspondence, not keyboard focus, so it never borrows the accent ring that promises
+   interaction. Hovering a status also shows its label without lifting the fitting. A
+   generated Page-map arrival may still focus a fitting and trace its target deliberately.
+   Labels stay inside the viewport without moving the fitting. Dense and narrow-screen
+   tests must exercise that association and activate an excess action through Page map;
+   counting hidden DOM nodes is not evidence of reachability.
 
    The living margin groups contributions and state readings by exact target identity,
    chooses the primary, and owns the generated disclosure and `…` Buttons plus the
@@ -310,12 +310,6 @@ import { iconElement } from "./icons.js";
 import { claimed, focusSurface } from "./conversation/surfaces.js";
 import { anchorLabel } from "./conversation/messages.js";
 import { renderMarginThread } from "./conversation/inline.js";
-
-// A status remains flat and inert while its hover trace identifies the target it reports
-// on. Target paint owns its rectangular or shaped geometry; the living margin owns when
-// this instance is shown.
-export const marginTraceBox = el("div", "lf-ui lf-margin-status-trace lf-target-paint");
-marginTraceBox.setAttribute("aria-hidden", "true");
 
 const KINDS = {
   action: { label: "Action", icon: "dot", priority: -1 },
@@ -978,11 +972,9 @@ let pinnedKey = null;
 let forcedInlineKey = null;
 let expandedOptionsKey = null;
 let hoveredHost = null;
-let hoveredBehavior = null;
 let settlingOptionsFocus = false;
 let suppressingOptionsArrival = false;
 let highlighted = null;
-let highlightedBehavior = null;
 let rovingFrame = 0;
 let sheetCloseOwnsFocus = false;
 let sheetFrom = null;
@@ -2540,7 +2532,6 @@ function renderNow() {
         // A new keyboard destination outranks a pointer parked on the previous
         // target. Real pointer movement can take ownership back without a press.
         hoveredHost = null;
-        hoveredBehavior = null;
         refreshHighlight();
       });
       host.addEventListener("focusout", () => requestAnimationFrame(refreshHighlight));
@@ -2549,14 +2540,12 @@ function renderNow() {
           .elementFromPoint(event.clientX, event.clientY)
           ?.closest?.(".lf-margin-button");
         hoveredHost = control && host.contains(control) ? host : null;
-        hoveredBehavior = hoveredHost ? control.dataset.lfBehavior : null;
         refreshHighlight();
       };
       host.addEventListener("pointermove", takePointerOwnership);
       host.addEventListener("pointerleave", () => {
         if (hoveredHost === host) {
           hoveredHost = null;
-          hoveredBehavior = null;
         }
         refreshHighlight();
       });
@@ -2736,13 +2725,10 @@ function previewItemNode(item) {
   return node;
 }
 
-function highlight(target, behavior = null) {
-  if (highlighted === target && highlightedBehavior === behavior) return;
-  highlighted?.classList.remove("lf-margin-target");
+function highlight(target) {
+  if (highlighted === target) return;
   highlighted = target;
-  highlightedBehavior = target ? behavior : null;
-  traceTarget(behavior === "status" ? target : null);
-  if (target && behavior !== "status") target.classList.add("lf-margin-target");
+  traceTarget(target);
 }
 
 function refreshHighlight() {
@@ -2765,10 +2751,7 @@ function refreshHighlight() {
     entry.items.every(
       (item) => item.kind === "comment" && Boolean(item.thread?.root.drawing),
     );
-  highlight(
-    drawingOnly ? null : (entry?.target ?? null),
-    source === pointerHost ? hoveredBehavior : null,
-  );
+  highlight(drawingOnly ? null : (entry?.target ?? null));
 }
 
 function showPreview(entry, button, retry = true) {

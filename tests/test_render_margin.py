@@ -1644,13 +1644,14 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
         }""",
         arg=pointer,
     )
-    target = page.locator("#bg-choice-ask")
-    assert "lf-margin-target" not in (target.get_attribute("class") or "").split(), (
-        "moving the margin under a stationary pointer claimed pointer ownership"
-    )
+    trace = page.locator('.lf-target-trace[data-for="bg-choice-ask"]')
+    expect(
+        trace,
+        "moving the margin under a stationary pointer claimed pointer ownership",
+    ).to_be_hidden()
 
     page.mouse.move(pointer["x"] + 1, pointer["y"])
-    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+    expect(trace).to_be_visible()
     assert errors == []
     page.close()
 
@@ -1669,7 +1670,8 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         "y": int(box["y"] + box["height"] / 2),
     }
     page.mouse.move(pointer["x"], pointer["y"])
-    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+    trace = page.locator('.lf-target-trace[data-for="bg-draft"]')
+    expect(trace).to_be_visible()
 
     draft = target.element_handle()
     old_host = host.element_handle()
@@ -1694,9 +1696,10 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         "old => document.querySelector('[data-lf-margin-for=\"bg-draft\"]') !== old",
         old_host,
     )
-    assert "lf-margin-target" not in (target.get_attribute("class") or "").split(), (
-        "the replacement host inherited pointer ownership from its disconnected peer"
-    )
+    expect(
+        trace,
+        "the replacement host inherited pointer ownership from its disconnected peer",
+    ).to_be_hidden()
 
     replacement = page.locator('[data-lf-margin-for="bg-draft"]')
     replacement_box = replacement.bounding_box()
@@ -1704,7 +1707,7 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         int(replacement_box["x"] + replacement_box["width"] / 2),
         int(replacement_box["y"] + replacement_box["height"] / 2),
     )
-    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+    expect(trace).to_be_visible()
     assert errors == []
     page.close()
 
@@ -2508,7 +2511,6 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expected_rule = resolved_color("--rule")
     expected_label_ink = resolved_color("--paper")
     expected_label_background = resolved_color("--ink")
-    target = page.locator("#jobs")
 
     def words_still():
         """The label's reveal is a 90ms transition behind a 90ms delay, so the frame the
@@ -2527,7 +2529,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             expect(marker).to_have_attribute("data-identity-probe", "kept")
         page.evaluate("() => document.activeElement.blur()")
         page.mouse.move(0, 0)
-        expect(page.locator(".lf-margin-status-trace")).to_be_hidden()
+        expect(page.locator(".lf-target-trace")).to_be_hidden()
         expect(control.locator(":scope > .lf-margin-button-label")).to_be_hidden()
         words_still()
         current = face(control)
@@ -2559,7 +2561,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             key: current[key] for key in ("background", "border", "ink", "opacity")
         }
         control.hover()
-        trace_box = page.locator('.lf-margin-status-trace[data-for="jobs"]')
+        trace_box = page.locator('.lf-target-trace[data-for="jobs"]')
         expect(trace_box).to_be_visible()
         label = control.locator(":scope > .lf-margin-button-label")
         expect(label).to_be_visible()
@@ -2575,9 +2577,9 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         trace = control.evaluate(
             """node => {
               const line = getComputedStyle(node.closest('.lf-margin-item'), '::before');
-              const box = getComputedStyle(document.querySelector('.lf-margin-status-trace'));
+              const box = getComputedStyle(document.querySelector('.lf-target-trace'));
               return {
-                declaredWidth: box.getPropertyValue('--status-trace-w').trim(),
+                declaredWidth: box.getPropertyValue('--target-trace-w').trim(),
                 boxWidth: box.borderTopWidth,
                 boxColor: box.borderTopColor,
                 lineWidth: line.borderTopWidth,
@@ -2680,14 +2682,11 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     page.evaluate("() => document.activeElement.blur()")
     page.mouse.move(0, 0)
-    expect(target).not_to_have_class(re.compile(r"lf-margin-target"))
-    expect(page.locator(".lf-margin-status-trace")).to_be_hidden()
+    expect(page.locator(".lf-target-trace")).to_be_hidden()
     secondary.hover()
-    expect(page.locator('.lf-margin-status-trace[data-for="jobs"]')).to_be_visible()
-    expect(target).not_to_have_class(re.compile(r"\blf-margin-target\b"))
+    expect(page.locator('.lf-target-trace[data-for="jobs"]')).to_be_visible()
     page.locator(".lf-receipt-primary-probe").hover()
-    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
-    expect(page.locator(".lf-margin-status-trace")).to_be_hidden()
+    expect(page.locator('.lf-target-trace[data-for="jobs"]')).to_be_visible()
     page.evaluate("() => window.lfReceiptSecondary.unregister()")
     expect(marker).to_be_visible()
 
@@ -2900,9 +2899,7 @@ def test_button_order_budget_and_spilled_actions_are_stable_at_both_widths(
             "data-lf-spill-count", "3"
         )
         item.get_by_role("button", name=f"Save {target}", exact=True).focus()
-        expect(page.locator(f"#{target}")).to_have_class(
-            re.compile(r"lf-margin-target")
-        )
+        expect(page.locator(f'.lf-target-trace[data-for="{target}"]')).to_be_visible()
         item.get_by_role("button", name=f"Save {target}", exact=True).hover()
         label = item.locator('[data-lf-button-key="save"] .lf-margin-button-label')
         expect(label).to_be_visible()
@@ -2930,10 +2927,10 @@ def test_button_order_budget_and_spilled_actions_are_stable_at_both_widths(
     save.focus()
     save.hover()
     second.get_by_role("button", name="Save second", exact=True).focus()
-    expect(page.locator("#second")).to_have_class(re.compile(r"lf-margin-target"))
-    expect(page.locator("#first")).not_to_have_class(re.compile(r"lf-margin-target"))
+    expect(page.locator('.lf-target-trace[data-for="second"]')).to_be_visible()
+    expect(page.locator('.lf-target-trace[data-for="first"]')).to_be_hidden()
     save.hover()
-    expect(page.locator("#first")).to_have_class(re.compile(r"lf-margin-target"))
+    expect(page.locator('.lf-target-trace[data-for="first"]')).to_be_visible()
     ring = save.evaluate("button => getComputedStyle(button).borderTopWidth")
     page.evaluate("() => window.buttonFixtures[0].busy()")
     expect(save).to_have_attribute("aria-busy", "true")
@@ -3322,21 +3319,21 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
 
     status = page.locator('[data-lf-button-key="shape-status"]')
     status.hover()
-    trace = page.locator('.lf-margin-status-trace[data-for="outer"]')
+    trace = page.locator('.lf-target-trace[data-for="outer"]')
     expect(trace).to_be_visible()
     expect(trace).to_have_class(re.compile(r"\blf-shaped\b"))
-    assert trace.locator(".lf-margin-status-trace-shape > g > *").evaluate_all(
+    assert trace.locator(".lf-target-trace-shape > g > *").evaluate_all(
         "nodes => nodes.map(node => node.localName)"
     ) == ["rect"]
     geometry = page.evaluate(
         """() => {
           const surface = document.querySelector('#outer-surface').getBoundingClientRect();
-          const trace = document.querySelector('.lf-margin-status-trace');
+          const trace = document.querySelector('.lf-target-trace');
           const box = trace.getBoundingClientRect();
           const shape = trace.querySelector('rect');
           const style = getComputedStyle(shape);
           const swatch = document.createElement('span');
-          swatch.style.color = 'var(--status-trace-ink)';
+          swatch.style.color = 'var(--target-trace-ink)';
           document.head.append(swatch);
           const traceInk = getComputedStyle(swatch).color;
           swatch.remove();
@@ -3429,7 +3426,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(marker).to_have_attribute("aria-expanded", "true")
     expect(preview).to_be_visible()
     expect(marker.locator(".lf-margin-button-label")).to_be_hidden()
-    expect(page.locator("#bracket")).to_have_class(re.compile(r"lf-margin-target"))
+    expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_visible()
     main_box = page.locator("main").bounding_box()
     preview_box = preview.bounding_box()
     assert preview_box["x"] >= main_box["x"] + main_box["width"]
@@ -3977,10 +3974,10 @@ def test_an_open_thread_refresh_keeps_the_current_button_target_highlighted(
     suggestion.locator('.lf-margin-reading-option[data-lf-kinds="comment"]').click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.get_by_role("button", name="Edit draft-ops", exact=True).hover()
-    target = page.locator("#draft-ops")
-    expect(target).to_have_class(re.compile(r"lf-margin-target"))
+    trace = page.locator('.lf-target-trace[data-for="draft-ops"]')
+    expect(trace).to_be_visible()
     ticked(page)
-    assert "lf-margin-target" in target.get_attribute("class").split()
+    expect(trace).to_be_visible()
     assert errors == []
     page.close()
 
@@ -4001,7 +3998,7 @@ def test_focusing_a_thread_button_does_not_open_its_card(browser, serve):
 
     expect(toggle).to_be_focused()
     expect(preview).to_be_hidden()
-    expect(page.locator("#bracket")).not_to_have_class(re.compile(r"lf-margin-target"))
+    expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -4471,7 +4468,7 @@ def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, se
 
 
 def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
-    """A retained preview must outline the new document's matching destination."""
+    """A retained preview must trace the new document's matching destination."""
     version_url = serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     page, errors = open_page(browser, live_url(version_url))
     resized(page, 1440, 900)
@@ -4480,7 +4477,8 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     close = page.locator(".lf-margin-preview-close")
     close.focus()
     expect(close).to_be_focused()
-    expect(page.locator("#bracket")).to_have_class(re.compile(r"lf-margin-target"))
+    trace = page.locator('.lf-target-trace[data-for="bracket"]')
+    expect(trace).to_be_visible()
 
     (serve.page_dir / "index.html").write_text(
         ASK_PAGE.replace("Three jobs", "Four jobs")
@@ -4489,7 +4487,7 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
     expect(close).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator("#bracket")).to_have_class(re.compile(r"lf-margin-target"))
+    expect(trace).to_be_visible()
 
     assert errors == []
     page.close()

@@ -631,6 +631,7 @@
     "additionalProperties": false,
     "x-content": "none",
     "x-upgrade": true,
+    "x-visual": "whole",
     "x-example": "<h3>The option cards</h3>\n<p>The chips now sit above the title, so a scanning eye reads cost before prose.</p>\n<lf-shot id=\"shot-cards\" alt=\"the decision page's option cards\" before=\"/media/0f2c91a4b7de3105.png\" after=\"/media/6b40ac7719ee5d82.png\"></lf-shot>"
   },
   "lf-board": {

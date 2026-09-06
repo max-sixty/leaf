@@ -1758,7 +1758,8 @@ lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6p
    UA-clearing and the chrome face .lf-ui would otherwise put on it. */
 .lf-draft-edit.lf-ui { display: block; width: 100%; padding: 0; border: 0; background: none;
            font: inherit; min-height: 0; max-height: none; overflow: hidden; }
-.lf-draft-edit.lf-ui:is(:focus, .lf-focus) { box-shadow: none; }
+.lf-draft-edit.lf-ui:is(:focus, .lf-focus) { outline: none; box-shadow: none;
+           --lf-here-ring: none; }
 .lf-draft-controls, .lf-draft-history { display: none; }
 @media screen {
   html:not(.lf-copy) {

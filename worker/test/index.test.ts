@@ -24,17 +24,16 @@ vi.mock("@openai/agents-openai", () => ({
 }));
 
 import { getContainer } from "@cloudflare/containers";
-import worker, {
-  LeafExampleSession,
-  type Env,
-  runAgentWorkflow,
-} from "../src/index";
+import worker, { LeafExampleSession, type Env, runAgentWorkflow } from "../src/index";
 
 function environment(overrides: Partial<Env> = {}): Env {
+  const allow = { limit: vi.fn(async () => ({ success: true })) } as RateLimit;
   return {
     ASSETS: { fetch: vi.fn() } as unknown as Fetcher,
     EXAMPLES: {} as DurableObjectNamespace<LeafExampleSession>,
     AGENT_WORKFLOW: { createBatch: vi.fn() } as unknown as Workflow,
+    READER_AGENT_RATE_LIMITER: allow,
+    GLOBAL_AGENT_RATE_LIMITER: allow,
     OPENAI_API_KEY: "test-key",
     ...overrides,
   };
@@ -118,7 +117,7 @@ describe("website example agent", () => {
     vi.mocked(getContainer).mockReturnValue({
       fetch: containerFetch,
     } as never);
-    const createBatch = vi.fn(async () => []);
+    const createBatch = vi.fn(async () => [{ id: `reply-${sessionId}-${eventId}` }]);
     const env = environment({
       AGENT_WORKFLOW: { createBatch } as unknown as Workflow,
     });
@@ -177,6 +176,130 @@ describe("website example agent", () => {
     expect(createBatch).not.toHaveBeenCalled();
   });
 
+  it("keeps the accepted response when a duplicate workflow already exists", async () => {
+    const sessionId = "11".repeat(16);
+    const eventId = "12".repeat(16);
+    const attempt = "retried-reader-attempt";
+    vi.mocked(getContainer).mockReturnValue({
+      fetch: async () =>
+        Response.json({
+          ok: true,
+          state: {
+            events: [{ id: eventId, attempt }],
+            activity: { obligations: [{ event: eventId }] },
+          },
+        }),
+    } as never);
+    const env = environment({
+      AGENT_WORKFLOW: {
+        createBatch: vi.fn(async () => {
+          throw new Error("workflow already exists");
+        }),
+        get: vi.fn(async () => ({
+          id: `reply-${sessionId}-${eventId}`,
+          status: vi.fn(async () => ({ status: "running" })),
+        })),
+      } as unknown as Workflow,
+    });
+
+    const response = await worker.fetch(
+      new Request("https://leaf.page/examples/design-decision/api/event", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `__Host-leaf-example=${sessionId}`,
+        },
+        body: JSON.stringify({ kind: "comment", attempt }),
+      }),
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).ok).toBe(true);
+  });
+
+  it("keeps the retry signal when workflow admission failed", async () => {
+    const sessionId = "16".repeat(16);
+    const eventId = "17".repeat(16);
+    const attempt = "unadmitted-reader-attempt";
+    vi.mocked(getContainer).mockReturnValue({
+      fetch: async () =>
+        Response.json({
+          ok: true,
+          state: {
+            events: [{ id: eventId, attempt }],
+            activity: { obligations: [{ event: eventId }] },
+          },
+        }),
+    } as never);
+    const env = environment({
+      AGENT_WORKFLOW: {
+        createBatch: vi.fn(async () => {
+          throw new Error("workflow admission unavailable");
+        }),
+        get: vi.fn(async () => {
+          throw new Error("workflow does not exist");
+        }),
+      } as unknown as Workflow,
+    });
+
+    await expect(
+      worker.fetch(
+        new Request("https://leaf.page/examples/design-decision/api/event", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: `__Host-leaf-example=${sessionId}`,
+          },
+          body: JSON.stringify({ kind: "comment", attempt }),
+        }),
+        env,
+      ),
+    ).rejects.toThrow("workflow admission unavailable");
+  });
+
+  it("restarts an existing workflow that failed before answering", async () => {
+    const sessionId = "18".repeat(16);
+    const eventId = "19".repeat(16);
+    const attempt = "failed-workflow-attempt";
+    vi.mocked(getContainer).mockReturnValue({
+      fetch: async () =>
+        Response.json({
+          ok: true,
+          state: {
+            events: [{ id: eventId, attempt }],
+            activity: { obligations: [{ event: eventId }] },
+          },
+        }),
+    } as never);
+    const restart = vi.fn(async () => undefined);
+    const env = environment({
+      AGENT_WORKFLOW: {
+        createBatch: vi.fn(async () => []),
+        get: vi.fn(async () => ({
+          id: `reply-${sessionId}-${eventId}`,
+          status: vi.fn(async () => ({ status: "errored" })),
+          restart,
+        })),
+      } as unknown as Workflow,
+    });
+
+    const response = await worker.fetch(
+      new Request("https://leaf.page/examples/design-decision/api/event", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `__Host-leaf-example=${sessionId}`,
+        },
+        body: JSON.stringify({ kind: "comment", attempt }),
+      }),
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(restart).toHaveBeenCalledOnce();
+  });
+
   it("runs the model outside the container and appends through Leaf", async () => {
     const params = {
       sessionId: "03".repeat(16),
@@ -204,6 +327,7 @@ describe("website example agent", () => {
     expect(result).toEqual({ status: "appended", event: "05".repeat(16) });
     expect(step.do.mock.calls.map(([name]) => name)).toEqual([
       "read turn",
+      "reserve model capacity",
       "generate reply",
       "append reply",
     ]);
@@ -225,6 +349,44 @@ describe("website example agent", () => {
         JSON.stringify([...request.headers]).includes("test-key"),
       ),
     ).toBe(false);
+  });
+
+  it("settles an over-limit turn without calling the model", async () => {
+    const params = {
+      sessionId: "13".repeat(16),
+      slug: "design-decision",
+      eventId: "14".repeat(16),
+    };
+    const containerFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ status: "ready", turn: { reply_to: params.eventId } }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ status: "appended", event: "15".repeat(16) }),
+      );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const deny = vi.fn(async () => ({ success: false }));
+    const env = environment({
+      READER_AGENT_RATE_LIMITER: { limit: deny } as RateLimit,
+    });
+    const step = {
+      do: vi.fn(async (_name, _config, callback) => callback()),
+    };
+
+    const result = await runAgentWorkflow(env, params, step as never);
+
+    expect(result).toEqual({ status: "appended", event: "15".repeat(16) });
+    expect(agents.run).not.toHaveBeenCalled();
+    expect(step.do.mock.calls.map(([name]) => name)).toEqual([
+      "read turn",
+      "reserve model capacity",
+      "append rate limit",
+    ]);
+    expect(await containerFetch.mock.calls[1][0].json()).toEqual({
+      event: params.eventId,
+      text: "This public demo is busy right now. Please wait a minute, then send a new message.",
+    });
   });
 
   it("settles a turn visibly after generation exhausts its retries", async () => {
@@ -254,6 +416,7 @@ describe("website example agent", () => {
     expect(result).toEqual({ status: "appended", event: "10".repeat(16) });
     expect(step.do.mock.calls.map(([name]) => name)).toEqual([
       "read turn",
+      "reserve model capacity",
       "generate reply",
       "append generation failure",
     ]);

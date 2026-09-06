@@ -25,6 +25,22 @@ name = "leaf-example-agent"
 binding = "AGENT_WORKFLOW"
 class_name = "LeafExampleAgentWorkflow"
 
+[[ratelimits]]
+name = "READER_AGENT_RATE_LIMITER"
+namespace_id = "34301"
+
+  [ratelimits.simple]
+  limit = 4
+  period = 60
+
+[[ratelimits]]
+name = "GLOBAL_AGENT_RATE_LIMITER"
+namespace_id = "34302"
+
+  [ratelimits.simple]
+  limit = 30
+  period = 60
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["LeafExampleSession"]

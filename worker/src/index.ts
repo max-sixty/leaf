@@ -32,6 +32,8 @@ export interface Env {
   ASSETS: Fetcher;
   EXAMPLES: DurableObjectNamespace<LeafExampleSession>;
   AGENT_WORKFLOW: Workflow<AgentWorkflowParams>;
+  READER_AGENT_RATE_LIMITER: RateLimit;
+  GLOBAL_AGENT_RATE_LIMITER: RateLimit;
   OPENAI_API_KEY: string;
 }
 
@@ -48,6 +50,8 @@ type AgentResult =
 
 const GENERATION_FAILURE_REPLY =
   "I couldn’t generate a reply just now. Please send a new message to try again.";
+const RATE_LIMIT_REPLY =
+  "This public demo is busy right now. Please wait a minute, then send a new message.";
 const exampleAgent = new Agent({
   name: "Leaf guide",
   instructions:
@@ -122,14 +126,11 @@ function agentRequest(
   action: "turn" | "reply",
   body: object,
 ): Request {
-  return new Request(
-    `http://container/examples/${params.slug}/_leaf/agent/${action}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    },
-  );
+  return new Request(`http://container/examples/${params.slug}/_leaf/agent/${action}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 async function askContainer(
@@ -204,15 +205,34 @@ export async function runAgentWorkflow(
       () => askContainer(env, params, "turn", { event: params.eventId }),
     );
     if (turn.status !== "ready") return turn;
-    text = await step.do(
-      "generate reply",
+    const allowed = await step.do(
+      "reserve model capacity",
       {
         retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
-        timeout: "2 minutes",
+        timeout: "1 minute",
       },
-      () => generateExampleReply(turn.turn, env.OPENAI_API_KEY),
+      async () => {
+        const [reader, global] = await Promise.all([
+          env.READER_AGENT_RATE_LIMITER.limit({ key: params.sessionId }),
+          env.GLOBAL_AGENT_RATE_LIMITER.limit({ key: "public-examples" }),
+        ]);
+        return reader.success && global.success;
+      },
     );
-    appendStep = "append reply";
+    if (allowed) {
+      text = await step.do(
+        "generate reply",
+        {
+          retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
+          timeout: "2 minutes",
+        },
+        () => generateExampleReply(turn.turn, env.OPENAI_API_KEY),
+      );
+      appendStep = "append reply";
+    } else {
+      text = RATE_LIMIT_REPLY;
+      appendStep = "append rate limit";
+    }
   } catch {
     text = GENERATION_FAILURE_REPLY;
     appendStep = "append generation failure";
@@ -266,6 +286,38 @@ async function acceptedObligation(
   }
 }
 
+async function resumeFailedWorkflow(env: Env, workflowId: string): Promise<void> {
+  const instance = await env.AGENT_WORKFLOW.get(workflowId);
+  const state = await instance.status();
+  if (state.status === "errored" || state.status === "terminated") {
+    await instance.restart();
+  }
+}
+
+async function startAgentWorkflow(
+  env: Env,
+  params: AgentWorkflowParams,
+): Promise<void> {
+  const workflowId = agentWorkflowId(params);
+  let created: WorkflowInstance[];
+  try {
+    created = await env.AGENT_WORKFLOW.createBatch([{ id: workflowId, params }]);
+  } catch (error) {
+    // Older Workflow runtimes reject duplicate ids. Treat an instance that
+    // already exists as success; preserve the outbox's retry signal when no
+    // workflow exists to answer the durable event.
+    try {
+      await resumeFailedWorkflow(env, workflowId);
+    } catch {
+      throw error;
+    }
+    return;
+  }
+  // Current runtimes make createBatch idempotent and omit an existing instance
+  // from the result. Give an earlier failed run another chance to settle the turn.
+  if (created.length === 0) await resumeFailedWorkflow(env, workflowId);
+}
+
 function staticAssetResponse(response: Response): Response {
   const contentType = response.headers.get("Content-Type")?.split(";", 1)[0].trim();
   if (contentType?.toLowerCase() !== "text/html") return response;
@@ -309,9 +361,7 @@ export default {
       const eventId = await acceptedObligation(postedRequest, response);
       if (eventId) {
         const params = { sessionId, slug: route.slug, eventId };
-        await env.AGENT_WORKFLOW.createBatch([
-          { id: agentWorkflowId(params), params },
-        ]);
+        await startAgentWorkflow(env, params);
       }
     }
     if (existing !== null) return response;

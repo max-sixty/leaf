@@ -123,7 +123,6 @@ export function wireGeneralBox() {
     hint: generalHint,
     accessibleName: generalHint,
     sends: "send",
-    icon: "send",
     sendBtn: generalSend,
     hasContent: (raw) => Boolean(raw.trim() || generalDrawing),
     save: saveGeneralDraft,

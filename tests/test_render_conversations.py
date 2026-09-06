@@ -313,8 +313,10 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
         expect(
             thread.get_by_role("button", name="Resolving thread…", exact=True)
         ).to_be_disabled()
-    panel.focus()
-    page.keyboard.press("x")
+    pending = panel.get_by_role("button", name="Resolving thread…", exact=True)
+    pending.focus()
+    page.keyboard.press("Enter")
+    assert len(held) == 1
     held.pop().continue_()
     round_trip(page)
     expect(inline.get_by_role("button", name="Reopen")).to_be_visible()

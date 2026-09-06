@@ -163,7 +163,6 @@ syncComposer = wireInput(composerInput, {
         ? "About the layer"
         : "Comment…",
   sends: () => (suggestCheck.checked ? "suggest" : "comment"),
-  icon: "send",
   sendBtn: composerSend,
   allowsMedia: () => !suggestCheck.checked,
   hasContent: (raw) => Boolean(raw.trim() || pendingDrawing),

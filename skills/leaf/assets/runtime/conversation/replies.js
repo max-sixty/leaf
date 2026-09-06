@@ -68,7 +68,6 @@ export function wireReply(t, input, send) {
     hint: "Reply",
     accessibleName: "Reply",
     sends: "send",
-    icon: "send",
     sendBtn: send,
     busy: () => replyBusy(t.root.id),
     // localStorage notifies other tabs but skips this document. Page, margin, and panel

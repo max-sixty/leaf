@@ -44,7 +44,6 @@ export const conversationBox = (el, hint) => {
   const sync = wireInput(ta, {
     hint,
     sends: "send",
-    icon: "send",
     sendBtn: send,
     altBtn: hold,
     save: (value) => saveDraft(ctx, value),

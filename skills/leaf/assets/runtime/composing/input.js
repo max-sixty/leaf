@@ -46,8 +46,8 @@ export const paintInputs = () => {
   paintedInput = input;
   paintedAddress = address;
 };
-// `sends` and `icon` state the box's own submit action. A composer in suggestion mode,
-// a thread reply, and an added option share the input contract without sharing meaning.
+// `sends` states the box's own submit action. Composers send by default; a caller whose
+// action differs, such as adding an option, supplies the matching icon.
 export function wireInput(
   ta,
   {
@@ -57,7 +57,7 @@ export function wireInput(
     send,
     sendBtn,
     sends,
-    icon,
+    icon = "send",
     altBtn = null,
     altSend = null,
     allowsMedia = () => true,

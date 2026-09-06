@@ -4,7 +4,23 @@ The worker serves the product site from `.tmp/site` and forwards concrete exampl
 routes to the canonical Python Leaf server in a Cloudflare Container. A secure,
 HTTP-only cookie selects one short-lived container per browser session. Its copied
 page directories and append-only logs are private to that reader and disappear when
-the container is replaced; no website-only projection or persistence layer exists.
+the container is replaced; no website-only projection or conversation store exists.
+
+When Leaf accepts a reader message that its canonical activity projection says needs
+a response, the Worker starts one Cloudflare Workflow keyed by the browser session and
+event id. Its retryable steps read a fresh page and thread from the container, run the
+OpenAI Agents SDK in the Worker, then append through Leaf's ordinary reply writer. A
+deterministic attempt prevents duplicate replies, and a newer reader turn suppresses a
+stale one. If generation stops after its retries, the workflow appends a short failure
+reply. Cloudflare's native rate-limit bindings allow four model calls per reader and
+thirty across public examples per minute in each Cloudflare location; an over-limit
+turn receives a visible busy reply without sending anything to OpenAI.
+
+The initial agent uses `gpt-5.6-luna` without tools and can discuss a page but not edit
+it. Leaf's page directory remains the only conversation authority, so tools, handoffs,
+and page revisions extend the agent rather than replace its backend. The
+`OPENAI_API_KEY` exists only as a Worker secret; neither public responses nor requests
+to the internet-disabled container carry it.
 
 Run the complete local site with Docker available:
 
@@ -20,7 +36,8 @@ policy allows only `main`, and a `CLOUDFLARE_API_TOKEN` environment secret able 
 deploy the Worker, container, and `leaf.page` custom domain. This is the same boundary
 used by Tend: manual workflow dispatches from other branches cannot read the token. The
 domain already uses Cloudflare nameservers; a successful deployment makes the Worker
-the `leaf.page` origin. The workflow build is otherwise self-contained.
+the `leaf.page` origin. The deployed Worker also needs an `OPENAI_API_KEY` Wrangler
+secret. The workflow build is otherwise self-contained.
 
 Create that GitHub boundary once, then enter the token when the last command prompts:
 
@@ -33,6 +50,8 @@ gh api --method POST \
   -f name=main -f type=branch
 gh secret set CLOUDFLARE_API_TOKEN \
   --repo max-sixty/leaf --env cloudflare-deploy
+cd worker
+npx wrangler secret put OPENAI_API_KEY
 ```
 
 Create the token from Cloudflare's **Edit Cloudflare Workers** template, restrict it to

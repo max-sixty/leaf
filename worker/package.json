@@ -9,10 +9,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cloudflare/containers": "^0.3.7"
+    "@cloudflare/containers": "^0.3.7",
+    "@openai/agents-core": "^0.17.0",
+    "@openai/agents-openai": "^0.17.0",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260905.1",
+    "@types/node": "^26.4.1",
     "typescript": "^7.0.2",
     "vitest": "^5.0.0",
     "wrangler": "^4.129.0"

@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   HTTP_SESSION_COOKIE,
   SESSION_COOKIE,
+  exampleRoute,
   isExampleRequest,
+  isPrivateExampleRequest,
   needsExampleSlash,
   newSessionId,
   sessionCookie,
@@ -20,6 +22,15 @@ describe("website example routing", () => {
     expect(isExampleRequest("/examples/../registry.json")).toBe(false);
     expect(needsExampleSlash("/examples/design-decision")).toBe(true);
     expect(needsExampleSlash("/examples/design-decision/")).toBe(false);
+    expect(exampleRoute("/examples/design-decision/api/event")).toEqual({
+      slug: "design-decision",
+      inside: "api/event",
+    });
+    expect(exampleRoute("/examples/")).toBeNull();
+    expect(isPrivateExampleRequest("/examples/design-decision/_leaf/agent/reply")).toBe(
+      true,
+    );
+    expect(isPrivateExampleRequest("/examples/design-decision/api/state")).toBe(false);
   });
 
   it("reuses only a well-formed opaque session cookie", () => {

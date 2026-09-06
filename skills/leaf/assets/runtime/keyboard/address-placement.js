@@ -15,10 +15,13 @@ export function addressPlacement() {
   const kept = [keylineEl.getBoundingClientRect()];
 
   // Read every member through one clip cache. The banner covers page content without
-  // clipping its boxes; a member wholly behind it has no visible address anchor.
+  // clipping its boxes; clamp the usable box to the banner so admission, exposure, and
+  // paint all read the same visible target.
   function visibleBox(item) {
     const box = startsAt(item, clips);
-    return box && box.bottom > covered ? box : null;
+    return box && box.bottom > covered
+      ? { ...box, top: Math.max(box.top, covered) }
+      : null;
   }
 
   // A page-local address cannot be moved by the chrome pass, but it reserves its own

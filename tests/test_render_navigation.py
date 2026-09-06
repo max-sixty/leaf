@@ -1853,6 +1853,14 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
             )
         ),
     )
+    under_banner = page.locator("#under-banner")
+    under_banner.evaluate(
+        """link => {
+          const covered = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
+          link.style.top = `${covered - 18}px`;
+          link.addEventListener('click', () => { link.dataset.activated = 'true'; });
+        }"""
+    )
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()
     reading = page.evaluate(
@@ -1875,6 +1883,21 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
             reading
         )
         assert chip["route"] == f"g{chip['code']}", chip
+    under_code = address_code(page, "Link", "under-banner")
+    under_index = page.locator(CHIPS).evaluate_all(
+        """(chips, code) => chips.findIndex(chip => chip.dataset.lfAddress === code)""",
+        under_code,
+    )
+    for _ in range(under_index + 1):
+        page.keyboard.press("Tab")
+    expect(page.locator(".lf-live")).to_have_text(
+        f"Hint {under_code}: Link, Under the banner. Press Enter to go there."
+    )
+    page.keyboard.press("Enter")
+    expect(under_banner).to_have_attribute("data-activated", "true")
+    expect(page.locator("#top")).to_be_focused()
+
+    page.keyboard.press("g")
     code = address_code(page, "Link", "crowded-neighbor")
     page.keyboard.type(code)
     expect(page.locator(CHIPS)).to_have_count(0)

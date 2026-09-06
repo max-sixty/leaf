@@ -301,7 +301,6 @@ const visibleWords = (member) => member.innerText?.replace(/\s+/g, " ").trim();
 
 function visibleCandidates() {
   const placement = addressPlacement();
-  const covered = banner.getBoundingClientRect().bottom;
   const seen = new Set();
   const found = [];
   for (const [order, entry] of TARGET_KINDS.entries())
@@ -316,8 +315,7 @@ function visibleCandidates() {
         member.getAttribute("aria-disabled") === "true" ||
         closestAcross(member, "[inert]");
       if (unavailable) continue;
-      const box = placement.visibleBox(member);
-      const rect = box && { ...box, top: Math.max(box.top, covered) };
+      const rect = placement.visibleBox(member);
       if (!rect || !exposed(member, rect, entry.exposure)) continue;
       seen.add(member);
       const says =

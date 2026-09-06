@@ -456,21 +456,14 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     clearance = """() => document.querySelector('.lf-keyline').getBoundingClientRect().top
       - document.querySelector('#storage-options > .lf-another')
         .getBoundingClientRect().bottom"""
-    # The arrival is a glide, and a Tab pressed into it reads a position the page is only
-    # passing through: the glide goes on to its own destination afterwards and takes the
-    # measurement with it. The document says where it came to rest as it comes to rest
-    # there, which is the fact this stands on rather than a sampled frame near it.
-    page.evaluate("""() => {
-        window.lfRestedAt = null;
-        addEventListener("scrollend", event => {
-            if (event.target === document)
-                window.lfRestedAt = document.scrollingElement.scrollTop;
-        });
-    }""")
+    # An unframed page ask arrives in two document scrolls, an instant one to reveal it
+    # and a glide onto its region, and a Tab pressed into the glide reads a position the
+    # page is only passing through: it goes on to its own destination afterwards and takes
+    # the measurement with it. Motion is not what this reads, so the arrival is asked to
+    # make none — under reduced motion `scrollBehavior()` is `instant`, both scrolls land
+    # inside the press, and there is no settling frame for the presses below to race.
+    page.emulate_media(reduced_motion="reduce")
     page.keyboard.press("a")
-    page.wait_for_function(
-        "() => window.lfRestedAt === document.scrollingElement.scrollTop"
-    )
     covered = page.evaluate(clearance)
     assert covered < 0, f"the arrival left the add field {covered}px clear of the line"
     for _ in range(3):

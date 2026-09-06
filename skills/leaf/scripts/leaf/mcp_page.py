@@ -62,6 +62,10 @@ class _RoutedPageHandler(Handler):
     router: ProcessPageServer
     protocol_version = "HTTP/1.1"
     layer = ""
+    # This transport exists to sit in a cross-origin MCP App frame. The host approves
+    # the exact process origin, while the unguessable, process-lived path authorizes
+    # the page; the server cannot name the host-assigned parent origin in a response.
+    frame_ancestors_policy = None
 
     def authorized(self) -> bool:
         # `_select_page` already proved possession of the process-scoped capability.

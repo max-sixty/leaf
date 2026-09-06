@@ -2361,6 +2361,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     # being either kind.
     assert {c for c in surface["global"] if c.startswith("lf-")} == {
         "lf-copy",
+        # Drawing is a body state, and an inline conversation lives inside authored
+        # widget markup. Both deliberately cross the chrome scope so drawing can spare
+        # the conversation's controls.
+        "lf-conversation",
+        "lf-drawing",
         # The compact response field, named the same way: the general text box's rule
         # excludes it at document level because the field takes its whole geometry from
         # the response controls it shares a baseline with, inside the chrome's own scope.

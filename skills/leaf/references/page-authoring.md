@@ -60,7 +60,7 @@ and one external `/leaf.js` module. Every `lf-*` element has an explicit end tag
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>…</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
   <link rel="stylesheet" href="/theme.css">
   <script type="module" src="/leaf.js"></script>
 </head>

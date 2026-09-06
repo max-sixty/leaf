@@ -33,9 +33,9 @@
    A key may repeat across nesting scopes to mean the same intent in context. `c` reads
    that way: from the page it enters the nearest comment box; from the Threads list it
    enters the page-comment box one frame below that list. `g T`, not `c`, is what enters
-   Threads as a navigable surface and leaves `w` and `/` live. Where a box has a key that
-   reaches it, the box says so itself through its placeholder `address`, which is what a
-   screen reader hears.
+   Threads as a navigable surface and leaves `w` and `/` live. `activeRowLabel` projects
+   the dispatcher's live result into the destination composition box's placeholder. Each
+   box's `aria-label` remains its shortcut-free accessible name.
 
    Escape is an ordinary binding in the register for Leaf-owned modes. A focused control's
    specific inner step stands first, the latest active command return frame next, then the

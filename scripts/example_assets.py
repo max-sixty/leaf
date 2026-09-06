@@ -83,12 +83,10 @@ def _download(repository: str, revision: str, target: Path) -> None:
             (staging / "payload" / ".complete").write_text(revision, encoding="utf-8")
             try:
                 (staging / "payload").rename(target)
-            except FileExistsError:
+            except OSError:
                 # Another build may have completed the same immutable revision first.
                 if not (target / ".complete").is_file():
-                    raise RuntimeError(
-                        f"incomplete asset cache already exists: {target}"
-                    )
+                    raise
     except (OSError, tarfile.TarError, urllib.error.URLError) as error:
         raise RuntimeError(
             f"could not fetch {repository}@{revision}: {error}"

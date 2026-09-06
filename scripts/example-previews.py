@@ -22,14 +22,13 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from example_assets import specification
+from example_assets import LOCK, specification
 from leaf.hosting import server_at
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
-LOCK = ROOT / "example-previews.lock"
 VIEWPORT = {"width": 1120, "height": 700}
 OUTPUT_SIZE = (896, 560)
 REQUIRED_FONTS = {

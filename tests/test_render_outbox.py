@@ -238,7 +238,7 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     page.locator("#card-baffle .lf-grip").focus()
     for key in move:
         page.keyboard.press(key)
-    _until(page, lambda t: t.sends >= 2, "sent the move it was asked for")
+    holding(page, held, 1, "the move it was asked for")
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
     page.keyboard.press("z")
     assert _traffic(page).sends == 2, (

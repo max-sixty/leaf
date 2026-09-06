@@ -42,6 +42,7 @@ from render_support import (
     compare_with,
     flip_point,
     hold_selection,
+    holding,
     key_line,
     leaf_page,
     live_url,
@@ -1706,7 +1707,7 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
 
     page.route("**/api/event", hold)
     page.locator("#br-steel").click()
-    _until(page, lambda t: t.sends >= 1, "sent the pick it was clicked for")
+    holding(page, held, 1, "the pick it was clicked for")
     page.locator("#br-cedar").click()
     expect(page.locator("#br-cedar[chosen]")).to_have_count(1)
     assert _traffic(page).sends == 1, (

@@ -1357,7 +1357,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     first_say.get_by_role("button", name="Send", exact=True).click()
-    _until(first, lambda t: t.sends == 1, "put the first answer in the wire")
+    holding(first, held, 1, "the first answer")
 
     held[0].continue_()
     first.unroute("**/api/event")
@@ -1410,7 +1410,7 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_read
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     first_thread.get_by_role("button", name="Send", exact=True).click()
-    _until(first, lambda t: t.sends == 1, "put the first reply in the wire")
+    holding(first, held, 1, "the first reply")
     second_thread.get_by_role("button", name="Send", exact=True).click()
     round_trip(second)
 
@@ -1463,7 +1463,7 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     panel.get_by_role("button", name="Send", exact=True).click()
-    _until(first, lambda t: t.sends == 1, "put the older reply in the wire")
+    holding(first, held, 1, "the older reply")
     second_inline.fill(newer_raw)
     expect(inline).to_have_value(newer_raw)
     expect(panel.locator("textarea")).to_have_value(newer_raw)
@@ -1501,7 +1501,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     first_say.get_by_role("button", name="Send", exact=True).click()
-    _until(first, lambda t: t.sends == 1, "put the failing answer in the wire")
+    holding(first, held, 1, "the failing answer")
     second_say.get_by_role("button", name="Send", exact=True).click()
     round_trip(second)
 

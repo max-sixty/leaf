@@ -485,12 +485,10 @@ all enumerable labels in the control's current font and sets a minimum width.
 Re-measure after changing type tokens; avoid numeric reservations where the
 possible words are available.
 
-Submission feedback follows the state the reader can act from. A reversible action may
-paint its projected result in the gesture that queues it; the outbox keeps that
-result ahead of the log and restores authoritative state on refusal. Other unresolved
-submissions use busy paint. Resulting content or control state is durable confirmation
-and needs no success notice. Use `notice` only for a transient fact that state does not
-carry, and persistent status text for a failure the reader can act on.
+A suggestion decision paints its projected result in the gesture that queues it; the
+outbox keeps that result ahead of the log and restores authoritative state on refusal.
+The resulting content and Undo control are durable confirmation, so this path needs no
+success notice. Use persistent status text for a failure the reader can act on.
 
 ## Keyboard, focus, and navigation
 

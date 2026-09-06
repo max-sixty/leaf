@@ -2863,6 +2863,9 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     pending_undo = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
     expect(pending_undo).to_be_disabled()
     pending_undo.evaluate("button => button.click()")
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Wait for the current change to finish before undoing"
+    )
     assert len(held) == 1
 
     held[0].continue_()

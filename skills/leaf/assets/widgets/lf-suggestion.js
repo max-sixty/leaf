@@ -411,7 +411,7 @@ customElements.define(
       );
     }
 
-    // What the change is about, for the button's label and the notice: the
+    // What the change is about, for the button's label and failure receipt: the
     // proposal where there is one, since that is what accepting brings about —
     // a deletion has only the markup it would remove.
     #label() {
@@ -527,6 +527,10 @@ customElements.define(
     async #undoOutcome() {
       const outcome = this.dataset.lfState;
       if (!outcome || this.#undoing) return;
+      if (this.#staging || this.#deciding) {
+        notice("Wait for the current change to finish before undoing");
+        return;
+      }
       const event = undoableAction(this, outcome);
       if (!event) {
         notice("This outcome is no longer available to undo");

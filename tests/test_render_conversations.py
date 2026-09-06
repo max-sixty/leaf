@@ -2368,6 +2368,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     assert set(surface["themed"]) == {
         "claude",
         "lf-compose-field",
+        "lf-compose-submit",
         "lf-edited",
         "lf-react-open",
         "lf-react-palette",

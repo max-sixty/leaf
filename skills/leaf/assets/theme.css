@@ -1365,6 +1365,9 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           display: inline-flex; align-items: center; justify-content: center;
           border: 1px solid transparent; border-radius: 50%; background: var(--card);
           opacity: 0; cursor: pointer; }
+.lf-conversation-msg.claude:has(> .lf-conversation-head > .lf-resolve)
+          > .lf-react-strip > .lf-react-trigger {
+          inset-inline-end: calc(max(28px, var(--aim-floor)) + 2px); }
 .lf-react-strip.lf-react-open > .lf-react-trigger { display: none; }
 .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
           fill: none; stroke: currentColor; stroke-width: 1.6;

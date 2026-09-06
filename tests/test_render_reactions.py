@@ -500,7 +500,7 @@ def test_tab_changes_the_compact_bar_in_place_and_r_requires_a_target(browser, s
         control = (
             surface.locator(f'[data-token="{label}"]')
             if label in {"ok", "no", "lost", "cut", "more", "this"}
-            else surface.locator(f'[aria-label="{label}"]')
+            else surface.get_by_role("button", name=label, exact=True)
         )
         expect(control).to_be_focused()
     assert (

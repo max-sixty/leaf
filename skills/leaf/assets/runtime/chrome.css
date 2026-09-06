@@ -1460,6 +1460,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      pill that floats over the page's own content rather than standing in the empty
      rail, so it says so rather than relying on a hairline to separate it from
      whatever it happens to be over. */
+  :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 32px; }
   .lf-fab-bar { position: absolute; display: none; width: max-content; align-items: center;
     gap: 4px; white-space: nowrap; max-width: var(--lf-float-w, calc(100vw - 16px)); }
   .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
@@ -1472,8 +1473,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      a 48px arc at five lines, over the first line's opening and the last line's
      close. The shared UI supplies the thread's 14px face; this control tightens only
      its line height so that face keeps the 32px resting box. */
-  .lf-response-control { --lf-response-height: 32px;
-    box-sizing: border-box; min-height: var(--lf-response-height);
+  .lf-response-control { box-sizing: border-box; min-height: var(--lf-response-height);
     border: 1px solid var(--border-2); background: var(--card);
     border-radius: calc(var(--lf-response-height) / 2);
     color: var(--ink-2); font-weight: 400; line-height: 1.3;
@@ -1501,11 +1501,13 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   textarea.lf-fab-input { --lf-response-min-width: 216px; width: auto;
     min-width: min(var(--lf-response-min-width), var(--lf-response-room, 100vw));
     max-width: min(80ch, var(--lf-response-room, 100vw));
-    min-height: calc(max(28px, var(--aim-floor)) + 12px);
     max-height: var(--lf-float-h, 60vh);
     padding-inline: 12px calc(max(28px, var(--aim-floor)) + 12px);
     resize: none;
     field-sizing: content; overflow-y: auto; }
+  .lf-fab-bar .lf-compose-submit {
+    inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
+    inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2); }
   .lf-response-action { min-width: 30px; padding-inline: 9px;
     display: inline-flex; align-items: center; justify-content: center; gap: 0;
     white-space: nowrap; cursor: pointer; }
@@ -1561,6 +1563,10 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     display: inline-flex; align-items: center; justify-content: center;
     border: 1px solid transparent; border-radius: 50%; background: var(--card);
     opacity: 0; cursor: pointer;
+  }
+  .lf-msg.claude:has(> .lf-msg-head > .lf-resolve)
+    > .lf-react-strip > .lf-react-trigger {
+    inset-inline-end: calc(max(28px, var(--aim-floor)) + 2px);
   }
   .lf-react-strip.lf-react-open > .lf-react-trigger { display: none; }
   .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
@@ -2006,7 +2012,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
        reference, a quote and the panel's pills were small under both pointers. They
        are all in AIMS now, and AIMS reads --aim-floor, which is where the query lives. */
     .lf-margin-button { width: 44px; height: 44px; }
-    .lf-response-control { --lf-response-height: 44px; }
+    :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 44px; }
     .lf-pill:is(button, [role="button"]) { display: inline-flex; align-items: center; }
     .lf-key-more { min-width: 44px; min-height: 44px; align-items: center; }
     .lf-edge { top: 50%; bottom: auto; width: 44px; height: 44px;

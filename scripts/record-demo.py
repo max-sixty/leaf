@@ -6,9 +6,9 @@ The stills used to be shot by hand, which meant nothing regenerated them and not
 noticed when they stopped being true: a theme change left the landing page arguing for
 a product whose picture showed the previous one. They come off the same staged scene as
 the GIF because that scene is already the one the page's alt text describes — a comment
-anchored to a marked passage, Claude's reply in the thread, v2 latest in the picker —
-so shooting them here costs two more browser contexts and gives them something to
-re-run."""
+anchored to a marked passage, Claude's reply in the thread, the answered round latest in
+the picker — so shooting them here costs two more browser contexts and gives them
+something to re-run."""
 
 from __future__ import annotations
 
@@ -33,7 +33,60 @@ GIF_SIZE = (1120, 700)
 STILL_SIZE = (1280, 953)
 
 
-def demo_page(version: int) -> str:
+# The board as the document first states it, and the words each card carries. Kept as
+# data rather than as markup so the reader's recorded move can be written back into the
+# document the way an agent answers one: same page, the card where they put it.
+CARDS = {
+    "card-dryrun": "Dry-run the backfill",
+    "card-oncall": "Staff the on-call rota",
+    "card-flip": "Flip reads",
+    "card-retire": "Retire the old store",
+}
+COLUMNS = (("col-before", "Before"), ("col-during", "During"), ("col-after", "After"))
+BOARD = {
+    "col-before": ["card-dryrun", "card-oncall"],
+    "col-during": ["card-flip"],
+    "col-after": ["card-retire"],
+}
+
+
+def board_markup(board: dict[str, list[str]]) -> str:
+    return "\n".join(
+        f'  <lf-column id="{column}" label="{label}">\n'
+        + "".join(
+            f'    <lf-card id="{card}"><strong>{CARDS[card]}</strong></lf-card>\n'
+            for card in board[column]
+        )
+        + "  </lf-column>"
+        for column, label in COLUMNS
+    )
+
+
+def absorbed(board: dict[str, list[str]], move: dict) -> dict[str, list[str]]:
+    """The board with one recorded `move` written into the authored arrangement."""
+    placed = {
+        column: [card for card in cards if card != move["card"]]
+        for column, cards in board.items()
+    }
+    placed[move["to"]].insert(move["index"], move["card"])
+    return placed
+
+
+def last_move(page_dir: Path) -> dict:
+    """The detail of the last board move the reader made on this page."""
+    moves = []
+    for line in (page_dir / "events.jsonl").read_text().splitlines():
+        if not line.strip():
+            continue
+        event = json.loads(line)
+        if event["kind"] == "action" and event.get("action") == "move":
+            moves.append(event["detail"])
+    if not moves:
+        raise RuntimeError("the demo recorded no board move to answer")
+    return moves[-1]
+
+
+def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
     progressed = version == 2
     progress = "3 of 4" if progressed else "2 of 4"
     delta = ' delta="+1" direction="up-good"' if progressed else ""
@@ -111,16 +164,7 @@ new version as the checks finish.</p>
 <h2>Cutover punch list</h2>
 <p id="work-note">Drag a card to change the plan; the move reaches the agent directly.</p>
 <lf-board id="punch-list">
-  <lf-column id="col-before" label="Before">
-    <lf-card id="card-dryrun"><strong>Dry-run the backfill</strong></lf-card>
-    <lf-card id="card-oncall"><strong>Staff the on-call rota</strong></lf-card>
-  </lf-column>
-  <lf-column id="col-during" label="During">
-    <lf-card id="card-flip"><strong>Flip reads</strong></lf-card>
-  </lf-column>
-  <lf-column id="col-after" label="After">
-    <lf-card id="card-retire"><strong>Retire the old store</strong></lf-card>
-  </lf-column>
+{board_markup(board or BOARD)}
 </lf-board>
 </section>
 </main>
@@ -379,8 +423,10 @@ def shoot_stills(
     work out whether the diff is theirs.
 
     By this point the log holds the whole round — a comment on a marked passage, the
-    reply, the second revision stamped as v2, the state back to waiting — so a fresh context loading the
-    page arrives at exactly the picture docs/index.html describes in its alt text.
+    reply, the revision stamped for it, the reader's board move and the revision that
+    answers it, the state back to waiting — so a fresh context loading the page arrives
+    at the scene docs/index.html describes in its alt text. The version that alt text
+    names moves with the pair: a fresh recording is one revision past the shipped v2.
     Fresh is the point: the panel's open state lives in localStorage, so a reused
     context would restore whatever the last gesture left rather than the shot's own
     setup.
@@ -390,9 +436,23 @@ def shoot_stills(
     not something to toggle on a live page: the vendored diagram palette is read once
     at load, so a flipped page would carry the other scheme's diagrams.
 
-    Getting the banner to say "Claude awaits" takes stating both halves of it.
-    `record` has received and acknowledged the board action. Ack has already re-armed
-    the wait, whose held lease is the proof the browser renders."""
+    Getting the banner to say "Claude awaits" takes answering the round and then
+    stating both halves of attendance. `record` has received the board action, and
+    receipt is not an answer: a page action stands until the authored document says
+    what the reader's move said, so the document is written with the card where they
+    dropped it. Only then is `waiting` true, which is the order
+    `references/conversation-loop.md` asks of any turn. Ack has already re-armed the
+    wait, whose held lease is the proof the browser renders."""
+    (page_dir / "index.html").write_text(
+        demo_page(2, absorbed(BOARD, last_move(page_dir))), encoding="utf-8"
+    )
+    run_leaf(
+        "version",
+        "stamp",
+        str(page_dir),
+        "--text",
+        "On-call staffing moved into During, as the board now reads",
+    )
     run_leaf("status", str(page_dir), "waiting")
     # The user's board move has to have landed in each shot, or it shows a page
     # mid-replay — the same wait `version export` takes for the same reason. Counted

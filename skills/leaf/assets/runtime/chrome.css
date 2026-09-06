@@ -1829,29 +1829,24 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top
      edge as well. Nothing here is something to press: pointer-events stands down so a
      click still lands on the item the box outlines. */
-  /* The g chord's numbered document destinations. Each visible member keeps the complete
-     route above its starting corner so the keys leave its text clear. Key faces carry
-     progress without changing geometry; the address pass keeps them inside the screen. */
+  /* Predictable numeric addresses belong to local Ask controls. */
   .lf-addresses { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
   .lf-addresses > .lf-address { position: absolute; display: block;
     transform: translate(-50%, -100%); }
   /* Ask addresses sit on the answer control's upper-left corner. Unlike a route name
      above prose, the single digit is a local label for the Button it touches. */
   .lf-ask-addresses > .lf-ask-address { transform: translate(-50%, -50%); }
-  .lf-addresses > .lf-chord-address { min-width: 0; height: auto; padding: 0;
-    border: 0; background: transparent; }
-  /* Item selection borrows the address chip's face but not its meaning. These hints are
-     deliberately local to the viewport: the page gives every visible item a short,
-     prefix-free name for the few seconds this mode stands. Unlike addresses, hints are
-     never dropped for a collision — they are the route itself, not a reminder of a
-     stable route that works without being drawn. Nested targets that begin at the same
-     corner are spread by the hint pass before this layer is shown. */
+  /* Item selection and go-to navigation both give visible targets generated, prefix-free
+     names for the few seconds their mode stands. Every hint remains visible: the face is
+     the route itself, not a reminder of a predictable ordinal. */
   .lf-targets { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
   .lf-targets > .lf-target-hint { position: absolute; display: block;
     transform: translate(-50%, -50%); }
   .lf-target-hint .lf-spent { color: var(--muted); }
   .lf-target-hint .lf-spent + .lf-lit { padding: 0 3px; margin-left: -3px;
     border-radius: 3px; background: var(--accent); color: var(--card); }
+  .lf-goto-targets > .lf-chord-address { min-width: 0; height: auto; padding: 0;
+    border: 0; background: transparent; }
   .lf-targets > .lf-target-hint.lf-in { transform: translate(-50%, 0); }
   .lf-targets > .lf-target-hint.lf-current { font-weight: 700;
     box-shadow: 0 0 0 2px var(--accent); }

@@ -188,3 +188,11 @@ export function glideTo(box, goal) {
   };
   glide = { box, goal, wrote: start, raf: requestAnimationFrame(tick) };
 }
+
+// A spatial command takes the page where it is now. Stop only the travel this owner is
+// driving; native paging belongs to the platform and reports its motion through scroll.
+export function stopGlide(box) {
+  if (glide?.box !== box) return;
+  cancelAnimationFrame(glide.raf);
+  glide = null;
+}

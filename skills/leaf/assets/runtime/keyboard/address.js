@@ -1,67 +1,37 @@
 /* The go-to chord: `g` opens one destination mode, and this owner holds its vocabulary.
-   For mnemonic letters, case determines the production:
 
-   - `g` + uppercase mnemonic: the mnemonic completes a direct destination — `g T`
-     Threads, `g A` Asks, `g L` All leaves, `g M` complete Page map, `g V` Versions.
-   - `g` + lowercase mnemonic + digit: the mnemonic selects a numbered list and the digit
-     one of up to nine members — `g m 1` Page-map location, `g t 1` tab, `g h 1`
-     hyperlink, `g f 1` fold.
+   Visible, visually discovered targets share one generated-letter namespace. Links,
+   tabs, folds, and actionable Page-map locations are read together in screen order and
+   receive short prefix-free labels. Most cost one letter; only the tail branches when the
+   scene contains more targets than the available alphabet. The mapping is local to the
+   visible scene: scrolling refreshes it once motion settles, while a partly typed label
+   freezes it until the reader completes or backs out of that prefix. Routine repaints do
+   not regenerate a standing map. A candidate is revalidated before activation, so a
+   target that left the scene cannot be worked by a stale label. Tab and Shift-Tab announce
+   the current candidates and Enter activates the last one announced, because the painted
+   labels themselves are visual chrome.
 
-   Uppercase and lowercase mnemonics are parallel namespaces. A mnemonic may occupy both:
-   `g m` starts the numbered Page-map location list, while `g M` completes a direct trip
-   to the searchable Page map sheet. Each form contributes its own command row; its
-   capability and landing behavior remain independent.
+   Lowercase `g`, `j`, `k`, and `p` retain their structural meanings and are excluded from
+   the generated alphabet. `g g` and `g G` glide to the page edges; from a focused thread,
+   `g k` and `g j` place its card at an edge of the list; from a beside-panel, `g p`
+   returns focus to the page while keeping the panel open. Uppercase mnemonics remain named
+   global destinations: `g T` Threads, `g A` Asks, `g L` All leaves, `g M` the searchable
+   Page map, and `g V` Versions. Completing one exchanges the transient chord for a return
+   frame which restores the standing and workspace captured before `g` armed.
 
-   `g g` and `g G` complete the chord themselves, gliding to the top and bottom of the
-   visible scroller. When a thread holds focus, `g k` and `g j` place that card at the top
-   or bottom of its list without moving the page. From a beside-panel, `g p` returns focus
-   to the page while keeping the panel and its narrowing. An edge is one place, so the
-   second key completes the route; because every page has a top, the mode never arms empty
-   and the page-level `g` row needs no capability gate. Completing a direct destination
-   exchanges the transient chord for one return frame; Escape restores the exact standing
-   and workspace captured before `g` armed. `BUILTIN_DIRECT_DESTINATIONS` declares the
-   uppercase destinations the address owner itself implements. Another owner contributes a
-   complete row through `directDestinations`, as version travel does for `g V`; both enter
-   the same `GO` scope. Each destination declares its mnemonic, words, capability,
-   landing, and return. `ADDRESSES` is the lowercase numbered page-list vocabulary. Each
-   entry declares:
+   `BUILTIN_DIRECT_DESTINATIONS` declares the uppercase destinations this owner implements;
+   another owner contributes a complete row through `directDestinations`. `TARGET_KINDS`
+   declares the semantic members, label, exposure rule, and activation for each visible
+   target family. Exact duplicate activation elements collapse to one candidate, while
+   distinct overlapping actions remain distinct.
 
-   - its letter and user-facing name;
-   - the sentence shown in help;
-   - its ordered members and whether the numbered window follows the viewport;
-   - how to arrive at one member.
-
-   A list's capability is not declared: it is whether the list is non-empty, read where
-   the row asks. Consumers do not branch on which address list is active. Adding a direct
-   destination or a numbered list adds one entry to its vocabulary. The page-level `g` row
-   promises only the mode; destinations and ranges belong to the rows inside it.
-   Completing an address runs that list's destination: a tab selects and takes focus, a
-   same-document hyperlink follows and leaves focus on its fragment target, an external
-   hyperlink names the browser tab it opens, a fold opens and takes focus, and a Page-map
-   location presses its first available Button. The complete Page map remains a direct
-   destination beside that numbered prefix.
-
-   Arming the mode shows the available direct destinations and numbered lists in the key
-   line and paints `data-lf-goto` on the body, so the contents map can reveal its labels
-   as it does on hover. Each row shows its complete chord. Each visible numbered member
-   shows its complete address, such as `g h 1`. A direct mnemonic completes the travel and
-   moves focus inside its destination. A numbered-list mnemonic narrows the inline hints
-   to that list's current numbered window without changing their labels or geometry. The
-   following digit selects immediately. Escape backs out to the list menu before it closes
-   the mode.
-
-   Every sequential step has its own fixed keycap. A compact choice label such as `g / G`
-   remains one decision point and is spoken as “g or G”; a sequence's accessible label
-   says “then” between adjacent keycaps. In a live chord, pressed keys take the accent
-   ground and pending keys remain neutral, matching ordinary bindings. The complete
-   reference shows every route with all steps neutral because it describes rather than
-   enacts them.
-
-   `chordPrefix` is the stable start of every route. Control titles and the reference
-   combine it with the destination row; the reference uses `completeChordSteps` where a
-   row has more than one remaining step. `chordKeys` adds the named list to that prefix as
-   the structured reading of current progress, which the key line and page chips apply to
-   each complete route.
+   Arming paints `data-lf-goto` on the body and one complete route over every candidate.
+   Generated hints are opaque routes, so none may be dropped for a collision; the shared
+   hint placement pass spreads them around the key line and one another. Escape removes
+   one typed letter, then closes the mode. A letter from the hint alphabet is consumed
+   even when a scene refresh made it invalid, with explicit feedback instead of an
+   unrelated page action; another unrelated key closes the mode and is redispatched with
+   its ordinary meaning.
 
    A press may deliberately leave layers standing while moving focus outside them. That is
    not an Escape rung, because it gives no layer back. The address chord states what
@@ -77,13 +47,14 @@
    therefore restore the standing their owner displaced rather than merely focusing the
    destination's banner control after closing it.
 
-   The address mode has no timeout. A prefix with no competing complete binding remains
-   active until a listed key completes it, Escape cancels it, or an unrelated key
-   disarms it and is redispatched with its ordinary meaning. The reader is not charged a
-   time limit for reading the addresses just painted. */
+   The address mode has no timeout. The reader is not charged a time limit for reading
+   the hints just painted. */
 import { labelOf, live, spell } from "./bindings.js";
-import { addressPlacement, MAX_NUMBERED_ADDRESSES } from "./address-placement.js";
+import { addressPlacement } from "./address-placement.js";
+import { HINT_KEYS, hintCodes, spreadHints } from "./hints.js";
+import { keylineEl } from "./keyline.js";
 import { keySequence, progressStates } from "./presentation.js";
+import { banner } from "../banner.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { targetElement } from "../resolved-target.js";
 import { focusDestination } from "../widget-elements.js";
@@ -99,6 +70,12 @@ import {
 } from "./page.js";
 import { fragmentId, itemSays, resolveAnchor, scrollToElement } from "../anchors.js";
 import { announce } from "../notifications.js";
+import {
+  closestAcross,
+  containsAcross,
+  elementFromPointAcross,
+  pageQueryAll,
+} from "../passages.js";
 import { inPanel, panelCovers, panelIsOpen, setPanel } from "../chrome-layout.js";
 import { threadsBox } from "../conversation/panel.js";
 import {
@@ -119,46 +96,25 @@ import {
 } from "../living-margin.js";
 
 import { claimsEsc, focused, paintHere, saying } from "./scopes.js";
-import { glideTo, placeThreadEdge, seenScroller } from "../navigation.js";
+import { glideTo, placeThreadEdge, seenScroller, stopGlide } from "../navigation.js";
 
-// The g chord's numbered document destinations: a chip on each visible addressable member,
-// narrowed to one list after its mnemonic is pressed. They are drawn here for the same reason
-// the legend is (paintAddresses, its one writer). The eye's copy of what the chord announces,
-// so it says nothing to a screen reader.
-export const addressLayer = el("div", "lf-ui lf-addresses");
+// The eye's copy of the go-to map. The layer is aria-hidden because the live region and
+// Tab walk provide the same map without asking a screen reader to traverse paint chrome.
+export const addressLayer = el("div", "lf-ui lf-targets lf-goto-targets");
 addressLayer.setAttribute("aria-hidden", "true");
 
 // Asked when the chord is built: CHOOSER is version.js's, a module in the cycle.
 const directDestinations = () => [CHOOSER];
 
-// ---------- the g chord: the page's destinations ----------
-// The vocabulary the header above describes. Repeated movement through threads and asks
-// belongs to their single-key category walks, t/T and a/A, so those categories do not
-// also carry numbered addresses.
-//
-// Which numbered lists there are is this table and nothing else. The complete Page map
-// remains a direct destination because this one-digit list stops at nine. The chord's
-// scope, the chips, the line's words and the reference are all readings of it, so a
-// fourth list is an entry here rather than an edit to four consumers, and nothing that
-// reads the table asks which list it is holding.
-// What the document holds, in reading order, as against what the chrome holds: the banner,
-// the versions and the panels are direct destinations, while a comment's message is the
-// Threads panel's rather than the page's. The addresses read the document through here, where
-// a scope naming a platform key reads `pageQueryAll` and crosses the declared shadow roots
-// as well: an address is a place in a list the reader counts down the page, and a tree a
-// module built has no place in that count, while what the reader can stand on is wherever
-// the markup ended up — a diff stages a <details> per file in a root they tab straight
-// into.
-//
-// Tabs, links, and folds use addresses as durable identities: a link the reader learnt
-// as `g h 2` must not change when the page scrolls. Page-map addresses answer a spatial
-// question instead. A location already in front of the reader is the useful numeric
-// window, while its complete, searchable identity lives in the Page map sheet. That
-// window stays fixed during a scroll and is read again only when scrolling settles.
-//
-// Above the table rather than beside the other readings below it, because an entry
-// holds the function itself and the array literal reads it as the module evaluates.
-const pageLinks = () => pageParts("a[href]");
+// ---------- the g chord: visible page targets ----------
+// These queries declare which page actions join the generated namespace. A link belongs
+// to the page when it is inside main, including link apparatus a page widget generated:
+// lf-toc's roomy map is chrome so passage capture ignores its repeated heading words, but
+// its visible anchors are still routes through this page. Chrome-owned panels sit outside
+// main and remain named global destinations. Other platform targets use pageParts so an
+// injected control inside the document does not silently become a tab or fold route.
+const pageLinks = () =>
+  pageQueryAll("a[href]").filter((link) => closestAcross(link, "main"));
 // The tabs rather than their panels: the visible choice is what wears the address and
 // what the reader stands on afterwards. `role=tab` is the platform vocabulary, so an
 // authored tab pattern and lf-tabs take the same route without naming a widget family.
@@ -169,13 +125,8 @@ const pageTabs = () => pageParts('[role="tab"]');
 // disclosure and not the shut ones, for the reason above: a list counting what is shut
 // means a different section the moment one of them opens.
 const pageDisclosures = () => pageParts("details > summary");
-// Narrower than the disclosure scope's own reading on purpose, and in both directions: an
-// address is a place in a list the reader counts down the authored page, so it stops at the
-// document where the scope crosses declared roots, and it counts the platform's spelling
-// where the scope also answers ARIA's. So a settled option group takes the arrows and takes
-// no digit, and `g f` can say three where four things fold. Widening it is not free —
-// `go` scrolls the box and leans on `reveal`, which cannot open a group from its row — and
-// the count a reader wants under `g` is of the sections the author wrote.
+// Narrower than the disclosure scope's own reading: this route can reveal a native
+// disclosure by its summary, while an aria-expanded group has no equivalent arrival.
 
 // A link keeps the platform activation that its author wrote. The chord adds only the
 // arrival it otherwise lacks: a local fragment hands focus to the place the browser just
@@ -197,6 +148,20 @@ function fragmentSection(link) {
     return null;
   }
 }
+
+// A generated native-fragment sentinel can carry the scroll coordinate while remaining
+// absent from the accessibility tree. Such a point sits immediately before the content it
+// names. Never put keyboard focus on aria-hidden apparatus; after the browser follows the
+// fragment, place the reader on that visible content instead.
+function fragmentFocusTarget(destination) {
+  if (!destination || destination.getAttribute("aria-hidden") !== "true")
+    return destination;
+  const content = destination.nextElementSibling;
+  return content?.checkVisibility() && !closestAcross(content, '[aria-hidden="true"]')
+    ? content
+    : null;
+}
+
 function followLink(link) {
   const section = fragmentSection(link);
   let activation = null;
@@ -206,7 +171,9 @@ function followLink(link) {
   });
   link.click();
   if (!activation || activation.defaultPrevented) return;
-  const destination = section && targetElement(resolveAnchor({ section }));
+  const destination = fragmentFocusTarget(
+    section && targetElement(resolveAnchor({ section })),
+  );
   if (destination) return focusDestination(destination);
   if (isExternalPageLink(link) && link.target === "_blank") {
     const name = link.getAttribute("aria-label")?.trim() || itemSays(link) || "Link";
@@ -265,25 +232,19 @@ const BUILTIN_DIRECT_DESTINATIONS = [
     close: (...args) => leavePageMap(...args),
   },
 ];
-const ADDRESSES = [
+const TARGET_KINDS = [
   {
-    id: "navigation.page-map-item",
-    key: "m",
-    word: "Page map locations",
-    does: "Press the first Button at the nth Page map location",
+    kind: "Page-map location",
     list: pageMapItems,
     go: (...args) => openPageMapItem(...args),
-    viewport: true,
+    exposure: "self",
   },
   {
-    id: "navigation.tab",
-    key: "t",
-    word: "tabs",
-    does: "Select the nth tab",
+    kind: "Tab",
     list: pageTabs,
-    // A numbered tab is an activation and an arrival. Reveal first so a nested tab can
-    // open its owning panel, then focus the control and use its click path so the
-    // widget's pointer and keyboard selection remain one behavior.
+    // A tab hint is an activation and an arrival. Reveal first so a nested tab can open
+    // its owning panel, then focus and use its click path so pointer and keyboard remain
+    // one behavior.
     go: (tab) => {
       scrollToElement(tab, undefined, "nearest");
       tab.focus({ preventScroll: true });
@@ -291,172 +252,252 @@ const ADDRESSES = [
     },
   },
   {
-    id: "navigation.link",
-    key: "h",
-    word: "hyperlinks",
-    does: "Follow the nth hyperlink",
+    kind: "Link",
     list: pageLinks,
-    // Completing the address is the link's activation. Use the platform click method
-    // so authored handlers, cancellation, fragments, targets, and downloads keep their
-    // anchor semantics; followLink adds the chord's focus and announcement afterwards.
+    // Use the platform click method so authored handlers, cancellation, fragments,
+    // targets, and downloads keep their anchor semantics.
     go: followLink,
   },
   {
-    id: "navigation.fold",
-    key: "f",
-    word: "folds",
-    does: "Go to the nth fold and open it",
+    kind: "Fold",
     list: pageDisclosures,
-    // Opening is the arrival and not a press that follows it. Every arrival here reveals
-    // the collapsed containers on its way — this is the one whose target is the container,
-    // so the reveal that was travel for the others is the whole motion for this one, and a
-    // reader who wanted the section open has it open having asked once. The scroll takes
-    // the box rather than the summary, since a section taller than the window starts at its
-    // start where a centred summary would put half the screen above it. Standing on the
-    // summary afterwards leaves the platform's own press to close it again, which the
-    // disclosure scope names on the line.
+    // Opening is the arrival. Scroll the disclosure rather than its summary so a section
+    // taller than the viewport starts at its start, then leave focus on the summary for
+    // the platform's own close route.
     go: (summary) => {
       scrollToElement(summary.parentElement, undefined, "nearest");
       summary.focus({ preventScroll: true });
     },
   },
 ];
-// A list's addressable members, and the range its label names. Nine is the whole numbered
-// vocabulary: every member has one digit and every digit completes immediately. Ordinary
-// lists take the stable document prefix. A viewport list takes the visible prefix and
-// holds that reading for the duration of a scroll.
-let viewportWindows = new Map();
-function currentAddressed(entry) {
-  const members = entry.list();
-  if (!entry.viewport) return members.slice(0, MAX_NUMBERED_ADDRESSES);
+const THREAD_EDGE_KEYS = ["k", "j"];
+const PAGE_RETURN_KEYS = ["p"];
+const PAGE_EDGE_KEYS = ["g", "Shift+g"];
+const STRUCTURAL_KEYS = new Set(
+  [...THREAD_EDGE_KEYS, ...PAGE_RETURN_KEYS, ...PAGE_EDGE_KEYS].filter((key) =>
+    /^[a-z]$/.test(key),
+  ),
+);
+const ADDRESS_KEYS = HINT_KEYS.filter((key) => !STRUCTURAL_KEYS.has(key));
+
+const pointIn = (box) => ({
+  x: Math.max(0, Math.min(innerWidth - 1, (box.left + box.right) / 2)),
+  y: Math.max(0, Math.min(innerHeight - 1, (box.top + box.bottom) / 2)),
+});
+
+function exposed(member, box, exposure) {
+  const point = pointIn(box);
+  const onTop = elementFromPointAcross(point.x, point.y);
+  return exposure === "self" ? member.contains(onTop) : containsAcross(member, onTop);
+}
+
+const visibleWords = (member) => member.innerText?.replace(/\s+/g, " ").trim();
+
+function visibleCandidates() {
   const placement = addressPlacement();
-  return members
-    .filter((member) => placement.visibleBox(member))
-    .slice(0, MAX_NUMBERED_ADDRESSES);
-}
-function refreshViewportWindows() {
-  viewportWindows = new Map(
-    ADDRESSES.filter((entry) => entry.viewport).map((entry) => [
-      entry,
-      currentAddressed(entry),
-    ]),
+  const covered = banner.getBoundingClientRect().bottom;
+  const seen = new Set();
+  const found = [];
+  for (const [order, entry] of TARGET_KINDS.entries())
+    for (const member of entry.list()) {
+      // A role=tab anchor is one activation surface, not a tab and a link. TARGET_KINDS
+      // orders the more specific meaning first; genuinely different nested elements stay.
+      const unavailable =
+        seen.has(member) ||
+        !member.isConnected ||
+        !member.checkVisibility() ||
+        member.matches(":disabled") ||
+        member.getAttribute("aria-disabled") === "true" ||
+        closestAcross(member, "[inert]");
+      if (unavailable) continue;
+      const box = placement.visibleBox(member);
+      const rect = box && { ...box, top: Math.max(box.top, covered) };
+      if (!rect || !exposed(member, rect, entry.exposure)) continue;
+      seen.add(member);
+      const says =
+        member.getAttribute("aria-label")?.trim() ||
+        itemSays(member) ||
+        visibleWords(member) ||
+        entry.kind;
+      found.push({ ...entry, order, member, rect, says });
+    }
+  found.sort(
+    (left, right) =>
+      left.rect.top - right.rect.top ||
+      left.rect.left - right.rect.left ||
+      left.order - right.order,
   );
+  const codes = hintCodes(found.length, ADDRESS_KEYS);
+  return found.map((candidate, index) => ({ ...candidate, code: codes[index] }));
 }
-const addressed = (entry) =>
-  entry.viewport && chordArmed
-    ? (viewportWindows.get(entry) ?? [])
-    : currentAddressed(entry);
-const range = (n) => (n > 1 ? `1–${n}` : "1");
-// Every complete route starts with the same stable prefix. `chordKeys` adds the list's
-// letter once one has been named, so the key line and page chips can paint progress
-// without changing the route that a control's title or the reference exposes.
+
+// Every complete route starts with the same stable prefix. A partial generated hint is
+// added to the live chord so the key line and chips can paint how far it has advanced.
 const chordPrefix = () => [labelOf(GOTO)].filter(Boolean);
-const chordKeys = () => [...chordPrefix(), aimedList?.key].filter(Boolean);
-const addressChip = (entry, n) => {
-  const steps = [labelOf(GOTO), entry.key, String(n)];
-  const chip = el("span", "lf-address lf-chord-address");
+const chordKeys = () => [...chordPrefix(), ...prefix];
+const addressChip = (candidate) => {
+  const steps = [labelOf(GOTO), ...candidate.code];
+  const chip = el("span", "lf-address lf-target-hint lf-chord-address");
+  chip.dataset.lfAddress = candidate.code;
+  chip.dataset.lfAddressKind = candidate.kind;
+  const targetId =
+    candidate.member.id ||
+    candidate.member.dataset.lfMarginFor ||
+    candidate.member.getAttribute("aria-controls");
+  if (targetId) chip.dataset.lfAddressFor = targetId;
   chip.append(keySequence(steps, progressStates(steps, chordKeys().length)));
   return chip;
 };
 
-// Whether the chord is up, and the list a digit addresses once a letter has named one.
-// The armed window is a mode the whole keyboard is in, and a digit pressed inside it
-// belongs to the chord wherever focus sits. A widget's own digit keys used to have to ask
-// this before consuming one; they no longer do, and lf-options no longer imports it — the
-// chord's scope claims everything, so the dispatcher never reaches an inner scope while the
-// window stands, and the mode enforces itself where it was a rule each widget had to keep.
-//
-// `aimedList` and not `aimed`, which this file already spends on the aim chord's element
-// (refreshAim, aimTarget, aimBox): two concepts under one word, in one file, shadowing each
-// other inside the functions that hold both.
+// The armed window owns every key wherever focus sits. Generated candidates stay stable
+// through ordinary repaints, refresh after viewport motion settles, and freeze after the
+// first hint letter.
 let chordArmed = false;
-let aimedList = null;
+let prefix = "";
+let candidates = [];
+let hintActive = -1;
 let scrolling = false;
-// Arming, aiming and disarming are one call, because they are one window: naming a list
-// re-opens it rather than starting a second.
-//
-// It stands until one of those, where it stood for a second and a half. A timeout is how a
-// keyboard resolves an ambiguous prefix, and there is none here: `g` is a prefix and
-// nothing else, any key the chord does not bind disarms it and then runs with its ordinary
-// meaning, so nothing is ever swallowed by a window left open. What the clock did instead
-// was charge the reader for reading the menu the press had just painted — and a letter
-// arriving a moment late is not a no-op but the page's own key, so a slow reader pressing
-// `l` got the leaves tray rather than the links.
-export function setChord(on, list = null) {
+let scrollTimer = 0;
+let refreshCandidates = false;
+
+export function setChord(on) {
   // Armed over a control that has claimed Escape, one press would have two owners — the
   // control's rung and the chord's cancel — so the chord refuses to arm there at all.
   if (on && !chordArmed && claimsEsc(focused())) return;
-  if (on) refreshViewportWindows();
-  else viewportWindows.clear();
+  if (on) stopGlide(seenScroller());
   chordArmed = on;
-  aimedList = on ? list : null;
-  scrolling = false;
+  // The mode itself reveals page navigation such as a roomy contents map. Publish that
+  // state before taking the visible-scene reading so those routes enter the same map as
+  // links that were already standing in the document.
   document.body.toggleAttribute(PAGE_PAINT_ATTRIBUTE.goto, on);
-  // The chips are the eye's copy; the window itself is spoken, or the mode change is
-  // silent to exactly the reader who can't see them. Off the rows either way, since the
-  // rows are what the window answers now — the letters at the first stage, the named
-  // list's digits at the second — and a sentence written here for the second would have
-  // been the row's own words, restated where nothing could correct them.
-  if (on) announce(`Go to — ${saying(GO.rows)}`);
+  prefix = "";
+  candidates = on ? visibleCandidates() : [];
+  hintActive = -1;
+  scrolling = false;
+  refreshCandidates = false;
+  clearTimeout(scrollTimer);
+  // The chips are the eye's copy; the window itself is spoken, or the mode change is silent
+  // to exactly the reader who cannot see them.
+  if (on)
+    announce(
+      `Go to — ${candidates.length ? `${candidates.length} visible targets; type a hint or press Tab to hear them. ` : "No visible targets. "}${saying(GO.rows)}`,
+    );
   paintHere();
 }
 
-// The chips: one per addressable member, drawn in the chrome's layer (addressLayer) and
-// placed from the member's own visible box, so a chip cannot claim room the page has
-// already refused — a thread scrolled out of the panel's list, a card half out of a board.
-//
-// Every visible member keeps its complete address. Naming a list narrows the members but
-// does not narrow their labels: the list key changes from neutral to pressed in place, so
-// the route's geometry stays fixed while the reader advances through it.
-//
-// The layer is the chrome's rather than the page's own markup for the reason every mark is
-// (see "Paint; don't wrap"): the addressable things include links set mid-sentence, and a
-// span written into a paragraph to carry a number is a span the passage walk then has to
-// know about.
-//
-// Every chip is built detached and the layer takes them in one write, which is the rule
-// the legend states for this same layer: a chip in the tree is a DOM write, and the next
-// member's rect read after one is a layout forced per member, on every scroll frame a
-// numbered-list window stands through.
+const hinted = () => candidates.filter(({ code }) => code.startsWith(prefix));
+const targetCapability = () => TARGET_KINDS.some((entry) => entry.list().length > 0);
+
+function candidateIsCurrent(candidate) {
+  return visibleCandidates().some(
+    (current) => current.member === candidate.member && current.kind === candidate.kind,
+  );
+}
+
+function activateCandidate(candidate) {
+  if (!candidate || !candidateIsCurrent(candidate)) {
+    prefix = "";
+    candidates = visibleCandidates();
+    hintActive = -1;
+    announce("That target is no longer visible. The hints are reset.");
+    return paintHere();
+  }
+  setChord(false);
+  candidate.go(candidate.member);
+}
+
+function typeHint(key) {
+  const next = prefix + key;
+  if (!candidates.some(({ code }) => code.startsWith(next))) {
+    announce(`No hint ${next}. The current hints are unchanged.`);
+    return;
+  }
+  prefix = next;
+  hintActive = -1;
+  const target = hinted().find(({ code }) => code === prefix);
+  if (target) return activateCandidate(target);
+  announce(`${hinted().length} targets remain.`);
+  paintHere();
+}
+
+function moveHint(direction) {
+  const targets = hinted();
+  if (!targets.length) return;
+  hintActive = (hintActive + direction + targets.length) % targets.length;
+  const target = targets[hintActive];
+  const stop = /[.!?]$/.test(target.says) ? "" : ".";
+  announce(
+    `Hint ${target.code}: ${target.kind}, ${target.says}${stop} Press Enter to go there.`,
+  );
+  paintHere();
+}
+
+const chooseHint = () => activateCandidate(hinted()[hintActive]);
+
+// The layer is chrome rather than authored markup: a generated label over an inline link
+// must not become a span the passage walk then has to understand. Candidates are measured
+// together, attached once, and then spread without dropping any opaque route.
 export function paintAddresses() {
   if (!chordArmed) {
     addressLayer.replaceChildren();
     return;
   }
-  // A state render or version activation can replace Page-map hosts without scrolling.
-  // Refresh at every resting presentation boundary; a live scroll keeps the old window
-  // until its own `scrollend` boundary below.
-  if (!scrolling) refreshViewportWindows();
+  // A moving target cannot carry a readable opaque route. Suppress the visual map until
+  // the scene settles, then regenerate it once; the alphabet remains claimed meanwhile,
+  // so a remembered stale letter still cannot fall through to another page command.
+  if (scrolling) {
+    addressLayer.replaceChildren();
+    return;
+  }
+  const wasActive = hintActive >= 0;
+  const heard = hinted()[hintActive];
+  // A scroll keeps one map until it settles. Reconciliation is different: every old
+  // candidate is detached at once, so holding that map would paint nothing indefinitely
+  // if the replacement's scroll restoration does not produce a final scrollend.
+  const detached = candidates.some(({ member }) => !member.isConnected);
+  const refreshed =
+    !prefix && !scrolling && (refreshCandidates || detached || !candidates.length);
+  if (refreshed) {
+    candidates = visibleCandidates();
+    hintActive = heard
+      ? candidates.findIndex(
+          (candidate) =>
+            candidate.member === heard.member && candidate.code === heard.code,
+        )
+      : -1;
+    refreshCandidates = false;
+  }
+  const activeCandidate = hinted()[hintActive];
   const placement = addressPlacement();
   const chips = [];
-  for (const entry of aimedList ? [aimedList] : ADDRESSES) {
-    for (const [i, member] of addressed(entry).entries()) {
-      const r = placement.visibleBox(member);
-      if (!r) continue;
-      const chip = addressChip(entry, i + 1);
-      chip.style.left = `${r.left}px`;
-      chip.style.top = `${r.top}px`;
-      chips.push(chip);
-    }
+  const placed = [];
+  const drawn = new Set();
+  for (const candidate of hinted()) {
+    const r = placement.visibleBox(candidate.member);
+    if (
+      !candidate.member.checkVisibility() ||
+      !r ||
+      !exposed(candidate.member, r, candidate.exposure)
+    )
+      continue;
+    const chip = addressChip(candidate);
+    if (activeCandidate === candidate) chip.classList.add("lf-current");
+    chip.style.left = `${r.left}px`;
+    chip.style.top = `${r.top}px`;
+    chips.push(chip);
+    placed.push({ chip, target: r });
+    drawn.add(candidate);
   }
-  // A chip that lands on one already drawn is taken down. Two addressable things can start
-  // within a chip's width of each other — footnote markers in a row, a link that is the
-  // whole of a summary — and stacked chips do not read as two: the one underneath shows an
-  // edge, and its neighbour's digit is the number the reader takes for its own. That is the
-  // one failure worse than saying nothing, because pressing it goes somewhere else.
-  //
-  // Dropping it costs nothing the page had promised. A chip is already only drawn for a
-  // member the reader can see, and an address holds whether or not its chip does — so this
-  // is the same answer, given to a member the page has no room to say it about rather than
-  // to one that has scrolled away.
-  //
-  // Clamp each complete face before checking collisions: bringing a chip on screen
-  // can move it onto its neighbour. Measure every face before moving or removing one.
-  // The key line reserves its own box first, so the chips cannot cover their legend.
-  placement.paint(addressLayer, chips);
+  if (wasActive && activeCandidate && !drawn.has(activeCandidate)) hintActive = -1;
+  addressLayer.replaceChildren(...chips);
+  spreadHints(placed, {
+    lineBox: keylineEl.getBoundingClientRect(),
+    viewportTop: banner.getBoundingClientRect().bottom,
+  });
+  if (wasActive && hintActive < 0) paintHere();
 }
-// A page that moves under an armed window moves the boxes the chips were placed from, so
-// the chips follow it rather than standing where the page used to be. Capture, because the
+// A page that moves under an armed window makes opaque labels temporarily untrustworthy,
+// so the scroll pass hides them and remaps once the scene settles. Capture, because the
 // panel's list and a board's own overflow scroll in boxes of their own and a scroll event
 // does not bubble.
 //
@@ -471,6 +512,13 @@ addEventListener(
   () => {
     if (!chordArmed) return;
     scrolling = true;
+    refreshCandidates = true;
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+      if (!chordArmed || !scrolling) return;
+      scrolling = false;
+      paintHere();
+    }, 80);
     paintHere();
   },
   { capture: true, passive: true },
@@ -479,6 +527,7 @@ addEventListener(
   "scrollend",
   () => {
     if (!chordArmed || !scrolling) return;
+    clearTimeout(scrollTimer);
     scrolling = false;
     paintHere();
   },
@@ -486,28 +535,16 @@ addEventListener(
 );
 addEventListener("resize", () => {
   if (!chordArmed) return;
+  clearTimeout(scrollTimer);
   scrolling = false;
+  refreshCandidates = true;
   paintHere();
 });
 
-// The chord: one scope, a row per panel and addressable list, a row for the page's two
-// edges, and the window's own way out. A panel's mnemonic completes its travel. A list
-// row holds the route after g — its letter names the list, and the one digit it
-// then binds is the address into it. That is `v`'s shape,
-// a chooser whose second key belongs to the scope the first one stood up, and the reason
-// it is one row rather than two is that a digits row of its own could not name which list
-// it meant. The edges row is the same motion one key shorter: an edge is one place, so its
-// letter completes the route, and it is why the scope has no `when` — every page has a
-// top, so the window g arms is never empty.
-//
-// A row's `when` carries both questions here, where a scope usually carries one of them: a
-// list the page hasn't got is a capability, and which list is aimed at is whether the press
-// moves now. They can share the answer because a mode is not somewhere the reader stands
-// near — see showHelp, which reads a mode's rows by their own liveness for exactly that
-// reason. Written as a scope per list instead, each stating its own capability, the two
-// were named apart at the price of three scopes under one title, and the reference then
-// gathered them in the order it walks the stack — backwards, so it named the lists in the
-// opposite order to the line that had just offered them.
+// The chord is one scope: generated visible targets, named global destinations, structural
+// placements, and its own way out. Structural and named rows stand only before a hint
+// prefix; once a generated route has begun, only valid continuations, audible browsing,
+// activation, and backing remain.
 let goRows = null;
 export const GO = {
   title: "Go to",
@@ -528,7 +565,7 @@ export const GO = {
         // the document to the passage the card is about. It leads while live because it
         // is the one offer specific to where the reader stands; list members wear their
         // address chips directly when the chord arms.
-        keys: ["k", "j"],
+        keys: THREAD_EDGE_KEYS,
         routes: [
           {
             id: "navigation.thread.top",
@@ -543,7 +580,7 @@ export const GO = {
         ],
         does: "Put the focused thread at the top / bottom of its list",
         line: "thread top / bottom",
-        when: () => !aimedList && Boolean(focusedThread()),
+        when: () => !prefix && Boolean(focusedThread()),
         run: (binding) => {
           const thread = focusedThread();
           setChord(false);
@@ -557,14 +594,58 @@ export const GO = {
         // the document scroller and has no page to hand back; ordinary Escape remains
         // the truthful route there. It follows the focused thread's own placements so
         // they keep the short line a reader standing on that card arrived to use.
-        keys: ["p"],
+        keys: PAGE_RETURN_KEYS,
         does: "Return to the page, keeping the thread panel open",
         line: "page — threads kept",
-        when: () => !aimedList && inPanel() && !panelCovers(),
+        when: () => !prefix && inPanel() && !panelCovers(),
         run: () => {
           setChord(false);
           letGo();
         },
+      },
+      {
+        id: "navigation.target",
+        runFromReference: false,
+        // Every alphabet key is claimed while the map stands. If a scene refresh retired
+        // a remembered route, that old letter must report the miss rather than falling
+        // through to an unrelated page shortcut such as `d`.
+        keys: ADDRESS_KEYS,
+        label: "letters",
+        chordSteps: () => (prefix ? [...prefix, "…"] : ["letters"]),
+        completeChordSteps: () => ["letters"],
+        does: "Go to the visible target wearing that hint",
+        line: "visible target",
+        when: () => (chordArmed ? candidates.length > 0 : targetCapability()),
+        run: typeHint,
+      },
+      {
+        id: "navigation.target.walk",
+        keys: ["Tab", "Shift+Tab"],
+        routes: [
+          {
+            id: "navigation.target.next",
+            binding: "Tab",
+            does: "Hear the next visible target",
+          },
+          {
+            id: "navigation.target.previous",
+            binding: "Shift+Tab",
+            does: "Hear the previous visible target",
+          },
+        ],
+        does: "Hear the next / previous visible target",
+        line: "browse hints",
+        repeat: true,
+        when: () => (chordArmed ? candidates.length > 0 : targetCapability()),
+        run: (binding) => moveHint(binding === "Tab" ? 1 : -1),
+      },
+      {
+        id: "navigation.target.choose",
+        keys: ["Enter"],
+        does: "Go to the target just announced",
+        line: "go to target",
+        when: () => hintActive >= 0,
+        run: chooseHint,
       },
       ...BUILTIN_DIRECT_DESTINATIONS.map((destination) => ({
         id: destination.id,
@@ -572,7 +653,7 @@ export const GO = {
         label: spell(destination.key),
         does: destination.does,
         line: destination.line,
-        when: () => !aimedList && destination.when(),
+        when: () => !prefix && destination.when(),
         returnFrame: () => {
           const workspace = workspaceState();
           return {
@@ -596,40 +677,15 @@ export const GO = {
       // owner that can keep them true.
       ...directDestinations().map((destination) => ({
         ...destination,
-        when: () => !aimedList && live(destination),
+        when: () => !prefix && live(destination),
         run: (binding) => {
           setChord(false);
           destination.run(binding);
         },
       })),
-      ...ADDRESSES.map((entry) => ({
-        id: entry.id,
-        runFromReference: false,
-        keys: () => {
-          if (aimedList !== entry) return [entry.key];
-          return addressed(entry).map((_, i) => String(i + 1));
-        },
-        // The range the capped list actually holds, so the label cannot offer an address
-        // no member wears.
-        label: () => (aimedList === entry ? range(addressed(entry).length) : entry.key),
-        chordSteps: () => {
-          if (aimedList === entry) return [range(addressed(entry).length)];
-          return [entry.key];
-        },
-        completeChordSteps: () => [entry.key, range(addressed(entry).length)],
-        does: entry.does,
-        line: entry.word,
-        when: () => addressed(entry).length > 0 && (!aimedList || aimedList === entry),
-        run: (binding) => {
-          if (aimedList !== entry) return setChord(true, entry);
-          const member = addressed(entry)[Number(binding) - 1];
-          setChord(false); // before the travel, so the arrival's own scrolling paints nothing
-          entry.go(member);
-        },
-      })),
       {
         id: "navigation.page.edge",
-        keys: ["g", "Shift+g"],
+        keys: PAGE_EDGE_KEYS,
         routes: [
           {
             id: "navigation.page.top",
@@ -644,7 +700,7 @@ export const GO = {
         ],
         does: "Go to the top / bottom of the page",
         line: "top / bottom",
-        when: () => !aimedList,
+        when: () => !prefix,
         run: (binding) => {
           setChord(false); // before the travel, so the arrival's own scrolling paints nothing
           const box = seenScroller();
@@ -653,20 +709,17 @@ export const GO = {
       },
       {
         id: "navigation.address.back",
-        // Two presses in, two presses out. `g` opens the window and a letter names a list
-        // inside it. The complete routes stay fixed while that letter turns pressed, so one
-        // Escape gives the letter back and the next closes the window. Collapsing both at
-        // once stranded a reader who had narrowed to the wrong list back on the page, making
-        // them press `g` again to reach a window that had been standing the whole time.
         keys: ["Escape"],
         chordControl: true,
-        does: () => (aimedList ? "Back to the lists" : "Cancel the chord"),
-        line: () => (aimedList ? "back to the lists" : "cancel"),
-        // Re-arming rather than a field of its own: `setChord` is where arming, aiming and
-        // disarming already live, and re-opening the window with no list named is exactly
-        // what the second stage backs out to.
+        does: () => (prefix ? "Remove the last hint letter" : "Cancel the chord"),
+        line: () => (prefix ? "back one letter" : "cancel"),
         run: () => {
-          if (aimedList) return setChord(true);
+          if (prefix) {
+            prefix = prefix.slice(0, -1);
+            hintActive = -1;
+            announce(prefix ? `Hint ${prefix}.` : "All go-to hints.");
+            return paintHere();
+          }
           setChord(false);
           announce("Go to cancelled");
         },
@@ -678,12 +731,11 @@ export const GO = {
 // The way in to the chord. Its row supplies the same leader every painted address uses,
 // so the letter the reader presses and the letter the page prints cannot diverge.
 //
-// The key alone on the line: what it opens is a table, so the scope it stands up names the
-// available lists and their complete ranges, one chip each.
+// The page-level row promises the mode rather than any particular ephemeral hint.
 export const GOTO = {
   id: "navigation.address.open",
   keys: ["g"],
-  does: "Go to a panel, list member, page, or edge",
+  does: "Go to a visible target, panel, page, or edge",
   line: "go to",
   // No `when`: the window this press stands up always holds at least the page's edges.
   run: () => setChord(true),

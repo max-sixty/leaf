@@ -1,21 +1,11 @@
-/* The one-digit address vocabulary and the placement pass shared by every surface that
-   paints it. A visible address may move back inside the viewport, but it yields wherever
-   that move would cover the key line or another address. The route still works when its
-   face cannot be drawn, so omission is safer than an ambiguous stack of digits.
-
-   Numbered addresses are capped at nine per list. Tabs, links, and folds keep the first
-   nine document members, so those identities do not change as the reader scrolls and an
-   off-screen member within that prefix remains reachable. Page-map locations instead
-   number the visible window from one; their complete searchable identity lives in the
-   Page map sheet. That window stays fixed during a scroll and is read again at
-   `scrollend`. Chips live in runtime chrome rather than authored markup. They sit above
-   their targets and move inside the viewport below the banner before overlapping chips
-   are removed. */
+/* Shared visibility for addressable targets and placement for predictable numeric Ask
+   addresses. The banner clips every target's usable box. An Ask face may move back inside
+   the viewport, but it yields wherever that move would cover the key line or another
+   address: its ordered choices make a missing digit inferable. Opaque generated target
+   hints instead use the no-drop placement in hints.js. */
 import { banner } from "../banner.js";
 import { keylineEl } from "./keyline.js";
 import { startsAt } from "../geometry.js";
-export const MAX_NUMBERED_ADDRESSES = 9;
-
 const overlaps = (a, b) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
@@ -45,9 +35,8 @@ export function addressPlacement() {
     return true;
   }
 
-  // Attach every chip in one write, measure them before moving or removing any, then
-  // adjust their authored CSS anchor by the clamp delta. That preserves the face's own
-  // transform: chord routes sit above prose, while Ask digits sit on a Button's corner.
+  // Attach every Ask chip in one write, measure them before moving or removing any, then
+  // adjust its authored CSS anchor by the clamp delta.
   function paint(layer, chips) {
     layer.replaceChildren(...chips);
     const right = document.documentElement.clientWidth;

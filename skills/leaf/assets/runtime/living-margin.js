@@ -39,7 +39,7 @@
    expansion state for both keyboard and pointer routes; focus does not create a parallel
    presentation. A category walk that lands on a Button does not unfold its peers: it is
    navigation rather than Tab arrival, so one Escape still lets go of the destination the
-   walk put down. A numbered Page-map address arrives the same way and then presses that
+   walk put down. A generated Page-map hint arrives the same way and then presses that
    Button, so anything unfolded there is the press's own result rather than the arrival's,
    and Escape still lets go of where the press left the reader.
 
@@ -189,7 +189,7 @@
    Hover or focus on any interactive fitting illuminates its exact target, including a
    cluster displaced by packing. Hovering a status shows its label and connects it to the
    target with a softer neutral trace, without lifting the fitting or borrowing the accent
-   ring that promises interaction. A numbered Page-map arrival may still focus it and
+   ring that promises interaction. A generated Page-map arrival may still focus it and
    illuminate the target deliberately. Labels stay inside the viewport without moving the
    fitting. Dense and narrow-screen tests must exercise that association and activate an
    excess action through Page map; counting hidden DOM nodes is not evidence of
@@ -212,9 +212,9 @@
    where the box is `display: none` is not a measurement.
 
    That ordered target collection is the Page map's complete location count and the source
-   for the `g m` address list. A location's disclosure Button announces its position in
-   the complete collection. The numbered chord exposes up to nine locations in the visible
-   window, starting at one. `g M` and the banner's Map control open the complete sheet,
+   for the generated `g` target list. A location's disclosure Button announces its
+   position in the complete collection. The chord exposes every actionable location in
+   the visible window. `g M` and the banner's Map control open the complete sheet,
    which projects the same currently available contributed controls in owner and role
    order, plus readings that have no direct control. An offered reading that merely
    describes its owner's controls is omitted there rather than becoming a parallel “open
@@ -1777,28 +1777,36 @@ export function openButtonOptions(target) {
   return true;
 }
 
+function pageMapItemControl(item) {
+  const entry = item?.lfEntry;
+  if (!entry?.target) return null;
+  const available = clusterButtons(item);
+  const marker = rows.get(entry.key);
+  return marker && available.includes(marker)
+    ? marker
+    : (available.find((candidate) => candidate !== marker) ?? null);
+}
+
 export function pageMapItems() {
-  return pageMapEntries.map((entry) => hosts.get(entry.key)).filter(Boolean);
+  return pageMapEntries
+    .map((entry) => hosts.get(entry.key))
+    .filter((item) => pageMapItemControl(item));
 }
 
 export function openPageMapItem(item) {
   const entry = item?.lfEntry;
-  if (!entry?.target) return;
+  const control = pageMapItemControl(item);
+  if (!entry?.target || !control) return false;
   scrollToElement(entry.target, undefined, "nearest");
-  const marker = rows.get(entry.key);
-  const control =
-    marker && !marker.hidden
-      ? marker
-      : clusterButtons(item).find((candidate) => candidate !== marker);
-  if (!control) return;
   // Arrive before activation, then use the control's own press so this abbreviated
   // Page-map route has the same meaning as its Button in the complete map.
   focusForNavigation(control);
   control.click();
+  return true;
 }
 
-// The direct destination opens the complete map. Its lowercase address list separately
-// numbers the visible locations without claiming the sheet ends there.
+// The direct destination opens the complete map. Visible locations also join the page's
+// transient generated-hint namespace without claiming the sheet ends there.
 export function enterPageMap() {
   openSheet();
 }
@@ -1838,7 +1846,7 @@ function focusMapControl(entry = null) {
 }
 
 // The rail holds one tab stop: the way in from the page, not the reading position,
-// which the walk, the numbered addresses, and the pointer all reach without it. A
+// which the walk, generated go-to hints, and the pointer all reach without it. A
 // status reports a move already made, so the stop passes to the nearest marker that
 // still offers a press.
 function holdTabStop(next) {

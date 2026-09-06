@@ -848,10 +848,6 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         == hidden_boxes
     )
     assert nav.evaluate("node => !node.contains(document.activeElement)")
-    page.keyboard.press("h")
-    expect(prepare).to_have_css("opacity", "1")
-    page.keyboard.press("Escape")
-    expect(prepare).to_have_css("opacity", "1")
     page.keyboard.press("Escape")
     expect(prepare).to_have_css("opacity", "0")
     expect(prepare).to_have_css("pointer-events", "none")

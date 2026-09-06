@@ -83,14 +83,6 @@
         font: 600 var(--t-6) / 1.2 var(--sans);
       }
 
-      /* The runtime rewrites this one's word as the demo runs — Loading…, Play, Pause,
-         Played — and Replay stands beside it, so one width for every word is what keeps
-         that button still. The word for a demo that could not load is the exception: it
-         is far the longest, and it arrives only where the row has nothing left to hold. */
-      .interaction-gallery .interaction-control[data-interaction-toggle] {
-        min-width: 9ch;
-      }
-
       .interaction-gallery
         .interaction-control:is(:hover, :focus-visible):not(:disabled) {
         border-color: var(--accent);

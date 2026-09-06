@@ -214,7 +214,7 @@ const sameVisibleBox = (a, b) =>
   Math.abs(a.right - b.right) < 0.5 &&
   Math.abs(a.bottom - b.bottom) < 0.5;
 
-function visibleTargets() {
+export function visibleTargets() {
   const cache = clips();
   const targets = aimTargets()
     .filter(({ element }) => !inChrome(element))
@@ -727,3 +727,4 @@ export const SELECT = {
 
 export const isSelecting = () => open;
 export const startSelecting = () => setOpen(true);
+export const stopSelecting = () => setOpen(false);

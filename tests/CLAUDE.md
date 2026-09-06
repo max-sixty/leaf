@@ -248,16 +248,21 @@ names, adds the publishing note and any requested comments, then serves the
 directory with the real HTTP handler and page key at that version's immutable
 URL. Handed an example's path rather than its markup it also lays in the
 external data and event log the example ships, and sets the cursor past the
-log. Markup is one version; an example is every version it ships
-(`example_versions`), stamped oldest first with the seed between the first note
-and any later one, and the URL is the newest. Use `serve(example,
-seed_log=False)` when only the shipped conversation would be noise. Reach the
-page directory through `serve.page_dir` when a test needs to publish v2 or
-inspect the log. `page_dir` in `interact_support.py` owns command-level files
-without starting a browser and clones its ordinary initialized layer the same
-way. Runtime and vendor files are immutable fixture inputs and may be shared;
-state, contracts, theme, and modules remain private. Tests of initialization,
-re-vendoring, or a custom overlay still cross the real `page init` boundary.
+log. It lays in the media that log names too, which a message writes in its
+Markdown rather than in an attribute, where the parsed reading that answers for
+a document cannot see it; the seed is read for content-addressed names, and
+they arrive whether or not the call seeds the log, since `seed_log=False` is
+how a caller appends those same events itself. Markup is one version; an
+example is every version it ships (`example_versions`), stamped oldest first
+with the seed between the first note and any later one, and the URL is the
+newest. Use `serve(example, seed_log=False)` when only the shipped conversation
+would be noise. Reach the page directory through `serve.page_dir` when a test
+needs to publish v2 or inspect the log. `page_dir` in `interact_support.py`
+owns command-level files without starting a browser and clones its ordinary
+initialized layer the same way. Runtime and vendor files are immutable fixture
+inputs and may be shared; state, contracts, theme, and modules remain private.
+Tests of initialization, re-vendoring, or a custom overlay still cross the real
+`page init` boundary.
 
 ## Drive the browser a reader gets
 
@@ -366,6 +371,11 @@ The causal helpers:
 - `sending(page, what)` encloses a gesture whose own event the assertion behind
   it reads: it waits for one further send to enter the wire and then for its
   trip, so the read cannot answer with the event that stood before the gesture.
+- `holding(page, held, count, what)` waits until a route's own list has the
+  requests the handler put there, for a test that holds the wire open — the ones
+  it paused, and the ones it recorded on the way through. The ledger counts a
+  send as the runtime makes it, a beat before the driver is handed the request,
+  so it is the wrong fact to read that list behind.
 - `told(page)` waits until the page has applied the reading the server holds
   now. Use it after the test writes a version, event, status, or lease that the
   browser learns by reading.
@@ -466,8 +476,14 @@ pattern nothing ever asks for, so a route a test registers later only adds to a
 list the browser is already consulting; a page made another way is unarmed.
 
 A handler that appends a route to `held` has established only that the browser
-made the request. Before indexing `held`, wait for the corresponding `Traffic`
-edge, a request event, or another fact named by the handler.
+made the request. Before reading that list — indexing it, asserting its length,
+or taking the handler away with `page.unroute`, which leaves a request dispatched
+any later to go out unrecorded — wait through `holding`, which is that
+sanctioned repeat: the ledger shows the send was made, and the driver call it
+repeats is what dispatches the route into this process. Do not wait on the
+corresponding `Traffic` edge instead — the ledger counts the send a beat before
+the request arrives here, and once it is held nothing repaints, so a wait on the
+paint has no second wake-up to catch a route that lands late.
 
 Keep the three route operations distinct:
 

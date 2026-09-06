@@ -1291,6 +1291,8 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-body { margin-top: 2px; }
 .lf-conversation-body > :first-child { margin-top: 0; }
 .lf-conversation-body > :last-child { margin-bottom: 0; }
+.lf-drawing-reference { display: block; margin-top: 2px; color: var(--muted-2);
+          font: 500 var(--t-6)/1.35 var(--sans); }
 .lf-conversation-open { margin-top: var(--sp-2); }
 .lf-conversation-resolved { margin-top: var(--sp-2); color: var(--ok); }
 .lf-conversation-summary { padding: 8px 10px; color: var(--ok); cursor: pointer;
@@ -1312,6 +1314,19 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
   .lf-conversation-thread :is(.lf-say, button, .lf-receipt), .lf-mark-note {
           display: none !important; }
 }
+/* A reaction chip and its trigger wear the chrome's pill face. That face is written in
+   the chrome stylesheet, which no declared shadow root sees, so a widget's own thread
+   outlet drew the platform's button instead: on the dark scheme its ButtonFace grey put
+   the muted word at 1.86:1. Repeated here with the reset it needs, the way .lf-mark-note
+   above repeats its own. */
+.lf-pill { appearance: none; margin: 0; padding: 0 8px; white-space: nowrap;
+          border: 1px solid var(--border-2); border-radius: 999px;
+          background: var(--card); color: var(--ink-2);
+          font: inherit; font-size: var(--t-6); line-height: 1.7; }
+.lf-pill:is(button, [role="button"]) { cursor: pointer; }
+.lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
+.lf-pill:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+          --lf-here-ring: pill; outline-offset: 1px; }
 .lf-react-trigger { color: var(--muted); }
 .lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .lf-react-open > .lf-react-trigger { display: none; }
@@ -1497,27 +1512,16 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 [data-lf-retired] { display: none; }
 lf-suggestion[data-lf-state="accept"]:not(:has(lf-new)),
 lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
-/* Whose job it is to say the change is only proposed, in each medium. On screen the
- * ✓/✗ row hanging on the change's own line says it, and this word stays clipped for
- * whoever is listening. A copy has no row — export strips a control the page doesn't
- * speak through, and a pending one says nothing yet, so it goes whole — which left the
- * two states saying opposite amounts there: a decided change keeps its "Accepted", a
- * pending one kept nothing, and a struck red paragraph with an empty margin beside it
- * is exactly what a deletion looks like once it has happened. The word #voice already
- * writes is what the copy shows instead, so nothing new is drawn and both readings of
- * the page keep the same text in the same place.
+/* A pending suggestion still has to say it is proposed when generated controls are
+ * absent. On screen the ✓/✗ row carries that fact and this word stays clipped for
+ * whoever is listening. A static copy and paper expose the word #voice already writes
+ * in each slot, so the proposal remains distinguishable from settled content without
+ * adding another label or moving it elsewhere.
  *
- * Paper is in the base too, and it is the medium this note used to overstate: print
- * drops every offer, `[data-lf-said]` included, so a decided change says nothing there
- * either and the asymmetry the paragraph above describes is the copy's alone. What the
- * word buys on paper is the pending state stating itself at all.
- *
- * Stated the way the copy states every affordance (see the widget-chrome norm): the
- * page the markup describes is the base, and the live page's version of it goes inside
- * the screen guard — so the clip is what is granted, rather than the word being drawn
- * and then taken back. `user-select` is not touched either way: this is the runtime's
- * reading of the paint rather than the page's own words, so a paragraph copied out of
- * a published page must not come away carrying it.
+ * The page the markup describes is the base, and the live page's clipped version goes
+ * inside the screen guard. `user-select` is not touched: this is the runtime's reading
+ * of the paint rather than authored prose, so copying a published paragraph must not
+ * carry the word with it.
  *
  * inline-block, because lf-old is struck and CSS runs a decoration through every
  * in-flow inline descendant — a descendant cannot cancel it, and `text-decoration:
@@ -1537,15 +1541,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * packing, and the focus-ring allowance belong to .lf-margin-item below. */
 .lf-sug-actions { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
-/* A settled suggestion keeps state as visible, selectable receipt text. Its circle is
- * Undo, so it remains a genuine action; failure uses the same receipt anatomy beside
- * Retry and Cancel. Generated controls disappear from static export while the receipt
- * remains ordinary document text. */
-.lf-sug-receipt { color: var(--ink-2); font-weight: 600; }
-.lf-sug-actions[data-lf-outcome="accept"] .lf-sug-receipt { color: var(--ok-ink); }
-.lf-sug-actions[data-lf-outcome="reject"] .lf-sug-receipt { color: var(--danger-ink); }
-.lf-sug-actions[data-lf-margin-receipt="failed"] .lf-sug-receipt { color: var(--danger-ink); }
-
 /* The living margin is a retained projection with one cluster per page target. Its
  * primary Button, optional `…`, and the secondary Buttons that ellipsis unfolds share
  * one host. One packing pass keeps the clusters clear, docks each whole unit when the
@@ -1800,4 +1795,10 @@ html.lf-versioning::view-transition-new(root) {
           opacity: 1; color: var(--muted); background: var(--paper);
           border-color: var(--border-2); filter: none; }
 .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
+/* Draw mode takes page-widget presses before their controls can act. This rule is in
+   the shared slice because document selectors do not cross a declared shadow root. */
+:host-context(body.lf-drawing):host-context(main) * { cursor: crosshair !important; }
+:host-context(body.lf-drawing):host-context(main) .lf-conversation,
+:host-context(body.lf-drawing):host-context(main) .lf-conversation * {
+  cursor: auto !important; }
 /* lf-shadow:end */

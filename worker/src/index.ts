@@ -34,11 +34,26 @@ function randomSessionId(): string {
   return newSessionId(crypto.getRandomValues(new Uint8Array(16)));
 }
 
+function staticAssetResponse(response: Response): Response {
+  const contentType = response.headers.get("Content-Type")?.split(";", 1)[0].trim();
+  if (contentType?.toLowerCase() !== "text/html") return response;
+
+  const headers = new Headers(response.headers);
+  headers.append("Content-Security-Policy", "frame-ancestors 'none'");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const pathname = url.pathname;
-    if (!isExampleRequest(pathname)) return env.ASSETS.fetch(request);
+    if (!isExampleRequest(pathname)) {
+      return staticAssetResponse(await env.ASSETS.fetch(request));
+    }
     if (needsExampleSlash(pathname)) {
       const canonical = new URL(request.url);
       canonical.pathname += "/";

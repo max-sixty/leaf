@@ -24,8 +24,11 @@ The main owners are:
 - `events` and `projection`: standing event and durable state folds;
 - `thread_context` and `conversation`: thread identity, frozen markup, bounded
   delivery context, and conversation writes;
-- `acknowledgments` and `work`: growing delivery receipts, transient work
-  claims, and widget work seats;
+- `acknowledgments`: unsettled reader moves and their strongest delivery or
+  subject-work evidence;
+- `activity`: the canonical page-level fold over acknowledgments, status, claim,
+  turn, and watcher evidence;
+- `work`: transient subject claims and widget work seats;
 - `asks`: declaration-driven page and thread Ask projections;
 - `mcp_page`: the capability-scoped canonical page server and private MCP result;
 - `requests`: declared request seats, their canonical lifecycle, and the

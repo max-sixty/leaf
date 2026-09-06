@@ -3,13 +3,48 @@
 import time
 from pathlib import Path
 
+from ..acknowledgments import canonical_acknowledgments
+from ..activity import canonical_activity
 from ..data import browser_data
 from ..event_log import now_iso
+from ..events import build_threads
 from ..files import active_descriptor, version_descriptors
+from ..passages import active_enclosing
 from ..presence import presence
 from ..registry.contract import RegistryError
 from ..registry.storage import layer_metadata, load_registry
 from .browser import project_browser_state
+
+
+def project_activity(
+    page_dir: Path,
+    events: list,
+    present: dict,
+    now: str,
+    browser: dict | None,
+) -> dict:
+    """Project activity with or without a usable vendored browser layer."""
+    if browser is not None:
+        return browser.pop("activity")
+    # Thread delivery and response ownership do not depend on a page's vendored
+    # widget registry. The Stop hook deliberately remains able to protect a
+    # conversation on an older or damaged layer through this same canonical fold;
+    # only widget-scoped interaction evidence is unavailable.
+    try:
+        threads = build_threads(events, active_enclosing(page_dir))
+    except (FileNotFoundError, SystemExit):
+        threads = {}
+    evidence = canonical_acknowledgments(
+        events,
+        present["claims"],
+        threads,
+        None,
+        None,
+        {},
+        None,
+        {},
+    )
+    return canonical_activity(present, evidence, now)
 
 
 def full_state(
@@ -31,14 +66,17 @@ def full_state(
         except SystemExit:
             active = None
     present = presence(page_dir, events)
+    now = now_iso()
     browser = project_browser_state(
         page_dir,
         events,
         view_revision,
         active,
-        present["claims"],
-        source_overrides,
+        present,
+        now,
+        source_overrides=source_overrides,
     )
+    activity = project_activity(page_dir, events, present, now, browser)
     try:
         registry = load_registry(page_dir)
     except RegistryError:
@@ -51,7 +89,7 @@ def full_state(
         # calls a claim made this minute an hour stale, on every seat at once, and
         # neither side can tell from the timestamp alone. Sent so the reading is
         # against the writer's clock rather than the reader's.
-        "now": now_iso(),
+        "now": now,
         # The moment this answer was taken, for a tab holding two. Answers cross — two
         # sockets, one held by a proxy or a test while a later one lands, a POST's
         # answer beside a read — and the log's sequence and the data's revision order
@@ -67,6 +105,7 @@ def full_state(
         "source_error": source_error,
         "data": browser_data(page_dir, registry),
         **present,
+        "activity": activity,
         "browser": browser,
         # As logged: a message's text is Markdown the page's vendored runtime renders,
         # and its markup is the fragment the CLI gate validated. The wire adds nothing,

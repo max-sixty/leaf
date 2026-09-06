@@ -11,6 +11,8 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import schema as schema_model
+from leaf import service as service_model
+from leaf import session as session_model
 from leaf.registry import storage as registry_storage
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -53,6 +55,7 @@ from render_support import (
     banner_address,
     displaced,
     held_stale,
+    holding,
     leaf_page,
     live_url,
     live_watcher,
@@ -245,7 +248,7 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     button.click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the approval in the wire")
+    holding(page, held, 1, "the approval")
     expect(button).to_be_disabled()
     expect(button).to_have_attribute("aria-busy", "true")
     button.dispatch_event("click")
@@ -843,9 +846,7 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
     page.route("**/api/event", lambda route: held.append(route))
     answer_all.focus()
     page.keyboard.press("Enter")
-    _until(
-        page, lambda traffic: traffic.sends == 1, "held the blanket answer in the wire"
-    )
+    holding(page, held, 1, "the blanket answer")
     expect(answer_all).to_have_attribute("aria-disabled", "true")
     expect(answer_all).to_be_focused()
     answer_all.dispatch_event("click")
@@ -2383,17 +2384,47 @@ def test_a_panel_row_follows_its_pages_status_live(
             "over the row's whole account"
         )
         # A leaf holding words of the reader's that nobody has read is a reason to go
-        # to it, and no row draws that either: the banner says this number for the page
-        # it stands on, and the tray says it for every page on the machine.
-        events_model.append_event(
+        # to it. The row keeps the live watcher as its primary state and carries the
+        # pending count beside it, rather than letting either fact hide the other.
+        comment = events_model.append_event(
             other_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": "Mine."},
         )
         told(page)
+        expect(row.locator(".lf-others-line")).to_have_text(
+            "Listening — pick a storage engine · 1 update waiting"
+        )
         expect(row).to_have_attribute(
             "title",
-            f"The other leaf\n{tmp_path / 'other-work'}\nAwaits — pick a storage engine"
+            f"The other leaf\n{tmp_path / 'other-work'}\n"
+            "Listening — pick a storage engine · 1 update waiting"
             "\n1 update waiting",
+        )
+        # Pickup advances the same canonical activity row that the thread receipt
+        # reads. A latent page-wide waiting declaration cannot contradict exact
+        # delivery into the current turn.
+        with service_model.PageTransaction(other_dir) as transaction:
+            session_model.record_pickup(transaction, [comment])
+        told(page)
+        expect(row.locator(".lf-others-line")).to_have_text("Handling updates")
+        expect(row).to_have_attribute(
+            "title",
+            f"The other leaf\n{tmp_path / 'other-work'}\nHandling updates"
+            "\n1 update being handled",
+        )
+        events_model.append_event(
+            other_dir,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "parent": comment["id"],
+                "revision": 1,
+                "text": "Use the existing page directory.",
+            },
+        )
+        told(page)
+        expect(row.locator(".lf-others-line")).to_have_text(
+            "Awaits — pick a storage engine"
         )
     # The claim still says waiting; its claimant is gone. The row reports what the
     # directory can prove, exactly as the neighbour's own banner would.
@@ -3988,13 +4019,15 @@ RING_WALKS = (
     # press on a Map control the wide posture does not draw at all, so its walk asks for
     # the narrow window the control lives in.
     ("a thread card", (), ("ship-review",)),
+    ("message media", (), ("feature-gallery",)),
     ("the page map sheet", (), ("corpus",)),
 )
 # The corpus is the open-ended page and design-mode anchor. The authored pages now
 # give each interaction family a focused page, so the page walk names those owners:
 # Design contributes settled and joined options, Postmortem a visual target, PR source
-# and code, Release drafts and a shot, Triage a card grip, and Ship the log-hosted
-# widgets and element mark. Chrome with no page-owned contents is walked on the corpus.
+# and code, Release drafts and a shot, Triage a card grip, Ship the log-hosted widgets
+# and element mark, and the developer gallery its message media. Chrome with no
+# page-owned contents is walked on the corpus.
 RING_WALK_EXAMPLES = tuple(
     dict.fromkeys(name for _scope, _keys, corpus in RING_WALKS for name in corpus)
 )
@@ -4037,19 +4070,25 @@ RING_SCOPE_CONTROL = {
         '.lf-margin-marker[data-lf-kinds~="comment"]',
         ".lf-margin-preview",
     ),
+    "message media": (None, ".lf-message-media"),
     "the page map sheet": (".lf-page-map-toggle", ".lf-page-map-action"),
 }
 # The window a scope's own surface stands in, where that is not the walk's own. Both
 # entries are a floor the layer states rather than a preference: the Map control is drawn
-# under the margin's breakpoint and nowhere else, and a Thread Button builds its card only
-# where the document leaves room beside the source and opens Threads otherwise. That room
-# is the wider of the two floors here, because the card's walk is ship review and ship
-# review stands a contents map: a page with a sidebar waits for 1472px of shell rather
-# than 1208px (theme.css). Every other scope is read at the width the page opened at.
+# under the margin's breakpoint and nowhere else, while the thread-card walk uses the
+# wider room where Ship review can stand its card beside the source instead of overlaying
+# the page. Ship review stands a contents map, so that beside posture waits for 1472px of
+# shell rather than 1208px (theme.css). Every other scope is read at the width the page
+# opened at.
 RING_WALK_VIEWPORT = (1200, 900)
 # The one scope whose surface the standing panel takes the place of.
 RING_SCOPES_WITHOUT_PANEL = {"a thread card"}
 RING_SCOPE_WIDTH = {"a thread card": 1600, "the page map sheet": 760}
+# Message media exists only in the developer gallery's seeded conversation. Its direct
+# control setup is the causal ring specimen; walking all 250+ unrelated gallery stops
+# after reading it adds no evidence and can keep the page's moving margin perpetually
+# outside the settled probe.
+RING_SINGLE_STOPS = {"message media"}
 # Focus put back at the document's start. `document.body.focus()` and not a blur: a blur
 # leaves the sequential focus navigation starting point where the blurred control stood,
 # so the next Tab carries on from the chrome, runs off the end of the order and never
@@ -4258,7 +4297,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     unnamed = set()
     opened, walked_in, errors = set(), set(), []
     stops = 0
-    examples = {example.stem: example for example in EXAMPLES}
+    examples = {example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY)}
     assert not (missing := set(RING_WALK_EXAMPLES) - set(examples)), (
         "the ring walk names examples that no longer exist: "
         + ", ".join(sorted(missing))
@@ -4271,10 +4310,40 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         # which is the only way a ring is painted on the page for a focus held in the
         # panel.
         url = serve(example, comments=2)
-        # A version to compare against, published the way a page gets one. Serving v2
-        # rather than letting the open page follow keeps the walk out of an activation.
-        _publish(serve.page_dir, 2, example.read_text(), "Same page, said twice.")
-        page, console = open_page(browser, url.replace("/v1.html", "/v2.html"))
+        # Sent media is a conditional control rather than authored markup. Give one
+        # synthetic thread the screenshot Release notes already ships, so the page walk
+        # reaches the media ring without making the omnibus developer gallery its corpus.
+        if name == "release-notes":
+            root = next(
+                event
+                for event in reversed(events_model.read_events(serve.page_dir))
+                if event["kind"] == "comment" and event["text"].startswith("Comment ")
+            )
+            events_model.append_event(
+                serve.page_dir,
+                {
+                    "kind": "reply",
+                    "author": "claude",
+                    "agent": "Codex",
+                    "parent": root["id"],
+                    "text": "![Pasted image](/media/051bee487bfb5d13.png)",
+                },
+            )
+        # A version to compare against, published the way a page gets one. Serving that
+        # next version rather than letting the open page follow keeps the walk out of an
+        # activation.
+        current_version = int(re.search(r"/v(\d+)\.html", url).group(1))
+        next_version = current_version + 1
+        _publish(
+            serve.page_dir,
+            next_version,
+            example.read_text(),
+            "Same page, said twice.",
+        )
+        page, console = open_page(
+            browser,
+            url.replace(f"/v{current_version}.html", f"/v{next_version}.html"),
+        )
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         # Opened, not pressed for a decision: a settled group's disclosure is this
@@ -4341,7 +4410,8 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 opener, arrival = control
                 # The first, because a page map has one Thread Button per commented
                 # target and the walk wants a card rather than a particular one.
-                page.locator(opener).first.click()
+                if opener:
+                    page.locator(opener).first.click()
                 page.locator(arrival).first.focus()
                 # A press opened the scope and a script placed the reader in it, and
                 # neither is the keyboard: `:focus-visible` answers the input device, so
@@ -4445,6 +4515,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     if fault not in seen_faults:
                         seen_faults.add(fault)
                         faults.append(fault)
+                if scope in RING_SINGLE_STOPS:
+                    came_round = True
+                    break
             # A control the runtime replaces on repaint is a new element at every Tab, so
             # the walk never meets a repeat and runs the cap out: sixteen times the work
             # and no message, which reads as a hang rather than as the fault it is.
@@ -4643,8 +4716,8 @@ def test_every_shadow_the_layer_lifts_a_box_with_is_cast_in_the_scheme_s_own_ink
 # reported were found.
 #
 # The reading takes the element's box together with any absolutely positioned pseudo it
-# hangs, because an aim need not be the thing the reader sees: a mark six pixels wide set
-# in a line of prose cannot grow without opening the line, so it carries a box of its own.
+# hangs, because a control may enlarge its target outside layout rather than make the
+# visible line or row taller.
 #
 # Inline boxes are out, and that is the target-size exception rather than an excuse: a
 # link inside a sentence is sized by the words around it, and nothing can be done about
@@ -4692,7 +4765,6 @@ AIM_SURFACES = (
     ".lf-version-diff",
     ".lf-help-command",
     ".lf-quote",
-    ".lf-gloss-mark",
     ".lf-tab-btn",
     ".lf-grip",
 )
@@ -4738,9 +4810,9 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
 
     Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
     reaction pills stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
-    version's Δ, a command in the reference, a quote and a gloss mark at around twelve by
-    seven. Three controls reached the coarse-pointer block and the rest reached neither
-    floor, so the same presses were small under a finger too.
+    version's Δ, a command in the reference, and a quote at around twelve by seven.
+    Three controls reached the coarse-pointer block and the rest reached neither floor,
+    so the same presses were small under a finger too.
 
     The sweep names no control. What makes a box an aim is that the runtime built it or
     stands in the runtime's own layer, and that the page under the pointer says a press
@@ -4749,7 +4821,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
     floor, because a control comfortable under one and not the other is the fault this is
     about rather than a lesser version of it.
 
-    The surfaces have to be opened for any of it to mean anything: seven of the nine
+    The surfaces have to be opened for any of it to mean anything: seven of the eight
     controls at issue exist only inside a panel, a menu, a resolved disclosure or the
     reference, and a sweep of the page at rest would report a clean layer while every one
     of them was still six pixels tall. AIM_SURFACES is that assertion.

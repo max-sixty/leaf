@@ -356,7 +356,7 @@ body { position: static; box-sizing: border-box; }
 /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
    and tab stop from standing reaction marks, which retain their shape without
    promising a press. A status keeps its ghost ring in the page-map walk, while its
-   hand and hover response go. Decided suggestions export sibling text receipts. */
+   hand and hover response go. */
 .lf-margin-button:is(button, [role="button"]):not([data-lf-behavior="status"]) {
   cursor: pointer;
 }
@@ -489,6 +489,8 @@ body { position: static; box-sizing: border-box; }
 textarea.lf-ui:where(:not(.lf-fab-input)) { padding: 8px 10px; border: 1px solid var(--border-2);
   border-radius: 6px; background: var(--card); color: inherit; resize: none;
   field-sizing: content; max-height: 50vh; overflow-y: auto; }
+.lf-ui :is(input, textarea)::placeholder,
+:is(input, textarea).lf-ui::placeholder { color: var(--muted); opacity: 1; }
 .lf-ui textarea:where(:not(.lf-fab-input)):is(:focus, .lf-focus),
 textarea.lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--here-ring);
   --lf-here-ring: text-box; outline-offset: 1px; border-color: var(--accent); }
@@ -555,6 +557,15 @@ body.lf-over-mark { cursor: pointer; }
    widget wears. The chrome holds itself out instead, from inside its own scope. */
 body:is(.lf-aiming, .lf-design) { cursor: default; }
 body:is(.lf-aiming, .lf-design).lf-over-item { cursor: pointer; }
+/* Every non-chrome point on the page accepts a drawing press. The crosshair therefore
+   belongs to the whole document plane; an aim box adds semantic context where one is
+   available but no longer decides whether the drag can begin. */
+html:has(body.lf-drawing),
+body.lf-drawing { cursor: crosshair; touch-action: none; }
+body.lf-drawing main,
+body.lf-drawing main * { cursor: crosshair !important; }
+body.lf-drawing main .lf-conversation,
+body.lf-drawing main .lf-conversation * { cursor: auto !important; }
 /* One pixel, just inside the border box, because both sides of that edge belong to
    somebody else. Outside it, the mark belongs to whatever encloses the element: a board
    scrolls (overflow-x: auto), its columns sit flush against its padding box on three
@@ -1493,7 +1504,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     padding-inline: 12px;
     resize: none;
     field-sizing: content; overflow-y: auto; }
-  textarea.lf-fab-input::placeholder { color: var(--muted); opacity: 1; }
   .lf-response-action { min-width: 30px; padding-inline: 9px;
     display: inline-flex; align-items: center; justify-content: center; gap: 0;
     white-space: nowrap; cursor: pointer; }
@@ -1584,6 +1594,17 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-aim.lf-shaped { border: 0; border-radius: 0 !important; background: none; }
   .lf-aim-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-visual-marks { display: contents; }
+  /* Drawing geometry is page-relative data painted through a viewport plane. Keeping
+     the plane fixed and clipped lets an anchored stroke cross content boundaries
+     without making its out-of-flow SVG part of the document's scrollable overflow. */
+  .lf-drawings { position: fixed; inset: 0; overflow: hidden; pointer-events: none;
+  }
+  .lf-drawing-mark { position: absolute; display: block; overflow: visible;
+    pointer-events: none; }
+  .lf-drawing-mark path { fill: none; stroke: var(--mark-ink); stroke-width: 3px;
+    stroke-linecap: round; stroke-linejoin: round; }
+  .lf-drawing-mark:is(.lf-drawing-active, .lf-drawing-pending) path {
+    stroke: var(--accent); }
   .lf-visual-mark { position: absolute; display: none; pointer-events: none;
     --lf-shape-ink: var(--mark-ink); --lf-shape-stroke: 1px;
     --lf-shape-dash: none;
@@ -1890,7 +1911,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      corner instead. */
   .lf-legend-box.lf-in .lf-legend-tag { bottom: auto; top: 0; border: 0;
     border-radius: 0 0 3px 0; }
-  .lf-banner.lf-designing { background: color-mix(in srgb, var(--accent) 14%, var(--veil)); }
+  .lf-banner:is(.lf-designing, .lf-drawing) {
+    background: color-mix(in srgb, var(--accent) 14%, var(--veil)); }
   /* Document-anchored like the box it names (paintInspect adds the scroll), so the
      two move together between the events that re-derive them. */
   .lf-inspect { position: absolute; pointer-events: none; display: none;

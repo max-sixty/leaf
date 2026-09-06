@@ -33,9 +33,9 @@
    A key may repeat across nesting scopes to mean the same intent in context. `c` reads
    that way: from the page it enters the nearest comment box; from the Threads list it
    enters the page-comment box one frame below that list. `g T`, not `c`, is what enters
-   Threads as a navigable surface and leaves `w` and `/` live. Where a box has a key that
-   reaches it, the box says so itself through its placeholder `address`, which is what a
-   screen reader hears.
+   Threads as a navigable surface and leaves `w` and `/` live. `activeRowLabel` projects
+   the dispatcher's live result into the destination composition box's placeholder. Each
+   box's `aria-label` remains its shortcut-free accessible name.
 
    Escape is an ordinary binding in the register for Leaf-owned modes. A focused control's
    specific inner step stands first, the latest active command return frame next, then the
@@ -73,6 +73,7 @@ import {
   bindings,
   commandEntries,
   live,
+  spell,
   word,
 } from "./bindings.js";
 import { keylineExpanded, less } from "./keyline.js";
@@ -237,20 +238,29 @@ function run(ev) {
 // An action chosen from the reference has no keydown to match, but it still belongs to
 // exactly one live scope. Resolve it through the same innermost-first stack and the same
 // shadowing as a key press.
-function commandFor(id) {
+function commandMatching(matches) {
   const nearer = shadow();
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!row.run || !live(row)) continue;
       const reachable = bindings(row).filter((binding) => !nearer.takes(binding));
-      const binding = commandEntries(row, reachable).find(
-        (command) => command.id === id,
+      const binding = commandEntries(row, reachable).find((command) =>
+        matches(command, row),
       )?.binding;
       if (binding != null) return { row, binding };
     }
     nearer.past(scope);
   }
   return null;
+}
+const commandFor = (id) => commandMatching((command) => command.id === id);
+// A contextual surface asks the dispatcher which one of its command rows is reachable
+// from the reader's current scope. This includes shadowing by native text entry and modes,
+// not only each row's own liveness.
+export function activeRowLabel(rows) {
+  const candidates = new Set(rows);
+  const command = commandMatching((_entry, row) => candidates.has(row));
+  return command ? spell(command.binding) : "";
 }
 // Snapshot every executable route while focus is still on the page. The reference is a
 // modal scope and correctly shadows the page once it opens; asking after that point would

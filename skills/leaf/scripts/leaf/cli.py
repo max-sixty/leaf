@@ -18,13 +18,12 @@ from leaf.conversation import (
 )
 from leaf.data import cmd_data_capture, cmd_data_clear, cmd_data_set
 from leaf.exporting import cmd_export
-from leaf.hooks import cmd_hook, unanswered_asks
+from leaf.hooks import cmd_hook
 from leaf.host import host_identity
 from leaf.hosting import cmd_serve, cmd_serve_temporary, cmd_stop, start_server
 from leaf.media import cmd_media
 from leaf.packages import cmd_package_check, cmd_package_init
 from leaf.page import cmd_guidance
-from leaf.passages import active_enclosing
 from leaf.publishing import cmd_stamp
 from leaf.requests import cmd_receipt
 from leaf.schema import (
@@ -34,6 +33,7 @@ from leaf.schema import (
     SKILL_ROOT,
     WAIT_BATCH_OUTPUT_INSTRUCTION,
 )
+from leaf.served_state.page import full_state
 from leaf.service import (
     PageTransaction,
     restore_page_claim,
@@ -537,7 +537,11 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
         events = page.events
         cursor = page.cursor
         pending = len(unacknowledged(events, cursor))
-        unanswered = unanswered_asks(events, cursor, active_enclosing(page_dir))
+        unanswered = [
+            obligation
+            for obligation in full_state(page_dir, events)["activity"]["obligations"]
+            if obligation["seq"] <= cursor
+        ]
         if pending:
             prefix = (
                 f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
@@ -549,10 +553,15 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
                 "before idling. " + ACK_BATCH_INSTRUCTION
             )
         if unanswered:
-            ids = ", ".join(t["id"] for t in unanswered)
+            ids = ", ".join(
+                obligation["target"]["id"]
+                if obligation["target"]["kind"] == "thread"
+                else obligation["event"]
+                for obligation in unanswered
+            )
             sys.exit(
                 f"{len(unanswered)} acknowledged "
-                f"comment{'s' if len(unanswered) != 1 else ''} with no answer "
+                f"reader move{'s' if len(unanswered) != 1 else ''} with no answer "
                 f"({ids}); idling ends the leaf over them. " + ANSWER_ASK_INSTRUCTION
             )
         page.set_status(state, detail)
@@ -611,16 +620,40 @@ def comment(
 @cli.command(short_help="Reply to a thread as the agent.")
 @click.argument("dir", metavar="PAGE")
 @click.option("--to", required=True, metavar="ID", help="comment or reply ID to answer")
+@click.option("--quote", help="new passage text to move this thread onto")
+@click.option("--section", metavar="ID", help="new element ID, or scope for --quote")
+@click.option("--part", metavar="ID", help="new declared visual part within --section")
 @click.option("--text", help="reply text (default: stdin)")
 @click.option("--markup", help="widget markup to render after the text, validated here")
 @click.option("--awaits", is_flag=True, help="mark this reply as waiting on the reader")
 @click.option("--json", "as_json", is_flag=True, help="print the reply event instead")
 def reply(
-    dir: str, to: str, text: str, markup: str, awaits: bool, as_json: bool
+    dir: str,
+    to: str,
+    quote: str,
+    section: str,
+    part: str,
+    text: str,
+    markup: str,
+    awaits: bool,
+    as_json: bool,
 ) -> None:
-    """Post a threaded reply as the agent (--text or stdin)."""
+    """Post a threaded reply as the agent (--text or stdin).
+
+    Supplying --quote, --section, or --part moves the thread's current anchor in
+    the same event. The opening comment keeps its original anchor in the log.
+    """
     page_dir = resolve_dir(dir)
-    accepted = cmd_reply(page_dir, to, text, markup, awaits)
+    accepted = cmd_reply(
+        page_dir,
+        to,
+        text,
+        markup,
+        awaits,
+        quote=quote,
+        section=section,
+        part=part,
+    )
     if as_json:
         print(json.dumps(accepted, ensure_ascii=False))
         return

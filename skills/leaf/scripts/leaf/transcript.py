@@ -131,7 +131,7 @@ def _published_reading(
 
 
 def _thread_heading(thread: dict) -> str:
-    anchor = thread["root"].get("anchor") or {}
+    anchor = thread["anchor"] or {}
     if anchor.get("quote"):
         head = f"> “{shown(anchor['quote'])}”"
     elif anchor.get("section"):
@@ -167,7 +167,11 @@ def _print_message(message: dict, registry: dict) -> None:
         print(f"- **{who}** reacted: {said}")
         return
     edited = " *(edited)*" if message.get("edited") else ""
-    body = message["text"] + (f"\n{message['markup']}" if message.get("markup") else "")
+    body = message.get("text", "")
+    if message.get("drawing"):
+        body += "\n_(drawing attached; inspect it on the live page)_"
+    if message.get("markup"):
+        body += f"\n{message['markup']}"
     print(f"- **{who}**{edited}: " + body.replace("\n", "\n  "))
 
 

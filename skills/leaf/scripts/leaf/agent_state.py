@@ -16,7 +16,6 @@ from .files import (
     version_descriptors,
 )
 from .passages import enclosing_of, page_passages
-from .presence import presence
 from .projection import (
     FrozenThreadReading,
     canonical_updates,
@@ -29,6 +28,7 @@ from .registry.storage import layer_metadata, require_registry
 from .requests import request_lifecycles, request_lifecycles_for, request_phases
 from .revisioning import activate_source
 from .schema import DATA_FILE
+from .served_state.page import full_state
 from .server import running_server
 from .service import PageTransaction, unacknowledged
 
@@ -134,7 +134,7 @@ def _base_state(
         "threads": [
             {
                 "id": root,
-                "anchor": thread["root"].get("anchor"),
+                "anchor": thread["anchor"],
                 "resolved": thread["resolved"] and thread["resolved"]["author"],
             }
             for root, thread in threads.items()
@@ -278,8 +278,29 @@ def _write_page_state(
     registry = require_registry(page_dir)
     versions = version_descriptors(page_dir, events)
     revision, active = _active_revision(page_dir, events)
-    presence_reading = presence(page_dir, events)
-    claims = presence_reading.pop("claims")
+    served = full_state(page_dir, events)
+    activity = served["activity"]
+    claims = served["claims"]
+    # Agent state and browser state are two views of one snapshot. Select the
+    # presence portion from the already-projected server reading instead of
+    # gathering mutable claim and lease evidence a second time.
+    presence_reading = {
+        key: served[key]
+        for key in (
+            "status",
+            "listening",
+            "cursor",
+            "pending",
+            "agent",
+            "host",
+            "session_alive",
+            "claim_session",
+            "claim_turn",
+            "turn_closed",
+            "viewed",
+            "session_cwd",
+        )
+    }
     document = _read_active_document(page_dir, events, registry, revision)
     spoken = document.spoken if document is not None else {}
     threads = build_threads(events, enclosing_of(spoken))
@@ -298,6 +319,7 @@ def _write_page_state(
         registry,
         requests,
     )
+    state["activity"] = activity
     if document is not None:
         _apply_document_state(
             state, document, events, revision, threads, stored_data, registry
@@ -336,11 +358,14 @@ def _write_page_state(
         fragment = thread_reading.structure.fragments.get(event["id"])
         message = {
             "message": event["id"],
-            "text": event.get("text", ""),
             "source": {"kind": "message", "event": event["id"], "seq": event["seq"]},
             "edit": {"kind": "conversation", "thread": thread_id},
             "content": [],
         }
+        if "text" in event:
+            message["text"] = event["text"]
+        if "drawing" in event:
+            message["drawing"] = event["drawing"]
         state["content"].append(message)
         if fragment is None:
             continue

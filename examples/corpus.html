@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Leaf example corpus</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -1133,7 +1133,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
         Icon color carries positive or negative intent; a small corner mark carries
         interaction state. A selected reaction keeps its square mark even under the
         pointer. One peer stays visible, while … unfolds larger sets. Accept or reject a
-        change to try its receipt and Undo, or rewrite a draft and save it. Press
+        change, undo that choice, or rewrite a draft and save it. Press
         <kbd>g</kbd> to reveal the contents labels and navigation shortcuts, or use
         <kbd>j</kbd>/<kbd>k</kbd> to scroll down/up a little while reading.
       </p>
@@ -1827,7 +1827,9 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
 Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-draft>
         <p id="bg-history-guide">
-          <strong>Picked up</strong> means the saved edit reached the agent.
+          <strong>Picked up</strong> means the saved edit entered an agent turn. The
+          receipt and top bar derive their words from the same delivery, turn, and work
+          evidence.
         </p>
         <lf-draft id="bg-history">
           <pre>The sample workshop is in the blue room.</pre>
@@ -1835,14 +1837,19 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-conversations">
-        <p class="eyebrow bg-feature-elements">Thread Button · Threads panel</p>
+        <p class="eyebrow bg-feature-elements">
+          Thread Button · inline thread · Threads panel
+        </p>
         <h2 id="bg-conversations-heading">
           <strong>Threads</strong
           ><span class="bg-feature-detail">: anchored conversations</span>
         </h2>
         <p id="bg-conversations-guide">
-          A Thread Button opens the conversation attached to a passage. Its count shows
-          how many conversations share that passage.
+          With Threads closed, a Thread Button or marked passage opens the conversation
+          inline; t moves to the next inline card and T to the previous one. Open
+          Threads while one is focused, including with g T, and the same thread stays
+          focused in the panel. Its count shows how many conversations share that
+          passage.
         </p>
         <p id="bg-thread-text">
           <strong>An existing conversation.</strong> The sample agenda has room for one
@@ -1919,9 +1926,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p id="bg-button-workflow-guide">
           <strong>Act, fail, and settle.</strong> Accept or Reject starts as an action.
           Its small open-ring witness moves while the event travels. A refused send
-          leaves a diamond on Retry and Cancel. Success prints Accepted or Rejected
-          beside a square-marked Undo Button, while a moving-ring Sent status remains
-          until an agent picks the decision up.
+          leaves a diamond on Retry and Cancel. Success briefly announces Accepted or
+          Rejected; the changed content and square-marked Undo Button remain. Sent
+          remains as a status until an agent picks the decision up.
         </p>
         <p id="bg-button-workflow-line">
           The practice route uses
@@ -1941,8 +1948,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p id="bg-button-status-guide">
           <strong>Edit and hand off.</strong> Opening the draft above replaces Edit with
           dot-marked Save and Cancel Buttons; Save uses the moving ring while it sends.
-          The saved draft arrives with a Picked up status. When an agent claims that
-          unsettled edit, the same target gains an animated Active disclosure.
+          The saved draft arrives with a Waiting for pickup status. When an agent claims
+          that unsettled edit, the same target gains an animated Active disclosure.
         </p>
         <p id="bg-buttons-line">
           <strong>Combine roles.</strong> Use the
@@ -1976,7 +1983,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-reader-workflows">
         <p class="eyebrow bg-feature-elements">
-          Approve version · Design mode · Requests
+          Approve version · Design mode · Draw mode · Requests
         </p>
         <h2 id="bg-reader-workflows-heading">
           <strong>Reader workflows</strong
@@ -2007,6 +2014,20 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             Press <kbd>l</kbd>, then click <strong>Street map</strong>. Leaf opens a
             comment about <code>lf-option · bg-choice-street</code> without choosing the
             option. Press <kbd>Escape</kbd> to leave design mode.
+          </p>
+        </section>
+
+        <section id="bg-drawing-comments">
+          <p class="eyebrow bg-feature-elements">Draw mode · drawing comment</p>
+          <h3 id="bg-drawing-comments-heading">
+            <strong>Draw mode</strong
+            ><span class="bg-feature-detail">: point with a freehand mark</span>
+          </h3>
+          <p id="bg-drawing-comments-guide">
+            Press <kbd>w</kbd> and draw anywhere across the page. Start over this guide
+            or in its margin to anchor the comment here; empty space with no item
+            alongside comments on the page whole. Send the drawing alone or add words
+            first.
           </p>
         </section>
 

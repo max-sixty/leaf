@@ -117,8 +117,9 @@ def _validate_event_contracts(kinds: dict, path) -> None:
         properties = record.get("properties", {})
         required = record.get("required", [])
         # The record's closed shape, plus the two constraints a kind states over
-        # fields it lists — which of two it must carry (comment and reply carry
-        # `text` or `token`), and what one field rules out. Both are compared
+        # fields it lists — which content it must carry (comments take text,
+        # drawing, or token; replies take text or token), and what one field rules
+        # out. Both are compared
         # kind for kind below, so a layer cannot loosen the installed contract
         # through them, and both may name only declared fields, checked here.
         constrained = {

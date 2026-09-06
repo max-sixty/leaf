@@ -11,10 +11,10 @@ names the real control or gesture, seeds the state it needs, and tells the
 developer what result to inspect. For injected chrome whose state comes from
 outside one document, name that condition and exercise it in the gallery's browser
 test. The gallery uses the same companion version, log, and data conventions as an
-example, but the website does not publish it. `corpus.html` and `corpus.data.json`
-are generated from both sets; edit the source page and regenerate the corpus
-instead of patching either output (`test_corpus_is_generated_from_the_examples`
-holds the two to their sources).
+example. The website publishes it as a developer reference linked outside the visual
+examples catalog. `corpus.html` and `corpus.data.json` are generated from both sets;
+edit the source page and regenerate the corpus instead of patching either output
+(`test_corpus_is_generated_from_the_examples` holds the two to their sources).
 
 ## Every widget and idiom in the vocabulary stands here
 
@@ -148,10 +148,14 @@ A seed is also the only way a widget reaches the corpus in a message, since an
 event's `markup` renders in the panel and nowhere else. `ship-review.jsonl`
 carries the shape: an agent question with a `multiple` group, the reader ticking
 two of the three and not yet pressing Done, so the group is both decided and still
-asking. `test_a_shipped_log_opens_its_example_on_a_live_thread` opens the panel
-and asks that each widget the log carries is drawn, that a widget the registry
-says awaits an answer has a control to answer with, and that the decided state
-differs from the same page under the same log with the decisions removed.
+asking. The same log carries a screenshot in a message, which is the one place
+`.lf-media-open` — and the `media` ring on it — stands in the corpus at all; it
+hangs off an existing message rather than a new one, because the panel's thread
+lengths and its waiting-on-you count are both read by fixtures.
+`test_a_shipped_log_opens_its_example_on_a_live_thread` opens the panel and asks
+that each widget the log carries is drawn, that a widget the registry says awaits
+an answer has a control to answer with, and that the decided state differs from
+the same page under the same log with the decisions removed.
 
 A hand-written seed is markup no gate reads: `version check` asks it only for
 ids colliding with the version's, and `leaf reply` never sees a file written into
@@ -183,6 +187,13 @@ the browser test modules, `test_page_fixtures_pass_check`, `publish_pages` in
 `scripts/site.py`, and `scripts/preview.py`. A publisher that forgets fails
 loudly, because `version check` refuses a `/media/` reference the directory
 cannot answer.
+
+A seeded message names its media the other way: a pasted screenshot lives in the
+message's Markdown, where the parsed reading that harvests attributes cannot see
+it, so a builder that reads only the markup serves the page with a broken image
+and no error until a console sweep reads one. `serve` reads the log's references
+too, and the publishers that copy `examples/media/` whole already covered it.
+`ship-review.jsonl` carries the shape.
 
 A before/after pair is drawn rather than captured, since what it shows is a
 fiction the example needs. Draw both images at one height, because they share one

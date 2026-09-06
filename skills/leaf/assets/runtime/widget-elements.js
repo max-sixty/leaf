@@ -456,14 +456,14 @@ export function relabel(node, label, { says } = {}) {
       `relabel(${label}): say whether this label is the page speaking — ` +
         `true, false, or "echo" for a copy of words it says elsewhere`,
     );
-  if (node.textContent !== label) node.textContent = label;
-  keeps(node, "data-lf-gen", "1");
+  node.textContent = label;
+  node.dataset.lfGen = "1";
   node.toggleAttribute("data-lf-said", says === true);
   node.toggleAttribute("data-lf-echo", says === "echo");
 }
 
 // Room for a word not yet said, taken from the words themselves. A control that will
-// rewrite its own label ("✓ Accept" to "✓ Accepted", a count gaining a digit) must
+// rewrite its own label ("Approve version" to "✓ Version approved", a count gaining a digit) must
 // hold the widest word's room from the start, or the press rewrites the one line a
 // press may not move. Stating that room as a number is a measurement that stops
 // being true silently when the words or the font change, so the control measures the

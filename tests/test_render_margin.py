@@ -10,6 +10,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf.served_state import page as served_page
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
@@ -941,16 +942,16 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, width, 900)
 
-    for target, outcome, receipt in (
-        ("bg-replace", "accept", "Accepted"),
-        ("bg-insert", "reject", "Rejected"),
-        ("bg-delete", "accept", "Accepted"),
+    for target, outcome in (
+        ("bg-replace", "accept"),
+        ("bg-insert", "reject"),
+        ("bg-delete", "accept"),
     ):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         controls = page.locator(f'.lf-sug-actions[data-lf-for="{target}"]')
         item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
         round_trip(page)
-        expect(controls.locator(".lf-sug-receipt")).to_have_text(receipt)
+        expect(controls.locator(".lf-margin-receipt")).to_have_count(0)
         controls.get_by_role("button", name=re.compile("^Undo ")).click()
         round_trip(page)
         expect(
@@ -1115,11 +1116,16 @@ def test_the_feature_gallery_carries_a_button_through_its_whole_lifecycle(
     page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1440, 900)
 
-    seeded = page.locator('[data-lf-margin-for="bg-button-accepted"]')
     expect(page.locator("#bg-button-accepted")).to_have_attribute(
         "data-lf-state", "accept"
     )
-    expect(seeded.locator(".lf-sug-receipt")).to_have_text("Accepted")
+    expect(page.locator("#bg-button-accepted lf-new")).to_be_visible()
+    expect(page.locator("#bg-button-accepted lf-old")).to_be_hidden()
+    seeded = page.locator('[data-lf-margin-for="bg-button-accepted"]')
+    expect(seeded.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(
+        seeded.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    ).to_have_count(0)
 
     draft = page.locator('[data-lf-margin-for="bg-draft"]')
     draft.locator(".lf-draft-pencil").click()
@@ -1128,10 +1134,10 @@ def test_the_feature_gallery_carries_a_button_through_its_whole_lifecycle(
     expect(save).to_have_attribute("data-lf-state", "engaged")
     expect(cancel_draft).to_have_attribute("data-lf-state", "engaged")
     cancel_draft.click()
-    picked_up = page.locator('[data-lf-margin-for="bg-history"]').get_by_role(
-        "status", name=re.compile(r"^Picked up for ")
+    waiting = page.locator('[data-lf-margin-for="bg-history"]').get_by_role(
+        "status", name=re.compile(r"^Waiting for pickup for ")
     )
-    expect(picked_up).to_have_attribute("data-lf-state", "settled")
+    expect(waiting).to_have_attribute("data-lf-state", "busy")
 
     workflow = page.locator('[data-lf-margin-for="bg-button-workflow"]')
     accept = workflow.get_by_role(
@@ -1177,19 +1183,13 @@ def test_the_feature_gallery_carries_a_button_through_its_whole_lifecycle(
     expect(page.locator("#bg-button-workflow")).to_have_attribute(
         "data-lf-state", "accept"
     )
-    expect(workflow.locator(".lf-sug-receipt")).to_have_text("Accepted")
+    expect(page.locator(".lf-notice")).to_have_text(re.compile(r"^Accepted .+ — sent$"))
+    expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     undo_button = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
     expect(undo_button).to_have_attribute("data-lf-state", "settled")
     sent = workflow.get_by_role("status", name=re.compile(r"^Sent for "))
     expect(sent).to_be_visible()
     expect(sent).to_have_attribute("data-lf-state", "busy")
-    assert sent.evaluate(
-        """button => {
-          const style = getComputedStyle(button, '::after');
-          return style.animationName.includes('button-busy') &&
-            style.animationPlayState === 'running';
-        }"""
-    ), "the gallery's Sent status has no running lifecycle animation"
 
     claimed = CliRunner().invoke(
         cli_model.cli,
@@ -1225,7 +1225,8 @@ def test_the_feature_gallery_carries_a_button_through_its_whole_lifecycle(
     )
     wait_for_revision(page, 3)
     expect(active).to_have_count(0)
-    expect(workflow.locator(".lf-sug-receipt")).to_have_text("Accepted")
+    expect(page.locator("#bg-button-workflow lf-new")).to_be_visible()
+    expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     expect(
         workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
     ).to_have_count(0)
@@ -1303,9 +1304,13 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
     expect(page.locator("#bg-button-accepted")).to_have_attribute(
         "data-lf-state", "accept"
     )
+    expect(page.locator("#bg-button-accepted lf-new")).to_be_visible()
+    expect(page.locator("#bg-button-accepted lf-old")).to_be_hidden()
+    seeded = page.locator('[data-lf-margin-for="bg-button-accepted"]')
+    expect(seeded.locator(".lf-margin-receipt")).to_have_count(0)
     expect(
-        page.locator('[data-lf-margin-for="bg-button-accepted"] .lf-sug-receipt')
-    ).to_have_text("Accepted")
+        seeded.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    ).to_have_count(0)
 
     feature_headings = page.locator(
         "main section h2:has(> .bg-feature-detail), "
@@ -1923,8 +1928,8 @@ def test_left_and_right_walk_the_revealed_button_cluster(browser, serve):
     page.close()
 
 
-def test_settling_a_secondary_action_exposes_its_lifecycle(browser, serve):
-    """A settled outcome and its unsettled handoff stay one engaged cluster."""
+def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serve):
+    """The settled content and its Undo stay in one engaged cluster."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     resized(page, 1440, 900)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
@@ -1933,7 +1938,7 @@ def test_settling_a_secondary_action_exposes_its_lifecycle(browser, serve):
     options.get_by_role("button", name=re.compile(r"Reject")).click()
     round_trip(page)
 
-    expect(item.locator(".lf-sug-receipt")).to_have_text("Rejected")
+    expect(item.locator(".lf-margin-receipt")).to_have_count(0)
     expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
     expect(options).to_be_visible()
     expect(
@@ -2421,7 +2426,7 @@ def test_a_buttons_walk_position_stays_out_of_its_visible_word(browser, serve):
 
 
 def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosure(
-    browser, serve
+    browser, serve, monkeypatch
 ):
     """A fitting keeps the Button family visible without promising a press.
 
@@ -2622,8 +2627,18 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         stops
     )
 
-    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(minutes=3))
-    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    # Waiting is a server-folded phase now. Advance the threaded test server's clock,
+    # then let the ordinary state read advance the retained Button in place.
+    sent_at = datetime.fromisoformat(logged_action["ts"])
+    advanced = (sent_at + timedelta(minutes=3)).isoformat()
+
+    def advanced_now():
+        return advanced
+
+    for clock_owner in (served_page, events_model, service_model):
+        monkeypatch.setattr(clock_owner, "now_iso", advanced_now)
+    session_model.cmd_status(page_dir, "idle", "")
+    told(page)
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
     assert_status("Waiting for pickup", "Sent 3m ago")
 
@@ -3085,12 +3100,13 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(thread).to_have_attribute("aria-expanded", "true")
 
     resized(page, 1207, 900)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(thread).to_have_attribute("aria-controls", "lf-margin-preview")
+    expect(thread).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
-    expect(thread).to_have_attribute("aria-controls", "lf-threads")
-    expect(thread).not_to_have_attribute("aria-expanded", re.compile(".+"))
-    page.get_by_role("button", name="Close threads").click()
-    panel_settled(page, open=False)
+    expect(thread).to_be_focused()
 
     resized(page, 1440, 900)
     expect(thread).to_have_attribute("aria-controls", "lf-margin-preview")
@@ -3563,6 +3579,7 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     panel_settled(page)
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(f'.lf-thread[data-id="{root_id}"]')).to_be_focused()
 
     preview.evaluate(
         """card => {
@@ -3579,6 +3596,26 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     expect(page.locator(f'.lf-thread[data-id="{root_id}"] textarea')).to_be_focused()
     assert page.evaluate("() => window.__openedMarginModes") == []
 
+    assert errors == []
+    page.close()
+
+
+def test_a_thread_button_opens_inline_when_the_panel_is_closed(browser, serve):
+    """The Button's destination follows the open workspace, not available margin."""
+    sidebar_page = ASK_PAGE.replace(
+        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+    )
+    page, errors = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
+    resized(page, 1200, 900)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+
+    marker.click()
+
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-margin-thread textarea")).to_be_focused()
+    expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
+    expect(marker).to_have_attribute("aria-expanded", "true")
     assert errors == []
     page.close()
 
@@ -3770,11 +3807,11 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     """The shipped exchange fits beside its source and the contents sidebar.
 
     Ship review now stands a contents map, and a sidebar claims the opposite strip: the
-    thread margin waits for 1472px of shell there rather than 1208px (theme.css), so
-    1440 is a window this page opens Threads in rather than the one this case is
-    about."""
+    thread margin waits for 1472px of shell there rather than 1208px (theme.css). Below
+    that floor the same inline card overlays the page rather than opening Threads."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
     page, errors = open_page(browser, serve(example))
+    page.emulate_media(reduced_motion="reduce")
     resized_shell(page, 1536, 900)
     marker = page.get_by_role(
         "group", name=re.compile(r"Page actions for task · iOS reconnect stall")
@@ -3795,6 +3832,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     expect(
         thread.get_by_role("button", name="Open interactive reply in Threads")
     ).to_have_count(1)
+    expect(thread.locator("textarea")).to_be_focused()
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -3802,6 +3840,8 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
           const marker = markerNode.getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           const title = document.querySelector('.lf-margin-preview-title')
+            .getBoundingClientRect();
+          const reply = document.querySelector('.lf-margin-thread .lf-say')
             .getBoundingClientRect();
           const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
           return {bannerBottom: banner.bottom, mainRight: main.right,
@@ -3813,7 +3853,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
                   borderLeft: cardStyle.borderLeftWidth,
                   borderRight: cardStyle.borderRightWidth,
                   titleLeft: title.left, titleTop: title.top,
-                  cardScroll: document.querySelector('.lf-margin-preview').scrollTop,
+                  replyTop: reply.top, replyBottom: reply.bottom,
                   panelOpen: document.querySelector('.lf-panel').classList.contains('open')};
         }"""
     )
@@ -3830,7 +3870,8 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert geometry["cardTop"] <= geometry["markerMiddle"] <= geometry["cardBottom"], (
         geometry
     )
-    assert geometry["cardScroll"] == 0, geometry
+    assert geometry["replyTop"] >= geometry["cardTop"], geometry
+    assert geometry["replyBottom"] <= geometry["cardBottom"], geometry
     assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
     assert geometry["titleLeft"] == pytest.approx(geometry["cardLeft"] + 13, abs=0.5)
     assert not geometry["panelOpen"], geometry
@@ -3859,14 +3900,12 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
     page.keyboard.press("Escape")
-
-    marker.click()
     expect(preview).to_be_visible()
+    expect(thread.locator(".lf-conversation-thread")).to_be_focused()
 
-    page.keyboard.press("Shift+Tab")
-    expect(
-        thread.get_by_role("button", name="Open interactive reply in Threads")
-    ).to_be_focused()
+    open_full = thread.get_by_role("button", name="Open interactive reply in Threads")
+    open_full.focus()
+    expect(open_full).to_be_focused()
     page.keyboard.press("Enter")
     panel_settled(page)
     expect(preview).to_be_hidden()
@@ -3902,17 +3941,18 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert beside["cardWidth"] >= 423, beside
 
     resized(page, 1471, 900)
+    expect(preview).to_be_visible()
+    expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
+    expect(marker).to_have_attribute("aria-expanded", "true")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
-    expect(marker).to_have_attribute("aria-controls", "lf-threads")
-    expect(marker).not_to_have_attribute("aria-expanded", re.compile(".+"))
-    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
-    page.get_by_role("button", name="Close threads").click()
-    panel_settled(page, open=False)
+    expect(marker).to_be_focused()
     marker.hover()
     expect(preview).to_be_hidden()
     marker.click()
-    expect(preview).to_be_hidden()
-    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(preview).to_be_visible()
+    expect(page.locator(".lf-panel")).to_be_hidden()
 
     assert errors == []
     page.close()
@@ -4082,12 +4122,10 @@ def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
     expect(page.locator("body")).to_have_attribute("data-lf-tray", "asks")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     marker.click()
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
-    page.get_by_role("button", name="Close threads").click()
-    panel_settled(page, open=False)
-    if page.locator("body").get_attribute("data-lf-tray") == "asks":
-        page.locator(".lf-asks").click()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    marker.click()
+    page.locator(".lf-asks").click()
     expect(page.locator("body")).not_to_have_attribute("data-lf-tray", "asks")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     marker.click()
@@ -4107,10 +4145,10 @@ def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    marker.click()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
-    page.get_by_role("button", name="Close threads").click()
-    panel_settled(page, open=False)
     resized_shell(page, 1472, 900)
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)

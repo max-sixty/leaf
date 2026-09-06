@@ -1085,7 +1085,61 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
           return Math.abs((rect.top + rect.bottom) / 2 - innerHeight / 2) < 2;
         }"""
     )
-    expect(page.locator(".lf-thread")).to_be_focused()
+    expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
+    """t/T use page-local threads; g T promotes the focused one into the index."""
+    page, errors = open_page(
+        browser,
+        serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+
+    # A panel search belongs to the panel. Closing it keeps that search for the next
+    # visit, but must not silently remove a visible page thread from the inline walk.
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, True)
+    page.fill(".lf-find-box", "neighbouring block")
+    expect(page.locator(f'.lf-thread[data-id="{roots[0]}"]')).to_be_hidden()
+    expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_visible()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, False)
+
+    page.keyboard.press("t")
+    first = page.locator(
+        f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[0]}"]'
+    )
+    expect(first).to_be_focused()
+    expect(page.locator(".lf-panel")).to_be_hidden()
+
+    page.keyboard.press("t")
+    second = page.locator(
+        f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[1]}"]'
+    )
+    expect(second).to_be_focused()
+    expect(page.locator(".lf-panel")).to_be_hidden()
+
+    page.keyboard.press("Shift+t")
+    expect(first).to_be_focused()
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel = page.locator(f'.lf-thread[data-id="{roots[0]}"]')
+    expect(panel).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(first).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(first.locator("textarea")).to_be_focused()
     assert errors == []
     page.close()
 
@@ -1120,18 +1174,56 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
         )
     page, errors = open_page(browser, url)
     threads = page.locator(".lf-threads > .lf-thread:not([hidden])")
-    thread = threads.first
-    reply = thread.locator(":scope > .lf-compose textarea")
+    first_id = threads.first.get_attribute("data-id")
+    second_id = threads.nth(1).get_attribute("data-id")
+    thread = page.locator(
+        f'.lf-margin-preview .lf-conversation-thread[data-thread="{first_id}"]'
+    )
+    second = page.locator(
+        f'.lf-margin-preview .lf-conversation-thread[data-thread="{second_id}"]'
+    )
+    reply = thread.locator("textarea")
 
     page.mouse.click(*mark_point(page, "lf-mark"))
-    panel_settled(page)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
 
     expect(reply).to_be_focused()
-    if long_thread:
-        expect(thread).not_to_have_class(re.compile(r"\bflash\b"))
-        expect(thread.locator(":scope > .lf-compose")).to_have_class(
-            re.compile(r"\bflash\b")
-        )
+    expect(reply).to_be_visible()
+    wait_standing(page, "bold text")
+    assert "close thread" in key_line(page)
+    page.keyboard.press("t")
+    expect(reply).to_have_value("t")
+    expect(reply).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    assert "reply" in key_line(page)
+    page.keyboard.press("t")
+    expect(second).to_be_focused()
+    wait_standing(page, "neighbouring block")
+    page.keyboard.press("Enter")
+    expect(second.locator("textarea")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    page.keyboard.press("Shift+t")
+    expect(second).to_be_focused()
+    page.keyboard.press("Shift+t")
+    expect(thread).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(reply).to_be_focused()
+    expect(reply).to_be_visible()
+
+    # With Threads already open, the same page mark takes the indexed route and keeps
+    # the panel's long-thread landing guarantees.
+    page.keyboard.press("Escape")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    panel_thread = threads.first
+    panel_reply = panel_thread.locator(":scope > .lf-compose textarea")
+    page.mouse.click(*mark_point(page, "lf-mark"))
+    expect(panel_reply).to_be_focused()
     in_threads_scrollport(page, ".lf-threads > .lf-thread:first-of-type .lf-compose")
     if long_thread:
         page.wait_for_function(
@@ -1192,39 +1284,20 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
         assert not landing["crossedLines"], (
             f"the pinned heading cut through a text line: {landing}"
         )
-    wait_standing(page, "bold text")
-    assert "back to thread" in key_line(page)
-    page.keyboard.press("t")
-    expect(reply).to_have_value("t")
-    expect(reply).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(thread).to_be_focused()
-    assert "reply" in key_line(page)
-    page.keyboard.press("t")
-    expect(threads.nth(1)).to_be_focused()
-    wait_standing(page, "neighbouring block")
-    page.keyboard.press("Enter")
-    expect(threads.nth(1).locator(":scope > .lf-compose textarea")).to_be_focused()
-    page.keyboard.press("Escape")
-    page.keyboard.press("Shift+t")
-    expect(thread).to_be_focused()
-    page.keyboard.press("Enter")
-    expect(reply).to_be_focused()
-    in_threads_scrollport(page, ".lf-threads > .lf-thread:first-of-type .lf-compose")
     assert errors == []
     page.close()
 
 
 def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
     """A reader sent from a comment to its passage lands among every other mark on the
-    page, all of them painted alike, and the panel is the only surface saying which one
-    they asked for. The page says it too: the thread holding the focus paints its own
-    passage apart from the rest for as long as the reader remains in that thread.
+    page, all of them painted alike. The page says which one they asked for too: the
+    thread holding the focus paints its own passage apart from the rest for as long as
+    the reader remains in that thread.
 
     Read off the focus rather than off the travel, so it answers where the reader *is*.
     The walk moves it, a reply box keeps it — standing in a comment is standing in it
-    while writing back — and leaving the panel takes it down, rather than leaving a page
-    wearing "you are here" about a comment nobody is in."""
+    while writing back — and leaving the thread takes it down, rather than leaving a
+    page wearing "you are here" about a comment nobody is in."""
     url = serve(INLINE_PAGE)
     page, errors = open_page(browser, url)
     api = url.rsplit("/versions/", 1)[0] + "/api/event"
@@ -1238,6 +1311,11 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
             api,
             data={"kind": "comment", "revision": 1, "text": text, "anchor": anchor},
         )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 2")
     page.locator("#fig.lf-mark-el").wait_for()
 
@@ -1256,8 +1334,9 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
     # overlap the order exists for and because nothing registers the hover until a mouse
     # has been over a passage. A higher highlight supplies only the properties it states,
     # so this is what lets one mark say "clickable" and "you are here" at once.
-    # Opening the panel moves the document; settle it before reading pointer geometry.
-    panel_settled(page)
+    # Opening the inline card moves the document to the passage; settle it before
+    # reading pointer geometry.
+    page_at_rest(page)
     page.mouse.move(*mark_point(page, "lf-mark-here"))
     page.wait_for_function("() => (CSS.highlights.get('lf-mark-hover')?.size ?? 0) > 0")
     ranks = page.evaluate(
@@ -1279,24 +1358,29 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
     page.keyboard.press("t")
     wait_standing(page, "", ["fig"])
     page.keyboard.press("t")
-    expect(page.locator(".lf-thread").last).to_be_focused()
+    expect(
+        page.locator(
+            f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[2]}"]'
+        )
+    ).to_be_focused()
     wait_standing(page, "", ["fig"])
     page.keyboard.press("Shift+t")
     wait_standing(page, "neighbouring block")
     page.keyboard.press("Shift+t")
     wait_standing(page, "bold text")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-thread").first).to_be_focused()
+    first = page.locator(
+        f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[0]}"]'
+    )
+    expect(first).to_be_focused()
     wait_standing(page, "bold text")
 
     # Standing in a comment while writing back to it is still standing in it: the reply
     # box is inside the thread, and knowing which passage it is on is worth most there.
-    page.locator(".lf-threads > .lf-thread:not([hidden])").first.locator(
-        "textarea"
-    ).focus()
+    first.locator("textarea").focus()
     wait_standing(page, "bold text")
 
-    # And leaving the panel takes it down. A mark that outlived the reader's attention
+    # And leaving the thread takes it down. A mark that outlived the reader's attention
     # would be a page insisting on a comment nobody is in.
     page.evaluate("() => document.activeElement.blur()")
     wait_standing(page, "")
@@ -1593,10 +1677,17 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
         "el => { const r = el.getBoundingClientRect(); return r.width <= 1 && r.height <= 1; }"
     ), "the hidden line is painting on screen"
     note = page.locator("#p1 .lf-mark-note")
+    inline1 = page.locator(
+        f'.lf-margin-preview .lf-conversation-thread[data-thread="{c1}"]'
+    )
+    inline2 = page.locator(
+        f'.lf-margin-preview .lf-conversation-thread[data-thread="{c2}"]'
+    )
     assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
     expect(note).to_have_role("button")
     note.click()
-    expect(page.locator(f'.lf-thread[data-id="{c1}"]')).to_be_focused()
+    expect(inline1).to_be_focused()
+    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     page.keyboard.press("Escape")
     expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     note.focus()
@@ -1606,16 +1697,16 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     )
     assert note.evaluate("el => getComputedStyle(el).opacity") == "1"
     note.press("Enter")
-    expect(page.locator(f'.lf-thread[data-id="{c1}"]')).to_be_focused()
+    expect(inline1).to_be_focused()
     page.keyboard.press("t")
-    expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
+    expect(inline2).to_be_focused()
 
     # Once the first thread resolves, the same control enters the next one.
     events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": c1})
     told(page)
     expect(note).to_have_text("1 comment")
     note.press("Enter")
-    expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
+    expect(inline2).to_be_focused()
     # An element anchor has no text to paint, and the element it names holds the line.
     assert "1 comment" in page.locator("#fig").aria_snapshot()
 
@@ -3489,12 +3580,13 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     expect(page.locator(".lf-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
 
-    # The fast rung: t reopens onto a thread, and Esc from it is one press out.
+    # The fast rung: t opens the inline thread, and Esc from it is one press out.
     # Every rung earns a press here because Esc is the only keyboard collapse.
     page.keyboard.press("t")
-    expect(page.locator(".lf-thread")).to_be_focused()
-    expect(line).to_contain_text("close threads")
+    expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
+    expect(line).to_contain_text("close thread")
     page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-panel")).to_be_hidden()
     assert errors == []
     page.close()
@@ -5274,6 +5366,10 @@ def test_the_other_response_row_can_turn_the_compact_field_into_a_suggestion(
     box = page.locator(".lf-fab-input")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(box).not_to_be_focused()
+    expect(box).to_have_attribute("placeholder", "Comment… · c")
+    expect(page.locator(".lf-general textarea")).to_have_attribute(
+        "placeholder", "Comment on the page"
+    )
     page.keyboard.press("c")
     expect(box).to_be_focused()
     expect(box).to_have_attribute(
@@ -5358,9 +5454,14 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
     page.locator(".lf-threads-toggle").click()
     general = page.locator(".lf-general textarea")
     replies = page.locator(".lf-thread textarea")
+    assert general.get_attribute("placeholder") == "Comment on the page · c"
+    page.locator(".lf-find-box").focus()
+    key_line(page)
+    assert general.get_attribute("placeholder") == "Comment on the page"
     general.focus()
     key_line(page)
     assert re.search(r"(⌘⏎|Ctrl\+⏎)$", general.get_attribute("placeholder"))
+    assert general.get_attribute("aria-label") == "Comment on the page"
 
     # Cross A -> B (and sync B) -> C in one turn, before the coalesced focus paint.
     replies.evaluate_all(
@@ -5371,8 +5472,21 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
         }"""
     )
     key_line(page)
-    assert general.get_attribute("placeholder") == "Comment on the page · c"
+    assert general.get_attribute("placeholder") == "Comment on the page"
+    assert general.get_attribute("aria-label") == "Comment on the page"
     assert replies.nth(0).get_attribute("placeholder") == "Reply"
+    assert replies.nth(0).get_attribute("aria-label") == "Reply"
+    assert re.search(r"(⌘⏎|Ctrl\+⏎)$", replies.nth(1).get_attribute("placeholder"))
+    assert replies.nth(1).get_attribute("aria-label") == "Reply"
+
+    replies.nth(1).evaluate(
+        "box => box.closest('.lf-thread, .lf-conversation-thread').focus()"
+    )
+    key_line(page)
+    assert replies.nth(1).get_attribute("placeholder") == "Reply · c"
+    page.keyboard.press("c")
+    expect(replies.nth(1)).to_be_focused()
+    key_line(page)
     assert re.search(r"(⌘⏎|Ctrl\+⏎)$", replies.nth(1).get_attribute("placeholder"))
     assert errors == []
     page.close()

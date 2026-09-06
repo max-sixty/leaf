@@ -197,20 +197,33 @@ function demoThreads() {
     if (withdrawn.has(event.id)) continue;
     if (event.kind === "comment") {
       const message = { ...event };
-      const thread = { root: message, msgs: [message], resolved: null };
+      const thread = {
+        root: message,
+        anchor: message.anchor ?? null,
+        msgs: [message],
+        resolved: null,
+      };
       messages.set(message.id, message);
       threads.set(message.id, thread);
       threadFor.set(message.id, thread);
     } else if (event.kind === "reply") {
       let thread = threadFor.get(event.parent);
       if (!thread) {
-        thread = { root: { ...event }, msgs: [], resolved: null };
+        thread = {
+          root: { ...event },
+          anchor: event.anchor ?? null,
+          msgs: [],
+          resolved: null,
+        };
         threads.set(event.parent, thread);
         threadFor.set(event.parent, thread);
       }
       const message = { ...event };
       messages.set(message.id, message);
       thread.msgs.push(message);
+      // A reply that carries an anchor moves the thread there, and the opening
+      // comment keeps its own as history (build_threads, events.py).
+      if ("anchor" in event) thread.anchor = event.anchor;
       threadFor.set(message.id, thread);
     } else if (event.kind === "edit") {
       const message = messages.get(event.message);
@@ -242,10 +255,8 @@ function demoThreads() {
       ),
       bare_reaction: Boolean(thread.root.token && spoken.length === 0),
       seat:
-        !thread.root.about &&
-        thread.root.anchor &&
-        Object.keys(thread.root.anchor).length === 1
-          ? (thread.root.anchor.section ?? null)
+        !thread.root.about && thread.anchor && Object.keys(thread.anchor).length === 1
+          ? (thread.anchor.section ?? null)
           : null,
     };
   });
@@ -410,11 +421,33 @@ const state = () => ({
   // evidence for it — but a state object that lied here would be a second answer to
   // the same question, waiting for whatever reads these next.
   unattended: true,
-  status: { state: "idle", detail: "", ts: null },
+  activity: {
+    kind: "unattended",
+    held: false,
+    quiet: false,
+    dropped: false,
+    detail: "",
+    count: 0,
+    counts: {
+      active: 0,
+      handling: 0,
+      queued: 0,
+      picked_up: 0,
+      pending: 0,
+      total: 0,
+    },
+    ts: null,
+    next_transition_at: null,
+    interactions: [],
+    obligations: [],
+  },
+  status: { state: "idle", detail: "", ts: null, after: 0 },
   claims: [],
   listening: false,
   session_alive: null,
   claim_session: null,
+  claim_turn: null,
+  turn_closed: null,
   // The name a reply wears in the panel. The banner asks for none under `unattended`.
   agent: AGENT,
   host: null,

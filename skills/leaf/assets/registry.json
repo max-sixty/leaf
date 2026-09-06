@@ -1,6 +1,6 @@
 {
   "lf-suggestion": {
-    "description": "One proposed change to content the user has already seen, decided in place. lf-old holds the current markup verbatim, lf-new the proposal: both slots replace, lf-new alone inserts, lf-old alone deletes. A widget-state change has no separate patch shape: put the complete old and new widget markup in those slots when one is genuinely needed. Pending, the old reads struck and the new tinted, with accept/reject controls in the page margin; deciding folds the retired half away and reaches the agent as an `accept` or `reject` action whose outcome survives later revisions. Deciding leaves visible Accepted or Rejected receipt text beside an Undo Button while the gesture can still be withdrawn. Undo or `z` takes back that named decision: the log keeps the decision and its withdrawal, and the change comes back pending — the complete state renderer receives its undecided initial value, preserving the widget and its children. `resolves` names the comment whose thread this change answers — accepting resolves that thread too. Suggestions don't nest, and a reply can't carry one (reply markup is frozen in the log, so no version could settle it). Fresh content — a new section, the first version — is written straight instead, and a block the user is to write in their own words is a lf-draft: theirs to rewrite, not the agent's to propose. The user can also just comment on a pending suggestion rather than decide it. An undecided one can also be taken back: a later version drops the wrapper and everything inside lf-new with it, since withdrawing it leaves the page where a reject would (x-withdrawn-as). It can't keep the proposal as settled prose, and it can't drop what lf-old wraps — losing that is the user's own accept to give. An undecided one is a standing decision (see $awaits) — counted in the banner, stepped to by `a`/`A`, and the one kind a single press answers wholesale, which is the banner's Accept all.",
+    "description": "One proposed change to content the user has already seen, decided in place. lf-old holds the current markup verbatim, lf-new the proposal: both slots replace, lf-new alone inserts, lf-old alone deletes. A widget-state change has no separate patch shape: put the complete old and new widget markup in those slots when one is genuinely needed. Pending, the old reads struck and the new tinted, with accept/reject controls in the page margin; deciding folds the retired half away and reaches the agent as an `accept` or `reject` action whose outcome survives later revisions. Undo remains in the page margin while the gesture can still be withdrawn. Undo or `z` takes back that named decision: the log keeps the decision and its withdrawal, and the change comes back pending — the complete state renderer receives its undecided initial value, preserving the widget and its children. `resolves` names the comment whose thread this change answers — accepting resolves that thread too. Suggestions don't nest, and a reply can't carry one (reply markup is frozen in the log, so no version could settle it). Fresh content — a new section, the first version — is written straight instead, and a block the user is to write in their own words is a lf-draft: theirs to rewrite, not the agent's to propose. The user can also just comment on a pending suggestion rather than decide it. An undecided one can also be taken back: a later version drops the wrapper and everything inside lf-new with it, since withdrawing it leaves the page where a reject would (x-withdrawn-as). It can't keep the proposal as settled prose, and it can't drop what lf-old wraps — losing that is the user's own accept to give. An undecided one is a standing decision (see $awaits) — counted in the banner, stepped to by `a`/`A`, and the one kind a single press answers wholesale, which is the banner's Accept all.",
     "type": "object",
     "properties": {
       "id":       {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
@@ -74,7 +74,7 @@
   "$events": {
     "description": "The event contract this layer's runtime and CLI speak. Each kind carries a closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions; a record contract alone opens no browser door. `page init` checks the existing log against the incoming record schemas before it re-vendors, so a recorded event never becomes unreadable. Kind contracts replace whole when layers merge: a half-old, half-new schema is no layer's statement. A `pickup` is the page-owned durable transport fact that named reader events reached their next consumer; it is never a claim that work has begun. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the reader takes it back with an ordinary `undo` naming it. `handling` says, per kind, what the layer asks of the agent that receives one; `leaf wait` prints the sentences for the kinds in each batch on its first line, and a later layer restates one kind at a time.",
     "handling": {
-      "comment": "A question or note on the anchored passage, or on the page whole. With `response: {kind: version}` it takes no reply: revise the declared answer state in the next version, then `leaf resolve` it; if the revision depends on the reader, open a separate `leaf comment --section <decision-id>` thread on the same decision. With `suggestion: true` it proposes exact replacement text: take it verbatim or reply with the reason for declining. With `about: layer` it is about Leaf's layer: change the package, re-vendor, save a valid source, and reply in-thread. Otherwise reply in-thread with `leaf reply` and revise the page when warranted; leave the thread open unless the reader asks, an event rule requires closing it, or no follow-up can change the outcome. With `token` it is a reaction, a mark rather than a question: act on it (revise where `cut` or `lost` stands, expand where `more` stands, take `ok` as seen), then `leaf resolve` it once the live revision answers it; reply on it only when it puzzles you. A reaction never gates activation or stamping, and an acknowledged one nobody replied to holds no turn.",
+      "comment": "A question or note on the anchored passage, or on the page whole. With `drawing`, inspect the attached sketch on the live page before answering; any text further explains the mark. With `response: {kind: version}` it takes no reply: revise the declared answer state in the next version, then `leaf resolve` it; if the revision depends on the reader, open a separate `leaf comment --section <decision-id>` thread on the same decision. With `suggestion: true` it proposes exact replacement text: take it verbatim or reply with the reason for declining. With `about: layer` it is about Leaf's layer: change the package, re-vendor, save a valid source, and reply in-thread. Otherwise reply in-thread with `leaf reply` and revise the page when warranted; when that revision replaces the commented passage, put the current `--quote`, `--section`, and optional `--part` on the same reply to move the thread to its result. Leave the thread open unless the reader asks, an event rule requires closing it, or no follow-up can change the outcome. With `token` it is a reaction, a mark rather than a question: act on it (revise where `cut` or `lost` stands, expand where `more` stands, take `ok` as seen), then `leaf resolve` it once the live revision answers it; reply on it only when it puzzles you. A reaction never gates activation or stamping, and an acknowledged one nobody replied to holds no turn.",
       "reply": "The reader's turn in a thread; the exchange behind it is under `threads` on this batch's first line. Answer with `leaf reply --to <id>`, adding `--awaits` only when your prose asks them to answer again. With `token` it is a reaction on your message: `ok` on your latest request takes the thread out of waiting-on-you and owes no reply. Completing the requested work does not by itself license `leaf resolve`; the reader ordinarily closes the thread.",
       "resolve": "The reader closed the thread. Nothing is owed.",
       "unresolve": "The reader reopened a resolved thread; its latest reader message awaits you again.",
@@ -125,6 +125,29 @@
               },
               "additionalProperties": false
             },
+            "drawing": {
+              "type": "object",
+              "properties": {
+                "format": {"const": "leaf-drawing/1"},
+                "points": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 256,
+                  "items": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "prefixItems": [
+                      {"type": "number", "minimum": -33554432, "maximum": 33554432},
+                      {"type": "number", "minimum": -33554432, "maximum": 33554432}
+                    ],
+                    "items": false
+                  }
+                }
+              },
+              "required": ["format", "points"],
+              "additionalProperties": false
+            },
             "suggestion": {"type": "boolean"},
             "about": {"const": "layer"},
             "response": {
@@ -144,9 +167,19 @@
           },
           "required": ["id", "ts", "author", "kind", "seq", "revision"],
           "additionalProperties": false,
-          "oneOf": [{"required": ["text"]}, {"required": ["token"]}],
+          "oneOf": [
+            {"required": ["text"]},
+            {"required": ["token"]},
+            {"required": ["drawing"], "not": {"required": ["text"]}}
+          ],
           "dependentSchemas": {
-            "token": {"not": {"anyOf": [{"required": ["suggestion"]}, {"required": ["holds"]}, {"required": ["markup"]}]}}
+            "token": {"not": {"anyOf": [{"required": ["suggestion"]}, {"required": ["holds"]}, {"required": ["markup"]}]}},
+            "drawing": {
+              "properties": {
+                "anchor": {"not": {"anyOf": [{"required": ["quote"]}, {"required": ["part"]}]}}
+              },
+              "not": {"anyOf": [{"required": ["suggestion"]}, {"required": ["about"]}, {"required": ["response"]}, {"required": ["holds"]}, {"required": ["markup"]}]}
+            }
           }
         },
         "browser": {
@@ -167,6 +200,33 @@
             "revision": {"type": "integer", "minimum": 1},
             "text": {"type": "string", "minLength": 1},
             "token": {"type": "string", "minLength": 1},
+            "anchor": {
+              "type": "object",
+              "properties": {
+                "section": {"type": ["string", "null"]},
+                "quote": {"type": "string"},
+                "datum": {"type": "string", "minLength": 1},
+                "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+                "data_revision": {"type": "integer", "minimum": 1},
+                "visual": {"type": "string", "minLength": 1},
+                "prefix": {"type": "string"},
+                "suffix": {"type": "string"},
+                "part": {"type": "string"}
+              },
+              "anyOf": [
+                {"required": ["section"], "properties": {"section": {"type": "string", "minLength": 1}}},
+                {"required": ["quote"], "properties": {"quote": {"type": "string", "minLength": 1}}},
+                {"required": ["datum"], "properties": {"datum": {"type": "string", "minLength": 1}}}
+              ],
+              "dependentRequired": {
+                "datum": ["section"],
+                "source": ["datum", "data_revision"],
+                "data_revision": ["datum", "source"],
+                "part": ["section"],
+                "visual": ["section"]
+              },
+              "additionalProperties": false
+            },
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1},
             "markup": {"type": "string", "minLength": 1},
@@ -176,11 +236,17 @@
           "required": ["id", "ts", "author", "kind", "seq", "parent"],
           "additionalProperties": false,
           "oneOf": [{"required": ["text"]}, {"required": ["token"]}],
-          "dependentSchemas": {"token": {"not": {"required": ["markup"]}}}
+          "dependentSchemas": {
+            "token": {"not": {"required": ["markup"]}},
+            "anchor": {
+              "required": ["revision", "text"],
+              "properties": {"author": {"const": "claude"}}
+            }
+          }
         },
         "browser": {
           "required": ["kind", "parent", "revision"],
-          "not": {"anyOf": [{"required": ["markup"]}, {"required": ["awaits"]}]}
+          "not": {"anyOf": [{"required": ["markup"]}, {"required": ["awaits"]}, {"required": ["anchor"]}]}
         }
       },
       "edit": {
@@ -336,9 +402,12 @@
               "items": {"type": "string", "minLength": 1},
               "minItems": 1,
               "uniqueItems": true
-            }
+            },
+            "phase": {"enum": ["queued", "opened"]},
+            "session": {"type": ["string", "null"], "minLength": 1},
+            "turn": {"type": ["string", "null"], "minLength": 1}
           },
-          "required": ["id", "ts", "author", "kind", "seq", "events"],
+          "required": ["id", "ts", "author", "kind", "seq", "events", "phase", "session", "turn"],
           "additionalProperties": false
         }
       },

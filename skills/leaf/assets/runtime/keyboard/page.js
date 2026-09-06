@@ -17,11 +17,12 @@ import {
   generalInput,
   generalRow,
   needsBtn,
+  pageComposerDrawing,
   panel,
   threadsBox,
 } from "../conversation/panel.js";
 import { inPanel, panelIsOpen, setPanel } from "../chrome-layout.js";
-import { composerOpen, fabInput } from "../composing/selection.js";
+import { composerOpen, fabInput, pendingDrawing } from "../composing/selection.js";
 import { draftOf } from "../composing/input.js";
 import {
   dismissFab,
@@ -31,7 +32,11 @@ import {
   showFabOptions,
   updateFab,
 } from "../composing/surface.js";
-import { activeInlineThread, keyboardRung } from "../living-margin.js";
+import {
+  activeInlineThread,
+  keyboardRung,
+  openInlineThread,
+} from "../living-margin.js";
 import {
   backFromConversation,
   conversationInput,
@@ -88,6 +93,7 @@ import { openAsks } from "../asks/model.js";
 import { undoable, undoLast } from "../projection.js";
 import { GO, GOTO } from "./address.js";
 import { AIM } from "../composing/aim.js";
+import { isDrawing, setDrawing } from "../composing/drawing.js";
 import { CHOOSER, latestChip, NEWEST, VERSIONS } from "../version.js";
 import { outbox } from "../outbox.js";
 import { narrowed, needsYou, widen } from "../conversation/narrowing.js";
@@ -100,7 +106,7 @@ export function pageParts(sel) {
 
 // ---------- what the page's keys are live over ----------
 function hasThreads() {
-  return openThreads().length > 0;
+  return openThreads({ visibleOnly: panelIsOpen() }).length > 0;
 }
 
 // The focused thread, one predicate: the row the line paints and the press the dispatcher
@@ -108,8 +114,8 @@ function hasThreads() {
 // control inside it, whose own press is its own. Open and resolved threads both qualify:
 // each has a primary Enter action and x changes the same resolution state in either direction.
 export function focusedThread() {
-  const active = documentFocused();
-  return active?.classList?.contains("lf-thread") ? active : null;
+  const active = focused();
+  return active?.matches?.(".lf-thread, .lf-conversation-thread") ? active : null;
 }
 
 // The item the reader is standing in, which is what a press means when they have pointed
@@ -197,6 +203,13 @@ function commenting(word) {
 
 function workspaceControlRoute(control) {
   if (!control || control === document.body) return () => null;
+  const inline = control.closest?.(
+    ".lf-margin-preview .lf-conversation-thread[data-thread]",
+  );
+  if (inline) {
+    const id = inline.dataset.thread;
+    return () => openInlineThread(id);
+  }
   const ask = control?.closest?.(".lf-asks-row[data-lf-at]");
   if (ask) {
     const target = ask.dataset.lfAt;
@@ -227,7 +240,10 @@ export function workspaceState() {
   return {
     panel: panelIsOpen(),
     tray: currentTray(),
-    control: workspaceControlRoute(documentFocused()),
+    // A widget-local Thread lives inside a shadow root, so the document reading is only
+    // its host. Capture the actual control to reopen that exact inline conversation when
+    // an auxiliary workspace closes.
+    control: workspaceControlRoute(focused()),
   };
 }
 
@@ -270,6 +286,7 @@ function commentDestination() {
       ...commenting(
         anchor.quote ? "selection" : itemWord(elementById(anchor.section)) || "item",
       ),
+      box: fabInput,
       go: focusFabComment,
       returnFrame: composerReturnFrame,
     };
@@ -280,6 +297,7 @@ function commentDestination() {
   if (said)
     return {
       ...commenting("thread"),
+      box: said.box,
       go: () => landIn(said),
       returnFrame: () => boxReturnFrame(said.held, said.box),
     };
@@ -287,11 +305,13 @@ function commentDestination() {
   if (here)
     return {
       ...commenting(itemWord(here)),
+      box: fabInput,
       go: () => commentOnItem(here),
       returnFrame: composerReturnFrame,
     };
   return {
     ...commenting("page"),
+    box: generalInput,
     go: () => {
       setPanel(true);
       generalInput.focus({ preventScroll: true });
@@ -332,6 +352,32 @@ function commentKey() {
   updateFab(); // the selection may be newer than the mouseup that last placed the bar
   commentDestination().go();
 }
+
+// The destination's box is the identity chrome uses to place a contextual address.
+// Dispatch still decides whether either Comment row can be reached from the current scope.
+export const commentBox = () => commentDestination().box;
+
+export const COMMENT_CREATE = {
+  id: "comment.create",
+  keys: ["c"],
+  // One key, four destinations, and the surfaces name the one in front of the reader:
+  // a live selection, the item a click raised the 💬 on, the box belonging to whatever
+  // the reader is standing in, or — when none of those is in hand — the page itself.
+  // "Comment" covered them all and so promised none of them. All four enter their
+  // actual box; the panel's contextual c reaches the same general box from its list.
+  does: () => commentDestination().does,
+  line: () => commentDestination().line,
+  // A selection made before the anchor pass has run can't be quoted yet, and
+  // commenting on the page instead is not what the reader asked for — so the press
+  // waits, and the row's own liveness is where that is said rather than a refusal
+  // inside run that no surface can see.
+  when: () => anchoringIsReady() || !pageSelection(),
+  returnFrame: () => {
+    updateFab();
+    return commentDestination().returnFrame?.() ?? null;
+  },
+  run: commentKey,
+};
 
 // Pages are authored documents where typing can start at any moment, so a scope whose keys
 // are bare letters stands down wherever a letter is a keystroke. That is the whole of the
@@ -545,8 +591,17 @@ export function allButTheReference(binding) {
 }
 
 function landInThreadReply(thread) {
-  return landIn({ held: thread, box: thread.querySelector(SAY_BOX) });
+  return landIn({ held: thread, box: conversationInput(thread) });
 }
+
+const resolutionControl = (thread) =>
+  thread?.querySelector(
+    ":scope > .lf-compose > .lf-thread-actions > :is(.lf-resolve, .lf-reopen), " +
+      ":scope > .lf-say > .lf-conversation-actions > :is(.lf-resolve, .lf-reopen), " +
+      ":scope > .lf-thread-actions > :is(.lf-resolve, .lf-reopen), " +
+      ":scope > :is(.lf-conversation-actions, .lf-conversation-resolved) " +
+      ":is(.lf-resolve, .lf-reopen)",
+  ) ?? null;
 
 const HELP = {
   title: "In this reference",
@@ -669,10 +724,11 @@ const COMPOSER = {
       id: "composer.close",
       keys: ["Escape"],
       does: () =>
-        draftOf(fabInput).trim()
+        draftOf(fabInput).trim() || pendingDrawing
           ? "Close the composer, keeping the draft"
           : "Close the composer",
-      line: () => (draftOf(fabInput).trim() ? "close — draft kept" : "close"),
+      line: () =>
+        draftOf(fabInput).trim() || pendingDrawing ? "close — draft kept" : "close",
       promoteEscape: false,
       run: () => dismissFab(),
     },
@@ -802,19 +858,15 @@ const THREAD = {
       id: "thread.primary",
       keys: ["Enter"],
       does: () =>
-        focusedThread()?.querySelector(":scope > .lf-thread-actions > .lf-reopen")
+        resolutionControl(focusedThread())?.matches(".lf-reopen")
           ? "Reopen it"
           : "Write a reply",
       line: () =>
-        focusedThread()?.querySelector(":scope > .lf-thread-actions > .lf-reopen")
-          ? "reopen"
-          : "reply",
+        resolutionControl(focusedThread())?.matches(".lf-reopen") ? "reopen" : "reply",
       when: () =>
-        Boolean(focusedThread()?.querySelector(":scope > .lf-compose")) ||
-        Boolean(
-          focusedThread()?.querySelector(
-            ':scope > .lf-thread-actions > .lf-reopen:not(:disabled, [aria-disabled="true"])',
-          ),
+        Boolean(conversationInput(focusedThread())) ||
+        resolutionControl(focusedThread())?.matches(
+          '.lf-reopen:not(:disabled, [aria-disabled="true"])',
         ),
       returnFrame: () => {
         const thread = focusedThread();
@@ -825,7 +877,9 @@ const THREAD = {
       // contain a widget with an editor of its own before the reply box in DOM order.
       run: () => {
         const thread = focusedThread();
-        const reopen = thread.querySelector(":scope > .lf-thread-actions > .lf-reopen");
+        const reopen = resolutionControl(thread)?.matches(".lf-reopen")
+          ? resolutionControl(thread)
+          : null;
         if (reopen) reopen.click();
         else landInThreadReply(thread);
       },
@@ -839,28 +893,21 @@ const THREAD = {
       // closes under, and no other scope had claimed it.
       keys: ["x"],
       does: () =>
-        focusedThread()?.querySelector(":scope > .lf-thread-actions > .lf-reopen")
+        resolutionControl(focusedThread())?.matches(".lf-reopen")
           ? "Reopen it"
           : "Resolve it",
       line: () =>
-        focusedThread()?.querySelector(":scope > .lf-thread-actions > .lf-reopen")
+        resolutionControl(focusedThread())?.matches(".lf-reopen")
           ? "reopen"
           : "resolve",
       // Through the thread's own button, so keyboard and mouse are one behaviour — the
       // focus landing included. Both states offer exactly one resolution button, and the
       // row's liveness names that reachable capability instead of hiding a no-op in run.
       when: () =>
-        Boolean(
-          focusedThread()?.querySelector(
-            ':scope > .lf-compose > .lf-thread-actions > .lf-resolve:not(:disabled, [aria-disabled="true"]), :scope > .lf-thread-actions > .lf-reopen:not(:disabled, [aria-disabled="true"])',
-          ),
+        resolutionControl(focusedThread())?.matches(
+          ':not(:disabled, [aria-disabled="true"])',
         ),
-      run: () =>
-        focusedThread()
-          .querySelector(
-            ':scope > .lf-compose > .lf-thread-actions > .lf-resolve:not(:disabled, [aria-disabled="true"]), :scope > .lf-thread-actions > .lf-reopen:not(:disabled, [aria-disabled="true"])',
-          )
-          .click(),
+      run: () => resolutionControl(focusedThread()).click(),
     },
   ],
 };
@@ -972,6 +1019,29 @@ const DESIGN = {
       does: "Leave design mode",
       line: "leave design",
       run: () => setDesign(false),
+    },
+  ],
+};
+
+// Draw mode claims one pointer stroke before handing its mark to an ordinary comment.
+// Its own scope keeps the toggle and Escape as the two ways out while the page underneath
+// remains the drawing surface rather than receiving the drag.
+const DRAW = {
+  title: "In draw mode",
+  at: isDrawing,
+  rows: [
+    {
+      id: "drawing.stroke",
+      keys: [],
+      label: "drag",
+      does: "Draw anywhere on the page, then send or add words",
+    },
+    {
+      id: "drawing.leave",
+      keys: ["Escape", "w"],
+      does: "Leave draw mode",
+      line: "leave draw",
+      run: () => setDrawing(false),
     },
   ],
 };
@@ -1103,27 +1173,7 @@ export function pageScopes() {
       actionRow,
       // Comment can act immediately because the page itself is its target. Selecting a
       // more particular target is the second step; only then does React become an action.
-      {
-        id: "comment.create",
-        keys: ["c"],
-        // One key, four destinations, and the surfaces name the one in front of the reader:
-        // a live selection, the item a click raised the 💬 on, the box belonging to whatever
-        // the reader is standing in, or — when none of those is in hand — the page itself.
-        // "Comment" covered them all and so promised none of them. All four enter their
-        // actual box; the panel's contextual c reaches the same general box from its list.
-        does: () => commentDestination().does,
-        line: () => commentDestination().line,
-        // A selection made before the anchor pass has run can't be quoted yet, and
-        // commenting on the page instead is not what the reader asked for — so the press
-        // waits, and the row's own liveness is where that is said rather than a refusal
-        // inside run that no surface can see.
-        when: () => anchoringIsReady() || !pageSelection(),
-        returnFrame: () => {
-          updateFab();
-          return commentDestination().returnFrame?.() ?? null;
-        },
-        run: commentKey,
-      },
+      COMMENT_CREATE,
       {
         id: "selection.open",
         keys: ["s"],
@@ -1284,6 +1334,14 @@ export function pageScopes() {
       // from where a press had just put the reader.
       GOTO,
       {
+        id: "drawing.enter",
+        keys: ["w"],
+        does: "Draw on the page and attach the mark to a comment",
+        line: "draw",
+        when: () => anchoringIsReady(),
+        run: () => setDrawing(true),
+      },
+      {
         // The way in; the mode's own scope takes the letter back out (DESIGN), nearer
         // than this row, so while it stands this one is shadowed off the line.
         id: "design.enter",
@@ -1320,6 +1378,7 @@ export function pageScopes() {
     PANEL,
     LINK,
     DISCLOSURE,
+    DRAW,
     DESIGN,
     PAGE,
   ];
@@ -1416,6 +1475,7 @@ export function midComposition() {
   const replyDraft = replyBoxHasDraft(active) ?? null;
   return (
     composerOpen ||
+    Boolean(pageComposerDrawing()) ||
     isSelecting() ||
     Boolean(fabAnchorAt()) ||
     unaccountedGesture() ||
@@ -1426,12 +1486,8 @@ export function midComposition() {
   );
 }
 
-// The row whose key opens that box, standing here beside the sentence they share rather
-// than down among the panel's other rows. The box paints its placeholder as `wireInput`
-// builds it, and the placeholder names this row's key — read off the row, so rebinding it
-// corrects the box too. Built later, the row is still in its dead zone at that first
-// paint and the whole layer stops on the reference. The comment above already calls the
-// two a pair; this is the pair being one thing rather than two that agree by hand.
+// The panel's local route to the contextual Comment capability. Both scoped rows are
+// exposed together below so the placeholder can project whichever one dispatch reaches.
 export const PANEL_SAY = {
   // From the Threads list this puts the reader in the page-comment box. Page c reaches
   // the same box directly; this is the same contextual intent from a surface whose local
@@ -1465,3 +1521,5 @@ export const PANEL_SAY = {
   }),
   run: () => generalInput.focus({ preventScroll: true }),
 };
+
+export const commentRows = () => [COMMENT_CREATE, PANEL_SAY];

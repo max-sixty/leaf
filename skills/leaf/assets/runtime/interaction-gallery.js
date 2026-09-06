@@ -298,13 +298,13 @@ export function installInteractionGallery() {
   gallery.dataset.interactionInstalled = "1";
   const tabs = gallery.querySelector("lf-tabs");
   const panels = [...tabs.querySelectorAll(":scope > lf-tab")];
-  const controls = el("div", "interaction-controls");
+  const controls = offer("div", "interaction-controls");
   controls.setAttribute("aria-label", "Animation controls");
   const toggle = offer("button", "interaction-control", "Loading…");
   toggle.dataset.interactionToggle = "";
   const replay = offer("button", "interaction-control", "Replay");
   replay.dataset.interactionReplay = "";
-  const status = el("span", "interaction-status", "Loading the first interaction…");
+  const status = offer("span", "interaction-status", "Loading the first interaction…");
   status.dataset.interactionStatus = "";
   status.setAttribute("aria-live", "polite");
   controls.append(toggle, replay, status);

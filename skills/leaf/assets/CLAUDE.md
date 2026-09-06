@@ -485,10 +485,16 @@ all enumerable labels in the control's current font and sets a minimum width.
 Re-measure after changing type tokens; avoid numeric reservations where the
 possible words are available.
 
-A suggestion decision paints its projected result in the gesture that queues it; the
-outbox keeps that result ahead of the log and restores authoritative state on refusal.
-The resulting content and Undo control are durable confirmation, so this path needs no
-success notice. Use persistent status text for a failure the reader can act on.
+Submission feedback uses the shared lifecycle: busy paint while delivery is
+unresolved, the resulting content or control state as durable confirmation, and
+`notice` for a transient acknowledgment. Persistent status text is for a state the
+reader must return to or act on, such as failure.
+
+A suggestion decision is the exception: it paints its projected result in the gesture
+that queues it, and the outbox keeps that result ahead of the log and restores
+authoritative state on refusal. The resulting content and Undo control are that durable
+visual confirmation, so this path needs no success notice; announce the same decision
+for a reader listening to the page.
 
 ## Keyboard, focus, and navigation
 

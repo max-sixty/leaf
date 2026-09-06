@@ -2371,8 +2371,9 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     The outcome has to reach the log too: what the user sees settle and what
     Claude is told must be the same event.
 
-    The resulting content and Undo control are sufficient confirmation. No status or
-    transient notice repeats them."""
+    The resulting content and Undo control are sufficient visual confirmation. No
+    status or transient notice repeats them, while the live region says the same
+    decision for a reader listening to the page."""
     page, _errors = open_page(browser, serve(SUGGESTION_PAGE))
     row = page.locator("[data-lf-for='sug-refill']")
     accept = row.locator(".lf-sug-accept")
@@ -2415,6 +2416,9 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     )
     expect(page.locator(".lf-notice")).to_have_text("")
     expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
+    expect(page.locator(".lf-live")).to_have_text(
+        re.compile(r"^Accepted suggested change: Refill a feeder when")
+    )
     expect(reject).to_be_hidden()
     settled = page.locator("#sug-refill lf-new").evaluate(
         "el => getComputedStyle(el).textDecorationLine + ' ' + getComputedStyle(el).backgroundColor"
@@ -2440,6 +2444,25 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     assert [(e["widget"], e["action"], e["author"]) for e in logged] == [
         ("sug-refill", "accept", "user")
     ]
+    page.close()
+
+
+def test_a_pointer_decision_announces_without_needing_button_focus(browser, serve):
+    """The live result is independent of browsers focusing a clicked Button."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    assert page.evaluate("document.activeElement === document.body")
+
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").evaluate(
+        "button => button.click()"
+    )
+
+    assert page.evaluate("document.activeElement === document.body")
+    expect(page.locator(".lf-live")).to_have_text(
+        re.compile(r"^Accepted suggested change: Refill a feeder when")
+    )
+    expect(page.locator(".lf-notice")).to_have_text("")
+    expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
+    assert errors == []
     page.close()
 
 

@@ -4,8 +4,9 @@
  *
  * The log owns the absolute outcome, so reloads and tabs converge. Once that outcome
  * stands, the surviving slot remains and the retired slot folds away as trackable
- * motion. Undo remains while that decision can still be withdrawn. The shared busy
- * state and notice carry delivery feedback without restating the settled content.
+ * motion. Undo remains while that decision can still be withdrawn. The optimistic
+ * content and Undo carry visual feedback; a live announcement says the same decision
+ * without restating it on screen, and refusal restores actionable failure controls.
  *
  * The suggestion owns only those controls and their semantics. It contributes the row
  * through `registerMarginItem`; the living margin joins it to comment threads,
@@ -19,6 +20,7 @@ import {
   actionAvailable,
   actionStands,
   alignText,
+  announce,
   commands,
   FOLD_MS,
   marginButton,
@@ -485,6 +487,9 @@ customElements.define(
             this.#renderControls(label);
             this.#margin?.update();
           }
+          announce(
+            `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change: ${label}`,
+          );
           // TODO(2026-09-06): Decide whether accepted work with no active agent pickup
           // needs a distinct post-send presentation.
           return true;

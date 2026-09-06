@@ -301,14 +301,13 @@ export function bake() {
   const scriptedOffer =
     "[data-lf-offer]:not([data-lf-said]):is(" +
     ":not([data-lf-offer='']), :not(:has(*)):not(input, select, textarea, a[href], summary))";
+  const keepsBrowserControl = (container) =>
+    container.querySelector(browserControl) ||
+    [...container.querySelectorAll("label")].some(
+      (label) => label.control && !label.control.matches("[data-lf-offer]"),
+    );
   for (const control of all(scriptedOffer).reverse()) {
-    if (
-      control.querySelector(browserControl) ||
-      [...control.querySelectorAll("label")].some(
-        (label) => label.control && !label.control.matches("[data-lf-offer]"),
-      )
-    )
-      continue;
+    if (keepsBrowserControl(control)) continue;
     let dead = control,
       box = dead.parentElement?.closest("[data-lf-offer]");
     dead.remove();
@@ -317,6 +316,16 @@ export function bake() {
       box = dead.parentElement?.closest("[data-lf-offer]");
       dead.remove();
     }
+  }
+  // A generated container may retain authored static children after its scripted
+  // controls leave. Keep those words, but remove the interactive grouping contract
+  // when no native control remains to satisfy it.
+  for (const container of all("[data-lf-offer=''][role]")) {
+    if (keepsBrowserControl(container)) continue;
+    container.removeAttribute("role");
+    for (const attr of [...container.attributes])
+      if (attr.name.startsWith("aria-") && attr.name !== "aria-hidden")
+        container.removeAttribute(attr.name);
   }
   all("[data-lf-offer][data-lf-said]").forEach((offered) => {
     let el = offered;

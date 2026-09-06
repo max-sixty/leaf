@@ -123,7 +123,9 @@ export const PAGE_INTERFACE = "lf-page-interface";
 export async function settlePageInterface() {
   const pending = [];
   document.dispatchEvent(new CustomEvent(PAGE_INTERFACE, { detail: { pending } }));
-  await Promise.all(pending);
+  // Each optional owner reports its own failure. One rejected surface must not keep
+  // every generated control on the page hidden behind the presentation boundary.
+  await Promise.allSettled(pending);
 }
 
 // A word for a reader listening, silent on screen: real text — the one thing every

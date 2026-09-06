@@ -286,6 +286,7 @@ and layout remain usable while widgets upgrade and the first state read is pendi
 Generated interface inside the page participates in layout but stays invisible until
 `data-lf-presented` releases it with recorded widget actions and authored top-layer UI.
 Fixed status and unanchored discussion chrome remain usable while a live page waits.
+An optional page-interface failure reports itself without withholding presentation.
 Modules must consult `actionAvailable` or `requestAvailable` before optimistic mutation
 as well as before sending; their common send doors repeat the check. Selecting a passage
 does not raise the anchored composer until the passage has survived the first projection.
@@ -643,8 +644,8 @@ in ordinary chrome, where a reader is working on the page rather than standing i
 
 ## Standalone copies and print
 
-`version export` produces the already-upgraded DOM, drops scripts, and marks the
-root `.lf-copy`. Anything meant to survive must be present in markup and CSS.
+`version export` waits for the already-presented DOM, drops scripts, and marks the root
+`.lf-copy`. Anything meant to survive must be present in markup and CSS.
 Module handlers do not survive.
 
 Widget affordances fall into three groups:

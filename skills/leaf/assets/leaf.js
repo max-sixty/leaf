@@ -69,21 +69,22 @@ const initialStateRead = beginRead();
 
 let interactionGalleryModule;
 let interactionGalleryLoading;
+let failedInteractionGallery;
 async function syncInteractionGallery() {
   const gallery = document.querySelector("[data-interaction-gallery]");
-  if (!gallery && !interactionGalleryModule) return;
-  if (!interactionGalleryModule) {
-    interactionGalleryLoading ??= import("./runtime/interaction-gallery.js").catch(
-      (error) => {
-        reportPageError(
-          `interaction gallery failed to start: ${error?.message ?? error}`,
-        );
-        return null;
-      },
-    );
-    interactionGalleryModule = await interactionGalleryLoading;
+  if (gallery && gallery === failedInteractionGallery) return;
+  try {
+    if (!gallery && !interactionGalleryModule) return;
+    if (!interactionGalleryModule) {
+      interactionGalleryLoading ??= import("./runtime/interaction-gallery.js");
+      interactionGalleryModule = await interactionGalleryLoading;
+    }
+    interactionGalleryModule?.installInteractionGallery();
+  } catch (error) {
+    failedInteractionGallery = gallery;
+    if (!interactionGalleryModule) interactionGalleryLoading = null;
+    reportPageError(`interaction gallery failed to start: ${error?.message ?? error}`);
   }
-  interactionGalleryModule?.installInteractionGallery();
 }
 document.addEventListener("lf-actions", () => void syncInteractionGallery());
 document.addEventListener(PAGE_INTERFACE, (event) => {
@@ -132,10 +133,10 @@ function presentPage() {
   paintKeys();
   document.dispatchEvent(new Event("lf-actions"));
   paintApproval();
+  paintHere();
   // Fragment arrival reads after those controls have taken their final space. Margin
   // placement normally batches into a frame; a fresh arrival runs that pending layout
   // now so a docked row above the target cannot move it again after the landing.
-  paintHere();
   layoutMarginRows();
   landArrival();
   if (savedView && savedView.revision < runtime.currentRevision)

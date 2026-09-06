@@ -895,6 +895,44 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
         page.close()
 
 
+def test_a_broken_optional_page_interface_does_not_withhold_presentation(
+    browser, serve
+):
+    """Optional page surfaces fail independently rather than blanking every generated
+    control. The known gallery owner still reports its malformed markup once."""
+    source = leaf_page(
+        "broken optional interface",
+        """
+<h1>Still a readable page</h1>
+<section data-interaction-gallery>
+  <h2>Malformed gallery without tabs</h2>
+  <p>The authored explanation remains available.</p>
+</section>
+""",
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.add_init_script(
+        """
+        document.addEventListener('lf-page-interface', event => {
+          event.detail.pending.push(Promise.reject(new Error('optional sibling failed')));
+        });
+        """
+    )
+    try:
+        page.goto(serve(source), wait_until="load")
+        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+        expect(
+            page.get_by_role("heading", name="Still a readable page")
+        ).to_be_visible()
+        matching = [
+            error for error in errors if "interaction gallery failed to start" in error
+        ]
+        assert len(matching) == 1, errors
+    finally:
+        page.close()
+
+
 def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
     browser, serve
 ):

@@ -248,16 +248,21 @@ names, adds the publishing note and any requested comments, then serves the
 directory with the real HTTP handler and page key at that version's immutable
 URL. Handed an example's path rather than its markup it also lays in the
 external data and event log the example ships, and sets the cursor past the
-log. Markup is one version; an example is every version it ships
-(`example_versions`), stamped oldest first with the seed between the first note
-and any later one, and the URL is the newest. Use `serve(example,
-seed_log=False)` when only the shipped conversation would be noise. Reach the
-page directory through `serve.page_dir` when a test needs to publish v2 or
-inspect the log. `page_dir` in `interact_support.py` owns command-level files
-without starting a browser and clones its ordinary initialized layer the same
-way. Runtime and vendor files are immutable fixture inputs and may be shared;
-state, contracts, theme, and modules remain private. Tests of initialization,
-re-vendoring, or a custom overlay still cross the real `page init` boundary.
+log. It lays in the media that log names too, which a message writes in its
+Markdown rather than in an attribute, where the parsed reading that answers for
+a document cannot see it; the seed is read for content-addressed names, and
+they arrive whether or not the call seeds the log, since `seed_log=False` is
+how a caller appends those same events itself. Markup is one version; an
+example is every version it ships (`example_versions`), stamped oldest first
+with the seed between the first note and any later one, and the URL is the
+newest. Use `serve(example, seed_log=False)` when only the shipped conversation
+would be noise. Reach the page directory through `serve.page_dir` when a test
+needs to publish v2 or inspect the log. `page_dir` in `interact_support.py`
+owns command-level files without starting a browser and clones its ordinary
+initialized layer the same way. Runtime and vendor files are immutable fixture
+inputs and may be shared; state, contracts, theme, and modules remain private.
+Tests of initialization, re-vendoring, or a custom overlay still cross the real
+`page init` boundary.
 
 ## Drive the browser a reader gets
 

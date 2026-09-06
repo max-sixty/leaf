@@ -239,6 +239,22 @@ mountChrome();
 // the upgraded authored facets that replay starts from.
 const initialStateRead = beginRead();
 
+let interactionGalleryModule;
+function syncInteractionGallery() {
+  const gallery = document.querySelector("[data-interaction-gallery]");
+  if (!gallery && !interactionGalleryModule) return;
+  interactionGalleryModule ??= import("./runtime/interaction-gallery.js").catch(
+    (error) => {
+      reportPageError(
+        `interaction gallery failed to start: ${error?.message ?? error}`,
+      );
+      return null;
+    },
+  );
+  void interactionGalleryModule.then((module) => module?.installInteractionGallery());
+}
+document.addEventListener("lf-actions", syncInteractionGallery);
+
 // A fresh arrival starts on the page, the same stable focus destination the Escape ladder
 // uses after chrome. Root scrolling no longer depends on this handoff; focus ownership
 // still does, since Space on a button presses it rather than scrolling the document.

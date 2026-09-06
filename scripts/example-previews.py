@@ -13,9 +13,6 @@ import hashlib
 import importlib.util
 import io
 import re
-import threading
-from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from leaf.render_gate.browser import launch_browser
@@ -37,11 +34,6 @@ _spec = importlib.util.spec_from_file_location(
 )
 site_build = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(site_build)
-
-
-class Quiet(SimpleHTTPRequestHandler):
-    def log_message(self, *args):
-        pass
 
 
 def update_catalog(previews: set[Path]) -> None:
@@ -72,37 +64,27 @@ def main() -> None:
     }
     update_catalog({preview for preview in expected if preview.is_file()})
     site_build.build(site_build.OUT, verify_links=False)
-    handler = partial(Quiet, directory=str(site_build.OUT))
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    origin = f"http://127.0.0.1:{server.server_address[1]}"
     previews = set()
 
-    try:
-        with sync_playwright() as playwright:
-            browser, _ = launch_browser(playwright)
-            page = browser.new_page(viewport=VIEWPORT, color_scheme="light")
-            errors = []
-            page.on("pageerror", lambda error: errors.append(str(error)))
-            for source in site_build.worked_example_sources():
-                errors.clear()
-                page.goto(f"{origin}/examples/{source.stem}/", wait_until="load")
-                page.wait_for_function(READY)
-                png = page.screenshot(animations="disabled", caret="hide")
-                image = Image.open(io.BytesIO(png)).convert("RGB")
-                image = image.resize(OUTPUT_SIZE, Image.Resampling.LANCZOS)
-                target = DOCS / f"example-{source.stem}.jpg"
-                image.save(target, "JPEG", quality=82, optimize=True, progressive=True)
-                if errors:
-                    raise RuntimeError(f"{source.name}: {errors[:3]}")
-                previews.add(target)
-                print(f"  {target.relative_to(ROOT)}")
-            browser.close()
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join()
+    with site_build.hosted(site_build.OUT) as origin, sync_playwright() as playwright:
+        browser, _ = launch_browser(playwright)
+        page = browser.new_page(viewport=VIEWPORT, color_scheme="light")
+        errors = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        for source in site_build.worked_example_sources():
+            errors.clear()
+            page.goto(f"{origin}/examples/{source.stem}/", wait_until="load")
+            page.wait_for_function(READY)
+            png = page.screenshot(animations="disabled", caret="hide")
+            image = Image.open(io.BytesIO(png)).convert("RGB")
+            image = image.resize(OUTPUT_SIZE, Image.Resampling.LANCZOS)
+            target = DOCS / f"example-{source.stem}.jpg"
+            image.save(target, "JPEG", quality=82, optimize=True, progressive=True)
+            if errors:
+                raise RuntimeError(f"{source.name}: {errors[:3]}")
+            previews.add(target)
+            print(f"  {target.relative_to(ROOT)}")
+        browser.close()
 
     for stale in set(DOCS.glob("example-*.jpg")) - previews:
         stale.unlink()

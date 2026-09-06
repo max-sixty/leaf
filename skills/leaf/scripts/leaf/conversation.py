@@ -11,7 +11,7 @@ from leaf.event_log import read_events
 from leaf.events import build_threads, spoken_turns
 from leaf.files import (
     latest_published,
-    latest_revision,
+    require_revision,
     revision_path,
     version_revisions,
 )
@@ -34,14 +34,21 @@ from leaf.thread_context import thread_roots
 from leaf.validation.admission import check_markup, read_text_arg
 
 
-def _thread_root(events: list, to: str) -> tuple[str, dict | None]:
-    messages = {
-        event["id"]: event for event in events if event["kind"] in MESSAGE_KINDS
-    }
+def _messages(events: list) -> dict[str, dict]:
+    return {event["id"]: event for event in events if event["kind"] in MESSAGE_KINDS}
+
+
+def _message(events: list, to: str) -> dict:
+    messages = _messages(events)
     if to not in messages:
         sys.exit(f"unknown comment id {to!r}; known: {sorted(messages)}")
+    return messages[to]
+
+
+def _thread_root(events: list, to: str) -> tuple[str, dict | None]:
+    _message(events, to)
     root_id = thread_roots(events)[to]
-    return root_id, messages.get(root_id)
+    return root_id, _messages(events).get(root_id)
 
 
 def thread_of(page_dir: Path, message_id: str) -> str:
@@ -112,7 +119,7 @@ def _current_anchor(
 ) -> tuple[int, dict | None]:
     """Capture one optional target against the page's active reading."""
     activate_source(page_dir, events)
-    revision = latest_revision(page_dir)
+    revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
     html = revision_path(page_dir, revision).read_text(encoding="utf-8")
@@ -283,19 +290,7 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
         events = page.events
-        target = next(
-            (
-                event
-                for event in events
-                if event["kind"] in {"comment", "reply"} and event["id"] == to
-            ),
-            None,
-        )
-        if target is None:
-            known = sorted(
-                event["id"] for event in events if event["kind"] in {"comment", "reply"}
-            )
-            sys.exit(f"unknown comment id {to!r}; known: {known}")
+        target = _message(events, to)
         if target["author"] != "claude":
             sys.exit(f"message {to!r} is not agent-authored")
         identity = message_identity()
@@ -362,7 +357,7 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
     with PageTransaction(page_dir) as page:
         events = page.events
         activate_source(page_dir, events)
-        revision = latest_revision(page_dir)
+        revision = require_revision(page_dir)
         registry = require_registry(page_dir)
         event = {
             "kind": "report",
@@ -377,5 +372,5 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
             event, parse_revision(page_dir, revision).by_id, registry
         ):
             sys.exit(error)
-        accepted = page.append_event(event)
+        accepted = page.append_event(event, registry)
     print(json.dumps(accepted, ensure_ascii=False))

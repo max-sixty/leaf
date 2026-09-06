@@ -58,10 +58,7 @@ def shown(quote: str) -> str:
 def _revision_title(page_dir: Path) -> tuple[int | None, str]:
     """The active revision and its authored title, if the page has one."""
     title = ""
-    try:
-        revision = latest_revision(page_dir)
-    except SystemExit:
-        revision = None
+    revision = latest_revision(page_dir)
     if revision is not None:
         title = parse_revision(page_dir, revision).title.strip()
     return revision, title

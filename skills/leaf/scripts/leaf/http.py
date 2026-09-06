@@ -1,6 +1,7 @@
 """HTTP transport and routes for one served page."""
 
 import base64
+import contextlib
 import hashlib
 import html
 import json
@@ -21,6 +22,7 @@ from .event_log import read_events
 from .files import (
     latest_revision,
     list_revisions,
+    missing_revision,
     published_versions,
     revision_num,
     revision_path,
@@ -69,6 +71,18 @@ PRESENCE_S = presence_model.PRESENCE_CACHE_S
 def reject_json_constant(value: str) -> None:
     """Reject Python's non-standard NaN and infinity JSON extensions."""
     raise ValueError(f"invalid JSON constant {value}")
+
+
+def _query_int(raw, name: str, minimum: int) -> int:
+    """One integer a request named, refused in the caller's own words."""
+    bound = "positive" if minimum == 1 else "non-negative"
+    try:
+        value = int(raw)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{name} must be a {bound} integer") from error
+    if value < minimum:
+        raise ValueError(f"{name} must be a {bound} integer")
+    return value
 
 
 _ROOTED_PAGE_ROUTE = re.compile(
@@ -305,36 +319,20 @@ class Handler(BaseHTTPRequestHandler):
         )
         if raw in (None, ""):
             return None
-        try:
-            revision = int(raw)
-        except (TypeError, ValueError) as error:
-            raise ValueError("view revision must be a positive integer") from error
-        if revision < 1:
-            raise ValueError("view revision must be a positive integer")
-        return revision
+        return _query_int(raw, "view revision", 1)
 
     def requested_view_sequence(self) -> int:
         raw = parse_qs(urlsplit(self.path).query).get("through_seq", [None])[-1]
         if raw in (None, ""):
             raise ValueError("view sequence is required")
-        try:
-            sequence = int(raw)
-        except (TypeError, ValueError) as error:
-            raise ValueError("view sequence must be a non-negative integer") from error
-        if sequence < 0:
-            raise ValueError("view sequence must be a non-negative integer")
-        return sequence
+        return _query_int(raw, "view sequence", 0)
 
     def data_fragment(self) -> dict:
         """One contract-declared payload from the data revision the tab holds."""
         query = parse_qs(urlsplit(self.path).query)
-        raw_revision = query.get("data_revision", [None])[-1]
-        try:
-            data_revision = int(raw_revision)
-        except (TypeError, ValueError) as error:
-            raise ValueError("data_revision must be a non-negative integer") from error
-        if data_revision < 0:
-            raise ValueError("data_revision must be a non-negative integer")
+        data_revision = _query_int(
+            query.get("data_revision", [None])[-1], "data_revision", 0
+        )
         source = query.get("source", [None])[-1]
         key = query.get("key", [None])[-1]
         snapshot = query.get("snapshot", [None])[-1]
@@ -438,10 +436,8 @@ class Handler(BaseHTTPRequestHandler):
         passes through here, so this is where it ends. `ConnectionError` is the
         whole of that case: its other subclass, a refused connection, cannot
         reach a socket the server already accepted."""
-        try:
+        with contextlib.suppress(ConnectionError):
             super().handle()
-        except ConnectionError:
-            pass
 
     def authorized(self) -> bool:
         """The key, from the handover URL or from the cookie an earlier request
@@ -613,10 +609,9 @@ class Handler(BaseHTTPRequestHandler):
             with PageTransaction(self.page_dir) as page:
                 activate_source(self.page_dir, page.events)
                 events = page.events
-            try:
-                revision = latest_revision(self.page_dir)
-            except SystemExit:
-                self._json({"error": "no active revision; write index.html first"}, 404)
+            revision = latest_revision(self.page_dir)
+            if revision is None:
+                self._json({"error": missing_revision(self.page_dir)}, 404)
                 return
             source = revision_path(self.page_dir, revision).read_text(encoding="utf-8")
             version = stamped_version(events, revision)
@@ -639,10 +634,7 @@ class Handler(BaseHTTPRequestHandler):
             version = version_num(Path(path).name)
             events = read_events(self.page_dir)
             mapping = version_revisions(events)
-            if (
-                version not in published_versions(self.page_dir, events)
-                or version not in mapping
-            ):
+            if version not in published_versions(self.page_dir, events):
                 self._json(
                     {"error": "not stamped yet; run `leaf version stamp` first"},
                     404,

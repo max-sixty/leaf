@@ -180,9 +180,11 @@ def read_registry_entries(path: Path):
     try:
         registry = read_json(path)
     except json.JSONDecodeError as error:
-        raise RegistryError(f"{path}: invalid JSON ({error.msg}, line {error.lineno})")
+        raise RegistryError(
+            f"{path}: invalid JSON ({error.msg}, line {error.lineno})"
+        ) from error
     except UnicodeDecodeError:
-        raise RegistryError(f"{path} must be UTF-8")
+        raise RegistryError(f"{path} must be UTF-8") from None
     if registry is None:
         if not path.is_file():
             return None

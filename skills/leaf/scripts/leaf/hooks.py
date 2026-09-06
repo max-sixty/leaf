@@ -96,10 +96,6 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
             # answer for a real reader stay above it, so a gesture on a preview
             # still arrives — this exempts the housekeeping, not the reader.
             #
-            # Presence, not `server.preview_metadata`: that reader is the serve
-            # path's gate and exits the process on a file it will not accept,
-            # which here — inside a guard that fails open by saying nothing —
-            # would stand the whole hook down over every page this session holds.
             elif (
                 state["status"]["state"] != "idle"
                 and not (page_dir / PREVIEW_FILE).exists()

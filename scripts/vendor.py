@@ -601,14 +601,53 @@ REBUILDS = {
 }
 
 
-def report_pins() -> None:
-    """Every pin against upstream's latest, with the bundle to rebuild if it moved."""
-    for package, pinned in PINS.items():
-        latest = run(
-            "npm", "view", f"{package}@latest", "version", cwd=ROOT, capture=True
+# Two pins are not Leaf's own choice of version. beautiful-mermaid imports elkjs and
+# entities, and they are pinned here only because the bundle is self-contained: esbuild
+# resolves those bare imports itself, so the versions have to be named. A release
+# outside the range beautiful-mermaid declares is therefore not a pin to take. npm
+# would install the declared version nested under it, esbuild would bundle that one,
+# and the table would say one thing while the bundle carried another. Their rows read
+# against the dependant's range, so what the report calls movement is movement that can
+# actually be taken.
+HELD_BY = {"elkjs": "beautiful-mermaid", "entities": "beautiful-mermaid"}
+
+
+def newest(package: str, within: str = "latest") -> str:
+    """Upstream's newest release of a package, bounded by a range where one is given."""
+    found = json.loads(
+        run(
+            "npm",
+            "view",
+            f"{package}@{within}",
+            "version",
+            "--json",
+            cwd=ROOT,
+            capture=True,
         )
+    )
+    return found[-1] if isinstance(found, list) else found
+
+
+def report_pins() -> None:
+    """Every pin against the newest release it could take, and the bundle to rebuild."""
+    for package, pinned in PINS.items():
+        holder = HELD_BY.get(package)
+        allowed = (
+            run(
+                "npm",
+                "view",
+                f"{holder}@{PINS[holder]}",
+                f"dependencies.{package}",
+                cwd=ROOT,
+                capture=True,
+            )
+            if holder
+            else "latest"
+        )
+        latest = newest(package, allowed)
         rebuild = " ".join(REBUILDS[package])
-        moved = "" if latest == pinned else f"latest {latest}"
+        held = f" (held to {holder}'s {allowed})" if holder else ""
+        moved = "" if latest == pinned else f"latest {latest}{held}"
         print(f"{package:22} {pinned:10} {rebuild:24} {moved}".rstrip())
 
 

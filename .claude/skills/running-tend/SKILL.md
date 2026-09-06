@@ -92,10 +92,13 @@ catches it.
 scripts/vendor.py --pins
 ```
 
-Each row is a package, its pin, the bundle to rebuild if it has moved, and
-upstream's latest where that differs. `esbuild` is the tool the three builds
-share rather than payload, so it moves when a bundle needs it rather than on
-every release.
+Each row is a package, its pin, the bundle to rebuild if it has moved, and the
+newest release that pin could take where that differs. `elkjs` and `entities` are
+beautiful-mermaid's imports rather than Leaf's own choices, so their rows read
+against the range it declares: a release outside it is not a pin to take, because
+npm would install the declared version nested and the bundle would carry that one.
+`esbuild` is the tool the three builds share rather than payload, so it moves when
+a bundle needs it rather than on every release.
 
 On drift, bump the entry in PINS and run `scripts/vendor.py <bundle>` — the
 rebuilt bundle is the commit, not the version string on its own. A copy's output tracks its version directly.

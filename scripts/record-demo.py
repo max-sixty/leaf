@@ -425,7 +425,8 @@ def shoot_stills(
     By this point the log holds the whole round — a comment on a marked passage, the
     reply, the revision stamped for it, the reader's board move and the revision that
     answers it, the state back to waiting — so a fresh context loading the page arrives
-    at exactly the picture docs/index.html describes in its alt text.
+    at the scene docs/index.html describes in its alt text. The version that alt text
+    names moves with the pair: a fresh recording is one revision past the shipped v2.
     Fresh is the point: the panel's open state lives in localStorage, so a reused
     context would restore whatever the last gesture left rather than the shot's own
     setup.

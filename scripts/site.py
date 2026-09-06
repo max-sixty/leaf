@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """Assemble the published site (https://leaf.page/) into .tmp/site.
 
-Every product document under `docs/` is a Leaf source: it carries the exact scaffold
-the version checker accepts, uses root-absolute public routes, and is published without
-rewriting. The five sources become live-root directory routes, so the same runtime
-addressing used by a served Leaf applies without a site-only exception.
+Every top-level product document under `docs/` is a Leaf source: it carries the exact
+scaffold the version checker accepts, uses root-absolute public routes, and is published
+without rewriting. The five sources become live-root directory routes, so the same
+runtime addressing used by a served Leaf applies without a site-only exception.
 
-The worked examples and developer feature gallery become complete Leaf page directories
-under examples/<name>/. The same preparation path that serves a local fixture vendors
-each page's selected layer, stamps its authored versions, applies its companion event
-log and data, and closes the finished page without claiming it for an agent. The Worker
-gives each browser a private copy of those directories and the canonical server projects
-their virtual routes. Product routes remain exact authored drafts and continue to use
-the site's static session.
+The focused interaction scenes use that same static session at
+interactions/<name>/. The worked examples and developer feature gallery become complete
+Leaf page directories under examples/<name>/. The same preparation path that serves a
+local fixture vendors each page's selected layer, stamps its authored versions, applies
+its companion event log and data, and closes the finished page without claiming it for
+an agent. The Worker gives each browser a private copy of those directories and the
+canonical server projects their virtual routes. Product routes remain exact authored
+drafts and continue to use the site's static session.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
@@ -36,6 +37,7 @@ from preview import prepare
 ROOT = Path(__file__).resolve().parent.parent
 LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
+INTERACTIONS = DOCS / "interactions"
 EXAMPLES = ROOT / "examples"
 INTERNAL_EXAMPLES = {"corpus"}
 FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
@@ -56,7 +58,7 @@ PRODUCT_ROUTES = {
     "packages.html": "/packages/",
     "registry.html": "/registry/",
 }
-SITE_SUPPORT = ("leaf.js", "session.js", "sitenote.js")
+SITE_SUPPORT = ("interactions.js", "leaf.js", "session.js", "sitenote.js")
 SITE_PACKAGE = "./docs/package"
 
 
@@ -71,7 +73,7 @@ class Links(HTMLParser):
         for name, value in attrs:
             if not value:
                 continue
-            if name in ("href", "src"):
+            if name in ("href", "src") or tag == "iframe" and name == "data-src":
                 self.found.append(value)
             elif name == "srcset":
                 self.found += [
@@ -166,18 +168,33 @@ def product_target(out: Path, route: str) -> Path:
     return out / "index.html" if route == "/" else out / route.strip("/") / "index.html"
 
 
-def publish_product_pages(page: Path, out: Path, env: dict) -> None:
-    """Check each product document as a Leaf, then publish its exact source bytes."""
+def publish_static_page(page: Path, env: dict, source: Path, target: Path) -> None:
+    """Check one static-session Leaf, then publish its exact source and empty state."""
     empty_data = json.dumps({"revision": 0, "sources": {}}) + "\n"
+    markup = source.read_text(encoding="utf-8")
+    (page / "index.html").write_text(markup, encoding="utf-8")
+    leaf(env, "version", "check", str(page))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(markup, encoding="utf-8")
+    (target.parent / "data.json").write_text(empty_data, encoding="utf-8")
+    (target.parent / "events.jsonl").write_text("", encoding="utf-8")
+
+
+def publish_product_pages(page: Path, out: Path, env: dict) -> None:
+    """Publish the top-level product documents at their declared routes."""
     for source in product_sources():
-        markup = source.read_text(encoding="utf-8")
-        (page / "index.html").write_text(markup, encoding="utf-8")
-        leaf(env, "version", "check", str(page))
         target = product_target(out, PRODUCT_ROUTES[source.name])
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(markup, encoding="utf-8")
-        (target.parent / "data.json").write_text(empty_data, encoding="utf-8")
-        (target.parent / "events.jsonl").write_text("", encoding="utf-8")
+        publish_static_page(page, env, source, target)
+
+
+def publish_interactions(page: Path, out: Path, env: dict) -> None:
+    """Publish every focused interaction scene at /interactions/<name>/."""
+    sources = sorted(INTERACTIONS.glob("*.html"))
+    if not sources:
+        sys.exit("docs/interactions holds no authored scenes")
+    for source in sources:
+        target = out / "interactions" / source.stem / "index.html"
+        publish_static_page(page, env, source, target)
 
 
 def publish_pages(out: Path, env: dict) -> None:
@@ -206,6 +223,7 @@ def publish_pages(out: Path, env: dict) -> None:
         for name in SITE_SUPPORT:
             shutil.copy2(DOCS / name, out / name)
         publish_product_pages(page, out, env)
+        publish_interactions(page, out, env)
 
         for source in published_page_sources():
             published = out / "examples" / source.stem

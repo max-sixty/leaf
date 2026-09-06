@@ -1,14 +1,13 @@
 """The published site: what the build assembles, and what a reader gets.
 
-The site is the repo's own pages plus its examples and developer feature gallery as live
-pages, so most of what could go wrong is a path that meant one thing in a checkout and
-another on a host.
-The build resolves every local link it wrote and stops on one that reaches
-nothing, which is the failure a static host answers with a 404 and no other
-signal; these tests hold the rest — that the theme a page links is the shipped
-file, that an example served here is a working page rather than a picture of one,
-and that a site claiming to ride the theme's tokens actually changes colour when
-the theme's palette does.
+The site is the repo's own pages plus focused interaction scenes, worked examples, and
+the developer feature gallery as live pages, so most of what could go wrong is a path
+that meant one thing in a checkout and another on a host. The build resolves every local
+link it wrote and stops on one that reaches nothing, which is the failure a static host
+answers with a 404 and no other signal; these tests hold the rest — that the theme a page
+links is the shipped file, that an example served here is a working page rather than a
+picture of one, and that a site claiming to ride the theme's tokens actually changes
+colour when the theme's palette does.
 
 Every page is reached over HTTP: product sources use the site's root layer, while each
 example uses its page-scoped vendored layer through the canonical server. file:// is no
@@ -44,6 +43,7 @@ ASSETS = ROOT / "skills" / "leaf" / "assets"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
+INTERACTIONS = DOCS / "interactions"
 
 _spec = importlib.util.spec_from_file_location("site", ROOT / "scripts" / "site.py")
 site_build = importlib.util.module_from_spec(_spec)
@@ -180,9 +180,9 @@ def test_the_pages_link_the_theme_the_site_serves(site):
     missing = [source.parent.name for source in halves if not source.is_file()]
     assert missing == [], f"shipped roots without a theme half: {missing}"
     for source in halves:
-        assert source.read_text().rstrip() in served, (
-            f"the theme the site serves is missing {source.parent.name}'s half"
-        )
+        assert (
+            source.read_text().rstrip() in served
+        ), f"the theme the site serves is missing {source.parent.name}'s half"
 
 
 def test_product_pages_are_published_without_a_rewrite_dialect(site):
@@ -193,18 +193,41 @@ def test_product_pages_are_published_without_a_rewrite_dialect(site):
         assert target.read_bytes() == source.read_bytes(), source.name
 
 
+def test_interaction_scenes_are_static_session_leaf_pages(site):
+    sources = pages_under(INTERACTIONS)
+    assert {path.name for path in (site / "interactions").iterdir()} == {
+        source.stem for source in sources
+    }
+    for source in sources:
+        page = site / "interactions" / source.stem
+        assert (page / "index.html").read_bytes() == source.read_bytes()
+        assert json.loads((page / "data.json").read_text()) == {
+            "revision": 0,
+            "sources": {},
+        }
+        assert (page / "events.jsonl").read_text() == ""
+
+
 def test_the_site_serves_the_whole_layer_a_page_asks_for(site):
     """A page asks for its layer by absolute path, so the layer is the site's root. Any
     one of these missing is a page that opens unstyled, unupgraded, or not at all — and
     a static host reports none of it."""
-    for name in ("theme.css", "registry.json", "icon.svg", "runtime.js", "leaf.js"):
+    for name in (
+        "theme.css",
+        "registry.json",
+        "icon.svg",
+        "runtime.js",
+        "leaf.js",
+        "session.js",
+        "interactions.js",
+    ):
         assert (site / name).is_file(), f"the site root has no {name}"
     generation = json.loads((site / "registry.json").read_text())["$layer"][
         "generation"
     ]
-    assert (site / "runtime.js").read_text() == (ASSETS / "leaf.js").read_text(), (
-        "the runtime the site serves is not the shipped file"
-    )
+    assert (site / "runtime.js").read_text() == (
+        ASSETS / "leaf.js"
+    ).read_text(), "the runtime the site serves is not the shipped file"
     client = (ASSETS / "runtime" / "layer-client.js").read_text()
     assert client.count('"__LEAF_LAYER_GENERATION__"') == 1
     assert (site / "runtime" / "layer-client.js").read_text() == client.replace(
@@ -235,9 +258,9 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         )
         for number, authored in enumerate(versions, start=1):
             revision = files_model.revision_path(page_dir, mappings[number])
-            assert revision.read_bytes() == authored.read_bytes(), (
-                f"{authored.name} changed while it was published"
-            )
+            assert (
+                revision.read_bytes() == authored.read_bytes()
+            ), f"{authored.name} changed while it was published"
 
         seed = source.with_suffix(".jsonl")
         if seed.exists():
@@ -477,17 +500,159 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
                 560,
             ]
 
-        assert page.locator("iframe, lf-tabs").count() == 0
+        developer_galleries = page.locator("#developer-galleries")
+        expect(developer_galleries).to_be_visible()
+        gallery = developer_galleries.locator("#interactions")
+        expect(gallery).to_be_visible()
+        gallery.scroll_into_view_if_needed()
+        expect(gallery.locator("lf-tabs")).to_have_count(1)
+        expect(gallery.locator("iframe")).to_have_count(2)
+        expect(
+            gallery.locator('iframe[data-src="/interactions/accept/"]')
+        ).to_have_attribute("src", "/interactions/accept/")
+        expect(
+            gallery.locator('iframe[data-src="/interactions/move-card/"]')
+        ).to_have_attribute("src", "about:blank")
         published = {
             path.name for path in (site / "examples").iterdir() if path.is_dir()
         }
         assert published == expected | {FEATURE_GALLERY.stem}
-        gallery = page.locator("#feature-gallery a")
-        expect(gallery).to_have_text("feature gallery")
-        expect(gallery).to_have_attribute("href", "/examples/feature-gallery/")
+        assert page.evaluate(
+            "() => Boolean(document.querySelector('#pages')"
+            ".compareDocumentPosition(document.querySelector('#developer-galleries'))"
+            " & Node.DOCUMENT_POSITION_FOLLOWING)"
+        )
+        product_gallery = developer_galleries.locator("#product-gallery")
+        expect(product_gallery).to_contain_text("Product gallery")
+        expect(product_gallery).to_have_attribute("href", "/examples/feature-gallery/")
         assert not errors, errors[:3]
     finally:
         page.close()
+
+
+def test_the_interaction_gallery_drives_real_widgets(site, hosted, browser):
+    """The runner pauses before its gesture, resumes it, and resets between scenes.
+
+    The child outcomes are assertions on the actual widget DOM. The frames stay
+    same-origin because that is the boundary which lets the gallery point at a real
+    control without copying the widget's implementation into the parent page.
+    """
+    page = browser.new_page(viewport={"width": 1280, "height": 720})
+    errors = watched(page)
+    try:
+        page.goto(f"{hosted}/examples/#interactions", wait_until="load")
+        page.wait_for_function(BOTH_STAMPS)
+        gallery = page.locator("#interactions")
+        status = gallery.locator("[data-interaction-status]")
+        toggle = gallery.locator("[data-interaction-toggle]")
+        replay = gallery.locator("[data-interaction-replay]")
+        accept_frame = gallery.locator('iframe[data-src="/interactions/accept/"]')
+        move_frame = gallery.locator('iframe[data-src="/interactions/move-card/"]')
+
+        expect(status).to_have_text("Accept a suggestion · Playing")
+        toggle_box = toggle.bounding_box()
+        assert toggle_box["y"] + toggle_box["height"] <= 720
+        accept_frame.evaluate(
+            "frame => { frame.contentWindow.pauseProbe = "
+            "frame.contentDocument.body.animate([{}, {}], {duration: 10000}); }"
+        )
+        toggle.click()
+        expect(status).to_have_text("Accept a suggestion · Paused")
+        assert (
+            accept_frame.evaluate("frame => frame.contentWindow.pauseProbe.playState")
+            == "paused"
+        )
+        page.wait_for_timeout(800)
+        assert (
+            accept_frame.evaluate(
+                "frame => frame.contentDocument.querySelector('#accept-change')"
+                ".hasAttribute('data-lf-state')"
+            )
+            is False
+        )
+        toggle.click()
+        assert (
+            accept_frame.evaluate("frame => frame.contentWindow.pauseProbe.playState")
+            == "running"
+        )
+        accept_frame.evaluate("frame => frame.contentWindow.pauseProbe.cancel()")
+        expect(status).to_have_text("Accept a suggestion · Complete")
+        expect(toggle).to_have_text("Played")
+        expect(toggle).to_be_disabled()
+        expect(replay).to_be_enabled()
+        assert (
+            accept_frame.evaluate(
+                "frame => frame.contentDocument.querySelector('#accept-change')"
+                ".dataset.lfState"
+            )
+            == "accept"
+        )
+
+        gallery.get_by_role("tab", name="Move a card").click()
+        expect(status).to_have_text("Move a card · Complete")
+        assert accept_frame.get_attribute("src") == "about:blank"
+        expect(move_frame).to_have_attribute("src", "/interactions/move-card/")
+        assert (
+            move_frame.evaluate(
+                "frame => frame.contentDocument.querySelector('#move-card')"
+                ".parentElement.id"
+            )
+            == "move-tried"
+        )
+
+        gallery.locator("[data-interaction-replay]").click()
+        expect(status).to_have_text("Move a card · Playing")
+        assert (
+            move_frame.evaluate(
+                "frame => frame.contentDocument.querySelector('#move-card')"
+                ".parentElement.id"
+            )
+            == "move-ready"
+        )
+        expect(status).to_have_text("Move a card · Complete")
+        assert (
+            move_frame.evaluate(
+                "frame => frame.contentDocument.querySelector('#move-card')"
+                ".parentElement.id"
+            )
+            == "move-tried"
+        )
+        page.emulate_media(media="print")
+        expect(toggle).to_be_hidden()
+        expect(replay).to_be_hidden()
+        assert not errors, errors[:3]
+    finally:
+        page.close()
+
+
+def test_reduced_motion_leaves_gallery_play_explicit(site, hosted, browser):
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 1280, "height": 900}
+    )
+    page = context.new_page()
+    errors = watched(page)
+    try:
+        page.goto(f"{hosted}/examples/#interactions", wait_until="load")
+        page.wait_for_function(BOTH_STAMPS)
+        gallery = page.locator("#interactions")
+        status = gallery.locator("[data-interaction-status]")
+        frame = gallery.locator('iframe[data-src="/interactions/accept/"]')
+        expect(status).to_have_text(
+            "Accept a suggestion · Ready — motion will start only when you press Play"
+        )
+        page.wait_for_timeout(900)
+        assert (
+            frame.evaluate(
+                "iframe => iframe.contentDocument.querySelector('#accept-change')"
+                ".hasAttribute('data-lf-state')"
+            )
+            is False
+        )
+        gallery.locator("[data-interaction-toggle]").click()
+        expect(status).to_have_text("Accept a suggestion · Complete")
+        assert not errors, errors[:3]
+    finally:
+        context.close()
 
 
 def test_every_published_page_stands_as_a_live_page(served_example, browser):
@@ -642,9 +807,9 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
         )
         expect(thread).to_have_count(1)
         expect(thread.locator("blockquote")).to_have_text("“One reconnect in about 40”")
-        assert page.locator(".lf-panel .lf-quote.detached").count() == 0, (
-            "the shipped anchor found nothing on the page it was captured from"
-        )
+        assert (
+            page.locator(".lf-panel .lf-quote.detached").count() == 0
+        ), "the shipped anchor found nothing on the page it was captured from"
         # Painted, not merely resolved: the mark is what puts the reader at the passage.
         assert "lf-mark" in page.evaluate("() => [...CSS.highlights.keys()]")
         # The question Claude asks in that thread is a widget, upgraded from the
@@ -836,9 +1001,9 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(served_example, browser):
         page.evaluate(
             "() => document.scrollingElement.scrollTo({top: 1500, behavior: 'instant'})"
         )
-        assert page.evaluate("() => document.scrollingElement.scrollTop") > 0, (
-            "the document did not scroll, so the landmark under test was never written"
-        )
+        assert (
+            page.evaluate("() => document.scrollingElement.scrollTop") > 0
+        ), "the document did not scroll, so the landmark under test was never written"
 
         # An example that ships no log of its own, so the count there is the reader's
         # own doing or nobody's. Asked of the corpus rather than named, since a page
@@ -849,9 +1014,9 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(served_example, browser):
         _, plain_url = served_example(plain)
         opened(page, errors, plain_url)
         expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
-        assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
-            "the second example opened at the offset left on the first"
-        )
+        assert (
+            page.evaluate("() => document.scrollingElement.scrollTop") == 0
+        ), "the second example opened at the offset left on the first"
         assert not errors, errors[:3]
     finally:
         page.close()

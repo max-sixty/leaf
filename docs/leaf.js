@@ -11,3 +11,7 @@
  */
 await import("/session.js");
 await import("/runtime.js");
+
+if (document.querySelector("[data-interaction-gallery]")) {
+  await import("/interactions.js");
+}

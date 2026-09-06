@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    />
+    <title>Move a card</title>
+    <link rel="stylesheet" href="/theme.css" />
+    <script type="module" src="/leaf.js"></script>
+  </head>
+  <body class="interaction-scene board-scene">
+    <main>
+      <p class="eyebrow">release triage</p>
+      <h1>Move the work itself</h1>
+      <lf-board id="move-board">
+        <lf-column id="move-ready" label="Ready">
+          <lf-card id="move-card">
+            <strong>Verify migration</strong>
+            Run the schema sample.
+          </lf-card>
+        </lf-column>
+        <lf-column id="move-tried" label="Tried"></lf-column>
+      </lf-board>
+    </main>
+  </body>
+</html>

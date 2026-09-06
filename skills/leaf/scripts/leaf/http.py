@@ -258,7 +258,7 @@ class Handler(BaseHTTPRequestHandler):
     # Empty on the ordinary one-page server. The MCP delivery server sets this to
     # an unguessable `/p/<capability>` prefix and rewrites only Leaf-owned routes.
     page_root = ""
-    # Website examples use the complete server contract without claiming an agent.
+    # Website examples use the complete server contract without a Leaf work claim.
     # Their banner reads this explicit presentation fact instead of mistaking the
     # deliberately unattended page for an abandoned ordinary Leaf.
     example = None

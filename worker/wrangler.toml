@@ -19,6 +19,11 @@ instance_type = "lite"
 name = "EXAMPLES"
 class_name = "LeafExampleSession"
 
+[[workflows]]
+name = "leaf-example-agent"
+binding = "AGENT_WORKFLOW"
+class_name = "LeafExampleAgentWorkflow"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["LeafExampleSession"]

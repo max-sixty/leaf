@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 COPY pyproject.toml uv.lock ./
 COPY skills/leaf ./skills/leaf
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --group website
 
 COPY .tmp/site ./site
 COPY worker/server.py ./worker/server.py

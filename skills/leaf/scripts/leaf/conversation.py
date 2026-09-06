@@ -8,6 +8,7 @@ from leaf.anchor_capture import capture_anchor
 from leaf.asks import local_ask_entry, page_awaiting_values
 from leaf.event_contracts import report_contract_error
 from leaf.event_log import read_events
+from leaf.events import build_threads, spoken_turns
 from leaf.files import (
     latest_published,
     latest_revision,
@@ -16,6 +17,7 @@ from leaf.files import (
 )
 from leaf.host import message_identity
 from leaf.leases import contract_writer
+from leaf.passages import active_enclosing
 from leaf.projection import (
     generated_children,
     markup_facet,
@@ -178,13 +180,40 @@ def cmd_reply(
     quote: str = "",
     section: str = "",
     part: str = "",
-) -> dict:
-    """Post one complete threaded reply, optionally moving the thread's anchor."""
+    attempt: str | None = None,
+    only_if_pending: bool = False,
+) -> dict | None:
+    """Post one complete threaded reply, optionally moving its anchor.
+
+    A durable host may supply an attempt and require the target to remain the
+    newest pending reader turn; ordinary interactive replies use neither.
+    """
     body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         events = page.events
         root_id, root = _thread_root(events, to)
+        if attempt:
+            existing = next(
+                (event for event in events if event.get("attempt") == attempt), None
+            )
+            if existing:
+                if existing["kind"] != "reply" or existing["parent"] != to:
+                    sys.exit(f"attempt {attempt!r} already belongs to another event")
+                return existing
+        if only_if_pending:
+            thread = build_threads(events, active_enclosing(page_dir)).get(root_id)
+            turns = spoken_turns(thread) if thread else []
+            if (
+                not thread
+                or thread["resolved"]
+                or not turns
+                or turns[-1]["author"] != "user"
+                or turns[-1]["id"] != to
+            ):
+                return None
         if root and (root.get("response") or {}).get("kind") == "version":
+            if only_if_pending:
+                return None
             sys.exit(
                 f"thread {root_id!r} requires a page version and cannot take a reply; "
                 "incorporate its request in the next version, or open a separate "
@@ -234,6 +263,8 @@ def cmd_reply(
             event["awaits"] = True
         if markup:
             event["markup"] = markup
+        if attempt:
+            event["attempt"] = attempt
         if moving:
             event["revision"] = revision
             event["anchor"] = anchor

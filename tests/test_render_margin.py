@@ -3575,6 +3575,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     expect(
         thread.get_by_role("button", name="Open interactive reply in Threads")
     ).to_have_count(1)
+    expect(thread.locator("textarea")).to_be_focused()
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -3582,6 +3583,8 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
           const marker = markerNode.getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           const title = document.querySelector('.lf-margin-preview-title')
+            .getBoundingClientRect();
+          const reply = document.querySelector('.lf-margin-thread .lf-say')
             .getBoundingClientRect();
           const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
           return {bannerBottom: banner.bottom, mainRight: main.right,
@@ -3593,7 +3596,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
                   borderLeft: cardStyle.borderLeftWidth,
                   borderRight: cardStyle.borderRightWidth,
                   titleLeft: title.left, titleTop: title.top,
-                  cardScroll: document.querySelector('.lf-margin-preview').scrollTop,
+                  replyTop: reply.top, replyBottom: reply.bottom,
                   panelOpen: document.querySelector('.lf-panel').classList.contains('open')};
         }"""
     )
@@ -3610,17 +3613,11 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert geometry["cardTop"] <= geometry["markerMiddle"] <= geometry["cardBottom"], (
         geometry
     )
-    assert geometry["cardScroll"] == 0, geometry
+    assert geometry["replyTop"] >= geometry["cardTop"], geometry
+    assert geometry["replyBottom"] <= geometry["cardBottom"], geometry
     assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
     assert geometry["titleLeft"] == pytest.approx(geometry["cardLeft"] + 13, abs=0.5)
     assert not geometry["panelOpen"], geometry
-
-    preview.evaluate("card => card.scrollTop = 14")
-    preview.get_by_role("button", name="Close thread").click()
-    expect(preview).to_be_hidden()
-    marker.click()
-    expect(preview).to_be_visible()
-    assert preview.evaluate("card => card.scrollTop") == 0
 
     send = preview.get_by_role("button", name="Send")
     send.focus()

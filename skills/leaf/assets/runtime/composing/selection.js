@@ -11,7 +11,10 @@
 import { el, responseAction } from "../widget-elements.js";
 import { setReact } from "../reactions.js";
 import { designOn } from "../design.js";
-import { openInlineThread as marginOpenInlineThread } from "../living-margin.js";
+import {
+  openInlineThread as marginOpenInlineThread,
+  threadTransitionOrigin,
+} from "../living-margin.js";
 
 import {
   clearDraft,
@@ -179,19 +182,7 @@ syncComposer = wireInput(composerInput, {
     // The accepted comment becomes a thread card. Keep the last box the reader was
     // looking at so the inline card can carry that box into its new surface after the
     // draft settlement has removed the composer from the page.
-    const composerBox = composerInput.getBoundingClientRect();
-    const composerStyle = getComputedStyle(composerInput);
-    const transition = {
-      left: composerBox.left,
-      top: composerBox.top,
-      width: composerBox.width,
-      height: composerBox.height,
-      backgroundColor: composerStyle.backgroundColor,
-      borderColor: composerStyle.borderColor,
-      borderRadius: composerStyle.borderRadius,
-      boxShadow: composerStyle.boxShadow,
-      text: visible,
-    };
+    const transition = threadTransitionOrigin(composerInput, visible);
     const flight = { ctx, raw, epoch: composerEpoch };
     inFlight = flight;
     let sent;

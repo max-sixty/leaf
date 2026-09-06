@@ -841,6 +841,24 @@ preview.append(previewHead, previewList);
 let threadTransitionEpoch = 0;
 let threadTransitionMotions = [];
 
+// The submitted composer and a developer replay describe the same starting box; the
+// transition owns that geometry contract instead of making either caller duplicate it.
+export function threadTransitionOrigin(element, text) {
+  const box = element.getBoundingClientRect();
+  const style = getComputedStyle(element);
+  return {
+    left: box.left,
+    top: box.top,
+    width: box.width,
+    height: box.height,
+    backgroundColor: style.backgroundColor,
+    borderColor: style.borderColor,
+    borderRadius: style.borderRadius,
+    boxShadow: style.boxShadow,
+    text,
+  };
+}
+
 function clearThreadTransition() {
   threadTransitionEpoch += 1;
   for (const played of threadTransitionMotions) played.cancel();

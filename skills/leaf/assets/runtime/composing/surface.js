@@ -56,7 +56,7 @@ import {
   visualActionAnchor,
   visualAt,
 } from "../anchors.js";
-import { documentPoint, shownParts, shownRect } from "../geometry.js";
+import { documentPoint, shownBox, shownParts, shownRect } from "../geometry.js";
 import { targetElement, targetParts, targetSegments } from "../resolved-target.js";
 import {
   composerOpen,
@@ -256,13 +256,16 @@ function placeFab(target = anchorBox(fabAnchor)) {
   if (room <= 0) return false;
   const block = fabAnchor.quote && fabTargetAt();
   const clips = new Map();
+  const parts = block ? shownParts(block) : [];
   const keepClear =
-    (block &&
-      union(
-        shownParts(block)
-          .map((part) => shownRect(part, clips))
-          .filter(Boolean),
-      )) ||
+    union(parts.map((part) => shownRect(part, clips)).filter(Boolean)) ||
+    // Scrolled clear of the viewport, the block keeps its column and loses its shown
+    // rect, so the clipped reading has nothing left to say about where the field may
+    // stand. Its unclipped bounds answer the question the clipped one was asked. The
+    // fall through to the passage did the one thing the rule above forbids: beside a
+    // short selection the field took the words after it, left the free margin, and
+    // came to rest on the sentences the reader had scrolled to.
+    union(parts.map((part) => shownBox(part))) ||
     target;
   fabBar.style.setProperty("--lf-float-w", `${room}px`);
   if (composerOpen) {

@@ -34,9 +34,10 @@ the relevant design note or in git history.
 - **Give the touch grip room of its own, then fit more thread cards.** At a coarse
   pointer the panel's resize grip is a 44px square laid over the list, and nothing
   reserves that space: cards run under it at every scroll position, so whether its
-  focus ring lands on a button is luck. Tightening the cards' spacing (reverted in
-  this branch) moved one Send button up onto it and
-  `test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll` said so.
+  focus ring lands on a button is luck. Tightening the cards' spacing moved one Send
+  button up onto it and
+  `test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll` said so,
+  which is why e4cd887f was reverted.
   Reserving a full-height gutter would contradict the grip's own design — a local
   handle, not a scroll-blocking wall — so settle what the phone sheet owes it first.
   Spacing alone does not fit a third card either: the card's own content already

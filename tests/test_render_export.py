@@ -1302,9 +1302,11 @@ def test_an_exported_page_fixture_stands_on_its_own(
         unshown: [...document.querySelectorAll('main *')]
             .filter(el => el.textContent.trim() && !el.checkVisibility()
                           // A disclosure the reader can still work, a control's own
-                          // label, and an element with no box by design are all fine;
-                          // what is not is the page's words with nothing to reveal them.
-                          && !el.closest('details, [data-lf-offer], .lf-ui, style, script')
+                          // label, a slot a standing decision deliberately retired, and
+                          // an element with no box by design are all fine; what is not
+                          // is the page's words with nothing to reveal them.
+                          && !el.closest('details, [data-lf-offer], [data-lf-retired], '
+                                         + '.lf-ui, style, script')
                           && getComputedStyle(el).display !== 'contents')
             .map(el => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '')),
         // A press a widget injected is a tab stop wearing an interactive role, and the

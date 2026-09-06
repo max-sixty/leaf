@@ -773,6 +773,48 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
         context.close()
 
 
+def test_a_failed_gallery_frame_does_not_block_local_demos(serve, browser):
+    """A contained page that never presents fails alone; direct widgets still play."""
+    url = serve(FEATURE_GALLERY)
+    context = browser.new_context(reduced_motion="reduce")
+    page = context.new_page()
+    errors = watched(page)
+
+    def stop_inner_leaf(route):
+        if route.request.frame.parent_frame:
+            route.abort()
+        else:
+            route.continue_()
+
+    page.route("**/leaf.js", stop_inner_leaf)
+    navigate(page, errors, f"{url}#bg-interactions")
+    try:
+        gallery = page.locator("#bg-interactions")
+        status = gallery.locator("[data-interaction-status]")
+        toggle = gallery.locator("[data-interaction-toggle]")
+        replay = gallery.locator("[data-interaction-replay]")
+        expect(status).to_have_text(
+            "Accept a suggestion · Ready — motion will start only when you press Play"
+        )
+        expect(toggle).to_be_enabled()
+
+        gallery.get_by_role("tab", name="Send a comment").click()
+        expect(status).to_have_text("Send a comment · Could not play", timeout=5_000)
+        expect(toggle).to_be_disabled()
+        expect(replay).to_be_disabled()
+
+        gallery.get_by_role("tab", name="Move a card").click()
+        expect(status).to_have_text(
+            "Move a card · Ready — motion will start only when you press Play"
+        )
+        expect(toggle).to_be_enabled()
+        assert any(
+            "contained Leaf page did not finish presenting" in error for error in errors
+        ), errors
+    finally:
+        context.close()
+
+
 def test_every_published_page_stands_as_a_live_page(served_example, browser):
     """Every artifact starts through Leaf's own document and state boundaries."""
     pages = published_pages()

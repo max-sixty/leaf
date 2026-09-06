@@ -388,8 +388,8 @@ customElements.define(
 );
 
 export const interactionGalleryScenario = {
-  reset(demo) {
-    const deck = demo.figure.querySelector("lf-swipe-deck");
+  reset(root) {
+    const deck = root.querySelector("lf-swipe-deck");
     const card = deck.querySelector("lf-swipe-card");
     const piles = [...deck.querySelectorAll(":scope > lf-swipe-pile")];
     deck.renderState({
@@ -403,17 +403,15 @@ export const interactionGalleryScenario = {
       },
     });
   },
-  async play(demo, generation) {
-    await demo.arrive(generation);
-    const deck = demo.figure.querySelector("lf-swipe-deck");
+  async play({ root, arrive, press, track, until, finish }) {
+    await arrive();
+    const deck = root.querySelector("lf-swipe-deck");
     const keep = deck.querySelector(".lf-swipe-keep");
-    await demo.movePointer(keep, generation);
-    await demo.wait(360, generation);
-    await demo.press(generation);
+    await press(keep);
     const card = deck.querySelector("lf-swipe-card");
     const piles = [...deck.querySelectorAll(":scope > lf-swipe-pile")];
     const keepPile = piles.find((pile) => pile.getAttribute("verdict") === "keep");
-    await demo.track(
+    await track(
       deck.renderState({
         verdict: {
           action: "finish",
@@ -423,15 +421,13 @@ export const interactionGalleryScenario = {
           ),
         },
       }),
-      generation,
     );
-    await demo.waitFor(
+    await until(
       () =>
         deck.querySelector("lf-swipe-card").parentElement?.getAttribute("verdict") ===
         "keep",
       "the swipe card did not move to Kept",
-      generation,
     );
-    await demo.finish(generation);
+    await finish();
   },
 };

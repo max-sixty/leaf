@@ -25,6 +25,19 @@ const delay = (demo, ms, generation) =>
     generation,
   );
 
+async function boundedRead(
+  read,
+  message,
+  pause = () => new Promise((resolve) => setTimeout(resolve, 25)),
+) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const value = read();
+    if (value) return value;
+    await pause();
+  }
+  throw new Error(message);
+}
+
 function frameSource(frame) {
   const theme = new URL("../theme.css", import.meta.url).href;
   const leafEntry = new URL("../leaf.js", import.meta.url).href;
@@ -87,6 +100,7 @@ class Demo {
     this.frameElement = this.figure.querySelector("[data-interaction-frame]");
     this.frameApi = null;
     this.changed = changed;
+    this.loadState = "loading";
     this.state = "idle";
     this.generation = 0;
     this.animations = new Set();
@@ -103,10 +117,13 @@ class Demo {
       );
       this.frameElement.srcdoc = frameSource(this.frameElement);
       await loaded;
-      this.frameApi = await this.waitFor(
+      this.frameApi = await boundedRead(
         () => this.frameElement.contentWindow?.leafInteractionGalleryFrame,
         "the contained Leaf page did not expose its gallery adapter",
-        this.generation,
+      );
+      await boundedRead(
+        () => this.frameElement.contentDocument?.body.hasAttribute("data-lf-presented"),
+        "the contained Leaf page did not finish presenting",
       );
       await this.frameApi.ready;
       this.frameElement.dataset.interactionReady = "";
@@ -114,10 +131,33 @@ class Demo {
     const modulePath = this.figure.dataset.interactionModule;
     if (modulePath) {
       const loaded = await import(modulePath);
-      this.scenario = loaded.interactionGalleryScenario;
+      const scenario = loaded.interactionGalleryScenario;
+      if (!scenario?.reset || !scenario?.play)
+        throw new Error(
+          `${modulePath} does not export an interaction gallery scenario`,
+        );
+      this.scenario = {
+        reset: () => scenario.reset(this.figure),
+        play: (_, generation) =>
+          scenario.play(
+            Object.freeze({
+              root: this.figure,
+              arrive: () => this.arrive(generation),
+              press: async (target) => {
+                await this.movePointer(target, generation);
+                await this.wait(360, generation);
+                await this.press(generation);
+              },
+              track: (animation) => this.track(animation, generation),
+              until: (read, message) => this.waitFor(read, message, generation),
+              finish: () => this.finish(generation),
+            }),
+          ),
+      };
     }
     if (!this.scenario)
       throw new Error(`interaction gallery has no scenario for ${this.name}`);
+    this.loadState = "ready";
   }
 
   setState(state) {
@@ -154,7 +194,7 @@ class Demo {
     this.generation += 1;
     this.stopAnimations();
     this.scenario?.deactivate?.(this);
-    this.setState("idle");
+    this.setState(this.loadState === "error" ? "error" : "idle");
   }
 
   async play() {
@@ -265,12 +305,7 @@ class Demo {
   }
 
   async waitFor(read, message, generation) {
-    for (let attempt = 0; attempt < 120; attempt += 1) {
-      const value = read();
-      if (value) return value;
-      await this.wait(25, generation);
-    }
-    throw new Error(message);
+    return boundedRead(read, message, () => this.wait(25, generation));
   }
 
   pointAt(target) {
@@ -501,7 +536,6 @@ export function installInteractionGallery() {
   controls.append(toggle, replay, status);
   tabs.before(controls);
   let active = null;
-  let galleryReady = false;
   let onScreen = false;
 
   const demos = new Map(
@@ -548,12 +582,14 @@ export function installInteractionGallery() {
   }
 
   function syncActive() {
-    if (!galleryReady || !tabs.classList.contains("lf-rendered")) return;
+    if (!tabs.classList.contains("lf-rendered")) return;
     const next = demos.get(selectedPanel());
-    if (!next || next === active) return;
-    active?.deactivate();
-    active = next;
-    if (active.state !== "error") active.activate();
+    if (!next) return;
+    if (next !== active) {
+      active?.deactivate();
+      active = next;
+    }
+    if (active.loadState === "ready" && active.state === "idle") active.activate();
     renderControls();
     maybePlay();
   }
@@ -598,18 +634,17 @@ export function installInteractionGallery() {
     stopMotionPreference();
   };
 
-  void Promise.allSettled(
-    [...demos.values()].map(async (demo) => {
-      try {
-        await demo.load();
-      } catch (error) {
+  for (const demo of demos.values()) {
+    void demo
+      .load()
+      .catch((error) => {
         console.error(error);
+        demo.loadState = "error";
         demo.setState("error");
-      }
-    }),
-  ).then(() => {
-    if (gallery !== installedGallery) return;
-    galleryReady = true;
-    syncActive();
-  });
+      })
+      .finally(() => {
+        if (gallery === installedGallery) syncActive();
+      });
+  }
+  syncActive();
 }

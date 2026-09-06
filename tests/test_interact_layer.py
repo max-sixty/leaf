@@ -295,6 +295,28 @@ def test_the_python_instructions_name_every_module_they_own():
     assert not unnamed, f"unnamed in scripts/CLAUDE.md: {unnamed}"
 
 
+def test_the_root_instructions_name_every_directory_ci_gates_on_its_own():
+    """A gate `uv run pytest tests` does not reach must be named where sessions read.
+
+    `ci.yaml` runs one job per gate, and a step that names a `working-directory`
+    is a gate with its own tools and its own command — the website Worker's
+    TypeScript today. Neither the suite nor pre-commit reaches such a tree, and
+    `wt merge` runs only those two, so a session that lands there on the root
+    instructions alone reddens main. The set comes from the workflow rather than
+    a list here, for the reason the reference routing above states: a list is the
+    second copy, and the job added without the paragraph would stay green.
+    """
+    workflow = (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
+    instructions = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    directories = sorted(
+        set(re.findall(r"^\s*working-directory:\s*(\S+)", workflow, re.MULTILINE))
+    )
+
+    assert directories, "no working-directory read — an empty set names itself"
+    unnamed = [d for d in directories if f"`{d}/`" not in instructions]
+    assert not unnamed, f"unnamed in CLAUDE.md: {unnamed}"
+
+
 def test_hidden_hook_remains_callable():
     result = CliRunner().invoke(cli_model.cli, ["hook"], input="{}")
 

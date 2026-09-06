@@ -29,9 +29,11 @@ for each kind, and this reference is the mechanism around it.
 
 Printing is not receipt. The wait owner acknowledges only after the complete
 batch reaches its next durable consumer. In the direct loop that consumer is
-model context: start `leaf ack <page> <highest-seq>` as the next background task
-for the page the first line names, set the page `working`, and address every
-event while ack waits for the next batch. If wait output is truncated or lost,
+model context: direct delivery records the included events as opened in this turn.
+Start `leaf ack <page> <highest-seq>` as the next background task for the page the
+first line names, and address every event while ack waits for the next batch. Set
+the page `working` when a useful detail describes continuing work; use `--on` when
+that detail belongs to one thread or widget. If wait output is truncated or lost,
 acknowledge nothing and rerun with enough output capacity for the whole batch;
 a scalar cursor cannot represent a missing event in the middle. Acknowledgement
 is monotonic and idempotent; an event posted between wait and ack has a higher
@@ -51,6 +53,8 @@ delivery receipt.
 
 An acknowledged reader message still requires a reply: acknowledgement only
 removes it from future batches. Re-enter the host's wait loop once the batch is
-handled: `waiting` when the reader owns the next move, `working` while you
-continue. `page state` lists every standing reaction under `reactions`, each
-with its `means`; resolve a page reaction once the live revision has acted on it.
+handled: `waiting` after every delivered obligation has been answered and the
+reader owns the next move, `working` while you continue. A premature `waiting`
+declaration cannot override an opened, unsettled interaction in canonical activity.
+`page state` lists every standing reaction under `reactions`, each with its
+`means`; resolve a page reaction once the live revision has acted on it.

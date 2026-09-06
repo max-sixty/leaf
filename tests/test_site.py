@@ -1,7 +1,8 @@
 """The published site: what the build assembles, and what a reader gets.
 
-The site is the repo's own pages plus every example as a live page, so most of what
-could go wrong is a path that meant one thing in a checkout and another on a host.
+The site is the repo's own pages plus its examples and developer feature gallery as live
+pages, so most of what could go wrong is a path that meant one thing in a checkout and
+another on a host.
 The build resolves every local link it wrote and stops on one that reaches
 nothing, which is the failure a static host answers with a 404 and no other
 signal; these tests hold the rest — that the theme a page links is the shipped
@@ -9,8 +10,9 @@ file, that an example served here is a working page rather than a picture of one
 and that a site claiming to ride the theme's tokens actually changes colour when
 the theme's palette does.
 
-Every page is reached over HTTP: product sources now name the same root layer and
-module as the examples, so file:// is no longer a second supported document mode.
+Every page is reached over HTTP: product sources use the site's root layer, while each
+example uses its page-scoped vendored layer through the canonical server. file:// is no
+longer a second supported document mode for either one.
 """
 
 import hashlib
@@ -41,10 +43,16 @@ ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "skills" / "leaf" / "assets"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
+FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
 
 _spec = importlib.util.spec_from_file_location("site", ROOT / "scripts" / "site.py")
 site_build = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(site_build)
+_server_spec = importlib.util.spec_from_file_location(
+    "website_server", ROOT / "worker" / "server.py"
+)
+website_server = importlib.util.module_from_spec(_server_spec)
+_server_spec.loader.exec_module(website_server)
 
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
@@ -83,9 +91,15 @@ def authored_examples():
     return authored
 
 
+def published_pages():
+    """The worked examples plus the linked developer reference."""
+    assert FEATURE_GALLERY.is_file(), "the feature gallery is missing"
+    return [*authored_examples(), FEATURE_GALLERY]
+
+
 @pytest.fixture(scope="module")
 def site(tmp_path_factory):
-    """One build for the module: it vendors a layer and checks every example."""
+    """One build for the module: it vendors a layer and checks every published page."""
     out = tmp_path_factory.mktemp("published") / "site"
     site_build.build(out)
     return out
@@ -107,19 +121,27 @@ def hosted(site):
 
 @pytest.fixture
 def served_example(site, tmp_path):
-    """Serve disposable copies of published examples through Leaf's real backend."""
-    servers = []
+    """Serve one browser's disposable pages through the website's real backend."""
+    session_site = tmp_path / "site"
+    examples = session_site / "examples"
+    examples.mkdir(parents=True)
+    shutil.copy2(site / "sitenote.js", session_site / "sitenote.js")
+    httpd = hosting_model.server_at(
+        "127.0.0.1", 0, website_server.handler_for(examples)
+    )
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    origin = f"http://127.0.0.1:{httpd.server_address[1]}"
 
     def serve(name):
-        page_dir = tmp_path / f"{len(servers)}-{name}"
+        page_dir = examples / name
         shutil.copytree(site / "examples" / name, page_dir)
-        server = hosting_model.TemporaryPageServer(page_dir).start()
-        servers.append(server)
-        return page_dir, server.url
+        return page_dir, f"{origin}/examples/{name}/"
 
     yield serve
-    for server in reversed(servers):
-        server.close()
+    httpd.shutdown()
+    httpd.server_close()
+    thread.join(timeout=2)
 
 
 def product_url(hosted, name):
@@ -197,9 +219,9 @@ def test_the_site_serves_the_whole_layer_a_page_asks_for(site):
     assert set(site_idioms) <= set(registry)
 
 
-def test_every_example_keeps_its_canonical_page_record(site):
+def test_every_published_page_keeps_its_canonical_page_record(site):
     """Static routes are derived beside, rather than replacing, Leaf's page record."""
-    for source in authored_examples():
+    for source in published_pages():
         page_dir = site / "examples" / source.stem
         versions = example_versions(source)
         events = read_events(page_dir)
@@ -250,15 +272,15 @@ def test_every_example_keeps_its_canonical_page_record(site):
         assert json.loads((page_dir / "status.json").read_text())["state"] == "idle"
         assert not (page_dir / "service.json").exists()
         assert not (page_dir / "preview.json").exists()
-        assert sorted(path.name for path in (page_dir / "versions").iterdir()) == [
-            files_model.version_name(number) for number in range(1, len(versions) + 1)
-        ]
+        assert not (page_dir / "versions").exists()
 
 
-def test_a_static_example_keeps_its_version_identity_and_history(site, hosted, browser):
-    """GitHub Pages serves the same current and pinned addresses as Leaf's server."""
+def test_a_website_example_keeps_its_version_identity_and_history(
+    served_example, browser
+):
+    """The website adapter preserves the canonical server's version routes."""
     name = "log-retention"
-    page_dir = site / "examples" / name
+    page_dir, url = served_example(name)
     events = read_events(page_dir)
     mappings = files_model.version_revisions(events)
     versions = [
@@ -269,17 +291,16 @@ def test_a_static_example_keeps_its_version_identity_and_history(site, hosted, b
         }
         for version, revision in sorted(mappings.items())
     ]
-    page, errors = open_page(browser, f"{hosted}/examples/{name}/")
+    page, errors = open_page(browser, url)
     try:
         expect(page.locator(".lf-version")).to_have_text("v2 ▾")
-        current = page.evaluate("() => fetch('/api/state').then(r => r.json())")
-        assert current["active"] == {
-            "revision": mappings[2],
-            "version": 2,
-            "url": f"/examples/{name}/",
-            "label": "v2",
-            "activated_at": None,
-        }
+        current = page.evaluate("() => fetch('api/state').then(r => r.json())")
+        assert current["active"]["revision"] == mappings[2]
+        assert current["active"]["version"] == 2
+        assert current["active"]["url"].startswith(
+            f"/examples/{name}/revisions/r{mappings[2]}-"
+        )
+        assert current["active"]["label"] == "v2"
         assert current["versions"] == versions
 
         page.locator(".lf-version").click()
@@ -296,14 +317,15 @@ def test_a_static_example_keeps_its_version_identity_and_history(site, hosted, b
 
         expect(page.locator(".lf-version")).to_have_text("v1 ▾")
         expect(page.locator("#ret-cost-keep")).to_have_count(0)
-        pinned = page.evaluate("() => fetch('/api/state').then(r => r.json())")
-        assert pinned["active"] == {
-            "revision": mappings[1],
-            "version": 1,
-            "url": f"/examples/{name}/versions/v1.html",
-            "label": "v1",
-            "activated_at": None,
-        }
+        markup = page.evaluate(
+            "() => fetch('../versions/v1.html').then(response => response.text())"
+        )
+        assert '<meta name="lf-version" data-lf-runtime content="1">' in markup
+        assert (
+            f'<meta name="lf-revision" data-lf-runtime content="{mappings[1]}">'
+            in markup
+        )
+        pinned = page.evaluate("() => fetch('../api/state').then(r => r.json())")
         assert pinned["versions"] == versions
         assert errors == []
     finally:
@@ -459,25 +481,31 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
         published = {
             path.name for path in (site / "examples").iterdir() if path.is_dir()
         }
-        assert published == expected
+        assert published == expected | {FEATURE_GALLERY.stem}
+        gallery = page.locator("#feature-gallery a")
+        expect(gallery).to_have_text("feature gallery")
+        expect(gallery).to_have_attribute("href", "/examples/feature-gallery/")
         assert not errors, errors[:3]
     finally:
         page.close()
 
 
-def test_every_example_stands_as_a_live_page(served_example, browser):
+def test_every_published_page_stands_as_a_live_page(served_example, browser):
     """Every artifact starts through Leaf's own document and state boundaries."""
-    examples = authored_examples()
-    _, url = served_example(examples[0].stem)
+    pages = published_pages()
+    _, url = served_example(pages[0].stem)
     page, errors = open_page(browser, url)
     try:
-        for source in examples:
-            if source != examples[0]:
+        for source in pages:
+            if source != pages[0]:
                 _, url = served_example(source.stem)
                 opened(page, errors, url)
             newest = len(example_versions(source))
             expect(page.locator(".lf-banner .lf-version")).to_have_text(f"v{newest} ▾")
-            expect(page.locator(".lf-status-text")).to_have_text("Leaf closed")
+            expect(page.locator(".lf-status-text")).to_have_text(
+                "This is an example on the Leaf website. No agent will respond. "
+                "Install Leaf"
+            )
             assert not errors, f"{source.name}: {errors[:3]}"
 
     finally:
@@ -549,11 +577,24 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     page_dir, url = served_example("design-decision")
     page, errors = open_page(browser, url)
     try:
-        expect(page.locator(".lf-banner .lf-status-text")).to_have_text("Leaf closed")
+        expect(page.locator(".lf-banner .lf-status-text")).to_have_text(
+            "This is an example on the Leaf website. No agent will respond. "
+            "Install Leaf"
+        )
+        expect(page.locator(".lf-banner .lf-status-text a")).to_have_attribute(
+            "href", "/#install"
+        )
+        expect(page.locator("main > .sitenote")).to_contain_text(
+            "Try its controls in a private, temporary copy for this browser."
+        )
+        assert page.locator("main > .sitenote a").evaluate_all(
+            "links => links.map(link => link.getAttribute('href'))"
+        ) == ["/", "/examples/", "/#install"]
         expect(page.locator(".lf-banner .lf-dot")).to_have_class(
             re.compile(r"^lf-dot\s*$")
         )
-        state = page.evaluate("() => fetch('/api/state').then(r => r.json())")
+        state = page.evaluate("() => fetch('api/state').then(r => r.json())")
+        assert state["example"] == {"install_url": "/#install"}
         assert state["claims"] == []
         assert state["host"] is None
         assert state["session_alive"] is None
@@ -762,11 +803,11 @@ def test_the_page_backend_answers_the_exact_projection_path(served_example, brow
     try:
         answer = page.evaluate(
             """async () => {
-              const state = await fetch('/api/state').then(response => response.json());
+              const state = await fetch('api/state').then(response => response.json());
               const revision = state.active.revision;
               const through = state.browser.basis.through_seq;
               const response = await fetch(
-                `/api/view?revision=${revision}&through_seq=${through}`,
+                `api/view?revision=${revision}&through_seq=${through}`,
               );
               return {status: response.status, through, body: await response.json()};
             }"""

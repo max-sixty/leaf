@@ -2,38 +2,49 @@ import { focused, keys } from "../keyboard/scopes.js";
 import { spell } from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
 import { notice } from "../notifications.js";
-// One helper wires every durable text surface: the general box, each per-thread reply,
-// and the compact anchored composer. `wireInput` gives runtime textareas one input
-// contract: persist each edit, keep the send button and placeholder current, prevent
-// parallel sends of one local surface (an impatient second click), and send with
-// `Mod+Enter`. Enter retains the textarea's native newline. The stylesheet owns
+// One helper wires every durable composition surface: the general box, each per-thread
+// reply, the compact anchored composer, and composition boxes contributed by widgets.
+// `wireInput` gives every such textarea one input contract: persist each edit, keep the
+// action button and placeholder current, prevent parallel submissions of one local
+// surface (an impatient second click), and submit with `Mod+Enter`. Enter retains the
+// textarea's native newline. The stylesheet owns
 // textarea growth through `field-sizing: content`, within the room supplied by floating
 // placement; script does not derive textarea height from its text. wire() returns a
 // sync() the caller runs after setting .value programmatically, so the send button and
 // any containing chrome agree with what's in the box: that sync refreshes the composer's
 // placement for typed and programmatic edits alike, including drafts mirrored from
-// another tab. An image paste uploads bytes to page media. The draft keeps the resulting
-// Markdown, while the textarea shows only the reader's words and a thumbnail projection.
-// The send binding, and the register's spelling of it: the placeholder, the button's
+// another tab. When the surface accepts images, a paste uploads bytes to page media. The
+// draft keeps the resulting Markdown, while the textarea shows only the reader's words
+// and a thumbnail projection.
+// The submit binding, and the register's spelling of it: the placeholder, the button's
 // tooltip and the row a box declares all read one string.
 const SEND = "Mod+Enter";
 let uploadMedia;
-export const configureInput = (uploader) => (uploadMedia = uploader);
+let inputAddress = () => null;
+export const configureInput = ({ upload, address }) => {
+  uploadMedia = upload;
+  inputAddress = address;
+};
 const inputDrafts = new WeakMap();
 // A wired textarea's visible value omits generated image Markdown. Readers outside
 // this module ask through this seam for the complete draft; an unwired textarea keeps
 // the platform's ordinary value.
 export const draftOf = (ta) => inputDrafts.get(ta)?.value() ?? ta?.value ?? "";
-// Focus-derived hints join the runtime's one standing paint. Only the input losing the
-// standing and the one gaining it can change for that reason.
+// Focus and contextual-entry hints join the runtime's one standing paint. Repaint the
+// previous and current box for each fact, since either may need to lose or gain its hint.
 const inputPaints = new WeakMap();
 let paintedInput = null;
+let paintedAddress = null;
 export const paintInputs = () => {
   const held = focused();
   const input = held && inputPaints.has(held) ? held : null;
-  if (paintedInput && paintedInput !== input) inputPaints.get(paintedInput)?.();
-  if (input) inputPaints.get(input)?.();
+  const addressed = inputAddress();
+  const address =
+    addressed?.box && inputPaints.has(addressed.box) ? addressed.box : null;
+  for (const ta of new Set([paintedInput, input, paintedAddress, address]))
+    inputPaints.get(ta)?.(addressed);
   paintedInput = input;
+  paintedAddress = address;
 };
 // `sends` is the word the box's own send row says — "send", "suggest", "comment" — since
 // a composer in suggestion mode and a thread's reply are the same binding doing different
@@ -42,7 +53,7 @@ export function wireInput(
   ta,
   {
     hint,
-    address,
+    accessibleName = null,
     save,
     send,
     sendBtn,
@@ -51,6 +62,7 @@ export function wireInput(
     altSend = null,
     allowsMedia = () => true,
     busy = () => false,
+    hasContent = (raw) => Boolean(raw.trim()),
     layout = () => {},
   },
 ) {
@@ -101,26 +113,31 @@ export function wireInput(
   };
   hydrate(ta.value);
   // The hint goes in the placeholder, where it's visible exactly while the box is
-  // empty and can't be found any other way; the button's tooltip spells the send key
-  // out. The send shortcut is focus-scoped, so only the focused box may claim it.
-  // Unfocused, the placeholder may carry a contextual key where the composer has one.
-  // Both hint and address may be functions because their labels can change while the
-  // box stands.
+  // empty; the stable accessible name remains independent of that changing hint. The
+  // button's tooltip spells the send key out. The send shortcut is focus-scoped, so
+  // only the focused box may claim it. Unfocused, the placeholder may carry the live
+  // contextual key that enters this exact box. These readings may be functions because
+  // their labels can change while the box stands.
   const label = () => (typeof hint === "function" ? hint() : hint);
+  const name = () =>
+    typeof accessibleName === "function" ? accessibleName() : accessibleName;
   const sendKeys = spell(SEND);
-  const paint = () => {
+  const paint = (addressed = inputAddress()) => {
     // Read the shared logical focus so this hint agrees with the key line and rings.
     const standing = focused() === ta;
-    const suffix = standing ? sendKeys : address?.();
+    const suffix = standing ? sendKeys : addressed?.box === ta ? addressed.label : "";
     const placeholder = suffix ? `${label()} · ${suffix}` : label();
     if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
+    const ariaLabel = name();
+    if (ariaLabel && ta.getAttribute("aria-label") !== ariaLabel)
+      ta.setAttribute("aria-label", ariaLabel);
   };
   inputPaints.set(ta, paint);
   const repaint = () => {
+    sendBtn.title = `${sendBtn.textContent.trim()} (${sendKeys})`;
     if (focused() === ta) paintInputs();
     else paint();
   };
-  sendBtn.title = `Send (${sendKeys})`;
   if (altBtn) altBtn.title = altBtn.textContent;
   let sending = false;
   let uploading = false;
@@ -128,7 +145,9 @@ export function wireInput(
   // submit() is the behavioral guard and aria-disabled exposes the same state.
   const refresh = () => {
     repaint();
-    const disabled = String(sending || uploading || busy() || !draftValue().trim());
+    const disabled = String(
+      sending || uploading || busy() || !hasContent(draftValue()),
+    );
     sendBtn.setAttribute("aria-disabled", disabled);
     altBtn?.setAttribute("aria-disabled", disabled);
     layout();
@@ -152,7 +171,10 @@ export function wireInput(
     // (the notice announces too).
     const raw = draftValue();
     const text = raw.trim();
-    if (!text) return notice("Nothing to send — the box is empty");
+    if (!hasContent(raw))
+      return notice(
+        `Nothing to ${sendBtn.textContent.trim().toLowerCase()} — the box is empty`,
+      );
     sending = true;
     refresh();
     try {
@@ -173,6 +195,7 @@ export function wireInput(
       .map((item) => item.getAsFile())
       .filter(Boolean);
     if (!images.length) return;
+    if (!allowsMedia) return;
     event.preventDefault();
     if (!allowsMedia()) {
       notice("Images can be added to comments, not replacement text");
@@ -208,7 +231,7 @@ export function wireInput(
   // the press are the same object. Every box the runtime wires gets it — the general box,
   // each thread's reply, the selection composer, a widget conversation — where the reference
   // used to carry one row saying "in the focused composer" for a chord that fires in all
-  // of them.
+  // of them, including widget-owned text boxes.
   // The sentence is the same in every box, so the reference names the binding once however
   // many boxes the page holds; the word is this box's, because what the press does here is
   // what the line is for — a composer in suggestion mode and a thread's reply are one
@@ -217,7 +240,7 @@ export function wireInput(
     {
       id: "text.send",
       keys: [SEND],
-      does: "Send what you have typed",
+      does: "Submit what you have typed",
       line: sends,
       run: () => sendBtn.click(),
     },

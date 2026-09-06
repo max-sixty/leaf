@@ -56,8 +56,9 @@ export const loadMarked = () =>
 // re-upgrading it over a prose correction would turn the edit into a second transition.
 const msgBodies = new Map();
 function paintMsgText(text, m) {
-  if (m.suggestion) text.textContent = m.text;
-  else text.innerHTML = renderMarkdown(m.text);
+  const words = m.text ?? "";
+  if (m.suggestion) text.textContent = words;
+  else text.innerHTML = renderMarkdown(words);
 }
 
 function buildMsgBody(m) {
@@ -82,6 +83,7 @@ function buildMsgBody(m) {
     paintMsgText(text, m);
   } else {
     paintMsgText(text, m);
+    if (m.drawing) body.append(el("span", "lf-drawing-reference", "Drawing comment"));
     // The widget markup beside the text, injected as the CLI gate validated it. A
     // template is deliberately inert: an already-defined custom element's constructor
     // runs even in a detached ordinary div. Capture parentage in the literal markup,

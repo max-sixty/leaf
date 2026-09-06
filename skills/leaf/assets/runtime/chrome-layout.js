@@ -36,7 +36,7 @@
 import { layoutMarginRows } from "./margin-layout.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { setReact, syncReactLayout } from "./reactions.js";
-import { closePreview } from "./living-margin.js";
+import { activeInlineThread, closePreview } from "./living-margin.js";
 import { containsAcross } from "./passages.js";
 import {
   closeBtn,
@@ -55,6 +55,7 @@ import { refreshFab } from "./composing/surface.js";
 import { motion } from "./motion.js";
 import { renderPanel } from "./conversation/reconcile.js";
 import { readerStore } from "./storage.js";
+import { showThread } from "./conversation/landing.js";
 
 // The width the panel stands at for a reader who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
@@ -415,7 +416,26 @@ const layoutSizes = new ResizeObserver((entries) => {
 // on having happened yet.
 export function mountLayout() {
   commentsEdge.handle(panel, () => closeBtn);
-  toggleBtn.onclick = () => setPanel(!panelOpen);
+  let pressedInlineThread = null;
+  toggleBtn.addEventListener("pointerdown", () => {
+    pressedInlineThread = activeInlineThread()?.dataset.thread ?? null;
+  });
+  toggleBtn.addEventListener("pointercancel", () => {
+    pressedInlineThread = null;
+  });
+  toggleBtn.addEventListener("pointerup", () => {
+    setTimeout(() => (pressedInlineThread = null));
+  });
+  toggleBtn.onclick = () => {
+    if (panelOpen) {
+      setPanel(false);
+      return;
+    }
+    const inlineThread = pressedInlineThread ?? activeInlineThread()?.dataset.thread;
+    pressedInlineThread = null;
+    if (inlineThread) showThread(inlineThread, { focus: "thread" });
+    else setPanel(true);
+  };
   addEventListener("resize", () => {
     closeReactions();
     pageShifted();

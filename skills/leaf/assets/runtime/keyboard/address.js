@@ -89,11 +89,13 @@ import {
 import { leavesOffered, othersLinks } from "../live-leaves.js";
 import {
   enterPageMap,
+  activeInlineThread,
   leavePageMap,
   openPageMapItem,
   pageMapIsActive,
   pageMapItems,
 } from "../living-margin.js";
+import { showThread } from "../conversation/landing.js";
 
 import { claimsEsc, focused, paintHere, saying } from "./scopes.js";
 import { glideTo, placeThreadEdge, seenScroller, stopGlide } from "../navigation.js";
@@ -192,8 +194,12 @@ const BUILTIN_DIRECT_DESTINATIONS = [
     line: "Threads panel",
     when: () => true,
     go: () => {
-      setPanel(true);
-      threadsBox.focus({ preventScroll: true });
+      const inline = activeInlineThread();
+      if (inline) showThread(inline.dataset.thread, { focus: "thread" });
+      else {
+        setPanel(true);
+        threadsBox.focus({ preventScroll: true });
+      }
     },
     active: (...args) => panelIsOpen(...args),
   },

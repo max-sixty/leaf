@@ -213,6 +213,12 @@ dispatch `lf-projection` on `document` so Leaf retries deferred state after the
 gesture has finished staging its local action. Optional recorded scalar
 attributes have a null initial value and must be removed when that value returns.
 
+A widget-owned composition box uses `wireInput()` from `/runtime/widget-api.js`.
+It keeps Enter as a newline and registers Mod+Enter for the contextual action, alongside
+the shared draft persistence, busy state, and shortcut projections. A direct editor that
+needs more commands, such as Save and Cancel, registers those rows on its textarea but
+keeps the same Enter and Mod+Enter meanings.
+
 The widget still owns its implementation: supporting modules can sit beside its entry
 module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
@@ -608,7 +614,10 @@ Core calls `begin`, asks `outletFor` about each exact datum thread owned by that
 then calls `end`. The adapter returns an element inside the widget or `null`. It owns
 only outlet creation, removal, and layout. Core renders the retained messages, replies,
 reactions, settlement controls, and receipts into each outlet. A claimed thread does not
-also appear in the living margin; the Threads panel remains the complete index.
+also appear in the living margin; the Threads panel remains the complete index. With
+Threads closed, `t`/`T` lands on this local surface before trying the living-margin
+fallback. Opening Threads from the focused surface carries the same thread into the
+panel.
 
 The adapter returns `null` for data that is filtered, collapsed, or not yet hydrated.
 That keeps lazy widgets lazy and restores the living-margin fallback. Deliberate thread

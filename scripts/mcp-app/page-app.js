@@ -33,6 +33,12 @@ const quote = document.querySelector("#quote");
 const comment = document.querySelector("#comment");
 const cancel = document.querySelector("#cancel");
 const send = document.querySelector("#send");
+const modEnter = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
+  ? "⌘⏎"
+  : "Ctrl+⏎";
+const commentHint = (words) => `${words} · ${modEnter}`;
+comment.setAttribute("aria-keyshortcuts", "Meta+Enter Control+Enter");
+send.title = `Send comment (${modEnter})`;
 let current = null;
 let currentMode = null;
 let selection = null;
@@ -465,11 +471,13 @@ function openComposer(nextSelection) {
     : selection?.section
       ? `On § ${selection.section}`
       : "On this page";
-  comment.placeholder = selection?.quote
-    ? "Comment on this passage"
-    : selection?.section
-      ? "Comment on this item"
-      : "Comment on this page";
+  comment.placeholder = commentHint(
+    selection?.quote
+      ? "Comment on this passage"
+      : selection?.section
+        ? "Comment on this item"
+        : "Comment on this page",
+  );
   composer.classList.add("open");
   sizeComment();
   comment.focus();
@@ -542,6 +550,17 @@ pageHost.addEventListener("dblclick", (event) => {
 
 cancel.addEventListener("click", resetComposer);
 comment.addEventListener("input", sizeComment);
+comment.addEventListener("keydown", (event) => {
+  if (
+    event.key !== "Enter" ||
+    event.shiftKey ||
+    event.altKey ||
+    (!event.metaKey && !event.ctrlKey)
+  )
+    return;
+  event.preventDefault();
+  composer.requestSubmit();
+});
 commentPage.addEventListener("click", () => {
   if (currentMode === "snapshot") openComposer(captureSelection());
 });

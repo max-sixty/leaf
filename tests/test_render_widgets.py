@@ -59,10 +59,10 @@ from render_support import (
     SUGGESTION_PAGE,
     SWAP_PAGE,
     CutOff,
-    _until,
     actions,
     banner_address,
     compare_with,
+    holding,
     key_line,
     leaf_page,
     live_url,
@@ -1193,9 +1193,9 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
 
 def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, serve):
     """The explanation is a glance, not a mouse-only tooltip: the phrase opens it on
-    hover, Tab reaches its raised mark, and a click pins it for touch. In every form the
-    top-layer card remains inside the viewport, and both the phrase and explanation
-    remain the page's authored words."""
+    hover, Tab reaches its Explain control, and a click pins it for mouse or touch. In
+    every form the top-layer card remains inside the viewport, and both the phrase and
+    explanation remain the page's authored words."""
     source = leaf_page(
         "gloss",
         """
@@ -1219,31 +1219,45 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
         """el => {
           const phrase = getComputedStyle(el);
           const mark = el.querySelector('.lf-gloss-mark');
-          const badge = getComputedStyle(mark);
+          const words = document.createRange();
+          words.selectNodeContents(el.childNodes[0]);
           const tokens = document.createElement('span');
-          tokens.style.cssText = 'color: var(--accent); background: var(--card)';
+          tokens.style.cssText = 'color: var(--accent)';
           document.body.append(tokens);
           const tokenStyle = getComputedStyle(tokens);
           const accent = tokenStyle.color;
-          const card = tokenStyle.backgroundColor;
           tokens.remove();
           return {
             accent,
-            card,
+            extraWidth: el.getBoundingClientRect().width - words.getBoundingClientRect().width,
             underline: phrase.textDecorationColor,
-            mark: mark.textContent,
-            markBackground: badge.backgroundColor,
-            markColor: badge.color,
+            markOpacity: getComputedStyle(mark).opacity,
+            markText: mark.textContent,
+            markWidth: mark.getBoundingClientRect().width,
+            pointer: phrase.cursor,
           };
         }"""
     )
-    assert affordance["mark"] == "i"
+    assert affordance["markText"] == ""
+    assert affordance["markWidth"] == 1
+    assert affordance["markOpacity"] == "0"
+    assert affordance["pointer"] == "help"
+    assert affordance["extraWidth"] == pytest.approx(0, abs=1)
     assert affordance["underline"] == affordance["accent"]
-    assert affordance["markBackground"] == affordance["accent"]
-    assert affordance["markColor"] == affordance["card"]
     gloss.hover()
     expect(bubble).to_be_visible()
     expect(bubble).to_have_text("A thin, end-to-end path through the real system.")
+
+    # Auto popovers light-dismiss on a press outside the card. The phrase is outside
+    # the card too, so the click that pins a hovered explanation must reconcile the
+    # browser's just-closed popover with the widget state before the pointer leaves.
+    gloss.click(position={"x": 20, "y": 8})
+    page.mouse.move(0, 0)
+    expect(bubble).to_be_visible()
+    page.locator("h1").click()
+    expect(bubble).to_be_hidden()
+    gloss.hover()
+    expect(bubble).to_be_visible()
 
     rect = bubble.evaluate("el => el.getBoundingClientRect()")
     viewport = page.evaluate("() => ({ width: innerWidth, height: innerHeight })")
@@ -1266,6 +1280,7 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     page.keyboard.press("Tab")
     expect(mark).to_be_focused()
     expect(bubble).to_be_visible()
+    expect(gloss).to_have_css("outline-style", "solid")
     page.keyboard.press("Escape")
     expect(bubble).to_be_hidden()
 
@@ -1290,34 +1305,6 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     assert touch_errors == []
     touch.close()
     context.close()
-
-
-def test_a_gloss_aim_box_does_not_make_its_table_scroll_sideways(browser, serve):
-    """The mark's aim box is outside layout but not outside overflow. A gloss that ends
-    a cell puts the badge against the table's inline edge, and an aim box straddling the
-    badge would hang half its width past that edge — leaving a table the reader can drag
-    sideways over a target nothing draws."""
-    page, errors = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "gloss at the edge",
-                """
-<h1>Areas</h1>
-<table id="edge-table" style="width: fit-content">
-  <tbody><tr><td style="padding: 0"><lf-gloss
-    tip="The test reads the index before and after."
-    >byte-identical</lf-gloss></td></tr></tbody>
-</table>
-""",
-            )
-        ),
-    )
-    expect(page.locator("#edge-table .lf-gloss-mark")).to_be_visible()
-    room = page.locator("#edge-table").evaluate("el => el.scrollWidth - el.clientWidth")
-    assert room <= 1, f"the table scrolls {room}px sideways"
-    assert errors == []
-    page.close()
 
 
 def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
@@ -1688,7 +1675,7 @@ def test_a_newer_swipe_survives_an_older_swipe_refusal(browser, serve):
                 "final": True,
             },
         )
-    _until(page, lambda _traffic: len(held) == 2, "sent the surviving swipe")
+    holding(page, held, 2, "the surviving swipe")
     held[1].continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -1733,11 +1720,7 @@ def test_a_stale_rapid_finish_is_refused_when_an_earlier_card_returns(browser, s
         },
     )
     for index in range(1, 4):
-        _until(
-            page,
-            lambda _traffic, index=index: len(held) > index,
-            f"sent gesture {index + 1}",
-        )
+        holding(page, held, index + 1, f"gesture {index + 1}")
         held[index].continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -2124,10 +2107,8 @@ def test_a_copy_says_a_change_is_only_proposed(browser, serve, tmp_path):
 
     On screen the ✓/✗ row hanging on the change's own line says it, and the word is
     for whoever is listening, so it stays clipped. A copy and paper have no row —
-    both strip a control the page does not speak through, and a pending one says
-    nothing yet, so it goes whole — and that left the two states saying opposite
-    amounts: a decided change keeps its "Accepted" receipt in the copy, a pending one kept
-    nothing at all, and the tints alone read as a change already made.
+    both strip controls the page does not speak through — so each pending slot needs
+    visible words distinguishing a proposal from ordinary settled content.
 
     The word also had to change to be worth showing. Pendingness was carried by the
     word's mere presence, which no reader can perceive — nothing sits alongside to
@@ -2390,12 +2371,8 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     The outcome has to reach the log too: what the user sees settle and what
     Claude is told must be the same event.
 
-    What stays is the row, saying what was done there. It used to clear itself in
-    the same frame as the press, leaving a banner notice as the only evidence that
-    anything had happened — and clearing a control is the one thing a press may not
-    do to the line it was made on. Now the control the user pressed states the
-    outcome where it stood and stops offering. Its pair leaves and a persistent receipt
-    takes the transient tooltip's place, so the result can be selected and quoted."""
+    The resulting content, Undo control, and notice use the layer's existing state and
+    feedback surfaces. No second status is inserted beside them."""
     page, _errors = open_page(browser, serve(SUGGESTION_PAGE))
     row = page.locator("[data-lf-for='sug-refill']")
     accept = row.locator(".lf-sug-accept")
@@ -2428,16 +2405,15 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     expect(undo_button.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
-    receipt = row.locator(".lf-sug-receipt")
-    expect(receipt).to_have_text("Accepted", use_inner_text=True)
-    expect(receipt).to_be_visible()
-    assert receipt.get_attribute("data-lf-said") == ""
+    expect(row.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(row).not_to_contain_text("Accepted")
     assert undo_button.get_attribute("data-lf-said") is None
     expect(undo_button).to_be_enabled()
     expect(undo_button).to_be_focused()
     assert undo_button.evaluate(box) == before, (
-        "the primary Button moved away from the press as its receipt arrived"
+        "Undo moved away from the press it replaces"
     )
+    expect(page.locator(".lf-notice")).to_have_text(re.compile(r"^Accepted .+ — sent$"))
     expect(reject).to_be_hidden()
     settled = page.locator("#sug-refill lf-new").evaluate(
         "el => getComputedStyle(el).textDecorationLine + ' ' + getComputedStyle(el).backgroundColor"
@@ -2466,28 +2442,24 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     page.close()
 
 
-def test_a_settled_receipt_keeps_a_visible_perch_when_the_change_vanishes(
-    browser, serve
-):
-    """A pure deletion leaves no suggestion box, but its recorded outcome is still
-    visible page text rather than a data-lf-said word hidden with a waiting row."""
+def test_a_settled_deletion_keeps_undo_on_the_containing_passage(browser, serve):
+    """A pure deletion leaves no suggestion box, but Undo remains reachable."""
     page, errors = open_page(browser, serve(PROPOSED_PAGE))
     page.locator("[data-lf-for='sug-delete'] .lf-sug-accept").click()
 
     expect(page.locator("#sug-delete")).to_be_hidden()
-    receipt = page.locator("[data-lf-for='sug-delete'] .lf-sug-receipt")
-    expect(receipt).to_have_text("Accepted")
-    expect(receipt).to_be_visible()
-    assert receipt.get_attribute("data-lf-said") == ""
+    undo = page.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    expect(undo).to_be_visible()
     expect(
-        receipt.locator("xpath=ancestor::*[contains(@class, 'lf-margin-item')]")
+        undo.locator("xpath=ancestor::*[contains(@class, 'lf-margin-item')]")
     ).not_to_have_class(re.compile(r"\blf-waiting\b"))
+    expect(page.locator(".lf-margin-receipt")).to_have_count(0)
     assert errors == []
     page.close()
 
 
 def test_rejecting_a_suggestion_promotes_the_surviving_button(browser, serve):
-    """Reject leaves a visible receipt and an active Undo, never a dead circle."""
+    """Reject leaves an active Undo, never a dead circle or a second status."""
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     row = page.locator("[data-lf-for='sug']")
     reject = row.locator(".lf-sug-reject")
@@ -2497,7 +2469,8 @@ def test_rejecting_a_suggestion_promotes_the_surviving_button(browser, serve):
     undo_button = row.get_by_role("button", name=re.compile(r"^Undo rejecting"))
     expect(undo_button).to_have_attribute("data-lf-button-primary", "")
     expect(row.locator(".lf-sug-accept")).to_be_hidden()
-    expect(row.locator(".lf-sug-receipt")).to_have_text("Rejected")
+    expect(row.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(row).not_to_contain_text("Rejected")
     undo_button.click()
     round_trip(page)
     expect(page.locator("#sug")).not_to_have_attribute(
@@ -2510,7 +2483,7 @@ def test_rejecting_a_suggestion_promotes_the_surviving_button(browser, serve):
 
 def test_a_settled_boxless_suggestion_keeps_its_own_margin_identity(browser, serve):
     """A `display: contents` suggestion still paints through its children; settling it
-    must not re-perch its receipt on the containing section and change the map target."""
+    must not re-perch Undo on the containing section and change the map target."""
     styled = SHORT_SUGGESTION.replace(
         "</head>", "<style>#sug { display: contents; }</style>\n</head>"
     )
@@ -2519,7 +2492,10 @@ def test_a_settled_boxless_suggestion_keeps_its_own_margin_identity(browser, ser
     assert item.evaluate("row => row.lfEntry.target.id") == "sug"
 
     item.locator(".lf-sug-accept").click()
-    expect(item.locator(".lf-sug-receipt")).to_have_text("Accepted")
+    expect(
+        item.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    ).to_be_visible()
+    expect(item.locator(".lf-margin-receipt")).to_have_count(0)
     assert item.evaluate("row => row.lfEntry.target.id") == "sug"
     assert errors == []
     page.close()
@@ -2538,7 +2514,7 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
         ),
     )
     row.get_by_role("button", name=re.compile(r"^Undo rejecting")).click()
-    expect(row.locator(".lf-sug-receipt")).to_have_text("Undo failed · Rejected")
+    expect(row.locator(".lf-margin-receipt")).to_have_text("Undo failed · Rejected")
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "reject")
     item = row.locator("xpath=..")
     expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
@@ -2727,9 +2703,14 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
         expect(page.locator(f"#{widget} lf-new")).to_be_visible()
         # Waited for, not read once: each is decided by its own round trip, so the
         # last of them is still in flight when the first has settled.
-        expect(page.locator(f"[data-lf-for='{widget}'] .lf-sug-receipt")).to_have_text(
-            "Accepted", use_inner_text=True
-        )
+        expect(
+            page.locator(f"[data-lf-for='{widget}']").get_by_role(
+                "button", name=re.compile(r"^Undo accepting")
+            )
+        ).to_be_visible()
+        expect(
+            page.locator(f"[data-lf-for='{widget}'] .lf-margin-receipt")
+        ).to_have_count(0)
     for widget in (
         "sug-refill",
         "sug-in-card",
@@ -2758,8 +2739,8 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
     """A decision is painted when the log takes it, never before, so a send the
     server refuses leaves the page exactly as it was. Settling first and putting it
     back on failure said the same thing in the end and flickered on the way: the
-    press against a closed session painted one frame of "✓ Accepted" over a folding
-    slot before rewinding it."""
+    press against a closed session painted one frame of settled content and Undo over
+    a folding slot before rewinding it."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
 
     def refuse_attempt(route):
@@ -2793,7 +2774,7 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
         "the refused decision must never have been on the element at all"
     )
     item = page.locator('[data-lf-margin-for="sug-refill"]')
-    expect(item.locator(".lf-sug-receipt")).to_have_text("Failed")
+    expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
     expect(item).to_have_attribute("data-lf-state", "failed")
     expect(item.locator(".lf-margin-more")).to_be_hidden()
     expect(item.get_by_role("button", name="Retry", exact=True)).to_be_visible()
@@ -2801,10 +2782,10 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
     expect(item.get_by_role("button", name="Details", exact=True)).to_have_count(0)
     expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
     item.get_by_role("button", name="Cancel", exact=True).click()
-    expect(item.locator(".lf-sug-receipt")).to_have_count(0)
+    expect(item.locator(".lf-margin-receipt")).to_have_count(0)
     expect(item.locator(".lf-sug-accept")).to_be_focused()
     item.locator(".lf-sug-accept").click()
-    expect(item.locator(".lf-sug-receipt")).to_have_text("Failed")
+    expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
     # And the page's own count is derived from that, so it comes back too.
     expect(page.get_by_role("button", name="Accept all (3)")).to_be_visible()
     expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
@@ -2890,7 +2871,7 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     page.route("**/api/event", lambda route: held.append(route))
     row = page.locator("[data-lf-for='sug-refill']")
     row.locator(".lf-sug-accept").click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the decision in the wire")
+    holding(page, held, 1, "the decision")
     expect(row.locator(".lf-sug-accept")).to_be_disabled()
     row.locator(".lf-sug-accept").evaluate("button => button.click()")
     expect(unfolded_button(row.locator(".lf-sug-reject"))).to_be_disabled()
@@ -2998,16 +2979,16 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     told(second)
     expect(second.locator("#sug-refill lf-old")).to_be_hidden()
     expect(second.locator("#sug-refill lf-new")).to_be_visible()
-    # Nothing left to decide, and the row says which way it went — written by the
-    # replay here rather than by a press, which is the only place that path is driven.
+    # Nothing is left to decide. Replay replaces both offers with the existing Undo
+    # action without adding a second status beside the settled content.
     row = second.locator("[data-lf-for='sug-refill']")
     accepted = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
     expect(accepted.locator(".lf-margin-button-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
-    expect(row.locator(".lf-sug-receipt")).to_have_text("Accepted", use_inner_text=True)
+    expect(row.locator(".lf-margin-receipt")).to_have_count(0)
     expect(accepted).to_be_enabled()
-    # Its pair leaves, while the persistent receipt says the decision was taken.
+    # Its pair leaves; the surviving content and Undo carry the settled state.
     rejected = second.locator("[data-lf-for='sug-refill'] .lf-sug-reject")
     expect(rejected).to_be_hidden()
     expect(second.get_by_role("button", name="Accept all (2)")).to_be_visible()
@@ -3200,7 +3181,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
         """() => {
           const ask = document.getElementById('storage-decision').getBoundingClientRect();
           const options = document.getElementById('storage-options').getBoundingClientRect();
-          return {context: options.top - decision.top,
+          return {context: options.top - ask.top,
                   room: document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight};
         }"""
     )
@@ -3234,7 +3215,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     )
     landed = page.evaluate(
         """() => {
-          const decision = document.getElementById('storage-decision').getBoundingClientRect();
+          const ask = document.getElementById('storage-decision').getBoundingClientRect();
           const options = document.getElementById('storage-options').getBoundingClientRect();
           const clear = parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop);
           return {ask: ask.top, options: options.top, clear};

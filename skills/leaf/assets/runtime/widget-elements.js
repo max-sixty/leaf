@@ -463,7 +463,7 @@ export function relabel(node, label, { says } = {}) {
 }
 
 // Room for a word not yet said, taken from the words themselves. A control that will
-// rewrite its own label ("✓ Accept" to "✓ Accepted", a count gaining a digit) must
+// rewrite its own label ("Approve version" to "✓ Version approved", a count gaining a digit) must
 // hold the widest word's room from the start, or the press rewrites the one line a
 // press may not move. Stating that room as a number is a measurement that stops
 // being true silently when the words or the font change, so the control measures the

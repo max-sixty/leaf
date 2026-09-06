@@ -36,6 +36,8 @@ from render_support import (
     PICTURE_PAGE,
     RENDERED,
     REPLAYED_PAGE,
+    SCROLL_SETTLE_MS,
+    SCROLL_SETTLED,
     SHADOW_VISUAL_LAYER,
     SHADOW_VISUAL_PAGE,
     SHADOW_VISUAL_WIDGETS,
@@ -383,6 +385,83 @@ def test_a_growing_comment_keeps_its_words_and_its_paragraph_clear(
     field.fill("Brief")
     expect(field).to_have_value("Brief")
     assert field.bounding_box()["height"] == compact["height"]
+    assert errors == []
+    page.close()
+
+
+def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, serve):
+    """The block a comment names decides where the field stands, on screen or off it.
+
+    Placement reads that block through the viewport, so a paragraph scrolled clear of
+    the viewport has no shown rect left to read. Falling back to the passage there let a
+    short selection lend the words after it after all: the field left the free margin,
+    crossed into the column, and came to rest on the sentences the reader had scrolled
+    down to. The column does not move when the page scrolls, so neither may the field.
+    """
+    body = "".join(
+        f'<p id="p{n}">Paragraph {n} carries enough ordinary reading text to be '
+        "covered by a field that wandered into the column while the reader scrolled "
+        "past the passage the comment was written about.</p>"
+        for n in range(30)
+    )
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Scrolled-away passage",
+                '<h1>Scrolled-away passage</h1><p id="passage">A short phrase begins a '
+                "paragraph with enough surrounding words that a field seated beside the "
+                "selection alone would stand inside the column rather than beside it.</p>"
+                + body
+                + '<div style="height: 100vh"></div>',
+            )
+        ),
+    )
+    # Wide enough that the column leaves a margin the bar fits in. A rail too narrow for
+    # it is the other placement branch, which seats the bar over its own block's right
+    # end by design; this test is about the branch that has a margin to stay in.
+    resized(page, 1440, 900)
+    points = page.locator("#passage").evaluate(
+        """el => {
+          const node = el.firstChild;
+          const first = document.createRange(), last = document.createRange();
+          first.setStart(node, 2); first.setEnd(node, 3);
+          last.setStart(node, 13); last.setEnd(node, 14);
+          const a = first.getBoundingClientRect(), b = last.getBoundingClientRect();
+          return [[a.left, a.top + a.height / 2], [b.right, b.top + b.height / 2]];
+        }"""
+    )
+    select(page, *points)
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    field.fill("A short note.\nSecond line.\nThird line.")
+    beside = page.locator(".lf-fab-bar").bounding_box()["x"]
+
+    page.mouse.move(8, 450)
+    page.mouse.wheel(0, 900)
+    page.wait_for_function("() => scrollY >= 900")
+    page.wait_for_function(
+        "() => document.getElementById('passage').getBoundingClientRect().bottom < 0"
+    )
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+
+    covered = page.evaluate(
+        """() => {
+          const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+          return [...document.querySelectorAll('p')]
+            .filter(p => {
+              const r = p.getBoundingClientRect();
+              return r.width && r.height && r.left < bar.right && bar.left < r.right
+                && r.top < bar.bottom && bar.top < r.bottom;
+            })
+            .map(p => p.id);
+        }"""
+    )
+    assert covered == [], f"the field stands on the reader's paragraphs: {covered}"
+    assert page.locator(".lf-fab-bar").bounding_box()["x"] == beside, (
+        "the field left the column it was seated beside when the passage scrolled away"
+    )
     assert errors == []
     page.close()
 
@@ -1794,8 +1873,12 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     page.mouse.move(point["x"], point["y"])
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
     page.mouse.click(point["x"], point["y"])
-    expect(page.locator('.lf-thread[data-id="outer-comment"]')).to_be_visible()
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(
+        page.locator(
+            '.lf-margin-preview .lf-conversation-thread[data-thread="outer-comment"]'
+        )
+    ).to_be_visible()
+    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-composer")).to_be_hidden()
 
     point = midpoint(decoration)

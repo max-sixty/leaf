@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from .. import presence as presence_model
+from ..event_log import now_iso
 from ..files import active_descriptor
 from ..revisioning import activate_source
 from ..service import PageTransaction
@@ -26,11 +27,13 @@ class PageStateService:
         preview_source: dict | None = None,
         layer_identity: dict | None = None,
         preview: dict | None = None,
+        example: dict | None = None,
     ):
         self.page_dir = page_dir
         self.preview_source = preview_source
         self.layer_identity = layer_identity
         self.preview = preview
+        self.example = example
 
     def _full_state(
         self,
@@ -50,6 +53,7 @@ class PageStateService:
             events,
             layer_identity=self.layer_identity,
             preview=self.preview,
+            example=self.example,
             source_error=source_error,
             view_revision=view_revision,
             active_override=active_override,
@@ -100,15 +104,20 @@ class PageStateService:
                     f"view sequence {through_seq} is newer than log sequence {latest_seq}"
                 )
             events = [event for event in page.events if event["seq"] <= through_seq]
+            present = presence_model.presence(self.page_dir, events)
             projected = served_browser.project_browser_state(
                 self.page_dir,
                 events,
                 view_revision,
                 active,
-                presence_model.presence(self.page_dir, events)["claims"],
-                source_overrides,
+                present,
+                now_iso(),
+                source_overrides=source_overrides,
                 include_active_view=False,
             )
         if projected is None:
             raise ValueError("page registry cannot be projected")
+        # Activity belongs to the complete state reading, not a historical
+        # document-view fetch. Keep one public route for the canonical answer.
+        projected.pop("activity", None)
         return projected

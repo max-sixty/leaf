@@ -100,12 +100,22 @@ contract.
 
 [`examples/`](examples/) holds a complete page for each kind of work, including a
 dashboard meant to change as work finishes. They are live in the visual index at
-<https://leaf.page/examples/>; every example opens as its own complete page.
-From a checkout, `uv run scripts/site.py --serve` previews that catalog and all its routes;
+<https://leaf.page/examples/>; every example opens as its own complete, private,
+temporary Leaf session. It has the canonical event log and projection but no agent
+behind it.
+From a checkout, install the website dependencies and run the same Worker/container
+boundary used in production:
+
+```sh
+npm ci --prefix worker
+uv run scripts/site.py --serve
+```
+
+Docker must be running. For a lighter single-example development loop,
 `scripts/preview.py triage-board` watches one page and its runtime with the real agent
 loop behind it, preserving reader feedback across edits. Add `--background` to keep
 watching between commands, or `--stop` to stop that preview.
 Synthetic feature specimens live together in
 [`examples/developer/feature-gallery.html`](examples/developer/feature-gallery.html);
-`scripts/preview.py feature-gallery` serves that developer playground without adding
-it to the public catalog.
+the website links that developer reference outside the visual catalog, and
+`scripts/preview.py feature-gallery` serves it from a checkout.

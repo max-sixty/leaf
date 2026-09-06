@@ -78,8 +78,11 @@
  * it — the revision being read, the stamped versions, and the press on an older one that
  * marks that change on the page.
  *
- * Composing: every textarea behaves identically — saves its draft on each keystroke,
- * sends on ⌘/Ctrl+Enter — because they are all wired through wireInput. Growing with
+ * Composing: every composition textarea behaves identically — saves its draft on each
+ * keystroke and submits its contextual action on ⌘/Ctrl+Enter — because runtime and
+ * widget composition boxes are all wired through wireInput. Direct editors register the
+ * same Enter and Mod+Enter meanings with their additional commands, and the isolated MCP
+ * App mirrors them at its own boundary. Growing with
  * its content is the stylesheet's job: `field-sizing: content` on the one text-box rule,
  * which a widget's own box opts into by wearing `lf-ui`. No script measures a textarea,
  * so none can leave one momentarily too small for its own text — the shape of bug that
@@ -126,15 +129,18 @@
  * are one entry: page `c` enters the page-comment box, while `g T` enters the Threads list.
  * A later `c` from that list is a second entry, so two Escapes unwind both in reverse.
  *
- * Two page modes make a destination explicit before acting on it. `s` draws short,
+ * Four page modes make a destination explicit before acting on it. `s` draws short,
  * viewport-local hints on stable items and declared visual parts. `/` searches all page
  * text directly or from those hints, Tab walks repeated matches, and Enter turns the
  * current result into an ordinary native selection. Both routes end at the same passage
  * or item the pointer path uses, so the existing `c` comments on it and no second anchor
  * vocabulary exists. `g` arms a mode in which a mnemonic names a panel or generated
- * hints name the visible things the reader can go to. `g T`, `g A`, and `g L` land in Threads, Asks, and All leaves;
+ * hints name the visible things the reader can go to. `g T`, `g A`, and `g L` land in
+ * Threads, Asks, and All leaves;
  * `g M` opens the complete Page map, and `g V` opens Versions, each through the same
- * door as its banner control.
+ * door as its banner control. `w` claims one freehand drag on the page, attaching its
+ * vector mark to the semantic item under or beside the first point, or to the page whole
+ * where none shares that line.
  * Lowercase letters label the visible Page-map locations, tabs, links, and folds in one
  * prefix-free namespace; the namespace grows to two letters when one-letter hints run
  * out. `g g` and `g G` remain the page's top and bottom edges.
@@ -276,6 +282,7 @@ function presentPage() {
     openComposer(savedComposer.anchor, savedComposer.text, {
       suggest: Boolean(savedComposer.suggest),
       about: savedComposer.about ?? null,
+      drawing: savedComposer.drawing ?? null,
     });
   // Repaint the remaining state-dependent chrome and controls in this same task. Replay
   // is already complete, so the presented attribute opens interaction on the state it names.

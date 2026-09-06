@@ -26,6 +26,7 @@ from render_support import (
     actions,
     author_test_widget,
     composer_quote,
+    holding,
     leaf_page,
     live_url,
     mark_shows_beside_composer,
@@ -110,7 +111,7 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     sent = _traffic(page).sends
     threads.nth(0).locator(".lf-resolve").click()
-    _until(page, lambda traffic: traffic.sends > sent, "held the second resolution")
+    holding(page, held, 1, "the second resolution")
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
     page.keyboard.press("z")
     assert _traffic(page).sends == sent + 1
@@ -237,7 +238,7 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     page.locator("#card-baffle .lf-grip").focus()
     for key in move:
         page.keyboard.press(key)
-    _until(page, lambda t: t.sends >= 2, "sent the move it was asked for")
+    holding(page, held, 1, "the move it was asked for")
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
     page.keyboard.press("z")
     assert _traffic(page).sends == 2, (
@@ -430,7 +431,9 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     # accepted event whose authoritative state is still incomplete.
     first_item = page.locator('[data-lf-margin-for="sug-refill"]')
     first_item.get_by_role("button", name=re.compile(r"^Undo accepting")).click()
-    expect(first_item.locator(".lf-sug-receipt")).to_have_text("Undo failed · Accepted")
+    expect(first_item.locator(".lf-margin-receipt")).to_have_text(
+        "Undo failed · Accepted"
+    )
     assert _traffic(page).sends == sent
     first_item.get_by_role("button", name="Cancel", exact=True).click()
 
@@ -1586,7 +1589,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
     expect(draft.locator("textarea")).to_have_value("Local C")
 
     page.keyboard.press("Meta+Enter")
-    _until(page, lambda traffic: traffic.sends > 0, "staged the draft commit")
+    holding(page, held, 1, "the draft commit")
     expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
     assert len(held) == 1
 

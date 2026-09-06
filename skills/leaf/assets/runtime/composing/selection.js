@@ -34,6 +34,7 @@ import { elementById, inChrome } from "../passages.js";
 import { focusSurface } from "../conversation/surfaces.js";
 import { showThread } from "../conversation/landing.js";
 import { notice } from "../notifications.js";
+import { paintDrawings, validDrawing } from "./drawing.js";
 
 // The floating field immediately accepts a comment on the target the reader named.
 // Pressing Tab or its ellipsis exchanges its field for the other responses in place.
@@ -88,11 +89,16 @@ fabBar.prepend(composer);
 
 export let pendingAnchor = null;
 export let pendingAbout = null;
+export let pendingDrawing = null;
 export let composerOpen = false;
 
 const closeReactions = () => setReact(false);
-const openInlineThread = (id, ...rest) =>
-  focusSurface(id) ?? marginOpenInlineThread(id, ...rest);
+const openInlineThread = (id, ...rest) => {
+  const local = focusSurface(id);
+  return (
+    local?.closest(".lf-conversation-thread") ?? marginOpenInlineThread(id, ...rest)
+  );
+};
 
 // What the open composer's comment is about: "layer" for one opened in design mode, so
 // the anchor chosen there — a widget, a control, a runtime part — posts with the word
@@ -121,6 +127,7 @@ const saveComposerDraft = (text = syncComposer.value()) =>
       anchor: pendingAnchor,
       suggest: suggestCheck.checked,
       about: pendingAbout,
+      drawing: pendingDrawing,
       touched: Date.now(),
     }),
   );
@@ -140,7 +147,11 @@ export function pendingComposer() {
     } catch {
       continue;
     }
-    if (record?.text && (!best || record.touched > best.touched)) best = record;
+    if (
+      (record?.text || validDrawing(record?.drawing)) &&
+      (!best || record.touched > best.touched)
+    )
+      best = record;
   }
   return best;
 }
@@ -156,6 +167,7 @@ syncComposer = wireInput(composerInput, {
   sends: () => (suggestCheck.checked ? "suggest" : "comment"),
   sendBtn: composerSend,
   allowsMedia: () => !suggestCheck.checked,
+  hasContent: (raw) => Boolean(raw.trim() || pendingDrawing),
   save: saveComposerDraft,
   layout: refreshFab,
   send: async (text, raw, owns, visible) => {
@@ -163,6 +175,7 @@ syncComposer = wireInput(composerInput, {
     const ctx = composerCtx(anchor);
     const suggestion = suggestCheck.checked;
     const about = pendingAbout;
+    const drawing = structuredClone(pendingDrawing);
     // The accepted comment becomes a thread card. Keep the last box the reader was
     // looking at so the inline card can carry that box into its new surface after the
     // draft settlement has removed the composer from the page.
@@ -191,11 +204,12 @@ syncComposer = wireInput(composerInput, {
             kind: "comment",
             revision: runtime.currentRevision,
             anchor,
-            text,
             attempt,
           };
+          if (text) event.text = text;
           if (suggestion) event.suggestion = true;
           if (about) event.about = about;
+          if (drawing) event.drawing = drawing;
           return post(event);
         },
       );
@@ -212,11 +226,12 @@ syncComposer = wireInput(composerInput, {
       mayLandTyping(reply, composerInput);
     // Continue in the surface already in use. Closing an open panel here reflows the
     // passage just as the reader's comment moves across it to a new floating card.
-    const inlineReply =
+    const inlineThread =
       shouldLand && !panelIsOpen() ? openInlineThread(sent.id, transition) : null;
+    const inlineReply = inlineThread?.querySelector("textarea") ?? null;
     reply = inlineReply ?? reply;
     if (!inlineReply && (shouldLand || panelIsOpen())) {
-      showThread(sent.id, { stand: shouldLand });
+      showThread(sent.id, { focus: shouldLand ? "reply" : false });
       reply ??= threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
     }
     // The composer this was sent from is gone with the send; the thread it became
@@ -234,7 +249,8 @@ syncComposer = wireInput(composerInput, {
 function syncSuggestMode() {
   // A suggestion is replacement text for a passage of the page; a remark about the
   // layer proposes no words, whatever it quotes.
-  suggestRow.style.display = pendingAnchor?.quote && !pendingAbout ? "flex" : "none";
+  suggestRow.style.display =
+    pendingAnchor?.quote && !pendingAbout && !pendingDrawing ? "flex" : "none";
   composerSend.textContent = suggestCheck.checked ? "Suggest" : "Comment";
   syncComposer();
   paintHere(); // the line's send row says which of the two the box will do
@@ -274,6 +290,7 @@ function showComposer(open) {
   // this mark then becomes the durable pointer to the quoted passage. Automatic passage
   // selection leaves both readings standing until the reader enters the field.
   paintAnchors();
+  paintDrawings();
   paintHere();
 }
 
@@ -289,6 +306,7 @@ export function openComposer(
   {
     suggest = false,
     about = designOn ? "layer" : null,
+    drawing = undefined,
     carry = false,
     focus = true,
   } = {},
@@ -298,26 +316,35 @@ export function openComposer(
   seededQuote = "";
   const ctx = composerCtx(anchor || null);
   const previousCtx = composerCtx(pendingAnchor);
+  const drawingSupplied = drawing !== undefined;
   let carriedDraft = false;
   if (previousCtx !== ctx) {
     composerEpoch += 1;
     const previousText = syncComposer.value();
+    const previousDrawing = pendingDrawing;
     const leavesFlight = inFlight?.ctx === previousCtx && previousText === inFlight.raw;
     composerInput.value = "";
     // Automatic selection merely opens another passage's view. An explicit Comment
     // gesture may instead carry unsent words there, which preserves the old Alt-click
     // promise without making a reader's next selection silently re-anchor their draft.
-    if (carry && previousText && !leavesFlight) {
+    if (carry && (previousText || previousDrawing) && !leavesFlight) {
       clearDraft(previousCtx);
       text ||= previousText;
+      if (!drawingSupplied) drawing = previousDrawing;
       carriedDraft = true;
     } else {
       const held = text ? null : loadDraft(ctx);
-      if (held) ({ text, suggest, about } = JSON.parse(held));
+      if (held) {
+        const record = JSON.parse(held);
+        ({ text, suggest, about } = record);
+        if (!drawingSupplied) drawing = record.drawing ?? null;
+      } else if (!drawingSupplied) drawing = null;
     }
   }
   pendingAnchor = anchor || null;
   pendingAbout = about;
+  if (previousCtx !== ctx || drawingSupplied)
+    pendingDrawing = validDrawing(drawing) ? drawing : null;
   const target = pendingAnchor?.section ? elementById(pendingAnchor.section) : null;
   fabBar.dataset.lfPaintPlane = target && inChrome(target) ? "chrome" : "page";
   composerInput.value = text || composerInput.value;
@@ -330,7 +357,7 @@ export function openComposer(
   watchComposer();
   // Programmatic carrying fires no input event, so persist that one move explicitly.
   // An automatically opened empty field has no draft to save; its first edit does.
-  if (carriedDraft) saveComposerDraft();
+  if (carriedDraft || drawingSupplied) saveComposerDraft();
 }
 // The box is one view of the draft standing on this passage, and it follows the plain
 // boxes' rule with one thing of its own: the composer is chrome as well as a box, so a
@@ -341,7 +368,7 @@ function watchComposer() {
   composerWatch?.();
   composerWatch = watchDraft(composerCtx(pendingAnchor), (value) => {
     if (value === null) return closeComposer();
-    const { text, suggest, about } = JSON.parse(value);
+    const { text, suggest, about, drawing = null } = JSON.parse(value);
     if (syncComposer.value() !== text) {
       composerInput.value = text;
       // Whatever stood here is another tab's words now, not this box's machine seed.
@@ -351,8 +378,11 @@ function watchComposer() {
     // it (pendingAbout, above), so a box taking up those words sends them under the word
     // they were written with. Design mode is this tab's and the draft's about is not.
     pendingAbout = about;
+    pendingDrawing = validDrawing(drawing) ? drawing : null;
     suggestCheck.checked = Boolean(suggest);
     syncSuggestMode();
+    paintAnchors();
+    paintDrawings();
   });
 }
 // Hiding keeps the draft and closing discards it, but the mark goes down with the box
@@ -367,6 +397,7 @@ function leaveComposer(discard) {
   suggestCheck.checked = false;
   pendingAnchor = null;
   pendingAbout = null;
+  pendingDrawing = null;
   syncSuggestMode(); // after the state it renders, which is now all of it
   hideComposer();
 }

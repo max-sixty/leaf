@@ -52,6 +52,7 @@ import { loadMarked } from "./conversation/messages.js";
 // current-document facts included, so the chooser re-renders from the restored state.
 const APPLICATION_RUNTIME_FIELDS = Object.freeze([
   "agent",
+  "activity",
   "browser",
   "currentLabel",
   "currentRevision",
@@ -206,6 +207,7 @@ export async function receiveState(state) {
   let restoreClaimState = () => {};
   const apply = async () => {
     runtime.events = nextEvents;
+    runtime.activity = state.activity;
     runtime.browser = nextBrowser;
     let finishActivation = null;
     runtime.statePhase = "ready";
@@ -224,9 +226,7 @@ export async function receiveState(state) {
     runtime.agent = state.agent || "Claude";
     restoreClaimState = replaceClaimState({
       sources: state.claims || [],
-      presence: state,
-      agentTurnClosed: state.turn_closed || null,
-      claimingSession: state.claim_session || null,
+      held: state.activity.held,
     });
     renderStatus(state);
     renderVersions(state);

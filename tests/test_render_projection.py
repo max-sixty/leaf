@@ -71,6 +71,7 @@ from render_support import (
     composer_quote,
     drifting_widget,
     go_to_address,
+    holding,
     key_line,
     leaf_page,
     live_url,
@@ -330,6 +331,14 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
     observed = page.locator(".lf-pr-observed")
     expect(observed).to_have_text(re.compile(r"^Observed just now$"))
 
+    # Only the browser's clock can be moved from here, and every state answer
+    # recalibrates the page's one measured offset against the server's real `now`
+    # (observeServerNow), which would put the three hours straight back. The page has
+    # a standing reason to ask for one: a served page's status claims work, so its
+    # activity carries a transition deadline the jump crosses, and the feed asks
+    # rather than beats on that tick. Refusing the read is the arrangement the paint
+    # under test needs — no data change, and no answer that could carry one.
+    page.route("**/api/state*", refuse)
     page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
     ticked(page)
     expect(observed).to_have_text(re.compile(r"^Observed 3h ago$"))
@@ -1456,7 +1465,7 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
 
     # A pointer landing inside an open decision is standing in it, though no walk brought
     # them there: the ring renders the focus rather than remembering a press.
-    page.locator("#live-question .lf-another input").click()
+    page.locator("#live-question .lf-another textarea").click()
     expect(question).to_have_attribute("data-lf-ask", "1")
 
     # Answering takes it off with the focus still inside: the ring is for the question
@@ -4519,7 +4528,7 @@ def test_a_done_press_says_it_is_waiting_and_answers_once(browser, serve):
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     done.click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the answer in the wire")
+    holding(page, held, 1, "the answer")
 
     expect(done).to_have_attribute("aria-busy", "true")
     # The press is acknowledged; the answer it asks for is not painted, the log not

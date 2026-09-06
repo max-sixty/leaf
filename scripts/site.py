@@ -6,14 +6,13 @@ the version checker accepts, uses root-absolute public routes, and is published 
 rewriting. The five sources become live-root directory routes, so the same runtime
 addressing used by a served Leaf applies without a site-only exception.
 
-The examples begin as complete Leaf page directories under examples/<name>/. The same
-preparation path that serves a local example vendors each page's selected layer,
-stamps its authored versions, applies its companion event log and data, and closes the
-finished page without claiming it for an agent. The build then materializes the
-version documents that Leaf's server normally projects at virtual routes, because a
-static host cannot synthesize them. The mutable source, immutable revisions, and
-event-backed mappings remain the record those generated routes come from. Product
-routes remain exact authored drafts and continue to use the site's static session.
+The worked examples and developer feature gallery become complete Leaf page directories
+under examples/<name>/. The same preparation path that serves a local fixture vendors
+each page's selected layer, stamps its authored versions, applies its companion event
+log and data, and closes the finished page without claiming it for an agent. The Worker
+gives each browser a private copy of those directories and the canonical server projects
+their virtual routes. Product routes remain exact authored drafts and continue to use
+the site's static session.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
@@ -28,20 +27,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from functools import partial
 from html.parser import HTMLParser
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from leaf.event_log import read_events
-from leaf.files import (
-    published_versions,
-    revision_path,
-    version_name,
-    version_revisions,
-)
-from leaf.http import runtime_document
 from preview import prepare
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -49,16 +38,15 @@ LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 INTERNAL_EXAMPLES = {"corpus"}
+FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
 OUT = (
     ROOT / ".tmp" / "site"
-)  # gitignored; the workflow uploads it as the Pages artifact
+)  # gitignored; both the Worker asset binding and its container image consume it
+WRANGLER = ROOT / "worker" / "node_modules" / ".bin" / "wrangler"
 
-# The one layer name the site changes on the way past. /leaf.js is the door a page and every
-# widget module import comes through, and on this site that door is `docs/leaf.js` — the
-# runtime with a session in front of it — so the vendored runtime is published beside it
-# under the name that file imports. Everything else in the page directory keeps its name,
-# and nothing here lists what that is: the layer is whatever `page init` wrote, so a file
-# it gains is a file the site serves rather than one it silently leaves behind.
+# Product documents share one static layer at the site root. Their /leaf.js adapter
+# imports the unmodified vendored entry under this name. Published examples carry their
+# own complete layers and never enter that adapter.
 RUNTIME = "runtime.js"
 
 PRODUCT_ROUTES = {
@@ -89,13 +77,6 @@ class Links(HTMLParser):
                 self.found += [
                     c.strip().split()[0] for c in value.split(",") if c.strip()
                 ]
-
-
-class QuietPreview(SimpleHTTPRequestHandler):
-    """Serve the local catalog without logging every module a full page imports."""
-
-    def log_message(self, *args):
-        pass
 
 
 def local_targets(html: str) -> list[str]:
@@ -152,8 +133,8 @@ def leaf(env: dict, *args: str, input_text: str | None = None) -> None:
         sys.exit(f"leaf {' '.join(args)}:\n{done.stdout}{done.stderr}")
 
 
-def example_sources() -> list[Path]:
-    """Authored examples the public site publishes, never derived test surfaces."""
+def worked_example_sources() -> list[Path]:
+    """Authored worked examples, never derived or developer test surfaces."""
     sources = [
         source
         for source in sorted(EXAMPLES.glob("*.html"))
@@ -162,6 +143,13 @@ def example_sources() -> list[Path]:
     if not sources:
         sys.exit("examples/ holds no authored pages to publish")
     return sources
+
+
+def published_page_sources() -> list[Path]:
+    """Authored pages the public site publishes, including its developer reference."""
+    if not FEATURE_GALLERY.is_file():
+        sys.exit("the developer feature gallery is missing")
+    return [*worked_example_sources(), FEATURE_GALLERY]
 
 
 def product_sources() -> list[Path]:
@@ -197,25 +185,8 @@ def publish_product_pages(page: Path, out: Path, env: dict) -> None:
         (target.parent / "events.jsonl").write_text("", encoding="utf-8")
 
 
-def publish_static_versions(page: Path) -> None:
-    """Materialize Leaf's virtual version documents for a static host."""
-    events = read_events(page)
-    mappings = version_revisions(events)
-    versions = published_versions(page, events)
-    if not versions:
-        sys.exit(f"{page.name} has no stamped version to publish")
-    routes = page / "versions"
-    routes.mkdir()
-    for version in versions:
-        revision = mappings[version]
-        source = revision_path(page, revision).read_text(encoding="utf-8")
-        (routes / version_name(version)).write_bytes(
-            runtime_document(source, revision, version)
-        )
-
-
 def publish_pages(out: Path, env: dict) -> None:
-    """The site's vendored layer, product documents, and authored examples."""
+    """The site's vendored layer, product documents, and interactive pages."""
     with tempfile.TemporaryDirectory() as tmp:
         page = Path(tmp) / "page"
         packages = json.loads((EXAMPLES / "layer.json").read_text(encoding="utf-8"))
@@ -241,7 +212,7 @@ def publish_pages(out: Path, env: dict) -> None:
             shutil.copy2(DOCS / name, out / name)
         publish_product_pages(page, out, env)
 
-        for source in example_sources():
+        for source in published_page_sources():
             published = out / "examples" / source.stem
             prepare(
                 source,
@@ -252,7 +223,6 @@ def publish_pages(out: Path, env: dict) -> None:
                 final_status="idle",
                 current_note="As published",
             )
-            publish_static_versions(published)
             print(f"  {source.stem}")
 
 
@@ -287,15 +257,14 @@ def main() -> None:
     build(OUT)
     print(f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT}")
     if sys.argv[1:] == ["--serve"]:
-        handler = partial(QuietPreview, directory=str(OUT))
-        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-        print(f"Preview: http://127.0.0.1:{server.server_address[1]}/examples/")
-        try:
-            server.serve_forever()
-        except KeyboardInterrupt:
-            pass
-        finally:
-            server.server_close()
+        if not WRANGLER.is_file():
+            sys.exit("website dependencies are missing; run `npm ci --prefix worker`")
+        print("Preview: http://127.0.0.1:8787/examples/")
+        result = subprocess.run(
+            [str(WRANGLER), "dev"], cwd=ROOT / "worker", check=False
+        )
+        if result.returncode:
+            sys.exit(result.returncode)
 
 
 if __name__ == "__main__":

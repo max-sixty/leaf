@@ -44,11 +44,12 @@
    and Escape still lets go of where the press left the reader.
 
    An unsettled reader action reuses that same Button rather than growing a status row
-   inside authored content. Its information face advances from Sent or Waiting for pickup
-   to Picked up, then to Active only when a typed local claim exists; an acknowledgment
-   keeps the same retained target cluster throughout that live handoff. The first three
-   phases report a move already made, so the Button wears the flat `status` behavior
-   below. Active raises it back into a disclosure. Once no receipt or claim is live, the
+   inside authored content. Its server-projected information face advances from Sent or
+   Waiting for pickup to Queued or Picked up, then to Active only when a typed local
+   claim exists; an acknowledgment keeps the same retained target cluster throughout
+   that live handoff. The delivery phases report a move already made, so the Button
+   wears the flat `status` behavior below. Active raises it back into a disclosure.
+   Once no receipt or claim is live, the
    generated Button disappears; the widget and action projection carry the durable state.
    A thread's existing Thread Button remains the page-edge route to the exact receipt in
    the full conversation; an Active claim joins that engaged cluster as an exposed peer. A
@@ -273,13 +274,7 @@ import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { keeps, keepsHidden, offer } from "./widget-elements.js";
 import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { landInConversation, showThread } from "./conversation/landing.js";
-import {
-  ago,
-  clocked,
-  droppedAt,
-  quietSince,
-  waitingForPickupSince,
-} from "./presence.js";
+import { ago, clocked } from "./presence.js";
 import { el } from "./widget-elements.js";
 import { runtime } from "./context.js";
 import { commentsEdge, panelIsOpen, setPanel } from "./chrome-layout.js";
@@ -767,7 +762,7 @@ function comesBefore(left, right) {
     : 1;
 }
 
-const acknowledgments = () => runtime.browser?.acknowledgments ?? [];
+const acknowledgments = () => runtime.activity?.interactions ?? [];
 export const renderMargin = clocked(document.body, renderNow);
 // The Button the reader is standing on, or null off one: the press row's words read it.
 const focusedButtonBehavior = () => focused()?.[BUTTON_RECORD]?.behavior ?? null;
@@ -1341,43 +1336,31 @@ function add(groups, target, item) {
 }
 
 function visibleAcknowledgments() {
-  const visible = [];
-  for (const projected of acknowledgments()) {
-    if (projected.revision > runtime.currentRevision) continue;
-    if (projected.phase !== "active" || workClaimState().claimsHeld) {
-      visible.push(projected);
-      continue;
-    }
-    if (!projected.event) continue;
-    visible.push({
-      ...projected,
-      phase: projected.fallback_phase,
-      ts: projected.fallback_ts,
-      detail: null,
-    });
-  }
-  return visible;
+  return acknowledgments().filter(
+    (projected) => projected.revision <= runtime.currentRevision,
+  );
 }
 
 function acknowledgmentFace(receipt) {
   const age = ago(receipt.ts);
   if (receipt.phase === "active") {
-    const turnClosed =
-      receipt.session && receipt.session === workClaimState().claimingSession
-        ? workClaimState().agentTurnClosed
-        : null;
-    const quiet = quietSince(receipt.ts) || droppedAt(receipt.ts, turnClosed);
     return {
       kind: "activity",
-      text: ["Active", receipt.detail, quiet ? "quiet" : null]
+      text: ["Active", receipt.detail, receipt.quiet ? "quiet" : null]
         .filter(Boolean)
         .join(" · "),
       context: [age && `Checked in ${age}`, receipt.detail].filter(Boolean).join(" · "),
     };
   }
+  if (receipt.phase === "queued")
+    return { kind: "pickup", text: "Queued", context: age };
   if (receipt.phase === "picked_up")
-    return { kind: "pickup", text: "Picked up", context: age };
-  if (waitingForPickupSince(receipt.ts))
+    return {
+      kind: receipt.dropped ? "waiting" : "pickup",
+      text: receipt.dropped ? "Picked up · turn ended" : "Picked up",
+      context: age,
+    };
+  if (receipt.phase === "waiting")
     return {
       kind: "waiting",
       text: "Waiting for pickup",
@@ -1422,6 +1405,11 @@ function collectEntries() {
   }
 
   const projection = stateProjection();
+  const claimActivity = new Map(
+    acknowledgments()
+      .filter((item) => item.phase === "active" && !item.event)
+      .map((item) => [item.id.slice("claim:".length), item]),
+  );
   const activityAlreadyShown = new Set();
   for (const [coordinate, entry] of projection.desired) {
     if (entry.e.kind !== "action") continue;
@@ -1482,11 +1470,7 @@ function collectEntries() {
         update.target.kind === "thread"
           ? placedAt(update.target.id)?.element
           : elementById(update.target.id);
-      const turnClosed =
-        update.session && update.session === workClaimState().claimingSession
-          ? workClaimState().agentTurnClosed
-          : null;
-      const quiet = quietSince(update.ts) || droppedAt(update.ts, turnClosed);
+      const quiet = claimActivity.get(update.id)?.quiet ?? false;
       const account = [
         update.agent || "Agent",
         update.text || humanized(update.action),

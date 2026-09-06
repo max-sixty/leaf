@@ -50,13 +50,13 @@
    a winner without applying a state. Every pass that reconciles is therefore heard
    through this one event, which is what keeps a surface reading the projection rather
    than the DOM current with a withdrawal. Time-dependent paints are separate:
-   `presence.js` records synchronous `ago`, `quietSince`, and `clockValue` readings
-   inside a `clocked` callback. The shared tick reruns only callbacks whose reading
-   changed and drops disconnected owners. Subscription callbacks use this same
-   mechanism, so a new widget owes no entry in a kernel list of clock consumers. A held
-   state does not reset the measured server clock offset. Callbacks must render from the
-   sequence they receive and return their cleanup function from `watchActions` or
-   `watchUpdates` when their element disconnects.
+   `presence.js` records synchronous `ago` and `clockValue` readings inside a `clocked`
+   callback. The shared tick reruns only callbacks whose reading changed and drops
+   disconnected owners. Subscription callbacks use this same mechanism, so a new widget
+   owes no entry in a kernel list of clock consumers. A held state does not reset the
+   measured server clock offset. Callbacks must render from the sequence they receive and
+   return their cleanup function from `watchActions` or `watchUpdates` when their element
+   disconnects.
 
    `active.revision` identifies the immutable document currently shown; `active.version`
    is its public stamp when it has one, otherwise null, and `active.label` is `vN`,
@@ -64,7 +64,6 @@
    the freshness floor for authored state when no report exists. A page that reports no
    worker update is not timeless; its authored assertion is as old as its revision. */
 import { watchProjection } from "./projection-watch.js";
-import { presented } from "./presence.js";
 import { stateProjection } from "./projection/fold.js";
 import { coordinateProjectionCommitted, projectionCommitted } from "./projection.js";
 import { runtime } from "./context.js";
@@ -72,24 +71,18 @@ import { closestAcross } from "./passages.js";
 
 let claimState = Object.freeze({
   sources: Object.freeze([]),
-  presence: null,
-  agentTurnClosed: null,
-  claimingSession: null,
+  held: false,
 });
 export function replaceClaimState(next) {
   const prior = claimState;
   claimState = Object.freeze({
     sources: Object.freeze(structuredClone(next.sources)),
-    presence: next.presence,
-    agentTurnClosed: next.agentTurnClosed,
-    claimingSession: next.claimingSession,
+    held: next.held,
   });
   return () => (claimState = prior);
 }
 export const workClaimState = () => ({
-  claimsHeld: claimState.presence ? presented(claimState.presence).held : false,
-  agentTurnClosed: claimState.agentTurnClosed,
-  claimingSession: claimState.claimingSession,
+  claimsHeld: claimState.held,
 });
 
 export const actionSequence = (widget, action) => {

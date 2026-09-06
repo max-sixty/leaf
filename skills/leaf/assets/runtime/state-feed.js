@@ -14,7 +14,7 @@
    state-dependent controls remain unavailable. */
 
 import { countTraffic } from "./traffic.js";
-import { tickClock } from "./presence.js";
+import { activityTransitionDue, tickClock } from "./presence.js";
 import { runtime } from "./context.js";
 import { reportPageError, sameLayer } from "./layer-client.js";
 import {
@@ -257,7 +257,8 @@ export function startFeed(present, initialRead = beginRead()) {
   readAndPresent().finally(() => {
     // One shared clock serves temporal paint, deferred work, and failed reads.
     setInterval(() => {
-      if (readAnswered) void heartbeat();
+      if (readAnswered && activityTransitionDue(runtime.state)) void ask();
+      else if (readAnswered) void heartbeat();
       else void ask();
       // A presentation that failed is retried here as the poll retried it, since
       // a quiet page may see no read to chain it onto.
@@ -267,9 +268,9 @@ export function startFeed(present, initialRead = beginRead()) {
   });
 }
 
-// How often the page re-renders what it already holds: a time that reads "4m ago", a
-// claim ageing toward the threshold that makes it stale. Local — no request is made for
-// it, and it keeps its cadence whether or not there is a server to talk to.
+// How often the page refreshes display ages and checks the server-projected activity's
+// next transition. The browser decides only when to ask; the returned projection decides
+// what the agent is doing.
 const TICK_MS = 2000;
 
 // How long the outbox waits before re-sending, and how long the page waits before

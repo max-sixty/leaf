@@ -336,9 +336,12 @@
               "items": {"type": "string", "minLength": 1},
               "minItems": 1,
               "uniqueItems": true
-            }
+            },
+            "phase": {"enum": ["queued", "opened"]},
+            "session": {"type": ["string", "null"], "minLength": 1},
+            "turn": {"type": ["string", "null"], "minLength": 1}
           },
-          "required": ["id", "ts", "author", "kind", "seq", "events"],
+          "required": ["id", "ts", "author", "kind", "seq", "events", "phase", "session", "turn"],
           "additionalProperties": false
         }
       },

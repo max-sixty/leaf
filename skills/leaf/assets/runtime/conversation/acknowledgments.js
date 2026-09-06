@@ -1,4 +1,4 @@
-/* Interaction-scoped acknowledgment receipts and explicit work claims.
+/* Server-projected interaction receipts and explicit work claims.
 
    `.lf-receipt` is transient runtime chrome for a subject with no page-edge Button.
    `paintAcknowledgmentsNow` is its one writer. An unsettled reader message paints after
@@ -15,19 +15,21 @@
    words and of the Active ink, with no motion. Its live state span changes only with
    semantic phase or detail; the separate age clock may repaint on a heartbeat without
    entering the live region. */
-import { ago, droppedAt, quietSince, waitingForPickupSince } from "../presence.js";
+import { ago } from "../presence.js";
 import { el } from "../widget-elements.js";
 import { runtime } from "../context.js";
 import { threadsBox } from "./panel.js";
 import { elementById, inChrome, pageQueryAll } from "../passages.js";
-import { workClaimState as claimState } from "../updates.js";
 import { threadList } from "./reconcile.js";
 
 const phaseText = (receipt) => {
   if (receipt.phase === "active")
     return receipt.detail ? `● Active — ${receipt.detail}` : "● Active";
-  if (receipt.phase === "picked_up") return "✓ Picked up";
-  return waitingForPickupSince(receipt.ts) ? "○ Waiting for pickup" : "✓ Sent";
+  if (receipt.phase === "queued") return "✓ Queued";
+  if (receipt.phase === "picked_up")
+    return receipt.dropped ? "○ Picked up · turn ended" : "✓ Picked up";
+  if (receipt.phase === "waiting") return "○ Waiting for pickup";
+  return "✓ Sent";
 };
 
 // One retained node follows one reader move through every semantic phase. Only a
@@ -68,13 +70,7 @@ function paintReceipt(host, receipt, before, wanted) {
   line.classList.toggle("is-active", receipt.phase === "active");
 
   let quiet = line.querySelector(":scope > .lf-receipt-quiet");
-  const turnClosed =
-    receipt.session && receipt.session === claimState().claimingSession
-      ? claimState().agentTurnClosed
-      : null;
-  const isQuiet =
-    receipt.phase === "active" &&
-    (quietSince(receipt.ts) || droppedAt(receipt.ts, turnClosed));
+  const isQuiet = receipt.phase === "active" && receipt.quiet;
   if (isQuiet && !quiet) {
     quiet = el("span", "lf-receipt-quiet", "quiet");
     line.insertBefore(quiet, line.lastElementChild);
@@ -87,19 +83,8 @@ function paintReceipt(host, receipt, before, wanted) {
 
 export function paintAcknowledgmentsNow() {
   const wanted = new Set();
-  const receipts = runtime.browser?.acknowledgments ?? [];
-  for (const projected of receipts) {
-    if (projected.phase === "active" && !claimState().claimsHeld && !projected.event)
-      continue;
-    const receipt =
-      projected.phase === "active" && !claimState().claimsHeld
-        ? {
-            ...projected,
-            phase: projected.fallback_phase,
-            ts: projected.fallback_ts,
-            detail: null,
-          }
-        : projected;
+  const receipts = runtime.activity?.interactions ?? [];
+  for (const receipt of receipts) {
     const { kind, id } = receipt.target;
     if (kind === "thread") {
       const thread = threadList().find((candidate) => candidate.root.id === id);

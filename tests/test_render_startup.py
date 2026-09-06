@@ -29,6 +29,7 @@ from render_support import (
     DRAFT_EDITED,
     DRAFT_TEXT,
     EXAMPLES,
+    FEATURE_GALLERY,
     FIRST_PRESENTATION,
     JOURNEY_V1,
     JOURNEY_V2,
@@ -1944,13 +1945,13 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     And a page nothing is behind must read differently from either, without reading as
     a fault: a standing page spends the night that way, so the words are the plain
     computed fact and the dot is not the amber it wears for a session falling behind."""
-    page, _ = open_page(browser, serve(LONG_PAGE, comments=1))
+    page, _ = open_page(browser, serve(LONG_PAGE))
     d = serve.page_dir
     # The banner's own dot: the leaves panel mirrors this page as a row, so a
     # bare .lf-dot resolves to that row's copy too.
     text, dot = page.locator(".lf-status-text"), page.locator(".lf-banner .lf-dot")
     UNHELD = (
-        "No session holds this page. 1 update waiting."
+        "No session holds this page. Your comments are saved."
         " It picks up again when a session does."
     )
 
@@ -1972,6 +1973,11 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             "state": state,
             "detail": detail,
             "ts": ts.isoformat(timespec="seconds"),
+            "after": (
+                events_model.read_events(d)[-1]["seq"]
+                if events_model.read_events(d)
+                else 0
+            ),
         }
         if claimed:
             record_claim(
@@ -2010,14 +2016,16 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # remedy — nobody needs to touch a terminal for a comment to reach a live wait.
         declare("working", "revising the plan", quiet_for=20 * 60)
         expect(text).to_have_text(
-            "Claude last checked in 20m ago: revising the plan. 1 update waiting."
+            "Claude last checked in 20m ago: revising the plan. Your comments are saved."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
         # And with no detail it is the bare silence, which is the same sentence with
         # nothing to say after the colon rather than a second wording for it.
         declare("working", quiet_for=20 * 60)
-        expect(text).to_have_text("Claude last checked in 20m ago. 1 update waiting.")
+        expect(text).to_have_text(
+            "Claude last checked in 20m ago. Your comments are saved."
+        )
 
         # The same silence reached by evidence rather than by the clock. A claim is
         # written by a model's turn, and a turn ends without running anything — so
@@ -2029,7 +2037,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=6 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 update waiting."
+            " Your comments are saved."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -2040,7 +2048,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=5 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 update waiting."
+            " Your comments are saved."
         )
 
         # A turn that has only just ended still holds it. The agent claims the work,
@@ -2068,14 +2076,15 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # No watcher, but Claude checked in moments ago, so it is between turns.
     declare("waiting")
     expect(text).to_have_text(
-        "Claude isn't watching right now. 1 update waiting. It picks them up next turn."
+        "Claude isn't watching right now. Your comments are saved."
+        " It picks them up next turn."
     )
 
     # With nobody listening the same ending carries the remedy, because the reader's
     # next word has nowhere to land until a session picks the page up again.
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
-        "Claude left this when its turn ended 5m ago. 1 update waiting."
+        "Claude left this when its turn ended 5m ago. Your comments are saved."
         " Nudge it in the terminal."
     )
     expect(dot).to_have_class(re.compile(r"\baway\b"))
@@ -2184,14 +2193,53 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_receipt).to_contain_text("✓ Sent")
     held_receipt.evaluate("node => { node.dataset.identityProbe = 'kept' }")
 
-    # Durable transport acceptance advances the exact same row in place. It does
-    # not claim that work has started and does not disturb another reader move.
+    # The old page-wide declaration is deliberately stale: delivery into this exact
+    # turn, rather than a fresh status command, must be what changes the shared
+    # activity reading.
+    record_claim(d, id="s", pid=os.getpid(), agent="Claude")
+    old_status = files_model.read_json(d / "status.json")
+    files_model.write_json(
+        d / "status.json",
+        {
+            **old_status,
+            "state": "working",
+            "detail": "the earlier task",
+            "ts": (datetime.now().astimezone() - timedelta(minutes=20)).isoformat(
+                timespec="seconds"
+            ),
+            "after": 0,
+        },
+    )
+    # Durable delivery into the open turn advances the exact same row in place and
+    # does not disturb another reader move.
     with service_model.PageTransaction(d) as transaction:
         session_model.record_pickup(transaction, [comments[0]])
     told(page)
     expect(held_receipt).to_contain_text("✓ Picked up")
     expect(held_receipt).to_have_attribute("data-identity-probe", "kept")
     expect(other_receipt).to_contain_text("✓ Sent")
+    expect(page.locator(".lf-status-text")).to_have_text("Claude is handling 1 update")
+    expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
+        "Handling updates"
+    )
+
+    latent_waiting = CliRunner().invoke(
+        cli_model.cli, ["status", str(d), "waiting", "review the answer"]
+    )
+    assert latent_waiting.exit_code == 0, latent_waiting.output
+    told(page)
+    expect(held_receipt).to_contain_text("✓ Picked up")
+    expect(page.locator(".lf-status-text")).to_have_text("Claude is handling 1 update")
+
+    with service_model.PageTransaction(d) as transaction:
+        transaction.close_turn("s")
+    told(page)
+    expect(held_receipt).to_contain_text("○ Picked up · turn ended")
+    expect(page.locator(".lf-status-text")).to_have_text(
+        "Claude picked up 1 update, but that turn ended. 2 updates are saved."
+    )
+    with service_model.PageTransaction(d) as transaction:
+        transaction.open_turn("s")
 
     def status(*args):
         assert (
@@ -2280,6 +2328,39 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     expect(held_receipt).to_have_count(0)
     expect(receipts).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_feature_gallery_receipt_and_top_bar_share_agent_activity(browser, serve):
+    """The gallery's injected-chrome case exercises the external state it cannot
+    author: exact delivery into a turn drives both the receipt and top bar, and a
+    later waiting declaration cannot split them."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page_dir = serve.page_dir
+    comment = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Does the top bar agree with this receipt?",
+        },
+    )
+    record_claim(page_dir, id="gallery", pid=os.getpid(), agent="Claude")
+    with service_model.PageTransaction(page_dir) as transaction:
+        session_model.record_pickup(transaction, [comment])
+    told(page)
+
+    page.keyboard.press("c")
+    receipt = page.locator(f'.lf-thread[data-id="{comment["id"]}"] .lf-receipt')
+    expect(receipt).to_contain_text("✓ Picked up")
+    expect(page.locator(".lf-status-text")).to_have_text("Claude is handling 1 update")
+
+    session_model.cmd_status(page_dir, "waiting", "review the gallery")
+    told(page)
+    expect(receipt).to_contain_text("✓ Picked up")
+    expect(page.locator(".lf-status-text")).to_have_text("Claude is handling 1 update")
     assert errors == []
     page.close()
 
@@ -2387,6 +2468,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
                 "state": "working",
                 "detail": "rerunning the failing shard",
                 "ts": events_model.now_iso(),
+                "after": events_model.read_events(d)[-1]["seq"],
                 "work": [
                     {
                         "id": "trace-check",
@@ -3232,6 +3314,19 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
 
 def test_conversation_timestamps_age_without_new_state(browser, serve):
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
+    d = serve.page_dir
+    comment = next(e for e in events_model.read_events(d) if e["kind"] == "comment")
+    events_model.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": comment["id"],
+            "text": "settled for this clock-only test",
+        },
+    )
+    session_model.cmd_status(d, "idle", "")
+    told(page)
     page.keyboard.press("c")
     timestamp = page.locator(".lf-msg-head > time").first
     expect(timestamp).to_have_text("just now")

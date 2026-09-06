@@ -211,6 +211,7 @@ def _append_batch(
     data = batch_data(page_dir, transaction, fresh)
     entry = {
         "page": data["page"],
+        "session": session_id,
         "url": url,
         "threads": data["threads"],
         "handling": data["handling"],
@@ -259,7 +260,13 @@ def _finish_batch(batch: dict) -> None:
                 for seq, event_id in expected.items()
             ):
                 return
-            record_pickup(page, [delivered[seq] for seq in expected])
+            record_pickup(
+                page,
+                [delivered[seq] for seq in expected],
+                phase="queued",
+                session=batch["session"],
+                turn=None,
+            )
             acknowledge(page, max(expected))
     except FileNotFoundError:
         pass
@@ -400,7 +407,13 @@ def _capture_pages(session_id: str, pages: list[PageTransaction]) -> None:
         # A hook process may fail open after either write.
         events = {event["seq"]: event for event in page.events}
         delivered = [events[event["seq"]] for event in entry["events"]]
-        record_pickup(page, delivered)
+        record_pickup(
+            page,
+            delivered,
+            phase="opened",
+            session=session_id,
+            turn=(page.claim or {}).get("turn"),
+        )
         acknowledge(page, max(event["seq"] for event in entry["events"]))
         _record_receipt(epoch_path, batch_index)
 
@@ -413,6 +426,11 @@ def open_turn(session_id: str) -> tuple[bool, str | None]:
         lock = delivery_lock_path(session_id)
         lock.parent.mkdir(parents=True, exist_ok=True)
         with flocked(lock):
+            # Establish the turn before capturing input: every delivery recorded
+            # below must name the turn it actually entered, never the one the
+            # preceding Stop hook closed.
+            for page in pages:
+                page.open_turn(session_id)
             if adapter_is_live(session_id):
                 _capture_pages(session_id, pages)
             current = _current_epoch(session_id)
@@ -423,9 +441,23 @@ def open_turn(session_id: str) -> tuple[bool, str | None]:
                 epoch["updated_at"] = time.time()
                 if epoch["queue"] == "pending":
                     epoch["queue"] = "none"
+                by_page = {str(page.page_dir): page for page in pages}
+                for batch in epoch["batches"]:
+                    page = by_page.get(batch["page"])
+                    if page is None:
+                        continue
+                    wanted = {event["id"] for event in batch["events"]}
+                    delivered = [
+                        event for event in page.events if event.get("id") in wanted
+                    ]
+                    record_pickup(
+                        page,
+                        delivered,
+                        phase="opened",
+                        session=session_id,
+                        turn=(page.claim or {}).get("turn"),
+                    )
                 prompt = _offer_epoch(epoch_path, epoch)
-            for page in pages:
-                page.open_turn(session_id)
         return True, prompt
 
 

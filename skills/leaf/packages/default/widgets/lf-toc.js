@@ -3,7 +3,8 @@
  * The generated labels are link apparatus rather than a second copy of the page's
  * words, so the nav wears .lf-ui. An authored heading keeps its own attributes. When one
  * has no id, a generated sibling supplies a native fragment target instead; that target
- * remains useful after export removes this module.
+ * remains useful after export removes this module. max-level bounds the authored outline
+ * before the module creates either links or targets.
  *
  * In the roomy margin the outline becomes a reading map. Each row receives the length
  * of the section it leads as its flex share, so the quiet spine describes the document
@@ -78,8 +79,10 @@ customElements.define(
       this.#main = this.closest("main");
       if (!this.#main) return;
 
+      const maxLevel = Number(this.getAttribute("max-level") ?? 6);
       const headings = [...this.#main.querySelectorAll(HEADING_SELECTOR)]
         .filter((heading) => !inChrome(heading) && !heading.closest("lf-toc"))
+        .filter((heading) => Number(heading.localName.slice(1)) <= maxLevel)
         .map((heading) => ({ heading, label: wrote(heading).trim() }))
         .filter(({ label }) => label);
       if (!headings.length) return;
@@ -218,6 +221,8 @@ customElements.define(
 
       if (getComputedStyle(this.#rows).display !== "flex") return;
       const track = this.#rows.getBoundingClientRect();
+      const lineHeight = parseFloat(getComputedStyle(this.#nav).lineHeight);
+      const labelGap = Number.isFinite(lineHeight) ? lineHeight * 0.5 : 0;
       let prefix = 0;
       const labels = this.#sections.map(({ row, link }) => {
         const label = {
@@ -226,10 +231,12 @@ customElements.define(
           height: link.getBoundingClientRect().height,
           prefix,
         };
-        prefix += label.height;
+        prefix += label.height + labelGap;
         return label;
       });
-      const labelHeight = prefix;
+      // Labels that merely fit still read as one block. Keep half a line between them;
+      // the dense map retains every destination when the expanded outline cannot.
+      const labelHeight = prefix - labelGap;
       if (labelHeight > track.height + 1) {
         this.setAttribute("data-lf-dense", "");
         return;

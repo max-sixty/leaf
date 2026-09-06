@@ -2265,7 +2265,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(other_receipt).to_contain_text("✓ Sent")
     expect(page.locator(".lf-status-text")).to_have_text("Claude is handling 1 update")
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-        "Handling updates"
+        "Handling updates · 1 update waiting"
     )
 
     latent_waiting = CliRunner().invoke(
@@ -3384,6 +3384,13 @@ def test_conversation_timestamps_age_without_new_state(browser, serve):
         },
     )
     session_model.cmd_status(d, "idle", "")
+    files_model.write_json(
+        d / "status.json",
+        {
+            **files_model.read_json(d / "status.json"),
+            "ts": (datetime.now().astimezone() - timedelta(hours=1)).isoformat(),
+        },
+    )
     told(page)
     page.keyboard.press("c")
     timestamp = page.locator(".lf-msg-head > time").first

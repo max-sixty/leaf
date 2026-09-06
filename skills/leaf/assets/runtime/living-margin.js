@@ -2758,6 +2758,8 @@ function refreshHighlight() {
 
 function showPreview(entry, button, retry = true) {
   if (!entry || designOn) return;
+  const startsReading =
+    !preview.matches(":popover-open") || previewEntry?.key !== entry.key;
   if (forcedInlineKey && forcedInlineKey !== entry.key) forcedInlineKey = null;
   if (previewEntry && previewEntry.key !== entry.key) clearThreadTransition();
   previewEntry = entry;
@@ -2789,6 +2791,9 @@ function showPreview(entry, button, retry = true) {
       previewShowing = false;
     }
   }
+  // The card is one transient reading, not a scroll container whose position survives
+  // closing or a move to another thread. Each reading starts with its first comment.
+  if (startsReading) preview.scrollTop = 0;
   placeThreadPreview();
   refreshHighlight();
   for (const row of rows.values())

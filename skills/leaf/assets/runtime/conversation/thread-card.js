@@ -87,9 +87,6 @@ export function threadNode(t, grow) {
     const row = el("div", "lf-compose");
     const input = document.createElement("textarea");
     const send = el("button", "lf-btn primary lf-thread-send", "Send");
-    row.append(input);
-    wireReply(t, input, send);
-    const actions = el("div", "lf-thread-actions");
     // Resolving takes this node out of the open list and focus with it — the blind
     // drive fell to body here. Land where t would have gone: the thread that now
     // holds this one's place, else the previous, else the list. Which is read after
@@ -107,8 +104,9 @@ export function threadNode(t, grow) {
         };
       },
     });
-    actions.append(send, resolve);
-    row.append(actions);
+    div.querySelector(":scope > .lf-msg:first-of-type > .lf-msg-head")?.append(resolve);
+    row.append(input, send);
+    wireReply(t, input, send);
     div.append(row);
   } else {
     const actions = el("div", "lf-thread-actions");

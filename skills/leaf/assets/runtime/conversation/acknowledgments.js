@@ -108,7 +108,7 @@ export function paintAcknowledgmentsNow() {
           receipt,
           source?.nextSibling ??
             view.querySelector(
-              ":scope > :is(.lf-compose, .lf-say, .lf-thread-actions, .lf-conversation-actions)",
+              ":scope > :is(.lf-compose, .lf-say, .lf-thread-actions)",
             ),
           wanted,
         );

@@ -825,6 +825,8 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     source = (ROOT / "examples" / "pr-walkthrough.html").read_text(encoding="utf-8")
     title = re.search(r"<h1>(.*?)</h1>", source, re.DOTALL).group(1).strip()
     expect(page.get_by_role("heading", name=title)).to_be_visible()
+    assert page.evaluate("document.compatMode") == "CSS1Compat"
+    assert page.locator("body").get_attribute("data-lf-reading") is None
     assert page.locator("script").count() == 0
     assert page.locator('link[rel="stylesheet"]').count() == 0
     assert page.locator("style").count() > 0
@@ -1135,7 +1137,14 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     ][-1]
     events_model.append_event(
         serve.page_dir,
-        {"kind": "pickup", "author": "page", "events": [in_flight["id"]]},
+        {
+            "kind": "pickup",
+            "author": "page",
+            "events": [in_flight["id"]],
+            "phase": "opened",
+            "session": None,
+            "turn": None,
+        },
     )
 
     live = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -1162,6 +1171,51 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     )
     assert errors == []
     page.close()
+
+
+def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
+    source = leaf_page(
+        "Export CSP",
+        """
+<h1>Export CSP</h1>
+<a id="relative" href="relative-target">Relative target</a>
+<form id="escape" action="https://outside.invalid/collect" method="post">
+  <input name="page-state" value="reader decision">
+  <button type="submit">Send page state</button>
+</form>
+""",
+        head='<base href="https://outside.invalid/rebased/">',
+    )
+    url = serve(source)
+    out = tmp_path / "standalone.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.add_init_script(
+        """
+          window.__cspViolations = [];
+          document.addEventListener('securitypolicyviolation', event => {
+            window.__cspViolations.push(event.effectiveDirective);
+          });
+        """
+    )
+    escaped = []
+    page.route(
+        "https://outside.invalid/**",
+        lambda route: (
+            escaped.append(route.request.url),
+            route.fulfill(status=204, body=""),
+        ),
+    )
+    try:
+        page.goto(out.as_uri(), wait_until="load")
+        page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
+        assert page.locator("#relative").evaluate("link => link.protocol") == "file:"
+        page.locator("#escape").evaluate("form => form.requestSubmit()")
+        page.wait_for_function("() => window.__cspViolations.includes('form-action')")
+        assert escaped == []
+    finally:
+        page.close()
 
 
 @pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)
@@ -1460,6 +1514,7 @@ def test_a_copy_wears_the_mark_and_claims_no_session(browser, serve, tmp_path):
 
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
+    assert page.locator('link[rel="icon"]').count() == 1
     # The tone is a stylesheet the runtime appends to the mark, so what says the copy is
     # wearing none is the mark carrying only the one its file was written with.
     icon = page.evaluate("""() => {

@@ -59,10 +59,10 @@ from render_support import (
     SUGGESTION_PAGE,
     SWAP_PAGE,
     CutOff,
-    _until,
     actions,
     banner_address,
     compare_with,
+    holding,
     key_line,
     leaf_page,
     live_url,
@@ -848,10 +848,6 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         == hidden_boxes
     )
     assert nav.evaluate("node => !node.contains(document.activeElement)")
-    page.keyboard.press("h")
-    expect(prepare).to_have_css("opacity", "1")
-    page.keyboard.press("Escape")
-    expect(prepare).to_have_css("opacity", "1")
     page.keyboard.press("Escape")
     expect(prepare).to_have_css("opacity", "0")
     expect(prepare).to_have_css("pointer-events", "none")
@@ -1679,7 +1675,7 @@ def test_a_newer_swipe_survives_an_older_swipe_refusal(browser, serve):
                 "final": True,
             },
         )
-    _until(page, lambda _traffic: len(held) == 2, "sent the surviving swipe")
+    holding(page, held, 2, "the surviving swipe")
     held[1].continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -1724,11 +1720,7 @@ def test_a_stale_rapid_finish_is_refused_when_an_earlier_card_returns(browser, s
         },
     )
     for index in range(1, 4):
-        _until(
-            page,
-            lambda _traffic, index=index: len(held) > index,
-            f"sent gesture {index + 1}",
-        )
+        holding(page, held, index + 1, f"gesture {index + 1}")
         held[index].continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -2879,7 +2871,7 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     page.route("**/api/event", lambda route: held.append(route))
     row = page.locator("[data-lf-for='sug-refill']")
     row.locator(".lf-sug-accept").click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the decision in the wire")
+    holding(page, held, 1, "the decision")
     expect(row.locator(".lf-sug-accept")).to_be_disabled()
     row.locator(".lf-sug-accept").evaluate("button => button.click()")
     expect(unfolded_button(row.locator(".lf-sug-reject"))).to_be_disabled()

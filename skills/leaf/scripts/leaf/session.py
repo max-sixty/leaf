@@ -281,22 +281,42 @@ def batch_jsonl(reading: PageTick) -> str:
     return serialize_batch(reading.page_dir, reading.transaction, reading.batch)
 
 
-def record_pickup(page: PageTransaction, events: list[dict]) -> dict | None:
-    """Durably record which reader moves reached their next consumer.
+def record_pickup(
+    page: PageTransaction,
+    events: list[dict],
+    *,
+    phase: str = "opened",
+    session: str | None = None,
+    turn: str | None = None,
+) -> dict | None:
+    """Durably record one delivery transition for exact reader moves.
 
-    Pickup is transport evidence, not a claim that the agent has started work.
-    Naming event ids makes retries idempotent and lets one receipt follow the
-    exact move the reader made even when a page was already working elsewhere.
+    ``queued`` means Codex's durable same-task queue accepted the batch;
+    ``opened`` means the batch entered an agent turn. Both are transport
+    evidence, not authored work claims. A queued transition may therefore be
+    followed by an opened transition for the same events, while a retry of the
+    same transition appends nothing.
     """
+    if phase not in {"queued", "opened"}:
+        raise ValueError(f"unknown pickup phase {phase!r}")
+    claim = page.claim
+    if session is None and claim:
+        session = claim.get("id")
+    if phase == "opened" and turn is None and claim and claim.get("id") == session:
+        turn = claim.get("turn")
     wanted = [event["id"] for event in events if event.get("author") == "user"]
     picked = {
-        event_id
+        (event_id, event["phase"], event["session"], event["turn"])
         for event in page.events
         if event["kind"] == "pickup"
         for event_id in event["events"]
     }
     fresh = list(
-        dict.fromkeys(event_id for event_id in wanted if event_id not in picked)
+        dict.fromkeys(
+            event_id
+            for event_id in wanted
+            if (event_id, phase, session, turn) not in picked
+        )
     )
     if not fresh:
         return None
@@ -305,19 +325,21 @@ def record_pickup(page: PageTransaction, events: list[dict]) -> dict | None:
             "kind": "pickup",
             "author": "page",
             "events": fresh,
+            "phase": phase,
+            "session": session,
+            "turn": turn,
         }
     )
 
 
 def _deliver_batch(reading: PageTick) -> bool:
-    """Write one page's complete batch and record its direct pickup.
+    """Write one page's complete batch to its direct consumer.
 
     Answers that a turn opened, because under this carrier the handoff is the
     opening: `leaf wait` returns with the batch on stdout and the words are in
     model context before anything else runs.
     """
     print(batch_jsonl(reading), flush=True)
-    record_pickup(reading.transaction, reading.batch)
     return True
 
 
@@ -361,8 +383,19 @@ def read_watch_pass(
             # hook stamps the openings no delivery carries. The Stop hook closed
             # the turn across the session's pages, so an opening here reopens
             # the same set.
-            if deliver(reading) and watch.session_id:
-                open_session_turn(watch.session_id, reading.transaction)
+            if deliver(reading):
+                turn = None
+                if watch.session_id:
+                    turn = reading.transaction.open_turn(watch.session_id)
+                record_pickup(
+                    reading.transaction,
+                    reading.batch,
+                    phase="opened",
+                    session=watch.session_id,
+                    turn=turn,
+                )
+                if watch.session_id:
+                    open_session_turn(watch.session_id, reading.transaction)
             return _WatchPass(readings, live, 0)
         if reading.lost:
             print(

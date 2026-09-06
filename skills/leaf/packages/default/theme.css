@@ -32,7 +32,8 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
   opacity: 0; pointer-events: none;
 }
 lf-gloss:has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
-  outline: var(--here-ring); --lf-here-ring: gloss-mark; outline-offset: var(--here-ring-gap);
+  outline: var(--here-ring); --lf-here-ring: gloss-mark;
+  outline-offset: calc(-1 * var(--here-ring-w));
 }
 .lf-gloss-popover {
   position: fixed; inset: auto; position-area: block-end center;
@@ -1379,11 +1380,18 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     lf-toc li a[aria-current="location"] { color: var(--ink-2); }
     lf-toc a:focus-visible { outline: var(--here-ring); --lf-here-ring: toc-link;
                              outline-offset: calc(-1 * var(--here-ring-w)); }
-    lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) {
+    lf-toc .lf-toc-nav:is(:hover, :focus-within),
+    body[data-lf-goto] lf-toc .lf-toc-nav {
       --lf-toc-label-opacity: 1;
     }
-    lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
+    lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
       animation: lf-toc-enable-links 0s .24s forwards;
+    }
+    /* A pointer waits for the labels it revealed to finish appearing. The go-to chord
+     * already made an explicit keyboard gesture, and its candidate reading needs these
+     * visible page routes to participate immediately. */
+    body[data-lf-goto] lf-toc:not([data-lf-dense]) .lf-toc-nav a {
+      pointer-events: auto;
     }
     /* When all labels cannot fit beside the track, the destination under the pointer or
      * keyboard focus reveals on its own. Turning the rail into a second scrollable outline

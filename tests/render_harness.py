@@ -31,6 +31,7 @@ import itertools
 import json
 import math
 import os
+import re
 import shutil
 import time
 from contextlib import contextmanager
@@ -76,6 +77,12 @@ PAGE_FIXTURES = (*EXAMPLES, FEATURE_GALLERY)
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
 # lists every publisher that has to lay this beside the markup, this one among them.
 EXAMPLE_MEDIA = ROOT / "examples" / "media"
+# One media reference as it stands in a message's Markdown, read with the layer's own
+# naming rather than a second spelling of it: the digest is what tells a real reference
+# from the word "/media/" in a sentence.
+MEDIA_REFERENCE = re.compile(
+    rf"/{schema_model.MEDIA_DIR}/{schema_model._DIR_FILES[schema_model.MEDIA_DIR]}"
+)
 
 
 def leaf_page(title: str, body: str, *, head: str = "") -> str:
@@ -471,15 +478,30 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
         )
         html = authored[-1]
         (d / "index.html").write_text(html)
+        seed = example.with_suffix(".jsonl") if example else None
+        references = set()
         for markup in authored:
             parsed = structure_model._StructParser()
             parsed.feed(markup)
             parsed.close()
-            for reference in parsed.media_refs:
-                fixture_media = EXAMPLE_MEDIA / reference.removeprefix("/media/")
-                if fixture_media.is_file():
-                    (d / "media").mkdir(exist_ok=True)
-                    shutil.copy2(fixture_media, d / "media" / fixture_media.name)
+            references |= parsed.media_refs
+        # A message names its image in Markdown rather than in an attribute, so the
+        # parsed reading that answers for markup cannot see it and a seeded pasted
+        # screenshot arrived at a page whose media directory had never heard of it.
+        # A reader is handed the uploads their log references, so the fixture lays
+        # those in too. The name is content-addressed, which is what keeps this a
+        # reading rather than a text scan: `/media/` standing in prose matches only
+        # where the author wrote a real digest, and the file guard below answers for
+        # the rest. Laid in whether or not this call seeds the log, as the example's
+        # data is: `seed_log=False` is how a caller appends those same events itself,
+        # and media the page never shows costs it nothing.
+        if seed and seed.exists():
+            references |= set(MEDIA_REFERENCE.findall(seed.read_text(encoding="utf-8")))
+        for reference in references:
+            fixture_media = EXAMPLE_MEDIA / reference.removeprefix("/media/")
+            if fixture_media.is_file():
+                (d / "media").mkdir(exist_ok=True)
+                shutil.copy2(fixture_media, d / "media" / fixture_media.name)
         for name, data in (media or {}).items():
             path = d / name.lstrip("/")
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -505,9 +527,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                         operation["format"],
                     )
         (d / ".fixture-versions").mkdir(exist_ok=True)
-        seeded = (
-            example and seed_log and (seed := example.with_suffix(".jsonl")).exists()
-        )
+        seeded = bool(seed_log and seed and seed.exists())
         for number, markup in enumerate(authored, start=1):
             (d / "index.html").write_text(markup)
             activated = revisioning_model.activate_source(
@@ -741,6 +761,30 @@ def sending(page, what):
     yield
     _until(page, lambda traffic: traffic.sends > sends, f"sent {what}")
     round_trip(page)
+
+
+# The same arrangement for a test that holds the wire open with `page.route`, and the one
+# place the ledger is the wrong fact to state it over. The runtime counts a send as it
+# makes it, while the driver is handed the request over its own connection a beat later,
+# so `traffic.sends == 1` is already true while the route list is still empty and the
+# `held[0]` behind the wait raises IndexError on a machine loaded enough to lose that
+# beat. The same gap opens on a list of the requests the handler let through: the send is
+# counted before the route the handler would append even exists here. The list the test
+# goes on to read is what the wait belongs over, and `_until` cannot carry it: its only
+# wake-up is the ledger repainting, and a paused request paints nothing further, so a
+# route that lands after the send's paint would wait out the whole deadline. The browser's
+# own record already shows the send was made, so this repeats a driver call — the thing
+# that dispatches the route here — until the list has it.
+def holding(page, held, count, what):
+    """Wait until `held` has collected `count` requests the route put there."""
+    deadline = time.monotonic() + 30
+    while len(held) < count:
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                f"the route never took {what}: {len(held)} of {count} "
+                f"dispatched into this process, on {_traffic(page)}"
+            )
+        page.wait_for_timeout(20)
 
 
 # The other direction of the same trip. Nothing a test writes into the page directory

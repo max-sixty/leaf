@@ -42,6 +42,7 @@ from render_support import (
     compare_with,
     flip_point,
     hold_selection,
+    holding,
     key_line,
     leaf_page,
     live_url,
@@ -1706,7 +1707,7 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
 
     page.route("**/api/event", hold)
     page.locator("#br-steel").click()
-    _until(page, lambda t: t.sends >= 1, "sent the pick it was clicked for")
+    holding(page, held, 1, "the pick it was clicked for")
     page.locator("#br-cedar").click()
     expect(page.locator("#br-cedar[chosen]")).to_have_count(1)
     assert _traffic(page).sends == 1, (
@@ -1749,10 +1750,8 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
             held.append(route)
 
     page.route("**/api/event", hold_answers)
-    with page.expect_request("**/api/event"):
-        page.locator("#job-mounts").click()
-    page.wait_for_timeout(0)
-    assert len(held) == 1
+    page.locator("#job-mounts").click()
+    holding(page, held, 1, "the pick it was clicked for")
     page.locator("#job-camera").click()
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(2)
     assert _traffic(page).sends == 1, (
@@ -1761,7 +1760,14 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     )
 
     held[0].continue_()
-    _until(page, lambda traffic: traffic.sends == 2, "sent the second queued pick")
+    # The unroute below takes this handler out of the page's route list, so the second
+    # pick has to have reached this process before it runs: dispatched any later, the
+    # send finds no handler, goes out unrecorded, and `sent_behind` reads empty. The
+    # ledger cannot say when that is — `sends` is counted at the door before `fetch` is
+    # called, so `sends == 2` is true before the request the route would pause even
+    # exists. Wait on the list the assertion reads instead (tests/CLAUDE.md, on holding
+    # rather than the corresponding Traffic edge).
+    holding(page, sent_behind, 1, "the second pick sent behind the released first")
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(2)
 
     page.unroute("**/api/event")

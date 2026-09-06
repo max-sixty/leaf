@@ -15,7 +15,7 @@ Every event carries `id`, `ts`, `author`, `kind`, `seq` (its line number in
 | `report` | agent or worker | `leaf report` | as `action`, validated by the widget's `x-report` | provisional state that stands until a stamped revision answers it |
 | `request` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, validated by the holder's `x-request` and its direct-child offers | a durable, non-undoable one-shot instruction to the host |
 | `receipt` | agent | `leaf receipt` | `request`, `succeeded` or `failed`, `text` | exactly one terminal outcome per accepted request |
-| `pickup` | page | the delivery carrier | `events` | the named reader events reached their next consumer; idempotent, never a work claim |
+| `pickup` | page | the delivery carrier | `events`, `phase` (`queued` or `opened`), `session`, `turn` | the named reader events reached the durable Codex queue or entered an exact agent turn; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf version stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the reader |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the reader's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
@@ -123,6 +123,12 @@ follow, since a message outlives the version it was written on. Raw HTML in a
 body renders as its own characters. A widget in a message rides the event's
 `markup` field instead, whose one door is `leaf comment`/`leaf reply`, where it
 is validated against the vendored registry; the browser door refuses the field.
+An agent's body is read for a `/media/…` reference at that same door, whether it
+arrives as text or markup, since either names a file the page directory has to
+have — and the directory holds `/media/<digest>.<ext>` and nothing else, so any
+other one under that root is a file it can never answer. Text is read where the runtime resolves one — a Markdown link or image
+destination — so a path quoted in prose is words, as it is in authored markup;
+the browser's own paste stores the image before the reference exists.
 
 A raster image pasted into a browser text box is stored first as content-addressed page
 media. Its durable draft carries an ordinary Markdown image at

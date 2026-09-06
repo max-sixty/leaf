@@ -10,10 +10,12 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf.served_state import page as served_page
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
     BOTH_STAMPS,
+    CHIPS,
     EXAMPLES,
     FEATURE_GALLERY,
     GENERIC_VISUAL_LAYER,
@@ -22,7 +24,9 @@ from render_support import (
     PANEL_PAGE,
     SUGGESTION_PAGE,
     _publish,
+    address_code,
     compare_with,
+    go_to_address,
     leaf_page,
     live_url,
     margins_laid_out,
@@ -1255,24 +1259,19 @@ def test_open_page_map_uses_the_canonical_button_record_and_live_state(browser, 
     page.close()
 
 
-def test_g_m_addresses_the_visible_window_and_g_shift_m_opens_the_complete_page_map(
+def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_page_map(
     browser, serve
 ):
-    """Visible locations start at one while the complete Map keeps every location."""
+    """Visible locations get local hints while the complete Map keeps every location."""
     page, errors = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
     resized(page, 1440, 300)
 
     page.keyboard.press("g")
-    page.keyboard.press("m")
-    route = page.locator(
-        '.lf-keyline [data-lf-commands~="navigation.page-map-item"] .lf-key-sequence'
-    )
-    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
     expect(page.locator(".lf-page-map-sheet")).to_be_hidden()
-    expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
+    locations = page.locator(f'{CHIPS}[data-lf-address-kind="Page-map location"]')
+    expect(locations).to_have_count(1)
 
-    # When the motion settles, number the newly visible window from one. Location 11 is
-    # outside the document's old one-digit prefix.
+    # When the motion settles, regenerate the map over the newly visible window.
     page.evaluate(
         """() => new Promise(resolve => {
           addEventListener('scrollend', resolve, {once: true});
@@ -1280,9 +1279,8 @@ def test_g_m_addresses_the_visible_window_and_g_shift_m_opens_the_complete_page_
           document.scrollingElement.scrollTo(0, target.offsetTop - 100);
         })"""
     )
-    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
-    expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
-    page.keyboard.press("1")
+    expect(locations).to_have_count(1)
+    page.keyboard.type(address_code(page, "Page-map location", "map-11"))
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(preview).to_contain_text("Map note 11")
@@ -1317,7 +1315,7 @@ def test_g_m_addresses_the_visible_window_and_g_shift_m_opens_the_complete_page_
     page.close()
 
 
-def test_g_m_numbers_a_late_visible_action_only_location_from_one(browser, serve):
+def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     """A late action-only location is reachable while it is visible."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
@@ -1336,13 +1334,10 @@ def test_g_m_numbers_a_late_visible_action_only_location_from_one(browser, serve
     expect(show_after).to_be_visible()
 
     page.keyboard.press("g")
-    page.keyboard.press("m")
-    route = page.locator(
-        '.lf-keyline [data-lf-commands~="navigation.page-map-item"] .lf-key-sequence'
+    target = show_after.evaluate(
+        "button => button.closest('[data-lf-margin-for]').dataset.lfMarginFor"
     )
-    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
-    expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
-    page.keyboard.press("1")
+    page.keyboard.type(address_code(page, "Page-map location", target))
     expect(
         page.get_by_role(
             "button",
@@ -1366,9 +1361,7 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
     )
     page.mouse.move(pointer["x"], pointer["y"])
 
-    page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press("1")
+    go_to_address(page, "Page-map location", "bg-choice-ask")
     page.keyboard.press("Escape")
 
     page.wait_for_function(
@@ -1447,8 +1440,8 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
     page.close()
 
 
-def test_g_m_presses_the_first_button_at_each_location(browser, serve):
-    """A location address has the same native press as its first available Button."""
+def test_g_hints_press_the_first_button_at_each_location(browser, serve):
+    """A location hint has the same native press as its first available Button."""
     page, errors = open_page(
         browser,
         serve(
@@ -1470,9 +1463,7 @@ def test_g_m_presses_the_first_button_at_each_location(browser, serve):
     )
     disclosure = page.get_by_role("button", name="Edit address-disclosure", exact=True)
     with sending(page, "the addressed suggestion's acceptance"):
-        page.keyboard.press("g")
-        page.keyboard.press("m")
-        page.keyboard.press("1")
+        go_to_address(page, "Page-map location", "address-action")
     expect(page.locator("#address-action lf-old")).to_be_hidden()
     expect(page.locator("#address-action lf-new")).to_be_visible()
 
@@ -1489,8 +1480,13 @@ def test_g_m_presses_the_first_button_at_each_location(browser, serve):
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press("2")
+    expect(
+        page.locator(
+            f'{CHIPS}[data-lf-address-kind="Page-map location"]'
+            '[data-lf-address-for="address-disclosure"]'
+        )
+    ).to_have_count(0)
+    page.keyboard.press("Escape")
     expect(page.locator("#address-disclosure textarea")).to_have_count(0)
 
     disclosure.evaluate(
@@ -1500,9 +1496,7 @@ def test_g_m_presses_the_first_button_at_each_location(browser, serve):
           button.tabIndex = 0;
         }"""
     )
-    page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press("2")
+    go_to_address(page, "Page-map location", "address-disclosure")
     expect(page.locator("#address-disclosure textarea")).to_be_focused()
     expect(disclosure).to_be_hidden()
 
@@ -2169,7 +2163,7 @@ def test_a_buttons_walk_position_stays_out_of_its_visible_word(browser, serve):
 
 
 def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosure(
-    browser, serve
+    browser, serve, monkeypatch
 ):
     """A fitting keeps the Button family visible without promising a press.
 
@@ -2347,11 +2341,11 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         "rows => rows.some(row => row.tabIndex === 0)"
     ), "no Button is left for Tab to enter the rail by"
 
-    # The reader listening still reaches the phase by its numbered address.
-    place = int(re.search(r"(\d+) of ", marker.get_attribute("aria-label")).group(1))
-    page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press(str(place))
+    # The reader listening still reaches the phase through its visible generated hint.
+    target = marker.evaluate(
+        "row => row.closest('[data-lf-margin-for]').dataset.lfMarginFor"
+    )
+    go_to_address(page, "Page-map location", target)
     expect(marker).to_be_focused()
 
     # Standing there is not the same as being the way in. A repaint under the reader
@@ -2370,8 +2364,18 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         stops
     )
 
-    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(minutes=3))
-    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    # Waiting is a server-folded phase now. Advance the threaded test server's clock,
+    # then let the ordinary state read advance the retained Button in place.
+    sent_at = datetime.fromisoformat(logged_action["ts"])
+    advanced = (sent_at + timedelta(minutes=3)).isoformat()
+
+    def advanced_now():
+        return advanced
+
+    for clock_owner in (served_page, events_model, service_model):
+        monkeypatch.setattr(clock_owner, "now_iso", advanced_now)
+    session_model.cmd_status(page_dir, "idle", "")
+    told(page)
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
     assert_status("Waiting for pickup", "Sent 3m ago")
 
@@ -3544,6 +3548,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     that floor the same inline card overlays the page rather than opening Threads."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
     page, errors = open_page(browser, serve(example))
+    page.emulate_media(reduced_motion="reduce")
     resized_shell(page, 1536, 900)
     marker = page.get_by_role(
         "group", name=re.compile(r"Page actions for task · iOS reconnect stall")
@@ -3564,6 +3569,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     expect(
         thread.get_by_role("button", name="Open interactive reply in Threads")
     ).to_have_count(1)
+    expect(thread.locator("textarea")).to_be_focused()
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -3571,6 +3577,8 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
           const marker = markerNode.getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           const title = document.querySelector('.lf-margin-preview-title')
+            .getBoundingClientRect();
+          const reply = document.querySelector('.lf-margin-thread .lf-say')
             .getBoundingClientRect();
           const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
           return {bannerBottom: banner.bottom, mainRight: main.right,
@@ -3582,7 +3590,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
                   borderLeft: cardStyle.borderLeftWidth,
                   borderRight: cardStyle.borderRightWidth,
                   titleLeft: title.left, titleTop: title.top,
-                  cardScroll: document.querySelector('.lf-margin-preview').scrollTop,
+                  replyTop: reply.top, replyBottom: reply.bottom,
                   panelOpen: document.querySelector('.lf-panel').classList.contains('open')};
         }"""
     )
@@ -3599,7 +3607,8 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert geometry["cardTop"] <= geometry["markerMiddle"] <= geometry["cardBottom"], (
         geometry
     )
-    assert geometry["cardScroll"] == 0, geometry
+    assert geometry["replyTop"] >= geometry["cardTop"], geometry
+    assert geometry["replyBottom"] <= geometry["cardBottom"], geometry
     assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
     assert geometry["titleLeft"] == pytest.approx(geometry["cardLeft"] + 13, abs=0.5)
     assert not geometry["panelOpen"], geometry

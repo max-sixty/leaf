@@ -12,6 +12,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta
 from http.server import HTTPServer
 from pathlib import Path
 
@@ -644,6 +645,7 @@ def test_server_round_trip(server, page_dir):
     arrived = peer.getresponse()
     body = arrived.read()
     assert arrived.status == 200 and arrived.getheader("Location") is None
+    assert arrived.getheader("Content-Security-Policy") == "frame-ancestors 'none'"
     peer.close()
     status = arrived.status
     assert status == 200 and b"lf-options" in body
@@ -652,13 +654,26 @@ def test_server_round_trip(server, page_dir):
         b'<meta name="lf-version" data-lf-runtime content="1">'
     )
     assert marker in body
+    assert b"base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;" in body
     assert (
         body.index(b"</style>")
         < body.index(marker)
         < body.index(b'<script type="module" src="/leaf.js"></script>')
     )
-    pinned_status, pinned = fetch(f"{server}/versions/v1.html")
-    assert pinned_status == 200 and b"lf-board" in pinned and marker in pinned
+    # A historical revision may predate the current canonical policy. The HTTP
+    # projection applies today's boundary instead of preserving the stale meta tag.
+    revision = files_model.revision_path(page_dir, 2)
+    legacy = revision.read_bytes().replace(
+        b"base-uri 'none'; form-action 'none'; ", b""
+    )
+    revision = revision.rename(revision.with_name(files_model.revision_name(2, legacy)))
+    revision.write_bytes(legacy)
+    with urllib.request.urlopen(f"{server}/versions/v1.html?t={TOKEN}") as response:
+        pinned = response.read()
+        assert response.status == 200
+        assert response.headers["Content-Security-Policy"] == "frame-ancestors 'none'"
+    assert b"lf-board" in pinned and marker in pinned
+    assert b"base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;" in pinned
     assert not (page_dir / "versions").exists()
     # Vendored files serve; the log and directory paths don't.
     for path in [
@@ -1387,7 +1402,14 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
 
     def reading(active_revision):
         return served_browser.browser_state(
-            documents, events, registry, active_revision, [], {}, {1, 2}
+            documents,
+            events,
+            registry,
+            active_revision,
+            presence_model.presence(page_dir, events),
+            {},
+            {1, 2},
+            event_model.now_iso(),
         )
 
     # The same log really does admit the reaction if read against the old page.
@@ -2955,6 +2977,96 @@ def test_unchanged_neighbor_logs_are_read_once_until_their_stamp_moves(
     assert reads == 3
 
 
+def test_neighbor_activity_cache_expires_at_the_projected_transition(
+    page_dir, monkeypatch
+):
+    """A file-stable neighbor still advances from Sent to Waiting for pickup.
+
+    The browser asks when the canonical deadline arrives; the neighbor cache must
+    then project a fresh server answer rather than returning the pre-deadline one.
+    """
+    neighbour = host_model.state_home() / "pages" / "neighbor-deadline"
+    neighbour_page(neighbour, title="Timed neighbor")
+    record_claim(neighbour, id="timed")
+    files_model.write_json(
+        neighbour / "status.json",
+        {"state": "waiting", "detail": "", "ts": event_model.now_iso(), "after": 0},
+    )
+    status_at = datetime.fromisoformat(
+        files_model.read_json(neighbour / "status.json")["ts"]
+    )
+    comment = event_model.append_event(
+        neighbour, {"kind": "comment", "author": "user", "text": "hello"}
+    )
+    sent_at = datetime.fromisoformat(comment["ts"])
+    monkeypatch.setattr(
+        presence_model,
+        "now_iso",
+        lambda: (sent_at + timedelta(minutes=1)).isoformat(),
+    )
+
+    [before] = presence_model.other_leaves(page_dir)
+    assert before["activity"]["interactions"][0]["phase"] == "sent"
+    assert before["activity"]["next_transition_at"]
+
+    monkeypatch.setattr(
+        presence_model,
+        "now_iso",
+        lambda: (sent_at + timedelta(minutes=2)).isoformat(),
+    )
+    [after] = presence_model.other_leaves(page_dir)
+    assert after["activity"]["interactions"][0]["phase"] == "waiting"
+    assert (
+        after["activity"]["next_transition_at"]
+        == (status_at + timedelta(minutes=15)).isoformat()
+    )
+
+
+def test_neighbor_activity_cache_expires_when_status_loses_its_last_proof(
+    page_dir, monkeypatch
+):
+    """A waiting declaration with no owner becomes unheld on its own deadline."""
+    neighbour = host_model.state_home() / "pages" / "neighbor-status-deadline"
+    neighbour_page(neighbour, title="Timed status neighbor")
+    started = datetime.now().astimezone()
+    files_model.write_json(
+        neighbour / "status.json",
+        {
+            "state": "waiting",
+            "detail": "",
+            "ts": started.isoformat(),
+            "after": 0,
+        },
+    )
+    monkeypatch.setattr(
+        presence_model,
+        "now_iso",
+        lambda: (started + timedelta(minutes=14)).isoformat(),
+    )
+
+    [before] = presence_model.other_leaves(page_dir)
+    assert (before["activity"]["kind"], before["activity"]["held"]) == (
+        "away",
+        True,
+    )
+    assert (
+        before["activity"]["next_transition_at"]
+        == (started + timedelta(minutes=15)).isoformat()
+    )
+
+    monkeypatch.setattr(
+        presence_model,
+        "now_iso",
+        lambda: (started + timedelta(minutes=15)).isoformat(),
+    )
+    [after] = presence_model.other_leaves(page_dir)
+    assert (after["activity"]["kind"], after["activity"]["held"]) == (
+        "unheld",
+        False,
+    )
+    assert after["activity"]["next_transition_at"] is None
+
+
 def test_server_shutdown_wakes_a_long_poll_without_waiting_for_timeout(
     page_dir, monkeypatch
 ):
@@ -3852,7 +3964,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # A directory holding no claims at all is still a complete answer: every
     # presence field arrives, as its absent-file default.
     unclaimed = {
-        "status": {"state": "idle", "detail": "", "ts": None},
+        "status": {"state": "idle", "detail": "", "ts": None, "after": 0},
         "claims": [],
         "listening": False,
         "cursor": 0,
@@ -3861,9 +3973,30 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "host": None,
         "session_alive": None,
         "claim_session": None,
+        "claim_turn": None,
         "turn_closed": None,
         "viewed": None,
         "session_cwd": None,
+        "activity": {
+            "kind": "closed",
+            "held": True,
+            "quiet": False,
+            "dropped": False,
+            "detail": "",
+            "count": 0,
+            "counts": {
+                "active": 0,
+                "handling": 0,
+                "queued": 0,
+                "picked_up": 0,
+                "pending": 0,
+                "total": 0,
+            },
+            "ts": None,
+            "next_transition_at": None,
+            "interactions": [],
+            "obligations": [],
+        },
     }
     assert state["others"] == [
         {
@@ -3884,7 +4017,9 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "host": "claude-code",
             "session_alive": False,
             "claim_session": "s1",
+            "claim_turn": "turn-1",
             "session_cwd": str(Path.cwd()),
+            "activity": {**unclaimed["activity"], "held": False},
         },
         {
             "title": "The other page",
@@ -3894,12 +4029,34 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
                 "state": "working",
                 "detail": "measuring",
                 "ts": "2026-01-01T00:00:00-08:00",
+                "after": 0,
             },
             "agent": "Codex",
             "host": "claude-code",
             "session_alive": True,
             "claim_session": "s9",
+            "claim_turn": "turn-1",
             "session_cwd": "/work/api",
+            "activity": {
+                "kind": "away",
+                "held": True,
+                "quiet": True,
+                "dropped": False,
+                "detail": "measuring",
+                "count": 0,
+                "counts": {
+                    "active": 0,
+                    "handling": 0,
+                    "queued": 0,
+                    "picked_up": 0,
+                    "pending": 0,
+                    "total": 0,
+                },
+                "ts": "2026-01-01T00:00:00-08:00",
+                "next_transition_at": None,
+                "interactions": [],
+                "obligations": [],
+            },
         },
     ]
 

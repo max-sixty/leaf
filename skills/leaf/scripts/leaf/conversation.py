@@ -146,7 +146,7 @@ def cmd_comment(
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there."""
     # Reading a body may wait on stdin; do that before taking the page lease.
-    body = read_text_arg(text)
+    body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         events = page.events
         revision, anchor = _current_anchor(page_dir, events, quote, section, part)
@@ -180,7 +180,7 @@ def cmd_reply(
     part: str = "",
 ) -> dict:
     """Post one complete threaded reply, optionally moving the thread's anchor."""
-    body = read_text_arg(text)
+    body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         events = page.events
         root_id, root = _thread_root(events, to)
@@ -248,7 +248,7 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
     every wording while thread folds project the latest one. Markup stays frozen with
     the original message because reader actions may already rest on widgets it sent.
     """
-    body = read_text_arg(text)
+    body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
         events = page.events

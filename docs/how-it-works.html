@@ -8,7 +8,7 @@
     />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
     />
     <title>how leaf works</title>
     <meta
@@ -244,8 +244,8 @@ $ leaf ack ./review 3</code></pre>
           that asks nothing having nothing for the reader to answer.
         </p>
         <p id="dogfood">
-          This page is set in the plugin's own <code>theme.css</code>, and the widgets
-          below are rendering through its real runtime right now. Each sits in a
+          This page is set in the plugin's own <code>theme.css</code>, and its widgets
+          were rendered by Leaf into this standalone export. Each sits in a
           <code>lf-specimen</code> — the gutter that marks quoted material — so an
           example decision never reads as one the page is asking you to make.
         </p>
@@ -449,8 +449,8 @@ $ leaf ack ./review 3</code></pre>
           <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>
         <p>
-          This page is a leaf using the theme and widgets it describes. Its public-site
-          session is intentionally browser-local and unattended.
+          This page is a standalone Leaf export using the theme and widgets it
+          describes. The <a href="/examples/">examples</a> run as private Leaf sessions.
         </p>
       </footer>
     </main>

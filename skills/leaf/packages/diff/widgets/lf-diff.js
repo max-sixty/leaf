@@ -1205,7 +1205,7 @@ customElements.define(
       const entry = order[standing + 1];
       if (!entry) return;
       this.reviewCursor = entry;
-      // The box rather than the header, which is what the `g f` fold address settled for
+      // The box rather than the header, which is what the generated fold target settled for
       // the same shape: a header pinned to the banner is already where it is going, so
       // aligning it moves nothing, while aligning the file it heads starts the file at
       // its start. The header is still what takes the focus.

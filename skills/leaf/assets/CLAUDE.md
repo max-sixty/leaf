@@ -104,7 +104,8 @@ of rows applies; `dispatch.js` which scope answers a press and what it owes the
 platform; `return-stack.js` what a keyboard entry owes on the way back out;
 `keyline.js` the short help at the foot of the page and its More control;
 `reference.js` the complete listing behind `?`; `address.js` the go-to chord;
-`address-placement.js` the one-digit address vocabulary and its placement pass;
+`address-placement.js` shared address visibility and the numeric Ask placement pass;
+`hints.js` prefix-free transient labels and their no-drop placement pass;
 `presentation.js` how a chord row's presses are shown;
 `runtime/keyboard/disclosure.js` owns the shared disclosure bindings and the
 disclosure watch; `runtime/keyboard/page.js` owns the page's own scopes and rows;
@@ -112,7 +113,8 @@ disclosure watch; `runtime/keyboard/page.js` owns the page's own scopes and rows
 element the banner seats;
 `runtime/arrangements.js` owns the browser-state arrangements the arrival gate exercises;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
-`runtime/presence.js` owns claim freshness and attendance judgment;
+`runtime/presence.js` owns the calibrated server clock, relative-time wording,
+and the deadline at which canonical activity asks for another server read;
 `runtime/state-feed.js` owns state reads, offline handling, the shared clock and deferred retries,
 event-stream wakeups, and first-read presentation scheduling and retry;
 `runtime/state-application.js` owns stale-answer ordering, application serialization,
@@ -124,6 +126,8 @@ the fold that decides which of the banner's addresses stand on its row and which
 stand in its menu;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
+`runtime/interaction-gallery.js` owns the Product Gallery's opt-in, ephemeral
+interaction replays and their playback controls;
 `runtime/markdown.js` owns safe, lazy Markdown rendering for runtime-supplied text;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
 report, and work-claim feeds;
@@ -195,7 +199,8 @@ threads they claim from the living-margin fallback;
 `runtime/conversation/thread-card.js` owns retained panel thread cards, their quote
 state, and their reply, resolve, and reopen controls;
 `runtime/conversation/thread-list.js` owns retained panel list reconciliation;
-`runtime/conversation/acknowledgments.js` owns growing acknowledgment receipts and live claim seats; and
+`runtime/conversation/acknowledgments.js` paints the server-projected interaction
+receipts in conversation seats; and
 `runtime/conversation/reconcile.js` composes panel reconciliation and
 `runtime/conversation/panel.js` builds the panel's parts;
 `runtime/projection/authored.js` owns typed authored initial values and anchor
@@ -228,7 +233,7 @@ Each mutable fact has one writer:
 | anchor paint | thread and composer anchor records | `paintAnchors` |
 | where each thread's passage lands | this version's resolution of its anchor | `paintAnchors` writes a rich `placed` record with its element, exact datum, and exact/fallback/outdated status |
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the living margin reconciles |
-| reader acknowledgment and local agent work | the canonical acknowledgment projection plus typed claims in `status.work` | `paintAcknowledgments` paints conversation-local fallbacks; the living margin maps page subjects onto their existing Target Button without becoming another store |
+| canonical agent activity | the server fold of status, claim and turn identity, watcher lease, pickup events, and unsettled interactions | the banner, receipts, margin, and leaves tray paint `activity`; the browser only asks for a fresh server reading at `next_transition_at` |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | panel visibility | `panelOpen` | `setPanel` |
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
@@ -607,9 +612,9 @@ whether the box can take focus, and choosing among the boxes a seat holds once i
 carries threads. One route answers those by not asking them.
 
 `LINK` and `DISCLOSURE` describe the platform controls a reader may land on and the
-immediate word for their next press. An addressed fold lands on its summary after
-opening it; a link reached through Tab still says that Enter follows it. A summary
-says whether it will open or close from its current state. This avoids one scope per
+immediate word for their next press. A fold reached by a generated hint lands on its
+summary after opening it; a link reached through Tab still says that Enter follows it.
+A summary says whether it will open or close from its current state. This avoids one scope per
 native tag while keeping the next press visible.
 
 ### Standing somewhere

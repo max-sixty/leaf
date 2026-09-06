@@ -10,6 +10,8 @@ import { threadsBox } from "./conversation/panel.js";
 import { pageScroller } from "./scrolling.js";
 import { inChrome } from "./passages.js";
 import { activeInlineThread, openPageThread } from "./living-margin.js";
+import { announce } from "./notifications.js";
+import { beginWalk, walkPositionLabel } from "./walk-position.js";
 
 // Where a comment about this item is written: the composer, on the item, which is what a
 // click through the ⌥ aim already opens. It reached for the widget's own conversation seat
@@ -73,6 +75,10 @@ export function stepThread(dir) {
   if (!next) return;
   if (!panelIsOpen()) {
     openPageThread(next.dataset.id, { focus: "thread" });
+    announce(
+      beginWalk("thread", next.dataset.id) ??
+        walkPositionLabel("thread", threads.indexOf(next) + 1, threads.length),
+    );
     return;
   }
   // Landing the thread is the list's, off the focus it is about to take. A press at
@@ -83,6 +89,10 @@ export function stepThread(dir) {
   next.focus({ preventScroll: true });
   if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
   scrollToThread(next.dataset.id);
+  announce(
+    beginWalk("thread", next.dataset.id) ??
+      walkPositionLabel("thread", threads.indexOf(next) + 1, threads.length),
+  );
 }
 
 // Put the comment the reader is standing on against one edge of its list. This is

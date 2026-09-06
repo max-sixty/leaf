@@ -1161,9 +1161,13 @@ def test_the_feature_gallery_carries_a_button_through_its_whole_lifecycle(
     sends = _traffic(page).sends
     accept.click()
     _until(page, lambda traffic: traffic.sends > sends, "held the acceptance")
-    expect(accept).to_have_attribute("data-lf-state", "busy")
-    expect(accept).to_have_attribute("aria-busy", "true")
-    assert accept.evaluate(
+    expect(accept).to_have_count(0)
+    pending_undo = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    expect(pending_undo).to_have_attribute("data-lf-state", "busy")
+    expect(pending_undo).to_have_attribute("aria-busy", "true")
+    expect(page.locator("#bg-button-workflow lf-old")).to_be_hidden()
+    expect(page.locator("#bg-button-workflow lf-new")).to_be_visible()
+    assert pending_undo.evaluate(
         """button => {
           const style = getComputedStyle(button, '::after');
           return style.animationName.includes('button-busy') &&
@@ -1177,7 +1181,9 @@ def test_the_feature_gallery_carries_a_button_through_its_whole_lifecycle(
     expect(page.locator("#bg-button-workflow")).to_have_attribute(
         "data-lf-state", "accept"
     )
-    expect(page.locator(".lf-notice")).to_have_text(re.compile(r"^Accepted .+ — sent$"))
+    expect(page.locator(".lf-notice")).not_to_have_text(
+        re.compile(r"^(Accepted|Rejected) .+ — sent$")
+    )
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     undo_button = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
     expect(undo_button).to_have_attribute("data-lf-state", "settled")

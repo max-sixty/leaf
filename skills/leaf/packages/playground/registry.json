@@ -56,7 +56,7 @@
     "x-example": "<lf-ask id=\"card-design-ask\"><h2>How should the card feel?</h2><lf-playground id=\"card-design\"><lf-playground-control name=\"radius\" label=\"Corner radius\" kind=\"range\" value=\"12\" min=\"0\" max=\"24\" step=\"1\" unit=\"px\"></lf-playground-control><lf-playground-control name=\"compact\" label=\"Compact spacing\" kind=\"toggle\" value=\"false\"></lf-playground-control><lf-playground-control name=\"tone\" label=\"Tone\" kind=\"choice\" value=\"quiet\"><lf-playground-choice value=\"quiet\" label=\"Quiet\"></lf-playground-choice><lf-playground-choice value=\"bold\" label=\"Bold\"></lf-playground-choice></lf-playground-control><lf-playground-preview><article><strong>Preview card</strong><p>The real page markup responds to the controls.</p></article></lf-playground-preview><lf-playground-output>Use a <lf-playground-value for=\"radius\"></lf-playground-value> corner radius and a <lf-playground-value for=\"tone\"></lf-playground-value> tone.</lf-playground-output></lf-playground></lf-ask>"
   },
   "lf-playground-control": {
-    "description": "One typed input in a playground. `name` is the stable key in the submitted value map and in the reflected CSS property and data attribute. `label` names the generated native control. Every kind declares its initial value as a string: a finite number for range, `true` or `false` for toggle, one child value for choice, a six-digit hex colour for color, and arbitrary text for text. Range controls may add min, max, step, and unit. Choice controls contain one or more lf-playground-choice children; other kinds are empty.",
+    "description": "One typed input in a playground. `name` is the stable key in the submitted value map and in the reflected CSS property and data attribute. `label` names the generated native control. Every kind declares its initial value as a string: a finite number for range, `true` or `false` for toggle, one child value for choice, a six-digit hex colour for color, and arbitrary text for text. Range controls must add max and may add min, step, and unit. Choice controls contain one or more lf-playground-choice children; other kinds are empty.",
     "type": "object",
     "properties": {
       "name": {
@@ -93,6 +93,21 @@
       }
     },
     "required": ["name", "label", "kind", "value"],
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "kind": {
+              "const": "range"
+            }
+          },
+          "required": ["kind"]
+        },
+        "then": {
+          "required": ["max"]
+        }
+      }
+    ],
     "additionalProperties": false,
     "x-parent": ["lf-playground"],
     "x-content": "items",

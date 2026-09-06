@@ -120,6 +120,7 @@ PLAYGROUND_PAGE = leaf_page(
     border-radius: var(--playground-radius);
     padding: 24px;
   }
+  #playground-card::before { content: var(--playground-title); }
   #card-playground[data-playground-compact="true"] #playground-card { padding: 8px; }
   #card-playground[data-playground-tone="bold"] #playground-card { font-weight: 700; }
 </style>
@@ -1487,24 +1488,30 @@ def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
     page.locator('lf-playground-control[name="compact"] input').check()
     page.locator('lf-playground-choice[value="bold"]').click()
     page.locator('lf-playground-control[name="accent"] input').fill("#8b4a5f")
-    page.locator('lf-playground-control[name="title"] input').fill("Ridge note")
+    page.locator('lf-playground-control[name="title"] input').fill("Ridge note; alert")
 
     assert len(sent_events(serve.page_dir)) == before
     assert playground.evaluate("root => root.values") == {
         "accent": "#8b4a5f",
         "compact": True,
         "radius": 17,
-        "title": "Ridge note",
+        "title": "Ridge note; alert",
         "tone": "bold",
     }
     assert playground.evaluate("root => window.playgroundChanges.at(-1)")["title"] == (
-        "Ridge note"
+        "Ridge note; alert"
     )
     expect(page.locator("#playground-card")).to_have_css("border-radius", "17px")
     expect(page.locator("#playground-card")).to_have_css("padding", "8px")
+    assert (
+        page.locator("#playground-card").evaluate(
+            "element => getComputedStyle(element, '::before').content"
+        )
+        == '"Ridge note; alert"'
+    )
     expect(page.locator("#card-instruction")).to_have_text(
         "Use a 17px radius, compact spacing set to true, a bold tone, #8b4a5f accents, "
-        "and the title Ridge note."
+        "and the title Ridge note; alert."
     )
 
     with sending(page, "the playground configuration"):
@@ -1516,21 +1523,46 @@ def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
             "accent": "#8b4a5f",
             "compact": True,
             "radius": 17,
-            "title": "Ridge note",
+            "title": "Ridge note; alert",
             "tone": "bold",
         },
         "instruction": (
             "Use a 17px radius, compact spacing set to true, a bold tone, #8b4a5f accents, "
-            "and the title Ridge note."
+            "and the title Ridge note; alert."
         ),
     }
 
     page.reload()
     expect(page.locator("#card-instruction")).to_contain_text("17px radius")
-    assert playground.evaluate("root => root.values")["title"] == "Ridge note"
+    assert playground.evaluate("root => root.values")["title"] == "Ridge note; alert"
     undo(page)
     expect(page.locator("#card-instruction")).to_contain_text("12px radius")
     assert playground.evaluate("root => root.values")["compact"] is False
+    assert errors == []
+    page.close()
+
+
+def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(
+    browser, serve
+):
+    page, errors = open_page(browser, serve(PLAYGROUND_PAGE))
+    playground = page.locator("#card-playground")
+    choose = playground.get_by_role("button", name="Use these settings")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+
+    choose.evaluate("button => { button.click(); button.click(); }")
+    holding(page, held, 1, "the playground choice")
+    expect(choose).to_be_disabled()
+    expect(choose).to_have_attribute("aria-busy", "true")
+    page.wait_for_timeout(100)
+    assert len(held) == 1
+
+    held[0].continue_()
+    round_trip(page)
+    expect(choose).to_be_enabled()
+    expect(choose).not_to_have_attribute("aria-busy", "true")
+    assert len(actions(serve.page_dir)) == 1
     assert errors == []
     page.close()
 

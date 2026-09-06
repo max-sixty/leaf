@@ -416,13 +416,20 @@ customElements.define(
       return `${value}${control.getAttribute("unit") ?? ""}`;
     }
 
+    #cssValue(control, value) {
+      const formatted = this.#formatted(control, value);
+      return control.getAttribute("kind") === "text"
+        ? JSON.stringify(formatted)
+        : formatted;
+    }
+
     #apply(candidate, { remember = true } = {}) {
       const values = this.#normalize(candidate);
       this.#values = values;
       for (const [name, value] of Object.entries(values)) {
         const control = this.#controlByName.get(name);
         this.#setInput(control, value);
-        this.style.setProperty(`--playground-${name}`, this.#formatted(control, value));
+        this.style.setProperty(`--playground-${name}`, this.#cssValue(control, value));
         keeps(this, `data-playground-${name}`, value);
       }
       for (const slot of this.#output.querySelectorAll("lf-playground-value")) {
@@ -476,7 +483,8 @@ customElements.define(
     }
 
     async #choose() {
-      if (!actionAvailable(this, "choose")) return;
+      if (this.#submit.disabled || !actionAvailable(this, "choose")) return;
+      this.#submit.disabled = true;
       this.#submit.setAttribute("aria-busy", "true");
       try {
         const event = await sendAction(this, "choose", {

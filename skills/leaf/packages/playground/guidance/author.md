@@ -10,7 +10,7 @@ Name the outcome—`Trail alert`, not `Preset 2`—and let the reader tune it af
 Controls support `range`, `toggle`, `choice`, `color`, and `text`. Their `name` becomes
 the key in the final typed value map. A range's `unit` is appended in its CSS custom
 property and in `lf-playground-value`; its data attribute and public `values` entry stay
-numeric.
+numeric. A range requires `max`; `min` defaults to zero and `step` defaults to one.
 
 ```html
 <lf-ask id="card-design-ask">
@@ -48,11 +48,13 @@ numeric.
 ```
 
 Bind a simple preview with page CSS. Each value is reflected on the playground in both
-forms:
+forms. A text control's custom property is a quoted CSS string, so it can be used by
+`content`; its data attribute contains the unquoted text:
 
 ```css
 #sample-card { border-radius: var(--playground-radius); }
 #card-design[data-playground-tone="quiet"] #sample-card { border-color: var(--rule); }
+#sample-card::before { content: var(--playground-title); }
 ```
 
 A computed preview belongs to a companion package. Its widget reads

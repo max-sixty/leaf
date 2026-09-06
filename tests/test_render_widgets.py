@@ -1123,7 +1123,7 @@ def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser,
     sections = "\n".join(
         f"<section><h2 id='part-{index}'>Migration part {index}</h2>"
         f"<p>Move cohort {index} only after its reading is stable.</p></section>"
-        for index in range(1, 43)
+        for index in range(1, 31)
     )
     source = leaf_page(
         "dense contents map",

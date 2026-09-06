@@ -4643,8 +4643,8 @@ def test_every_shadow_the_layer_lifts_a_box_with_is_cast_in_the_scheme_s_own_ink
 # reported were found.
 #
 # The reading takes the element's box together with any absolutely positioned pseudo it
-# hangs, because an aim need not be the thing the reader sees: a mark six pixels wide set
-# in a line of prose cannot grow without opening the line, so it carries a box of its own.
+# hangs, because a control may enlarge its target outside layout rather than make the
+# visible line or row taller.
 #
 # Inline boxes are out, and that is the target-size exception rather than an excuse: a
 # link inside a sentence is sized by the words around it, and nothing can be done about
@@ -4692,7 +4692,6 @@ AIM_SURFACES = (
     ".lf-version-diff",
     ".lf-help-command",
     ".lf-quote",
-    ".lf-gloss-mark",
     ".lf-tab-btn",
     ".lf-grip",
 )
@@ -4738,9 +4737,9 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
 
     Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
     reaction pills stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
-    version's Δ, a command in the reference, a quote and a gloss mark at around twelve by
-    seven. Three controls reached the coarse-pointer block and the rest reached neither
-    floor, so the same presses were small under a finger too.
+    version's Δ, a command in the reference, and a quote at around twelve by seven.
+    Three controls reached the coarse-pointer block and the rest reached neither floor,
+    so the same presses were small under a finger too.
 
     The sweep names no control. What makes a box an aim is that the runtime built it or
     stands in the runtime's own layer, and that the page under the pointer says a press
@@ -4749,7 +4748,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
     floor, because a control comfortable under one and not the other is the fault this is
     about rather than a lesser version of it.
 
-    The surfaces have to be opened for any of it to mean anything: seven of the nine
+    The surfaces have to be opened for any of it to mean anything: seven of the eight
     controls at issue exist only inside a panel, a menu, a resolved disclosure or the
     reference, and a sweep of the page at rest would report a clean layer while every one
     of them was still six pixels tall. AIM_SURFACES is that assertion.

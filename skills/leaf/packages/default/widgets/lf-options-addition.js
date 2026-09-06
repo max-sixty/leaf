@@ -72,6 +72,7 @@ export class OptionAddition {
     this.#syncInput = wireInput(this.#input, {
       hint: ANOTHER,
       sends: "add option",
+      icon: "add",
       sendBtn: this.#add,
       allowsMedia: null,
       busy: () => !this.available(),

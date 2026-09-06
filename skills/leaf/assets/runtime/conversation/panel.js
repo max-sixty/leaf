@@ -3,6 +3,7 @@
    into the panel imports the same nodes; the reconciler renders into them and the
    chrome-layout.js places them. */
 import { el } from "../widget-elements.js";
+import { iconElement } from "../icons.js";
 import { setPanel } from "../chrome-layout.js";
 import { designOn } from "../design.js";
 import {
@@ -22,8 +23,9 @@ import { paintDrawings, validDrawing } from "../composing/drawing.js";
 
 export const panel = el("dialog", "lf-ui lf-panel");
 const panelHead = el("div", "lf-panel-head");
-export const closeBtn = el("button", "lf-btn", "×");
-closeBtn.title = "Close (Esc)";
+export const closeBtn = el("button", "lf-btn lf-icon-action lf-close-action");
+closeBtn.append(iconElement("cross", "lf-action-icon"));
+closeBtn.title = "Close threads (Esc)";
 closeBtn.setAttribute("aria-label", "Close threads");
 // The head's own line: the panel's name while it shows the whole conversation, and what
 // it is showing instead the moment a narrowing stands. One slot, because they are one

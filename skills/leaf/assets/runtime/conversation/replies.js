@@ -111,10 +111,10 @@ export function wireReply(t, input, send) {
     },
   });
   sync();
-  // A box growing under the reader pushes its own Send and Resolve below the list's
-  // foot: eight lines of reply left the blue button a sliver at the scrollport's edge,
+  // A box growing under the reader pushes its embedded Send below the list's foot:
+  // eight lines of reply left the blue button a sliver at the scrollport's edge,
   // reachable only by the send key the placeholder happened to name. Landing reveals
-  // the composer with its actions (revealConversation); growth is the same claim made
+  // the composer with its controls (revealConversation); growth is the same claim made
   // again. On the reader's own keystrokes and nothing else: a send settling after they
   // scrolled away, or a draft mirrored from another tab, must not pull the list back.
   // Instant, not smooth — a line typed while the last line's glide is still running

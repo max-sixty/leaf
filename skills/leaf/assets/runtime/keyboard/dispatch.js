@@ -18,7 +18,7 @@
    Alt character composition, and Mod editing commands remain native. It does not blanket
    radio, checkbox, slider, Escape, or unrelated function keys merely because they are
    form-related. An exact element scope is nearer than that claim, so a wired textarea
-   keeps its own Escape or send row; the typing claim then stands before any scope on an
+   keeps its own Escape or submit binding; the typing claim then stands before any scope on an
    ancestor widget. This ordering lets a widget contain an editor without taking letters,
    newlines, or caret keys from it.
 

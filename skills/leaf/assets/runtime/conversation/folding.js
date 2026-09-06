@@ -3,6 +3,7 @@
  * views. */
 import { outbox, post } from "../outbox.js";
 import { measure, offer, reserve } from "../widget-elements.js";
+import { iconElement } from "../icons.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { threadsBox } from "./panel.js";
@@ -30,19 +31,26 @@ export function settlementControl(t, { prepareLanding } = {}) {
   const reopen = Boolean(t.resolved);
   const kind = reopen ? "unresolve" : "resolve";
   const word = reopen ? "Reopen" : "Resolve";
-  const pendingWord = reopen ? "Reopening…" : "Resolving…";
+  const label = reopen ? word : "Resolve thread";
+  const pendingWord = reopen ? "Reopening…" : "Resolving thread…";
   const button = offer(
     "button",
-    reopen ? "lf-btn lf-reopen lf-thread-action" : "lf-btn lf-resolve",
-    word,
+    reopen ? "lf-btn lf-reopen lf-thread-action" : "lf-btn lf-resolve lf-icon-action",
+    reopen ? word : undefined,
   );
+  if (!reopen) button.append(iconElement("check", "lf-action-icon"));
   const sync = () => {
     // A fold owns its accepted outcome until it removes the old control.
     if (button.closest(".lf-going")) return;
     const pending = pendingSettlement(id);
     button.setAttribute("aria-disabled", String(Boolean(pending)));
     button.setAttribute("aria-busy", String(Boolean(pending)));
-    button.textContent = pending?.event.kind === kind ? pendingWord : word;
+    const currentLabel = pending?.event.kind === kind ? pendingWord : label;
+    if (reopen) button.textContent = currentLabel;
+    else {
+      button.setAttribute("aria-label", currentLabel);
+      button.title = currentLabel;
+    }
   };
   const update = (ev) => {
     if (!button.isConnected) return document.removeEventListener(news, update);
@@ -66,7 +74,7 @@ export function settlementControl(t, { prepareLanding } = {}) {
   keys(button, `On a thread's ${word} button`, [
     {
       id: reopen ? "thread.reopen" : "thread.resolve",
-      keys: [...PRESS, "x"],
+      keys: PRESS,
       does: `${word} it`,
       line: word.toLowerCase(),
       when: () => !busy(id),
@@ -75,8 +83,10 @@ export function settlementControl(t, { prepareLanding } = {}) {
   ]);
   // Showing one view can release a hidden control's measurement during resize
   // delivery. Reserve outside that delivery because its thread also observes size.
-  const fit = () => reserve(button, [word, pendingWord, "✓ Resolved"]);
-  measure(button, () => requestAnimationFrame(() => measure(button, fit)));
+  if (reopen) {
+    const fit = () => reserve(button, [word, pendingWord]);
+    measure(button, () => requestAnimationFrame(() => measure(button, fit)));
+  }
   sync();
   return button;
 }
@@ -95,8 +105,8 @@ export function settlementControl(t, { prepareLanding } = {}) {
 // motion more: nothing in this tab moved, so the fold is the only thing saying so.
 //
 // Everything that walks the list asks for .lf-thread, so the one rename takes the
-// node out of t/T, out of the g addresses, out of x's press and out of what the panel
-// repaints, in a stroke: what stands there is room, not a thread. `inert` says the
+// node out of t/T, out of the g addresses, out of scoped presses and out of what the
+// panel repaints, in a stroke: what stands there is room, not a thread. `inert` says the
 // same to the pointer and the tab order, so the fold can't be pressed a second time
 // or typed into on its way out.
 //
@@ -138,12 +148,12 @@ export function foldOut(t) {
   to.opacity = 0;
   const played = motion(node, [from, to], FOLD_MS);
   if (!played) return null;
-  // The pressed control states the outcome in the room it already reserved. Send
-  // stays in the row with visibility hidden, keeping its room without reading as live.
-  const resolve = node.querySelector(
-    ":scope > .lf-compose > .lf-thread-actions > .lf-resolve",
-  );
-  resolve.textContent = "✓ Resolved";
+  // The pressed control states the outcome in the metadata row it already occupied. Its
+  // checkmark changes from a quiet action to the green outcome without changing the
+  // control's box, so the fold starts from the layout the reader was looking at.
+  const resolve = node.querySelector(":scope > .lf-msg > .lf-msg-head > .lf-resolve");
+  resolve.setAttribute("aria-label", "Resolved");
+  resolve.title = "Resolved";
   resolve.setAttribute("aria-busy", "false");
   node.className = "lf-going";
   if (node.matches(":focus-within")) threadsBox.focus({ preventScroll: true });

@@ -39,7 +39,6 @@ from render_support import (
     open_page,
     panel_comment,
     panel_settled,
-    reservations_taken,
     resized,
     ring_faults,
     rings_drawn,
@@ -184,8 +183,8 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(
     thread = page.locator(f'.lf-conversation-thread[data-thread="{root["id"]}"]')
     destination = thread.locator("textarea") if response == "reply" else thread
     expect(thread.locator("textarea")).to_have_count(1 if response == "reply" else 0)
-    thread.get_by_role("button", name="Resolve", exact=True).focus()
-    page.keyboard.press("x")
+    thread.get_by_role("button", name="Resolve thread", exact=True).focus()
+    page.keyboard.press("Enter")
     round_trip(page)
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
     expect(thread).to_be_focused()
@@ -195,7 +194,10 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    for action, pending in (("Resolve", "Resolving…"), ("Reopen", "Reopening…")):
+    for action, pending in (
+        ("Resolve thread", "Resolving thread…"),
+        ("Reopen", "Reopening…"),
+    ):
         with page.expect_request("**/api/event"):
             thread.get_by_role("button", name=action, exact=True).click()
         expect(thread.get_by_role("button", name=pending)).to_have_attribute(
@@ -240,13 +242,13 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         thread = page.locator(f'.lf-thread[data-id="{root}"]')
-    resolve = thread.get_by_role("button", name="Resolve", exact=True)
+    resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     expect(resolve).to_be_visible()
     resolve.scroll_into_view_if_needed()
     before = resolve.bounding_box()
     with page.expect_request("**/api/event"):
         resolve.click()
-    busy = thread.get_by_role("button", name="Resolving…", exact=True)
+    busy = thread.get_by_role("button", name="Resolving thread…", exact=True)
     expect(busy).to_be_disabled()
     expect(busy).to_be_focused()
     expect(busy).to_have_attribute("aria-busy", "true")
@@ -260,10 +262,10 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     )
     expect(resolve).to_be_enabled()
     expect(resolve).not_to_have_attribute("aria-busy", "true")
-    expect(resolve).to_have_attribute("aria-keyshortcuts", re.compile(r".*x.*"))
+    expect(resolve).not_to_have_attribute("aria-keyshortcuts", re.compile(r".*x.*"))
     resolve.focus()
     with page.expect_request("**/api/event"):
-        page.keyboard.press("x")
+        page.keyboard.press("Enter")
     expect(busy).to_be_disabled()
     if view == "panel":
         page.locator(".lf-general textarea").fill("My next thought can keep its focus.")
@@ -306,11 +308,15 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
     inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
     panel = page.locator(f'.lf-thread[data-id="{root}"]')
     with page.expect_request("**/api/event"):
-        inline.get_by_role("button", name="Resolve", exact=True).click()
+        inline.get_by_role("button", name="Resolve thread", exact=True).click()
     for thread in (inline, panel):
-        expect(thread.get_by_role("button", name="Resolving…")).to_be_disabled()
-    panel.focus()
-    page.keyboard.press("x")
+        expect(
+            thread.get_by_role("button", name="Resolving thread…", exact=True)
+        ).to_be_disabled()
+    pending = panel.get_by_role("button", name="Resolving thread…", exact=True)
+    pending.focus()
+    page.keyboard.press("Enter")
+    assert len(held) == 1
     held.pop().continue_()
     round_trip(page)
     expect(inline.get_by_role("button", name="Reopen")).to_be_visible()
@@ -326,7 +332,9 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
     page.unroute("**/api/event")
     round_trip(page)
     for thread in (inline, panel):
-        expect(thread.get_by_role("button", name="Resolve", exact=True)).to_be_enabled()
+        expect(
+            thread.get_by_role("button", name="Resolve thread", exact=True)
+        ).to_be_enabled()
     expect(inline.locator("textarea")).to_be_visible()
     expect(inline.locator("textarea")).to_be_focused()
     assert errors == []
@@ -739,13 +747,14 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
 
 @pytest.mark.parametrize("width", [320, 800])
 @pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next(
+def test_a_thread_keeps_submit_in_its_field_and_resolve_on_its_metadata_row(
     browser, serve, width, scheme
 ):
-    """Reply names the field, while Send and Resolve share the action row beneath it.
+    """Submit belongs to the field while Resolve belongs to the first message head.
 
-    Growing the field moves both actions down together without changing either action's
-    horizontal place. The same geometry holds in the panel's narrowest useful window and
+    Growing the field carries Submit with it and leaves Resolve fixed. The textarea
+    reserves the icon's whole horizontal band, so words and a scrollbar do not run
+    underneath it. The same geometry holds in the panel's narrowest useful window and
     with room beside the page, in both palettes."""
     context = browser.new_context(
         viewport={"width": width, "height": 720}, color_scheme=scheme
@@ -754,17 +763,20 @@ def test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next(
         page, errors = open_page(browser, serve(LONG_PAGE, comments=1), context=context)
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
-        # Both readings are of the reserved Resolve. Taken before it lands, `short` is of
-        # the narrower control the word alone makes, and the test reports the arrival as
-        # a horizontal shift the row never made.
-        reservations_taken(page)
         thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
         compose = thread.locator(".lf-compose")
         textarea = compose.locator("textarea")
         send = thread.get_by_role("button", name="Send", exact=True)
-        resolve = thread.get_by_role("button", name="Resolve", exact=True)
+        resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
+        close = page.get_by_role("button", name="Close threads", exact=True)
         expect(send).to_be_visible()
         expect(resolve).to_be_visible()
+        expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
+        expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
+        expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+        expect(send).to_have_text("")
+        expect(resolve).to_have_text("")
+        expect(close).to_have_text("")
 
         def geometry():
             return thread.evaluate(
@@ -774,48 +786,57 @@ def test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next(
                     return {x: r.x, y: r.y, width: r.width, height: r.height,
                             right: r.right, bottom: r.bottom};
                   };
-                  return {compose: rect('.lf-compose'),
+                  const own = thread.getBoundingClientRect();
+                  const padding = parseFloat(getComputedStyle(
+                    thread.querySelector('textarea')).paddingInlineEnd);
+                  return {thread: {x: own.x, y: own.y, width: own.width,
+                                   height: own.height, right: own.right, bottom: own.bottom},
+                          compose: rect('.lf-compose'), field: rect('.lf-compose-field'),
                           textarea: rect('.lf-compose textarea'),
-                          actions: rect('.lf-thread-actions'),
+                          head: rect('.lf-msg:first-of-type > .lf-msg-head'),
                           send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
+                          closeBorder: getComputedStyle(document.querySelector(
+                            '.lf-panel-head [aria-label="Close threads"]')).borderTopWidth,
+                          resolveBorder: getComputedStyle(thread.querySelector(
+                            '.lf-resolve'), '::before').borderTopWidth,
+                          padding,
                           overflow: thread.scrollWidth - thread.clientWidth};
                 }"""
             )
 
         short = geometry()
-        assert short["textarea"]["x"] == pytest.approx(short["compose"]["x"], abs=1)
+        assert short["field"]["x"] == pytest.approx(short["compose"]["x"], abs=1)
+        assert short["thread"]["right"] - short["compose"]["right"] == pytest.approx(
+            short["compose"]["x"] - short["thread"]["x"], abs=1
+        )
         assert short["textarea"]["right"] == pytest.approx(
-            short["compose"]["right"], abs=1
+            short["field"]["right"], abs=1
         )
-        assert short["actions"]["y"] >= short["textarea"]["bottom"]
-        assert short["send"]["y"] == pytest.approx(short["resolve"]["y"], abs=1)
-        assert short["send"]["x"] < short["resolve"]["x"]
-        assert short["resolve"]["right"] == pytest.approx(
-            short["actions"]["right"], abs=1
+        assert short["send"]["right"] < short["textarea"]["right"]
+        assert short["send"]["bottom"] < short["textarea"]["bottom"]
+        assert short["padding"] >= short["send"]["width"] + 10
+        assert short["resolve"]["y"] == pytest.approx(short["head"]["y"], abs=1)
+        assert short["resolve"]["bottom"] == pytest.approx(
+            short["head"]["bottom"], abs=1
         )
+        assert short["resolve"]["right"] == pytest.approx(short["head"]["right"], abs=1)
+        assert float(short["closeBorder"][:-2]) == 0
+        assert float(short["resolveBorder"][:-2]) >= 1
         assert short["overflow"] == 0
 
         textarea.focus()
         focused = geometry()
-        for control in ("send", "resolve"):
-            assert focused[control] == short[control], (
-                f"[{width}px {scheme}] focusing the reply moved {control}: "
-                f"{short[control]} -> {focused[control]}"
-            )
+        assert focused["send"] == short["send"]
+        assert focused["resolve"] == short["resolve"]
 
         textarea.fill("First line.\nSecond line.\nThird line.\nFourth line.")
         grown = geometry()
-        assert grown["actions"]["y"] >= grown["textarea"]["bottom"]
-        assert grown["send"]["y"] == pytest.approx(grown["resolve"]["y"], abs=1)
-        for control in ("send", "resolve"):
-            assert grown[control]["x"] == pytest.approx(short[control]["x"], abs=1)
-            assert grown[control]["width"] == pytest.approx(
-                short[control]["width"], abs=1
-            )
-        assert grown["send"]["y"] - short["send"]["y"] == pytest.approx(
-            grown["resolve"]["y"] - short["resolve"]["y"], abs=1
+        assert grown["send"]["x"] == pytest.approx(short["send"]["x"], abs=1)
+        assert grown["send"]["bottom"] == pytest.approx(
+            grown["textarea"]["bottom"] - 6, abs=1
         )
         assert grown["send"]["y"] > short["send"]["y"]
+        assert grown["resolve"] == short["resolve"]
         assert grown["overflow"] == 0
         assert errors == []
     finally:
@@ -1451,7 +1472,11 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
 
     thread.get_by_role(
         "button",
-        name={"unresolve": "Reopen", "resolve": "Resolve", "reply": "Send"}[kind],
+        name={
+            "unresolve": "Reopen",
+            "resolve": "Resolve thread",
+            "reply": "Send",
+        }[kind],
         exact=True,
     ).click()
     holding(page, held, 1, "the thread operation")
@@ -1565,19 +1590,21 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     # The room the first thread holds, the gap under it included, which is what its
     # neighbour rises by once the fold has given it back.
     room = stood["y"] - first["y"]
-    action_edge = page.locator(
-        f'.lf-thread[data-id="{c1}"] .lf-thread-actions'
-    ).evaluate("node => node.getBoundingClientRect().right")
+    action_edge = page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').evaluate(
+        "node => node.getBoundingClientRect().right"
+    )
 
     page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
     round_trip(page)
-    expect(page.locator(f'[data-id="{c1}"] .lf-resolve')).to_have_text("✓ Resolved")
+    outcome = page.locator(f'[data-id="{c1}"] .lf-resolve')
+    expect(outcome).to_have_attribute("aria-label", "Resolved")
+    expect(outcome.locator('svg[data-lf-icon="check"]')).to_have_count(1)
     expect(page.locator(f'[data-id="{c1}"] .lf-thread-send')).to_be_hidden()
     resolved_edge = page.locator(f'[data-id="{c1}"] .lf-resolve').evaluate(
         "node => node.getBoundingClientRect().right"
     )
     assert resolved_edge == pytest.approx(action_edge, abs=1), (
-        "the held outcome left the action row's right edge"
+        "the held outcome left Resolve's metadata-row edge"
     )
     held = page.evaluate(LIST_STATE)
     assert held["standing"] == [c1, c2, c3], (
@@ -1606,17 +1633,14 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "placeholder", "Reply · c"
     )
 
-    # Half way down, the outcome is still on screen. A fold from the bottom takes the
-    # thread's last line first, and the actions row is that line, so a word left in
-    # flow is legible for the frame before the box swallows it and no longer — which
-    # is a flash, not a statement. It rides the closing edge instead, and what says so
-    # is its box being inside the box the fold has left.
+    # Half way down, the metadata-row outcome is still on screen rather than having
+    # moved with the folding geometry.
     page.evaluate("() => window.__lfHeld.forEach((m) => (m.currentTime = 110))")
     clip, says = page.evaluate(
         """(id) => {
           const going = document.querySelector(`[data-id="${id}"]`);
-          const row = going.querySelector(".lf-thread-actions");
-          return [going.getBoundingClientRect(), row.getBoundingClientRect()];
+          const outcome = going.querySelector(".lf-resolve");
+          return [going.getBoundingClientRect(), outcome.getBoundingClientRect()];
         }""",
         c1,
     )
@@ -2088,7 +2112,7 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
-    inline.get_by_role("button", name="Resolve", exact=True).click()
+    inline.get_by_role("button", name="Resolve thread", exact=True).click()
     round_trip(page)
     expect(page.locator(f'.lf-going[data-id="{root}"]')).to_have_count(1)
 
@@ -2343,6 +2367,8 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     # as explicit as the runtime sheet's shared vocabulary below.
     assert set(surface["themed"]) == {
         "claude",
+        "lf-compose-field",
+        "lf-compose-submit",
         "lf-edited",
         "lf-react-open",
         "lf-react-palette",
@@ -3976,9 +4002,9 @@ def test_a_narrowing_that_hides_the_card_the_reader_stands_in_lands_them_on_the_
 
 
 def test_a_growing_reply_keeps_its_send_in_the_list(browser, serve):
-    """A reply box grows under the reader; its Send and Resolve go with it.
+    """A reply box grows under the reader and carries its embedded Send with it.
 
-    Landing in a reply reveals the composer with its actions. Growing the box past the
+    Landing in a reply reveals the composer and its controls. Growing the box past the
     list's foot then left the blue Send a sliver at the scrollport's edge — reachable by
     the send key the placeholder happened to name, and by nothing a pointer could find.
     Growth is the landing's claim made again.

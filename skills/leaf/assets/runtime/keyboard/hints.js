@@ -64,17 +64,21 @@ export function spreadHints(
   const gap = 2;
   // The browsed hint wears the layer's band (--here-shadow, theme.css), which a face's
   // own rectangle does not report. Any chip can become the browsed one as the reader
-  // types, so every seat against an edge or the key line clears the band as well as the
-  // face; seated to the gap alone it cleared by coincidence, both being 2px. Faces still
-  // separate from each other by the gap: two bands are never painted at once.
+  // types, so the pass seats every face as though it were, keeping the one layout. A
+  // window edge takes the whole band, because a band drawn past it is clipped away. A
+  // barrier — another face, or the key line — takes the wider of the gap and the band,
+  // because a band may stand in the gap it keeps but not past it; only the browsed chip
+  // paints one, so it has that space to itself. Seated to the gap alone both cleared by
+  // coincidence, the gap and the band both being 2px.
   const band =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--here-ring-w"),
     ) || 0;
+  const clear = Math.max(gap, band);
   const line = lineBox ?? { left: 0, top: viewportBottom, right: 0, height: 0 };
   const lineBand = {
     left: line.left,
-    top: line.top - band,
+    top: line.top,
     right: line.right,
     bottom: viewportBottom,
   };
@@ -89,7 +93,7 @@ export function spreadHints(
       clamp(start.left, edgeLeft, Math.max(edgeLeft, edgeRight - start.width)),
       clamp(start.top, edgeTop, Math.max(edgeTop, edgeBottom - start.height)),
     );
-    const rightSeat = Math.max(target.left, line.right + gap + band);
+    const rightSeat = Math.max(target.left, line.right + clear);
     const canSitRight = rightSeat + start.width <= Math.min(target.right, edgeRight);
     const left =
       line.height && overlaps(first, lineBand) && canSitRight ? rightSeat : first.left;
@@ -106,7 +110,14 @@ export function spreadHints(
       seated.left < lineBand.right
     )
       barriers.push(lineBand);
-    const top = nearestOpenTop(seated, seated.top, barriers, edgeTop, edgeBottom, gap);
+    const top = nearestOpenTop(
+      seated,
+      seated.top,
+      barriers,
+      edgeTop,
+      edgeBottom,
+      clear,
+    );
     // A viewport can be physically too small for every face. Keep the preferred clamped
     // seat in that impossible case; ordinary scenes always have an open interval, and
     // the invariant tests exercise collisions at every viewport edge.

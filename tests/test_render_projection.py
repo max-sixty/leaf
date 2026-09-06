@@ -69,6 +69,7 @@ from render_support import (
     compare_with,
     composer_quote,
     drifting_widget,
+    holding,
     key_line,
     leaf_page,
     live_url,
@@ -4517,7 +4518,7 @@ def test_a_done_press_says_it_is_waiting_and_answers_once(browser, serve):
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     done.click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the answer in the wire")
+    holding(page, held, 1, "the answer")
 
     expect(done).to_have_attribute("aria-busy", "true")
     # The press is acknowledged; the answer it asks for is not painted, the log not

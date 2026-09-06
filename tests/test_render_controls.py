@@ -55,6 +55,7 @@ from render_support import (
     banner_address,
     displaced,
     held_stale,
+    holding,
     leaf_page,
     live_url,
     live_watcher,
@@ -247,7 +248,7 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     button.click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the approval in the wire")
+    holding(page, held, 1, "the approval")
     expect(button).to_be_disabled()
     expect(button).to_have_attribute("aria-busy", "true")
     button.dispatch_event("click")
@@ -845,9 +846,7 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
     page.route("**/api/event", lambda route: held.append(route))
     answer_all.focus()
     page.keyboard.press("Enter")
-    _until(
-        page, lambda traffic: traffic.sends == 1, "held the blanket answer in the wire"
-    )
+    holding(page, held, 1, "the blanket answer")
     expect(answer_all).to_have_attribute("aria-disabled", "true")
     expect(answer_all).to_be_focused()
     answer_all.dispatch_event("click")

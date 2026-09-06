@@ -63,6 +63,7 @@ from render_support import (
     actions,
     banner_address,
     compare_with,
+    holding,
     key_line,
     leaf_page,
     live_url,
@@ -2879,7 +2880,7 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     page.route("**/api/event", lambda route: held.append(route))
     row = page.locator("[data-lf-for='sug-refill']")
     row.locator(".lf-sug-accept").click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the decision in the wire")
+    holding(page, held, 1, "the decision")
     expect(row.locator(".lf-sug-accept")).to_be_disabled()
     row.locator(".lf-sug-accept").evaluate("button => button.click()")
     expect(unfolded_button(row.locator(".lf-sug-reject"))).to_be_disabled()

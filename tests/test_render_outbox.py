@@ -26,6 +26,7 @@ from render_support import (
     actions,
     author_test_widget,
     composer_quote,
+    holding,
     leaf_page,
     live_url,
     mark_shows_beside_composer,
@@ -110,7 +111,7 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     sent = _traffic(page).sends
     threads.nth(0).locator(".lf-resolve").click()
-    _until(page, lambda traffic: traffic.sends > sent, "held the second resolution")
+    holding(page, held, 1, "the second resolution")
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
     page.keyboard.press("z")
     assert _traffic(page).sends == sent + 1
@@ -1588,7 +1589,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
     expect(draft.locator("textarea")).to_have_value("Local C")
 
     page.keyboard.press("Meta+Enter")
-    _until(page, lambda traffic: traffic.sends > 0, "staged the draft commit")
+    holding(page, held, 1, "the draft commit")
     expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
     assert len(held) == 1
 

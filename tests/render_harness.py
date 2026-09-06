@@ -743,6 +743,18 @@ def sending(page, what):
     round_trip(page)
 
 
+# The same arrangement for a test that holds the wire open with `page.route`, and the one
+# place the ledger is the wrong fact to state it over. The runtime counts a send as it
+# makes it, while the driver is handed the paused request over its own connection a beat
+# later, so `traffic.sends == 1` is already true while the route list is still empty and
+# the `held[0]` behind the wait raises IndexError on a machine loaded enough to lose that
+# beat. The list the test goes on to read is what the wait belongs over; `_until` waits on
+# it unchanged, because each round it polls the page rather than the ledger.
+def holding(page, held, count, what):
+    """Wait until `held` has collected `count` requests the route paused."""
+    _until(page, lambda _traffic: len(held) >= count, f"held {what} in the wire")
+
+
 # The other direction of the same trip. Nothing a test writes into the page directory
 # announces itself — a declared status, a changed wait lease, an appended event all reach
 # the page when it next reads — so an assertion made straight after the write is waiting

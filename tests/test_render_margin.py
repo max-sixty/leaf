@@ -3555,6 +3555,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     that floor the same inline card overlays the page rather than opening Threads."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
     page, errors = open_page(browser, serve(example))
+    page.emulate_media(reduced_motion="reduce")
     resized_shell(page, 1536, 900)
     marker = page.get_by_role(
         "group", name=re.compile(r"Page actions for task · iOS reconnect stall")

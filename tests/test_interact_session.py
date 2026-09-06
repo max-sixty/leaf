@@ -5437,11 +5437,11 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
     assert activity["obligations"][0]["dropped"] is False
 
 
-def test_wait_prints_a_reaction_with_its_meaning_and_ack_covers_it(page_dir, capsys):
-    """A token reaches the agent explained: the line `leaf wait` prints carries the
-    token's `means` off the page's own vendored vocabulary, so a token a project
-    added is self-describing to whichever agent reads it. The same ack covers it,
-    and idling is refused over one nobody read, exactly as for a comment."""
+def test_wait_prints_a_reaction_token_and_ack_covers_it(page_dir, capsys):
+    """A token reaches the agent without platform-authored interpretation. A package
+    may supply `means` for a specialized vocabulary, but the durable token stands on
+    its own. The same ack covers it, and idling is refused over one nobody read,
+    exactly as for a comment."""
     serving(page_dir, 1)
     publish(page_dir)
     session_model.cmd_status(page_dir, "waiting", "")
@@ -5451,7 +5451,7 @@ def test_wait_prints_a_reaction_with_its_meaning_and_ack_covers_it(page_dir, cap
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "cut",
+            "token": "shorten",
             "anchor": {"section": "plan", "quote": "Ship dark"},
         },
     )
@@ -5459,8 +5459,8 @@ def test_wait_prints_a_reaction_with_its_meaning_and_ack_covers_it(page_dir, cap
     _, shown = [
         json.loads(line) for line in capsys.readouterr().out.strip().splitlines()
     ]
-    assert shown["token"] == "cut"
-    assert shown["means"] == "too long — shorten or remove this"
+    assert shown["token"] == "shorten"
+    assert "means" not in shown
     assert "text" not in shown
     assert page_state(page_dir)["pending"] == 1
     session_model.cmd_ack(page_dir, shown["seq"])
@@ -5479,7 +5479,8 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     )
     assert lease
     events_model.append_event(
-        claimed, {"kind": "comment", "author": "user", "revision": 1, "token": "cut"}
+        claimed,
+        {"kind": "comment", "author": "user", "revision": 1, "token": "shorten"},
     )
     asked = events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
@@ -5487,7 +5488,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     answer = conversation_model.cmd_reply(claimed, asked["id"], "because", None)
     events_model.append_event(
         claimed,
-        {"kind": "reply", "author": "user", "parent": answer["id"], "token": "ok"},
+        {"kind": "reply", "author": "user", "parent": answer["id"], "token": "keep"},
     )
     session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
 

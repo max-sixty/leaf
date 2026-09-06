@@ -137,7 +137,7 @@ def _base_state(
             if not bare_reaction(thread)
         ],
         # Every reaction still standing — the agent-side reading of the marks
-        # the page paints, each explained (`means`) off this page's vocabulary.
+        # the page paints. A package may attach `means` to its own vocabulary.
         # On the page (`anchor`, or none for the page whole) while its thread is
         # unresolved; in a thread (`parent`) while that thread is open.
         "reactions": [

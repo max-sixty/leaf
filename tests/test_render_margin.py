@@ -990,11 +990,11 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     reaction = next(
         event
         for event in events_model.read_events(serve.page_dir)
-        if event.get("token") == "this"
+        if event.get("token") == "prioritize"
         and event.get("anchor", {}).get("section") == "bg-crowded"
     )
     take_back = sheet.locator(f'[data-lf-map-button$=":take-back:{reaction["id"]}"]')
-    expect(take_back).to_have_attribute("aria-label", "this — take it back")
+    expect(take_back).to_have_attribute("aria-label", "prioritize — take it back")
     with sending(page, "the withdrawal of the spilled reaction"):
         take_back.click()
     expect(sheet).to_be_hidden()
@@ -1382,7 +1382,7 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
     expect(
         page.locator(
             '[data-lf-margin-for="bg-react-lost"] '
-            '.lf-react-mark[data-token="lost"] > .lf-margin-button-glyph'
+            '.lf-react-mark[data-token="clarify"] > .lf-margin-button-glyph'
         )
     ).to_have_text("🤔")
     expect(
@@ -1398,7 +1398,7 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
         "3 · 🤔 · unclear.",
         "4 · ✂️ · shorten.",
         "5 · 🔎 · substantiate.",
-        "6 · 👀 · pay attention.",
+        "6 · 🎯 · prioritize.",
     ]
     assert errors == []
     page.close()
@@ -2128,7 +2128,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     resized(page, 1440, 900)
 
     suggestion = page.locator("[data-lf-for='sug-refill'].lf-sug-actions")
-    suggestion_item = suggestion.locator("xpath=..")
+    suggestion_item = page.locator('[data-lf-margin-for="sug-refill"]')
     expect(suggestion_item).to_have_class(re.compile(r"lf-margin-item"))
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_have_count(1)
     expect(suggestion_item.locator(".lf-sug-accept")).to_be_visible()
@@ -2179,7 +2179,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(more).to_be_focused()
 
     draft_controls = page.locator("[data-lf-for='draft-ops'].lf-draft-controls")
-    draft_item = draft_controls.locator("xpath=..")
+    draft_item = page.locator('[data-lf-margin-for="draft-ops"]')
     expect(draft_item).to_have_class(re.compile(r"lf-margin-item"))
     expect(draft_item.locator(":scope > .lf-margin-marker")).to_have_count(1)
     expect(draft_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
@@ -2302,20 +2302,17 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
     )
     page.keyboard.press("r")
-    reactions = options.locator(".lf-margin-reactions")
-    expect(options).to_be_visible()
+    reactions = suggestion_item.locator(".lf-margin-reactions")
     expect(preview).to_be_hidden()
     expect(suggestion_item.locator(".lf-margin-button:visible")).to_have_count(6)
     expect(reactions.locator(".lf-react").first).to_have_class(
         re.compile(r"lf-margin-button")
     )
-    ok = reactions.locator('.lf-react[data-token="ok"]')
-    expect(ok).to_have_attribute("aria-label", "ok — good — keep this; no change asked")
+    ok = reactions.locator('.lf-react[data-token="keep"]')
+    expect(ok).to_have_attribute("aria-label", "keep")
     expect(ok).not_to_have_attribute("title", re.compile(".+"))
     ok.hover()
-    expect(ok.locator(".lf-margin-button-label")).to_have_text(
-        "ok — good — keep this; no change asked"
-    )
+    expect(ok.locator(".lf-margin-button-label")).to_have_text("keep")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
@@ -2353,7 +2350,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(suggestion_item.locator(".lf-margin-button:visible")).to_have_count(6)
 
     page.keyboard.press("Escape")
-    more.click()
+    expect(options).to_be_visible()
     thread_button = options.locator(
         '.lf-margin-reading-option[data-lf-kinds="comment"]'
     )
@@ -2397,10 +2394,10 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     page.keyboard.press("r")
     expect(suggestion_item.locator(".lf-margin-button:visible")).to_have_count(6)
     expect(suggestion_item).to_have_class(re.compile(r"lf-docked"))
-    reactions.locator('.lf-react[data-token="ok"]').click()
+    reactions.locator('.lf-react[data-token="keep"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
-    assert sent["token"] == "ok" and sent["anchor"] == {"section": "sug-refill"}
+    assert sent["token"] == "keep" and sent["anchor"] == {"section": "sug-refill"}
 
     assert errors == []
     page.close()
@@ -3147,17 +3144,19 @@ def test_reaction_choices_and_their_receipt_share_an_unided_selected_block(
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
     bar.locator(".lf-react-trigger").click()
-    # The choices are the bar's own, raised on the selection where the reader is
-    # pointing: an anchored response opens in place rather than docking a row of
-    # options into the margin. What the margin holds for this block is the receipt.
-    expect(bar).to_have_class(re.compile(r"\blf-react-open\b"))
+    # The choices dock with the selected block's margin target. The standing reaction
+    # that replaces them must keep that same visual coordinate even though the durable
+    # section coordinate belongs to the surrounding id-bearing section.
+    expect(bar).to_be_hidden()
+    reactions = page.locator(".lf-margin-reactions")
+    expect(reactions).to_be_visible()
 
-    bar.locator('.lf-react[data-token="ok"]').click()
+    reactions.locator('.lf-react[data-token="keep"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]
     receipt = page.locator(".lf-margin-item").filter(
-        has=page.get_by_role("button", name=re.compile(r"^ok — take it back$"))
+        has=page.get_by_role("button", name=re.compile(r"^keep — take it back$"))
     )
     expect(receipt).to_have_count(1)
     assert abs(receipt.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6

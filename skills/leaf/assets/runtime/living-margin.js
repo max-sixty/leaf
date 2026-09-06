@@ -29,6 +29,11 @@
    completion and escape actions take the first fittings, so the density limit cannot hide
    the way to finish or leave the active interaction.
 
+   An explicit owner-focused mode temporarily derives the rail from one contribution
+   alone, while Page map retains the target's complete inventory. This is how a mode with
+   six declared choices uses six direct fittings even when the target already carries a
+   reading or unrelated action; closing it restores the ordinary cluster.
+
    Keyboard arrival unfolds that same cluster immediately: Tab into any of its Buttons
    replaces `…` with the expanded set, and Left/Right wrap through those visible Buttons.
    A pointer press on `…` makes the same replacement and lands on the first revealed
@@ -977,6 +982,10 @@ let previewShowing = false;
 let pinnedKey = null;
 let forcedInlineKey = null;
 let expandedOptionsKey = null;
+// An explicit mode can focus one contribution inside the target's existing cluster.
+// The rail then shows that owner's complete control set without spending fittings on
+// standing readings or unrelated actions; Page map still reads the whole entry.
+let expandedOptionsOwner = null;
 let hoveredHost = null;
 let hoveredBehavior = null;
 let settlingOptionsFocus = false;
@@ -1697,13 +1706,19 @@ function stepClusterButtons(binding) {
   });
 }
 
-function setOptionsOpen(entry, open, { returnFocus = false, focusOption = null } = {}) {
+function setOptionsOpen(
+  entry,
+  open,
+  { returnFocus = false, focusOption = null, owner = null } = {},
+) {
   const previousKey = expandedOptionsKey;
   const previousGroup = previousKey ? optionGroups.get(previousKey) : null;
   const nextKey = open ? (entry?.key ?? null) : null;
-  if (previousKey === nextKey) return;
+  const nextOwner = open ? owner : null;
+  if (previousKey === nextKey && expandedOptionsOwner === nextOwner) return;
   if (previewEntry) closePreview();
   expandedOptionsKey = nextKey;
+  expandedOptionsOwner = nextOwner;
   settlingOptionsFocus = true;
   try {
     renderMargin();
@@ -1744,19 +1759,25 @@ export function presentedControl(control) {
   return proxy?.checkVisibility() ? proxy : control;
 }
 
-export function openButtonOptions(target) {
+export function openButtonOptions(target, { owner = null } = {}) {
   renderMargin();
   const entry = pageMapEntries.find((candidate) => candidate.target === target);
   const more = entry && moreButtons.get(entry.key);
-  if (!entry || !more) return false;
-  if (expandedOptionsKey === entry.key) {
+  const focusedOffer = owner && entry?.offers.find((offered) => offered.key === owner);
+  if (!entry || !more || (owner && !focusedOffer)) return false;
+  if (expandedOptionsKey === entry.key && expandedOptionsOwner === owner) {
     const options = optionGroups.get(entry.key);
     if (options?.isConnected && !options.hidden) return true;
     expandedOptionsKey = null;
+    expandedOptionsOwner = null;
     renderMargin();
   }
-  if (more.hidden) return false;
-  setOptionsOpen(entry, true);
+  if (expandedOptionsKey === entry.key && expandedOptionsOwner !== owner) {
+    setOptionsOpen(entry, true, { owner });
+    return true;
+  }
+  if (!owner && more.hidden) return false;
+  setOptionsOpen(entry, true, { owner });
   return true;
 }
 
@@ -1982,12 +2003,12 @@ function pressMarker(event) {
   openThreadChoice(marker.lfEntry, marker);
 }
 
-function paintMarker(row, entry, primary) {
+function paintMarker(row, entry, primary, { suppressed = false } = {}) {
   const { kinds: markerKinds, face, label, count: markerCount } = markerFace(entry);
   const choice = primaryReading(entry);
   const behavior = readingBehavior(face);
   row.lfEntry = entry;
-  keepsHidden(row, markerKinds.length === 0 || Boolean(primary));
+  keepsHidden(row, suppressed || markerKinds.length === 0 || Boolean(primary));
   keeps(row, "data-lf-kinds", markerKinds.map(({ kind }) => kind).join(" "));
   marginButton(row, {
     key: `reading:${choice?.key ?? "none"}`,
@@ -2120,7 +2141,20 @@ function readingOptionNode(entry, choice) {
   return node;
 }
 
-function optionNodes(entry, primary) {
+function focusedOwnerOffer(entry) {
+  if (expandedOptionsKey !== entry.key || !expandedOptionsOwner) return null;
+  return entry.offers.find((offered) => offered.key === expandedOptionsOwner) ?? null;
+}
+
+function optionNodes(entry, primary, focusedOffer = null) {
+  if (focusedOffer) {
+    const controls = controlsOf(focusedOffer).filter((control) =>
+      entry.shownControls.has(control),
+    );
+    return focusedOffer.side === "after"
+      ? controls
+      : controls.map((control) => optionControlNode(control, entry));
+  }
   return [
     ...secondaryControls(entry, primary).map((control) =>
       optionControlNode(control, entry),
@@ -2138,8 +2172,8 @@ function optionNodes(entry, primary) {
   ];
 }
 
-function syncOptionGroup(group, entry, primary, optionsOpen) {
-  const allNodes = optionNodes(entry, primary);
+function syncOptionGroup(group, entry, primary, optionsOpen, focusedOffer = null) {
+  const allNodes = optionNodes(entry, primary, focusedOffer);
   const unique = [...new Set(allNodes)];
   // Peers may use the whole cluster budget only when no fitting stands outside this
   // group. Reaction mode is the common case: it has neither a primary nor a reading
@@ -2147,7 +2181,8 @@ function syncOptionGroup(group, entry, primary, optionsOpen) {
   // marker visible, and that fitting counts just as a contributed primary would.
   const peerCapacity = Math.max(
     0,
-    EXPANDED_BUTTON_BUDGET - (primary || markerFace(entry).kinds.length ? 1 : 0),
+    EXPANDED_BUTTON_BUDGET -
+      (!focusedOffer && (primary || markerFace(entry).kinds.length) ? 1 : 0),
   );
   const needsSpill = unique.length > peerCapacity;
   // The spill route consumes the last visible fitting; it does not increase the
@@ -2156,7 +2191,11 @@ function syncOptionGroup(group, entry, primary, optionsOpen) {
   const visibleCapacity = needsSpill ? peerCapacity - 1 : peerCapacity;
   const hidden = Math.max(0, unique.length - visibleCapacity);
   const visible = new Set(unique.slice(0, visibleCapacity));
-  const after = afterOffers(entry);
+  const after = focusedOffer
+    ? focusedOffer.side === "after"
+      ? [focusedOffer]
+      : []
+    : afterOffers(entry);
   const afterControls = new Set(after.flatMap(controlsOf));
   const wanted = unique.filter((node) => visible.has(node) && !afterControls.has(node));
   // Keep contributor-owned groups intact: their keyboard scopes and event handlers
@@ -2213,19 +2252,31 @@ function syncControls(host, marker, more, options, entry) {
   const active = document.activeElement;
   const focusedOption = options.contains(active);
   const forwardedControl = active?.lfForwardedControl;
-  const primary = syncControlRoles(entry);
-  const controls = directOffers(entry)
-    .filter((offered) => offered.controls)
-    .map((offered) => offered.controls);
+  const focusedOffer = focusedOwnerOffer(entry);
+  const primary = focusedOffer ? null : syncControlRoles(entry);
+  if (focusedOffer)
+    for (const control of directControls(entry))
+      control.removeAttribute("data-lf-button-primary");
+  const controls = focusedOffer
+    ? []
+    : directOffers(entry)
+        .filter((offered) => offered.controls)
+        .map((offered) => offered.controls);
   const wanted = [...controls, marker, more, options];
   for (const child of [...host.children]) if (!wanted.includes(child)) child.remove();
   wanted.forEach((child, position) => {
     if (host.children[position] !== child)
       host.insertBefore(child, host.children[position] ?? null);
   });
-  const secondaries = secondaryCount(entry, primary);
-  const hasOptions = optionsOffered(entry, primary);
-  if (!hasOptions && expandedOptionsKey === entry.key) expandedOptionsKey = null;
+  const secondaries = focusedOffer
+    ? controlsOf(focusedOffer).filter((control) => entry.shownControls.has(control))
+        .length
+    : secondaryCount(entry, primary);
+  const hasOptions = focusedOffer ? secondaries > 0 : optionsOffered(entry, primary);
+  if (!hasOptions && expandedOptionsKey === entry.key) {
+    expandedOptionsKey = null;
+    expandedOptionsOwner = null;
+  }
   const optionsOpen =
     secondaries > 0 &&
     (!hasOptions || expandedOptionsKey === entry.key || entryEngaged(entry));
@@ -2241,7 +2292,7 @@ function syncControls(host, marker, more, options, entry) {
   const wasSettlingOptionsFocus = settlingOptionsFocus;
   settlingOptionsFocus = true;
   try {
-    syncOptionGroup(options, entry, primary, optionsOpen);
+    syncOptionGroup(options, entry, primary, optionsOpen, focusedOffer);
   } finally {
     settlingOptionsFocus = wasSettlingOptionsFocus;
   }
@@ -2405,6 +2456,7 @@ function unfoldOpenThreadOwner(entry) {
   const previousKey = expandedOptionsKey;
   const previousGroup = previousKey ? optionGroups.get(previousKey) : null;
   expandedOptionsKey = entry.key;
+  expandedOptionsOwner = null;
   renderMargin();
   if (previousGroup?.querySelector(".lf-margin-reactions"))
     document.dispatchEvent(new CustomEvent("lf-button-options-closed"));
@@ -2464,7 +2516,10 @@ function renderNow() {
   );
   for (const key of readingButtons.keys())
     if (!liveReadingKeys.has(key)) readingButtons.delete(key);
-  if (expandedOptionsKey && !live.has(expandedOptionsKey)) expandedOptionsKey = null;
+  if (expandedOptionsKey && !live.has(expandedOptionsKey)) {
+    expandedOptionsKey = null;
+    expandedOptionsOwner = null;
+  }
   for (const [key, marker] of rows)
     if (!live.has(key)) {
       const host = hosts.get(key);
@@ -2531,6 +2586,7 @@ function renderNow() {
         const current = host.lfEntry;
         const primary = current && choosePrimary(current);
         if (!current || !optionsOffered(current, primary)) return;
+        if (expandedOptionsKey === current.key && expandedOptionsOwner) return;
         if (entryEngaged(current)) return;
         setOptionsOpen(current, true, {
           focusOption: control === more ? "last" : null,
@@ -2609,7 +2665,9 @@ function renderNow() {
         );
       corePosition += 1;
     }
-    paintMarker(marker, entry, primary);
+    paintMarker(marker, entry, primary, {
+      suppressed: Boolean(focusedOwnerOffer(entry)),
+    });
   });
   // Geometry is one read-only batch after every row has reconciled. Reading a target
   // between two marker writes forced one full document layout per Page-map entry —

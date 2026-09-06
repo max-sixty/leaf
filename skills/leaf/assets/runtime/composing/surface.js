@@ -6,10 +6,10 @@
    Alt-click and a visual's “Respond to…” proxy are explicit Comment gestures. They all
    pass a stable target from `aimTargetAt` or the visual provider into this surface. A
    whole item or picture names its authored id, while a visual part adds its declared
-   token. Comment opens the compact field; Tab exchanges that field for choices and focuses
-   Comment first. Tab, Shift-Tab, and the arrow keys then wrap through every choice.
-   Comment and Escape restore the field; Escape from the field hides the draft. The
-   same anchor resolves both states against the target's geometry.
+   token. Comment opens the compact field; Tab or its ellipsis raises each reaction as
+   a Button in the target's margin. Tab, Shift-Tab, and the arrow keys then wrap through
+   the visible Buttons. Escape restores the field; Escape from the field hides the
+   draft. The same anchor resolves both states against the target's geometry.
 
    The bar a selection or keyboard-selected item raises is `.lf-fab-bar`: the durable,
    compact `.lf-fab-input` followed by one response ellipsis. Choosing an item with `s`
@@ -30,8 +30,9 @@
    without discarding its draft. If the disappearing bar held focus, the visible
    Threads list takes it; an unrelated focused control keeps it. A partially exposed
    page remains interactive whenever the bar fits its actual remaining room. Enter
-   inserts a newline; `Mod+Enter` sends. Tab changes the same bar into Comment, Suggest
-   when the anchor is a quote, and the layer's reaction tokens.
+   inserts a newline; `Mod+Enter` sends. Tab raises the layer's reaction tokens in the
+   target's margin. A layer with no reaction vocabulary keeps the bar's Comment and
+   Suggest fallback.
 
    `showFab` places the bar; `openComposer` (composing/selection.js) binds its field to
    the durable draft and takes the focus decision. Item selection passes its resolved
@@ -538,7 +539,11 @@ function openComment(anchor, text, options = {}) {
   return openComposer(anchor, text, options);
 }
 function fabHoldsCapturedPassage() {
-  return fabInputTakingFocus || fabBar.contains(document.activeElement);
+  return (
+    fabInputTakingFocus ||
+    fabBar.contains(document.activeElement) ||
+    reactionContextContains(document.activeElement)
+  );
 }
 // Wired once the chrome is mounted (chrome.js): the box is selection.js's, an owner that
 // imports this module back.

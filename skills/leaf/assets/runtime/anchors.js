@@ -488,7 +488,20 @@ function prepareVisualActions() {
       if (holder.children[index] !== control)
         holder.insertBefore(control, holder.children[index] ?? null);
     });
-    if (seat.nextSibling !== holder) seat.after(holder);
+    // The living margin and this keyboard proxy can share the visual's authored seat.
+    // Keep one stable order so their independent reconciliation passes do not move each
+    // other on every state/layout update. Moving a focused retained holder still needs
+    // the same continuity guarantee as moving a margin host.
+    let after = seat;
+    while (after.nextSibling?.matches?.(".lf-margin-item[data-lf-external]"))
+      after = after.nextSibling;
+    if (after.nextSibling !== holder) {
+      const held = holder.contains(document.activeElement)
+        ? document.activeElement
+        : null;
+      after.after(holder);
+      if (held?.isConnected) held.focus({ preventScroll: true });
+    }
     kept.add(holder);
   }
   for (const holder of pageQueryAll(".lf-visual-actions"))

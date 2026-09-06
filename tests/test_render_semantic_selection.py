@@ -76,25 +76,29 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     expect(shown.nth(1).locator("kbd")).to_have_text("r")
     expect(shown.nth(1)).to_contain_text("react")
 
-    # The visible ellipsis exposes the same choices. Escape returns to the target-only
-    # surface, not to the Comment field the reader has not chosen.
+    # The visible ellipsis exposes each reaction as its own Button in the target margin.
+    # Escape returns to the target-only surface, not to a Comment field the reader has
+    # not chosen.
     responses = page.get_by_role("button", name="Show other responses")
     responses.click()
-    expect(page.locator(".lf-fab-bar")).to_have_class(re.compile(r"\blf-react-open\b"))
+    expect(page.locator(".lf-margin-reactions")).to_be_visible()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.keyboard.press("Escape")
     expect(responses).to_be_focused()
     expect(field).to_be_hidden()
 
-    # The reader chooses Comment before text entry owns letters. Tab then replaces the
-    # field with the same-position response choices; Escape restores it.
+    # The reader chooses Comment before text entry owns letters. Tab then moves the
+    # response choices into the margin; Escape restores the field.
     page.keyboard.press("c")
     expect(field).to_be_focused()
+    field.fill("Keep this draft")
     page.keyboard.press("Tab")
-    expect(page.locator(".lf-fab-bar")).to_have_class(re.compile(r"\blf-react-open\b"))
-    expect(page.locator(".lf-fab-bar > .lf-fab")).to_be_focused()
+    expect(page.locator(".lf-margin-reactions")).to_be_visible()
+    expect(page.locator('.lf-margin-reactions [data-token="keep"]')).to_be_focused()
     expect(field).to_be_hidden()
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
+    expect(field).to_have_value("Keep this draft")
     assert page.evaluate(DRAFT_MARK) == "prose"
     assert pending_text(page) == ""
     page.keyboard.press("Escape")

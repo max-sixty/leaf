@@ -1592,8 +1592,13 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         "aria-pressed", "false"
     )
     playground.get_by_role("button", name="Dense").click()
-    playground.get_by_role("button", name="Copy instruction").click()
-    expect(playground.get_by_role("button", name="Copied")).to_be_visible()
+    copy = playground.get_by_role("button", name="Copy instruction")
+    copy.scroll_into_view_if_needed()
+    before = copy.bounding_box()
+    copy.click()
+    expect(copy).to_have_text("Copy instruction")
+    expect(page.locator(".lf-notice")).to_have_text("Instruction copied")
+    assert copy.bounding_box() == before
     assert page.evaluate("navigator.clipboard.readText()") == (
         "Use a 4px radius, compact spacing set to true, a bold tone, #4f766f accents, "
         "and the title Field note."

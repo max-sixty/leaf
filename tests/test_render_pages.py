@@ -1299,6 +1299,47 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
     page.close()
 
 
+def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
+    browser, serve, tmp_path
+):
+    """A standing reaction survives export with the rail reserved for its mark. A wide
+    board later in the copy must spend the room inside that rail rather than run past
+    the page's own box; the live render gate cannot inspect this rewritten file."""
+    url = serve(RAIL_AND_WIDE_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "cut",
+            "anchor": {
+                "section": "old-line",
+                "quote": "Refill every feeder each morning.",
+            },
+        },
+    )
+    out = tmp_path / "reaction-rail.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.goto(out.as_uri(), wait_until="load")
+
+    expect(page.locator(".lf-sug-actions")).to_have_count(0)
+    expect(page.locator(".lf-react-mark")).to_have_count(1)
+    fit = page.evaluate(RAIL_FIT)
+    assert fit["rail"] != "0px", (
+        "the standing reaction kept its mark but lost the rail reserved for it"
+    )
+    assert fit["past"] <= 1, (
+        f"the copied board stands {fit['past']:.0f}px outside the page's own box, "
+        f"using {fit['widget']:.0f}px inside {fit['content']:.0f}px of content"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_the_room_is_measured_after_a_late_rail(browser, serve):
     """A page carrying a change to decide gives up a rail of the controls' own width, and
     the width of those controls is a fact about their words — so lf-suggestion measures

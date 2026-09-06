@@ -356,7 +356,7 @@ body { position: static; box-sizing: border-box; }
 /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
    and tab stop from standing reaction marks, which retain their shape without
    promising a press. A status keeps its ghost ring in the page-map walk, while its
-   hand and hover response go. Decided suggestions export sibling text receipts. */
+   hand and hover response go. */
 .lf-margin-button:is(button, [role="button"]):not([data-lf-behavior="status"]) {
   cursor: pointer;
 }

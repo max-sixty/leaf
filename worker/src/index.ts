@@ -32,8 +32,7 @@ export interface Env {
   ASSETS: Fetcher;
   EXAMPLES: DurableObjectNamespace<LeafExampleSession>;
   AGENT_WORKFLOW: Workflow<AgentWorkflowParams>;
-  READER_AGENT_RATE_LIMITER: RateLimit;
-  GLOBAL_AGENT_RATE_LIMITER: RateLimit;
+  SOURCE_AGENT_RATE_LIMITER: RateLimit;
   OPENAI_API_KEY: string;
 }
 
@@ -41,6 +40,7 @@ export interface AgentWorkflowParams {
   sessionId: string;
   slug: string;
   eventId: string;
+  sourceId: string;
 }
 
 type AgentResult =
@@ -114,7 +114,10 @@ function validatedAgentParams(value: unknown): AgentWorkflowParams {
     typeof params.slug !== "string" ||
     !/^[a-z0-9-]+$/.test(params.slug) ||
     typeof params.eventId !== "string" ||
-    !/^[A-Za-z0-9_-]{1,128}$/.test(params.eventId)
+    !/^[A-Za-z0-9_-]{1,128}$/.test(params.eventId) ||
+    typeof params.sourceId !== "string" ||
+    params.sourceId.length === 0 ||
+    params.sourceId.length > 64
   ) {
     throw new NonRetryableError("invalid example agent workflow parameters");
   }
@@ -211,13 +214,12 @@ export async function runAgentWorkflow(
         retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
         timeout: "1 minute",
       },
-      async () => {
-        const [reader, global] = await Promise.all([
-          env.READER_AGENT_RATE_LIMITER.limit({ key: params.sessionId }),
-          env.GLOBAL_AGENT_RATE_LIMITER.limit({ key: "public-examples" }),
-        ]);
-        return reader.success && global.success;
-      },
+      async () =>
+        (
+          await env.SOURCE_AGENT_RATE_LIMITER.limit({
+            key: params.sourceId,
+          })
+        ).success,
     );
     if (allowed) {
       text = await step.do(
@@ -354,7 +356,8 @@ export default {
     if (postedRequest) {
       const eventId = await acceptedObligation(postedRequest, response);
       if (eventId) {
-        const params = { sessionId, slug: route.slug, eventId };
+        const sourceId = request.headers.get("CF-Connecting-IP") ?? sessionId;
+        const params = { sessionId, slug: route.slug, eventId, sourceId };
         await startAgentWorkflow(env, params);
       }
     }

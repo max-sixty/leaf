@@ -299,23 +299,17 @@ async function startAgentWorkflow(
   params: AgentWorkflowParams,
 ): Promise<void> {
   const workflowId = agentWorkflowId(params);
-  let created: WorkflowInstance[];
   try {
-    created = await env.AGENT_WORKFLOW.createBatch([{ id: workflowId, params }]);
+    await env.AGENT_WORKFLOW.create({ id: workflowId, params });
   } catch (error) {
-    // Older Workflow runtimes reject duplicate ids. Treat an instance that
-    // already exists as success; preserve the outbox's retry signal when no
-    // workflow exists to answer the durable event.
+    // Treat a duplicate id as success and revive a failed prior attempt. Preserve
+    // the outbox's retry signal when no workflow exists to answer the durable event.
     try {
       await resumeFailedWorkflow(env, workflowId);
     } catch {
       throw error;
     }
-    return;
   }
-  // Current runtimes make createBatch idempotent and omit an existing instance
-  // from the result. Give an earlier failed run another chance to settle the turn.
-  if (created.length === 0) await resumeFailedWorkflow(env, workflowId);
 }
 
 function staticAssetResponse(response: Response): Response {

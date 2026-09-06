@@ -31,7 +31,7 @@ function environment(overrides: Partial<Env> = {}): Env {
   return {
     ASSETS: { fetch: vi.fn() } as unknown as Fetcher,
     EXAMPLES: {} as DurableObjectNamespace<LeafExampleSession>,
-    AGENT_WORKFLOW: { createBatch: vi.fn() } as unknown as Workflow,
+    AGENT_WORKFLOW: { create: vi.fn() } as unknown as Workflow,
     READER_AGENT_RATE_LIMITER: allow,
     GLOBAL_AGENT_RATE_LIMITER: allow,
     OPENAI_API_KEY: "test-key",
@@ -117,9 +117,9 @@ describe("website example agent", () => {
     vi.mocked(getContainer).mockReturnValue({
       fetch: containerFetch,
     } as never);
-    const createBatch = vi.fn(async () => [{ id: `reply-${sessionId}-${eventId}` }]);
+    const create = vi.fn(async () => ({ id: `reply-${sessionId}-${eventId}` }));
     const env = environment({
-      AGENT_WORKFLOW: { createBatch } as unknown as Workflow,
+      AGENT_WORKFLOW: { create } as unknown as Workflow,
     });
 
     const response = await worker.fetch(
@@ -135,12 +135,10 @@ describe("website example agent", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(createBatch).toHaveBeenCalledWith([
-      {
-        id: `reply-${sessionId}-${eventId}`,
-        params: { sessionId, slug: "design-decision", eventId },
-      },
-    ]);
+    expect(create).toHaveBeenCalledWith({
+      id: `reply-${sessionId}-${eventId}`,
+      params: { sessionId, slug: "design-decision", eventId },
+    });
   });
 
   it("does not restart work after Leaf says the accepted event is settled", async () => {
@@ -156,9 +154,9 @@ describe("website example agent", () => {
           },
         }),
     } as never);
-    const createBatch = vi.fn(async () => []);
+    const create = vi.fn();
     const env = environment({
-      AGENT_WORKFLOW: { createBatch } as unknown as Workflow,
+      AGENT_WORKFLOW: { create } as unknown as Workflow,
     });
 
     await worker.fetch(
@@ -173,7 +171,7 @@ describe("website example agent", () => {
       env,
     );
 
-    expect(createBatch).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
   });
 
   it("keeps the accepted response when a duplicate workflow already exists", async () => {
@@ -192,7 +190,7 @@ describe("website example agent", () => {
     } as never);
     const env = environment({
       AGENT_WORKFLOW: {
-        createBatch: vi.fn(async () => {
+        create: vi.fn(async () => {
           throw new Error("workflow already exists");
         }),
         get: vi.fn(async () => ({
@@ -234,7 +232,7 @@ describe("website example agent", () => {
     } as never);
     const env = environment({
       AGENT_WORKFLOW: {
-        createBatch: vi.fn(async () => {
+        create: vi.fn(async () => {
           throw new Error("workflow admission unavailable");
         }),
         get: vi.fn(async () => {
@@ -275,7 +273,9 @@ describe("website example agent", () => {
     const restart = vi.fn(async () => undefined);
     const env = environment({
       AGENT_WORKFLOW: {
-        createBatch: vi.fn(async () => []),
+        create: vi.fn(async () => {
+          throw new Error("workflow already exists");
+        }),
         get: vi.fn(async () => ({
           id: `reply-${sessionId}-${eventId}`,
           status: vi.fn(async () => ({ status: "errored" })),

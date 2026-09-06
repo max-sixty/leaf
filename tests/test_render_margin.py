@@ -1384,7 +1384,7 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
             '[data-lf-margin-for="bg-react-lost"] '
             '.lf-react-mark[data-token="lost"] > .lf-margin-button-glyph'
         )
-    ).to_have_text("??")
+    ).to_have_text("🤔")
     expect(
         page.locator(
             '[data-lf-margin-for="bg-choice-ask"] '
@@ -1393,12 +1393,12 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
         )
     ).to_be_visible()
     assert page.locator("#bg-reactions p strong").all_text_contents() == [
-        "1 · ok · settled.",
-        "2 · no · wrong.",
-        "3 · lost · unclear.",
-        "4 · cut · too long.",
-        "5 · more · needs detail.",
-        "6 · this · look here.",
+        "1 · 👍 · keep this.",
+        "2 · ❌ · wrong.",
+        "3 · 🤔 · unclear.",
+        "4 · ✂️ · shorten.",
+        "5 · 🔎 · substantiate.",
+        "6 · 👀 · pay attention.",
     ]
     assert errors == []
     page.close()

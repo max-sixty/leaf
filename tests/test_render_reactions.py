@@ -184,9 +184,16 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     expect(surface).to_have_class(re.compile("lf-react-open"))
     expect(surface.locator(".lf-react-trigger:visible")).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
-    assert surface.locator(".lf-react:visible").evaluate_all(
-        "buttons => buttons.map(button => button.innerText.split(' ')[0])"
-    ) == ["👍", "❌", "🤔", "✂️", "🔎", "👀"]
+    assert surface.locator(
+        ".lf-react:visible > .lf-response-action-glyph"
+    ).evaluate_all("glyphs => glyphs.map(glyph => glyph.textContent)") == [
+        "👍",
+        "❌",
+        "🤔",
+        "✂️",
+        "🔎",
+        "👀",
+    ]
     expect(surface.locator(".lf-fab")).to_be_focused()
     for control, icon in [(".lf-fab", "comment"), (".lf-fab-suggest", "edit")]:
         face = surface.locator(f'{control} > svg[data-lf-icon="{icon}"]')

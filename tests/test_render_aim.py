@@ -1794,8 +1794,12 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     page.mouse.move(point["x"], point["y"])
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
     page.mouse.click(point["x"], point["y"])
-    expect(page.locator('.lf-thread[data-id="outer-comment"]')).to_be_visible()
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(
+        page.locator(
+            '.lf-margin-preview .lf-conversation-thread[data-thread="outer-comment"]'
+        )
+    ).to_be_visible()
+    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-composer")).to_be_hidden()
 
     point = midpoint(decoration)

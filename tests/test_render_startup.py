@@ -3032,13 +3032,24 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     round_trip(page)
     assert not [event for event in sent_events(serve.page_dir) if event.get("token")]
     page.keyboard.press("Escape")
+    # A retired thread lands on the surface the reader's own gesture reaches. With the
+    # widget still on the page its passages keep a page-local address, so the margin's
+    # Thread Button and each passage's comment count open the fallback card and Threads
+    # stays shut; a disconnected widget leaves no such address and the panel answers.
     if failure == "disconnect":
         expect(markers).to_have_count(0)
         page.get_by_role("button", name=re.compile(r"^Threads")).click()
+        fallback = page.locator(f'.lf-thread[data-id="{roots[0]}"]')
     else:
         expect(markers).to_have_count(1)
         markers.first.click()
-    fallback = page.locator(f'.lf-thread[data-id="{roots[0]}"]')
+        expect(page.locator(".lf-margin-preview")).to_be_visible()
+        expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+        page.keyboard.press("Escape")
+        broken.locator(".lf-mark-note").first.click()
+        fallback = page.locator(
+            f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[0]}"]'
+        )
     expect(fallback).to_be_visible()
     expect(fallback).to_contain_text("Discuss broken")
     expect(fallback.locator("textarea")).to_have_value("Keep this unsent reply.")

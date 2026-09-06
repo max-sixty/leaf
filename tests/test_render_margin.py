@@ -2342,10 +2342,10 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     ), "no Button is left for Tab to enter the rail by"
 
     # The reader listening still reaches the phase through its visible generated hint.
-    target = marker.evaluate(
+    phase = marker.evaluate(
         "row => row.closest('[data-lf-margin-for]').dataset.lfMarginFor"
     )
-    go_to_address(page, "Page-map location", target)
+    go_to_address(page, "Page-map location", phase)
     expect(marker).to_be_focused()
 
     # Standing there is not the same as being the way in. A repaint under the reader

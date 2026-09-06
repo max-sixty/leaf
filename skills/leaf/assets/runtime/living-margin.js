@@ -352,17 +352,23 @@ const KINDS = {
 // reconnect while a live version replaces the authored document.
 const offeredItems = new Set();
 const offerListeners = new Set();
-const BUTTON_TONES = new Set(["neutral", "positive", "negative"]);
-const BUTTON_BEHAVIORS = new Set(["action", "disclosure", "status"]);
-const BUTTON_STATES = new Set(["idle", "engaged", "busy", "failed", "settled"]);
-const BUTTON_ROLES = new Set([
-  "complete",
-  "escape",
-  "primary",
-  "secondary",
-  "reading",
-  "overflow",
-]);
+export const BUTTON_GRAMMAR = Object.freeze({
+  tones: Object.freeze(["neutral", "positive", "negative"]),
+  behaviors: Object.freeze(["action", "disclosure", "status"]),
+  states: Object.freeze(["idle", "engaged", "busy", "failed", "settled"]),
+  roles: Object.freeze([
+    "complete",
+    "escape",
+    "primary",
+    "secondary",
+    "reading",
+    "overflow",
+  ]),
+});
+const BUTTON_TONES = new Set(BUTTON_GRAMMAR.tones);
+const BUTTON_BEHAVIORS = new Set(BUTTON_GRAMMAR.behaviors);
+const BUTTON_STATES = new Set(BUTTON_GRAMMAR.states);
+const BUTTON_ROLES = new Set(BUTTON_GRAMMAR.roles);
 const ACTIVE_STATES = new Set(["engaged", "busy", "failed"]);
 const STATE_PRIORITY = new Map([
   ["failed", 0],

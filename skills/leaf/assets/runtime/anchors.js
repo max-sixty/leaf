@@ -1455,8 +1455,8 @@ export function readableDestination(where) {
   const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
   const close = (a, b) => Math.abs(a - b) <= 0.5;
   return (
-    destination.top >= view.top + clear &&
-    destination.bottom <= view.bottom &&
+    destination.top >= view.top + clear - 0.5 &&
+    destination.bottom <= view.bottom + 0.5 &&
     close(seen.top, destination.top) &&
     close(seen.right, destination.right) &&
     close(seen.bottom, destination.bottom) &&

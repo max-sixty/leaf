@@ -155,6 +155,7 @@ import { landedAt, setLanded } from "./asks/view.js";
 import {
   anchoringIsReady,
   fragmentId,
+  readableDestination,
   resolveAnchor,
   scrollToElement,
 } from "./anchors.js";
@@ -1520,8 +1521,14 @@ export function installArrival() {
     const aimed =
       navigationType === "navigate" &&
       targetElement(resolveAnchor({ section: fragmentId(location.hash) }));
-    if (aimed) scrollToElement(aimed, "instant");
-    else if (
+    // Native fragment navigation has already landed an ordinary authored target.
+    // Keep that position when upgrades left the complete destination readable: moving
+    // it to the centre after presentation makes a loaded page visibly jump for no gain.
+    // A generated, collapsed, clipped, or displaced target still needs the semantic
+    // arrival pass because the browser could not land its final geometry at parse time.
+    if (aimed) {
+      if (!readableDestination(aimed)) scrollToElement(aimed, "instant");
+    } else if (
       navigationType === "navigate" &&
       savedView &&
       savedView.revision !== runtime.currentRevision

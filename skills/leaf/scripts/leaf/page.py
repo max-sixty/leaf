@@ -7,7 +7,7 @@ from .registry.storage import require_registry
 from .schema import GUIDANCE_DIR
 
 
-def page_guidance(page_dir: Path, registry: dict | None = None) -> dict[str, str]:
+def page_guidance(page_dir: Path) -> dict[str, str]:
     """Compose package-wide, contract, and widget guidance by audience."""
     parts = {}
     directory = page_dir / GUIDANCE_DIR
@@ -16,7 +16,7 @@ def page_guidance(page_dir: Path, registry: dict | None = None) -> dict[str, str
             text = path.read_text(encoding="utf-8").strip()
             if text:
                 parts.setdefault(path.stem, []).append(text)
-    registry = registry if registry is not None else require_registry(page_dir)
+    registry = require_registry(page_dir)
     for contract, declaration in sorted(
         registry.get("$data", {}).get("contracts", {}).items()
     ):
@@ -38,7 +38,6 @@ def page_guidance(page_dir: Path, registry: dict | None = None) -> dict[str, str
 
 
 def cmd_guidance(page_dir: Path, audience: str | None) -> None:
-    require_registry(page_dir)
     guides = page_guidance(page_dir)
     if audience is None:
         # A layer with no audiences is a real answer, and silence reads as a

@@ -81,7 +81,7 @@ EXAMPLE_MEDIA = ROOT / "examples" / "media"
 # naming rather than a second spelling of it: the digest is what tells a real reference
 # from the word "/media/" in a sentence.
 MEDIA_REFERENCE = re.compile(
-    rf"/{schema_model.MEDIA_DIR}/{schema_model._DIR_FILES[schema_model.MEDIA_DIR]}"
+    rf"/{schema_model.MEDIA_DIR}/{schema_model.DIR_FILES[schema_model.MEDIA_DIR]}"
 )
 
 
@@ -481,7 +481,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
         seed = example.with_suffix(".jsonl") if example else None
         references = set()
         for markup in authored:
-            parsed = structure_model._StructParser()
+            parsed = structure_model.StructParser()
             parsed.feed(markup)
             parsed.close()
             references |= parsed.media_refs

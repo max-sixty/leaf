@@ -54,7 +54,7 @@ def merge_layer_entries(merged: dict, entries: dict) -> None:
         merged[name] = {k: v for k, v in combined.items() if v is not None}
 
 
-def _required_layer_declarations(registry: dict, path):
+def required_layer_declarations(registry: dict, path):
     try:
         kinds = registry["$events"]["kinds"]
         names = registry["$languages"]["names"]
@@ -66,11 +66,11 @@ def _required_layer_declarations(registry: dict, path):
         raise RegistryError(
             f"{path}: registry must declare $events.kinds, $languages.names/paths, "
             "$tones.names, $data, and $reactions.tokens"
-        )
+        ) from None
     return kinds, names, paths, tones, data, tokens
 
 
-def _validate_event_handling(events: dict, kinds: dict, path) -> None:
+def validate_event_handling(events: dict, kinds: dict, path) -> None:
     """`$events.handling` is read directly by every batch a wait prints, so a
     layer that restates a kind is held to the shape the consumer assumes: a
     declared kind, one non-empty sentence. Absent is fine (a layer vendored
@@ -88,7 +88,7 @@ def _validate_event_handling(events: dict, kinds: dict, path) -> None:
         )
 
 
-def _validate_event_contracts(kinds: dict, path) -> None:
+def validate_event_contracts(kinds: dict, path) -> None:
     if not isinstance(kinds, dict):
         raise RegistryError(f"{path}: $events.kinds must map names to event contracts")
     envelope = {"id", "ts", "author", "kind", "seq"}
@@ -112,7 +112,7 @@ def _validate_event_contracts(kinds: dict, path) -> None:
                 raise RegistryError(
                     f"{path}: $events kind `{kind}` {writer} is not a valid JSON "
                     f"Schema: {error.message}"
-                )
+                ) from error
         record = contract["record"]
         properties = record.get("properties", {})
         required = record.get("required", [])
@@ -182,7 +182,7 @@ def _validate_event_contracts(kinds: dict, path) -> None:
         )
 
 
-def _validate_layer_declarations(
+def validate_layer_declarations(
     registry: dict, path, names, paths, tones, data, tokens
 ) -> None:
     # $keys documents exactly the x- keys the lint admits, one string per key: the
@@ -285,7 +285,7 @@ def _validate_layer_declarations(
             raise RegistryError(
                 f"{path}: $data contract {contract!r} has an invalid JSON Schema: "
                 f"{error.message}"
-            )
+            ) from error
         if reference := unresolved_schema_reference(declaration["schema"]):
             raise RegistryError(
                 f"{path}: $data contract {contract!r} schema reference {reference!r} "

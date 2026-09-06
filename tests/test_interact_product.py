@@ -1,6 +1,5 @@
 """Version corpus, registry, message, and export tests."""
 
-import importlib.util
 import json
 import os
 import re
@@ -544,11 +543,8 @@ def test_shipped_widget_purposes_live_in_their_descriptions():
 
 def test_corpus_is_generated_from_the_examples():
     """examples/corpus.html is derived; a commit that lets it drift fails here."""
-    spec = importlib.util.spec_from_file_location(
-        "corpus", Path(__file__).parent.parent / "scripts" / "corpus.py"
-    )
-    corpus = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(corpus)
+    import corpus
+
     committed = (Path(__file__).parent.parent / "examples" / "corpus.html").read_text()
     assert corpus.build() == committed, "examples changed — rerun scripts/corpus.py"
     assert "<lf-toc" not in committed, (
@@ -573,11 +569,8 @@ def test_corpus_is_generated_from_the_examples():
 
 def test_the_key_reference_is_generated_from_the_registry():
     """The registry reference is written from the same $keys agents query."""
-    spec = importlib.util.spec_from_file_location(
-        "keydocs", Path(__file__).parent.parent / "scripts" / "keydocs.py"
-    )
-    keydocs = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(keydocs)
+    import keydocs
+
     committed = keydocs.DOCS_PAGE.read_text()
 
     def said(html):

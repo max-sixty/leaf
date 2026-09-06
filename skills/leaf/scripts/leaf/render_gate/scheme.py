@@ -12,9 +12,7 @@ from leaf.render_checks import (
     wait_for_probe,
 )
 
-from .models import _SchemeContext
-from .readings import _read_scheme
-from .reporting import _scheme_result
+from .readings import _scheme_findings, _SchemeContext
 
 
 def served(page, url: str, path: str, timeout_ms: int | None = None):
@@ -245,6 +243,6 @@ def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
         replayed=replayed,
         unsettled=unsettled,
     )
-    readings = _read_scheme(context)
+    found, notices = _scheme_findings(context)
     page.close()
-    return _scheme_result(context, readings)
+    return found, notices, True

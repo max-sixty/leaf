@@ -1,0 +1,85 @@
+/* The gallery lays the runtime's own Button anatomy out for comparison. The package
+ * owns only the specimen labels and grid; living-margin.js and chrome.css remain the
+ * sole owners of each Button's circle, icon, tone, role, and lifecycle witness. */
+lf-button-atlas {
+  display: block;
+  margin-block: var(--sp-4);
+}
+
+.button-atlas-group {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, .7fr) minmax(0, 3fr);
+  gap: var(--sp-3);
+  align-items: start;
+  padding-block: var(--sp-3);
+  border-block-start: 1px solid var(--rule);
+}
+
+.button-atlas-group:last-child {
+  border-block-end: 1px solid var(--rule);
+}
+
+.button-atlas-heading {
+  color: var(--ink);
+  font: 650 var(--t-5)/1.3 var(--sans);
+}
+
+.button-atlas-summary {
+  display: block;
+  margin-block-start: var(--sp-1);
+  color: var(--muted);
+  font: 450 var(--t-6)/1.35 var(--sans);
+}
+
+.button-atlas-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.75rem, 1fr));
+  gap: var(--sp-3) var(--sp-2);
+  min-width: 0;
+}
+
+.button-atlas-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: var(--sp-2);
+  align-items: center;
+  min-width: 0;
+}
+
+.button-atlas-copy {
+  min-width: 0;
+  font-family: var(--sans);
+}
+
+.button-atlas-name,
+.button-atlas-detail {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.button-atlas-name {
+  color: var(--ink);
+  font-size: var(--t-5);
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.button-atlas-detail {
+  margin-block-start: 2px;
+  color: var(--muted);
+  font-size: var(--t-6);
+  line-height: 1.3;
+}
+
+/* The nearby words expose each fixed specimen, so its transient hover label would say
+ * the same thing over the next cell. Suppress that one presentation without changing
+ * the canonical label and accessible name the Button factory gives the control. */
+lf-button-atlas .lf-margin-button > .lf-margin-button-label {
+  display: none;
+}
+
+@container lf-shell (max-width: 620px) {
+  .button-atlas-group {
+    grid-template-columns: 1fr;
+  }
+}

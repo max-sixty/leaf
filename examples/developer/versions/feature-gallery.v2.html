@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>Leaf product gallery</title>
+    <title>Leaf feature gallery</title>
     <meta name="lf-review" content="sign-off" />
     <meta
       http-equiv="Content-Security-Policy"
@@ -23,159 +23,9 @@
         margin-bottom: 4px;
       }
 
-      .interaction-gallery lf-tabs {
-        margin-top: 14px;
-        margin-bottom: 0;
-        box-shadow: 0 18px 46px color-mix(in srgb, var(--ink) 11%, transparent);
-      }
-
-      .interaction-gallery .interaction-controls {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px;
-        margin-top: 14px;
-      }
-
-      .interaction-gallery .interaction-control {
-        min-height: var(--aim-floor);
-        padding: 6px 13px;
-        border: 1px solid var(--border-2);
-        border-radius: 999px;
-        background: var(--card);
-        color: var(--ink);
-        font: 600 var(--t-6) / 1.2 var(--sans);
-        cursor: pointer;
-      }
-
-      .interaction-gallery
-        .interaction-control:is(:hover, :focus-visible):not(:disabled) {
-        border-color: var(--accent);
-      }
-
-      .interaction-gallery .interaction-control:focus-visible {
-        outline: var(--here-ring);
-        outline-offset: var(--here-ring-gap);
-      }
-
-      .interaction-gallery .interaction-control:disabled {
-        color: var(--muted-2);
-        cursor: default;
-      }
-
-      .interaction-gallery .interaction-status {
-        margin-left: 5px;
-        color: var(--muted);
-        font: var(--t-6) / 1.4 var(--sans);
-      }
-
-      .interaction-demo {
-        margin: 0;
-      }
-
-      .interaction-stage {
-        position: relative;
-        min-height: 18rem;
-        overflow: visible;
-        padding: clamp(28px, 6vw, 64px);
-        border: 1px solid var(--border-2);
-        border-radius: calc(var(--r) - 2px);
-        background:
-          linear-gradient(
-            120deg,
-            color-mix(in srgb, var(--field) 72%, transparent),
-            transparent 58%
-          ),
-          var(--paper);
-      }
-
-      .interaction-stage-copy {
-        max-width: 42ch;
-        margin: 0;
-        font-size: var(--t-3);
-        line-height: 1.7;
-      }
-
-      .interaction-board-stage {
-        min-height: 22rem;
-        padding-inline: clamp(16px, 4vw, 40px);
-      }
-
-      .interaction-board-stage lf-board {
-        margin: 0;
-      }
-
-      .interaction-pointer {
-        position: absolute;
-        z-index: 3;
-        top: 0;
-        left: 0;
-        width: 22px;
-        height: 28px;
-        background: var(--ink);
-        clip-path: polygon(0 0, 78% 71%, 47% 73%, 63% 100%, 49% 100%, 34% 76%, 0 100%);
-        filter: drop-shadow(0 1px 0 var(--paper)) drop-shadow(0 2px 3px var(--shade));
-        pointer-events: none;
-        transform-origin: 2px 2px;
-        will-change: transform, opacity;
-      }
-
-      .interaction-pointer[hidden] {
-        display: none;
-      }
-
-      .interaction-demo figcaption {
-        max-width: 66ch;
-        margin-top: 13px;
-        color: var(--ink-2);
-        font-size: var(--t-5);
-        line-height: 1.55;
-      }
-
       @container lf-shell (max-width: 1151px) {
         #bg-sidebar {
           display: none;
-        }
-      }
-
-      @media screen and (max-width: 600px) {
-        .interaction-gallery lf-tabs.lf-rendered > lf-tab:not([hidden]) {
-          padding: 12px;
-        }
-
-        .interaction-board-stage {
-          padding-inline: 12px;
-        }
-
-        .interaction-board-stage lf-board {
-          grid-auto-flow: row;
-          grid-template-columns: minmax(0, 1fr);
-          gap: 6px;
-        }
-
-        .interaction-board-stage lf-column {
-          padding: 6px;
-        }
-
-        .interaction-board-stage lf-card {
-          font-size: 13px;
-          line-height: 1.4;
-        }
-
-        .interaction-gallery .interaction-status {
-          flex-basis: 100%;
-          margin-left: 0;
-        }
-      }
-
-      @media print {
-        .interaction-controls,
-        .interaction-pointer {
-          display: none !important;
-        }
-
-        .interaction-gallery lf-tabs {
-          box-shadow: none;
         }
       }
     </style>
@@ -184,10 +34,10 @@
   <body>
     <main>
       <p class="eyebrow">developer playground</p>
-      <h1 id="bg-title">Leaf product gallery</h1>
+      <h1 id="bg-title">Leaf feature gallery</h1>
       <p class="lede" id="bg-lede">
         Try Leaf’s working features on one synthetic page. Each section names a feature
-        and provides a live example, including focused replays of its motion.
+        and provides a live example.
       </p>
       <aside class="sidebar" id="bg-sidebar">
         <lf-toc id="bg-contents"></lf-toc>
@@ -372,56 +222,16 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
       </section>
 
-      <section id="bg-button-atlas">
+      <section id="bg-clusters">
         <p class="eyebrow bg-feature-elements">
-          lf-button-atlas · Action · Disclosure · Button-shaped status · Lifecycle state
-          · lf-suggestion
+          Action · Disclosure · Button-shaped status · Lifecycle state
         </p>
-        <h2 id="bg-button-atlas-heading">
-          <strong>Button atlas</strong
-          ><span class="bg-feature-detail">: every role, tone, and state</span>
+        <h2 id="bg-clusters-heading">
+          <strong>Buttons</strong
+          ><span class="bg-feature-detail">: action, disclosure, and status</span>
         </h2>
-        <p id="bg-button-atlas-guide">
-          <strong>Everything visible at once.</strong> The first row holds every role
-          and all three behaviors and tones. The second fixes every lifecycle state in
-          place: no mark, dot, moving open ring, diamond, and square. These inert
-          specimens use the same constructor and stylesheet as the live Buttons.
-        </p>
-        <lf-button-atlas id="bg-button-atlas-specimens"></lf-button-atlas>
-        <h3 id="bg-button-workflow-heading">
-          <strong>Button workflow</strong
-          ><span class="bg-feature-detail">: act, fail, settle, and hand off</span>
-        </h3>
-        <p id="bg-button-workflow-guide">
-          <strong>Act, fail, and settle.</strong> Accept or Reject starts as an action.
-          Its small open-ring witness moves while the event travels. A refused send
-          leaves a diamond on Retry and Cancel. Success briefly announces Accepted or
-          Rejected; the changed content and square-marked Undo Button remain. Sent
-          remains as a status until an agent picks the decision up.
-        </p>
-        <p id="bg-button-workflow-line">
-          The practice route uses
-          <lf-suggestion id="bg-button-workflow"
-            ><lf-old>the open courtyard.</lf-old
-            ><lf-new>the covered terrace.</lf-new></lf-suggestion
-          >
-        </p>
-        <p id="bg-button-accepted-line">
-          <strong>Already settled.</strong> This second specimen arrives with an
-          accepted decision in its history:
-          <lf-suggestion id="bg-button-accepted"
-            ><lf-old>meet outside.</lf-old
-            ><lf-new>meet under the awning.</lf-new></lf-suggestion
-          >
-        </p>
-        <p id="bg-button-status-guide">
-          <strong>Edit and hand off.</strong> Opening the draft above replaces Edit with
-          dot-marked Save and Cancel Buttons; Save uses the moving ring while it sends.
-          The saved draft arrives with a Waiting for pickup status. When an agent claims
-          that unsettled edit, the same target gains an animated Active disclosure.
-        </p>
         <p id="bg-buttons-line">
-          <strong>Combine roles.</strong> Use the
+          <strong>One shared target.</strong> Use the
           <lf-suggestion id="bg-crowded"
             ><lf-old>courtyard</lf-old><lf-new>covered terrace</lf-new></lf-suggestion
           >
@@ -854,71 +664,6 @@ gallery/
             after="/media/a99a1b63048502d0.png"
           ></lf-shot>
         </section>
-      </section>
-
-      <section
-        class="interaction-gallery"
-        id="bg-interactions"
-        aria-labelledby="bg-interactions-heading"
-        data-interaction-gallery
-      >
-        <p class="eyebrow bg-feature-elements">
-          lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board · lf-column ·
-          lf-card
-        </p>
-        <h2 id="bg-interactions-heading">
-          <strong>Interactions</strong
-          ><span class="bg-feature-detail">: motion and input sequences</span>
-        </h2>
-        <p id="bg-interactions-guide">
-          Play, pause, or replay a focused sequence against Leaf’s real widgets. The
-          preview applies state locally, so watching it does not add decisions to the
-          page’s event log.
-        </p>
-
-        <lf-tabs id="bg-interaction-tabs">
-          <lf-tab id="bg-interaction-accept" label="Accept a suggestion">
-            <figure class="interaction-demo" data-interaction-demo="accept">
-              <div class="interaction-stage">
-                <p class="eyebrow">proposed release note</p>
-                <p class="interaction-stage-copy" id="bg-motion-accept-copy">
-                  The importer now
-                  <lf-suggestion id="bg-motion-accept"
-                    ><lf-old>usually finishes</lf-old
-                    ><lf-new>finishes</lf-new></lf-suggestion
-                  >
-                  before the next run begins.
-                </p>
-                <span class="interaction-pointer" hidden aria-hidden="true"></span>
-              </div>
-              <figcaption>
-                The pointer presses Accept; Leaf folds away the retired wording and
-                leaves the sentence in its settled state.
-              </figcaption>
-            </figure>
-          </lf-tab>
-
-          <lf-tab id="bg-interaction-move" label="Move a card">
-            <figure class="interaction-demo" data-interaction-demo="move-card">
-              <div class="interaction-stage interaction-board-stage">
-                <lf-board id="bg-motion-board">
-                  <lf-column id="bg-motion-ready" label="Ready">
-                    <lf-card id="bg-motion-card">
-                      <strong>Verify migration</strong>
-                      Run the schema sample.
-                    </lf-card>
-                  </lf-column>
-                  <lf-column id="bg-motion-tried" label="Tried"></lf-column>
-                </lf-board>
-                <span class="interaction-pointer" hidden aria-hidden="true"></span>
-              </div>
-              <figcaption>
-                The pointer finds the card’s grip, then Leaf plays the same placement
-                transition used after a keyboard or drag move.
-              </figcaption>
-            </figure>
-          </lf-tab>
-        </lf-tabs>
       </section>
 
       <section id="bg-version-changes">

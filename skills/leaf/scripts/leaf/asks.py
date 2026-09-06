@@ -10,6 +10,7 @@ from leaf.projection import (
     markup_facet,
     retirement_outcomes,
 )
+from leaf.schema import MESSAGE_KINDS
 
 
 def local_ask_entry(entry: dict) -> bool:
@@ -234,20 +235,16 @@ class _AskReducer:
         spk,
         registry: dict,
         dropped: set,
-        with_agent: set[str],
         *,
         thread: bool,
         request_phases: dict[str, str] | None = None,
-        settled_away: set[str] | None = None,
     ):
         self.projection = projection
         self.byid = byid
         self.spk = spk
         self.registry = registry
-        self.with_agent = with_agent
         self.thread = thread
         self.request_phases = request_phases or {}
-        self.settled_away = settled_away or set()
         elements = source.lf_elements if hasattr(source, "lf_elements") else source
         self.records = [record for record in elements if self._is_declared(record)]
         self.positioned_holders = projected_action_holders(projection, byid, registry)
@@ -265,7 +262,6 @@ class _AskReducer:
         for record in self.records:
             if owner := self._rollup_owner(record):
                 self.direct.setdefault(id(owner), []).append(record)
-        self.values: dict[int, bool] = {}
 
     def _entry(self, record):
         return self.registry[record["tag"]]
@@ -297,7 +293,7 @@ class _AskReducer:
         unit = record["attrs"].get("id")
         return self.positioned_holders.get(unit, record.get("holder"))
 
-    def _answered(self, record):
+    def _answered(self, record, with_agent):
         entry = self._entry(record)
         if self._is_request(record):
             return not self.local[id(record)]
@@ -323,7 +319,7 @@ class _AskReducer:
             record,
             entry,
             self.projection,
-            self.with_agent,
+            with_agent,
         )
 
     def _rollup_owner(self, record):
@@ -334,20 +330,22 @@ class _AskReducer:
             record = self._holder(record)
         return None
 
-    def _awaits(self, record):
+    def _awaits(self, record, with_agent, values):
         key = id(record)
-        if key in self.values:
-            return self.values[key]
+        if key in values:
+            return values[key]
         if not self.exists[key]:
-            self.values[key] = False
+            values[key] = False
             return False
         declaration = self._declaration(record)
         if not declaration.get("rollup"):
-            self.values[key] = self.local[key] and not self._answered(record)
-            return self.values[key]
+            values[key] = self.local[key] and not self._answered(record, with_agent)
+            return values[key]
         descendants = self.direct.get(key, [])
-        self.values[key] = any(self._awaits(candidate) for candidate in descendants)
-        return self.values[key]
+        values[key] = any(
+            self._awaits(candidate, with_agent, values) for candidate in descendants
+        )
+        return values[key]
 
     def _surfaces(self, records):
         visible = [
@@ -368,7 +366,7 @@ class _AskReducer:
                 surfaces.append(surface)
         return surfaces
 
-    def inventory(self) -> list:
+    def inventory(self, settled_away: set[str]) -> list:
         """Every active Ask, including ones the reader has answered.
 
         An action Ask remains active while its authored `when` holds, even after
@@ -390,10 +388,10 @@ class _AskReducer:
             # ask is absent rather than reviewable, and is not in settled_away.
             unit = record["attrs"].get("id")
             if (
-                unit in self.settled_away
+                unit in settled_away
                 and not self._is_request(record)
                 and self._local(record)
-                and self._answered(record)
+                and self._answered(record, set())
             ):
                 active.append(record)
         return self._items(self._surfaces(active))
@@ -408,14 +406,17 @@ class _AskReducer:
             for record in surfaces
         ]
 
-    def result(self) -> tuple[list, dict[str, bool]]:
+    def result(self, with_agent: set[str]) -> tuple[list, dict[str, bool]]:
+        values: dict[int, bool] = {}
         surfaces = self._surfaces(
-            record for record in self.records if self._awaits(record)
+            record
+            for record in self.records
+            if self._awaits(record, with_agent, values)
         )
         return (
             self._items(surfaces),
             {
-                record["attrs"]["id"]: self.values[id(record)]
+                record["attrs"]["id"]: values[id(record)]
                 for record in self.records
                 if record["attrs"].get("id")
             },
@@ -429,7 +430,6 @@ def page_ask_projection(
     spk,
     registry: dict,
     dropped: set,
-    with_agent: set[str],
     *,
     thread: bool = False,
     request_phases: dict[str, str] | None = None,
@@ -444,14 +444,11 @@ def page_ask_projection(
     Its pending and completed phases hand the turn away from the reader; failure
     returns the lifecycle to ready and therefore reopens the ask.
 
-    `with_agent` chooses which question this answers, and is the whole of the
-    difference between the two. Given `seats_with_agent`, it is the reader's list: a
-    ask whose own conversation seat holds a thread the agent owes an answer to is
-    not one the reader has to deal with, whatever its state. Given an empty set, it is
-    whether the ask is answered at all, which is what an action's `requires` asks
-    — a conversation does not answer a question the widget still holds no state for,
-    and refusing the pick over the reader's own remark would refuse them the answer
-    they were asked for. Frozen thread markup seats no conversation either way.
+    No conversation seat answers anything here, so this is whether the ask is
+    answered at all — what an action's `requires` reads. Frozen thread markup seats
+    no conversation of its own either: the thread's reply box is already where the
+    reader answers, so only an action closes a request there.
+    `page_ask_readings` is where a reader's own seats come in.
     """
     return _AskReducer(
         source,
@@ -460,32 +457,9 @@ def page_ask_projection(
         spk,
         registry,
         dropped,
-        with_agent,
         thread=thread,
         request_phases=request_phases,
-    ).result()
-
-
-def page_asks(
-    parser,
-    projection,
-    byid,
-    spk,
-    registry: dict,
-    dropped: set,
-    with_agent: set[str],
-    request_phases: dict[str, str] | None = None,
-) -> list:
-    return page_ask_projection(
-        parser,
-        projection,
-        byid,
-        spk,
-        registry,
-        dropped,
-        with_agent,
-        request_phases=request_phases,
-    )[0]
+    ).result(set())
 
 
 def page_awaiting_values(
@@ -507,7 +481,6 @@ def page_awaiting_values(
         spk,
         registry,
         set(passages.retired) | set(passages.gone),
-        set(),
         request_phases=request_phases,
     )[1]
 
@@ -532,11 +505,58 @@ def page_ask_inventory(
         spk,
         registry,
         dropped,
-        set(),
         thread=thread,
         request_phases=request_phases,
-        settled_away=settled_away,
-    ).inventory()
+    ).inventory(settled_away or set())
+
+
+def page_ask_readings(
+    source,
+    projection,
+    byid,
+    spk,
+    registry: dict,
+    dropped: set,
+    with_agent: set[str],
+    *,
+    request_phases: dict[str, str] | None = None,
+    settled_away: set[str] | None = None,
+) -> dict:
+    """Every ask reading of one document, folded over one shared setup.
+
+    A document is read for three answers at once: the reader's own list, the same
+    question with no conversation seats (what an action's `requires` asks), and the
+    inventory of every active Ask. They differ only in `with_agent` and
+    `settled_away`; the declared records, their holders, and their local conditions
+    are one computation behind all three.
+
+    `with_agent` is what separates the reader's list from the rest. Given
+    `seats_with_agent`, an ask whose own conversation seat holds a thread the agent
+    owes an answer to is not one the reader has to deal with, whatever its state.
+    The same fold with no seats says whether the ask is answered at all: a
+    conversation does not answer a question the widget still holds no state for, and
+    refusing the pick over the reader's own remark would refuse them the answer they
+    were asked for.
+    """
+    reducer = _AskReducer(
+        source,
+        projection,
+        byid,
+        spk,
+        registry,
+        dropped,
+        thread=False,
+        request_phases=request_phases,
+    )
+    reader, awaiting = reducer.result(with_agent)
+    unanswered, unanswered_awaiting = reducer.result(set())
+    return {
+        "all": reducer.inventory(settled_away or set()),
+        "reader": reader,
+        "unanswered": unanswered,
+        "awaiting": awaiting,
+        "unanswered_awaiting": unanswered_awaiting,
+    }
 
 
 def _thread_ask_records(
@@ -544,7 +564,7 @@ def _thread_ask_records(
 ) -> tuple[list, dict]:
     records = []
     for e in events:
-        if e["kind"] not in ("comment", "reply"):
+        if e["kind"] not in MESSAGE_KINDS:
             continue
         markup = e.get("markup")
         if not markup or reading.roots[e["id"]] in settled:
@@ -586,10 +606,6 @@ def thread_ask_projection(
         thread_reading.spoken,
         registry,
         dropped=set(),
-        # Frozen thread markup seats no conversation of its own: the thread's reply
-        # box is already where the reader answers, so only an action closes a request
-        # here.
-        with_agent=set(),
         thread=True,
         request_phases=request_phases,
     )

@@ -287,17 +287,21 @@ export function bake() {
   // to carry. A wrapper around a non-offered native control is the exception: the browser
   // still owns that complete interaction in the copy.
   //
-  // A *valued* marker, because `offer` writes the empty one on the boxes a widget builds
-  // to hold its controls — a suggestion's ✓/✗ row among them — and those are not presses
-  // to take away. Matched on the bare attribute this loop removed the box outright with
-  // any static words the copy keeps inside it, such as a failed-delivery receipt. What
-  // empties a box is the walk below, after it removes the offered controls.
+  // A valued marker is a press. An empty marker is usually the box a widget builds to
+  // hold controls — a suggestion's ✓/✗ row among them — and matched on the bare
+  // attribute this loop removed the box outright with any static words the copy keeps
+  // inside it, such as a failed-delivery receipt. The exception is leaf chrome with no
+  // element inside it: a mutable status word is not a box and has no meaning once the
+  // runtime leaves. Remove that leaf with the presses, then let the walk below take any
+  // wrapper the two kinds empty together. Native controls keep working without Leaf and
+  // stay, whether or not a widget built their surrounding box.
   const browserControl =
     "input:not([data-lf-offer]), select:not([data-lf-offer]), textarea:not([data-lf-offer]), " +
     "a[href]:not([data-lf-offer]), button:not([data-lf-offer]), summary:not([data-lf-offer])";
-  for (const control of all(
-    "[data-lf-offer]:not([data-lf-offer='']):not([data-lf-said])",
-  ).reverse()) {
+  const scriptedOffer =
+    "[data-lf-offer]:not([data-lf-said]):is(" +
+    ":not([data-lf-offer='']), :not(:has(*)):not(input, select, textarea, a[href], summary))";
+  for (const control of all(scriptedOffer).reverse()) {
     if (
       control.querySelector(browserControl) ||
       [...control.querySelectorAll("label")].some(

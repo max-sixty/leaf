@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 from leaf.schema import MEDIA_DIR
-from leaf.structure import OPTIONAL_END, SECTIONING_TAGS, _StructParser
+from leaf.structure import OPTIONAL_END, SECTIONING_TAGS, StructParser
 from leaf.styles import inline_presentation_override_errors
 
 # One media reference as a message's Markdown writes it: an inline destination, or the
@@ -71,7 +71,7 @@ def at(rec: dict, named: str = "") -> str:
     return f"<{rec['tag']}{' ' + named if named else ''}> (line {rec['line']})"
 
 
-def unpointable_blocks(parser: _StructParser) -> list:
+def unpointable_blocks(parser: StructParser) -> list:
     """Blocks a user will aim at whole that no anchor can name. Advice, never a
     gate:
     references/page-authoring.md's "Stable anchors" states the id rule, and this
@@ -108,7 +108,7 @@ def unpointable_blocks(parser: _StructParser) -> list:
     return lines
 
 
-def structure_errors(parser: _StructParser) -> list:
+def structure_errors(parser: StructParser) -> list:
     """A fed parser's structural complaints, plus the tags it was left holding
     open at the end of its input."""
     errors = list(parser.errors)
@@ -120,7 +120,7 @@ def structure_errors(parser: _StructParser) -> list:
     return errors
 
 
-def page_boundary_errors(parser: _StructParser) -> list:
+def page_boundary_errors(parser: StructParser) -> list:
     """Authored content lies under the page's one main content boundary."""
     errors = []
     direct = [line for line, is_direct in parser.main_elements if is_direct]
@@ -142,7 +142,7 @@ def page_boundary_errors(parser: _StructParser) -> list:
     return errors
 
 
-def fragment_style_errors(parser: _StructParser) -> list:
+def fragment_style_errors(parser: StructParser) -> list:
     """A message may not dress the document it is put into.
 
     A version's <style> is the page's own, and the gates a version answers to read
@@ -174,7 +174,7 @@ def fragment_style_errors(parser: _StructParser) -> list:
     return errors + inline_presentation_override_errors(parser)
 
 
-def media_errors(parser: _StructParser, page_dir: Path) -> list:
+def media_errors(parser: StructParser, page_dir: Path) -> list:
     """A /media/ reference the page directory can't answer, which renders as a broken
     image. The render gate would catch it as a 404, but that runs once a page; this
     runs at every door markup comes through, and a missing file is as deterministic as

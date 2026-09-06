@@ -14,15 +14,16 @@ at.
 
 ## Run the narrowest useful surface
 
-A new cloud container needs the pinned environment and both browsers before the
-suite can run:
+A new development host installs the browser binaries and website dependencies with
+the repository setup alias. `uv run` synchronizes the pinned Python environment,
+including pre-commit:
 
 ```sh
-uv sync --frozen
-uv run playwright install chromium --only-shell
-uv run playwright install chrome
-uv tool install pre-commit
+wt setup
 ```
+
+The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer. Docker is
+additionally needed for the complete website boundary and `scripts/linux-suite.sh`.
 
 A container without IPv6 cannot run the two tests that bind the stated-host
 wildcard `::`; run those from a workstation.

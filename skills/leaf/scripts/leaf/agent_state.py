@@ -11,7 +11,6 @@ from .document_reading import DocumentReading, read_document
 from .events import bare_reaction, build_threads, is_reaction
 from .files import (
     active_descriptor,
-    latest_revision,
     revision_path,
     version_descriptors,
 )
@@ -63,15 +62,12 @@ def cmd_page_state(page_dir: Path, *, thread_id: str | None = None) -> None:
 def _active_revision(page_dir: Path, events: list) -> tuple[int | None, dict | None]:
     # Every markup-derived reading is of the latest valid revision, because that
     # is the page the live root shows and the user acts on.
-    try:
-        revision = latest_revision(page_dir)
-        active = active_descriptor(page_dir, events)
-        active["file"] = (
-            revision_path(page_dir, revision).relative_to(page_dir).as_posix()
-        )
-        return revision, active
-    except SystemExit:
+    active = active_descriptor(page_dir, events)
+    if active is None:
         return None, None
+    revision = active["revision"]
+    active["file"] = revision_path(page_dir, revision).relative_to(page_dir).as_posix()
+    return revision, active
 
 
 def _read_active_document(

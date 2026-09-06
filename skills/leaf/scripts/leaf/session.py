@@ -17,6 +17,14 @@ from .registry.contract import RegistryError, handling
 from .registry.reactions import described
 from .registry.storage import load_registry
 from .revisioning import activate_source
+from .schema import (
+    ACK_BATCH_INSTRUCTION,
+    ANSWER_ASK_INSTRUCTION,
+    CURSOR_FILE,
+    SERVICE_FILE,
+    STATUS_FILE,
+)
+from .served_state.page import full_state
 from .server import running_server
 from .service import (
     PageTransaction,
@@ -57,6 +65,51 @@ def cmd_status(
             check_local_claim(state, detail)
             work = work_subject(page_dir, page.events, on)
         page.set_status(state, detail, work=work)
+
+
+def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
+    """Idle, unless the page still owes its reader an answer.
+
+    Idling over an event nobody has answered ends the leaf on a user still
+    owed one — unread, or read and left. The watcher's whole batch, not the
+    reader-facing count, so a worker's report cannot be left standing as
+    provisional state forever either. The check and the transition share the
+    log lock, so an event arriving or an acknowledgement advancing the cursor
+    orders against them."""
+    # Ahead of the transaction, which reaches `set_status` without a subject:
+    # refused here, `idle --on` cannot be reported back as a claim the page
+    # never took.
+    if on is not None:
+        check_local_claim("idle", detail)
+    with PageTransaction(page_dir) as page:
+        events = page.events
+        cursor = page.cursor
+        pending = len(unacknowledged(events, cursor))
+        if pending:
+            sys.exit(
+                f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
+                "idling ends the leaf over them; `leaf wait` prints them and returns "
+                "at once when events are already waiting. The wait owner must finish "
+                "the delivery contract before idling. " + ACK_BATCH_INSTRUCTION
+            )
+        unanswered = [
+            obligation
+            for obligation in full_state(page_dir, events)["activity"]["obligations"]
+            if obligation["seq"] <= cursor
+        ]
+        if unanswered:
+            ids = ", ".join(
+                obligation["target"]["id"]
+                if obligation["target"]["kind"] == "thread"
+                else obligation["event"]
+                for obligation in unanswered
+            )
+            sys.exit(
+                f"{len(unanswered)} acknowledged "
+                f"reader move{'s' if len(unanswered) != 1 else ''} with no answer "
+                f"({ids}); idling ends the leaf over them. " + ANSWER_ASK_INSTRUCTION
+            )
+        page.set_status("idle", detail)
 
 
 class PageTick(NamedTuple):
@@ -126,7 +179,7 @@ class Watch:
             # the harmless observation outside makes the lock boundary itself
             # testable: a claim or SessionEnd can win after page selection,
             # and _read must then decline every stale act.
-            observed = read_json(page_dir / "status.json") or {"state": "idle"}
+            observed = read_json(page_dir / STATUS_FILE)
             try:
                 with PageTransaction(page_dir) as page:
                     reading, revive = self._read(page, observed)
@@ -170,7 +223,7 @@ class Watch:
         batch = (
             unacknowledged(page.events, page.cursor) if watch_state != "lost" else []
         )
-        service = read_json(page_dir / "service.json")
+        service = read_json(page_dir / SERVICE_FILE)
         enabled = bool(service and service["enabled"])
         key, now, revive = str(page_dir), time.time(), False
         # Desired service state owns revival. Status says what the page is doing;
@@ -507,7 +560,7 @@ def acknowledge(page: PageTransaction, seq: int) -> None:
     if target["author"] != "user" and target["kind"] not in ("report", "error"):
         sys.exit(f"event {seq} is not a user event, a report, or a page error")
     if seq > page.cursor:
-        write_json(page.page_dir / "cursor.json", {"seq": seq})
+        write_json(page.page_dir / CURSOR_FILE, {"seq": seq})
 
 
 def cmd_ack(page_dir: Path, seq: int) -> None:

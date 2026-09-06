@@ -24,6 +24,8 @@ from render_support import (
     PANEL_PAGE,
     SUGGESTION_PAGE,
     _publish,
+    _traffic,
+    _until,
     address_code,
     compare_with,
     go_to_address,
@@ -1003,6 +1005,230 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     page.close()
 
 
+def test_the_feature_gallery_displays_the_complete_button_grammar(browser, serve):
+    """The atlas keeps every Button axis and lifecycle witness visible together."""
+    page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    resized(page, 1440, 900)
+
+    atlas = page.locator("#bg-button-atlas")
+    expect(atlas).to_be_visible()
+    buttons = atlas.locator(".lf-margin-button")
+    expect(buttons).to_have_count(12)
+    records = buttons.evaluate_all(
+        """buttons => buttons.map(button => ({
+          behavior: button.dataset.lfBehavior,
+          tone: button.dataset.lfTone,
+          role: button.dataset.lfRole,
+          state: button.dataset.lfState,
+        }))"""
+    )
+    grammar = page.evaluate(
+        """async () => {
+          const {BUTTON_GRAMMAR} = await import('/runtime/widget-api.js');
+          return BUTTON_GRAMMAR;
+        }"""
+    )
+    for record_axis, grammar_axis in (
+        ("behavior", "behaviors"),
+        ("tone", "tones"),
+        ("role", "roles"),
+        ("state", "states"),
+    ):
+        assert {record[record_axis] for record in records} == set(grammar[grammar_axis])
+    assert set(
+        buttons.evaluate_all("rows => rows.map(row => getComputedStyle(row).cursor)")
+    ) == {"default"}
+
+    def specimen(name):
+        return atlas.locator(f'[data-button-specimen="{name}"] > .lf-margin-button')
+
+    engaged = specimen("engaged")
+    busy = specimen("busy")
+    failed = specimen("failed")
+    settled = specimen("settled")
+    marks = {
+        name: control.evaluate(
+            """button => {
+              const style = getComputedStyle(button, '::after');
+              return {
+                width: style.width,
+                radius: style.borderRadius,
+                transform: style.transform,
+                animation: style.animationName,
+                playState: style.animationPlayState,
+              };
+            }"""
+        )
+        for name, control in {
+            "engaged": engaged,
+            "busy": busy,
+            "failed": failed,
+            "settled": settled,
+        }.items()
+    }
+    assert marks["engaged"]["width"] == "6px"
+    assert marks["engaged"]["radius"] == "50%"
+    assert marks["busy"]["width"] == "8px"
+    assert "button-busy" in marks["busy"]["animation"]
+    assert marks["busy"]["playState"] == "running"
+    assert marks["failed"]["transform"] != "none"
+    assert marks["settled"]["radius"] == "1px"
+    expect(busy).to_have_attribute("aria-busy", "true")
+    expect(
+        atlas.locator('[data-button-specimen="sent"] > .lf-margin-button')
+    ).to_have_attribute("role", "status")
+    expect(atlas.locator(".button-atlas-name")).to_have_text(
+        [
+            "Save",
+            "Cancel",
+            "Accept",
+            "Reject",
+            "Thread",
+            "More",
+            "Sent",
+            "Idle",
+            "Engaged",
+            "Busy",
+            "Failed",
+            "Settled",
+        ]
+    )
+
+    assert errors == []
+    page.close()
+
+
+def test_the_feature_gallery_carries_a_button_through_its_whole_lifecycle(
+    browser, serve
+):
+    """The Button specimen shows the stable endpoints and exercises each transition.
+
+    Busy and Active depend on a request in flight and an external work claim, so the
+    source names those conditions while this browser journey holds each one long enough
+    to prove that the real Button draws its moving state.
+    """
+    page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    resized(page, 1440, 900)
+
+    expect(page.locator("#bg-button-accepted")).to_have_attribute(
+        "data-lf-state", "accept"
+    )
+    expect(page.locator("#bg-button-accepted lf-new")).to_be_visible()
+    expect(page.locator("#bg-button-accepted lf-old")).to_be_hidden()
+    seeded = page.locator('[data-lf-margin-for="bg-button-accepted"]')
+    expect(seeded.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(
+        seeded.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    ).to_have_count(0)
+
+    draft = page.locator('[data-lf-margin-for="bg-draft"]')
+    draft.locator(".lf-draft-pencil").click()
+    save = draft.get_by_role("button", name="Save", exact=True)
+    cancel_draft = draft.get_by_role("button", name="Cancel", exact=True)
+    expect(save).to_have_attribute("data-lf-state", "engaged")
+    expect(cancel_draft).to_have_attribute("data-lf-state", "engaged")
+    cancel_draft.click()
+    waiting = page.locator('[data-lf-margin-for="bg-history"]').get_by_role(
+        "status", name=re.compile(r"^Waiting for pickup for ")
+    )
+    expect(waiting).to_have_attribute("data-lf-state", "busy")
+
+    workflow = page.locator('[data-lf-margin-for="bg-button-workflow"]')
+    accept = workflow.get_by_role(
+        "button", name=re.compile(r"^Accept the suggested change")
+    )
+    expect(accept).to_have_attribute("data-lf-state", "idle")
+
+    def reject(route):
+        route.fulfill(
+            status=400,
+            json={"ok": False, "error": "gallery transport refusal", "final": True},
+        )
+
+    page.route("**/api/event", reject)
+    accept.click()
+    retry = workflow.get_by_role("button", name="Retry", exact=True)
+    cancel_failure = workflow.get_by_role("button", name="Cancel", exact=True)
+    expect(retry).to_have_attribute("data-lf-state", "failed")
+    expect(cancel_failure).to_have_attribute("data-lf-state", "failed")
+    expect(workflow).to_contain_text("Failed")
+    cancel_failure.click()
+    page.unroute("**/api/event")
+    expect(accept).to_have_attribute("data-lf-state", "idle")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    sends = _traffic(page).sends
+    accept.click()
+    _until(page, lambda traffic: traffic.sends > sends, "held the acceptance")
+    expect(accept).to_have_attribute("data-lf-state", "busy")
+    expect(accept).to_have_attribute("aria-busy", "true")
+    assert accept.evaluate(
+        """button => {
+          const style = getComputedStyle(button, '::after');
+          return style.animationName.includes('button-busy') &&
+            style.animationPlayState === 'running';
+        }"""
+    ), "the gallery's busy Button has no running lifecycle animation"
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(page.locator("#bg-button-workflow")).to_have_attribute(
+        "data-lf-state", "accept"
+    )
+    expect(page.locator(".lf-notice")).to_have_text(re.compile(r"^Accepted .+ — sent$"))
+    expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
+    undo_button = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    expect(undo_button).to_have_attribute("data-lf-state", "settled")
+    sent = workflow.get_by_role("status", name=re.compile(r"^Sent for "))
+    expect(sent).to_be_visible()
+    expect(sent).to_have_attribute("data-lf-state", "busy")
+
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "status",
+            str(serve.page_dir),
+            "working",
+            "applying the selected route",
+            "--on",
+            "bg-button-workflow",
+        ],
+    )
+    assert claimed.exit_code == 0, claimed.output
+    told(page)
+    active = workflow.locator(
+        '.lf-margin-button[data-lf-kinds="activity"][data-lf-state="busy"]:visible'
+    )
+    expect(active).to_be_visible()
+    expect(active).to_have_attribute("aria-label", re.compile(r"^Active"))
+    assert active.evaluate(
+        """button => {
+          const style = getComputedStyle(button, '::after');
+          return style.animationName.includes('button-busy') &&
+            style.animationPlayState === 'running';
+        }"""
+    ), "the gallery's Active Button has no running lifecycle animation"
+
+    stamp_page(
+        serve.page_dir,
+        FEATURE_GALLERY.read_text(encoding="utf-8"),
+        "Apply the selected route",
+        completes=("bg-button-workflow",),
+    )
+    wait_for_revision(page, 3)
+    expect(active).to_have_count(0)
+    expect(page.locator("#bg-button-workflow lf-new")).to_be_visible()
+    expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(
+        workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    ).to_have_count(0)
+
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
 def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
     browser, serve
 ):
@@ -1011,6 +1237,11 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
     resized(page, 1440, 900)
     expect(page.locator("#bg-grammar")).to_have_count(0)
     sections = {
+        "bg-clusters": (
+            "Button atlas: every role, tone, and state",
+            "#bg-button-atlas-guide",
+            "#bg-button-atlas",
+        ),
         "bg-changes": (
             "Suggestions: proposed text changes",
             "#bg-changes-guide",
@@ -1056,8 +1287,24 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
     headings = page.locator("main section :is(h2, h3)").all_text_contents()
     assert [
         " ".join(heading.split()) for heading in headings if "Button" in heading
-    ] == ["Buttons: action, disclosure, and status"]
+    ] == [
+        "Button atlas: every role, tone, and state",
+        "Button workflow: act, fail, settle, and hand off",
+    ]
     expect(page.locator("#bg-buttons-line #bg-crowded")).to_be_visible()
+    expect(page.locator("#bg-button-workflow")).not_to_have_attribute(
+        "data-lf-state", re.compile(".+")
+    )
+    expect(page.locator("#bg-button-accepted")).to_have_attribute(
+        "data-lf-state", "accept"
+    )
+    expect(page.locator("#bg-button-accepted lf-new")).to_be_visible()
+    expect(page.locator("#bg-button-accepted lf-old")).to_be_hidden()
+    seeded = page.locator('[data-lf-margin-for="bg-button-accepted"]')
+    expect(seeded.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(
+        seeded.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    ).to_have_count(0)
 
     feature_headings = page.locator(
         "main section h2:has(> .bg-feature-detail), "

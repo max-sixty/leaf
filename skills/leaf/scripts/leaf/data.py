@@ -356,12 +356,14 @@ def _validate_stored_snapshot(
         ) from error
 
 
-def read_data_store(page_dir: Path) -> dict:
+def read_data(page_dir: Path) -> dict:
     """Read the private wire-shaped store without judging package payloads.
 
-    `data clear` uses this structural reading to recover a source whose old value no
-    longer passes the package's current schema. Payload schemas ran at `data set` or
-    `data capture`; this reader checks only the envelope downstream consumers rely on.
+    Payload schemas ran at `data set` or `data capture`, and re-vendoring checks
+    the stored values once against an incoming contract; this reader checks only
+    the envelope downstream consumers rely on, so `data clear` can recover a
+    source whose old value no longer passes the package's current schema and a
+    poll never reruns every package schema.
     """
     path = page_dir / DATA_FILE
     try:
@@ -477,16 +479,6 @@ def read_data_store(page_dir: Path) -> dict:
                 )
             _validate_stored_snapshot(path, source, snapshot, snapshot_id)
     return stored
-
-
-def read_data(page_dir: Path) -> dict:
-    """Read a store whose values were validated at their write boundary.
-
-    Re-vendoring validates the same stored values once against an incoming contract.
-    Polling only reads the already-admitted store; it does not rerun every package
-    schema on every request.
-    """
-    return read_data_store(page_dir)
 
 
 def data_fragments(value, contract: str, registry: dict) -> dict | None:
@@ -635,7 +627,7 @@ def _write_source(
                 "a thread widget; "
                 f"choose one of {available}"
             )
-        stored = read_data_store(page_dir)
+        stored = read_data(page_dir)
         standing = stored["sources"].get(source)
         if standing is not None and standing["contract"] != contract:
             raise DataError(
@@ -734,7 +726,7 @@ def cmd_data_clear(page_dir: Path, source: str) -> None:
     if re.fullmatch(DATA_SOURCE_NAME, source) is None:
         raise DataError(f"invalid source name {source!r}")
     with PageTransaction(page_dir) as page:
-        stored = read_data_store(page_dir)
+        stored = read_data(page_dir)
         if source not in stored["sources"]:
             click.echo(f"data source {source!r} is already clear")
             return

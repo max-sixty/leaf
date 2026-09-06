@@ -1718,10 +1718,10 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
 </lf-tab>
 
 <lf-tab id="corpus-feature-gallery" label="Features">
-<h1 id="bg-title">Leaf feature gallery</h1>
+<h1 id="bg-title">Leaf product gallery</h1>
       <p class="lede" id="bg-lede">
         Try Leaf’s working features on one synthetic page. Each section names a feature
-        and provides a live example.
+        and provides a live example, including focused replays of its motion.
       </p>
       <p id="bg-start">
         Use the contents spine or Map to find a feature; each eyebrow lists its element
@@ -1905,14 +1905,54 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-clusters">
         <p class="eyebrow bg-feature-elements">
-          Action · Disclosure · Button-shaped status · Lifecycle state
+          lf-button-atlas · Action · Disclosure · Button-shaped status · Lifecycle state
+          · lf-suggestion
         </p>
         <h2 id="bg-clusters-heading">
-          <strong>Buttons</strong
-          ><span class="bg-feature-detail">: action, disclosure, and status</span>
+          <strong>Button atlas</strong
+          ><span class="bg-feature-detail">: every role, tone, and state</span>
         </h2>
+        <p id="bg-button-atlas-guide">
+          <strong>Everything visible at once.</strong> The first row holds every role
+          and all three behaviors and tones. The second fixes every lifecycle state in
+          place: no mark, dot, moving open ring, diamond, and square. These inert
+          specimens use the same constructor and stylesheet as the live Buttons.
+        </p>
+        <lf-button-atlas id="bg-button-atlas"></lf-button-atlas>
+        <h3 id="bg-button-workflow-heading">
+          <strong>Button workflow</strong
+          ><span class="bg-feature-detail">: act, fail, settle, and hand off</span>
+        </h3>
+        <p id="bg-button-workflow-guide">
+          <strong>Act, fail, and settle.</strong> Accept or Reject starts as an action.
+          Its small open-ring witness moves while the event travels. A refused send
+          leaves a diamond on Retry and Cancel. Success briefly announces Accepted or
+          Rejected; the changed content and square-marked Undo Button remain. Sent
+          remains as a status until an agent picks the decision up.
+        </p>
+        <p id="bg-button-workflow-line">
+          The practice route uses
+          <lf-suggestion id="bg-button-workflow"
+            ><lf-old>the open courtyard.</lf-old
+            ><lf-new>the covered terrace.</lf-new></lf-suggestion
+          >
+        </p>
+        <p id="bg-button-accepted-line">
+          <strong>Already settled.</strong> This second specimen arrives with an
+          accepted decision in its history:
+          <lf-suggestion id="bg-button-accepted"
+            ><lf-old>meet outside.</lf-old
+            ><lf-new>meet under the awning.</lf-new></lf-suggestion
+          >
+        </p>
+        <p id="bg-button-status-guide">
+          <strong>Edit and hand off.</strong> Opening the draft above replaces Edit with
+          dot-marked Save and Cancel Buttons; Save uses the moving ring while it sends.
+          The saved draft arrives with a Waiting for pickup status. When an agent claims
+          that unsettled edit, the same target gains an animated Active disclosure.
+        </p>
         <p id="bg-buttons-line">
-          <strong>One shared target.</strong> Use the
+          <strong>Combine roles.</strong> Use the
           <lf-suggestion id="bg-crowded"
             ><lf-old>courtyard</lf-old><lf-new>covered terrace</lf-new></lf-suggestion
           >
@@ -2345,6 +2385,71 @@ gallery/
             after="/media/a99a1b63048502d0.png"
           ></lf-shot>
         </section>
+      </section>
+
+      <section
+        class="interaction-gallery"
+        id="bg-interactions"
+        aria-labelledby="bg-interactions-heading"
+        data-interaction-gallery
+      >
+        <p class="eyebrow bg-feature-elements">
+          lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board · lf-column ·
+          lf-card
+        </p>
+        <h2 id="bg-interactions-heading">
+          <strong>Interactions</strong
+          ><span class="bg-feature-detail">: motion and input sequences</span>
+        </h2>
+        <p id="bg-interactions-guide">
+          Play, pause, or replay a focused sequence against Leaf’s real widgets. The
+          preview applies state locally, so watching it does not add decisions to the
+          page’s event log.
+        </p>
+
+        <lf-tabs id="bg-interaction-tabs">
+          <lf-tab id="bg-interaction-accept" label="Accept a suggestion">
+            <figure class="interaction-demo" data-interaction-demo="accept">
+              <div class="interaction-stage">
+                <p class="eyebrow">proposed release note</p>
+                <p class="interaction-stage-copy" id="bg-motion-accept-copy">
+                  The importer now
+                  <lf-suggestion id="bg-motion-accept"
+                    ><lf-old>usually finishes</lf-old
+                    ><lf-new>finishes</lf-new></lf-suggestion
+                  >
+                  before the next run begins.
+                </p>
+                <span class="interaction-pointer" hidden aria-hidden="true"></span>
+              </div>
+              <figcaption>
+                The pointer presses Accept; Leaf folds away the retired wording and
+                leaves the sentence in its settled state.
+              </figcaption>
+            </figure>
+          </lf-tab>
+
+          <lf-tab id="bg-interaction-move" label="Move a card">
+            <figure class="interaction-demo" data-interaction-demo="move-card">
+              <div class="interaction-stage interaction-board-stage">
+                <lf-board id="bg-motion-board">
+                  <lf-column id="bg-motion-ready" label="Ready">
+                    <lf-card id="bg-motion-card">
+                      <strong>Verify migration</strong>
+                      Run the schema sample.
+                    </lf-card>
+                  </lf-column>
+                  <lf-column id="bg-motion-tried" label="Tried"></lf-column>
+                </lf-board>
+                <span class="interaction-pointer" hidden aria-hidden="true"></span>
+              </div>
+              <figcaption>
+                The pointer finds the card’s grip, then Leaf plays the same placement
+                transition used after a keyboard or drag move.
+              </figcaption>
+            </figure>
+          </lf-tab>
+        </lf-tabs>
       </section>
 
       <section id="bg-version-changes">

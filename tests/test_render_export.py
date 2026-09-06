@@ -1,6 +1,5 @@
 """Standalone export tests."""
 
-import importlib.util
 import itertools
 import json
 import os
@@ -840,13 +839,8 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
     """A static handoff can be made while its interactive proof stays live."""
     live_source = (page_dir / "index.html").read_bytes()
     live_server = standing_server(page_dir)
-    spec = importlib.util.spec_from_file_location(
-        "leaf_preview_script", ROOT / "scripts" / "preview.py"
-    )
-    assert spec and spec.loader
-    preview = importlib.util.module_from_spec(spec)
-    monkeypatch.syspath_prepend(str(ROOT / "scripts"))
-    spec.loader.exec_module(preview)
+    import preview
+
     monkeypatch.setattr(preview, "TMP", page_dir.parent)
     monkeypatch.setattr(sys, "argv", ["preview.py", "pr-walkthrough", "--export"])
 
@@ -1302,9 +1296,11 @@ def test_an_exported_page_fixture_stands_on_its_own(
         unshown: [...document.querySelectorAll('main *')]
             .filter(el => el.textContent.trim() && !el.checkVisibility()
                           // A disclosure the reader can still work, a control's own
-                          // label, and an element with no box by design are all fine;
-                          // what is not is the page's words with nothing to reveal them.
-                          && !el.closest('details, [data-lf-offer], .lf-ui, style, script')
+                          // label, a slot a standing decision deliberately retired, and
+                          // an element with no box by design are all fine; what is not
+                          // is the page's words with nothing to reveal them.
+                          && !el.closest('details, [data-lf-offer], [data-lf-retired], '
+                                         + '.lf-ui, style, script')
                           && getComputedStyle(el).display !== 'contents')
             .map(el => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '')),
         // A press a widget injected is a tab stop wearing an interactive role, and the

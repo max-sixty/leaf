@@ -3,10 +3,10 @@
 from ..document_reading import read_document
 from ..events import UndoReading
 from ..projection import StateProjection
-from .wire import _browser_projection
+from .wire import browser_projection
 
 
-def _browser_document(
+def browser_document(
     html: str,
     events: list,
     registry: dict,
@@ -21,7 +21,7 @@ def _browser_document(
     return (
         {
             "revision": revision,
-            "projection": _browser_projection(
+            "projection": browser_projection(
                 document.projection,
                 scope="document",
                 within=document.within,
@@ -34,7 +34,7 @@ def _browser_document(
     )
 
 
-def _browser_undo_candidates(
+def browser_undo_candidates(
     events: list,
     document_projection: StateProjection,
     conversation_projection: StateProjection,

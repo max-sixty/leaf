@@ -43,6 +43,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
+from leaf.registry import storage as registry_storage_model
 from leaf.served_state import page as served_page
 from leaf.validation import instances as validation_model
 
@@ -96,7 +97,9 @@ def append_command(page_dir, command):
     event, including meaning, to event_log.append_event instead.
     """
     with service_model.PageTransaction(page_dir) as page:
-        return page.append_event(command)
+        return page.append_event(
+            command, registry_storage_model.require_registry(page_dir)
+        )
 
 
 def run_async(entry):
@@ -415,7 +418,7 @@ def live_versions(d):
 
 
 def fragment_errors(html, registry):
-    parser = structure_model._StructParser()
+    parser = structure_model.StructParser()
     parser.feed(html)
     parser.close()
     return validation_model.fragment_errors(parser, registry)
@@ -732,11 +735,11 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     original_append_event = service_model.PageTransaction.append_event
     original_composed_theme = layer_model.composed_theme
 
-    def held_append_event(page, event):
+    def held_append_event(page, event, registry=None):
         if event.get("kind") == kind:
             entering.set()
             assert resume.wait(timeout=10), "re-vendor never observed the writer"
-        return original_append_event(page, event)
+        return original_append_event(page, event, registry)
 
     def held_composed_theme(sources):
         checked_without_writer.set()
@@ -1047,6 +1050,11 @@ def neighbour_page(directory, title=None, dead=False, published=True):
     )
     (directory / ".fixture-versions" / "v1.html").write_text(html)
     files_model.write_revision(directory, 1, html.encode())
+    # What `page init` writes: a page always has a status record.
+    files_model.write_json(
+        directory / "status.json",
+        {"state": "idle", "detail": "", "ts": None, "after": 0},
+    )
     if published:
         events_model.append_event(
             directory,

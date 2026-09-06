@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import secrets
 import threading
 from dataclasses import dataclass
@@ -115,10 +116,8 @@ class _RoutedPageHandler(Handler):
         except Exception as error:  # noqa: BLE001 - this is the outer route boundary
             if self.command == "POST":
                 self.close_connection = True
-            try:
+            with contextlib.suppress(OSError):
                 self._json({"error": f"{type(error).__name__}: {error}"}, 500)
-            except OSError:
-                pass
             return None
 
     def do_GET(self):

@@ -9,7 +9,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from .files import json_bytes, read_json, replace_files
+from .files import fsync_parents, json_bytes, read_json, replace_files
 from .host import config_home
 from .layer import (
     LayerComposition,
@@ -28,13 +28,12 @@ from .locations import (
     paths_same,
 )
 from .schema import (
+    ASSETS,
     BROWSER_DIRS,
     DEFAULT_PACKAGE,
     ELEMENT_ID,
     EVENTS_FILE,
-    KERNEL,
     PACKAGE_DIRS,
-    PACKAGE_FILES,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     VENDORED_FILES,
@@ -84,12 +83,7 @@ def create_package_files(package: Path, files: list[tuple[Path, bytes]]) -> list
                 stream.flush()
                 os.fsync(stream.fileno())
             created.append((path, identity.st_dev, identity.st_ino))
-        for parent in {path.parent for path, _contents in files}:
-            descriptor = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-            try:
-                os.fsync(descriptor)
-            finally:
-                os.close(descriptor)
+        fsync_parents(path for path, _contents in files)
         return created
     except BaseException:
         rollback_package_files(created)
@@ -256,7 +250,7 @@ def package_layer_inputs(package: Path) -> list[Path]:
     for index, root in enumerate(inputs):
         if paths_same(package, root):
             return inputs[: index + 1]
-    return [KERNEL, DEFAULT_PACKAGE, package]
+    return [ASSETS, DEFAULT_PACKAGE, package]
 
 
 def check_package(
@@ -278,7 +272,7 @@ def validate_starter_candidate(package: Path, files: dict[str, bytes]) -> None:
         staged = Path(temporary) / "package"
         staged.mkdir()
         if package.is_dir():
-            for name in PACKAGE_FILES:
+            for name in VENDORED_FILES:
                 source = package / name
                 if source.is_file():
                     shutil.copy2(source, staged / name)
@@ -332,7 +326,7 @@ def init_starter_widget(
     }
     validate_starter_candidate(package, files)
     refuse_package_overlap(
-        [package, *(package / name for name in (*PACKAGE_FILES, *PACKAGE_DIRS))],
+        [package, *(package / name for name in (*VENDORED_FILES, *PACKAGE_DIRS))],
         protected,
     )
 
@@ -359,7 +353,7 @@ def cmd_package_init(package: Path, widget: str | None = None) -> Path:
             return package
 
         refuse_package_overlap(
-            [package, *(package / name for name in (*PACKAGE_FILES, *PACKAGE_DIRS))],
+            [package, *(package / name for name in (*VENDORED_FILES, *PACKAGE_DIRS))],
             protected,
         )
 

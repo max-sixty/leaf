@@ -112,12 +112,11 @@ filesystem changes for the news stream. `service` owns the transport-neutral
 transaction that HTTP and MCP share. Import the owner directly; the package
 initializer is only a marker.
 
-Within `render_gate/`, `models` owns the values passed between phases, `scheme`
-owns one browser/color lifecycle, `readings` owns raw probe results, `reporting`
-owns human findings, `version` owns retry policy, `preview` owns ephemeral
-servers, `browser` owns the launch the two user-path gates share — `exporting` is
-its other caller — and `command` owns the CLI boundary. Import the owner directly; the
-package initializer is only a marker.
+Within `render_gate/`, `scheme` owns one browser/color lifecycle, `readings`
+owns the probe readings and the finding each becomes, `version` owns retry
+policy, `preview` owns ephemeral servers, `browser` owns the launch the two
+user-path gates share — `exporting` is its other caller — and `command` owns the
+CLI boundary. Import the owner directly; the package initializer is only a marker.
 
 Within `validation/`, `markup` owns shared document structure rules, `instances`
 owns registry-declared instance rules, `admission` owns incoming message markup,

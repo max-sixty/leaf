@@ -61,10 +61,7 @@ def full_state(
     if active_override is not None:
         active = active_override
     else:
-        try:
-            active = active_descriptor(page_dir, events)
-        except SystemExit:
-            active = None
+        active = active_descriptor(page_dir, events)
     present = presence(page_dir, events)
     now = now_iso()
     browser = project_browser_state(

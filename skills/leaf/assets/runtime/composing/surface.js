@@ -89,6 +89,7 @@ import { pointerAt } from "../pointer.js";
 import { anchorLabel } from "../conversation/messages.js";
 import { showThread } from "../conversation/landing.js";
 import { reactionsOn } from "../conversation/model.js";
+import { isDrawing } from "./drawing.js";
 
 const hideReference = () => showReference(false, false);
 const hasOtherResponses = (anchor) =>
@@ -568,6 +569,7 @@ const rememberPointerSelection = () => {
 document.addEventListener(
   "pointerdown",
   (ev) => {
+    if (isDrawing()) return;
     primaryPointerPressed = ev.isPrimary && ev.button === 0;
     if (primaryPointerPressed) pressesBegun++;
     pointerSelecting = primaryPointerPressed && pageWords(ev.target);
@@ -586,6 +588,7 @@ document.addEventListener(
   true,
 );
 document.addEventListener("pointermove", (ev) => {
+  if (isDrawing()) return;
   if (!pointerSelecting || !selectionPressPoint) return;
   if (ev.defaultPrevented) {
     selectionGestureClaimed = true;
@@ -596,6 +599,7 @@ document.addEventListener("pointermove", (ev) => {
     3;
 });
 const finishPointerSelection = (ev) => {
+  if (isDrawing()) return;
   // A mouse pointer is followed by the compatibility mouseup below, which performs the
   // sentence snap before opening the field. Opening from pointerup first would focus the
   // textarea and collapse the still-unsnapped Selection before mouseup can finish it.
@@ -641,6 +645,7 @@ document.addEventListener("selectionchange", () => {
   scheduleSelectionUpdate();
 });
 document.addEventListener("mouseup", (ev) => {
+  if (isDrawing()) return;
   primaryPointerPressed = false;
   pointerSelecting = false;
   const gestureClaimed = selectionGestureClaimed;
@@ -716,7 +721,9 @@ export function standDown(target) {
 // Document listeners see a shadow-tree press retargeted to its host. Read the
 // composed origin so core controls seated in a widget surface remain inside their
 // own composer/reaction layer instead of being dismissed before `click` can fire.
-document.addEventListener("mousedown", (ev) => standDown(ev.composedPath()[0]));
+document.addEventListener("mousedown", (ev) => {
+  if (!isDrawing()) standDown(ev.composedPath()[0]);
+});
 
 // What a plain click on the page means, decided once. Design mode explicitly changes the
 // grammar, and a visible mark opens its thread. Unadorned authored content keeps the
@@ -731,6 +738,7 @@ document.addEventListener("mousedown", (ev) => standDown(ev.composedPath()[0]));
 // file already carries covers it: a guard that reads state another function wrote is a sign
 // the two are one function.
 document.addEventListener("click", (ev) => {
+  if (isDrawing()) return;
   if (!pageWords(ev.target)) return;
   // A press design mode did not take at the press is a press on prose: a drag that
   // selected words has the 💬 (updateFab, on the mouseup) and is not a click on the

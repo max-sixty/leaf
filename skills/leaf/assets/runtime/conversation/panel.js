@@ -7,12 +7,20 @@ import { setPanel } from "../chrome-layout.js";
 import { designOn } from "../design.js";
 import { labelOf } from "../keyboard/bindings.js";
 import { PANEL_SAY } from "../keyboard/page.js";
-import { loadDraft, mirrorDraft, saveDraft, sendDraft } from "../drafts.js";
+import {
+  loadDraft,
+  loadDraftPayload,
+  mirrorDraft,
+  saveDraft,
+  sendDraft,
+  watchDraft,
+} from "../drafts.js";
 import { runtime } from "../context.js";
 import { post } from "../outbox.js";
 import { landTyping, mayLandTyping } from "../composing/capture.js";
 import { wireInput } from "../composing/input.js";
 import { showThread } from "./landing.js";
+import { paintDrawings, validDrawing } from "../composing/drawing.js";
 
 export const panel = el("dialog", "lf-ui lf-panel");
 const panelHead = el("div", "lf-panel-head");
@@ -78,10 +86,34 @@ closeBtn.onclick = () => setPanel(false);
 // panel row whose key opens it. Two strings would be two chances to rename the mode in
 // one of them.
 export const generalHint = () =>
-  designOn ? "Comment on the layer" : "Comment on the page";
+  designOn && !generalDrawing ? "Comment on the layer" : "Comment on the page";
 
 let sync = () => {};
+const drawingIn = (payload) =>
+  validDrawing(payload?.drawing) ? payload.drawing : null;
+let generalDrawing = drawingIn(loadDraftPayload("general"));
 export const syncGeneral = () => sync();
+export function pageComposerDrawing() {
+  return generalDrawing;
+}
+
+function saveGeneralDraft(text = sync.value()) {
+  return saveDraft(
+    "general",
+    text,
+    generalDrawing ? { drawing: generalDrawing } : undefined,
+  );
+}
+
+export function openPageDrawing(drawing) {
+  generalDrawing = drawing;
+  saveGeneralDraft();
+  setPanel(true);
+  generalInput.focus({ preventScroll: true });
+  sync();
+  paintDrawings();
+}
+
 export function wireGeneralBox() {
   generalInput.value = loadDraft("general") ?? "";
   sync = wireInput(generalInput, {
@@ -101,13 +133,17 @@ export function wireGeneralBox() {
     address: () => labelOf(PANEL_SAY),
     sends: "send",
     sendBtn: generalSend,
-    save: (v) => saveDraft("general", v),
+    hasContent: (raw) => Boolean(raw.trim() || generalDrawing),
+    save: saveGeneralDraft,
     send: async (text, raw, owns) => {
-      const event = { kind: "comment", revision: runtime.currentRevision, text };
-      if (designOn) event.about = "layer";
-      const sent = await sendDraft("general", owns, (attempt) =>
-        post({ ...event, attempt }),
-      );
+      const sent = await sendDraft("general", owns, (attempt, payload) => {
+        const event = { kind: "comment", revision: runtime.currentRevision, attempt };
+        if (text) event.text = text;
+        const drawing = drawingIn(payload);
+        if (designOn && !drawing) event.about = "layer";
+        if (drawing) event.drawing = drawing;
+        return post(event);
+      });
       if (!sent) return;
       const shouldLand = mayLandTyping(generalInput);
       showThread(sent.id, { stand: false });
@@ -117,4 +153,9 @@ export function wireGeneralBox() {
 
   sync();
   mirrorDraft(generalInput, sync, "general");
+  watchDraft("general", (_value, payload) => {
+    generalDrawing = drawingIn(payload);
+    sync();
+    paintDrawings();
+  });
 }

@@ -16,6 +16,7 @@ import { el } from "../widget-elements.js";
 import { elementById, inChrome } from "../passages.js";
 
 import { paintAnchors, placedAt } from "../anchors.js";
+import { paintDrawings } from "../composing/drawing.js";
 
 import { paintHere } from "../keyboard/scopes.js";
 
@@ -124,6 +125,7 @@ function renderPanelNow() {
     // the button says exactly what it will say the moment the log arrives empty.
     paintNarrowing([], []);
     listedThreads = [];
+    paintDrawings([]);
     renderSurfaces(listedThreads, placedAt);
     renderConversations(listedThreads);
     renderMargin();
@@ -140,6 +142,7 @@ function renderPanelNow() {
   // disagree with the first over a page that changed between them — and it would walk the
   // document's whole text again to say it.
   paintAnchors(threads);
+  paintDrawings(threads);
   renderSurfaces(listedThreads, placedAt);
   const prepared = renderThreads(threads);
   renderConversations(listedThreads);

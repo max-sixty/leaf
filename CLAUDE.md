@@ -36,7 +36,11 @@ Claude Code and Codex install the tracked tree whole. Its main parts are:
 
 `examples/` is the authored-page and render corpus. `tests/` covers the file,
 CLI, browser, and published-site boundaries. `scripts/` owns developer preview,
-site, demo, and vendor tooling.
+site, demo, and vendor tooling. `worker/` is the Cloudflare Worker behind
+<https://leaf.page/> — it serves the built site and routes each example to the
+canonical Python server in a per-reader container — and it is the one part of
+the tree written in TypeScript, with a gate of its own that `tests/` does not
+reach.
 
 Read the scoped instructions for the area being changed:
 
@@ -182,6 +186,17 @@ uv run pytest tests
 the Linux suite. `wt merge` runs pre-commit and the everyday suite on the rebased
 tree. Pull requests run the same gate in CI. CI adds the complete nightly suite
 after main moves.
+
+That suite never reads `worker/`, and neither does pre-commit, whose prettier and
+eslint hooks take JavaScript and HTML rather than TypeScript. So a worker change
+carries no gate on either landing path until `ci`'s `website-worker` job runs it,
+which on a `wt merge` is after main has already moved. Run it before landing one:
+
+```sh
+npm ci --prefix worker
+npm run typecheck --prefix worker
+npm test --prefix worker
+```
 
 Re-vendor before trusting a browser result after a runtime, theme, registry, or
 widget change. For a user-visible layer change, an `/ui-sweep` and a look at a

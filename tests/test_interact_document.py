@@ -1948,11 +1948,11 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     resume = threading.Event()
     original_append_event = service_model.PageTransaction.append_event
 
-    def held_append_event(page, event):
+    def held_append_event(page, event, registry=None):
         if event.get("kind") == "note" and event.get("version") == 2:
             at_commit.set()
             assert resume.wait(timeout=10), "the report did not enter the publish gap"
-        return original_append_event(page, event)
+        return original_append_event(page, event, registry)
 
     monkeypatch.setattr(
         service_model.PageTransaction, "append_event", held_append_event
@@ -3502,14 +3502,14 @@ def test_the_data_store_refuses_non_contract_json(page_dir, stored, message):
     (page_dir / "data.json").write_text(stored)
 
     with pytest.raises(data_contracts_model.DataError, match=message):
-        data_model.read_data_store(page_dir)
+        data_model.read_data(page_dir)
 
 
 def test_the_data_store_wraps_invalid_utf8_at_its_boundary(page_dir):
     (page_dir / "data.json").write_bytes(b"\xff")
 
     with pytest.raises(data_contracts_model.DataError, match="invalid JSON"):
-        data_model.read_data_store(page_dir)
+        data_model.read_data(page_dir)
 
 
 def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):

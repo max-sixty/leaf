@@ -11,16 +11,15 @@ from typing import NamedTuple
 from .host import config_home, package_store
 from .locations import located, locations_overlap
 from .schema import (
+    ASSETS,
     BROWSER_DIRS,
     BUNDLED_PACKAGES,
     DEFAULT_PACKAGE,
     GUIDANCE_DIR,
     GUIDANCE_FILE,
     HTML_NAME,
-    KERNEL,
     LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
-    PACKAGE_FILES,
     PLUGIN_ROOT,
     VENDORED_FILES,
 )
@@ -90,7 +89,7 @@ def package_roots(selected: tuple[str, ...] = ()) -> list[Path]:
 
 def layer_inputs(selected: tuple[str, ...] = ()) -> list[Path]:
     """The kernel followed by every package, in layer precedence order."""
-    return [KERNEL, *package_roots(selected)]
+    return [ASSETS, *package_roots(selected)]
 
 
 def checked_inputs(inputs: list[Path]) -> list[Path]:
@@ -105,7 +104,7 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
             continue
         if not root.is_dir():
             sys.exit(f"{root} must be a directory")
-        for name in PACKAGE_FILES:
+        for name in VENDORED_FILES:
             path = root / name
             if (path.exists() or path.is_symlink()) and not path.is_file():
                 sys.exit(f"{path} must be a file")
@@ -138,7 +137,7 @@ def input_paths(inputs: list[Path]) -> list[Path]:
         paths.append(root.resolve())
         paths.extend(
             path.resolve()
-            for name in PACKAGE_FILES
+            for name in VENDORED_FILES
             if ((path := root / name).exists() or path.is_symlink())
         )
         for sub in PACKAGE_DIRS:

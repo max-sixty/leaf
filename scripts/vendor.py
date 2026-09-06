@@ -527,43 +527,38 @@ def build_mcp_app(work: Path) -> list[Path]:
         spec("esbuild"),
         cwd=work,
     )
-    outputs = []
-    for name in ("page",):
-        entry = work / f"{name}-entry.js"
-        bundle = work / f"{name}-bundle.js"
-        out = MCP_APP / f"{name}-app.html"
-        shutil.copyfile(source / f"{name}-app.js", entry)
-        esbuild(
-            entry.name,
-            "--bundle",
-            "--format=iife",
-            "--platform=browser",
-            "--target=chrome105",
-            "--minify",
-            "--legal-comments=inline",
-            f"--banner:js=/*! @modelcontextprotocol/ext-apps {PINS['@modelcontextprotocol/ext-apps']}"
-            " — MIT — https://github.com/modelcontextprotocol/ext-apps */",
-            f"--outfile={bundle}",
-            cwd=work,
-        )
-        html = (source / f"{name}-app.html").read_text(encoding="utf-8")
-        html = html.replace(
-            "/* LEAF_MCP_STYLE */",
-            (source / f"{name}-app.css").read_text(encoding="utf-8").strip(),
-        )
-        html = html.replace(
-            "/* LEAF_MCP_SCRIPT */",
-            bundle.read_text(encoding="utf-8")
-            .strip()
-            .replace("</script", "<\\/script"),
-        )
-        html = html.replace(
-            "<!-- LEAF_MCP_ICON -->",
-            (ASSETS / "icon.svg").read_text(encoding="utf-8").strip(),
-        )
-        out.write_text(html, encoding="utf-8")
-        outputs.append(out)
-    return outputs
+    entry = work / "page-entry.js"
+    bundle = work / "page-bundle.js"
+    out = MCP_APP / "page-app.html"
+    shutil.copyfile(source / "page-app.js", entry)
+    esbuild(
+        entry.name,
+        "--bundle",
+        "--format=iife",
+        "--platform=browser",
+        "--target=chrome105",
+        "--minify",
+        "--legal-comments=inline",
+        f"--banner:js=/*! @modelcontextprotocol/ext-apps {PINS['@modelcontextprotocol/ext-apps']}"
+        " — MIT — https://github.com/modelcontextprotocol/ext-apps */",
+        f"--outfile={bundle}",
+        cwd=work,
+    )
+    html = (source / "page-app.html").read_text(encoding="utf-8")
+    html = html.replace(
+        "/* LEAF_MCP_STYLE */",
+        (source / "page-app.css").read_text(encoding="utf-8").strip(),
+    )
+    html = html.replace(
+        "/* LEAF_MCP_SCRIPT */",
+        bundle.read_text(encoding="utf-8").strip().replace("</script", "<\\/script"),
+    )
+    html = html.replace(
+        "<!-- LEAF_MCP_ICON -->",
+        (ASSETS / "icon.svg").read_text(encoding="utf-8").strip(),
+    )
+    out.write_text(html, encoding="utf-8")
+    return [out]
 
 
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
@@ -586,7 +581,7 @@ def vendor(name: str) -> list[Path]:
 
 
 # Which bundle a moved pin obliges you to rebuild. A copy answers for its own
-# package; a build reaches for several, and esbuild is the tool all three share.
+# package; a build reaches for several, and esbuild is the tool the builds share.
 REBUILDS = {
     **{copy.package: (name,) for name, copy in COPIES.items()},
     "highlight.js": ("highlight",),

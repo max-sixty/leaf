@@ -17,13 +17,13 @@ from .contract import (
     visual_part_attribute,
 )
 from .state import (
-    _validate_widget_record_contracts,
-    _validate_widget_retirement,
-    _validate_widget_state_relations,
+    validate_widget_record_contracts,
+    validate_widget_retirement,
+    validate_widget_state_relations,
 )
 
 
-def _widget_entries(registry: dict, path) -> dict:
+def widget_entries(registry: dict, path) -> dict:
     invalid_names = [
         tag
         for tag in registry
@@ -31,11 +31,10 @@ def _widget_entries(registry: dict, path) -> dict:
     ]
     if invalid_names:
         raise RegistryError(f"{path}: invalid registry entry names: {invalid_names}")
-    widgets = {tag: entry for tag, entry in registry.items() if tag.startswith("lf-")}
-    return widgets
+    return {tag: entry for tag, entry in registry.items() if tag.startswith("lf-")}
 
 
-def _validate_widget_schemas(widgets: dict, path) -> None:
+def validate_widget_schemas(widgets: dict, path) -> None:
     # First validate every entry in isolation. Cross-entry checks run only after this
     # pass, so their result cannot depend on which widget happened to be written first.
     for tag, entry in widgets.items():
@@ -44,7 +43,7 @@ def _validate_widget_schemas(widgets: dict, path) -> None:
         except SchemaError as error:
             raise RegistryError(
                 f"{path}: <{tag}> is not a valid JSON Schema: {error.message}"
-            )
+            ) from error
         description = entry.get("description")
         if not isinstance(description, str) or not description.strip():
             raise RegistryError(f"{path}: <{tag}> must carry a non-empty description")
@@ -75,7 +74,7 @@ def _validate_widget_schemas(widgets: dict, path) -> None:
                 raise RegistryError(
                     f"{path}: <{tag}> {channel} verb `{verb}` has an invalid "
                     f"detail schema: {error.message}"
-                )
+                ) from error
             if spec["detail"].get("type") != "object":
                 raise RegistryError(
                     f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
@@ -166,7 +165,7 @@ def _validate_widget_schemas(widgets: dict, path) -> None:
                     )
 
 
-def _validate_widget_relations(
+def validate_widget_relations(
     registry: dict, widgets: dict, data: dict, slots: dict, path
 ) -> None:
     for tag, entry in widgets.items():
@@ -175,9 +174,9 @@ def _validate_widget_relations(
         )
         awaits, response = _validate_widget_predicates(tag, entry, properties, path)
         _validate_widget_interactions(tag, entry, properties, awaits, response, path)
-        _validate_widget_state_relations(tag, entry, widgets, path)
-        _validate_widget_record_contracts(tag, entry, properties, said, widgets, path)
-        _validate_widget_retirement(tag, entry, slots, widgets, path)
+        validate_widget_state_relations(tag, entry, widgets, path)
+        validate_widget_record_contracts(tag, entry, properties, said, widgets, path)
+        validate_widget_retirement(tag, entry, slots, widgets, path)
 
 
 def _validate_widget_structure(

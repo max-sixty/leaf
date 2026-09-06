@@ -4,7 +4,7 @@ from ..events import action_rests_on
 from ..projection import StateProjection, folded_facet
 
 
-def _browser_projection(
+def browser_projection(
     projection: StateProjection,
     *,
     scope: str,

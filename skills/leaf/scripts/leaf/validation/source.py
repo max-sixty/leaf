@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.data import empty_data, read_data_store
+from leaf.data import empty_data, read_data
 from leaf.data_contracts import data_binding_errors, measurement_lag
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry
@@ -158,7 +158,7 @@ def _registry_errors(
     errors = []
     if registry is None:
         return stored_data, errors
-    stored_data = read_data_store(page_dir)
+    stored_data = read_data(page_dir)
     errors.extend(widget_errors(parser.lf_elements, registry))
     errors.extend(visual_part_errors(parser.lf_elements, registry))
     errors.extend(

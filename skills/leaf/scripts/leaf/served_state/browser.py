@@ -10,8 +10,8 @@ from ..passages import enclosing_of
 from ..projection import canonical_updates, page_projection
 from ..registry.contract import RegistryError
 from ..registry.storage import load_registry
-from .conversation import _browser_conversation
-from .document import _browser_document, _browser_undo_candidates
+from .conversation import browser_conversation
+from .document import browser_document, browser_undo_candidates
 
 
 def browser_state(
@@ -39,15 +39,13 @@ def browser_state(
     withdrawn = taken_back(events)
     threads = build_threads(events, active_within, withdrawn=withdrawn)
     undo_reading = UndoReading(events, threads=threads, withdrawn=withdrawn)
-    conversation, conversation_reading = _browser_conversation(
-        events, registry, threads
-    )
+    conversation, conversation_reading = browser_conversation(events, registry, threads)
     conversation_projection = conversation_reading.projection
 
     views = {}
     for revision in sorted(view_revisions):
         html = documents[revision]
-        document, projection = _browser_document(
+        document, projection = browser_document(
             html,
             events,
             registry,
@@ -91,7 +89,7 @@ def browser_state(
             "updates": canonical_updates(
                 projection, present["claims"], threads, events
             ),
-            "undo": _browser_undo_candidates(
+            "undo": browser_undo_candidates(
                 events,
                 projection,
                 conversation_projection,

@@ -664,7 +664,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
    package's own paint, so its native outline would duplicate the overlay. Anchor
    classes can also carry a background wash; suppress that only when it duplicates
    shaped paint. */
-.lf-shaped-mark { outline: none; }
+:is(.lf-shaped-mark, .lf-mark-el.lf-shaped-mark) { outline: none; }
 :is(.lf-mark-el, .lf-react-el, .lf-action-target).lf-shaped-mark {
   background-image: none; }
 /* Keyboard access to a picture is runtime chrome beside the provider's drawing rather

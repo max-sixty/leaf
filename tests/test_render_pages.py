@@ -1257,6 +1257,14 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     expect(mark).to_have_class(re.compile(r"\blf-visual-mark-focus\b"))
     expect(mark).to_have_css("border-width", "2px")
     expect(mark).to_have_css("border-style", "solid")
+
+    resized(page, 1200, 900)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-threads > .lf-thread .lf-quote").first.click()
+    expect(diagram).to_have_class(re.compile(r"\blf-mark-here\b"))
+    expect(diagram).to_have_css("outline-style", "none")
+    expect(mark).to_have_class(re.compile(r"\blf-visual-mark-here\b"))
     assert errors == []
     page.close()
 

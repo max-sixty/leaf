@@ -184,6 +184,9 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     expect(surface).to_have_class(re.compile("lf-react-open"))
     expect(surface.locator(".lf-react-trigger:visible")).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
+    assert surface.locator(".lf-react:visible").evaluate_all(
+        "buttons => buttons.map(button => button.innerText.split(' ')[0])"
+    ) == ["👍", "❌", "🤔", "✂️", "🔎", "👀"]
     expect(surface.locator(".lf-fab")).to_be_focused()
     for control, icon in [(".lf-fab", "comment"), (".lf-fab-suggest", "edit")]:
         face = surface.locator(f'{control} > svg[data-lf-icon="{icon}"]')
@@ -482,12 +485,17 @@ def test_tab_changes_the_compact_bar_in_place_and_r_requires_a_target(browser, s
     page.keyboard.press("Shift+Tab")
     expect(surface.locator(".lf-fab")).to_be_focused()
     page.keyboard.press("ArrowLeft")
-    expect(surface.locator('[aria-label="this"]')).to_be_focused()
+    expect(surface.locator('[data-token="this"]')).to_be_focused()
     page.keyboard.press("ArrowRight")
     expect(surface.locator(".lf-fab")).to_be_focused()
     for label in ["Suggest", "ok", "no", "lost", "cut", "more", "this", "Comment"]:
         page.keyboard.press("ArrowRight")
-        expect(surface.locator(f'[aria-label="{label}"]')).to_be_focused()
+        control = (
+            surface.locator(f'[data-token="{label}"]')
+            if label in {"ok", "no", "lost", "cut", "more", "this"}
+            else surface.locator(f'[aria-label="{label}"]')
+        )
+        expect(control).to_be_focused()
     assert (
         surface.locator(".lf-fab, .lf-react:visible").evaluate_all(
             """els => new Set(els.map(el => {
@@ -1790,10 +1798,10 @@ def test_a_copy_drops_visual_action_controls_without_rewriting_the_provider(
 
 
 def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
-    """A thread at rest shows one ellipsis on its latest agent reply and any marks
-    already standing on earlier replies. Entering by pointer or t/T focus reveals older
-    ellipses, but the reaction buttons appear only on the one surface the reader opens.
-    Taking back the last mark closes the list and returns focus to its ellipsis."""
+    """A thread at rest gives reactions no row of their own: only marks already left
+    stand below a reply. Hover or keyboard focus reveals an overlaid add control on that
+    message, while r opens the latest agent reply. Taking back the last mark closes the
+    list and returns focus to the overlaid control."""
     url = serve(PANEL_PAGE)
     root, first = _thread(serve.page_dir)
     events_model.append_event(
@@ -1835,9 +1843,18 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     def card(mid):
         return page.locator(f'.lf-thread:has(.lf-msg[data-mid="{mid}"])')
 
-    # At rest: one trigger under the latest reply of each thread, the marks elsewhere.
-    expect(strip(latest).locator(".lf-react-trigger:visible")).to_have_count(1)
-    expect(strip(quiet_latest).locator(".lf-react-trigger:visible")).to_have_count(1)
+    def message(mid):
+        return page.locator(f'.lf-msg[data-mid="{mid}"]')
+
+    # At rest: no empty reply spends height, including the latest reply in each thread.
+    for mid in (latest, quiet_latest, quiet_first):
+        assert strip(mid).evaluate("s => s.getBoundingClientRect().height") == 0
+        assert (
+            strip(mid)
+            .locator(".lf-react-trigger")
+            .evaluate("b => getComputedStyle(b).opacity")
+            == "0"
+        )
     expect(strip(latest).locator(".lf-react:visible")).to_have_count(0)
     expect(strip(quiet_latest).locator(".lf-react:visible")).to_have_count(0)
     expect(strip(first).locator(".lf-react:visible")).to_have_count(1)
@@ -1847,15 +1864,29 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     # The row is built either way; an older empty one takes no room at rest.
     expect(strip(quiet_first).locator(".lf-react")).to_have_count(6)
     expect(strip(quiet_first).locator(".lf-react:visible")).to_have_count(0)
-    expect(strip(quiet_first).locator(".lf-react-trigger:visible")).to_have_count(0)
-    assert strip(quiet_first).evaluate("(s) => s.getBoundingClientRect().height") == 0
 
-    # The pointer over the card offers each reply's ellipsis without opening its list.
-    card(quiet_latest).hover()
-    expect(strip(quiet_first).locator(".lf-react-trigger:visible")).to_have_count(1)
+    # The pointer offers the control only on the message it is over, without opening it.
+    message(quiet_first).hover()
+    assert (
+        strip(quiet_first)
+        .locator(".lf-react-trigger")
+        .evaluate("b => getComputedStyle(b).opacity")
+        == "1"
+    )
+    assert (
+        strip(quiet_latest)
+        .locator(".lf-react-trigger")
+        .evaluate("b => getComputedStyle(b).opacity")
+        == "0"
+    )
     expect(strip(quiet_first).locator(".lf-react:visible")).to_have_count(0)
     page.mouse.move(4, 4)
-    expect(strip(quiet_first).locator(".lf-react-trigger:visible")).to_have_count(0)
+    assert (
+        strip(quiet_first)
+        .locator(".lf-react-trigger")
+        .evaluate("b => getComputedStyle(b).opacity")
+        == "0"
+    )
 
     # The keyboard's route in is the focus the walk puts on the card; r opens the latest
     # agent reply in that thread without disturbing the standing mark on an older reply.
@@ -1863,11 +1894,18 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     page.keyboard.press("r")
     expect(strip(latest)).to_have_class(re.compile("lf-react-open"))
     expect(strip(latest).locator(".lf-react:visible")).to_have_count(6)
+    assert strip(latest).evaluate(
+        """s => { const row = s.getBoundingClientRect();
+          const palette = s.querySelector('.lf-react-palette').getBoundingClientRect();
+          return row.height >= palette.height && palette.bottom <= row.bottom + 1; }"""
+    ), (
+        "the open picker overlapped the following message instead of occupying its active row"
+    )
     expect(strip(first).locator(".lf-react:visible")).to_have_count(1)
     page.keyboard.press("Escape")
 
-    # An older reply remains available through its explicit trigger while in the thread.
-    expect(strip(first).locator(".lf-react-trigger:visible")).to_have_count(1)
+    # An older reply remains available through its message-local trigger.
+    message(first).hover()
     strip(first).locator(".lf-react-trigger").click()
     expect(strip(first).locator(".lf-react:visible")).to_have_count(6)
 
@@ -1922,7 +1960,8 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
-    expect(strip).to_be_visible()
+    expect(strip.locator(".lf-react-trigger")).to_have_count(1)
+    assert strip.evaluate("s => s.getBoundingClientRect().height") == 0
     expect(strip.locator(".lf-react")).to_have_count(6)
     expect(strip.locator(".lf-react:visible")).to_have_count(0)
     # The reader's own message wears no strip: a reaction is on what the agent said.
@@ -2039,7 +2078,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{reaction["id"]}"]')
-    expect(thread.locator(".lf-react-said")).to_have_text("× no")
+    expect(thread.locator(".lf-react-said")).to_have_text("❌ no")
     assert painted(page, []) == {"washed": "", "glyphs": [], "outlined": []}
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") > 0
 
@@ -2107,7 +2146,7 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
     )
     assert copy == {
         "washed": ["every edit"],
-        "glyph": [["−", "img", "cut", None]],
+        "glyph": [["✂️", "img", "cut", None]],
     }, copy
     # The other half of the same promise, and the half no gate can see: the copy's
     # `offering` reads the cursor and nothing else, so paint that arrives with the

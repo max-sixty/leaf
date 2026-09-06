@@ -851,12 +851,12 @@
   },
   "$reactions": {
     "tokens": {
-      "ok":   {"glyph": "✓", "means": "settled — no change asked", "settles": true},
-      "no":   {"glyph": "×", "means": "this is wrong; the passage is the referent"},
-      "lost": {"glyph": "??", "means": "unclear — rewrite it so it lands"},
-      "cut":  {"glyph": "−", "means": "does not earn its length — shorten or drop"},
-      "more": {"glyph": "+", "means": "expand here"},
-      "this": {"glyph": "⌖", "means": "look at this — attention, no verdict"}
+      "ok":   {"glyph": "👍", "means": "good — keep this; no change asked", "settles": true},
+      "no":   {"glyph": "❌", "means": "wrong — change this"},
+      "lost": {"glyph": "🤔", "means": "unclear — rewrite or explain this"},
+      "cut":  {"glyph": "✂️", "means": "too long — shorten or remove this"},
+      "more": {"glyph": "🔎", "means": "needs support — expand or substantiate this"},
+      "this": {"glyph": "👀", "means": "pay attention here — no verdict"}
     }
   }
 }

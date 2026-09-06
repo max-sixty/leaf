@@ -3,8 +3,8 @@
    evaluates. */
 
 // Built-in Button faces use one stroked, currentColor icon vocabulary. Reaction tokens
-// are authored content and may still supply a glyph; platform emoji never supplies a
-// structural Leaf face, so line weight and baseline stay the same across systems.
+// are authored content and may supply emoji; the add-reaction affordance remains a
+// structural Leaf face, so its line weight and baseline stay stable across systems.
 const ICONS = {
   activity: '<circle cx="8" cy="8" r="3" fill="currentColor" stroke="none"/>',
   change:
@@ -23,6 +23,8 @@ const ICONS = {
   pickup: '<path d="M8 2.75v6.5M5.5 6.75 8 9.25l2.5-2.5M3 10.5v2h10v-2"/>',
   question:
     '<path d="M5.6 6.1a2.5 2.5 0 1 1 3.1 2.45c-.7.2-.7.8-.7 1.2"/><circle cx="8" cy="12.35" r=".7" fill="currentColor" stroke="none"/>',
+  reaction:
+    '<circle cx="6.5" cy="8.25" r="4.25"/><circle cx="5" cy="7.25" r=".55" fill="currentColor" stroke="none"/><circle cx="8" cy="7.25" r=".55" fill="currentColor" stroke="none"/><path d="M4.75 9.25c.5.75 1.08 1.1 1.75 1.1s1.25-.35 1.75-1.1M11 4h4M13 2v4"/>',
   retry: '<path d="M12.5 5.25V2.75M12.5 2.75H10M12.35 3.1A5 5 0 1 0 13 9"/>',
   sent: '<path d="M2.75 3.25 13.25 8 2.75 12.75l1.2-4L9 8 3.95 7.25z"/>',
   undo: '<path d="M5.25 4.25 2.75 6.5 5.25 8.75M3 6.5h5.5a4 4 0 0 1 4 4v1"/>',

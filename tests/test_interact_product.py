@@ -1855,12 +1855,12 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
         reply["id"],
     ]
     assert [(r["token"], r["means"], r["thread"]) for r in state["reactions"]] == [
-        ("cut", "does not earn its length — shorten or drop", bare["id"]),
-        ("no", "this is wrong; the passage is the referent", answered["id"]),
+        ("cut", "too long — shorten or remove this", bare["id"]),
+        ("no", "wrong — change this", answered["id"]),
     ]
     assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
 
     result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
-    assert "- **User** reacted: − cut — does not earn its length" in result.output
-    assert "- **User** reacted: × no — this is wrong" in result.output
+    assert "- **User** reacted: ✂️ cut — too long" in result.output
+    assert "- **User** reacted: ❌ no — wrong" in result.output

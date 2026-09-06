@@ -2310,11 +2310,11 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
         re.compile(r"lf-margin-button")
     )
     ok = reactions.locator('.lf-react[data-token="ok"]')
-    expect(ok).to_have_attribute("aria-label", "ok — settled — no change asked")
+    expect(ok).to_have_attribute("aria-label", "ok — good — keep this; no change asked")
     expect(ok).not_to_have_attribute("title", re.compile(".+"))
     ok.hover()
     expect(ok.locator(".lf-margin-button-label")).to_have_text(
-        "ok — settled — no change asked"
+        "ok — good — keep this; no change asked"
     )
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.evaluate(

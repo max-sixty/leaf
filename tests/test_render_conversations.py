@@ -2345,7 +2345,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-palette",
         "lf-react-strip",
         "lf-react-trigger",
-        "lf-react-word",
         "lf-resolve",
     }, "the authored-theme class surface changed: widen the exception on purpose"
     # Every one of these is worn by something the runtime puts inside the page rather than

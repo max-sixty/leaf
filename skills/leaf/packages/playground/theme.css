@@ -166,16 +166,17 @@ lf-playground-output {
   display: block;
   grid-column: 1 / -1;
   margin: 0;
-  padding: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
   border-left: 3px solid var(--accent);
   background: var(--field);
   color: var(--ink-2);
+  font: var(--code-size)/var(--code-line) var(--mono);
+  font-variant-ligatures: none;
 }
 
 lf-playground-value {
   display: inline;
   color: var(--ink);
-  font-family: var(--mono);
   font-weight: 600;
 }
 

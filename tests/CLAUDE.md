@@ -14,9 +14,9 @@ at.
 
 ## Run the narrowest useful surface
 
-A new development host installs the browser binaries and website dependencies with
-the repository setup alias. `uv run` synchronizes the pinned Python environment,
-including pre-commit:
+A new development host fetches the pinned catalog images and installs the browser
+binaries and website dependencies with the repository setup alias. `uv run`
+synchronizes the Python environment, including pre-commit:
 
 ```sh
 wt setup

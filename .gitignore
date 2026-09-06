@@ -5,4 +5,5 @@ __pycache__/
 .venv/
 node_modules/
 .wrangler/
+docs/example-*.jpg
 .claude/settings.local.json

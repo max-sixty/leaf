@@ -836,11 +836,11 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     real_append = service_model.PageTransaction.append_event
     real_flocked = vendoring_model.flocked
 
-    def paused_append(page, event):
+    def paused_append(page, event, registry=None):
         if event["kind"] == "report":
             report_validated.set()
             assert release_report.wait(5)
-        return real_append(page, event)
+        return real_append(page, event, registry)
 
     @contextlib.contextmanager
     def observed_flocked(path):
@@ -3495,7 +3495,7 @@ def test_source_reading_preserves_foreign_graphics_as_exact_markup():
         "</svg >"
     )
     html = "<main>\n" + graphic + '<p id="after">After</p></main>'
-    parser = structure_model._StructParser()
+    parser = structure_model.StructParser()
     # The HTML parser also accepts chunked input; source positions refer to the
     # whole document even when an SVG closing tag crosses a feed boundary.
     split = html.index("</svg >") + 4
@@ -3525,7 +3525,7 @@ def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):
         f'<h2>Plan</h2><p><img alt="shot" src="data:image/png;base64,{blob}"></p>',
     )
     (page_dir / ".fixture-versions" / "v1.html").write_text(html)
-    parser = structure_model._StructParser()
+    parser = structure_model.StructParser()
     parser.feed(html)
     parser.close()
     assert parser.css == ""

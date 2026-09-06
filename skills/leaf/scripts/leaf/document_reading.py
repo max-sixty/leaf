@@ -7,17 +7,17 @@ reading does no file I/O and stores no derived state.
 
 from typing import NamedTuple
 
-from .asks import page_ask_inventory, page_ask_projection
+from .asks import page_ask_readings
 from .events import retractions, seats_with_agent
 from .passages import Passages, enclosing_of, page_passages
 from .projection import StateProjection, page_projection, retirement_outcomes
 from .requests import request_lifecycles_for, request_phases
-from .structure import _StructParser
+from .structure import StructParser
 
 
 class DocumentReading(NamedTuple):
     html: str
-    parser: _StructParser
+    parser: StructParser
     projection: StateProjection
     spoken: dict
     passages: Passages
@@ -55,8 +55,7 @@ def read_document(
         registry,
         {"kind": "page", "revision": revision},
     )
-    phases = request_phases(requests)
-    reader, awaiting = page_ask_projection(
+    asks = page_ask_readings(
         parser,
         projection,
         parser.by_id,
@@ -64,26 +63,7 @@ def read_document(
         registry,
         dropped,
         seats_with_agent(threads),
-        request_phases=phases,
-    )
-    unanswered, unanswered_awaiting = page_ask_projection(
-        parser,
-        projection,
-        parser.by_id,
-        spk,
-        registry,
-        dropped,
-        set(),
-        request_phases=phases,
-    )
-    inventory = page_ask_inventory(
-        parser,
-        projection,
-        parser.by_id,
-        spk,
-        registry,
-        dropped,
-        request_phases=phases,
+        request_phases=request_phases(requests),
         settled_away=set(passages.gone),
     )
     return DocumentReading(
@@ -93,13 +73,7 @@ def read_document(
         spoken=spk,
         passages=passages,
         requests=requests,
-        asks={
-            "all": inventory,
-            "reader": reader,
-            "unanswered": unanswered,
-            "awaiting": awaiting,
-            "unanswered_awaiting": unanswered_awaiting,
-        },
+        asks=asks,
         within=enclosing_of(spk),
         floors=retractions(events, revision),
     )

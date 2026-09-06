@@ -579,6 +579,14 @@ whether the claim concerns the settled state, one frame, the order of frames, or
 the exact turn of a write, then choose the smallest observation that can
 preserve it.
 
+Measure a node the layer rebuilds in one page-side call, resolving it by selector
+inside the same evaluation that reads its box. A Playwright locator resolves the
+element in one driver call and measures the handle it got in the next, so a paint
+landing in between hands back a detached node, whose box reads as all zeros rather
+than raising. Drawing marks are the standing case: every paint replaces the whole
+drawing layer, and `mark_box` in `test_render_drawing.py` is the reading that
+cannot be caught between the two.
+
 The movement tests ask both paths that can shift a target: press a control and
 compare the rest of its line, and let news arrive and compare all persistent
 chrome controls. A pixel diff is required for borders, outlines, and shadows that

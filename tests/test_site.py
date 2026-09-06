@@ -21,8 +21,6 @@ import json
 import re
 import shutil
 import threading
-from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -103,18 +101,10 @@ def site(tmp_path_factory, browser):
     return out
 
 
-class Quiet(SimpleHTTPRequestHandler):
-    def log_message(self, *args):
-        pass
-
-
 @pytest.fixture(scope="module")
 def hosted(site):
-    """The site on a port, which is the only way an example's own links resolve."""
-    httpd = ThreadingHTTPServer(("127.0.0.1", 0), partial(Quiet, directory=str(site)))
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    yield f"http://127.0.0.1:{httpd.server_address[1]}"
-    httpd.shutdown()
+    with site_build.hosted(site) as origin:
+        yield origin
 
 
 @pytest.fixture

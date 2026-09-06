@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .. import presence as presence_model
 from ..event_log import now_iso
-from ..files import active_descriptor
+from ..files import active_descriptor, missing_revision
 from ..revisioning import activate_source
 from ..service import PageTransaction
 from . import browser as served_browser
@@ -88,10 +88,9 @@ class PageStateService:
         with PageTransaction(self.page_dir) as page:
             if self.preview_source is None:
                 activate_source(self.page_dir, page.events)
-                try:
-                    active = active_descriptor(self.page_dir, page.events)
-                except SystemExit as error:
-                    raise ValueError(str(error)) from error
+                active = active_descriptor(self.page_dir, page.events)
+                if active is None:
+                    raise ValueError(missing_revision(self.page_dir))
                 source_overrides = None
             else:
                 active = self.preview_source["active"]

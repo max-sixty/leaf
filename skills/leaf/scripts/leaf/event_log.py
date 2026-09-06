@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from leaf.files import read_json
-from leaf.schema import EVENTS_FILE
+from leaf.schema import CURSOR_FILE, EVENTS_FILE
 
 try:
     import fcntl
@@ -51,7 +51,7 @@ def now_iso() -> str:
 
 def read_cursor(page_dir: Path) -> int:
     """The seq the agent has acknowledged through (`leaf ack`); 0 before any."""
-    return (read_json(page_dir / "cursor.json") or {"seq": 0})["seq"]
+    return (read_json(page_dir / CURSOR_FILE) or {"seq": 0})["seq"]
 
 
 def jsonl_line(event: dict) -> str:

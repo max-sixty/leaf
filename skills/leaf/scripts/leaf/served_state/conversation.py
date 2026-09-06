@@ -15,7 +15,7 @@ from ..events import (
 )
 from ..projection import FrozenThreadReading, frozen_thread_reading
 from ..requests import request_lifecycles_for, request_phases
-from .wire import _browser_projection
+from .wire import browser_projection
 
 
 def _thread_awaits_reader(
@@ -56,7 +56,7 @@ def _thread_awaits_reader(
     )
 
 
-def _browser_conversation(
+def browser_conversation(
     events: list, registry: dict, threads: dict
 ) -> tuple[dict, FrozenThreadReading]:
     settled = {identity for identity, thread in threads.items() if thread["resolved"]}
@@ -102,7 +102,7 @@ def _browser_conversation(
     withdrawn = taken_back(events)
     return (
         {
-            "projection": _browser_projection(
+            "projection": browser_projection(
                 reading.projection, scope="conversation", within={}, floors={}
             ),
             "asks": {

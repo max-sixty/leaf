@@ -26,7 +26,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+from contextlib import contextmanager
+from functools import partial
 from html.parser import HTMLParser
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -134,6 +138,27 @@ def leaf(env: dict, *args: str, input_text: str | None = None) -> None:
     )
     if done.returncode:
         sys.exit(f"leaf {' '.join(args)}:\n{done.stdout}{done.stderr}")
+
+
+class _Quiet(SimpleHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+
+
+@contextmanager
+def hosted(directory: Path):
+    """The built site on a loopback port, which is the only way its own links resolve."""
+    server = ThreadingHTTPServer(
+        ("127.0.0.1", 0), partial(_Quiet, directory=str(directory))
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
 
 
 def worked_example_sources() -> list[Path]:

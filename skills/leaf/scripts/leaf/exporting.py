@@ -21,8 +21,10 @@ from leaf.render_gate.browser import (
     launch_browser,
 )
 from leaf.render_gate.preview import preview_server
-from leaf.schema import _DIR_FILES, MEDIA_DIR, MEDIA_TYPES
+from leaf.schema import DIR_FILES, MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import parse_structure
+
+_MEDIA_URL = re.compile(rf"url\((/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]})\)")
 
 
 def _inline_media(text: str, page_dir: Path, refs: set[str]) -> str:
@@ -39,7 +41,7 @@ def _inline_media(text: str, page_dir: Path, refs: set[str]) -> str:
 
 def inline_css_assets(css: str, page_dir: Path) -> str:
     """Make page-local CSS independent of Leaf's media endpoint."""
-    refs = set(re.findall(rf"url\((/{MEDIA_DIR}/{_DIR_FILES[MEDIA_DIR]})\)", css))
+    refs = set(_MEDIA_URL.findall(css))
     return _inline_media(css, page_dir, refs)
 
 
@@ -77,9 +79,7 @@ def inline_assets(html: str, page_dir: Path) -> str:
     # takes (`="…"`, `url(…)`); prose quoting the exact string of a path the page
     # also really uses is the residual, and it is the author quoting live markup.
     parsed = parse_structure(html)
-    css_refs = set(
-        re.findall(rf"url\((/{MEDIA_DIR}/{_DIR_FILES[MEDIA_DIR]})\)", parsed.css)
-    )
+    css_refs = set(_MEDIA_URL.findall(parsed.css))
     return _inline_media(html, page_dir, set(parsed.media_refs) | css_refs)
 
 
@@ -153,7 +153,7 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
         page.close()
 
 
-def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
+def cmd_export(page_dir: Path, out: Path, version) -> int:
     """One stamped version as a standalone HTML file.
 
     The copy is the page as the browser finished drawing it, which is the only way to
@@ -162,17 +162,9 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
     by the vendored tokenizer in the page rather than by anything that can read the
     file. So a browser is not an optimisation here and no `x-` key exempts a widget
     from it; without one there is nothing to copy at all."""
-    preview = preview_server if preview is None else preview
-    try:
-        from playwright.sync_api import Error as PlaywrightError
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        sys.exit(
-            "export needs Playwright; run it as\n"
-            "  leaf version export <page> -o <file>\n"
-            "or, from a checkout,\n"
-            "  bin/leaf version export <page> -o <file>"
-        )
+    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import sync_playwright
+
     events = read_events(page_dir)
     published = published_versions(page_dir, events)
     if not published:
@@ -191,7 +183,7 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
     source = revision_path(page_dir, revision).read_bytes()
 
     with (
-        preview(page_dir, source, revision, version=version) as url,
+        preview_server(page_dir, source, revision, version=version) as url,
         sync_playwright() as p,
     ):
         try:

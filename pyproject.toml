@@ -1,10 +1,8 @@
 # The one project: the repository is the plugin, and the plugin is this uv
 # project. A host copies the tracked tree into its plugin cache; `bin/leaf`
 # there runs `uv run --project <that copy>`, and the environment appears on the
-# first run, synced into `.venv` beside this file. What that buys over the
-# PEP 723 script it replaced is a single environment per installed version
-# rather than a content-addressed one per script path and resolution: leaf had
-# accumulated ~4,700 of those under `~/.cache/uv/environments-v2`.
+# first run, synced into `.venv` beside this file: one environment per
+# installed version.
 #
 # The module lives at `skills/leaf/scripts/leaf` because the skill directory is
 # what a host reads, and `module-root` points the build backend at it rather
@@ -27,9 +25,8 @@
 # browser: `version check --render` gates every finished page and `version
 # export` copies one. Its wheel lands in each version's environment as links
 # into uv's shared cache, so the disk it takes is paid once per machine, not
-# per install. Supplying it per-dispatch with `--with` was tried and reverted:
-# the overlay carries no console scripts, which turned into a real launcher
-# bug, and it bought no download the shared cache wasn't already deduplicating.
+# per install. A `--with` overlay carries no console scripts, so it is not a
+# route to supplying it per dispatch.
 
 [project]
 name = "leaf"

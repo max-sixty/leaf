@@ -6,11 +6,11 @@
 
 /* ---------- element-widgets ---------- */
 
-/* lf-gloss: the prose stays prose; the small raised info badge is the keyboard and touch
- * handle for the same explanation hover reveals. The underline is deliberately quieter
- * than a link — this phrase goes nowhere — while the top-layer card uses the page's
- * ordinary paper, ink, and rule rather than inventing a tooltip palette. Static copies
- * and paper put the explanation after the phrase, where they can honour its words. */
+/* lf-gloss: the prose stays prose, and its dotted underline is the whole visible
+ * affordance. The underline is deliberately quieter than a link — this phrase goes
+ * nowhere — while the top-layer card uses the page's ordinary paper, ink, and rule
+ * rather than inventing a tooltip palette. Static copies and paper put the explanation
+ * after the phrase, where they can honour its words. */
 lf-gloss { display: inline; }
 /* The no-script rendering of x-says. Once the runtime writes the selectable span, that
  * span takes over; a static exported copy keeps the span and gives it the same inline
@@ -28,31 +28,12 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
   }
 }
 .lf-gloss-mark {
-  display: inline-flex; align-items: center; justify-content: center;
-  box-sizing: border-box; width: 1.05em; height: 1.05em; margin-left: 3px;
-  border-radius: 50%;
-  font-family: var(--sans); font-size: .64em; font-weight: 750; line-height: 1;
-  vertical-align: .48em; cursor: help;
-  position: relative;
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  opacity: 0; pointer-events: none;
 }
-lf-gloss > .lf-gloss-mark { background: var(--accent); color: var(--card); }
-/* The compact badge stands in a line of prose, so its visible box cannot be the thing a
- * reader aims at: growing it to a usable size would open the line it is set in, which is
- * the one thing a mark this small must not do. The aim is a box of its own, outside
- * layout entirely — it overlaps the tail of the phrase it belongs to, which costs
- * nothing, because hovering that same phrase already reveals the same explanation. It
- * ends where the badge ends rather than straddling it: an absolutely positioned box is
- * outside layout but still inside its ancestors' scrollable overflow, so a box centred
- * on a badge that sits near a cell's inline edge makes that table scroll sideways by
- * the half it hangs over. Reaching back over the phrase costs nothing; reaching past
- * the edge the badge itself fits inside does. */
-.lf-gloss-mark::after {
-  content: ""; position: absolute; top: 50%; inset-inline-end: 0;
-  width: var(--aim-floor); height: var(--aim-floor);
-  transform: translateY(-50%);
-}
-.lf-gloss-mark:is(:focus-visible, .lf-focus-visible) {
-  outline: var(--here-ring); --lf-here-ring: gloss-mark; outline-offset: var(--here-ring-gap);
+lf-gloss:has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
+  outline: var(--here-ring); --lf-here-ring: gloss-mark;
+  outline-offset: calc(-1 * var(--here-ring-w));
 }
 .lf-gloss-popover {
   position: fixed; inset: auto; position-area: block-end center;

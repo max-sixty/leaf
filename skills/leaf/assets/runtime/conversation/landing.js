@@ -10,9 +10,10 @@
    clean boundary instead of leaving an arbitrary partial message line below the pinned
    heading. The transient arrival flash belongs to the revealed target — short card,
    reply area, message, or oversized editor — rather than to a long card spanning
-   beyond the scrollport. The explicit `t`/`T` walk remains on cards; Enter starts a
-   reply and Escape returns to the card. An accepted anchored comment continues in the
-   open Threads panel, widening a filter that would hide it.
+   beyond the scrollport. The explicit `t`/`T` walk remains on card roots—inline while
+   Threads is closed, in the panel while it is open; Enter starts a reply and Escape
+   returns to the card. An accepted anchored comment continues in the open Threads panel,
+   widening a filter that would hide it.
 
    A keyboard-entered box hands the reader back through its captured return frame.
    `boxReturnFrame` and `standingConversation` climb the same conversation relation, so
@@ -257,7 +258,7 @@ const listNode = (id) => {
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
 // focus at its own words so Tab reaches its controls. Sending a reply stays with its
 // editor through revealConversation instead.
-export function showThread(id, { stand = true } = {}) {
+export function showThread(id, { focus = "reply" } = {}) {
   setPanel(true);
   if (!listNode(id)) widen();
   let node = listNode(id);
@@ -270,9 +271,13 @@ export function showThread(id, { stand = true } = {}) {
   const thread = node.closest(".lf-thread");
   const disclosure = thread.closest(".lf-details");
   if (disclosure) disclosure.open = true;
-  if (stand) {
+  if (focus) {
     const destination =
-      node === thread ? (conversationInputOf(thread) ?? thread) : node;
+      focus === "thread"
+        ? thread
+        : node === thread
+          ? (conversationInputOf(thread) ?? thread)
+          : node;
     destination.focus({ preventScroll: true });
   }
   const directThread = node === thread && thread.contains(focused());

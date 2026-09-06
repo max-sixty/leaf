@@ -6,11 +6,13 @@ deliberately needs no browser. These checked-in JPEGs bridge that boundary. Capt
 them over HTTP from the built static site, never from the raw example files: that is
 the route a visitor receives, including the runtime, site note, seeded log, and data.
 
-Usage: example-previews.py  (writes docs/example-*.jpg and rebuilds .tmp/site)
+Usage: example-previews.py  (writes docs/example-*.jpg, updates the catalog, and rebuilds .tmp/site)
 """
 
+import hashlib
 import importlib.util
 import io
+import re
 import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -42,10 +44,32 @@ class Quiet(SimpleHTTPRequestHandler):
         pass
 
 
+def update_catalog(previews: set[Path]) -> None:
+    """Point each example card at the content address of its new still."""
+    catalog = DOCS / "examples.html"
+    markup = catalog.read_text(encoding="utf-8")
+    for preview in sorted(previews):
+        stem = preview.stem.removeprefix("example-")
+        address = hashlib.sha256(preview.read_bytes()).hexdigest()[:16]
+        pattern = re.compile(
+            rf'(<a class="example-link" href="/examples/{re.escape(stem)}/">\s*'
+            rf'<span class="example-preview">\s*<img src=")'
+            rf'/media/[0-9a-f]{{16}}\.jpg(")'
+        )
+        markup, count = pattern.subn(rf"\g<1>/media/{address}.jpg\g<2>", markup)
+        if count != 1:
+            raise RuntimeError(f"{stem}: expected one catalog preview")
+    catalog.write_text(markup, encoding="utf-8")
+
+
 def main() -> None:
     # The first build may be the one creating previews that the catalog already names.
     # Its other links still resolve; the ordinary verified rebuild below checks all of
     # them once the new bytes exist.
+    expected = {
+        DOCS / f"example-{source.stem}.jpg" for source in site_build.example_sources()
+    }
+    update_catalog({preview for preview in expected if preview.is_file()})
     site_build.build(site_build.OUT, verify_links=False)
     handler = partial(Quiet, directory=str(site_build.OUT))
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
@@ -82,6 +106,7 @@ def main() -> None:
     for stale in set(DOCS.glob("example-*.jpg")) - previews:
         stale.unlink()
         print(f"  removed {stale.relative_to(ROOT)}")
+    update_catalog(previews)
     site_build.build(site_build.OUT)
     print(f"✓ {len(site_build.example_sources())} previews")
 

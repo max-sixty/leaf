@@ -16,8 +16,9 @@ import { loadDraft } from "../drafts.js";
 
 /* Textual conversation views rendered outside the retained Threads list.
 
-   A page marker uses an already-open panel; with the panel closed, other comments open
-   inline where the layout has room and use the panel at narrower widths. */
+   A Thread Button uses an already-open panel; with the panel closed, its comment opens
+   inline at every width and the card overlays the page where no beside posture fits. An
+   interactive reply embedded in a message explicitly opens the complete panel view. */
 function paintConversationBody(body, message) {
   const words = message.text ?? "";
   if (message.suggestion) body.textContent = words;

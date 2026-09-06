@@ -517,11 +517,11 @@ export function renderSaid(root) {
 //
 // Its two neighbours in that vocabulary stay silent, and the line between them is what
 // the paint is the only copy of. A retraction is one: nothing else on the page says the
-// decision was undone. data-lf-reader-override and data-lf-reported are not — each marks a state
-// whose substance is already in the control and receipt's visual and semantic state (a
-// check, tint, and visible "Accepted") or the status this pass speaks. The outline
-// identifies the state as a reader override or provisional report; work receipts
-// separately state whether the agent has processed it.
+// decision was undone. data-lf-reader-override and data-lf-reported are not — each marks a
+// state whose substance is already in the widget's visible and semantic state (for
+// example, a selected option's check and tint) or the status this pass speaks. The
+// outline identifies the state as a reader override or provisional report; work
+// receipts separately state whether the agent has processed it.
 function quietFacts(el) {
   const words = el.hasAttribute(PAGE_PAINT_ATTRIBUTE.restated)
     ? ["rewritten since your decision"]

@@ -56,13 +56,16 @@ export function removeNode(node) {
 // second walk every two seconds would answer nothing the last one didn't.
 let listedThreads = [];
 
-// The open threads, in the order t/T walk. The list is the panel's own children rather
-// than a record kept beside them: a thread the log settles is renamed out of them in
-// that frame (foldOut), which takes it out of the walk and out of x's press in one
-// stroke.
-// Cards a narrowing hid keep their nodes (thread-list.js) and are walked by nothing.
-export const openThreads = () => [
-  ...threadsBox.querySelectorAll(":scope > .lf-thread:not([hidden])"),
+// The open threads, in the order t/T walk either surface. The canonical list is the
+// panel's own children rather than a record kept beside them: a thread the log settles
+// is renamed out of them in that frame (foldOut), which takes it out of the walk and out
+// of x's press in one stroke. Panel work reads only cards its narrowing shows; the page
+// walk explicitly includes hidden cards, because a closed panel cannot explain why its
+// retained search excluded a thread that remains visible on the page.
+export const openThreads = ({ visibleOnly = true } = {}) => [
+  ...threadsBox.querySelectorAll(
+    visibleOnly ? ":scope > .lf-thread:not([hidden])" : ":scope > .lf-thread",
+  ),
 ];
 export const paintAcknowledgments = clocked(document.body, (...args) =>
   holdScrollPosition(() => paintAcknowledgmentsNow(...args)),

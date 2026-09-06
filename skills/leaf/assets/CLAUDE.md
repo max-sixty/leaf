@@ -352,7 +352,11 @@ textual view while the owner exists in the current document. A declared
 projected datum. The widget owns only the outlet's layout and visibility; core owns the
 messages, replies, reactions, settlement, receipts, focus, and fallback. The living
 margin carries a thread while no widget claims it, and the Threads panel remains the
-complete index. A root
+complete index. With the panel closed, a Thread Button and the `t`/`T` walk use that
+inline seat; with it open, they use its indexed cards. A press on a marked passage or its
+accessible comment-count note follows the same rule. Opening Threads while an inline
+thread holds focus carries that thread into the panel and keeps focus on its card.
+A root
 declared with `response: {kind: version, verb: <answer>}` keeps that exact-section
 view text-only and refuses an agent reply because the next authored version is its
 response. Dropping the owner drops only the inline seat.
@@ -476,6 +480,11 @@ all enumerable labels in the control's current font and sets a minimum width.
 Re-measure after changing type tokens; avoid numeric reservations where the
 possible words are available.
 
+Submission feedback uses the shared lifecycle: busy paint while delivery is
+unresolved, the resulting content or control state as durable confirmation, and
+`notice` for a transient acknowledgment. Persistent status text is for a state the
+reader must return to or act on, such as failure.
+
 ## Keyboard, focus, and navigation
 
 One register defines every runtime and widget key. A row binds keys, states what
@@ -507,8 +516,10 @@ that adds the capability.
 Directional category walks use the category's letter, with case stating direction:
 lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
 walks open asks. Both walks clamp at their first and last items. Keep these as single-key
-presses rather than prefix sequences; a walk is often repeated or held. While the reader
-stands anywhere in an Ask, its widget's
+presses rather than prefix sequences; a walk is often repeated or held. The thread walk
+uses inline thread roots while Threads is closed and panel cards while it is open; only a
+thread with no page or widget-local inline address opens the complete index as a fallback.
+While the reader stands anywhere in an Ask, its widget's
 ordered actions keep a canonical binding where they declare one and otherwise take the
 next free `1`–`9`. Core projects that exact list into the key line and visible control
 chips. Each action is a command route; that route is the one
@@ -558,11 +569,17 @@ answer—a selection, item, or conversation—the page row enters that box inste
 The rows are mutually exclusive, so the register never asks the reader to choose
 between two meanings for `c`.
 
+Each composition box's placeholder — the general box, each per-thread reply, the compact
+anchored composer, and composition boxes contributed by widgets — adds the live key that
+enters that exact box when one exists. Once focused, it adds the box's registered
+submission chord. The accessible name states the box's purpose without either key, and
+placeholder text uses the theme's muted text color at full opacity.
+
 That the page row reaches into Threads is not an exception. Page scope already crosses
-there: `t`/`T` can land on cards in Threads, and `a`/`A` can land on an ask an agent
-sent inside a thread. A page key that takes the reader somewhere owes them an answer
-once they are standing there. The destination, label, command, and return frame all
-come from `commentDestination`, so the same contextual reading governs every projection.
+surfaces: `t`/`T` can land on inline or panel thread cards, and `a`/`A` can land on an ask
+an agent sent inside a thread. A page key that takes the reader somewhere owes them an
+answer once they are standing there. The destination, label, command, and return frame
+all come from `commentDestination`, so the same contextual reading governs every projection.
 
 The destination is the anchor the 💬 carries, then the open thread the reader is
 in or the single inline thread held by a pressed Page-map marker, then the item they are

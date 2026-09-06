@@ -1133,7 +1133,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
         Icon color carries positive or negative intent; a small corner mark carries
         interaction state. A selected reaction keeps its square mark even under the
         pointer. One peer stays visible, while … unfolds larger sets. Accept or reject a
-        change to try its receipt and Undo, or rewrite a draft and save it. Press
+        change, undo that choice, or rewrite a draft and save it. Press
         <kbd>g</kbd> to reveal the contents labels and navigation shortcuts, or use
         <kbd>j</kbd>/<kbd>k</kbd> to scroll down/up a little while reading.
       </p>
@@ -1835,14 +1835,19 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-conversations">
-        <p class="eyebrow bg-feature-elements">Thread Button · Threads panel</p>
+        <p class="eyebrow bg-feature-elements">
+          Thread Button · inline thread · Threads panel
+        </p>
         <h2 id="bg-conversations-heading">
           <strong>Threads</strong
           ><span class="bg-feature-detail">: anchored conversations</span>
         </h2>
         <p id="bg-conversations-guide">
-          A Thread Button opens the conversation attached to a passage. Its count shows
-          how many conversations share that passage.
+          With Threads closed, a Thread Button or marked passage opens the conversation
+          inline; t moves to the next inline card and T to the previous one. Open
+          Threads while one is focused, including with g T, and the same thread stays
+          focused in the panel. Its count shows how many conversations share that
+          passage.
         </p>
         <p id="bg-thread-text">
           <strong>An existing conversation.</strong> The sample agenda has room for one

@@ -123,18 +123,19 @@
    reading gets its own peer Button under `…`; pressing one reveals that reading directly
    rather than collecting readings in a card. All threads at one target share one Thread
    Button and one conversation card. That card opens only on a press, never merely on
-   focus or hover; when the document cannot leave it room beside the source, the same
-   press opens the full Threads surface. The thread card is the only generated contextual
-   pane, not a generic container for alternatives.
+   focus or hover. It stands beside the source where the document leaves room and covers
+   the page where it does not; only an already-open Threads panel redirects the press to
+   the complete index. The thread card is the only generated contextual pane, not a
+   generic container for alternatives.
 
    Tone is `neutral`, `positive`, or `negative`, expressed through icon color only; rings,
    fills, and state marks keep their shared neutral treatment. An interactive Button's
    state has a separate small corner mark: a dot for engaged, an open moving ring for busy
    (static under reduced motion), a diamond for failed, and a square for settled. The mark
    is enough to state that a Button is busy, so the Button itself stays at full opacity
-   and keeps its pointer. Busy also sets `aria-busy="true"`; failed and settled actions
-   need visible words, not color or shape alone. A status's phase is its transient hover
-   or focus label instead of a corner mark. Standing reactions reuse the settled square in
+   and keeps its pointer. Busy also sets `aria-busy="true"`; a failure keeps visible words
+   beside the controls that can repair it. A status's phase is its transient hover or focus
+   label instead of a corner mark. Standing reactions reuse the settled square in
    their margin palette and seated marks, so they remain distinct from hover without
    changing the shared ring or fill. Reaction toggles retain their vocabulary labels and
    `aria-pressed`; withdrawing a token returns its palette Button to idle.
@@ -158,8 +159,9 @@
    engaged. Reversible actions normally act immediately and offer Undo, which withdraws
    the named logged gesture under the same authored-version, replayability, and
    pending-delivery guards as keyboard Undo. Confirmation is for a genuinely irreversible
-   effect, not routine Save or Accept. Settled outcomes are visible receipt text beside an
-   active Undo or context disclosure: never leave an inert Button-shaped status.
+   effect, not routine Save or Accept. The layer-wide submission lifecycle in CLAUDE.md
+   governs feedback; a settled cluster keeps only the actions still available there, such
+   as Undo, and never leaves an inert Button-shaped status.
 
    The Page-map keyboard scope owns the cluster's way back out. When a thread card stands
    over an unfolded `…` group, Escape closes the card first and folds the secondary
@@ -232,13 +234,11 @@
    without replacing the control under focus or a held pointer.
 
    A thread card names the target without offering a second route to the panel the banner
-   already opens. At wide widths it is the conversation itself, measured eight pixels
-   beside the pressed Thread Button in the same turn it is shown or changes size. While
-   that Button keeps focus, `c` enters the card's one reply box; several roots leave the
-   destination ambiguous and preserve the page's ordinary route to the panel. Replacing an
+   already opens. It is the conversation itself, measured eight pixels beside the pressed
+   Thread Button when the page leaves that room; at narrower postures it covers the page.
+   While that Button keeps focus, `c` enters the card's one reply box; several roots leave
+   the destination ambiguous and preserve the page's ordinary comment route. Replacing an
    open panel waits for the column's workspace motion before choosing the card posture.
-   When the document cannot leave the card room beside its Button, the press opens the
-   full Threads surface instead.
 
    Closing is not the mirror of that. The platform hides the dialog and restores focus at
    once but hands `close` to a task of its own, so a reader who leaves a surface and
@@ -282,7 +282,7 @@ import {
 } from "./presence.js";
 import { el } from "./widget-elements.js";
 import { runtime } from "./context.js";
-import { commentsEdge, panelIsOpen, setPanel } from "./chrome-layout.js";
+import { commentsEdge, panelIsOpen } from "./chrome-layout.js";
 import { designOn } from "./design.js";
 import { focused, keys, paintKeys } from "./keyboard/scopes.js";
 import { chromeRoot } from "./chrome.js";
@@ -302,6 +302,7 @@ import {
   itemWord,
   placedAt,
   scrollToElement,
+  scrollToThread,
   traceTarget,
 } from "./anchors.js";
 import { updateSequence, workClaimState } from "./updates.js";
@@ -311,7 +312,7 @@ import { goToAsk } from "./asks/view.js";
 import { stateProjection } from "./projection/fold.js";
 import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
-import { claimed } from "./conversation/surfaces.js";
+import { claimed, focusSurface } from "./conversation/surfaces.js";
 import { anchorLabel } from "./conversation/messages.js";
 import { renderMarginThread } from "./conversation/inline.js";
 
@@ -985,13 +986,6 @@ let rovingFrame = 0;
 let sheetCloseOwnsFocus = false;
 let sheetFrom = null;
 let sheetTarget = null;
-// The cascade owns available room: panels and trays change the body's named
-// container, while an authored sidebar claims the page's left strip. Read the
-// posture it resolved instead of asking the viewport a different question.
-const threadBeside = () =>
-  getComputedStyle(document.querySelector("main"))
-    .getPropertyValue("--lf-thread-beside")
-    .trim() === "1";
 const controlsOf = (offered) => marginControls(offered.controls);
 const offerReadings = (offered) => {
   const items = typeof offered.items === "function" ? offered.items() : offered.items;
@@ -1231,18 +1225,18 @@ const readingControl = (className) => offer("span", className);
 
 // The one writer over a reading's disclosure relation, settling `aria-controls` and
 // `aria-expanded` together because a control that says it opens something has to say
-// whether it is open. Two shapes reach it. A Thread Button's destination is the panel's
-// posture to decide. Any other reading is asked what it discloses, and a single item
+// whether it is open. Two shapes reach it. A Thread Button opens the local card while the
+// panel is closed and the matching panel card while it is open. Any other reading is
+// asked what it discloses, and a single item
 // that answers has named the node and said which way it stands — the Change reading's
 // earlier words, folded into the block itself. An item answering nothing promises
 // nothing, which is what leaves a Change Button over a block the comparison holds no
 // earlier reading for the plain travel it always was.
 function syncReadingRelation(control, choice) {
   if (choice?.kind === "comment") {
-    const opensBeside =
-      !panelIsOpen() && (threadBeside() || forcedInlineKey === control.lfEntry?.key);
-    keeps(control, "aria-controls", opensBeside ? preview.id : panel.id);
-    if (opensBeside) keeps(control, "aria-expanded", previewButton === control);
+    const opensInline = !panelIsOpen();
+    keeps(control, "aria-controls", opensInline ? preview.id : panel.id);
+    if (opensInline) keeps(control, "aria-expanded", previewButton === control);
     else control.removeAttribute("aria-expanded");
     return;
   }
@@ -2646,11 +2640,7 @@ function renderNow() {
     const fresh = pageMapEntries.find((entry) => entry.key === previewEntry.key);
     if (!fresh || !fresh.items.some((item) => item.kind === "comment"))
       closePreview(preview.contains(document.activeElement));
-    else if (forcedInlineKey !== fresh.key && !threadBeside()) {
-      const threadList = fresh.items.filter((item) => item.kind === "comment");
-      closePreview();
-      openThreads(threadList, fresh);
-    } else {
+    else {
       previewEntry = fresh;
       const owner = threadButton(fresh);
       if (
@@ -2907,22 +2897,7 @@ function openThreadChoice(entry, button) {
   }
   if (expandedOptionsKey && expandedOptionsKey !== entry.key)
     setOptionsOpen(entry, false);
-  if (!threadBeside()) {
-    setOptionsOpen(entry, false);
-    openThreads(choice.items, entry);
-    return;
-  }
   togglePinned(entry, button);
-}
-
-function openThreads(threadItems, entry) {
-  if (threadItems.length === 1) {
-    activate(threadItems[0], entry);
-    return;
-  }
-  closePreview();
-  focusMapControl(entry);
-  setPanel(true);
 }
 
 export function openInlineThread(id, transition = null) {
@@ -2947,7 +2922,40 @@ export function openInlineThread(id, transition = null) {
   );
   item?.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
   if (transition) scheduleThreadTransition(transition, entry);
-  return item?.querySelector("textarea") ?? null;
+  return item?.querySelector(".lf-conversation-thread") ?? null;
+}
+
+// A route that starts on the page stays on the page while that thread has an inline
+// address. Widget-local surfaces are already rendered, while a living-margin thread is
+// opened on demand. Threads remains the complete fallback for a detached or otherwise
+// unaddressable conversation. Callers choose only the landing within the conversation;
+// this function owns the surface choice so a mark, its accessibility note, and t/T
+// cannot drift into different policies.
+export function openPageThread(id, { focus = "reply" } = {}) {
+  if (!panelIsOpen()) {
+    const local = focusSurface(id, { focus });
+    if (local) {
+      scrollToThread(id);
+      return local;
+    }
+    const thread = openInlineThread(id);
+    if (thread) {
+      const destination =
+        focus === "thread"
+          ? thread
+          : (thread.querySelector("textarea:not([disabled])") ?? thread);
+      if (destination === thread) {
+        thread.focus({ preventScroll: true });
+        thread.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+        scrollToThread(id);
+      } else {
+        landInConversation(destination);
+      }
+      return destination;
+    }
+  }
+  showThread(id, { focus });
+  return null;
 }
 
 function sheetControls(entry) {
@@ -3263,14 +3271,21 @@ export const unfoldedButtons = () =>
   expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null;
 export const foldButtonOptions = () => setOptionsOpen(null, false);
 export const activeInlineThread = () => {
+  const active = focused();
+  const direct = active?.closest?.(".lf-conversation-thread[data-thread]");
+  if (direct && !panelIsOpen()) return direct;
   if (
     !pinnedKey ||
     previewEntry?.key !== pinnedKey ||
-    document.activeElement !== previewButton ||
     !preview.matches(":popover-open") ||
     !preview.hasAttribute("data-lf-thread")
   )
     return null;
+  const held = preview.contains(active)
+    ? active.closest?.(".lf-conversation-thread")
+    : null;
+  if (held) return held;
+  if (active !== previewButton) return null;
   const conversations = previewList.querySelectorAll(
     ".lf-margin-thread .lf-conversation-thread",
   );

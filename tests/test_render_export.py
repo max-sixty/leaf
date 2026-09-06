@@ -949,7 +949,7 @@ def test_a_table_of_contents_keeps_native_links_in_a_static_copy(
 def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path):
     """Hover is only the live page's presentation. Print and a standalone export have
     no script or pointer contract, so the author-written x-says tip becomes visible
-    inline and its now-inert raised mark leaves with the rest of the offers."""
+    inline and its now-inert keyboard control leaves with the rest of the offers."""
     source = leaf_page(
         "gloss export",
         """

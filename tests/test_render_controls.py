@@ -4020,13 +4020,15 @@ RING_WALKS = (
     # press on a Map control the wide posture does not draw at all, so its walk asks for
     # the narrow window the control lives in.
     ("a thread card", (), ("ship-review",)),
+    ("message media", (), ("feature-gallery",)),
     ("the page map sheet", (), ("corpus",)),
 )
 # The corpus is the open-ended page and design-mode anchor. The authored pages now
 # give each interaction family a focused page, so the page walk names those owners:
 # Design contributes settled and joined options, Postmortem a visual target, PR source
-# and code, Release drafts and a shot, Triage a card grip, and Ship the log-hosted
-# widgets and element mark. Chrome with no page-owned contents is walked on the corpus.
+# and code, Release drafts and a shot, Triage a card grip, Ship the log-hosted widgets
+# and element mark, and the developer gallery its message media. Chrome with no
+# page-owned contents is walked on the corpus.
 RING_WALK_EXAMPLES = tuple(
     dict.fromkeys(name for _scope, _keys, corpus in RING_WALKS for name in corpus)
 )
@@ -4069,19 +4071,25 @@ RING_SCOPE_CONTROL = {
         '.lf-margin-marker[data-lf-kinds~="comment"]',
         ".lf-margin-preview",
     ),
+    "message media": (None, ".lf-message-media"),
     "the page map sheet": (".lf-page-map-toggle", ".lf-page-map-action"),
 }
 # The window a scope's own surface stands in, where that is not the walk's own. Both
 # entries are a floor the layer states rather than a preference: the Map control is drawn
-# under the margin's breakpoint and nowhere else, and a Thread Button builds its card only
-# where the document leaves room beside the source and opens Threads otherwise. That room
-# is the wider of the two floors here, because the card's walk is ship review and ship
-# review stands a contents map: a page with a sidebar waits for 1472px of shell rather
-# than 1208px (theme.css). Every other scope is read at the width the page opened at.
+# under the margin's breakpoint and nowhere else, while the thread-card walk uses the
+# wider room where Ship review can stand its card beside the source instead of overlaying
+# the page. Ship review stands a contents map, so that beside posture waits for 1472px of
+# shell rather than 1208px (theme.css). Every other scope is read at the width the page
+# opened at.
 RING_WALK_VIEWPORT = (1200, 900)
 # The one scope whose surface the standing panel takes the place of.
 RING_SCOPES_WITHOUT_PANEL = {"a thread card"}
 RING_SCOPE_WIDTH = {"a thread card": 1600, "the page map sheet": 760}
+# Message media exists only in the developer gallery's seeded conversation. Its direct
+# control setup is the causal ring specimen; walking all 250+ unrelated gallery stops
+# after reading it adds no evidence and can keep the page's moving margin perpetually
+# outside the settled probe.
+RING_SINGLE_STOPS = {"message media"}
 # Focus put back at the document's start. `document.body.focus()` and not a blur: a blur
 # leaves the sequential focus navigation starting point where the blurred control stood,
 # so the next Tab carries on from the chrome, runs off the end of the order and never
@@ -4290,7 +4298,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     unnamed = set()
     opened, walked_in, errors = set(), set(), []
     stops = 0
-    examples = {example.stem: example for example in EXAMPLES}
+    examples = {example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY)}
     assert not (missing := set(RING_WALK_EXAMPLES) - set(examples)), (
         "the ring walk names examples that no longer exist: "
         + ", ".join(sorted(missing))
@@ -4303,17 +4311,20 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         # which is the only way a ring is painted on the page for a focus held in the
         # panel.
         url = serve(example, comments=2)
-        # A version to compare against, published the way a page gets one. Serving v2
-        # rather than letting the open page follow keeps the walk out of an activation.
+        # A version to compare against, published the way a page gets one. Serving that
+        # next version rather than letting the open page follow keeps the walk out of an
+        # activation.
+        current_version = int(re.search(r"/v(\d+)\.html", url).group(1))
+        next_version = current_version + 1
         _publish(
             serve.page_dir,
-            2,
+            next_version,
             example.read_text(),
             "Same page, said twice.",
         )
         page, console = open_page(
             browser,
-            url.replace("/v1.html", "/v2.html"),
+            url.replace(f"/v{current_version}.html", f"/v{next_version}.html"),
         )
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
@@ -4381,7 +4392,8 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 opener, arrival = control
                 # The first, because a page map has one Thread Button per commented
                 # target and the walk wants a card rather than a particular one.
-                page.locator(opener).first.click()
+                if opener:
+                    page.locator(opener).first.click()
                 page.locator(arrival).first.focus()
                 # A press opened the scope and a script placed the reader in it, and
                 # neither is the keyboard: `:focus-visible` answers the input device, so
@@ -4485,6 +4497,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     if fault not in seen_faults:
                         seen_faults.add(fault)
                         faults.append(fault)
+                if scope in RING_SINGLE_STOPS:
+                    came_round = True
+                    break
             # A control the runtime replaces on repaint is a new element at every Tab, so
             # the walk never meets a repeat and runs the cap out: sixteen times the work
             # and no message, which reads as a hang rather than as the fault it is.
@@ -4683,8 +4698,8 @@ def test_every_shadow_the_layer_lifts_a_box_with_is_cast_in_the_scheme_s_own_ink
 # reported were found.
 #
 # The reading takes the element's box together with any absolutely positioned pseudo it
-# hangs, because an aim need not be the thing the reader sees: a mark six pixels wide set
-# in a line of prose cannot grow without opening the line, so it carries a box of its own.
+# hangs, because a control may enlarge its target outside layout rather than make the
+# visible line or row taller.
 #
 # Inline boxes are out, and that is the target-size exception rather than an excuse: a
 # link inside a sentence is sized by the words around it, and nothing can be done about
@@ -4732,7 +4747,6 @@ AIM_SURFACES = (
     ".lf-version-diff",
     ".lf-help-command",
     ".lf-quote",
-    ".lf-gloss-mark",
     ".lf-tab-btn",
     ".lf-grip",
 )
@@ -4778,9 +4792,9 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
 
     Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
     reaction pills stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
-    version's Δ, a command in the reference, a quote and a gloss mark at around twelve by
-    seven. Three controls reached the coarse-pointer block and the rest reached neither
-    floor, so the same presses were small under a finger too.
+    version's Δ, a command in the reference, and a quote at around twelve by seven.
+    Three controls reached the coarse-pointer block and the rest reached neither floor,
+    so the same presses were small under a finger too.
 
     The sweep names no control. What makes a box an aim is that the runtime built it or
     stands in the runtime's own layer, and that the page under the pointer says a press
@@ -4789,7 +4803,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
     floor, because a control comfortable under one and not the other is the fault this is
     about rather than a lesser version of it.
 
-    The surfaces have to be opened for any of it to mean anything: seven of the nine
+    The surfaces have to be opened for any of it to mean anything: seven of the eight
     controls at issue exist only inside a panel, a menu, a resolved disclosure or the
     reference, and a sweep of the page at rest would report a clean layer while every one
     of them was still six pixels tall. AIM_SURFACES is that assertion.

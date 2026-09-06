@@ -983,11 +983,12 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     # Mouse.click is no user gesture and can only prove that nothing was hit.
     page.locator("#p").scroll_into_view_if_needed()
     page.mouse.click(*mark_point(page, "lf-mark"))
-    panel_settled(page)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
 
     # And the composer's own mark belongs to no thread, so it opens nothing. Its first
     # range runs up to the posted one, so this lands on the draft and nothing else.
-    page.get_by_role("button", name="Close threads").click()
+    page.locator(".lf-margin-preview-close").click()
     page.locator("#p").click(click_count=3)
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
@@ -1004,9 +1005,9 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
 
 
 def test_a_click_on_a_mark_decides_once(browser, serve):
-    """Opening the panel reflows the document, so anything that hit-tests the page after
-    the panel opens is testing geometry that has already moved. When two handlers each
-    asked where the pointer was, the second missed the mark the first had just opened and
+    """Opening a thread surface rewrites page-attached chrome, so anything that hit-tests
+    the page afterward is testing geometry that may already have moved. When two handlers
+    each asked where the pointer was, the second missed the mark the first had just opened and
     raised the response bar on top of it — and the element anchor that left behind reads
     as composition in progress, which is what stops a page following new versions. The
     panel starts shut here because a panel already open is the case with no reflow."""
@@ -1035,7 +1036,8 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     spot = page.evaluate("""() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.click(spot["x"], spot["y"])
-    panel_settled(page)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(
         page.locator(".lf-fab-input"),
         "the click opened the thread and then offered to comment on it as well",
@@ -2194,7 +2196,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
 
     page.mouse.click(seam["x"], seam["y"])
     opened = page.evaluate(
-        "() => document.activeElement?.closest('.lf-thread')?.innerText ?? null"
+        "() => document.activeElement?.closest('.lf-conversation-thread')?.innerText ?? null"
     )
     assert opened and f"About {seam['at']}." in opened, (
         f"the hover promised the thread on {seam['at']}, and the press at the same point "
@@ -2248,7 +2250,7 @@ def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
 
     page.touchscreen.tap(seam["x"], seam["y"])
     opened = page.evaluate(
-        "() => document.activeElement?.closest('.lf-thread')?.innerText ?? null"
+        "() => document.activeElement?.closest('.lf-conversation-thread')?.innerText ?? null"
     )
     assert opened and f"About {seam['at']}." in opened, (
         f"a tap on the quote for {seam['at']} opened: {opened}"
@@ -4054,6 +4056,17 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     assert palette["cardPadding"] > 0
     assert palette["row"] == palette["page"]
 
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
+    expect(panel_thread).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(thread).to_be_focused()
+
     note = page.locator("lf-diff .lf-mark-note")
     expect(note).to_have_count(1)
     assert note.evaluate(
@@ -4064,13 +4077,14 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(note).to_be_focused()
     assert note.evaluate("el => el.getBoundingClientRect().width > 1")
     assert note.evaluate("el => getComputedStyle(el).opacity") == "1"
-    page.keyboard.press("Escape")
+    note.press("Enter")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-panel")).to_be_hidden()
 
     # The same draft has two views, across the shadow boundary. Empty Sends keep the
     # paper's neutral ground; typing enables the same primary face in either view.
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
-    panel_thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
     inline_send = thread.get_by_role("button", name="Send", exact=True)
     panel_send = panel_thread.get_by_role("button", name="Send", exact=True)
     button_face = """button => {
@@ -4160,8 +4174,10 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     file.evaluate("details => { details.open = true; }")
     expect(thread.locator("textarea")).to_be_visible()
 
-    with sending(page, "the inline resolution"):
-        thread.get_by_role("button", name="Resolve", exact=True).click()
+    thread.focus()
+    expect(thread).to_be_focused()
+    with sending(page, "the inline keyboard resolution"):
+        page.keyboard.press("x")
     expect(thread).not_to_have_attribute("open", "")
     summary = thread.locator(".lf-conversation-summary")
     expect(summary).to_have_text("Resolved · 2 messages")
@@ -4180,7 +4196,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator(".lf-conversation-msg").first).to_be_hidden()
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
-    page.locator(".lf-details > summary").click()
+    panel_resolved = page.locator(".lf-details")
+    if panel_resolved.get_attribute("open") is None:
+        panel_resolved.locator(":scope > summary").click()
     page.locator(".lf-details .lf-thread .lf-quote").click()
     expect(summary).to_be_focused()
     summary.click()

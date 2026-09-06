@@ -1,7 +1,8 @@
 """The published site: what the build assembles, and what a reader gets.
 
-The site is the repo's own pages plus every example as a live page, so most of what
-could go wrong is a path that meant one thing in a checkout and another on a host.
+The site is the repo's own pages plus its examples and developer feature gallery as live
+pages, so most of what could go wrong is a path that meant one thing in a checkout and
+another on a host.
 The build resolves every local link it wrote and stops on one that reaches
 nothing, which is the failure a static host answers with a 404 and no other
 signal; these tests hold the rest — that the theme a page links is the shipped
@@ -42,6 +43,7 @@ ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "skills" / "leaf" / "assets"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
+FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
 
 _spec = importlib.util.spec_from_file_location("site", ROOT / "scripts" / "site.py")
 site_build = importlib.util.module_from_spec(_spec)
@@ -89,9 +91,15 @@ def authored_examples():
     return authored
 
 
+def published_pages():
+    """The worked examples plus the linked developer reference."""
+    assert FEATURE_GALLERY.is_file(), "the feature gallery is missing"
+    return [*authored_examples(), FEATURE_GALLERY]
+
+
 @pytest.fixture(scope="module")
 def site(tmp_path_factory):
-    """One build for the module: it vendors a layer and checks every example."""
+    """One build for the module: it vendors a layer and checks every published page."""
     out = tmp_path_factory.mktemp("published") / "site"
     site_build.build(out)
     return out
@@ -211,9 +219,9 @@ def test_the_site_serves_the_whole_layer_a_page_asks_for(site):
     assert set(site_idioms) <= set(registry)
 
 
-def test_every_example_keeps_its_canonical_page_record(site):
+def test_every_published_page_keeps_its_canonical_page_record(site):
     """Static routes are derived beside, rather than replacing, Leaf's page record."""
-    for source in authored_examples():
+    for source in published_pages():
         page_dir = site / "examples" / source.stem
         versions = example_versions(source)
         events = read_events(page_dir)
@@ -473,20 +481,23 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
         published = {
             path.name for path in (site / "examples").iterdir() if path.is_dir()
         }
-        assert published == expected
+        assert published == expected | {FEATURE_GALLERY.stem}
+        gallery = page.locator("#feature-gallery a")
+        expect(gallery).to_have_text("feature gallery")
+        expect(gallery).to_have_attribute("href", "/examples/feature-gallery/")
         assert not errors, errors[:3]
     finally:
         page.close()
 
 
-def test_every_example_stands_as_a_live_page(served_example, browser):
+def test_every_published_page_stands_as_a_live_page(served_example, browser):
     """Every artifact starts through Leaf's own document and state boundaries."""
-    examples = authored_examples()
-    _, url = served_example(examples[0].stem)
+    pages = published_pages()
+    _, url = served_example(pages[0].stem)
     page, errors = open_page(browser, url)
     try:
-        for source in examples:
-            if source != examples[0]:
+        for source in pages:
+            if source != pages[0]:
                 _, url = served_example(source.stem)
                 opened(page, errors, url)
             newest = len(example_versions(source))

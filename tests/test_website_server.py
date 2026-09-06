@@ -105,27 +105,21 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             for obligation in answer["state"]["activity"]["obligations"]
         }
 
-        captured = []
-        monkeypatch.setattr(
-            website_server,
-            "generate_example_reply",
-            lambda turn: captured.append(turn) or "This is the agent's answer.",
-        )
-        generated, _ = post(
-            f"{root}/examples/decision/_leaf/agent/generate",
+        ready, _ = post(
+            f"{root}/examples/decision/_leaf/agent/turn",
             {"event": comment["id"]},
         )
-        assert generated == {"status": "ready", "text": "This is the agent's answer."}
-        assert captured[0]["reply_to"] == comment["id"]
-        assert captured[0]["conversation"]["messages"][-1]["text"] == posted["text"]
-        assert "Plan" in captured[0]["page"]["visible_text"]
+        assert ready["status"] == "ready"
+        assert ready["turn"]["reply_to"] == comment["id"]
+        assert ready["turn"]["conversation"]["messages"][-1]["text"] == posted["text"]
+        assert "Plan" in ready["turn"]["page"]["visible_text"]
 
         monkeypatch.setenv("LEAF_AGENT", "Leaf guide")
         monkeypatch.setenv("LEAF_SESSION_ID", "leaf-website-agent")
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         appended, _ = post(
             f"{root}/examples/decision/_leaf/agent/reply",
-            {"event": comment["id"], "text": generated["text"]},
+            {"event": comment["id"], "text": "This is the agent's answer."},
         )
         reply = read_events(published)[-1]
         assert appended == {"status": "appended", "event": reply["id"]}
@@ -143,7 +137,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         }
         repeated, _ = post(
             f"{root}/examples/decision/_leaf/agent/reply",
-            {"event": comment["id"], "text": generated["text"]},
+            {"event": comment["id"], "text": "This is the agent's answer."},
         )
         assert repeated == appended
         assert (

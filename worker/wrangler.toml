@@ -2,6 +2,7 @@ name = "leaf-website"
 account_id = "ece2539b9b32ab59dd74aa6b6285e5db"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat_do_not_populate_process_env"]
 workers_dev = false
 
 [assets]

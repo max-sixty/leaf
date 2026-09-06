@@ -17,10 +17,11 @@
 # last green on; CLAUDE.md carries why that keeps the host's index in the loop.
 #
 # The dev group is what the suite and `scripts/` need on top of the runtime:
-# pytest, the accessibility checks, the demo recorder's frames, and the website
-# agent group its server integration test imports. The website image selects that
-# group explicitly; `bin/leaf` passes `--no-dev`, so an ordinary install fetches
-# neither development nor website-only dependencies, though the lock records them.
+# pytest, the accessibility checks, and the demo recorder's frames. The scripts
+# are stdlib-only bar that recorder, and it runs here rather than carrying a
+# header of its own — a developer's tool like the suite, so one environment
+# covers both. `bin/leaf` passes `--no-dev`, so an install never fetches the
+# group, though the lock records it.
 #
 # Playwright is a runtime dependency because the skill's own flow runs the
 # browser: `version check --render` gates every finished page and `version
@@ -54,11 +55,7 @@ module-root = "skills/leaf/scripts"
 module-name = "leaf"
 
 [dependency-groups]
-website = [
-  "openai-agents>=0.22",
-]
 dev = [
-  { include-group = "website" },
   "pytest>=9.1",
   "pytest-xdist>=3",
   "axe-playwright-python>=0.1.4",

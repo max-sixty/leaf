@@ -192,7 +192,7 @@ def cmd_reply(
     with PageTransaction(page_dir) as page:
         events = page.events
         root_id, root = _thread_root(events, to)
-        if attempt:
+        if attempt is not None:
             existing = next(
                 (event for event in events if event.get("attempt") == attempt), None
             )
@@ -263,7 +263,7 @@ def cmd_reply(
             event["awaits"] = True
         if markup:
             event["markup"] = markup
-        if attempt:
+        if attempt is not None:
             event["attempt"] = attempt
         if moving:
             event["revision"] = revision

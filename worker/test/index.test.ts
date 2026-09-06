@@ -1,15 +1,32 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const agents = vi.hoisted(() => ({
+  apiKeys: [] as string[],
+  run: vi.fn(),
+}));
 
 vi.mock("@cloudflare/containers", () => ({
   Container: class {},
   getContainer: vi.fn(),
+}));
+vi.mock("@openai/agents-core", () => ({
+  Agent: class {},
+  Runner: class {
+    run = agents.run;
+  },
+}));
+vi.mock("@openai/agents-openai", () => ({
+  OpenAIProvider: class {
+    constructor(options: { apiKey: string }) {
+      agents.apiKeys.push(options.apiKey);
+    }
+  },
 }));
 
 import { getContainer } from "@cloudflare/containers";
 import worker, {
   LeafExampleSession,
   type Env,
-  authorizedOpenAIRequest,
   runAgentWorkflow,
 } from "../src/index";
 
@@ -69,32 +86,15 @@ describe("product-site delivery", () => {
 });
 
 describe("website example agent", () => {
-  it("fixes OpenAI egress to one upstream and replaces the container credential", () => {
-    const request = authorizedOpenAIRequest(
-      new Request("http://openai.internal/v1/responses?include=usage", {
-        method: "POST",
-        headers: { Authorization: "Bearer visible-in-container" },
-        body: "{}",
-      }),
-      "worker-secret",
-    );
-
-    expect(request?.url).toBe(
-      "https://api.openai.com/v1/responses?include=usage",
-    );
-    expect(request?.headers.get("Authorization")).toBe("Bearer worker-secret");
-    expect(
-      authorizedOpenAIRequest(
-        new Request("http://openai.internal/not-the-api"),
-        "worker-secret",
-      ),
-    ).toBeNull();
+  beforeEach(() => {
+    agents.apiKeys.length = 0;
+    agents.run.mockReset();
   });
 
   it("never exposes the container's agent routes on the public origin", async () => {
     const env = environment();
     const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/_leaf/agent/generate"),
+      new Request("https://leaf.page/examples/design-decision/_leaf/agent/turn"),
       env,
     );
 
@@ -177,7 +177,7 @@ describe("website example agent", () => {
     expect(createBatch).not.toHaveBeenCalled();
   });
 
-  it("runs generation and append as separate retryable workflow steps", async () => {
+  it("runs the model outside the container and appends through Leaf", async () => {
     const params = {
       sessionId: "03".repeat(16),
       slug: "design-decision",
@@ -185,7 +185,9 @@ describe("website example agent", () => {
     };
     const containerFetch = vi
       .fn()
-      .mockResolvedValueOnce(Response.json({ status: "ready", text: "A reply." }))
+      .mockResolvedValueOnce(
+        Response.json({ status: "ready", turn: { reply_to: params.eventId } }),
+      )
       .mockResolvedValueOnce(
         Response.json({ status: "appended", event: "05".repeat(16) }),
       );
@@ -195,11 +197,22 @@ describe("website example agent", () => {
     const step = {
       do: vi.fn(async (_name, _config, callback) => callback()),
     };
+    agents.run.mockResolvedValueOnce({ finalOutput: " A reply. " });
 
     const result = await runAgentWorkflow(environment(), params, step as never);
 
     expect(result).toEqual({ status: "appended", event: "05".repeat(16) });
-    expect(step.do).toHaveBeenCalledTimes(2);
+    expect(step.do.mock.calls.map(([name]) => name)).toEqual([
+      "read turn",
+      "generate reply",
+      "append reply",
+    ]);
+    expect(agents.apiKeys).toEqual(["test-key"]);
+    expect(agents.run).toHaveBeenCalledWith(
+      expect.anything(),
+      JSON.stringify({ reply_to: params.eventId }),
+      { maxTurns: 1 },
+    );
     expect(await containerFetch.mock.calls[0][0].json()).toEqual({
       event: params.eventId,
     });
@@ -207,6 +220,11 @@ describe("website example agent", () => {
       event: params.eventId,
       text: "A reply.",
     });
+    expect(
+      containerFetch.mock.calls.some(([request]) =>
+        JSON.stringify([...request.headers]).includes("test-key"),
+      ),
+    ).toBe(false);
   });
 
   it("settles a turn visibly after generation exhausts its retries", async () => {
@@ -215,9 +233,14 @@ describe("website example agent", () => {
       slug: "design-decision",
       eventId: "09".repeat(16),
     };
-    const containerFetch = vi.fn(async () =>
-      Response.json({ status: "appended", event: "10".repeat(16) }),
-    );
+    const containerFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ status: "ready", turn: { reply_to: params.eventId } }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ status: "appended", event: "10".repeat(16) }),
+      );
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
     const step = {
       do: vi.fn(async (name, _config, callback) => {
@@ -230,10 +253,11 @@ describe("website example agent", () => {
 
     expect(result).toEqual({ status: "appended", event: "10".repeat(16) });
     expect(step.do.mock.calls.map(([name]) => name)).toEqual([
+      "read turn",
       "generate reply",
       "append generation failure",
     ]);
-    expect(await containerFetch.mock.calls[0][0].json()).toEqual({
+    expect(await containerFetch.mock.calls[1][0].json()).toEqual({
       event: params.eventId,
       text: "I couldn’t generate a reply just now. Please send a new message to try again.",
     });

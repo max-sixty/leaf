@@ -8,20 +8,17 @@ the container is replaced; no website-only projection or conversation store exis
 
 When Leaf accepts a reader message that its canonical activity projection says needs
 a response, the Worker starts one Cloudflare Workflow keyed by the browser session and
-event id. The workflow has separate retryable generation and append steps. Generation
-runs the Python OpenAI Agents SDK in the same container over a fresh reading of the
-page and thread; append uses Leaf's ordinary reply writer with a deterministic attempt,
-so a retry cannot duplicate a reply and a newer reader turn suppresses a stale one.
-The initial agent uses `gpt-5.6-luna` without tools and can discuss a page but not edit
-it. Leaf's page directory remains the only conversation authority, leaving tools,
-handoffs, and page revisions as additions to the agent rather than a replacement
-backend. If generation exhausts its retries, the workflow appends a short failure
-reply so the reader is not left waiting on work that has already stopped.
+event id. Its retryable steps read a fresh page and thread from the container, run the
+OpenAI Agents SDK in the Worker, then append through Leaf's ordinary reply writer. A
+deterministic attempt prevents duplicate replies, and a newer reader turn suppresses a
+stale one. If generation stops after its retries, the workflow appends a short failure
+reply.
 
-The container still has public internet access disabled. Its OpenAI client targets the
-private `http://openai.internal/v1` hostname; the container egress handler fixes that to
-`https://api.openai.com` and injects the Worker's `OPENAI_API_KEY`, so the credential
-never enters the container filesystem or process environment.
+The initial agent uses `gpt-5.6-luna` without tools and can discuss a page but not edit
+it. Leaf's page directory remains the only conversation authority, so tools, handoffs,
+and page revisions extend the agent rather than replace its backend. The
+`OPENAI_API_KEY` exists only as a Worker secret; neither public responses nor requests
+to the internet-disabled container carry it.
 
 Run the complete local site with Docker available:
 

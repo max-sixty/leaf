@@ -36,6 +36,7 @@ except ImportError:  # pragma: no cover - unsupported non-POSIX platform
     fcntl = None
 
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
+TEMPORARY_SOCKET_TIMEOUT_S = 1
 
 
 class LeafHTTPServer(ThreadingHTTPServer):
@@ -113,6 +114,9 @@ class TemporaryPageServer:
         # requests too. The foreground run() keeps the default: its process owns the
         # page, and must be able to exit when that process is interrupted.
         self.httpd.daemon_threads = False
+        # Bound the join above when Chrome opens a speculative socket but never sends
+        # a request line, or an authenticated peer leaves a request body incomplete.
+        self.httpd.RequestHandlerClass.timeout = TEMPORARY_SOCKET_TIMEOUT_S
         self._thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self._thread.start()
         return self

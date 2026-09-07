@@ -507,7 +507,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "axe-playwright-python", specifier = ">=0.1.4" },
-    { name = "pillow", specifier = ">=11" },
+    { name = "pillow", specifier = ">=12.1" },
     { name = "pre-commit", specifier = ">=4.6.2" },
     { name = "pytest", specifier = ">=9.1" },
     { name = "pytest-xdist", specifier = ">=3" },

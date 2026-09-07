@@ -20,7 +20,8 @@ the page and carries two readings:
   you. The sentences are the page's vendored `$events.handling`, so a project
   layer can restate one kind and its pages say so; a page vendored before the
   layer carried `handling` gets the installed kernel's sentences. A reaction
-  also carries its token's `means` beside it.
+  carries its token, plus `means` when its package chose to explain a specialized
+  vocabulary.
 
 Then each event, one per line. Address every one of them; `handling` is the rule
 for each kind, and this reference is the mechanism around it.
@@ -56,5 +57,6 @@ removes it from future batches. Re-enter the host's wait loop once the batch is
 handled: `waiting` after every delivered obligation has been answered and the
 reader owns the next move, `working` while you continue. A premature `waiting`
 declaration cannot override an opened, unsettled interaction in canonical activity.
-`page state` lists every standing reaction under `reactions`, each with its
-`means`; resolve a page reaction once the live revision has acted on it.
+`page state` lists every standing reaction under `reactions`; a package-supplied
+`means` appears when present. Resolve a page reaction once the live revision has
+acted on it.

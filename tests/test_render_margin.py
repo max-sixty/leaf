@@ -990,11 +990,11 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     reaction = next(
         event
         for event in events_model.read_events(serve.page_dir)
-        if event.get("token") == "this"
+        if event.get("token") == "prioritize"
         and event.get("anchor", {}).get("section") == "bg-crowded"
     )
     take_back = sheet.locator(f'[data-lf-map-button$=":take-back:{reaction["id"]}"]')
-    expect(take_back).to_have_attribute("aria-label", "this — take it back")
+    expect(take_back).to_have_attribute("aria-label", "prioritize — take it back")
     with sending(page, "the withdrawal of the spilled reaction"):
         take_back.click()
     expect(sheet).to_be_hidden()
@@ -1388,7 +1388,7 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
     expect(
         page.locator(
             '[data-lf-margin-for="bg-react-lost"] '
-            '.lf-react-mark[data-token="lost"] > .lf-margin-button-glyph'
+            '.lf-react-mark[data-token="clarify"] > .lf-margin-button-glyph'
         )
     ).to_have_text("🤔")
     expect(
@@ -1399,12 +1399,12 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
         )
     ).to_be_visible()
     assert page.locator("#bg-reactions p strong").all_text_contents() == [
-        "1 · 👍 · keep this.",
-        "2 · ❌ · wrong.",
-        "3 · 🤔 · unclear.",
+        "1 · 👍 · keep.",
+        "2 · ❌ · change.",
+        "3 · 🤔 · clarify.",
         "4 · ✂️ · shorten.",
-        "5 · 🔎 · substantiate.",
-        "6 · 👀 · pay attention.",
+        "5 · 🔎 · support.",
+        "6 · 🎯 · prioritize.",
     ]
     assert errors == []
     page.close()
@@ -1650,13 +1650,14 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
         }""",
         arg=pointer,
     )
-    target = page.locator("#bg-choice-ask")
-    assert "lf-margin-target" not in (target.get_attribute("class") or "").split(), (
-        "moving the margin under a stationary pointer claimed pointer ownership"
-    )
+    trace = page.locator('.lf-target-trace[data-for="bg-choice-ask"]')
+    expect(
+        trace,
+        "moving the margin under a stationary pointer claimed pointer ownership",
+    ).to_be_hidden()
 
     page.mouse.move(pointer["x"] + 1, pointer["y"])
-    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+    expect(trace).to_be_visible()
     assert errors == []
     page.close()
 
@@ -1675,7 +1676,8 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         "y": int(box["y"] + box["height"] / 2),
     }
     page.mouse.move(pointer["x"], pointer["y"])
-    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+    trace = page.locator('.lf-target-trace[data-for="bg-draft"]')
+    expect(trace).to_be_visible()
 
     draft = target.element_handle()
     old_host = host.element_handle()
@@ -1700,9 +1702,10 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         "old => document.querySelector('[data-lf-margin-for=\"bg-draft\"]') !== old",
         old_host,
     )
-    assert "lf-margin-target" not in (target.get_attribute("class") or "").split(), (
-        "the replacement host inherited pointer ownership from its disconnected peer"
-    )
+    expect(
+        trace,
+        "the replacement host inherited pointer ownership from its disconnected peer",
+    ).to_be_hidden()
 
     replacement = page.locator('[data-lf-margin-for="bg-draft"]')
     replacement_box = replacement.bounding_box()
@@ -1710,7 +1713,7 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         int(replacement_box["x"] + replacement_box["width"] / 2),
         int(replacement_box["y"] + replacement_box["height"] / 2),
     )
-    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+    expect(trace).to_be_visible()
     assert errors == []
     page.close()
 
@@ -2151,7 +2154,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     resized(page, 1440, 900)
 
     suggestion = page.locator("[data-lf-for='sug-refill'].lf-sug-actions")
-    suggestion_item = suggestion.locator("xpath=..")
+    suggestion_item = page.locator('[data-lf-margin-for="sug-refill"]')
     expect(suggestion_item).to_have_class(re.compile(r"lf-margin-item"))
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_have_count(1)
     expect(suggestion_item.locator(".lf-sug-accept")).to_be_visible()
@@ -2202,7 +2205,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(more).to_be_focused()
 
     draft_controls = page.locator("[data-lf-for='draft-ops'].lf-draft-controls")
-    draft_item = draft_controls.locator("xpath=..")
+    draft_item = page.locator('[data-lf-margin-for="draft-ops"]')
     expect(draft_item).to_have_class(re.compile(r"lf-margin-item"))
     expect(draft_item.locator(":scope > .lf-margin-marker")).to_have_count(1)
     expect(draft_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
@@ -2326,20 +2329,17 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
     )
     page.keyboard.press("r")
-    reactions = options.locator(".lf-margin-reactions")
-    expect(options).to_be_visible()
+    reactions = suggestion_item.locator(".lf-margin-reactions")
     expect(preview).to_be_hidden()
     expect(suggestion_item.locator(".lf-margin-button:visible")).to_have_count(6)
     expect(reactions.locator(".lf-react").first).to_have_class(
         re.compile(r"lf-margin-button")
     )
-    ok = reactions.locator('.lf-react[data-token="ok"]')
-    expect(ok).to_have_attribute("aria-label", "ok — good — keep this; no change asked")
+    ok = reactions.locator('.lf-react[data-token="keep"]')
+    expect(ok).to_have_attribute("aria-label", "keep")
     expect(ok).not_to_have_attribute("title", re.compile(".+"))
     ok.hover()
-    expect(ok.locator(".lf-margin-button-label")).to_have_text(
-        "ok — good — keep this; no change asked"
-    )
+    expect(ok.locator(".lf-margin-button-label")).to_have_text("keep")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
@@ -2377,7 +2377,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(suggestion_item.locator(".lf-margin-button:visible")).to_have_count(6)
 
     page.keyboard.press("Escape")
-    more.click()
+    expect(options).to_be_visible()
     thread_button = options.locator(
         '.lf-margin-reading-option[data-lf-kinds="comment"]'
     )
@@ -2421,10 +2421,10 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     page.keyboard.press("r")
     expect(suggestion_item.locator(".lf-margin-button:visible")).to_have_count(6)
     expect(suggestion_item).to_have_class(re.compile(r"lf-docked"))
-    reactions.locator('.lf-react[data-token="ok"]').click()
+    reactions.locator('.lf-react[data-token="keep"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
-    assert sent["token"] == "ok" and sent["anchor"] == {"section": "sug-refill"}
+    assert sent["token"] == "keep" and sent["anchor"] == {"section": "sug-refill"}
 
     assert errors == []
     page.close()
@@ -2532,7 +2532,6 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expected_rule = resolved_color("--rule")
     expected_label_ink = resolved_color("--paper")
     expected_label_background = resolved_color("--ink")
-    target = page.locator("#jobs")
 
     def words_still():
         """The label's reveal is a 90ms transition behind a 90ms delay, so the frame the
@@ -2551,7 +2550,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             expect(marker).to_have_attribute("data-identity-probe", "kept")
         page.evaluate("() => document.activeElement.blur()")
         page.mouse.move(0, 0)
-        expect(page.locator(".lf-margin-status-trace")).to_be_hidden()
+        expect(page.locator(".lf-target-trace")).to_be_hidden()
         expect(control.locator(":scope > .lf-margin-button-label")).to_be_hidden()
         words_still()
         current = face(control)
@@ -2583,7 +2582,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             key: current[key] for key in ("background", "border", "ink", "opacity")
         }
         control.hover()
-        trace_box = page.locator('.lf-margin-status-trace[data-for="jobs"]')
+        trace_box = page.locator('.lf-target-trace[data-for="jobs"]')
         expect(trace_box).to_be_visible()
         label = control.locator(":scope > .lf-margin-button-label")
         expect(label).to_be_visible()
@@ -2596,25 +2595,36 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         assert hovered["wordOpacity"] == "1"
         assert hovered["wordPosition"] == "absolute"
         assert hovered["wordBackground"] != "rgba(0, 0, 0, 0)"
-        trace = control.evaluate(
-            """node => {
-              const line = getComputedStyle(node.closest('.lf-margin-item'), '::before');
-              const box = getComputedStyle(document.querySelector('.lf-margin-status-trace'));
+        # The trace is the whole of what a hovered status says about its target: the item
+        # draws no leader out to it, so the box alone spends both declared tokens. Width
+        # is read through a probe wearing the same token for the same reason ink is: the
+        # theme states 1.5px and the platform lays a border down in whole device pixels,
+        # so what the box must match is the token as this display resolves it.
+        trace = page.evaluate(
+            """() => {
+              const box = getComputedStyle(document.querySelector('.lf-target-trace'));
+              const probe = document.createElement('span');
+              probe.style.borderTop = 'var(--target-trace-w) solid';
+              document.body.append(probe);
+              const declaredWidth = getComputedStyle(probe).borderTopWidth;
+              probe.remove();
               return {
-                declaredWidth: box.getPropertyValue('--status-trace-w').trim(),
+                declaredToken: box.getPropertyValue('--target-trace-w').trim(),
+                declaredWidth,
                 boxWidth: box.borderTopWidth,
                 boxColor: box.borderTopColor,
-                lineWidth: line.borderTopWidth,
-                lineColor: line.borderTopColor,
+                leader: getComputedStyle(
+                  document.querySelector('.lf-margin-item'), '::before',
+                ).content,
               };
             }"""
         )
+        declared_width = trace.pop("declaredWidth")
         assert trace == {
-            "declaredWidth": "1.5px",
-            "boxWidth": trace["lineWidth"],
-            "boxColor": trace["lineColor"],
-            "lineWidth": trace["boxWidth"],
-            "lineColor": trace["boxColor"],
+            "declaredToken": "1.5px",
+            "boxWidth": declared_width,
+            "boxColor": resolved_color("--target-trace-ink"),
+            "leader": "none",
         }
 
     assert_status("Sent", "just now")
@@ -2704,14 +2714,11 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     page.evaluate("() => document.activeElement.blur()")
     page.mouse.move(0, 0)
-    expect(target).not_to_have_class(re.compile(r"lf-margin-target"))
-    expect(page.locator(".lf-margin-status-trace")).to_be_hidden()
+    expect(page.locator(".lf-target-trace")).to_be_hidden()
     secondary.hover()
-    expect(page.locator('.lf-margin-status-trace[data-for="jobs"]')).to_be_visible()
-    expect(target).not_to_have_class(re.compile(r"\blf-margin-target\b"))
+    expect(page.locator('.lf-target-trace[data-for="jobs"]')).to_be_visible()
     page.locator(".lf-receipt-primary-probe").hover()
-    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
-    expect(page.locator(".lf-margin-status-trace")).to_be_hidden()
+    expect(page.locator('.lf-target-trace[data-for="jobs"]')).to_be_visible()
     page.evaluate("() => window.lfReceiptSecondary.unregister()")
     expect(marker).to_be_visible()
 
@@ -2924,9 +2931,7 @@ def test_button_order_budget_and_spilled_actions_are_stable_at_both_widths(
             "data-lf-spill-count", "3"
         )
         item.get_by_role("button", name=f"Save {target}", exact=True).focus()
-        expect(page.locator(f"#{target}")).to_have_class(
-            re.compile(r"lf-margin-target")
-        )
+        expect(page.locator(f'.lf-target-trace[data-for="{target}"]')).to_be_visible()
         item.get_by_role("button", name=f"Save {target}", exact=True).hover()
         label = item.locator('[data-lf-button-key="save"] .lf-margin-button-label')
         expect(label).to_be_visible()
@@ -2954,10 +2959,10 @@ def test_button_order_budget_and_spilled_actions_are_stable_at_both_widths(
     save.focus()
     save.hover()
     second.get_by_role("button", name="Save second", exact=True).focus()
-    expect(page.locator("#second")).to_have_class(re.compile(r"lf-margin-target"))
-    expect(page.locator("#first")).not_to_have_class(re.compile(r"lf-margin-target"))
+    expect(page.locator('.lf-target-trace[data-for="second"]')).to_be_visible()
+    expect(page.locator('.lf-target-trace[data-for="first"]')).to_be_hidden()
     save.hover()
-    expect(page.locator("#first")).to_have_class(re.compile(r"lf-margin-target"))
+    expect(page.locator('.lf-target-trace[data-for="first"]')).to_be_visible()
     ring = save.evaluate("button => getComputedStyle(button).borderTopWidth")
     page.evaluate("() => window.buttonFixtures[0].busy()")
     expect(save).to_have_attribute("aria-busy", "true")
@@ -3171,17 +3176,19 @@ def test_reaction_choices_and_their_receipt_share_an_unided_selected_block(
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
     bar.locator(".lf-react-trigger").click()
-    # The choices are the bar's own, raised on the selection where the reader is
-    # pointing: an anchored response opens in place rather than docking a row of
-    # options into the margin. What the margin holds for this block is the receipt.
-    expect(bar).to_have_class(re.compile(r"\blf-react-open\b"))
+    # The choices dock with the selected block's margin target. The standing reaction
+    # that replaces them must keep that same visual coordinate even though the durable
+    # section coordinate belongs to the surrounding id-bearing section.
+    expect(bar).to_be_hidden()
+    reactions = page.locator(".lf-margin-reactions")
+    expect(reactions).to_be_visible()
 
-    bar.locator('.lf-react[data-token="ok"]').click()
+    reactions.locator('.lf-react[data-token="keep"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]
     receipt = page.locator(".lf-margin-item").filter(
-        has=page.get_by_role("button", name=re.compile(r"^ok — take it back$"))
+        has=page.get_by_role("button", name=re.compile(r"^keep — take it back$"))
     )
     expect(receipt).to_have_count(1)
     assert abs(receipt.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
@@ -3346,21 +3353,21 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
 
     status = page.locator('[data-lf-button-key="shape-status"]')
     status.hover()
-    trace = page.locator('.lf-margin-status-trace[data-for="outer"]')
+    trace = page.locator('.lf-target-trace[data-for="outer"]')
     expect(trace).to_be_visible()
     expect(trace).to_have_class(re.compile(r"\blf-shaped\b"))
-    assert trace.locator(".lf-margin-status-trace-shape > g > *").evaluate_all(
+    assert trace.locator(".lf-target-trace-shape > g > *").evaluate_all(
         "nodes => nodes.map(node => node.localName)"
     ) == ["rect"]
     geometry = page.evaluate(
         """() => {
           const surface = document.querySelector('#outer-surface').getBoundingClientRect();
-          const trace = document.querySelector('.lf-margin-status-trace');
+          const trace = document.querySelector('.lf-target-trace');
           const box = trace.getBoundingClientRect();
           const shape = trace.querySelector('rect');
           const style = getComputedStyle(shape);
           const swatch = document.createElement('span');
-          swatch.style.color = 'var(--status-trace-ink)';
+          swatch.style.color = 'var(--target-trace-ink)';
           document.head.append(swatch);
           const traceInk = getComputedStyle(swatch).color;
           swatch.remove();
@@ -3453,7 +3460,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(marker).to_have_attribute("aria-expanded", "true")
     expect(preview).to_be_visible()
     expect(marker.locator(".lf-margin-button-label")).to_be_hidden()
-    expect(page.locator("#bracket")).to_have_class(re.compile(r"lf-margin-target"))
+    expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_visible()
     main_box = page.locator("main").bounding_box()
     preview_box = preview.bounding_box()
     assert preview_box["x"] >= main_box["x"] + main_box["width"]
@@ -4038,10 +4045,10 @@ def test_an_open_thread_refresh_keeps_the_current_button_target_highlighted(
     suggestion.locator('.lf-margin-reading-option[data-lf-kinds="comment"]').click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.get_by_role("button", name="Edit draft-ops", exact=True).hover()
-    target = page.locator("#draft-ops")
-    expect(target).to_have_class(re.compile(r"lf-margin-target"))
+    trace = page.locator('.lf-target-trace[data-for="draft-ops"]')
+    expect(trace).to_be_visible()
     ticked(page)
-    assert "lf-margin-target" in target.get_attribute("class").split()
+    expect(trace).to_be_visible()
     assert errors == []
     page.close()
 
@@ -4062,7 +4069,7 @@ def test_focusing_a_thread_button_does_not_open_its_card(browser, serve):
 
     expect(toggle).to_be_focused()
     expect(preview).to_be_hidden()
-    expect(page.locator("#bracket")).not_to_have_class(re.compile(r"lf-margin-target"))
+    expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -4532,7 +4539,7 @@ def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, se
 
 
 def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
-    """A retained preview must outline the new document's matching destination."""
+    """A retained preview must trace the new document's matching destination."""
     version_url = serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     page, errors = open_page(browser, live_url(version_url))
     resized(page, 1440, 900)
@@ -4541,7 +4548,8 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     close = page.locator(".lf-margin-preview-close")
     close.focus()
     expect(close).to_be_focused()
-    expect(page.locator("#bracket")).to_have_class(re.compile(r"lf-margin-target"))
+    trace = page.locator('.lf-target-trace[data-for="bracket"]')
+    expect(trace).to_be_visible()
 
     (serve.page_dir / "index.html").write_text(
         ASK_PAGE.replace("Three jobs", "Four jobs")
@@ -4550,7 +4558,7 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
     expect(close).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator("#bracket")).to_have_class(re.compile(r"lf-margin-target"))
+    expect(trace).to_be_visible()
 
     assert errors == []
     page.close()

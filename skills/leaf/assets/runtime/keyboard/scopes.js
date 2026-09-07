@@ -72,13 +72,6 @@ export function paintHere() {
 // either says so — a `when` or an `at` nobody wrote means always, which is what makes the
 // first contributor's silence carry rather than the second's answer.
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
-// The same or, for a predicate whose silence means no rather than yes: what any contributor
-// claims, the section claims. `either`'s identity is the wrong one here, and using it was
-// this file's own bug one field over — a scope's claim deleted by a contributor that stated
-// none, which is what `In a text box` is, the typing scope claiming the keys that put a
-// character in a box and every wired box contributing a second section under its title
-// claiming nothing. Takes the binding its callers take, where `when` and `at` take none.
-const anyOf = (a, b) => (a && b ? (...args) => a(...args) || b(...args) : (a ?? b));
 export const elementScopes = new WeakMap();
 // The weak map is the dispatcher's lookup. The reference also has to enumerate every
 // connected contributor, so keep weak references beside it. A live-version replacement
@@ -108,7 +101,7 @@ export const byCommand = (rows) => rows.map((row) => [row.id, row]);
 // core's scopes and the widgets' are gathered into one list of sections. The rules above are
 // this function — rows keyed by command id, `when` and `at` joined by or — and a near-copy of a
 // merge is a merge that drifts on the day one of the three learns something.
-export function merge(sections, { title, when, at, claims, rows }) {
+export function merge(sections, { title, when, at, liveInReference, rows }) {
   // A contributor the page hasn't got brings nothing. A section's `when` is the OR of its
   // contributors, so a live one otherwise carried a dead one's keys into the reference
   // under the shared title — the versions menu named a walk on a page with one version,
@@ -124,18 +117,19 @@ export function merge(sections, { title, when, at, claims, rows }) {
   if (when && !when()) return;
   const seen = sections.get(title);
   if (!seen) {
-    sections.set(title, { title, when, at, claims, rows: new Map(rows) });
+    sections.set(title, {
+      title,
+      when,
+      at,
+      liveInReference,
+      rows: new Map(rows),
+    });
     return;
   }
   for (const [key, row] of rows) seen.rows.set(key, row);
   seen.when = either(seen.when, when);
   seen.at = either(seen.at, at);
-  // The claim travels because the reference reads it: a section that takes the keyboard
-  // whole is one the reader is in or is not near at all, and its rows are then read by
-  // their own liveness (showHelp). Dropped here, the chord's section arrived claiming
-  // nothing, was listed whole, and named a list the page had not got — a fact stated on
-  // the scope and lost on the way to the one surface that asks for it.
-  seen.claims = anyOf(seen.claims, claims);
+  seen.liveInReference ||= liveInReference;
 }
 
 /** Declare a scope's keys where the code implementing them is.

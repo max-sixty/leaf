@@ -1,14 +1,16 @@
 /* The response bar's reaction row and the standing tokens a strip or circle wears.
 
    For a page target, `r` contributes Comment, Suggest where available, and the reaction
-   Buttons to that target's existing Button options. Those temporary Buttons borrow the
-   cluster's room and dock with it when necessary; they do not claim permanent rail
-   width. A thread-local `r` opens the conversation-owned row on the latest agent
+   Buttons in that target's existing Button cluster. While this explicit mode stands,
+   its contribution owns all six fittings; the target's standing readings and unrelated
+   actions remain in Page map and return when the mode closes. Those temporary Buttons
+   dock with the cluster when necessary and do not claim permanent rail width. A
+   thread-local `r` opens the conversation-owned row on the latest agent
    message. The page command exists only while one of those targets stands; selecting a
    target is the preceding action, not a refusal inside the reaction command. `REACT`
    claims the keyboard while a list is open. Arrow keys wrap
-   through every visible Button in the target's shared cluster, including its primary
-   actions and Page-map overflow; floating and message-local rows walk their own choices.
+   through every visible reaction Button in the target's shared cluster; floating and
+   message-local rows walk their own choices.
    Tab and Shift-Tab follow that same order. The Page-map dialog remains part of the
    response's target context but owns its native keyboard walk and Escape while open.
    Closing it restores its exact opener; selecting overflow presses the original Button
@@ -18,12 +20,14 @@
 
    The `r` key unfolds this same cluster's secondary Button group for a page selection
    or item and shows the declared reaction Buttons together within the six-fitting
-   budget. Comment and Suggest retain their separate `c` and compact response-bar routes
-   rather than displacing reactions from the mode that explicitly asked for them. The
-   digit register and visible choices therefore name the same complete set. The choices
-   do not widen the rail or open a separate palette below the target. The compact
-   response bar's Tab state stays in that bar. Conversation reactions remain in their
-   conversation-owned strip. The event still carries its durable authored anchor, while
+   budget. Comment retains its separate `c` route rather than displacing reactions from
+   the mode that explicitly asked for them. The digit register and visible choices
+   therefore name the same complete set. The choices do not widen the rail or open a
+   separate palette below the target. Tab and the compact bar's ellipsis raise those
+   same emoji Buttons in the margin; only a layer with no reaction vocabulary keeps its
+   Comment/Suggest fallback in the bar.
+   Conversation reactions remain in their conversation-owned strip. The event still
+   carries its durable authored anchor, while
    the temporary item resolves selected text to the first rendered block, matching the
    target where replay later seats its standing reaction. */
 import {
@@ -49,13 +53,13 @@ import {
   showFab,
 } from "./composing/surface.js";
 import { cut, elementById } from "./passages.js";
-import { itemWord, visualPartLabel } from "./anchors.js";
+import { itemWord, visualActionAnchor, visualPartLabel } from "./anchors.js";
 import { undoable, withdraw } from "./projection.js";
 import { post } from "./outbox.js";
 import { announce, notice } from "./notifications.js";
 import { claimsEsc, focused, paintHere, saying } from "./keyboard/scopes.js";
 import { standingConversation } from "./conversation/landing.js";
-import { EVERYTHING, standingItem } from "./keyboard/page.js";
+import { allButTheReference, standingItem } from "./keyboard/page.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { anchorLabel } from "./conversation/messages.js";
 import { iconElement } from "./icons.js";
@@ -64,6 +68,7 @@ import { iconElement } from "./icons.js";
 // Both carry the event a second press takes back. The reaction rides the pill rather
 // than a map beside it, so a reconcile that keeps the node keeps the fact with it.
 export function paintReactionStanding(strip, standing) {
+  if (strip === fabBar) connectFabTrigger();
   const by = new Map(standing.map((x) => [x.token, x]));
   for (const pill of strip.querySelectorAll(":scope > .lf-react-palette > .lf-react")) {
     const on = by.get(pill.dataset.token) ?? null;
@@ -84,9 +89,10 @@ const suggestHere = () => setSuggestionMode(true);
 // row's bindings as the module evaluates, before the vocabulary is known.
 export const reactionTokens = () => Object.entries(reactionVocabulary() ?? {});
 
-// One token as a press, built the same way wherever it stands. Its authored meaning is
-// the accessible name and hover explanation; the compact face stays the declared mark.
-// Digits remain keyboard accelerators without changing the shape of every pill.
+// One token as a press, built the same way wherever it stands. The token names the
+// control; a layer may add an explanation without making prose part of the platform's
+// vocabulary. The compact face stays the declared mark. Digits remain keyboard
+// accelerators without changing the shape of every pill.
 function reactPill(
   name,
   entry,
@@ -94,7 +100,7 @@ function reactPill(
   { margin = false, response = false, ordinal = 0 } = {},
 ) {
   const pill = offer("button", `${margin || response ? "" : "lf-pill "}lf-react`);
-  const meaning = `${name} — ${entry.means}`;
+  const meaning = entry.means ? `${name} — ${entry.means}` : name;
   pill.dataset.token = name;
   if (margin) {
     pill.setAttribute("aria-label", meaning);
@@ -118,6 +124,7 @@ const surfaces = new WeakMap();
 let surfaceOrdinal = 0;
 let marginSurface = null;
 let marginOffer = null;
+let marginTarget = null;
 export function buildReactSurface(
   surface,
   pressed,
@@ -163,12 +170,19 @@ export function buildReactSurface(
   surface.append(trigger, palette);
   surfaces.set(surface, { palette, target, trigger });
   trigger.onclick = () => {
-    if (surface === fabBar)
-      setReact(!(reactArmed && reactSurface === fabBar), {
-        surface: fabBar,
-        focusPicker: true,
-      });
-    else setReact(!(reactArmed && reactSurface === surface), { surface });
+    if (surface === fabBar) {
+      const destination = connectFabTrigger();
+      const input = fabBar.querySelector(".lf-fab-input");
+      setReact(
+        !(reactArmed && reactSurface === destination),
+        destination === fabBar
+          ? { surface: fabBar, focusPicker: true }
+          : {
+              focusPicker: true,
+              returnTo: input?.checkVisibility() ? input : trigger,
+            },
+      );
+    } else setReact(!(reactArmed && reactSurface === surface), { surface });
   };
   return surface;
 }
@@ -214,13 +228,17 @@ const anchorWord = (anchor) => {
 async function reactHere(name, pill) {
   const anchor = fabAnchorAt();
   const returnTo = fabReturnTo();
+  const restoreTargetFocus = () => {
+    const destination = returnTo?.isConnected ? returnTo : visualActionAnchor(anchor);
+    destination?.focus({ preventScroll: true });
+  };
   if (!anchor) return;
   if (pill.lfReaction) {
     await withdraw(pill.lfReaction);
     hideComposer();
     showFab(null);
     setReact(false);
-    if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
+    restoreTargetFocus();
     return;
   }
   const event = {
@@ -235,7 +253,7 @@ async function reactHere(name, pill) {
   hideComposer();
   showFab(null);
   setReact(false);
-  if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
+  restoreTargetFocus();
   getSelection()?.removeAllRanges();
 }
 
@@ -265,6 +283,20 @@ let reactSurface = null;
 const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
 const pickerFor = (surface) => surfaces.get(surface);
 
+// The ellipsis is authored before the merged registry arrives, so its initial
+// aria-controls points to the compact fallback. Once a target stands, connect it to
+// the surface the current vocabulary can actually open.
+function fabTriggerSurface() {
+  return reactionTokens().length ? marginSurface : fabBar;
+}
+
+function connectFabTrigger() {
+  const trigger = pickerFor(fabBar)?.trigger;
+  const palette = pickerFor(fabTriggerSurface())?.palette;
+  if (trigger && palette) trigger.setAttribute("aria-controls", palette.id);
+  return fabTriggerSurface();
+}
+
 function reactionTarget() {
   const said = standingConversation();
   const strip = said && latestAgentStrip(said.held);
@@ -280,9 +312,10 @@ function raiseMarginSurface() {
   const anchor = fabAnchorAt();
   const target = anchor && fabTargetAt();
   if (!marginSurface || !target) return false;
-  // `r` is an explicit reaction mode. Comment and Suggest remain their own `c` and
-  // response-bar routes, so this temporary contribution contains reactions alone.
+  // `r` is an explicit reaction mode. Comment remains on `c`, so this temporary
+  // contribution contains reactions alone.
   fabBar.dataset.lfMarginRaised = "1";
+  const standing = unfoldedButtons()?.lfTarget === target;
   // Register the response surface in the state it is about to show. Registering its
   // collapsed face first makes the projection treat the six choices as hidden owner
   // content; a fast `r` can then arm their digit shortcuts while only the old floating
@@ -304,21 +337,24 @@ function raiseMarginSurface() {
     // opened and leave that larger rail behind after the choices closed.
     claim: false,
   });
-  const standing = unfoldedButtons()?.lfTarget === target;
-  if (openButtonOptions(target)) {
+  marginTarget = target;
+  if (openButtonOptions(target, { owner: "responses" })) {
     marginUnfolded = !standing;
     return true;
   }
   marginSurface.classList.remove("lf-react-open");
   marginOffer.unregister();
   marginOffer = null;
+  marginTarget = null;
   return false;
 }
 
 function lowerMarginSurface() {
   marginOffer?.unregister();
   marginOffer = null;
+  marginTarget = null;
   delete fabBar.dataset.lfMarginRaised;
+  pickerFor(fabBar)?.trigger.setAttribute("aria-expanded", "false");
   // A raise that unfolded the target's Buttons to stand these choices in puts that fold
   // back, so cancelling leaves the cluster as the press found it rather than an empty
   // fold the reader has to close themselves. Only that raise: this runs on every
@@ -341,12 +377,36 @@ export function syncReactLayout() {
   return reactArmed && reactSurface === marginSurface;
 }
 
-export function setReact(on, { surface = null, focusPicker = false } = {}) {
-  if (on === reactArmed && (!on || surface === reactSurface || !surface)) return;
+export function setReact(
+  on,
+  { surface = null, focusPicker = false, returnTo = null } = {},
+) {
+  if (!on && !reactArmed) {
+    const residue =
+      marginOffer ||
+      fabBar.hasAttribute("data-lf-margin-raised") ||
+      fabBar.classList.contains("lf-react-open") ||
+      marginSurface?.classList.contains("lf-react-open");
+    if (!residue) return;
+    // Off is also the invariant repair path. A projection can retire the target and
+    // its option group before the response scope observes the close; remove any
+    // contributed surface that outlived that ordering.
+    closeSurface(reactSurface);
+    closeSurface(marginSurface);
+    closeSurface(fabBar);
+    lowerMarginSurface();
+    paintHere();
+    return;
+  }
+  if (on === reactArmed && (surface === reactSurface || !surface)) return;
   if (on && claimsEsc(focused())) return;
+  // Closing hides the palette synchronously. Capture its focused control first: once
+  // CSS makes it invisible, the browser reports body and loses the fact needed to
+  // return to the compact response that opened it.
+  const closingActive = on ? null : focused();
   closeSurface(reactSurface);
   if (on) {
-    reactFrom = focused();
+    reactFrom = returnTo ?? focused();
     if (surface) reactSurface = surface;
     else {
       const target = reactionTarget();
@@ -390,6 +450,8 @@ export function setReact(on, { surface = null, focusPicker = false } = {}) {
     reactSurface.classList.add("lf-react-open");
     if (reactSurface === fabBar) showFab(fabAnchorAt());
     pickerFor(reactSurface).trigger.setAttribute("aria-expanded", "true");
+    if (reactSurface === marginSurface)
+      pickerFor(fabBar)?.trigger.setAttribute("aria-expanded", "true");
     const firstChoice =
       reactSurface === fabBar
         ? responseChoices(fabBar)[0]
@@ -409,7 +471,7 @@ export function setReact(on, { surface = null, focusPicker = false } = {}) {
     const from = reactFrom;
     const closingFabChoices = reactSurface === fabBar;
     const trigger = pickerFor(reactSurface)?.trigger;
-    const active = focused();
+    const active = closingActive;
     reactArmed = false;
     reactSurface = null;
     reactFrom = null;
@@ -425,14 +487,31 @@ export function setReact(on, { surface = null, focusPicker = false } = {}) {
           ? from
           : trigger;
       destination?.focus({ preventScroll: true });
-    } else if (active?.closest?.(".lf-react-palette")) {
-      const destination =
-        from?.isConnected && from.checkVisibility?.()
+    } else if (
+      fabBar.contains(from) ||
+      active === document.body ||
+      active?.closest?.(".lf-react-palette")
+    ) {
+      const fabTrigger = pickerFor(fabBar)?.trigger;
+      const input = fabBar.querySelector(".lf-fab-input");
+      const destination = input?.checkVisibility?.()
+        ? input
+        : from?.isConnected && from.checkVisibility?.()
           ? from
-          : trigger?.checkVisibility?.()
-            ? trigger
-            : document.body;
-      destination?.focus?.({ preventScroll: true });
+          : fabTrigger?.checkVisibility?.()
+            ? fabTrigger
+            : trigger?.checkVisibility?.()
+              ? trigger
+              : document.body;
+      if (destination !== document.body)
+        requestAnimationFrame(() => {
+          if (
+            destination.isConnected &&
+            destination.checkVisibility?.() &&
+            (!fabBar.contains(from) || focused() === document.body)
+          )
+            destination.focus({ preventScroll: true });
+        });
     }
   }
   paintHere();
@@ -440,6 +519,14 @@ export function setReact(on, { surface = null, focusPicker = false } = {}) {
 
 document.addEventListener("lf-button-options-closed", () => {
   if (reactArmed && reactSurface === marginSurface) setReact(false);
+});
+document.addEventListener("lf-actions", () => {
+  if (
+    reactArmed &&
+    reactSurface === marginSurface &&
+    (!marginTarget?.isConnected || fabTargetAt() !== marginTarget)
+  )
+    setReact(false);
 });
 // A card the panel's narrowing hid keeps its node (thread-list.js), so a list open on
 // one of its messages is still connected and still armed; the card going out of sight
@@ -480,10 +567,13 @@ const reactTargetWord = () =>
 
 export const REACT = {
   title: "With response choices open",
+  // Opening the modal reference dismisses this transient mode. Its section still reads
+  // the liveness captured at that boundary rather than listing every conditional choice.
+  liveInReference: true,
   // A modal may expose overflow from this same response interaction. Its native
   // focus walk and Escape own the keyboard until it closes; keep the anchor alive.
   at: () => reactArmed && !document.querySelector("dialog:modal"),
-  claims: EVERYTHING,
+  claims: allButTheReference,
   rows: [
     {
       id: "reaction.choose",

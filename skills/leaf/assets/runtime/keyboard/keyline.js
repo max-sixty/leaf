@@ -56,9 +56,11 @@
    it directly when character shortcuts are off. */
 import {
   activeRows,
+  ariaShortcuts,
   bindings,
   commandPresentations,
   commandRoutes,
+  spell,
   word,
 } from "./bindings.js";
 import {
@@ -90,7 +92,6 @@ keylineMore.type = "button";
 keylineMore.title = "More keyboard shortcuts";
 keylineMore.setAttribute("aria-label", "? more");
 export const keylineMoreKey = document.createElement("kbd");
-keylineMoreKey.textContent = "?";
 export const keylineMoreText = el("span", "", "more");
 keylineMore.append(keylineMoreKey, keylineMoreText);
 keylineEl.append(walkPositionEl);
@@ -148,7 +149,8 @@ function lineRows(scopes) {
 let expanded = false;
 const shortcutAvailable = () => bindings(REFERENCE).length > 0;
 const arrange = (rows) => {
-  const referenceAt = rows.indexOf(REFERENCE);
+  const referenceAt = rows.findIndex((row) => sourceRow(row) === REFERENCE);
+  const reference = referenceAt === -1 ? null : rows[referenceAt];
   const withoutReference =
     referenceAt === -1
       ? rows
@@ -164,7 +166,7 @@ const arrange = (rows) => {
     [first, wayOut ?? candidates.find((row) => row !== first)].filter(Boolean),
   );
   const tail = withoutReference.includes(LESS_SHORTCUTS) ? LESS_SHORTCUTS : null;
-  return { candidates, referenceAt, short, tail };
+  return { candidates, reference, short, tail };
 };
 const completeLine = (scopes, candidates) => {
   const scope = scopes.find((candidate) => candidate.chord);
@@ -207,7 +209,7 @@ export function renderLine() {
   // `?` has its own permanent More control, so its ordinary row remains in the DOM only as
   // the register's hidden projection. In the shelf, the current Escape is drawn after that
   // control so both disclosure choices finish the second row.
-  const { candidates, referenceAt, short, tail } = arrange(rows);
+  const { candidates, reference, short, tail } = arrange(rows);
   const complete = completeLine(scopes, candidates);
   const shown = complete?.rows ?? short;
   const position = walkPosition();
@@ -231,11 +233,31 @@ export function renderLine() {
       ? candidates
       : [...shown, ...candidates.filter((row) => !shown.has(row))];
   const projectedRows = projected.filter((row) => !shelf || row !== tail);
-  const referenceRows = referenceAt === -1 ? [] : [REFERENCE];
+  const referenceRows = reference ? [reference] : [];
   // The interactive disclosure stays with the contextual shortlist. A wider system
   // font must not push More onto a lower row beside a page or panel control, where two
   // compact targets would no longer have the 24px separation either one owes.
   const ordered = [...projectedRows, ...referenceRows];
+  // More is a permanent pointer and Tab route, but its key face is the same contextual
+  // projection as every other key on the line. In a text box the typing scope claims `?`,
+  // so the row is absent here and the button keeps only its non-keyboard route. Reading
+  // the surviving row also keeps the face, accessible shortcut, label, and dispatch from
+  // becoming four independent claims about the binding.
+  const referenceBinding = reference ? bindings(reference)[0] : null;
+  const referenceDoes = word(REFERENCE.does);
+  const referenceLine = word(REFERENCE.line);
+  keylineMoreKey.hidden = !referenceBinding;
+  if (referenceBinding) keylineMoreKey.textContent = spell(referenceBinding);
+  keylineMoreText.textContent = referenceLine;
+  keylineMore.title = referenceDoes;
+  keylineMore.setAttribute("aria-expanded", String(shelf));
+  keylineMore.setAttribute(
+    "aria-label",
+    referenceBinding ? `${spell(referenceBinding)} ${referenceLine}` : referenceDoes,
+  );
+  if (referenceBinding)
+    keylineMore.setAttribute("aria-keyshortcuts", ariaShortcuts([reference], false));
+  else keylineMore.removeAttribute("aria-keyshortcuts");
   // Read where it is painted, like every other cell. Every destination keeps its complete
   // chord while the reader advances through it: completed keys change face, but no key is
   // added, removed, or moved. A chord control such as Escape is a way out of the mode, not
@@ -273,7 +295,7 @@ export function renderLine() {
     const steps = inChord ? [chord[0], ...completeRowSteps(row)] : rowSteps(row);
     const states = inChord ? progressStates(steps, chord.length) : neutralStates(steps);
     const span = chip(steps, word(row.line), states, false, row);
-    span.hidden = row === REFERENCE || (!shelf && !shown.has(row));
+    span.hidden = sourceRow(row) === REFERENCE || (!shelf && !shown.has(row));
     return { row, span };
   });
   // The door is not useful behind the room it opens. While the reference stands, its

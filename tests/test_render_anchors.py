@@ -4177,15 +4177,15 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     assert trigger.evaluate("b => getComputedStyle(b).opacity") == "1"
     strip.locator(".lf-react-trigger").click()
     expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
-    expect(strip.locator('.lf-react[data-token="no"]')).to_be_visible()
+    expect(strip.locator('.lf-react[data-token="change"]')).to_be_visible()
     assert errors == []
     with sending(page, "the inline reaction"):
-        strip.locator('.lf-react[data-token="no"]').click()
+        strip.locator('.lf-react[data-token="change"]').click()
     reacted = events_model.read_events(serve.page_dir)[-1]
     assert (reacted["kind"], reacted["parent"], reacted["token"]) == (
         "reply",
         reply["id"],
-        "no",
+        "change",
     )
 
     # A layout change can withdraw the outlet without a pointer press to dismiss
@@ -4207,10 +4207,14 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     file.evaluate("details => { details.open = true; }")
     expect(thread.locator("textarea")).to_be_visible()
 
-    thread.focus()
-    expect(thread).to_be_focused()
+    # Resolve is the thread's own control, and the keyboard reaches it the way it
+    # reaches any other: #347 withdrew the page-level `x`, so the route is the PRESS
+    # row the control declares for itself (runtime/conversation/folding.js).
+    resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
+    resolve.focus()
+    expect(resolve).to_be_focused()
     with sending(page, "the inline keyboard resolution"):
-        page.keyboard.press("x")
+        page.keyboard.press("Enter")
     expect(thread).not_to_have_attribute("open", "")
     summary = thread.locator(".lf-conversation-summary")
     expect(summary).to_have_text("Resolved · 2 messages")
@@ -4879,7 +4883,7 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "ok",
+            "token": "keep",
             "anchor": {"section": "p7", "quote": "Paragraph 7."},
         },
     )

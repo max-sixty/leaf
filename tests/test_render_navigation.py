@@ -2054,7 +2054,8 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     """Mnemonics reach global surfaces; generated hints reach the visible scene.
 
     Threads, Asks, Page map, and page edges keep stable named routes. Page-map Buttons,
-    tabs, links, and folds instead share one viewport-local letter namespace."""
+    tabs, links, folds, and the presses a widget built instead share one viewport-local
+    letter namespace."""
     url = serve(ADDRESSED_PAGE)
     d = serve.page_dir
 
@@ -2453,6 +2454,34 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(page.locator("#dsc")).to_have_attribute("open", "")
     said = key_line(page)
     assert re.search(opened + r"\s*close", said), said
+
+    # A press a widget built joins the same namespace, declared by the constructor that
+    # made it rather than by an entry here. A pick spends no page letter of its own — the
+    # register holds capabilities, and a control is a route to one — so before this the
+    # only keyboard way to it was Tab. The arrival is the press, so the option is chosen.
+    page.evaluate(
+        """() => document.scrollingElement.scrollTo(
+             0, document.getElementById('opts-decision').offsetTop - 80)"""
+    )
+    page.keyboard.press("g")
+    controls = page.locator(f'{CHIPS}[data-lf-address-kind="Control"]')
+    expect(controls).not_to_have_count(0)
+    pick_code = page.evaluate(
+        """() => {
+             const mark = document.querySelector('#opt-a .lf-pick').getBoundingClientRect();
+             const chip = [...document.querySelectorAll(
+               '.lf-goto-targets > .lf-chord-address[data-lf-address-kind="Control"]')]
+               .find(c => {
+                 const r = c.getBoundingClientRect();
+                 return Math.abs(r.left + r.width / 2 - mark.left) < 2
+                     && Math.abs(r.top + r.height / 2 - mark.top) < 2;
+               });
+             return chip ? chip.dataset.lfAddress : null;
+           }"""
+    )
+    assert pick_code, "the pick mark the widget built got no address"
+    page.keyboard.type(pick_code)
+    expect(page.locator("#opt-a")).to_have_attribute("chosen", "")
 
     # The two completions that take no digit: an edge of the page is one place, so the
     # second key completes the route — G glides to the bottom, g to the top.
@@ -4691,8 +4720,12 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(visible_hints.nth(0)).to_contain_text("send")
     expect(visible_hints.nth(1)).to_contain_text("back to threads")
 
-    more = page.get_by_role("button", name="? more", exact=True)
+    # The pointer route remains while this text box owns `?`; the key face and
+    # accessible shortcut return when pressing the button moves focus out of the box.
+    more = page.get_by_role("button", name="More keyboard shortcuts", exact=True)
     expect(more).to_have_attribute("aria-expanded", "false")
+    expect(more.locator("kbd")).to_be_hidden()
+    expect(more).not_to_have_attribute("aria-keyshortcuts", re.compile(r".+"))
     more.click()
     help_el = page.locator(".lf-help")
     search = page.get_by_role("combobox", name="Search keyboard shortcuts")
@@ -5234,7 +5267,9 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
 
     The claim has to hold in both directions or it has bought nothing, so the control's
     own key is asserted beside the page's: a page whose keyboard stands over a radio must
-    not be taking Space off it."""
+    not be taking Space off it. The permanent More control is part of that same projection:
+    it keeps its pointer route in a text box but cannot show or expose `?` when that press
+    types into the box."""
     html = NOTED_PAGE.replace(
         "</main>",
         '<label><input id="flip" type="radio" name="frame"> after</label>'
@@ -5273,12 +5308,21 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     page.locator("#note").focus()
     expect(comment).to_have_count(0)
     expect(movement).to_have_count(0)
+    more = line.locator(".lf-key-more")
+    expect(more.locator("kbd")).to_be_hidden()
+    expect(more).to_have_attribute("aria-label", "More keyboard shortcuts")
+    expect(more).not_to_have_attribute("aria-keyshortcuts", re.compile(r".+"))
     page.keyboard.press("c")
     expect(page.locator("#note")).to_have_value("c")
     expect(page.locator(".lf-help")).to_be_hidden()
     page.keyboard.press("?")
     expect(page.locator("#note")).to_have_value("c?")
     expect(page.locator(".lf-help")).to_be_hidden()
+
+    page.evaluate("() => document.body.focus()")
+    expect(more.locator("kbd")).to_be_visible()
+    expect(more).to_have_attribute("aria-label", "? more")
+    expect(more).to_have_attribute("aria-keyshortcuts", "?")
     assert errors == []
     page.close()
 

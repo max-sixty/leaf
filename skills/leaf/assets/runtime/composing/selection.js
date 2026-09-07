@@ -37,7 +37,8 @@ import { notice } from "../notifications.js";
 import { paintDrawings, validDrawing } from "./drawing.js";
 
 // The floating field immediately accepts a comment on the target the reader named.
-// Pressing Tab or its ellipsis exchanges its field for the other responses in place.
+// Pressing Tab or its ellipsis raises the reaction Buttons in the target's margin. A
+// layer without reactions keeps the compact Comment/Suggest fallback here.
 // One affordance, raised only where the reader has already pointed: a native text
 // selection or an explicit Comment target gesture on an item or visual part.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");

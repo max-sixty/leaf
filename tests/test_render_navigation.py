@@ -1360,6 +1360,45 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
         context.close()
 
 
+def test_inline_thread_edge_has_room_without_focus_reflow(browser, serve):
+    """The region owns the breathing room its inset current edge requires."""
+    url = serve(SEATED_QUESTION_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Which job should come first?", {"section": "jobs"}
+    )
+    page, errors = open_page(browser, url)
+    thread = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
+
+    resting = thread.evaluate(
+        "el => ({width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height})"
+    )
+    reply = thread.locator("textarea")
+    reply.click()
+    expect(reply).to_be_focused()
+    focused = thread.evaluate(
+        "el => ({width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height})"
+    )
+    assert focused == resting, "the current edge changed the inline thread's geometry"
+
+    clearances = thread.evaluate(
+        """el => {
+          const root = el.getBoundingClientRect();
+          return [...el.children]
+            .filter(child => child.getClientRects().length && getComputedStyle(child).display !== 'none')
+            .flatMap(child => {
+              const box = child.getBoundingClientRect();
+              return [box.left - root.left, root.right - box.right,
+                      box.top - root.top, root.bottom - box.bottom];
+            });
+        }"""
+    )
+    assert clearances and min(clearances) >= 3, (
+        f"the 1px inset current edge landed on inline thread content: {clearances}"
+    )
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize("long_thread", [False, True], ids=["short", "long"])
 def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     browser, serve, long_thread

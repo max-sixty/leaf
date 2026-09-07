@@ -1292,8 +1292,9 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
           color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
 .lf-conversation { display: none; margin-top: var(--sp-2); overflow-wrap: anywhere; }
-.lf-conversation-thread { min-width: 0; font-family: var(--sans); font-size: var(--t-5);
-          line-height: var(--lf-ui-lh); color: var(--ink); overflow-wrap: anywhere; }
+.lf-conversation-thread { box-sizing: border-box; min-width: 0; padding: var(--sp-1);
+          font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh);
+          color: var(--ink); overflow-wrap: anywhere; }
 .lf-conversation-thread:is(:focus-within, .lf-focus-within) {
           outline: none; border-radius: var(--r); background: var(--here-surface);
           box-shadow: inset 0 0 0 1px var(--here-surface-border); }

@@ -7,18 +7,13 @@ import tomllib
 ROOT = Path(__file__).parent.parent
 
 
-def test_container_keeps_its_deployed_durable_object_identity():
-    """A code rename must not silently ask Cloudflare for a second application."""
+def test_container_keeps_its_deployed_application_identity():
+    """A code rename must keep addressing the standing Cloudflare application."""
     config = tomllib.loads((ROOT / "worker" / "wrangler.toml").read_text())
     [container] = config["containers"]
     [binding] = config["durable_objects"]["bindings"]
-    created_classes = {
-        class_name
-        for migration in config["migrations"]
-        for class_name in migration.get("new_sqlite_classes", [])
-    }
+    [created_class] = config["migrations"][0]["new_sqlite_classes"]
+    deployed_name = f"{config['name']}-{created_class.lower()}"
 
-    assert container["class_name"] in created_classes, (
-        "renaming a deployed container class changes its Cloudflare application identity"
-    )
+    assert container["name"] == deployed_name
     assert binding["class_name"] == container["class_name"]

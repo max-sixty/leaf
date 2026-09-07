@@ -11,16 +11,22 @@ binding = "ASSETS"
 run_worker_first = true
 
 [[containers]]
-# Cloudflare derives the deployed container application identity from this class.
-# Keep it stable even when the product-facing binding and surrounding code are renamed.
-class_name = "LeafExampleSession"
+# Cloudflare keys a container application to its Durable Object namespace, and a
+# namespace can hold only one. Wrangler matches the deployed application by name and
+# otherwise derives it from `<worker>-<class_name>`, so the v2 class rename below asked
+# it to create a second application against the namespace the first one already holds —
+# DURABLE_OBJECT_ALREADY_HAS_APPLICATION. Naming the standing application keeps the
+# deploy on the modify path. Renaming it would mean deleting the application first,
+# which drops every seated reader session.
+name = "leaf-website-leafexamplesession"
+class_name = "LeafWebsiteSession"
 image = "../Dockerfile.website"
 max_instances = 10
 instance_type = "lite"
 
 [[durable_objects.bindings]]
 name = "PAGES"
-class_name = "LeafExampleSession"
+class_name = "LeafWebsiteSession"
 
 [[workflows]]
 name = "leaf-website-agent"
@@ -38,6 +44,10 @@ namespace_id = "34302"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["LeafExampleSession"]
+
+[[migrations]]
+tag = "v2"
+renamed_classes = [{ from = "LeafExampleSession", to = "LeafWebsiteSession" }]
 
 [observability]
 enabled = true

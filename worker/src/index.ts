@@ -30,7 +30,7 @@ import {
 
 export interface Env {
   ASSETS: Fetcher;
-  PAGES: DurableObjectNamespace<LeafExampleSession>;
+  PAGES: DurableObjectNamespace<LeafWebsiteSession>;
   AGENT_WORKFLOW: Workflow<AgentWorkflowParams>;
   SOURCE_AGENT_RATE_LIMITER: RateLimit;
   OPENAI_API_KEY: string;
@@ -85,8 +85,7 @@ interface LeafStateAnswer {
   };
 }
 
-/** Cloudflare derives the existing container application identity from this class. */
-export class LeafExampleSession extends Container<Env> {
+export class LeafWebsiteSession extends Container<Env> {
   defaultPort = 8080;
   pingEndpoint = "localhost/health";
   sleepAfter = "10m";

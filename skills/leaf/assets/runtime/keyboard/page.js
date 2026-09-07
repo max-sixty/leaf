@@ -22,7 +22,7 @@ import {
   threadsBox,
 } from "../conversation/panel.js";
 import { inPanel, panelIsOpen, setPanel } from "../chrome-layout.js";
-import { composerOpen, fabInput, pendingDrawing } from "../composing/selection.js";
+import { composerHolds, composerOpen, fabInput } from "../composing/selection.js";
 import { draftOf } from "../composing/input.js";
 import {
   dismissFab,
@@ -717,11 +717,10 @@ const COMPOSER = {
       id: "composer.close",
       keys: ["Escape"],
       does: () =>
-        draftOf(fabInput).trim() || pendingDrawing
+        composerHolds()
           ? "Close the composer, keeping the draft"
           : "Close the composer",
-      line: () =>
-        draftOf(fabInput).trim() || pendingDrawing ? "close — draft kept" : "close",
+      line: () => (composerHolds() ? "close — draft kept" : "close"),
       promoteEscape: false,
       run: () => dismissFab(),
     },

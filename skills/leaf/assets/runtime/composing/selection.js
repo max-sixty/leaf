@@ -178,6 +178,14 @@ export function pendingComposer(accepts = () => true) {
 export const keptDraft = () => pendingComposer((record) => anchorStands(record.anchor));
 let inFlight = null;
 let composerEpoch = 0;
+// What the box holds that a reader would miss, asked once. The complete draft, because a
+// pasted image is in it and not in the textarea, plus a drawing, which stands beside the
+// words rather than in them. Three places ask: the send's own guard, the sentence a
+// hiding box says about what became of the words, and the word Escape's row shows. They
+// had a spelling each, and the one over the textarea alone read a box holding a picture
+// and nothing else as empty.
+const holdsWords = (draft) => Boolean(draft.trim() || pendingDrawing);
+export const composerHolds = () => holdsWords(syncComposer.value());
 syncComposer = wireInput(composerInput, {
   hint: () =>
     suggestCheck.checked
@@ -188,7 +196,7 @@ syncComposer = wireInput(composerInput, {
   sends: () => (suggestCheck.checked ? "suggest" : "comment"),
   sendBtn: composerSend,
   allowsMedia: () => !suggestCheck.checked,
-  hasContent: (raw) => Boolean(raw.trim() || pendingDrawing),
+  hasContent: holdsWords,
   save: saveComposerDraft,
   layout: refreshFab,
   send: async (text, raw, owns, visible) => {
@@ -273,10 +281,8 @@ export function setSuggestionMode(suggest) {
     return;
   }
   // Entering suggestion mode seeds the box with the passage to edit in place.
-  if (suggestCheck.checked && !syncComposer.value().trim() && pendingAnchor?.quote) {
-    composerInput.value = seededQuote = pendingAnchor.quote;
-    syncComposer();
-  }
+  if (suggestCheck.checked && !syncComposer.value().trim() && pendingAnchor?.quote)
+    syncComposer.load((seededQuote = pendingAnchor.quote));
   syncSuggestMode();
   saveComposerDraft();
   composerInput.focus({ preventScroll: true });
@@ -297,7 +303,7 @@ function showComposer(open) {
   // every path that discards the words empties the box before hiding it (leaveComposer),
   // so those stay silent. The sentence names the address that brings the draft back,
   // which is the whole of what the reader needs from this moment.
-  if (composerOpen && !open && (syncComposer.value().trim() || pendingDrawing))
+  if (composerOpen && !open && composerHolds())
     notice(
       anchorStands(pendingAnchor)
         ? `Draft kept — ${goAddress(KEPT_DRAFT)} returns to it`
@@ -334,7 +340,10 @@ export function openComposer(
   } = {},
 ) {
   closeReactions();
-  if (composerInput.value === seededQuote) composerInput.value = "";
+  // A box holding nothing but the machine's seed is a box holding nothing. Asked of the
+  // seed rather than of the box, because an empty seed matches an empty textarea, and a
+  // draft that is one pasted image and no words has exactly that textarea.
+  if (seededQuote && composerInput.value === seededQuote) syncComposer.load("");
   seededQuote = "";
   const ctx = composerCtx(anchor || null);
   const previousCtx = composerCtx(pendingAnchor);
@@ -345,7 +354,7 @@ export function openComposer(
     const previousText = syncComposer.value();
     const previousDrawing = pendingDrawing;
     const leavesFlight = inFlight?.ctx === previousCtx && previousText === inFlight.raw;
-    composerInput.value = "";
+    syncComposer.load("");
     // Automatic selection merely opens another passage's view. An explicit Comment
     // gesture may instead carry unsent words there, which preserves the old Alt-click
     // promise without making a reader's next selection silently re-anchor their draft.
@@ -369,7 +378,7 @@ export function openComposer(
     pendingDrawing = validDrawing(drawing) ? drawing : null;
   const target = pendingAnchor?.section ? elementById(pendingAnchor.section) : null;
   fabBar.dataset.lfPaintPlane = target && inChrome(target) ? "chrome" : "page";
-  composerInput.value = text || composerInput.value;
+  if (text) syncComposer.load(text);
   suggestCheck.checked = Boolean(suggest);
   syncSuggestMode();
   showComposer(true);
@@ -392,7 +401,7 @@ function watchComposer() {
     if (value === null) return closeComposer();
     const { text, suggest, about, drawing = null } = JSON.parse(value);
     if (syncComposer.value() !== text) {
-      composerInput.value = text;
+      syncComposer.load(text);
       // Whatever stood here is another tab's words now, not this box's machine seed.
       seededQuote = "";
     }
@@ -414,7 +423,7 @@ function leaveComposer(discard) {
   if (discard) clearDraft(composerCtx(pendingAnchor)); // before the anchor goes: the key is the anchor
   composerWatch?.();
   composerWatch = null;
-  composerInput.value = "";
+  syncComposer.load(""); // the whole draft, so a pasted image does not outlive its send
   seededQuote = "";
   suggestCheck.checked = false;
   pendingAnchor = null;

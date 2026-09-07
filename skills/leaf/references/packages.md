@@ -272,6 +272,13 @@ the shared draft persistence, busy state, and shortcut projections. A direct edi
 needs more commands, such as Save and Cancel, registers those rows on its textarea but
 keeps the same Enter and Mod+Enter meanings.
 
+The call returns the box's one seam onto its draft, and a box holds more than its
+`.value`: an image pasted into one is kept as Markdown and shown as a thumbnail beside
+the words, never in the textarea. So `sync.value()` reads the whole draft, `sync.load()`
+replaces it — a stored record, a draft arriving from another tab, the emptiness a send
+leaves — and `sync()` repaints the send button and placeholder around whatever stands.
+Write `.value` only to seed the box before wiring it.
+
 The widget still owns its implementation: supporting modules can sit beside its entry
 module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and

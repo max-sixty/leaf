@@ -62,9 +62,7 @@ export const conversationBox = (el, hint) => {
   box.lfFirstMessage = row;
   const off = watchDraft(ctx, (value) => {
     if (!box.isConnected) return off();
-    const text = value ?? "";
-    if (sync.value() !== text) ta.value = text;
-    sync();
+    sync.load(value ?? "");
     renderPanel();
   });
   box.append(row);

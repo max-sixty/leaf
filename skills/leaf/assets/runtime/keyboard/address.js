@@ -3,7 +3,10 @@
    Visible, visually discovered targets share one generated-letter namespace. Links,
    tabs, folds, the presses a widget built, and visible Page-map Buttons are read together
    in screen order and receive short prefix-free labels. Most cost one letter; only the
-   tail branches when the scene contains more targets than the available alphabet. The mapping is local to the
+   tail branches when the scene contains more targets than the available alphabet. The
+   lowercase kind mnemonics filter that map: `g h` shows hyperlinks,
+   `g t` tabs, `g f` folds, `g m` Page-map Buttons, and `g a` actions. A filtered map gets
+   its own shorter codes. The mapping is local to the
    visible scene: scrolling refreshes it once motion settles, while a partly typed label
    freezes it until the reader completes or backs out of that prefix. Routine repaints do
    not regenerate a standing map. A candidate is revalidated before activation, so a
@@ -11,10 +14,11 @@
    the current candidates and Enter activates the last one announced, because the painted
    labels themselves are visual chrome.
 
-   Lowercase `g`, `j`, `k`, and `p` retain their structural meanings and are excluded from
-   the generated alphabet. `g g` and `g G` glide to the page edges; from a focused thread,
-   `g k` and `g j` place its card at an edge of the list; from a beside-panel, `g p`
-   returns focus to the page while keeping the panel open. Uppercase mnemonics remain named
+   Lowercase `g`, `j`, `k`, and `p` retain their structural meanings, while `a`, `f`, `h`,
+   `m`, and `t` name filters; all nine are excluded from the generated alphabet. `g g` and
+   `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
+   an edge of the list; from a beside-panel, `g p` returns focus to the page while keeping
+   the panel open. Uppercase mnemonics remain named
    global destinations: `g T` Threads, `g A` Asks, `g L` All leaves, `g M` the searchable
    Page map, `g V` Versions, and `g D` the unsent draft the composer put away. Completing
    one exchanges the transient chord for a return
@@ -26,10 +30,12 @@
    target family. Exact duplicate activation elements collapse to one candidate, while
    distinct overlapping actions remain distinct.
 
-   Arming paints `data-lf-goto` on the body and one complete route over every candidate.
+   Arming paints `data-lf-goto` on the body and one compact route over every candidate.
+   Its leading ellipsis says the chord is already in progress without repeating `g` at
+   every target; the key line and reference retain the complete route.
    Generated hints are opaque routes, so none may be dropped for a collision; the shared
    hint placement pass spreads them around the key line and one another. Escape removes
-   one typed letter, then closes the mode. A letter from the hint alphabet is consumed
+   one typed letter, then a filter, then closes the mode. A letter from the hint alphabet is consumed
    even when a scene refresh made it invalid, with explicit feedback instead of an
    unrelated page action; another unrelated key closes the mode and is redispatched with
    its ordinary meaning.
@@ -274,12 +280,16 @@ function press(control) {
 const TARGET_KINDS = [
   {
     kind: "Page-map Button",
+    filterKey: "m",
+    filterWord: "Page-map Buttons",
     list: pageMapButtons,
     go: (...args) => openPageMapButton(...args),
     exposure: "self",
   },
   {
     kind: "Tab",
+    filterKey: "t",
+    filterWord: "tabs",
     list: pageTabs,
     go: press,
   },
@@ -287,11 +297,15 @@ const TARGET_KINDS = [
   // nearer meaning. The collapse above keeps whichever kind is read first.
   {
     kind: "Control",
+    filterKey: "a",
+    filterWord: "actions",
     list: pageControls,
     go: press,
   },
   {
     kind: "Link",
+    filterKey: "h",
+    filterWord: "hyperlinks",
     list: pageLinks,
     // Use the platform click method so authored handlers, cancellation, fragments,
     // targets, and downloads keep their anchor semantics.
@@ -299,6 +313,8 @@ const TARGET_KINDS = [
   },
   {
     kind: "Fold",
+    filterKey: "f",
+    filterWord: "folds",
     list: pageDisclosures,
     // Opening is the arrival. Scroll the disclosure rather than its summary so a section
     // taller than the viewport starts at its start, then leave focus on the summary for
@@ -312,12 +328,14 @@ const TARGET_KINDS = [
 const THREAD_EDGE_KEYS = ["k", "j"];
 const PAGE_RETURN_KEYS = ["p"];
 const PAGE_EDGE_KEYS = ["g", "Shift+g"];
+const FILTER_KEYS = TARGET_KINDS.map(({ filterKey }) => filterKey);
 const STRUCTURAL_KEYS = new Set(
-  [...THREAD_EDGE_KEYS, ...PAGE_RETURN_KEYS, ...PAGE_EDGE_KEYS].filter((key) =>
-    /^[a-z]$/.test(key),
+  [...THREAD_EDGE_KEYS, ...PAGE_RETURN_KEYS, ...PAGE_EDGE_KEYS, ...FILTER_KEYS].filter(
+    (key) => /^[a-z]$/.test(key),
   ),
 );
 const ADDRESS_KEYS = HINT_KEYS.filter((key) => !STRUCTURAL_KEYS.has(key));
+const TARGET_KEYS = [...FILTER_KEYS, ...ADDRESS_KEYS];
 
 const pointIn = (box) => ({
   x: Math.max(0, Math.min(innerWidth - 1, (box.left + box.right) / 2)),
@@ -332,7 +350,7 @@ function exposed(member, box, exposure) {
 
 const visibleWords = (member) => member.innerText?.replace(/\s+/g, " ").trim();
 
-function visibleCandidates() {
+function visibleCandidates(filter = null) {
   const placement = addressPlacement();
   const seen = new Set();
   const found = [];
@@ -364,16 +382,18 @@ function visibleCandidates() {
       left.rect.left - right.rect.left ||
       left.order - right.order,
   );
-  const codes = hintCodes(found.length, ADDRESS_KEYS);
-  return found.map((candidate, index) => ({ ...candidate, code: codes[index] }));
+  const filtered = filter ? found.filter(({ kind }) => kind === filter.kind) : found;
+  const codes = hintCodes(filtered.length, ADDRESS_KEYS);
+  return filtered.map((candidate, index) => ({ ...candidate, code: codes[index] }));
 }
 
 // Every complete route starts with the same stable prefix. A partial generated hint is
 // added to the live chord so the key line and chips can paint how far it has advanced.
 const chordPrefix = () => [labelOf(GOTO)].filter(Boolean);
-const chordKeys = () => [...chordPrefix(), ...prefix];
+const chordKeys = () =>
+  [...chordPrefix(), targetFilter?.filterKey, ...prefix].filter(Boolean);
 const addressChip = (candidate) => {
-  const steps = [labelOf(GOTO), ...candidate.code];
+  const steps = [...candidate.code];
   const chip = el("span", "lf-address lf-target-hint lf-chord-address");
   chip.dataset.lfAddress = candidate.code;
   chip.dataset.lfAddressKind = candidate.kind;
@@ -386,7 +406,8 @@ const addressChip = (candidate) => {
     candidate.member.dataset.lfMarginFor ||
     candidate.member.getAttribute("aria-controls");
   if (targetId) chip.dataset.lfAddressFor = targetId;
-  chip.append(keySequence(steps, progressStates(steps, chordKeys().length)));
+  chip.append(el("span", "lf-chord-prefix", "…"));
+  chip.append(keySequence(steps, progressStates(steps, prefix.length)));
   return chip;
 };
 
@@ -394,6 +415,7 @@ const addressChip = (candidate) => {
 // through ordinary repaints, refresh after viewport motion settles, and freeze after the
 // first hint letter.
 let chordArmed = false;
+let targetFilter = null;
 let prefix = "";
 let candidates = [];
 let hintActive = -1;
@@ -411,6 +433,7 @@ export function setChord(on) {
   // state before taking the visible-scene reading so those routes enter the same map as
   // links that were already standing in the document.
   document.body.toggleAttribute(PAGE_PAINT_ATTRIBUTE.goto, on);
+  targetFilter = null;
   prefix = "";
   candidates = on ? visibleCandidates() : [];
   hintActive = -1;
@@ -428,17 +451,31 @@ export function setChord(on) {
 
 const hinted = () => candidates.filter(({ code }) => code.startsWith(prefix));
 const targetCapability = () => TARGET_KINDS.some((entry) => entry.list().length > 0);
+const atTargetMenu = () => !targetFilter && !prefix;
 
 function candidateIsCurrent(candidate) {
-  return visibleCandidates().some(
+  return visibleCandidates(targetFilter).some(
     (current) => current.member === candidate.member && current.kind === candidate.kind,
   );
+}
+
+function filterTargets(binding) {
+  targetFilter = TARGET_KINDS.find(({ filterKey }) => filterKey === binding);
+  prefix = "";
+  candidates = visibleCandidates(targetFilter);
+  hintActive = -1;
+  announce(
+    candidates.length
+      ? `${candidates.length} visible ${targetFilter.filterWord}; type a hint or press Tab to hear them.`
+      : `No visible ${targetFilter.filterWord}.`,
+  );
+  paintHere();
 }
 
 function activateCandidate(candidate) {
   if (!candidate || !candidateIsCurrent(candidate)) {
     prefix = "";
-    candidates = visibleCandidates();
+    candidates = visibleCandidates(targetFilter);
     hintActive = -1;
     announce("That target is no longer visible. The hints are reset.");
     return paintHere();
@@ -459,6 +496,11 @@ function typeHint(key) {
   if (target) return activateCandidate(target);
   announce(`${hinted().length} targets remain.`);
   paintHere();
+}
+
+function refineOrType(key) {
+  if (!targetFilter && FILTER_KEYS.includes(key)) return filterTargets(key);
+  typeHint(key);
 }
 
 function moveHint(direction) {
@@ -499,7 +541,7 @@ export function paintAddresses() {
   const refreshed =
     !prefix && !scrolling && (refreshCandidates || detached || !candidates.length);
   if (refreshed) {
-    candidates = visibleCandidates();
+    candidates = visibleCandidates(targetFilter);
     hintActive = heard
       ? candidates.findIndex(
           (candidate) =>
@@ -622,7 +664,7 @@ export const GO = {
         ],
         does: "Put the focused thread at the top / bottom of its list",
         line: "thread top / bottom",
-        when: () => !prefix && Boolean(focusedThread()),
+        when: () => atTargetMenu() && Boolean(focusedThread()),
         run: (binding) => {
           const thread = focusedThread();
           setChord(false);
@@ -639,7 +681,7 @@ export const GO = {
         keys: PAGE_RETURN_KEYS,
         does: "Return to the page, keeping the thread panel open",
         line: "page — threads kept",
-        when: () => !prefix && inPanel() && !panelCovers(),
+        when: () => atTargetMenu() && inPanel() && !panelCovers(),
         run: () => {
           setChord(false);
           letGo();
@@ -651,14 +693,25 @@ export const GO = {
         // Every alphabet key is claimed while the map stands. If a scene refresh retired
         // a remembered route, that old letter must report the miss rather than falling
         // through to an unrelated page shortcut such as `d`.
-        keys: ADDRESS_KEYS,
-        label: "letters",
-        chordSteps: () => (prefix ? [...prefix, "…"] : ["letters"]),
-        completeChordSteps: () => ["letters"],
-        does: "Go to the visible target wearing that hint",
-        line: "visible target",
+        keys: () => (targetFilter ? ADDRESS_KEYS : TARGET_KEYS),
+        label: () => (targetFilter ? "letters" : `letters / ${FILTER_KEYS.join(" ")}`),
+        chordSteps: () => [
+          ...(targetFilter ? [targetFilter.filterKey] : []),
+          ...(prefix
+            ? [...prefix, "…"]
+            : [targetFilter ? "letters" : "letters / kind"]),
+        ],
+        completeChordSteps: () => [
+          ...(targetFilter ? [targetFilter.filterKey] : []),
+          targetFilter ? "letters" : chordArmed ? "letters / kind" : "letters",
+        ],
+        does: () =>
+          targetFilter
+            ? "Type a visible target's hint"
+            : "Type a visible target's hint, or filter first: m Page-map Buttons, t tabs, a actions, h hyperlinks, f folds",
+        line: () => (targetFilter ? "visible target" : "visible target / filter"),
         when: () => (chordArmed ? candidates.length > 0 : targetCapability()),
-        run: typeHint,
+        run: refineOrType,
       },
       {
         id: "navigation.target.walk",
@@ -695,7 +748,7 @@ export const GO = {
         label: spell(destination.key),
         does: destination.does,
         line: destination.line,
-        when: () => !prefix && destination.when(),
+        when: () => atTargetMenu() && destination.when(),
         returnFrame: () => {
           const workspace = workspaceState();
           return {
@@ -719,7 +772,7 @@ export const GO = {
       // owner that can keep them true.
       ...directDestinations().map((destination) => ({
         ...destination,
-        when: () => !prefix && live(destination),
+        when: () => atTargetMenu() && live(destination),
         run: (binding) => {
           setChord(false);
           destination.run(binding);
@@ -742,7 +795,7 @@ export const GO = {
         ],
         does: "Go to the top / bottom of the page",
         line: "top / bottom",
-        when: () => !prefix,
+        when: atTargetMenu,
         run: (binding) => {
           setChord(false); // before the travel, so the arrival's own scrolling paints nothing
           const box = seenScroller();
@@ -753,13 +806,26 @@ export const GO = {
         id: "navigation.address.back",
         keys: ["Escape"],
         chordControl: true,
-        does: () => (prefix ? "Remove the last hint letter" : "Cancel the chord"),
-        line: () => (prefix ? "back one letter" : "cancel"),
+        does: () =>
+          prefix
+            ? "Remove the last hint letter"
+            : targetFilter
+              ? "Show all visible targets"
+              : "Cancel the chord",
+        line: () =>
+          prefix ? "back one letter" : targetFilter ? "all targets" : "cancel",
         run: () => {
           if (prefix) {
             prefix = prefix.slice(0, -1);
             hintActive = -1;
             announce(prefix ? `Hint ${prefix}.` : "All go-to hints.");
+            return paintHere();
+          }
+          if (targetFilter) {
+            targetFilter = null;
+            candidates = visibleCandidates();
+            hintActive = -1;
+            announce("All go-to targets.");
             return paintHere();
           }
           setChord(false);

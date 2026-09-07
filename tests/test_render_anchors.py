@@ -4207,10 +4207,14 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     file.evaluate("details => { details.open = true; }")
     expect(thread.locator("textarea")).to_be_visible()
 
-    thread.focus()
-    expect(thread).to_be_focused()
+    # Resolve is the thread's own control, and the keyboard reaches it the way it
+    # reaches any other: #347 withdrew the page-level `x`, so the route is the PRESS
+    # row the control declares for itself (runtime/conversation/folding.js).
+    resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
+    resolve.focus()
+    expect(resolve).to_be_focused()
     with sending(page, "the inline keyboard resolution"):
-        page.keyboard.press("x")
+        page.keyboard.press("Enter")
     expect(thread).not_to_have_attribute("open", "")
     summary = thread.locator(".lf-conversation-summary")
     expect(summary).to_have_text("Resolved · 2 messages")

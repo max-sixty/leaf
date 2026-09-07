@@ -350,13 +350,8 @@ function raiseMarginSurface() {
 }
 
 function lowerMarginSurface() {
-  const restoreOpen = !marginUnfolded && marginTarget;
   marginOffer?.unregister();
   marginOffer = null;
-  // If the reader had already unfolded this target, restore its ordinary complete
-  // view after removing the temporary owner. While that hidden owner still exists,
-  // the margin correctly sees no visible options and closes the group.
-  if (restoreOpen) openButtonOptions(marginTarget);
   marginTarget = null;
   delete fabBar.dataset.lfMarginRaised;
   pickerFor(fabBar)?.trigger.setAttribute("aria-expanded", "false");

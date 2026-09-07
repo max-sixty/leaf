@@ -78,8 +78,7 @@ jobs:
       - name: 🧪 Nightly suite
         if: github.event_name == 'push'
         timeout-minutes: 90
-        run: uv run pytest tests --run-nightly -v \
-          --junitxml=.tmp/test-results/nightly.xml
+        run: uv run pytest tests --run-nightly -v --junitxml=.tmp/test-results/nightly.xml
 
       - name: Upload pytest results
         if: always()
@@ -87,7 +86,8 @@ jobs:
         with:
           name: pytest-results-${{ github.event_name }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/test-results/*.xml
-          if-no-files-found: ignore
+          if-no-files-found: error
+          include-hidden-files: true
           retention-days: 30
 
   lint:

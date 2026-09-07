@@ -493,6 +493,7 @@ dev = [
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-xdist" },
+    { name = "pyyaml" },
 ]
 
 [package.metadata]
@@ -511,6 +512,7 @@ dev = [
     { name = "pre-commit", specifier = ">=4.6.2" },
     { name = "pytest", specifier = ">=9.1" },
     { name = "pytest-xdist", specifier = ">=3" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
 ]
 
 [[package]]

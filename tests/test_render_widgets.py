@@ -1432,7 +1432,15 @@ def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser,
     assert markers[-1] <= nav_box["y"] + nav_box["height"]
 
     page.mouse.move(nav_box["x"] + 30, nav_box["y"] + 100)
-    page.wait_for_timeout(300)
+    page.wait_for_function(
+        """nav => {
+          const hovered = nav.querySelector('li:hover a');
+          const opaque = [...nav.querySelectorAll('.lf-toc-start a, li a')]
+            .filter(link => getComputedStyle(link).opacity === '1');
+          return hovered && getComputedStyle(hovered).opacity === '1' && opaque.length === 1;
+        }""",
+        arg=nav.element_handle(),
+    )
     shown = nav.locator(".lf-toc-start a, li a").evaluate_all(
         "links => links.filter(link => getComputedStyle(link).opacity === '1')"
         ".map(link => link.textContent || link.getAttribute('aria-label'))"

@@ -12,6 +12,7 @@ from render_support import (
     CONVERSATION_DIFF_PAGE,
     EXAMPLE_MEDIA,
     FEATURE_GALLERY,
+    RENDERED,
     TARGETS_PAGE,
     live_url,
     open_page,
@@ -137,19 +138,18 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert drawn["x"] + drawn["width"] > target_box["x"] + target_box["width"]
     assert drawn["y"] < target_box["y"]
     assert page.evaluate("document.documentElement.scrollWidth") == scroll_width
-    page.wait_for_timeout(100)
     stacking = page.locator(".lf-drawings").evaluate(
         "el => ({classes: el.getAttribute('class'), z: getComputedStyle(el).zIndex})"
     )
     assert stacking["z"] == "8890", stacking
     stable_mark = mark.element_handle()
-    page.wait_for_timeout(100)
+    page.evaluate(RENDERED)
     assert stable_mark.evaluate("node => node.isConnected"), (
         "an idle drawing must not sustain a ResizeObserver repaint loop"
     )
     relation = mark_relation(page, posted, "#bg-choice-trail")
     page.evaluate("scrollBy(0, 100)")
-    page.wait_for_timeout(100)
+    page.evaluate(RENDERED)
     assert mark_relation(page, posted, "#bg-choice-trail") == pytest.approx(
         relation, abs=0.02
     )
@@ -214,12 +214,7 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     page.mouse.move(point["x"] - 150, point["y"] + 35, steps=8)
     page.mouse.up()
 
-    page.wait_for_timeout(100)
-    assert page.locator(".lf-drawing-pending").count() == 1, {
-        "announcement": page.locator(".lf-live").text_content(),
-        "body_class": page.locator("body").get_attribute("class"),
-        "composer": page.locator(".lf-general textarea").is_visible(),
-    }
+    expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     expect(page.locator(".lf-general textarea")).to_be_focused()
     expect(page.locator(".lf-general .primary")).to_have_attribute(
         "aria-disabled", "false"
@@ -252,7 +247,7 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     before = mark_box(page, posted)
     assert before["x"] > 0, before
     page.evaluate("scrollBy(0, 100)")
-    page.wait_for_timeout(100)
+    page.evaluate(RENDERED)
     expect(mark).to_have_count(1)
     after = mark_box(page, posted)
     assert after["x"] == pytest.approx(before["x"], abs=0.02)

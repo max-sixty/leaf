@@ -25,17 +25,15 @@ def merge_layer_entries(merged: dict, entries: dict) -> None:
 
     A tag entry replaces the earlier one whole; schemas never deep-merge,
     because a half-old, half-new contract is no layer's vocabulary. A $ entry
-    merges by member: it is not a contract but the layer's namespace of shared
-    facts. Under replace-whole, a project declaring its one idiom vendored a
-    $idioms holding exactly that idiom — its theme rules kept styling,
-    theme.css concatenating where the registry did not, while the vendored
-    registry silently dropped the shipped ten. A member that is itself a map merges by
-    its own keys for the same reason one level down: $languages.paths is
-    indexed by extension, and a layer adding `.svelte` must not silently drop
-    every shipped extension with it. Scalar and list members replace whole —
-    a names list is one statement — and the grain here decides nothing the
-    gates don't re-check: validation and the vocabulary stamp read the merged
-    result, whichever layer each piece came from.
+    holds shared layer facts, so its members merge. Under replace-whole, a project
+    declaring one idiom vendored a $idioms holding exactly that idiom — its theme
+    rules kept styling, theme.css concatenating where the registry did not, while
+    the vendored registry silently dropped the shipped ten. A member that is itself
+    a map merges by its own keys for the same reason one level down:
+    $languages.paths is indexed by extension, and a layer adding `.svelte` must not
+    silently drop every shipped extension with it. Scalar and list members replace
+    whole — a names list is one statement. `$events.kinds` is the exception: it is
+    Leaf's fixed kernel transport contract, and a layer cannot change it.
 
     Inside a map member the merge is JSON merge-patch: a later layer's value
     replaces the key, a new key joins, and `null` removes one — which is the

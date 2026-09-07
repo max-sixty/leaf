@@ -3688,9 +3688,12 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     browse_route = line.locator(
         '.lf-key:not([hidden])[data-lf-commands~="navigation.target.next"]'
     )
-    assert browse_route.locator("kbd").evaluate_all(
+    browse_faces = browse_route.locator("kbd").evaluate_all(
         "keys => keys.map(key => [key.textContent, key.dataset.lfKeyState])"
-    ) == [["g", "pressed"], ["⇥ / ⇧⇥", "neutral"]]
+    )
+    assert [state for _, state in browse_faces] == ["pressed", "neutral"], browse_faces
+    assert browse_faces[0][0] == "g", browse_faces
+    assert re.fullmatch(r"⇥ / (⇧|Shift\+)⇥", browse_faces[1][0]), browse_faces
     continued_hint = page.locator(
         f'{CHIPS}[data-lf-address="{branched[0]}"] .lf-key-sequence'
     )

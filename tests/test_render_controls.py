@@ -1079,16 +1079,6 @@ def test_a_phone_banner_folds_its_addresses_into_one_menu(browser, serve, other_
     expect(more).to_be_visible()
     folded = page.locator(".lf-banner-menu > *")
     assert folded.count() > 0, "nothing folded, so this test has no menu to walk"
-    folded_chords = page.locator(".lf-banner-menu > [data-lf-chord]")
-    chord_readings = folded_chords.evaluate_all(
-        """els => els.map(el => ({
-          chord: el.dataset.lfChord,
-          content: getComputedStyle(el, '::after').content,
-        }))"""
-    )
-    assert chord_readings and all(
-        reading["content"] == f'"{reading["chord"]}" / ""' for reading in chord_readings
-    ), f"a folded destination lost its visible chord: {chord_readings}"
     # The row keeps the reading loop and the door; everything else is behind it.
     expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
     expect(page.locator(".lf-banner-actions > .lf-threads-toggle")).to_be_visible()

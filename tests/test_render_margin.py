@@ -2593,25 +2593,36 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         assert hovered["wordOpacity"] == "1"
         assert hovered["wordPosition"] == "absolute"
         assert hovered["wordBackground"] != "rgba(0, 0, 0, 0)"
-        trace = control.evaluate(
-            """node => {
-              const line = getComputedStyle(node.closest('.lf-margin-item'), '::before');
+        # The trace is the whole of what a hovered status says about its target: the item
+        # draws no leader out to it, so the box alone spends both declared tokens. Width
+        # is read through a probe wearing the same token for the same reason ink is: the
+        # theme states 1.5px and the platform lays a border down in whole device pixels,
+        # so what the box must match is the token as this display resolves it.
+        trace = page.evaluate(
+            """() => {
               const box = getComputedStyle(document.querySelector('.lf-margin-status-trace'));
+              const probe = document.createElement('span');
+              probe.style.borderTop = 'var(--status-trace-w) solid';
+              document.body.append(probe);
+              const declaredWidth = getComputedStyle(probe).borderTopWidth;
+              probe.remove();
               return {
-                declaredWidth: box.getPropertyValue('--status-trace-w').trim(),
+                declaredToken: box.getPropertyValue('--status-trace-w').trim(),
+                declaredWidth,
                 boxWidth: box.borderTopWidth,
                 boxColor: box.borderTopColor,
-                lineWidth: line.borderTopWidth,
-                lineColor: line.borderTopColor,
+                leader: getComputedStyle(
+                  document.querySelector('.lf-margin-item'), '::before',
+                ).content,
               };
             }"""
         )
+        declared_width = trace.pop("declaredWidth")
         assert trace == {
-            "declaredWidth": "1.5px",
-            "boxWidth": trace["lineWidth"],
-            "boxColor": trace["lineColor"],
-            "lineWidth": trace["boxWidth"],
-            "lineColor": trace["boxColor"],
+            "declaredToken": "1.5px",
+            "boxWidth": declared_width,
+            "boxColor": resolved_color("--status-trace-ink"),
+            "leader": "none",
         }
 
     assert_status("Sent", "just now")

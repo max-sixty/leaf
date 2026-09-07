@@ -77,24 +77,34 @@ jobs:
       # window while Cloudflare provisions the application and custom domain.
       #
       # The per-attempt cap has to outlast the slowest answer a busy seat produces
-      # rather than a healthy one. Both routes take a container seat, and while every
-      # slot is held a seat request can hang with no bytes at all: run 34088384337
-      # aborted twenty-seven attempts that way at ten seconds, while the four that did
-      # answer returned 500 within 1.4-5.7s. Probes taken minutes later, with the window
-      # still busy, took ~11.5s to return "Maximum number of running container instances
-      # exceeded", which ten seconds cuts off.
+      # rather than a healthy one. While every container slot is held, a seat request can
+      # hang with no bytes at all: run 34088384337 aborted twenty-seven attempts that way
+      # at ten seconds, while the four that did answer returned 500 within 1.4-5.7s.
+      # Probes taken minutes later, with the window still busy, took ~11.5s to return
+      # "Maximum number of running container instances exceeded", which ten seconds cuts
+      # off. Both probes send the one session cookie and the Worker keys the container on
+      # the session alone, so they share a seat rather than taking one each.
+      #
+      # --retry-max-time is what bounds the loop, because --retry counts attempts rather
+      # than time: 31 attempts at 25s plus their delays is ~17.9 min per probe, and two
+      # of those overrun the job's 30-minute timeout, which would end the step as a
+      # runner kill rather than as the curl error this step exists to report. Ten minutes
+      # per probe keeps the whole step inside the job with the patience each attempt
+      # gained.
       - name: Verify public Leaf pages
         run: |
           COOKIE="__Host-leaf-page=$(openssl rand -hex 16)"
           curl --fail --silent --show-error \
             --cookie "$COOKIE" \
-            --retry 30 --retry-all-errors --retry-delay 10 --max-time 25 \
+            --retry 30 --retry-all-errors --retry-delay 10 \
+            --max-time 25 --retry-max-time 600 \
             https://leaf.page/api/state \
             | jq --exit-status \
               '.publication.kind == "product" and .claims == []'
           curl --fail --silent --show-error \
             --cookie "$COOKIE" \
-            --retry 30 --retry-all-errors --retry-delay 10 --max-time 25 \
+            --retry 30 --retry-all-errors --retry-delay 10 \
+            --max-time 25 --retry-max-time 600 \
             https://leaf.page/examples/design-decision/api/state \
             | jq --exit-status \
               '.publication.kind == "example" and .claims == []'

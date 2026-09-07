@@ -481,14 +481,33 @@ function hasReviewedFocus() {
   reviewedThrough = null;
   return false;
 }
+// The ask a node points back at, as the id it names, or null where it points at none.
+const standsAt = (node) => {
+  const el = node.nodeType === 1 ? node : node.parentElement;
+  const row = el?.closest(`[${ASK_ROW}], [${ASK_AT}]`);
+  return row?.getAttribute(ASK_ROW) ?? row?.getAttribute(ASK_AT) ?? null;
+};
+// What a surface re-presenting a control has to say about it: the control's own
+// attribution, so a stand-in stands where the control it forwards to stands. The living
+// margin builds one when a hoisted control spills into a More options group, and the
+// press it forwards decides the same ask. Saying nothing left the proxy standing nowhere:
+// the ring came off the suggestion for as long as the reader held its own ✗ Reject, and
+// the walk measured its next step from the margin rather than from the change.
+//
+// Written only where it changes, like every other repaint of a standing surface: a
+// heartbeat that re-presents the same control restates nothing.
+export function standsWith(node, source) {
+  const at = (source && standsAt(source)) ?? null;
+  if (node.getAttribute(ASK_ROW) === at) return;
+  if (at) node.setAttribute(ASK_ROW, at);
+  else node.removeAttribute(ASK_ROW);
+}
 // A place in the document, stated as the ask it belongs to wherever it belongs to one: a
 // control hoisted out of its ask and pointing back at it stands for that ask and not for
 // the block it was hung beside, or stepping back from a suggestion's own ✓ Accept would
 // land on the suggestion the reader is already standing on.
 export function askPlace(node) {
-  const el = node.nodeType === 1 ? node : node.parentElement;
-  const row = el?.closest(`[${ASK_ROW}], [${ASK_AT}]`);
-  const at = row?.getAttribute(ASK_ROW) ?? row?.getAttribute(ASK_AT);
+  const at = standsAt(node);
   return (at && elementById(at)) ?? node;
 }
 // The ask the reader is standing in: the one holding the focus, or the one a control

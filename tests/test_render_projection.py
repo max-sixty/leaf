@@ -41,6 +41,7 @@ from render_support import (
     REF_PAGE,
     RELATIVE_WIDGET_MODULE,
     RELATIVE_WIDGET_PAGE,
+    RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     REPORT_PAGE,
@@ -1442,14 +1443,32 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     # Reached with real presses, because :focus-visible answers the input device and a
     # control focused from script wears no ring for any reading to compare.
     page.keyboard.press("a")
+    suggestion = page.locator("#sug-refill")
+    expect(suggestion).to_have_attribute("data-lf-ask", "1")
     accept = page.locator(".lf-sug-accept")
     accept.focus()
+    # Tab inside the margin reaches the same suggestion's ✗ Reject, re-presented as the
+    # options group's proxy for it. A control that forwards another control's press
+    # stands where that control stands, so the reader is still deciding this change and
+    # the ring stays on it. It did not: the proxy stood nowhere, the band came off the
+    # suggestion for as long as the reader held that control, and returning to ✓ Accept
+    # brought it back a frame later — which is also how the read below came to be taken
+    # while nothing on the page was ringed at all.
+    #
+    # Read after the frame the focus move's repaint is coalesced into, so this states the
+    # band the page settles on rather than whichever side of that frame the read lands on.
     page.keyboard.press("Tab")
+    page.evaluate(RENDERED)
+    forwarded_ring = suggestion.evaluate(RING)
+    assert forwarded_ring == row_ring, (
+        "the decision lost its ring while the reader held the margin's proxy for one of "
+        f"its own controls: {forwarded_ring} against {row_ring}"
+    )
     page.keyboard.press("Shift+Tab")
     expect(accept).to_be_focused()
     # A decision that is not a joined control wears the ring itself, and it is the band
     # the row above wore: the two shapes say one thing about the reader.
-    decision_ring = page.locator("#sug-refill").evaluate(RING)
+    decision_ring = suggestion.evaluate(RING)
     assert decision_ring == row_ring, (
         "a decision and an options row are drawn in two different bands for the one "
         f"fact: {decision_ring} against {row_ring}"

@@ -6,6 +6,13 @@ short-lived container per browser session. Its copied page directories and appen
 logs are private to that reader and disappear when the container is replaced; no
 website-only projection or conversation store exists.
 
+The deployment admits up to 15,000 concurrent `lite` containers, the current
+account-level capacity implied by Cloudflare's 30 TB concurrent-disk limit. A visible
+page holds its container through Leaf's news stream. Hidden tabs close that stream, so
+Cloudflare's ten-minute idle timer starts after the browser session has no visible Leaf
+tab; returning within the grace period resumes the same page, while a later return gets
+the image's fresh ephemeral state.
+
 When Leaf accepts a reader message that its canonical activity projection says needs
 a response, the Worker starts one Cloudflare Workflow keyed by the browser session and
 event id. Its retryable steps read a fresh page and thread from the container, run the

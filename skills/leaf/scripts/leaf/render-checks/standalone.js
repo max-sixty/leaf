@@ -368,6 +368,18 @@ export function bake() {
       )
         el.removeAttribute(attr.name);
   });
+  // A box a widget built to hold controls stops calling itself a group once the presses
+  // inside it have gone with the scripts. The role named a set, and the label it pointed
+  // at was one of the leaf words the loop above already took, so what is left is an empty
+  // group holding a dangling reference — and a copy's own reading of what it still offers
+  // reads any role on a widget's chrome as a control the file cannot answer. Asked of
+  // what the box holds rather than of the widget that built it: native controls the
+  // browser still drives are a set worth naming, so a group keeping one keeps its role.
+  all("[data-lf-offer=''][role]").forEach((box) => {
+    if (box.querySelector("input, select, textarea, a[href], button")) return;
+    box.removeAttribute("role");
+    box.removeAttribute("aria-labelledby");
+  });
   // Target items are generated containers rather than offers themselves. A pending
   // action leaves the container empty when its inert controls are stripped above; take
   // that shell too, or :has(.lf-margin-item) reserves the live page's rail in a copy

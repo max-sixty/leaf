@@ -908,12 +908,15 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      hands the fold something to measure. */
   .lf-banner-actions > .lf-btn { flex: none; }
   /* Stable global destinations carry their complete chord on the banner control that
-     opens them, including when the shelf folds that control into its menu. Keep it as
-     secondary text rather than another keycap: the action stays the button's label,
-     while the shortcut remains available without opening help. */
+     opens them, including when the shelf folds that control into its menu. A quiet
+     second line keeps the shortcut beside its destination without spending horizontal
+     room or changing which controls fit on the shelf. The empty CSS speech alternative
+     leaves the button's accessible name as the action rather than the shortcut. */
+  [data-lf-chord] { position: relative; padding-block: 3px 14px; }
   [data-lf-chord]::after { content: attr(data-lf-chord) / "";
-    margin-inline-start: 7px; color: var(--muted); font-family: var(--mono);
-    font-size: var(--t-6); font-weight: 400; }
+    position: absolute; inset-inline: 0; bottom: 3px; color: var(--muted);
+    font-family: var(--mono); font-size: var(--t-6); font-weight: 400;
+    line-height: 1; text-align: center; }
   /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
      mask is the page's actual vendored mark, so a project that replaces icon.svg does
      not keep an unrelated leaf-like glyph in the banner. Shape is identity and colour
@@ -981,6 +984,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      taken away — the map above 900, a chip with no news — into the list as a blank. */
   .lf-banner-menu > .lf-btn { width: 100%; border-color: transparent;
     background: none; text-align: left; }
+  .lf-banner-menu > [data-lf-chord]::after { inset-inline-start: 10px;
+    text-align: left; }
   .lf-banner-menu > .lf-btn:hover { background: var(--chip); }
   /* The line's momentary other words (notifications.js), in its place rather than beside
      it: the row holds one sentence at a time, and a narrow window clips the notice the

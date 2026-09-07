@@ -1361,17 +1361,22 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                  calc((100cqi - min(var(--col), var(--lf-room))) / 2
                    + var(--lf-shift) - 2 * var(--sp-4)),
                  320px);
-               /* The map stands in the same corner the key line is written into, and it
-                * is fixed, so nothing in the flow can hold it off. syncLayout publishes
-                * the line's whole band on the root for exactly this, and the document,
-                * the trays and the thread list already end above it; the map is the
-                * fourth region in that band and ends there too, with the same 20px of
-                * air the band carries. Without it the last section of every page with a
-                * spine sat under the line — 21 of its 36 pixels, at every width, and
-                * not scrollable clear, the map being sized to the window. The band
-                * reads zero where no line stands, which leaves the plain inset. */
-               height: calc(100vh - var(--lf-banner-h, 0px) - var(--sp-4)
-                 - max(var(--sp-4), var(--lf-keyline-clear, 0px)));
+               /* TODO: the key line covers this map's last entry — 21 of its 36 pixels,
+                * on every page with a spine, at every width, with nothing to scroll it
+                * clear. The map is the fourth region standing in the line's band and the
+                * only one out of flow, so neither the document's room nor a list's
+                * padding reaches it, and syncLayout's `--lf-keyline-clear` would end it
+                * above the line in one term.
+                *
+                * That is deliberately not done. The line is either something that hovers
+                * over the page or something attached to its foot, and it should not be
+                * both: it already takes room from the document, the trays and the thread
+                * list, and giving it the map as well settles the question by accretion
+                * rather than by deciding it. Left hovering, cutoff accepted, until the
+                * line's own character is chosen — at which point either every region
+                * ends above it, this one included, or none does and the other three give
+                * their reservations back. */
+               height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
                margin: 0; }
       body[data-lf-upgraded="1"] lf-toc { transition: left .18s ease; }
       body[data-lf-sizing] lf-toc { transition: none; }

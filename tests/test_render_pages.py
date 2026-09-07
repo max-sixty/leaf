@@ -2607,11 +2607,16 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert workspace["sidebarLeft"] >= workspace["trayRight"] - 1
     assert abs(workspace["tocLeft"] - workspace["trayRight"] - 24) <= 1
     assert 64 <= workspace["tocTop"] <= 68
-    # The map runs from under the banner to the top of the key line's band. Both ends
-    # are chrome's, so neither is a number here: the foot is the band syncLayout
-    # publishes, the same room the document and this tray's own list take.
-    assert abs(workspace["lineTop"] - workspace["tocBottom"] - 20) <= 1, (
-        f"the map did not end in the key line's band: {workspace}"
+    # The map is sized to the window rather than to the room left under the key line, so
+    # its foot is the window's less the banner and the inset. The line stands over its
+    # last entry and this asserts that it does: the line is a hover here, and the map is
+    # not one of the regions that ends above it (`lf-toc`'s rule carries the TODO).
+    assert abs(workspace["tocBottom"] - 876) <= 1, (
+        f"the map is no longer sized to the window: {workspace}"
+    )
+    assert workspace["lineTop"] < workspace["tocBottom"], (
+        f"the key line no longer stands over the map's foot, so the cutoff this page "
+        f"accepts has been closed somewhere without the TODO being settled: {workspace}"
     )
     page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()

@@ -231,12 +231,12 @@ export function syncLayout() {
   // navigation where the visible edge actually is. Keep both on the same measured band
   // so a Tab stop already inside the viewport cannot be accepted underneath the line.
   //
-  // Published rather than only spent here, because a region standing in this band need
-  // not be one this function can reach: the contents spine is fixed page furniture, so
-  // no flow room and no list padding gets to it, and it sized itself to the window and
-  // ran under the line at every width. A fourth inline write would have been a fourth
-  // box this function has to know about; the band on the root is the same reading, said
-  // once, for whatever the stylesheet stands in the line's corner.
+  // The band is on the root rather than only spent here, so a region this function
+  // cannot reach can end above the line without a fourth inline write. The contents
+  // spine is such a region — fixed page furniture, so no flow room and no list padding
+  // reaches it, and it runs under the line at every width. It does not take the band
+  // today, deliberately: `lf-toc`'s own rule in the default theme carries the reasoning
+  // and the TODO, which is that the line has to be a hover or a foot and not both.
   document.documentElement.style.setProperty("--lf-keyline-clear", clear);
   // A tray's list is the page's other scroll region, in the corner the line is
   // written into. Its foot is the window's, the tray being held to `bottom: 0`, so the

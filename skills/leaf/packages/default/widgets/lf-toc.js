@@ -173,15 +173,6 @@ customElements.define(
         this.#scroller === document.scrollingElement ? document : this.#scroller;
       this.#watching = new ResizeObserver(() => this.#scheduleMeasure());
       this.#watching.observe(this.#main);
-      // The track the map lays rows into is the other box that decides the layout, and
-      // it is not the document's: the map is sized to the window less the banner and
-      // less whatever band the key line is standing in, so a chord that grows the line
-      // shortens the spine without the page reflowing at all. Packing labels around
-      // markers that have since moved leaves them a label's height out of place, and
-      // the crowded reading is decided against this height too. Nothing measured here
-      // writes to this box — spans land on its rows, shifts on the labels inside them,
-      // and the dense mark changes neither — so hearing it cannot start a loop.
-      this.#watching.observe(this.#rows);
       for (const { destination } of this.#sections)
         if (destination !== this.#main) this.#watching.observe(destination);
       this.#scrollSource.addEventListener("scroll", this.#onScroll, { passive: true });

@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 from leaf import event_log as events_model
@@ -27,39 +28,183 @@ LEAF_COMMAND = [sys.executable, "-m", "leaf"]
 pytest_plugins = ("interact_support", "render_support")
 
 
-@pytest.fixture(scope="session")
-def clone_initialized_page(tmp_path_factory):
-    """Clone one initialized page shape without recomposing its layer per test.
+# The layer a page carries is the same bytes in every fixture, and the file it
+# is made of is what a copy costs: an initialized page is 146 files, 99 of them
+# runtime modules, and the suite wants one page per test. Copying them all makes
+# a complete nightly run 2,272 pages and 393,473 directory entries, which is the
+# number a filesystem event watcher charges for — hard links share the bytes but
+# not the entry. So the layer is written once per shape and lent, and only what
+# a test actually changed is put back.
+LENT_LINKED_DIRS = frozenset({"runtime", "vendor"})
 
-    Runtime and vendor files are immutable inputs for tests whose subject starts
-    after initialization. Hard links keep those large bytes shared; page state,
-    the registry, theme, entry module, and widget modules remain private copies.
-    A re-vendor replaces linked files atomically, so it also stays private.
+
+class PagePool:
+    """One initialized page per shape, lent to a test and reset for the next.
+
+    A page directory is leaf's deployment unit, and the server enforces that:
+    `http` serves a file only where `path_is_within` puts it inside the page it
+    is serving, and `path_location` resolves symlinks first, so a layer symlinked
+    to a shared copy is a page that 404s its own runtime. `page init` refuses one
+    outright. The layer therefore has to be real files in the page, and the only
+    way to stop paying for them per test is to stop making a page per test.
+
+    What a test leaves behind is small: a served page differs from the shape it
+    was made from in `index.html`, `events.jsonl`, `status.json`, `viewed.json`,
+    the revision it stamped and its `.fixture-versions`. `reset` reads the
+    difference off the filesystem rather than a list — every file whose identity,
+    size or modification time moved is put back from the shape, every file and
+    directory the test added is removed — so a page a test changed in some way
+    nobody anticipated still comes back as the shape, and a new page-owned file
+    needs nothing here.
+
+    The lent page is moved to the caller's own path, not handed over where it
+    lies: a test that writes a project overlay beside its page reaches it as
+    `page_dir.parent / ".leaf"`, and `_no_page_outlives_its_test` sweeps
+    `tmp_path` for a server still standing. It is left there when the test ends
+    and moved again on the next loan, so the sweep runs while the page is still
+    under the root it walks.
     """
-    templates = {}
-    root = tmp_path_factory.mktemp("page-templates")
 
-    def clone(name, destination, initialize):
-        if name not in templates:
-            template = root / name
+    def __init__(self, root):
+        self.root = root
+        self.shapes = {}  # name -> PageShape
+        self.free = {}  # name -> [page]
+        self.stamps = {}  # page -> {relative path: identity}
+
+    def _shape(self, name, initialize):
+        if name not in self.shapes:
+            template = self.root / name
             initialize(template)
-            templates[name] = template
-        template = templates[name]
+            self.shapes[name] = PageShape(
+                template,
+                directories=frozenset(
+                    path.relative_to(template).as_posix()
+                    for path in template.rglob("*")
+                    if path.is_dir()
+                ),
+                files=_stamp(template),
+            )
+            self.free[name] = []
+        return self.shapes[name]
 
-        def copy_fixture_file(source, target):
-            relative = Path(source).relative_to(template)
-            if relative.parts[0] in {"runtime", "vendor"}:
-                os.link(source, target)
-                return target
-            return shutil.copy2(source, target)
+    def _reset(self, shape, page):
+        """Make the page the shape again, from what the filesystem says moved."""
+        stamp = self.stamps[page]
+        kept = {}
+        for path in sorted(page.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+            relative = path.relative_to(page).as_posix()
+            # A symlink is whatever a test made it; it is never one of the shape's
+            # own files, so it goes as a file rather than as the tree it points at.
+            if path.is_dir() and not path.is_symlink():
+                if relative not in shape.directories:
+                    shutil.rmtree(path)
+            elif relative not in stamp:
+                path.unlink()
+            elif (identity := _identity(path)) == stamp[relative]:
+                kept[relative] = identity
+            else:
+                path.unlink()
+        for relative in shape.directories:
+            (page / relative).mkdir(parents=True, exist_ok=True)
+        for relative in stamp:
+            if relative not in kept:
+                kept[relative] = shape.restore(page, relative)
+        return kept
 
-        shutil.copytree(template, destination, copy_function=copy_fixture_file)
-        status_path = destination / "status.json"
+    def lend(self, name, destination, initialize):
+        shape = self._shape(name, initialize)
+        if self.free[name]:
+            page = self.free[name].pop()
+            stamp = self._reset(shape, page)
+            os.rename(page, destination)
+            del self.stamps[page]
+        else:
+            shutil.copytree(shape.template, destination, copy_function=shape.compose)
+            stamp = _stamp(destination)
+        self.stamps[destination] = stamp
+        return destination
+
+    def give_back(self, name, page):
+        self.free[name].append(page)
+
+
+class PageShape(NamedTuple):
+    """A composed layer, what a page holding it looks like, and how one is made."""
+
+    template: Path
+    directories: frozenset[str]
+    files: dict[str, tuple[int, int, int]]
+
+    def compose(self, source, target):
+        if Path(source).relative_to(self.template).parts[0] in LENT_LINKED_DIRS:
+            os.link(source, target)
+            return target
+        return shutil.copy2(source, target)
+
+    def restore(self, page, relative):
+        source = self.template / relative
+        if relative.split("/", 1)[0] in LENT_LINKED_DIRS:
+            # A linked file and its source are one inode, so a test that wrote
+            # through the link changed the shape itself, and every page made from
+            # it after would carry that. Nothing writes a page's layer in place —
+            # vendoring replaces — so a mismatch here is the sharing rule broken.
+            assert _identity(source) == self.files[relative], (
+                f"{relative} was written through the hard link it shares with "
+                f"{self.template}"
+            )
+            os.link(source, page / relative)
+        else:
+            shutil.copy2(source, page / relative)
+        return _identity(page / relative)
+
+
+def _identity(path):
+    """What tells one state of a file from the next, without reading it.
+
+    `lstat`, so a symlink a test left where a file belongs answers as itself —
+    a different inode from the file it replaced, and an answer at all where it
+    points nowhere."""
+    info = path.lstat()
+    return (info.st_ino, info.st_size, info.st_mtime_ns)
+
+
+def _stamp(page):
+    """Every file in a page as it stands, which is what the next reset asks it."""
+    return {
+        path.relative_to(page).as_posix(): _identity(path)
+        for path in page.rglob("*")
+        if path.is_file()
+    }
+
+
+@pytest.fixture(scope="session")
+def _page_pool(tmp_path_factory):
+    return PagePool(tmp_path_factory.mktemp("page-templates"))
+
+
+@pytest.fixture
+def initialized_page(_page_pool):
+    """Put an initialized page of the named shape at the caller's path.
+
+    The shape is composed once per worker by the caller's own `initialize`, so a
+    test whose subject is initialization, re-vendoring or an overlay still
+    crosses the real `page init` boundary by calling this with a shape of its
+    own — or by not calling it at all.
+    """
+    lent = []
+
+    def lend(name, destination, initialize):
+        page = _page_pool.lend(name, Path(destination), initialize)
+        lent.append((name, page))
+        status_path = page / "status.json"
         status = files_model.read_json(status_path)
         status["ts"] = events_model.now_iso()
         files_model.write_json(status_path, status)
+        return page
 
-    return clone
+    yield lend
+    for name, page in lent:
+        _page_pool.give_back(name, page)
 
 
 def pytest_addoption(parser):

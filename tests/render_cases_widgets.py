@@ -1087,6 +1087,58 @@ graph LR
 </pre></lf-diagram>
 """,
 )
+# A drawing inside a tab panel, which is the shape the reading was written over: the
+# panel's card is the frame a wide exhibit may not leave, the graph is drawn wider than
+# the frame's own inset, and no room the page has can be given to it — so scrolling is
+# the layer's honest answer and WITHHELD_ROOM is right to be quiet about it. Beside it a
+# line of code short enough to fit, which is what the reading must stay quiet about too.
+# The cut box is a drawing on purpose: a cut line of code announces itself by being a
+# line, where a graph that continues past its edge looks exactly like a graph that ends
+# there.
+CUT_BOXES_PAGE = leaf_page(
+    "cut boxes",
+    """
+<h1 id="t">Flow</h1>
+<lf-tabs id="views">
+  <lf-tab id="flow-tab" label="Behaviour">
+    <lf-diagram id="flow"><pre>
+graph LR
+  R[a request arrives at the edge] --> C{is the session cookie still valid?}
+  C -->|yes| S[read the session record from Redis]
+  S -->|hit| H[hand the request to the application]
+  C -->|no| L[send the reader to the login page]
+</pre></lf-diagram>
+  </lf-tab>
+</lf-tabs>
+<pre id="short">one short line</pre>
+""",
+)
+
+
+# A board with more columns than the room holds, so every one of them is at the floor the
+# theme states and the board scrolls for the rest — the case the floor exists to decide.
+# The cards carry ordinary English rather than identifiers: a path or a sha has nowhere to
+# break and breaking one is the page-wide bargain, where `documented` breaking across two
+# lines is a column narrower than the word it has to show.
+SQUEEZED_BOARD_PAGE = leaf_page(
+    "squeezed board",
+    """
+<h1 id="t">Sprint</h1>
+<lf-board id="crowd">
+"""
+    + "".join(
+        f"""  <lf-column id="sq-col-{i}" label="Lane {i}">
+    <lf-card id="sq-card-{i}"><strong>Perch {i}</strong>
+    The warden has documented every reading she takes at dawn.</lf-card>
+  </lf-column>
+"""
+        for i in range(8)
+    )
+    + """</lf-board>
+""",
+)
+
+
 # A page hanging apparatus of its own in the margin, level with a wide widget. The theme
 # has no rule for a project's own furniture and cannot — this is the case the two claims
 # in it are declarations of, seen from the side where nobody has declared anything.

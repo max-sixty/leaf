@@ -49,6 +49,7 @@ from render_support import (
     address_code,
     compare_with,
     composer_quote,
+    hold_selection,
     key_line,
     leaf_page,
     live_url,
@@ -850,6 +851,84 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     # "monoglyphs", and only the seam keeps a drag into "glyphs" from taking "mono".
     select(page, spot("lf-specimen", "glyphs", 3), spot("lf-specimen", "close", 3))
     assert captured() == "glyphs set close"
+    assert errors == []
+    page.close()
+
+
+def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
+    """A hand that runs past the right edge of the document lands in the layer, and the
+    browser extends its selection through everything in between — a paragraph and a
+    pointer a few words along came back as a 14,387-character quote, a mark over 22,140
+    of them, and a field whose accessible name read the whole page out. The layer
+    answering `user-select: none` keeps most of it out of reach, and a reader must still
+    be able to copy what somebody said, so a thread's own quoted words remain a landing
+    place: that is where this drag ends.
+
+    What the reader meant is what the drag had inside the document before it crossed out,
+    and the release puts that back. Where it had nothing yet, nothing is offered — and
+    either way the browser's own selection is left where it is, because it is the
+    reader's to copy.
+
+    Only a pointer drag is asked this. Select-all lands its far end past the page's last
+    words by definition and still means the document, which
+    `test_a_selection_of_the_whole_page_still_finds_its_passage` holds. The chrome half of
+    this — which of the layer's words a selection may reach at all — is
+    `test_render_controls.py::test_a_selection_that_reaches_the_layer_stops_at_the_page`.
+    """
+    quoted = "Paragraph 3. Filler. Filler. Filler."
+    page, errors = open_page(browser, serve(LONG_PAGE, anchored=(("p3", quoted),)))
+    resized(page, 1400, 900)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(".lf-panel .lf-quote").first
+    expect(card).to_be_visible()
+    into = card.bounding_box()
+    # A paragraph level with the thread's quoted words, so the overshoot is sideways:
+    # a drag that also travels down the page selects what it crossed, and would be
+    # measuring the page's own length rather than the edge this is about.
+    para = page.evaluate(
+        """(y) => {
+          const p = [...document.querySelectorAll('main p')]
+            .filter((el) => el.checkVisibility())
+            .map((el) => ({ el, box: el.getBoundingClientRect() }))
+            .sort((a, b) => Math.abs(a.box.top - y) - Math.abs(b.box.top - y))[0];
+          return { left: p.box.left, top: p.box.top, height: p.box.height };
+        }""",
+        into["y"],
+    )
+    line = para["top"] + para["height"] / 2
+    # Two moves with a turn between them: the first covers words inside the document and
+    # is the passage this release has to come back to, and the browser only says a
+    # selection changed on a turn of its own.
+    hold_selection(page, (para["left"] + 4, line), (para["left"] + 190, line), steps=12)
+    # The selection saying it covers something is the fact this read wants, and the drag
+    # is still held, so there is no composer to wait on yet.
+    page.wait_for_function("() => getSelection().toString().length > 0")
+    covered = page.evaluate("() => getSelection().toString()")
+    page.mouse.move(into["x"] + 40, into["y"] + into["height"] / 2, steps=20)
+    page.mouse.up()
+    # The release restores the remembered range and raises the composer on it, so the box
+    # standing and its passage painted are the two facts the three readings below are
+    # taken from. Waiting out `deferSelectionUpdate`'s timer instead would read a composer
+    # that may not be there yet and report it as a missing box.
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    wait_for_pending_mark(page)
+
+    assert covered, "the drag selected nothing inside the document to come back to"
+    quote = composer_quote(page)["text"].strip("“”")
+    assert len(quote) < 2 * len(covered), (
+        f"the drag out of the document stored {len(quote)} characters as its passage"
+    )
+    assert quote and quote in page.evaluate(
+        "() => document.querySelector('main').textContent"
+    ), f"the composer quotes something the document does not hold: {quote!r}"
+    # The three readings of one passage: what the box says it is about, what the page
+    # paints, and what the field is called. A capture that ran past the document moved
+    # all three together, so any one of them alone would pass on a page it had ruined.
+    assert pending_text(page).replace(" ", "") == quote.replace(" ", ""), (
+        f"the mark and the quote disagree: {pending_text(page)!r} against {quote!r}"
+    )
+    assert quote in page.locator(".lf-fab-input").get_attribute("aria-label")
     assert errors == []
     page.close()
 

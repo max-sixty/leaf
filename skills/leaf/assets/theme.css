@@ -547,6 +547,14 @@ main {
   position: relative;
   --lf-frame: 1;
   --lf-column: 1;
+  /* The page's readings — which strips are claimed, and what room and posture that
+   * leaves — are composed here, so this is the container a widget in the margin asks
+   * for them by name. An unnamed style query answers from the element's parent, and a
+   * parent an author may hide is a parent that leaves and comes back: measured in
+   * Chromium 151, such a box can go on answering with the reading it left with, so a
+   * map that asked its own wrapper for the page's posture never heard the posture
+   * return. Naming the page puts the question to a box that is always there. */
+  container-name: lf-page;
 }
 /* Evidence that is wider than the argument about it. The column above is the measure
  * prose is read at, and a board's columns or a diagram's graph are as wide as what they
@@ -1033,15 +1041,25 @@ dd { margin: 0 0 8px 0; }
    class equally usable around a nav, facts list, or short prose aside. Only the first
    direct sidebar child of main takes the margin. The catalog asks for one page-level
    wrapper, but leaving an accidental second one in flow is safer than laying two sticky
-   boxes over each other. */
+   boxes over each other.
+
+   What the sidebar's contents read is two declarations, and they are two because they
+   answer two different questions. Which box the margin belongs to never changes, so the
+   slot is stated on the sidebar itself, unconditionally. Whether the page is granting
+   that margin changes with every panel and tray, so the posture is stated on main with
+   the other shell readings: an author may hide a narrow sidebar, and a box that leaves
+   the tree cannot be trusted to answer a question whose answer changed while it was
+   gone. A resident asks the page for the posture and its own wrapper for the slot. */
 aside.sidebar { display: flow-root; margin: var(--sp-4) 0 30px; }
 aside.sidebar > :first-child { margin-top: 0; }
 aside.sidebar > :last-child { margin-bottom: 0; }
+main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; }
 @media screen {
   @container lf-shell (min-width: 1152px) {
   html:not(.lf-copy)
     main:has(> aside.sidebar):not(:has(aside.sidenote)) {
     --strip-l: var(--sidebar);
+    --lf-sidebar-posture: margin;
     /* Keep the reading column on the page's axis while both margin residents fit in
        its existing gutters. If they need more room, spend the outer page edges and
        shift only far enough to keep each resident on screen before narrowing prose. */
@@ -1059,7 +1077,6 @@ aside.sidebar > :last-child { margin-bottom: 0; }
   html:not(.lf-copy) main:not(:has(aside.sidenote))
     > aside.sidebar:nth-child(1 of aside.sidebar) {
     float: left; clear: left; position: sticky;
-    --lf-sidebar-posture: margin;
     top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
     width: calc(var(--sidebar) - var(--sp-4));
     max-height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
@@ -1071,12 +1088,12 @@ aside.sidebar > :last-child { margin-bottom: 0; }
   html:not(.lf-copy)
     main:has(> aside.sidebar):has(aside.sidenote) {
     --strip-l: var(--sidebar);
+    --lf-sidebar-posture: margin;
     & [data-lf-wide] { --lf-grow-l: 0px; }
   }
   html:not(.lf-copy) main:has(aside.sidenote)
     > aside.sidebar:nth-child(1 of aside.sidebar) {
     float: left; clear: left; position: sticky;
-    --lf-sidebar-posture: margin;
     top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
     width: calc(var(--sidebar) - var(--sp-4));
     max-height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
@@ -1442,6 +1459,31 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
  * sweep enters every declared tree, and a diff's lines scroll in one. No offsets:
  * relative moves nothing. */
 [data-lf-holds] { position: relative; }
+/* The layer's mark for a box that shows less than it holds across (reachScrollers, for
+ * why the sweep and not a rule beside each overflow decides who wears it). Scrolling is
+ * the honest answer when the room ran short, and on a platform drawing overlay
+ * scrollbars it is an answer the reader is never given: a flowchart cut 356px of 1026
+ * inside a tab panel read as a finished graph at every width from 1200 to 1920. A cut
+ * line of code announces itself by being a line; a drawing announces nothing, so the box
+ * says it.
+ *
+ * A soft inset shade on the side the rest is on, which is the shape a page falling off
+ * an edge has. On that side alone, and off the measurement rather than off scroll
+ * position: an edge that tracked the travel would be a write on every frame of a drag,
+ * and the reader arrives at the start of it, which is where a trailing edge is exactly
+ * right and where the whole cut lies. A reader already at the end knows the box scrolls,
+ * having scrolled it. Mirrored for a page read the other way, since the side is the
+ * inline end and box-shadow can only be told in physical terms.
+ *
+ * Paint and no metric: a shadow lays nothing out, so writing the attribute inside the
+ * sweep's own resize observation cannot feed itself. Screen only, because a mark whose
+ * whole meaning is "scroll to see the rest" says nothing on a sheet nobody can scroll.
+ * A copy keeps the mark it was exported with, the way it keeps the hold beside it and
+ * the stop the same sweep granted. */
+@media screen {
+  [data-lf-cut] { box-shadow: inset -22px 0 18px -22px var(--shade); }
+  [data-lf-cut]:dir(rtl) { box-shadow: inset 22px 0 18px -22px var(--shade); }
+}
 /* lf-shadow:end */
 @media screen {
   html:not(.lf-copy) {

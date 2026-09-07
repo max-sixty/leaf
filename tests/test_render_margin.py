@@ -4293,6 +4293,67 @@ def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, 
     page.close()
 
 
+SHELF_BOXES = """() => {
+  const row = document.querySelector(".lf-banner-actions");
+  const seen = [...row.querySelectorAll(":scope > .lf-btn")]
+    .filter(button => button.getBoundingClientRect().height > 0);
+  return {row: row.getBoundingClientRect().height,
+          chords: seen.filter(button => "lfChord" in button.dataset).length,
+          buttons: Object.fromEntries(seen.map(button =>
+            [button.textContent.trim(), button.getBoundingClientRect().height]))};
+}"""
+
+
+def test_the_shelf_keeps_its_height_when_its_chords_are_shadowed(browser, serve):
+    """A chord is paint on the shelf, and the shelf's height may not read it.
+
+    The banner control that opens a stable destination carries its chord on a quiet
+    second line, and that line comes and goes: the runtime writes `data-lf-chord`
+    only while the binding is live and unshadowed, so a reader who takes the chord
+    into the panel loses every chord on the row at once and gets them back on the
+    way out. While the room for that line belonged to the controls that happened to
+    carry a chord, the row changed height as the reader moved — and a control with
+    no chord of its own, the shelf's own More among them, sat its label above its
+    neighbours' on the compact row, which is the reading the sheet test below takes.
+    """
+    page, errors = open_page(
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
+    )
+    resized(page, 1200, 900)
+
+    before = page.evaluate(SHELF_BOXES)
+    assert before["chords"] >= 2, f"the row carries no chords to shadow: {before}"
+    assert len(before["buttons"]) > before["chords"], (
+        "every control on the row carries a chord, so nothing here tests the room a "
+        f"control without one has to keep: {before}"
+    )
+
+    page.keyboard.press("g")
+    expect(page.locator(".lf-keyline")).to_contain_text("Page map")
+    # A letter inside the go-to prefix filters the visible targets rather than naming
+    # one of them, and every chord on the row is what it takes away while it stands.
+    page.keyboard.press("t")
+    expect(page.locator(".lf-keyline")).to_contain_text("all targets")
+    # The chords going away is the transition, so it is also the fact to wait on: the
+    # heights are the same before it as after, and cannot wait for themselves.
+    page.wait_for_function(
+        "() => ![...document.querySelectorAll('.lf-banner-actions > .lf-btn')]"
+        "  .some(button => 'lfChord' in button.dataset)"
+    )
+
+    shadowed = page.evaluate(SHELF_BOXES)
+    assert shadowed["row"] == pytest.approx(before["row"], abs=0.5), (
+        f"the shelf changed height when its chords went away: {before['row']} "
+        f"then {shadowed['row']}"
+    )
+    assert shadowed["buttons"] == pytest.approx(before["buttons"], abs=0.5), (
+        f"a control took its height from its own chord: {before} then {shadowed}"
+    )
+
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize("opener", ["keyboard", "pointer"])
 def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, opener):
     """The rail becomes a touch-sized index when the margin no longer exists."""
@@ -4320,10 +4381,14 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
         })"""
     )
     assert text_insets
-    for inset in text_insets:
-        assert inset["above"] == pytest.approx(inset["below"], abs=1.5), (
-            f"{inset['label']} is not vertically centred in the compact banner: {inset}"
-        )
+    # Every control on the row reserves the chord's second line, whether or not it
+    # carries a chord, so what the row has to hold is one label offset rather than a
+    # label centred in each box: a control that took its room from its own chord
+    # would sit its label above a neighbour's and change height as bindings go live.
+    offsets = {inset["above"] for inset in text_insets}
+    assert max(offsets) - min(offsets) <= 1.5, (
+        f"compact banner labels do not share a line: {text_insets}"
+    )
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     if opener == "keyboard":

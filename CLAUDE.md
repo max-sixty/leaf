@@ -228,9 +228,12 @@ not cause. Establish that by running the failing node ids in a worktree at the
 merge base, under the conditions that produced them. That means the same
 platform, and the same selection and parallelism: a case can fail on CI's Linux
 fonts and pass on a Mac, or fail inside the whole suite under the default `-n 2`
-and pass alone under `-n0`. `scripts/linux-suite.sh` supplies that platform. A
-green CI run is not that control, because the queue leaves main's newest
-completed run several commits behind the base. Until the failure reproduces
+and pass alone under `-n0`. `scripts/linux-suite.sh` supplies that platform in
+its default, emulated mode; its `LEAF_SUITE_NATIVE` build gives up Google Chrome
+for a browser that starts on Apple silicon, so it carries CI's fonts but is not
+the control for a case that drives the installed launcher. A green CI run is not
+that control either, because the queue leaves main's newest completed run
+several commits behind the base. Until the failure reproduces
 there, it is this branch's. Once it does, the branch lands the ordinary way, and
 a red hook takes the `--no-hooks` route above. `lint` is the only required
 check, so a red `test` does not block a merge and this rule is all that gates

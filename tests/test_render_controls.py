@@ -4006,10 +4006,14 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     `test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll` down with
     nothing about the page wrong.
 
-    So: one neighbour under the grip's band and clear of its box, planted twice — once
-    where the grip paints across it, once lifted past the grip by a z-index of its own.
-    The lifted half is the population assertion; a reading gone quiet would pass the
-    first half on its own.
+    So: one neighbour under the grip's band and clear of its box, planted three times —
+    where the grip paints across it, where a z-index of its own lifts it past the grip,
+    and where it is `position: fixed` inside a static box that ranks behind the grip. The
+    lifted half is the population assertion; a reading gone quiet would pass the others on
+    its own. The third is the grip's `z-index: 1` again: a neighbour that names no z-index
+    paints in the layer below it whatever holds it, so leaving its holder's flow does not
+    put it over the ring, and the reading that reported it there would be inventing a
+    cover the page does not paint.
     """
     url = serve(LONG_PAGE, comments=6)
     page, errors = open_page(browser, url)
@@ -4029,7 +4033,7 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     # putting the band in the page instead would leave it with nothing to rank against.
     # Neither paints anything the grip does not already stand in front of, until the band
     # names the z-index that lifts it past.
-    plant = """(z) => {
+    plant = """({z, wrap}) => {
       document.querySelector('.lf-under-plant')?.remove();
       const grip = document.querySelector('.lf-panel > .lf-edge');
       const cs = getComputedStyle(grip);
@@ -4040,7 +4044,11 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
         .appendChild(document.createElement('div'));
       holder.className = 'lf-under-plant';
       Object.assign(holder.style, {position: 'absolute', inset: '0'});
-      const band = holder.appendChild(document.createElement('div'));
+      // A static box filling that holder, when the plant wants one: it is what the walk
+      // ranks then, and it stands in the flow where the grip is painted over it.
+      const under = wrap ? holder.appendChild(document.createElement('div')) : holder;
+      if (wrap) Object.assign(under.style, {height: '100%'});
+      const band = under.appendChild(document.createElement('div'));
       Object.assign(band.style, {
         position: 'fixed', background: 'red',
         left: `${b.left - grow - 1}px`, top: `${mid - 20}px`,
@@ -4050,7 +4058,7 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
       return grow;
     }"""
 
-    grow = page.evaluate(plant, 0)
+    grow = page.evaluate(plant, {"z": 0, "wrap": False})
     assert grow > 0, (
         f"the grip draws its ring {grow}px outside its box, so there is no band outside "
         "it to lay anything under and this holds nothing"
@@ -4059,11 +4067,91 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
         "a neighbour the grip paints across was read as standing over its ring"
     )
 
-    page.evaluate(plant, 2)
+    page.evaluate(plant, {"z": 2, "wrap": False})
     covers = standing_ring(page)["covers"]
     assert any("left edge is under" in c for c in covers), (
         f"the same band lifted past the grip by a z-index of its own read as {covers}, "
         "so the half above passed on a reading that answers nothing"
+    )
+
+    # The same band inside a static box, which is the shape that leaves a holder's flow:
+    # it paints in the positioned layer rather than the one its holder is ranked in. That
+    # is still the layer under the grip's own, so the page paints the grip in front and
+    # the reading has nothing to report.
+    page.evaluate(plant, {"z": 0, "wrap": True})
+    covers = standing_ring(page)["covers"]
+    assert covers == [], (
+        f"a band the grip's own z-index stands over read as {covers}, so leaving a "
+        "holder's flow was taken for standing over the control that names one"
+    )
+
+    page.evaluate("() => document.querySelector('.lf-under-plant').remove()")
+    assert errors == []
+    page.close()
+
+
+def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_in(
+    browser, serve
+):
+    """The other side of the half above, against a control that names no z-index.
+
+    The reading excuses a neighbour by ranking the box that holds it, and a box that
+    ranks behind the control puts what stays in its flow behind the control too. A
+    positioned neighbour does not stay: it leaves its holder's place in the flow to paint
+    in the positioned layer of the nearest ancestor stacking context, which is the layer a
+    control like the thread card's own buttons is in — `position: relative; z-index: auto`.
+    So a static holder's rank says nothing about it, and taken for an answer it drops a
+    cover the page paints.
+
+    The plant is that shape: a fixed band over the ring's top run, held by a static box
+    beside the control. The band comes back topmost where the ring is sampled, and the
+    reading has to say so.
+    """
+    example = next(e for e in EXAMPLES if e.stem == "release-notes")
+    url = serve(example, comments=2)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator("body").click()
+    page.locator(".lf-threads .lf-btn").first.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    standing = standing_ring(page)
+    assert standing and standing["covers"] == [], (
+        f"the control is reported covered before anything is put over it: {standing}"
+    )
+    assert page.evaluate(
+        """() => {
+          const cs = getComputedStyle(document.activeElement);
+          return cs.position !== 'static' && cs.zIndex === 'auto';
+        }"""
+    ), (
+        "the control names a z-index of its own, so it stands clear of the layer this "
+        "plants into and the band below could not reach its ring"
+    )
+
+    page.evaluate(
+        """() => {
+          const b = document.activeElement.getBoundingClientRect();
+          // A static box, so the flow is what its own rank answers for, pulled back over
+          // the panel it is appended to rather than adding height to it.
+          const holder = document.createElement('div');
+          holder.className = 'lf-under-plant';
+          holder.style.cssText = 'margin-top: -100vh; height: 100vh;';
+          const band = document.createElement('div');
+          // Over the ring's top run and clear of the control's own box, and positioned,
+          // so it leaves the holder's flow for the layer the control is in.
+          band.style.cssText = `position: fixed; background: red;
+            left: ${b.left - 8}px; top: ${b.top - 5}px;
+            width: ${b.width + 16}px; height: 4px;`;
+          holder.append(band);
+          document.activeElement.closest('.lf-panel').append(holder);
+        }"""
+    )
+    covers = standing_ring(page)["covers"]
+    assert any("top edge is under" in c for c in covers), (
+        f"a band standing over the ring read as {covers}, so a neighbour that left the "
+        "flow its holder was ranked in goes unreported"
     )
 
     page.evaluate("() => document.querySelector('.lf-under-plant').remove()")

@@ -13,9 +13,10 @@
    is a row's place in its scope, so moving the row is how the
    line's order changes. An active chord instead shows every live row in its scope, so
    computed bindings, ranges, and capability filtering are the same ones dispatch and the
-   reference use. Each destination row keeps its complete chord: already pressed keys take
-   the accent face and pending keys keep the ordinary face. Changing progress changes only
-   those faces, not the sequence's keys or geometry. A mode's Escape or back row remains a
+   reference use. Each destination row keeps its complete chord: its leading steps that
+   match accepted presses take the accent face, while a branch the reader has not taken
+   keeps the ordinary face. Changing progress changes only those faces, not the sequence's
+   keys or geometry. A mode's Escape or back row remains a
    separate control rather than appearing as a destination chord. `lineWhen` may hide only
    an ordinary hint without changing the command's liveness or its place in the reference.
    Hint chips are `aria-hidden` because placeholders and live announcements carry the same
@@ -43,9 +44,7 @@
    and every hint would name a key the reader cannot press. An attached keyboard can still
    begin a walk, so its navigation context stands alone until that walk ends. The line and
    its chips take no pointer events; the More
-   control does, because it is the only pointer route to the reference and so to the
-   character-shortcut preference, which cannot be made to depend on the character key it
-   turns off.
+   control does, because it is the pointer route to the reference.
 
    The accessible More control and its `?` binding share one progressive route. The first
    activation unfolds additional current-scene rows into a shelf capped at two lines; the
@@ -53,7 +52,7 @@
    command folds the shelf before it runs. Expansion and contraction are announced because
    the revealed hint chips themselves remain visual. When there is no additional current
    row, the first activation opens the reference directly. The native control also opens
-   it directly when character shortcuts are off. */
+   it directly. */
 import {
   activeRows,
   ariaShortcuts,
@@ -292,8 +291,8 @@ export function renderLine() {
   };
   const drawn = ordered.map((row) => {
     const inChord = chord.length && !row.chordControl;
-    const steps = inChord ? [chord[0], ...completeRowSteps(row)] : rowSteps(row);
-    const states = inChord ? progressStates(steps, chord.length) : neutralStates(steps);
+    const steps = inChord ? [chord[0], ...rowSteps(row)] : rowSteps(row);
+    const states = inChord ? progressStates(steps, chord) : neutralStates(steps);
     const span = chip(steps, word(row.line), states, false, row);
     span.hidden = sourceRow(row) === REFERENCE || (!shelf && !shown.has(row));
     return { row, span };

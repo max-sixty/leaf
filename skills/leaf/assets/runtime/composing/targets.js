@@ -17,6 +17,7 @@ import {
 import { shownParts, shownRect } from "../geometry.js";
 import { focused, paintHere } from "../keyboard/scopes.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "../keyboard/hints.js";
+import { keySequence, progressStates } from "../keyboard/presentation.js";
 import { announce } from "../notifications.js";
 import { commentOnTarget, updateFab } from "./surface.js";
 import { allButTheReference, hasCapturedTarget } from "../keyboard/page.js";
@@ -47,8 +48,8 @@ selectionSearch.append(selectionInput, selectionStatus);
 //
 // The short, viewport-local hints form a prefix-free tree over one alphabet. Most
 // targets cost one letter; only the tail branches when the viewport holds more targets
-// than the alphabet. Unlike `g` addresses, these hints are ephemeral and make no promise
-// across a scroll or revision. They are the whole route, so none may be dropped because
+// than the alphabet. These hints are ephemeral and make no promise across a scroll or
+// revision. They are the whole route, so none may be dropped because
 // its chip collides. Each chip begins at its target's visible top-left corner. A target
 // whose visible box is strictly smaller and fully enclosed by another target steps its
 // chip right once per enclosing box. If that position crosses the key-line band and the
@@ -430,12 +431,8 @@ function hintChip(target) {
   const chip = el("span", "lf-address lf-target-hint");
   chip.dataset.lfTarget = target.code;
   if (hinted()[hintActive] === target) chip.classList.add("lf-current");
-  if (prefix) {
-    chip.append(
-      el("span", "lf-spent", prefix),
-      el("span", "lf-lit", target.code.slice(prefix.length)),
-    );
-  } else chip.textContent = target.code;
+  const steps = [...target.code];
+  chip.append(keySequence(steps, progressStates(steps, [...prefix])));
   return chip;
 }
 
@@ -545,8 +542,7 @@ export const SELECT = {
   at: () => open,
   // The page owns search, even when item hints are standing over it. Exempt the
   // binding read from that row so one declaration drives both entry routes and every
-  // keyboard projection. If character shortcuts are off, the row binds nothing and
-  // this mode claims slash with the rest of the page keyboard.
+  // keyboard projection.
   claims: (binding) =>
     allButTheReference(binding) && !bindings(PAGE_SEARCH).includes(binding),
   rows: [

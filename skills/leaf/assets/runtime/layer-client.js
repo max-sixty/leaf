@@ -20,6 +20,10 @@ import { sayLine } from "./banner.js";
 const layerGeneration = "__LEAF_LAYER_GENERATION__";
 
 let layerReloading = false;
+export function layerHeaders(headers = {}) {
+  return { "Leaf-Layer": layerGeneration, ...headers };
+}
+
 export function sameLayer(generation) {
   if (generation === layerGeneration) return true;
   if (!layerReloading) {
@@ -48,13 +52,12 @@ export const postEvent = async (event) => {
   try {
     response = await fetch("/api/event", {
       method: "POST",
-      headers: {
+      headers: layerHeaders({
         "Content-Type": "application/json",
-        "Leaf-Layer": layerGeneration,
         ...(runtime.currentRevision && {
           "Leaf-View-Revision": String(runtime.currentRevision),
         }),
-      },
+      }),
       body: JSON.stringify(event),
     });
   } finally {
@@ -76,10 +79,9 @@ export const uploadMedia = async (file) => {
   try {
     response = await fetch("/api/media", {
       method: "POST",
-      headers: {
+      headers: layerHeaders({
         "Content-Type": file.type,
-        "Leaf-Layer": layerGeneration,
-      },
+      }),
       body: file,
     });
   } finally {

@@ -1158,6 +1158,10 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
         assert held[0].request.headers.get("leaf-view-revision") == "1", (
             "the held read was not the one taken on the first revision"
         )
+        generation = json.loads((serve.page_dir / "registry.json").read_text())[
+            "$layer"
+        ]["generation"]
+        assert held[0].request.headers.get("leaf-layer") == generation
         heard = _traffic(page).heard
         release_the_held_read()
         _until(page, lambda t: t.heard > heard, "a state answer came back")

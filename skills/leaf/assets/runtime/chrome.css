@@ -975,26 +975,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      which reads overflow, would never fire; an address that cannot shrink is what
      hands the fold something to measure. */
   .lf-banner-actions > .lf-btn { flex: none; }
-  /* Stable global destinations carry their complete chord on the banner control that
-     opens them, including when the shelf folds that control into its menu. A quiet
-     second line keeps the shortcut beside its destination without spending horizontal
-     room or changing which controls fit on the shelf. The empty CSS speech alternative
-     leaves the button's accessible name as the action rather than the shortcut.
-
-     The wide shelf reserves that line rather than the controls that happen to be
-     carrying a chord. A binding is live and shadowed again as the reader moves — a
-     letter typed inside the go-to prefix filters the visible targets and takes every
-     chord on the row away — so a control drawing its room from its own chord changes
-     height on state, and the row changes with it. Reserved for every control the
-     shelf draws, the chord's own text is the only thing left for state to paint. The
-     compact block below has no second line to give out of a forty-pixel aim, and
-     states the row's whole box and drops the hint there instead. */
-  .lf-banner-actions > .lf-btn, .lf-banner-menu > .lf-btn,
-  [data-lf-chord] { position: relative; padding-block: 3px 14px; line-height: 1; }
-  [data-lf-chord]::after { content: attr(data-lf-chord) / "";
-    position: absolute; inset-inline: 0; bottom: 3px; color: var(--muted);
-    font-family: var(--mono); font-size: var(--t-6); font-weight: 400;
-    line-height: 1; text-align: center; }
   /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
      mask is the page's actual vendored mark, so a project that replaces icon.svg does
      not keep an unrelated leaf-like glyph in the banner. Shape is identity and colour
@@ -1073,8 +1053,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      taken away — the map above 900, a chip with no news — into the list as a blank. */
   .lf-banner-menu > .lf-btn { width: 100%; border-color: transparent;
     background: none; text-align: left; }
-  .lf-banner-menu > [data-lf-chord]::after { inset-inline-start: 10px;
-    text-align: left; }
   .lf-banner-menu > .lf-btn:hover { background: var(--chip); }
   /* The line's momentary other words (notifications.js), in its place rather than beside
      it: the row holds one sentence at a time, and a narrow window clips the notice the
@@ -1817,13 +1795,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
     color: var(--ink); }
   .lf-help-search:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: help-search; outline-offset: 1px; }
-  .lf-help-preference { display: flex; align-items: center; justify-content: space-between;
-    gap: 12px; margin: 6px 0 0; }
-  .lf-help-meta { min-height: 1.2em; color: var(--muted);
+  .lf-help-meta { min-height: 1.2em; margin-top: 6px; color: var(--muted);
     font-size: var(--t-6); }
-  .lf-help-shortcuts { flex: none; min-height: 26px; padding: 2px 8px;
-    color: var(--muted); font-size: var(--t-6); }
-  .lf-help-shortcuts span { color: var(--ink-2); }
   .lf-help-results { min-height: 0; overflow-y: auto; }
   .lf-help-empty { padding: 20px 0 8px; color: var(--muted); text-align: center; }
   .lf-help h3 { margin: 12px 0 4px; font-size: var(--t-6); font-weight: 600;
@@ -1834,6 +1807,10 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-help tr.lf-chord-control td { padding-top: 8px;
     border-top: 1px solid var(--rule); }
   .lf-help td:first-child { width: 104px; white-space: nowrap; }
+  .lf-help-binding-matches td:last-child { display: flex; align-items: baseline;
+    justify-content: space-between; gap: 8px; }
+  .lf-help-binding-matches .lf-help-command { flex: 1; width: auto; }
+  .lf-help-scope { flex: none; color: var(--muted); font-size: var(--t-6); }
   .lf-help-command { width: 100%; margin: -3px -6px; padding: 3px 6px;
     border: 0; border-radius: 4px; background: transparent; color: inherit;
     font: inherit; text-align: left; cursor: pointer; }
@@ -1959,8 +1936,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      its position is useful without the hidden hints, so that one reading stands alone.
      It takes the More control with it, and that is the cost rather than an oversight:
      More is the only pointer route to the reference, so a tablet with a keyboard
-     attached reaches the reference by the question-mark key, and a reader who has also
-     turned character shortcuts off reaches it from a fine pointer or not at all.
+     attached reaches the reference by the question-mark key.
      Every reader of the line's box asks whether there is one — syncLayout for the room
      it reserves, targets for how far down the page is reachable, the address chips and
      the floats for what they must not stand on. A zero box is the same state the empty
@@ -1985,7 +1961,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     line-height: 1.478; text-align: center; white-space: nowrap;
     display: inline-flex; align-items: center; justify-content: center; }
   .lf-key-more kbd[hidden] { display: none; }
-  .lf-key-sequence { display: inline-flex; align-items: center; gap: 3px;
+  .lf-key-sequence { display: inline-flex; align-items: center; gap: 1px;
     white-space: nowrap; }
   .lf-key-sequence > kbd[data-lf-key-state="pressed"] { border-color: var(--accent);
     background: var(--accent); color: var(--card); }
@@ -2029,12 +2005,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      the route itself, not a reminder of a predictable ordinal. */
   .lf-targets { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
   .lf-targets > .lf-target-hint { position: absolute; display: block;
+    min-width: 0; height: auto; padding: 0; border: 0; background: transparent;
     transform: translate(-50%, -50%); }
-  .lf-target-hint .lf-spent { color: var(--muted); }
-  .lf-target-hint .lf-spent + .lf-lit { padding: 0 3px; margin-left: -3px;
-    border-radius: 3px; background: var(--accent); color: var(--card); }
-  .lf-goto-targets > .lf-chord-address { min-width: 0; height: auto; padding: 0;
-    border: 0; background: transparent; }
   .lf-targets > .lf-target-hint.lf-in { transform: translate(-50%, 0); }
   /* The hint the keyboard is browsing is where the reader is standing in this mode, so
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
@@ -2114,18 +2086,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     /* Forty on the covering row, or the aim floor where a finger raises that past
        forty: this rule outranks the shared AIMS floor by standing later at the same
        weight, so it has to carry the floor itself or a touch shelf loses four pixels.
-       It states both axes for the same reason, and the band is the shared Button's:
-       the chord's rule states a band of its own, and a row where only the controls
-       with a chord kept it is a row whose words no longer sit on one line. */
+       It states both axes for the same reason, and the band is the shared Button's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 6px; }
-    /* A forty-pixel aim has no second line to give: the band the chord reserves comes
-       out of the aim's own height, which raised the words of every control that had a
-       chord eleven pixels above the door beside them and left the row this block centres
-       reading as two. The shelf keeps the aim and gives up the hint. The destination is
-       still reachable by its chord, which the key line, the reference, and the control's
-       own title all go on saying, and a control the shelf folds away carries the second
-       line into the menu, where a full-width row has the height for it. */
-    .lf-banner-actions > [data-lf-chord]::after { content: none; }
     .lf-version-menu { right: calc(8px + var(--lf-safe-right)); }
   }
   /* Coarse pointers get physical room without making the mouse layout pay for it.

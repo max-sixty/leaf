@@ -4,7 +4,7 @@
    tabs, folds, the presses a widget built, and visible Page-map Buttons are read together
    in screen order and receive short prefix-free labels. Most cost one letter; only the
    tail branches when the scene contains more targets than the available alphabet. The
-   lowercase kind mnemonics filter that map: `g h` shows hyperlinks,
+   lowercase kind mnemonics are separate commands that filter that map: `g h` shows hyperlinks,
    `g t` tabs, `g f` folds, `g m` Page-map Buttons, and `g a` actions. A filtered map gets
    its own shorter codes. The mapping is local to the
    visible scene: scrolling refreshes it once motion settles, while a partly typed label
@@ -30,9 +30,10 @@
    target family. Exact duplicate activation elements collapse to one candidate, while
    distinct overlapping actions remain distinct.
 
-   Arming paints `data-lf-goto` on the body and one compact route over every candidate.
-   The route shows only the generated suffix; the key line and reference retain the
-   complete chord and therefore own its context.
+   Arming paints `data-lf-goto` on the body and puts the same overlay hint shape on named
+   banner destinations and visible page targets. Named destinations show the complete
+   chord. Generated targets show only their suffix; the key line and reference retain
+   that shared prefix.
    Generated hints are opaque routes, so none may be dropped for a collision; the shared
    hint placement pass spreads them around the key line and one another. Escape removes
    one typed letter, then a filter, then closes the mode. A letter from the hint alphabet is consumed
@@ -56,7 +57,7 @@
 
    The address mode has no timeout. The reader is not charged a time limit for reading
    the hints just painted. */
-import { labelOf, live, spell } from "./bindings.js";
+import { bindings, labelOf, live, spell, word } from "./bindings.js";
 import { addressPlacement } from "./address-placement.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "./hints.js";
 import { keylineEl } from "./keyline.js";
@@ -286,6 +287,7 @@ function press(control) {
 
 const TARGET_KINDS = [
   {
+    filterId: "page-map-buttons",
     kind: "Page-map Button",
     filterKey: "m",
     filterWord: "Page-map Buttons",
@@ -294,6 +296,7 @@ const TARGET_KINDS = [
     exposure: "self",
   },
   {
+    filterId: "tabs",
     kind: "Tab",
     filterKey: "t",
     filterWord: "tabs",
@@ -303,6 +306,7 @@ const TARGET_KINDS = [
   // After Tab, because a tab a widget built answers both queries and the tab is the
   // nearer meaning. The collapse above keeps whichever kind is read first.
   {
+    filterId: "actions",
     kind: "Control",
     filterKey: "a",
     filterWord: "actions",
@@ -310,6 +314,7 @@ const TARGET_KINDS = [
     go: press,
   },
   {
+    filterId: "hyperlinks",
     kind: "Link",
     filterKey: "h",
     filterWord: "hyperlinks",
@@ -319,6 +324,7 @@ const TARGET_KINDS = [
     go: followLink,
   },
   {
+    filterId: "folds",
     kind: "Fold",
     filterKey: "f",
     filterWord: "folds",
@@ -342,7 +348,6 @@ const STRUCTURAL_KEYS = new Set(
   ),
 );
 const ADDRESS_KEYS = HINT_KEYS.filter((key) => !STRUCTURAL_KEYS.has(key));
-const TARGET_KEYS = [...FILTER_KEYS, ...ADDRESS_KEYS];
 
 const pointIn = (box) => ({
   x: Math.max(0, Math.min(innerWidth - 1, (box.left + box.right) / 2)),
@@ -413,8 +418,40 @@ const addressChip = (candidate) => {
     candidate.member.dataset.lfMarginFor ||
     candidate.member.getAttribute("aria-controls");
   if (targetId) chip.dataset.lfAddressFor = targetId;
-  chip.append(keySequence(steps, progressStates(steps, prefix.length)));
+  chip.append(keySequence(steps, progressStates(steps, [...prefix])));
   return chip;
+};
+
+// Named destinations in the banner use the same detached chip and key sequence as page
+// targets. The shared placement pass centers the hint in the open space below and keeps
+// it clear of its control if the viewport forces it elsewhere. Controls folded into the
+// closed overflow menu have no visible place to label; their routes remain in the key
+// line and complete reference.
+const controlAddress = (row) => {
+  const control = word(row.control);
+  if (
+    !control ||
+    !banner.contains(control) ||
+    !control.checkVisibility() ||
+    !live(row) ||
+    bindings(row).length === 0
+  )
+    return null;
+  const box = control.getBoundingClientRect();
+  if (!box.width || !box.height) return null;
+  const steps = [...chordPrefix(), labelOf(row)].filter(Boolean);
+  const chip = el("span", "lf-address lf-target-hint lf-chord-address");
+  chip.dataset.lfAddressCommand = row.id;
+  chip.dataset.lfAddressChord = steps.join(" ");
+  chip.append(keySequence(steps, progressStates(steps, chordKeys())));
+  chip.style.left = `${box.left}px`;
+  chip.style.top = `${box.top}px`;
+  return { chip, target: box, belowTarget: true };
+};
+const controlAddresses = () => GO.rows.map(controlAddress).filter(Boolean);
+const paintAddressChips = (controlPlaced, chips = []) => {
+  addressLayer.replaceChildren(...controlPlaced.map(({ chip }) => chip), ...chips);
+  return spreadHints(controlPlaced);
 };
 
 // The armed window owns every key wherever focus sits. Generated candidates stay stable
@@ -504,11 +541,6 @@ function typeHint(key) {
   paintHere();
 }
 
-function refineOrType(key) {
-  if (!targetFilter && FILTER_KEYS.includes(key)) return filterTargets(key);
-  typeHint(key);
-}
-
 function moveHint(direction) {
   const targets = hinted();
   if (!targets.length) return;
@@ -531,11 +563,12 @@ export function paintAddresses() {
     addressLayer.replaceChildren();
     return;
   }
-  // A moving target cannot carry a readable opaque route. Suppress the visual map until
-  // the scene settles, then regenerate it once; the alphabet remains claimed meanwhile,
-  // so a remembered stale letter still cannot fall through to another page command.
+  const controlPlaced = controlAddresses();
+  // A moving page target cannot carry a readable opaque route. Suppress that part of the
+  // map until the scene settles, then regenerate it once. Fixed banner destinations stay
+  // put, so their overlays remain visible throughout the scroll.
   if (scrolling) {
-    addressLayer.replaceChildren();
+    paintAddressChips(controlPlaced);
     return;
   }
   const wasActive = hintActive >= 0;
@@ -578,8 +611,9 @@ export function paintAddresses() {
     drawn.add(candidate);
   }
   if (wasActive && activeCandidate && !drawn.has(activeCandidate)) hintActive = -1;
-  addressLayer.replaceChildren(...chips);
+  const controlBoxes = paintAddressChips(controlPlaced, chips);
   spreadHints(placed, {
+    barriers: controlBoxes,
     lineBox: keylineEl.getBoundingClientRect(),
     viewportTop: banner.getBoundingClientRect().bottom,
   });
@@ -699,25 +733,38 @@ export const GO = {
         // Every alphabet key is claimed while the map stands. If a scene refresh retired
         // a remembered route, that old letter must report the miss rather than falling
         // through to an unrelated page shortcut such as `d`.
-        keys: () => (targetFilter ? ADDRESS_KEYS : TARGET_KEYS),
-        label: () => (targetFilter ? "letters" : `letters / ${FILTER_KEYS.join(" ")}`),
+        keys: () => (prefix ? HINT_KEYS : ADDRESS_KEYS),
+        label: "letters",
         chordSteps: () => [
           ...(targetFilter ? [targetFilter.filterKey] : []),
-          ...(prefix
-            ? [...prefix, "…"]
-            : [targetFilter ? "letters" : "letters / kind"]),
+          ...(prefix ? [...prefix, "…"] : ["letters"]),
         ],
         completeChordSteps: () => [
           ...(targetFilter ? [targetFilter.filterKey] : []),
-          targetFilter ? "letters" : chordArmed ? "letters / kind" : "letters",
+          "letters",
         ],
-        does: () =>
-          targetFilter
-            ? "Type a visible target's hint"
-            : "Type a visible target's hint, or filter first: m Page-map Buttons, t tabs, a actions, h hyperlinks, f folds",
-        line: () => (targetFilter ? "visible target" : "visible target / filter"),
-        when: () => (chordArmed ? candidates.length > 0 : targetCapability()),
-        run: refineOrType,
+        does: "Type a visible target's hint",
+        line: "visible target",
+        // Once armed, keep the alphabet claimed even when a filter has no members. A key
+        // then reports the miss inside this mode rather than falling through to a page
+        // command whose letter happened to match it.
+        when: () => (chordArmed ? true : targetCapability()),
+        run: typeHint,
+      },
+      {
+        id: "navigation.target.filter",
+        keys: FILTER_KEYS,
+        routes: TARGET_KINDS.map(({ filterId, filterKey, filterWord }) => ({
+          id: `navigation.target.filter.${filterId}`,
+          binding: filterKey,
+          does: `Show only visible ${filterWord}`,
+        })),
+        label: FILTER_KEYS.join(" / "),
+        chordSteps: ["kind"],
+        does: "Filter visible targets by kind",
+        line: "filter by kind",
+        when: () => atTargetMenu() && targetCapability(),
+        run: filterTargets,
       },
       {
         id: "navigation.target.walk",

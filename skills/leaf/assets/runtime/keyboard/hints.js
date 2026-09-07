@@ -50,10 +50,13 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
 }
 
 // Read every face before moving one, keeping the pass to one layout. Callers append all
-// chips first and provide the visible rectangle each chip names.
+// chips first and provide the visible rectangle each chip names. `belowTarget` makes
+// that edge the preferred seat and the target an obstacle. The returned boxes can be
+// barriers for a following pass.
 export function spreadHints(
   hints,
   {
+    barriers: fixedBarriers = [],
     lineBox,
     viewportLeft = 0,
     viewportTop = 0,
@@ -86,24 +89,30 @@ export function spreadHints(
   const edgeTop = viewportTop + band;
   const edgeRight = viewportRight - band;
   const edgeBottom = viewportBottom - band;
-  const measured = hints.map(({ chip, target }) => {
+  const measured = hints.map(({ chip, target, belowTarget = false }) => {
     const start = chip.getBoundingClientRect();
+    const preferredLeft = belowTarget
+      ? target.left + (target.width - start.width) / 2
+      : start.left;
+    const preferredTop = belowTarget ? target.bottom + clear : start.top;
     const first = movedTo(
       start,
-      clamp(start.left, edgeLeft, Math.max(edgeLeft, edgeRight - start.width)),
-      clamp(start.top, edgeTop, Math.max(edgeTop, edgeBottom - start.height)),
+      clamp(preferredLeft, edgeLeft, Math.max(edgeLeft, edgeRight - start.width)),
+      clamp(preferredTop, edgeTop, Math.max(edgeTop, edgeBottom - start.height)),
     );
     const rightSeat = Math.max(target.left, line.right + clear);
     const canSitRight = rightSeat + start.width <= Math.min(target.right, edgeRight);
     const left =
       line.height && overlaps(first, lineBand) && canSitRight ? rightSeat : first.left;
-    return [chip, movedTo(first, left, first.top), start];
+    return [chip, movedTo(first, left, first.top), start, belowTarget ? target : null];
   });
   const placed = [];
-  for (const [chip, seated, start] of measured) {
-    const barriers = placed.filter(
+  for (const [chip, seated, start, ownTarget] of measured) {
+    const barriers = [...fixedBarriers, ...placed].filter(
       (other) => other.left < seated.right && seated.left < other.right,
     );
+    if (ownTarget && ownTarget.left < seated.right && seated.left < ownTarget.right)
+      barriers.push(ownTarget);
     if (
       lineBand.bottom > lineBand.top &&
       lineBand.left < seated.right &&
@@ -128,4 +137,5 @@ export function spreadHints(
     if (shift) chip.style.top = `${parseFloat(chip.style.top) + shift}px`;
     placed.push(box);
   }
+  return placed;
 }

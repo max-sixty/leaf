@@ -345,7 +345,7 @@ export function renderThreads(all) {
 }
 
 function reconcileThreads(all) {
-  // The conversations. A bare reaction is paint on the page and a pill on the page
+  // The conversations. A bare reaction is paint on the page and a chip on the page
   // row, and counts for nothing here: no card, no address, no place in the walk.
   const threads = all.filter(conversational);
   const open = threads.filter((t) => !t.resolved);

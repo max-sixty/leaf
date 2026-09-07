@@ -94,7 +94,7 @@ html.lf-copy lf-gloss > .lf-gloss-popover::after { content: ")"; }
  * Figures come with the face, and this package is where that earns its keep: the
  * numbers a report moves between versions are all here — a task's done fraction, a
  * metric's value, a tree's badge — and in the sans's own figures each rewrite resizes
- * the pill the number is set in, and moves whatever stands after it. The integrated
+ * the chip the number is set in, and moves whatever stands after it. The integrated
  * theme's copy of this rule carries the measurement and the norm it answers. */
 .lf-chips span, .lf-tree-badge, .lf-shotcap, lf-metric,
 lf-specimen::before, lf-specimen > [data-lf-said="label"], lf-column::before,
@@ -103,11 +103,11 @@ lf-column > [data-lf-said="label"], lf-tab::before,
 lf-chip {
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
-/* The pill this package's chips ride in — the kernel theme's .tag numbers,
+/* The face this package's chips share with the kernel theme's .tag numbers,
  * restated so a band of chips and an inline label stand the same height. */
 lf-chip, .lf-chips span {
   display: inline-block; font-size: var(--t-6); line-height: 1.6; padding: 0 8px;
-  border-radius: 999px; background: var(--chip); color: var(--ink-2); }
+  border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 
 /* A card is a marking — a border, a fill — and what stands inside it is the page's own
  * words at the page's own size, so it states no size. lf-option, lf-variant and lf-card
@@ -226,7 +226,7 @@ lf-options:has(> lf-option > strong) > lf-option { padding: var(--sp-3); --lf-fr
 }
 lf-option > strong { display: block; margin: 0 0 4px; }
 /* A chip is an element, so nothing here renders it and nothing declares it words: it is
- * the author's own markup, quotable and diffable like any other content. The pill is the
+ * the author's own markup, quotable and diffable like any other content. The chip is the
  * shared one — inline-block there, which is what leaves each form free to decide where
  * the band sits — and what a chip adds is the band: margins that space and wrap a row of
  * them, and a max-width bounding a long one against the card, since the words are the
@@ -432,7 +432,7 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
                      left: auto; inset-inline-end: var(--sp-2);
                      top: var(--sp-2); bottom: auto; z-index: 1; }
    & > lf-option[chosen] > .lf-pick {
-                     padding: 2px 8px; border-radius: 999px;
+                     padding: 2px 8px; border-radius: var(--chip-r);
                      background: var(--ok); color: var(--card);
                      font-size: var(--t-6); line-height: 1.5;
                      gap: 4px; }
@@ -941,7 +941,7 @@ lf-options[settled] > .lf-settled:is(:focus-visible, .lf-focus-visible) { outlin
 .lf-settled-count { margin-left: auto; font-weight: 400; font-size: var(--t-6);
                     color: var(--muted); white-space: nowrap; }
 .lf-settled-diff { font-weight: 400; font-size: var(--t-6); padding: 0 6px;
-                   border-radius: 999px; background: var(--add-tint); color: var(--ok-ink); }
+                   border-radius: var(--chip-r); background: var(--add-tint); color: var(--ok-ink); }
 /* The collapse is the whole of what the disclosure's handler does, so it is offered
  * only in the live page and every other medium gets the cards back by never being
  * handed it, rather than by undoing a hide. A page left holding the row elsewhere
@@ -1049,7 +1049,7 @@ lf-metric::before { content: attr(value); }
 lf-metric:has(> [data-lf-said="value"])::before { content: none; }
 lf-metric[delta]::after,
 lf-metric > [data-lf-said="delta"] { display: inline-block; margin-left: 6px;
-                          padding: 0 7px; border-radius: 999px; letter-spacing: 0;
+                          padding: 0 7px; border-radius: var(--chip-r); letter-spacing: 0;
                           text-transform: none; font-size: var(--t-6); line-height: 1.6;
                           background: var(--chip); color: var(--ink-2); }
 lf-metric[delta]::after { content: attr(delta); }
@@ -1167,7 +1167,7 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
 .lf-tabstrip .lf-tab-btn[aria-selected="true"] > [data-lf-said] {
                background: var(--card); color: var(--ink); }
 .lf-tabdiff { font-size: var(--t-6); font-weight: 400; margin-left: 6px;
-              padding: 0 6px; border-radius: 999px;
+              padding: 0 6px; border-radius: var(--chip-r);
               background: var(--add-tint); color: var(--ok-ink); }
 /* One panel at a time is the whole of what the strip's handler does, so it is
  * offered only in the live page and the rest is what the markup already says.
@@ -1650,10 +1650,10 @@ lf-tree li { margin: 3px 0; }
 lf-tree .lf-tree-dir { font-weight: 600; }
 /* nowrap because the module appends name and badges with no whitespace between them and
  * spaces them by margin, so a line is one word to the breaker: told it may break inside
- * one, it split a two-character badge down the middle and drew half the pill on each
+ * one, it split a two-character badge down the middle and drew half the chip on each
  * line. The name is what breaks now, which is the one of the three that can. */
 lf-tree .lf-tree-badge { font-size: var(--t-6); padding: 0 6px; margin-left: 6px;
-                         border-radius: 999px; white-space: nowrap; }
+                         border-radius: var(--chip-r); white-space: nowrap; }
 lf-tree .lf-tree-badge.add { background: var(--ok-tint); color: var(--ok-ink); }
 lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger-ink); }
 

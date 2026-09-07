@@ -448,7 +448,7 @@ def test_a_workspace_lands_one_responsive_layout_and_carries_the_column_to_it(
         }"""
     )
 
-    page.keyboard.press("c")
+    page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
     assert page.evaluate("() => window.__lfHeld.length") == 1, (
         "opening the workspace did not produce one controllable column motion"
@@ -2223,7 +2223,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # This page heads the list, marked and never a link: the panel reads as the
     # whole machine, and this page is where the reader already is.
     self_row = others_panel.locator(".lf-others-self")
-    expect(self_row.locator(".lf-pill")).to_have_text("this page")
+    expect(self_row.locator(".lf-chip")).to_have_text("this page")
     expect(self_row.locator(".lf-others-title")).to_have_text("long")
     link = others_panel.locator("a.lf-others-row")
     expect(link.locator(".lf-others-title")).to_have_text("The other leaf")
@@ -2862,7 +2862,7 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
     Told it may break a word, the browser will also break one that was never meant to come
     apart: the tree's module spaces its badges by margin and writes no whitespace between
     them, so a line is one word to the breaker, and it split a two-character badge down the
-    middle and drew half the pill on each line. Read at a phone's width, where the column
+    middle and drew half the chip on each line. Read at a phone's width, where the column
     has the least to give and each of the three is at its worst."""
     page, errors = open_page(browser, serve(UNBREAKABLE_PAGE))
     resized(page, 420, 900)
@@ -2883,7 +2883,7 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
     )
     torn = """() => [...document.querySelectorAll('.lf-tree-badge')]
                       .map((b) => b.getClientRects().length)"""
-    assert page.evaluate(torn) == [1, 1], "a badge is one pill, and it was drawn as two"
+    assert page.evaluate(torn) == [1, 1], "a badge is one chip, and it was drawn as two"
     assert errors == []
     page.close()
 
@@ -4267,7 +4267,7 @@ RING_WALKS = (
     ),
     ("the comments", ("c",), ("ship-review",)),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
-    # layer dresses in the chrome's pill face, and they are behind a press: the strip
+    # layer dresses in the chrome's chip face, and they are behind a press: the strip
     # shows a token nobody has pressed only while it is open, so a walk of the panel
     # that never opens one stands on the trigger and nothing under it.
     ("a reaction palette", (), ("ship-review",)),
@@ -5009,7 +5009,7 @@ AIM_BOXES = """(floor) => {
   for (const el of document.querySelectorAll(
     '[data-lf-offer], .lf-chrome button, .lf-chrome [role="button"],' +
     ' .lf-chrome [role="checkbox"], .lf-chrome [role="tab"], .lf-chrome .lf-btn,' +
-    ' .lf-chrome .lf-pill, .lf-chrome .lf-quote'
+    ' .lf-chrome .lf-chip, .lf-chrome .lf-quote'
   )) {
     if (seen.has(el)) continue;
     seen.add(el);
@@ -5042,7 +5042,7 @@ AIM_BOXES = """(floor) => {
 AIM_SURFACES = (
     ".lf-thread-action",
     ".lf-preview",
-    ".lf-pill",
+    ".lf-chip",
     ".lf-version-diff",
     ".lf-help-command",
     ".lf-quote",
@@ -5090,7 +5090,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
     """A press the reader cannot land on is a capability the page does not have.
 
     Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
-    reaction pills stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
+    reaction chips stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
     version's Δ, a command in the reference, and a quote at around twelve by seven.
     Three controls reached the coarse-pointer block and the rest reached neither floor,
     so the same presses were small under a finger too.

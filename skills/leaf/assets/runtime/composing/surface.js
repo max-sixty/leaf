@@ -18,9 +18,9 @@
    without collapsing the browser selection; the reader can still copy
    the selection or use its native context menu, then enter the field with Comment. The
    field grows in place and never transfers text into a second composer card. A
-   one-line note is a pill. A longer one widens up to a readable 80ch and then wraps,
-   and grows into the available clear band before it scrolls; its corner stays the
-   pill's 16px rather than growing with the box, so the corner never reaches over the
+   one-line note uses the shared action corner. A longer one widens up to a readable
+   80ch and then wraps, and grows into the available clear band before it scrolls; its
+   corner stays fixed rather than growing with the box, so it never reaches over the
    first or last line. Placement states a float's room as `--lf-float-w` and
    `--lf-float-h`; the bar is capped by it and the field's `--lf-response-room`
    excludes its neighboring controls. The field's scroll extent supplies its desired

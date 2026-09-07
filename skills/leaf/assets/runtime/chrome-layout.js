@@ -27,9 +27,11 @@
 // viewport can hold them and cover the page under their respective media query otherwise;
 // Leaves always covers because its rows leave this page. A workspace covering the page is
 // only ever `show()`n; the reference and the page map keep `showModal()`. The shell's
-// inline size already reflects the margins a beside panel or tray takes. `--strip-l`, `--strip-r`, and
-// `--lf-room` are CSS-owned readings resolved on `main`; `--lf-shell-inset-left` carries
-// the left workspace offset to viewport-fixed page furniture; `--lf-claim-right` is the
+// inline size already reflects the margins a beside panel or tray takes. `--strip-l`, `--strip-r`,
+// `--lf-room`, and `--lf-sidebar-posture` are CSS-owned readings resolved on `main`, which is
+// the named `lf-page` style container a margin resident asks for them; `--lf-shell-inset-left`
+// carries the left workspace offset to viewport-fixed page furniture, and `--lf-keyline-clear`
+// carries the key line's band to whatever has to end above it; `--lf-claim-right` is the
 // project-layer extension claim. A script-free copy therefore answers the same layout
 // from its own viewport without exporting session geometry.
 
@@ -227,6 +229,13 @@ export function syncLayout() {
   // Flow room lets the document reach past the line; scroll padding tells native focus
   // navigation where the visible edge actually is. Keep both on the same measured band
   // so a Tab stop already inside the viewport cannot be accepted underneath the line.
+  //
+  // Published rather than only spent here, because a region standing in this band need
+  // not be one this function can reach: the contents spine is fixed page furniture, so
+  // no flow room and no list padding gets to it, and it sized itself to the window and
+  // ran under the line at every width. A fourth inline write would have been a fourth
+  // box this function has to know about; the band on the root is the same reading, said
+  // once, for whatever the stylesheet stands in the line's corner.
   document.documentElement.style.setProperty("--lf-keyline-clear", clear);
   // A tray's list is the page's other scroll region, in the corner the line is
   // written into. Its foot is the window's, the tray being held to `bottom: 0`, so the

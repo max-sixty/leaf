@@ -851,7 +851,13 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     Section rows divide the available height according to the content they lead, a
     moving lens shows the visible band, and late content growth redraws both. Labels
     reveal without moving the map or changing the item under the pointer. The same
-    links remain an ordinary open outline where the margin posture is unavailable."""
+    links remain an ordinary open outline where the margin posture is unavailable.
+
+    The map ends above the key line. It is fixed and it stands in the line's own
+    corner, so the flow room the document, the trays and the thread list are given
+    reaches it only through the band syncLayout publishes. Without it the map ran to
+    the window's foot and the last section it names — always the last, the map being
+    sized to the viewport rather than scrolled — sat under the line at every width."""
     source = leaf_page(
         "contents map",
         """
@@ -916,8 +922,19 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     assert nav_box is not None
     assert 23 <= nav_box["x"] <= 25
     assert 64 <= nav_box["y"] <= 68
-    assert nav_box["height"] >= 790, f"the reading map used only {nav_box['height']}px"
-    assert abs(nav_box["y"] + nav_box["height"] - 876) <= 1
+    assert nav_box["height"] >= 740, f"the reading map used only {nav_box['height']}px"
+    line_box = page.locator(".lf-keyline").bounding_box()
+    assert line_box is not None, "the fixture drew no key line to clear"
+    clearance = line_box["y"] - (nav_box["y"] + nav_box["height"])
+    assert 19 <= clearance <= 21, (
+        f"the map ended {clearance}px above the key line rather than in the band it "
+        f"reserves: map {nav_box}, line {line_box}"
+    )
+    last_row = nav.locator(".lf-toc-start, li").last.bounding_box()
+    assert last_row is not None
+    assert last_row["y"] + last_row["height"] <= line_box["y"], (
+        f"the map's last entry stood under the key line: {last_row}, {line_box}"
+    )
     prepare_box = page.locator("#prepare").bounding_box()
     assert prepare_box is not None
     assert nav_box["width"] == pytest.approx(292, abs=1)
@@ -1262,6 +1279,75 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     assert coarse_errors == []
     coarse.close()
     context.close()
+
+
+def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve):
+    """A wrapper that leaves the box tree and returns leaves the map as it found it.
+
+    An author whose sidebar has nothing to say on a narrow shell hides it, which is
+    what the developer gallery does; opening Threads takes enough width to cross that
+    floor, so one open-and-close removes the map's whole wrapper and puts it back. The
+    map is restored from the page's own posture, not from anything the wrapper
+    remembers, because a box that has been away answers a style query with the reading
+    it left with: asking the wrapper cost the reader the spine for the rest of the
+    session — an outline of thirteen laid rows became a fifteen-pixel heading stub that
+    no settle, scroll, or further toggle brought back."""
+    source = leaf_page(
+        "hidden sidebar map",
+        """
+<style>
+  @container lf-shell (max-width: 1151px) { #route { display: none; } }
+</style>
+<h1>Migration plan for the readers already in flight</h1>
+<aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
+<section><h2 id="prepare">Prepare the copy</h2><p>Take a snapshot.</p></section>
+<div style="height: 600px"></div>
+<section><h2 id="move">Move each cohort</h2><p>Shift one cohort at a time.</p></section>
+<div style="height: 600px"></div>
+<section><h2 id="verify">Verify both readings</h2><p>Compare the totals.</p></section>
+<div style="height: 600px"></div>
+""",
+    )
+    context = browser.new_context(viewport={"width": 1200, "height": 900})
+    page, errors = open_page(browser, serve(source), context=context)
+    toc = page.locator("#contents")
+    nav = page.get_by_role("navigation", name="On this page")
+    heading = nav.locator(".lf-toc-heading")
+
+    def rows():
+        return nav.locator("li").evaluate_all(
+            "items => items.filter(item => item.getBoundingClientRect().height > 0)"
+            ".length"
+        )
+
+    expect(toc).to_have_css("position", "fixed")
+    expect(heading).to_be_hidden()
+    settled = toc.bounding_box()
+    assert settled is not None
+    laid = rows()
+    assert laid >= 3, f"the fixture laid only {laid} map rows to begin with"
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    # Read the hidden posture rather than merely waiting the wrapper out. The page reads
+    # it too — the map measures its own track on every reflow, hidden or not — and the
+    # reading is what leaves the wrapper repeating it after the box comes back.
+    expect(page.locator("#route")).to_have_css("display", "none")
+    expect(toc).to_have_css("position", "static")
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, open=False)
+    # The wrapper itself holds no height in this posture — the map inside it is fixed —
+    # so its return is a display reading rather than a visible box.
+    expect(page.locator("#route")).to_have_css("display", "flow-root")
+    expect(toc).to_have_css("position", "fixed")
+    expect(heading).to_be_hidden()
+    assert toc.bounding_box() == settled, (
+        f"the map came back as {toc.bounding_box()} rather than {settled}"
+    )
+    assert rows() == laid, "the map came back without its rows"
+    assert errors == []
+    page.close()
 
 
 def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser, serve):

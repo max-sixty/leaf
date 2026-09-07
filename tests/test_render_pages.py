@@ -2530,8 +2530,9 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
           const tray = document.querySelector('.lf-asks-panel').getBoundingClientRect();
           const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
           const toc = document.querySelector('lf-toc').getBoundingClientRect();
+          const line = document.querySelector('.lf-keyline').getBoundingClientRect();
           return {trayRight: tray.right, sidebarLeft: sidebar.left, tocLeft: toc.left,
-                  tocTop: toc.top, tocBottom: toc.bottom,
+                  tocTop: toc.top, tocBottom: toc.bottom, lineTop: line.top,
                   sidebarPosition: getComputedStyle(document.querySelector('aside.sidebar')).position,
                   tocPosition: getComputedStyle(document.querySelector('lf-toc')).position};
         }"""
@@ -2541,7 +2542,12 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert workspace["sidebarLeft"] >= workspace["trayRight"] - 1
     assert abs(workspace["tocLeft"] - workspace["trayRight"] - 24) <= 1
     assert 64 <= workspace["tocTop"] <= 68
-    assert abs(workspace["tocBottom"] - 876) <= 1
+    # The map runs from under the banner to the top of the key line's band. Both ends
+    # are chrome's, so neither is a number here: the foot is the band syncLayout
+    # publishes, the same room the document and this tray's own list take.
+    assert abs(workspace["lineTop"] - workspace["tocBottom"] - 20) <= 1, (
+        f"the map did not end in the key line's band: {workspace}"
+    )
     page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
 

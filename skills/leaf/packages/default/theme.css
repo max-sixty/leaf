@@ -1311,122 +1311,146 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
 /* The core sidebar states its actual posture after viewport and panel-room decisions.
  * Only a fine-pointer margin form fixes itself into a viewport map; generic sidebars keep
  * their sticky behavior and an in-flow ToC stays open. The shell inset moves the fixed map
- * beside a standing left workspace. */
+ * beside a standing left workspace.
+ *
+ * The two questions are asked of two boxes, for the reason the core theme states beside
+ * the declarations. The page answers the posture, because a page is always there to
+ * answer; the wrapper answers only which slot it is, which is a fact that never changes
+ * while the page is open, so the answer is the same one whether or not the box has been
+ * away. Asking the wrapper for the posture instead cost the map: an author who hides the
+ * sidebar on a narrow shell — the feature gallery does — got a ToC that never came back,
+ * because the wrapper was still repeating the posture it left with. Keeping the slot in
+ * the question is also what leaves an lf-toc written into ordinary prose alone; the
+ * posture reaches every box on the page, and only the sidebar's map wants it. */
 @media screen and (hover: hover) and (pointer: fine) {
-  @container style(--lf-sidebar-posture: margin) {
-    lf-toc { position: fixed;
-             left: calc(var(--lf-shell-inset-left, 0px) + var(--sp-4));
-             top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
-             /* The generic sidebar guarantees a 240px map and its gutter. Once the
-              * reading column can stay centred with room left over, spend that empty
-              * margin on shorter labels until the map reaches 320px. */
-             width: clamp(
-               calc(var(--sidebar) - var(--sp-4)),
-               calc((100cqi - min(var(--col), var(--lf-room))) / 2
-                 + var(--lf-shift) - 2 * var(--sp-4)),
-               320px);
-             height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
-             margin: 0; }
-    body[data-lf-upgraded="1"] lf-toc { transition: left .18s ease; }
-    body[data-lf-sizing] lf-toc { transition: none; }
-    lf-toc .lf-toc-nav { height: 100%; border: 0; padding: 0;
-                         --lf-toc-label-opacity: 0;
-                         pointer-events: none; }
-    lf-toc .lf-toc-nav::before { content: ""; position: absolute; inset: 0;
-                                 z-index: 0; pointer-events: auto; }
-    lf-toc .lf-toc-heading { display: none; }
-    lf-toc .lf-toc-rows { position: relative; display: flex; height: 100%;
-                          flex-direction: column; }
-    lf-toc .lf-toc-rows::before { content: ""; position: absolute;
-                                  z-index: 0; top: 0; bottom: 0; left: 0; width: 1px;
-                                  background: var(--border-2); }
-    lf-toc .lf-toc-window { display: block; position: absolute; z-index: 1;
-                            top: var(--lf-toc-window-start, 0%);
-                            left: 0; width: 1px;
-                            height: var(--lf-toc-window-size, 12%);
-                            min-height: 14px; border-radius: 2px;
-                            background: var(--ink-2); }
-    lf-toc .lf-toc-start, lf-toc li { --lf-toc-indent: 0px;
-                                      position: relative; z-index: 2; display: block;
-                                      flex: var(--lf-toc-span, 1) 1 0px;
-                                      min-height: 0; margin: 0; }
-    lf-toc ol { display: contents; }
-    lf-toc .lf-toc-start::before, lf-toc li::before {
-      content: ""; position: absolute; z-index: 2;
-      top: 7px; left: -1px; width: 3px; height: 3px; border-radius: 50%;
-      background: var(--muted);
-    }
-    lf-toc :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
-      background: var(--ink-2);
-    }
-    lf-toc li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
-    lf-toc li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
-    lf-toc li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
-    lf-toc li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
-    lf-toc .lf-toc-start a, lf-toc li a {
-      position: absolute; z-index: 3; display: -webkit-box;
-      top: var(--lf-toc-label-shift, 0px); left: 0; width: 100%;
-      overflow: hidden; max-height: 2.6em;
-      padding: 0 2px 2px calc(14px + var(--lf-toc-indent));
-      line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-      opacity: var(--lf-toc-label-opacity); pointer-events: none;
-      transition: color .12s ease-out, opacity .24s ease-out;
-    }
-    lf-toc .lf-toc-start a { color: var(--ink-2); font-weight: 650;
-                             line-height: 1.2; max-height: 2.4em; }
-    lf-toc li a[aria-current="location"] { color: var(--ink-2); }
-    lf-toc a:focus-visible { outline: var(--here-ring); --lf-here-ring: toc-link;
-                             outline-offset: calc(-1 * var(--here-ring-w)); }
-    lf-toc .lf-toc-nav:is(:hover, :focus-within),
-    body[data-lf-goto] lf-toc .lf-toc-nav {
-      --lf-toc-label-opacity: 1;
-    }
-    lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
-      animation: lf-toc-enable-links 0s .24s forwards;
-    }
-    /* A pointer waits for the labels it revealed to finish appearing. The go-to chord
-     * already made an explicit keyboard gesture, and its candidate reading needs these
-     * visible page routes to participate immediately. */
-    body[data-lf-goto] lf-toc:not([data-lf-dense]) .lf-toc-nav a {
-      pointer-events: auto;
-    }
-    /* When all labels cannot fit beside the track, the destination under the pointer or
-     * keyboard focus reveals on its own. Turning the rail into a second scrollable outline
-     * would put the markers and viewport lens in a different coordinate system. */
-    lf-toc[data-lf-dense] .lf-toc-rows { overflow: hidden; }
-    lf-toc[data-lf-dense] :is(.lf-toc-start, li) {
-      min-height: 0; pointer-events: auto;
-    }
-    lf-toc[data-lf-dense] :is(.lf-toc-start, li) a {
-      top: 0;
-      max-height: 1.25em; font-size: var(--t-6); line-height: 1.25;
-      -webkit-line-clamp: 1;
-    }
-    lf-toc[data-lf-dense] li:last-child a { top: auto; bottom: 0; }
-    lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
-      opacity: 0; animation: none; pointer-events: none;
-    }
-    lf-toc[data-lf-dense] .lf-toc-nav:hover
-      :is(.lf-toc-start, li):hover a,
-    lf-toc[data-lf-dense] .lf-toc-nav:focus-within a:focus {
-      opacity: 1;
-      animation: lf-toc-enable-links 0s .24s forwards;
+  @container lf-page style(--lf-sidebar-posture: margin) {
+    @container style(--lf-sidebar-slot: margin) {
+      lf-toc { position: fixed;
+               left: calc(var(--lf-shell-inset-left, 0px) + var(--sp-4));
+               top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
+               /* The generic sidebar guarantees a 240px map and its gutter. Once the
+                * reading column can stay centred with room left over, spend that empty
+                * margin on shorter labels until the map reaches 320px. */
+               width: clamp(
+                 calc(var(--sidebar) - var(--sp-4)),
+                 calc((100cqi - min(var(--col), var(--lf-room))) / 2
+                   + var(--lf-shift) - 2 * var(--sp-4)),
+                 320px);
+               /* The map stands in the same corner the key line is written into, and it
+                * is fixed, so nothing in the flow can hold it off. syncLayout publishes
+                * the line's whole band on the root for exactly this, and the document,
+                * the trays and the thread list already end above it; the map is the
+                * fourth region in that band and ends there too, with the same 20px of
+                * air the band carries. Without it the last section of every page with a
+                * spine sat under the line — 21 of its 36 pixels, at every width, and
+                * not scrollable clear, the map being sized to the window. The band
+                * reads zero where no line stands, which leaves the plain inset. */
+               height: calc(100vh - var(--lf-banner-h, 0px) - var(--sp-4)
+                 - max(var(--sp-4), var(--lf-keyline-clear, 0px)));
+               margin: 0; }
+      body[data-lf-upgraded="1"] lf-toc { transition: left .18s ease; }
+      body[data-lf-sizing] lf-toc { transition: none; }
+      lf-toc .lf-toc-nav { height: 100%; border: 0; padding: 0;
+                           --lf-toc-label-opacity: 0;
+                           pointer-events: none; }
+      lf-toc .lf-toc-nav::before { content: ""; position: absolute; inset: 0;
+                                   z-index: 0; pointer-events: auto; }
+      lf-toc .lf-toc-heading { display: none; }
+      lf-toc .lf-toc-rows { position: relative; display: flex; height: 100%;
+                            flex-direction: column; }
+      lf-toc .lf-toc-rows::before { content: ""; position: absolute;
+                                    z-index: 0; top: 0; bottom: 0; left: 0; width: 1px;
+                                    background: var(--border-2); }
+      lf-toc .lf-toc-window { display: block; position: absolute; z-index: 1;
+                              top: var(--lf-toc-window-start, 0%);
+                              left: 0; width: 1px;
+                              height: var(--lf-toc-window-size, 12%);
+                              min-height: 14px; border-radius: 2px;
+                              background: var(--ink-2); }
+      lf-toc .lf-toc-start, lf-toc li { --lf-toc-indent: 0px;
+                                        position: relative; z-index: 2; display: block;
+                                        flex: var(--lf-toc-span, 1) 1 0px;
+                                        min-height: 0; margin: 0; }
+      lf-toc ol { display: contents; }
+      lf-toc .lf-toc-start::before, lf-toc li::before {
+        content: ""; position: absolute; z-index: 2;
+        top: 7px; left: -1px; width: 3px; height: 3px; border-radius: 50%;
+        background: var(--muted);
+      }
+      lf-toc :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
+        background: var(--ink-2);
+      }
+      lf-toc li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
+      lf-toc li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
+      lf-toc li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
+      lf-toc li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
+      lf-toc .lf-toc-start a, lf-toc li a {
+        position: absolute; z-index: 3; display: -webkit-box;
+        top: var(--lf-toc-label-shift, 0px); left: 0; width: 100%;
+        overflow: hidden; max-height: 2.6em;
+        padding: 0 2px 2px calc(14px + var(--lf-toc-indent));
+        line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+        opacity: var(--lf-toc-label-opacity); pointer-events: none;
+        transition: color .12s ease-out, opacity .24s ease-out;
+      }
+      lf-toc .lf-toc-start a { color: var(--ink-2); font-weight: 650;
+                               line-height: 1.2; max-height: 2.4em; }
+      lf-toc li a[aria-current="location"] { color: var(--ink-2); }
+      lf-toc a:focus-visible { outline: var(--here-ring); --lf-here-ring: toc-link;
+                               outline-offset: calc(-1 * var(--here-ring-w)); }
+      lf-toc .lf-toc-nav:is(:hover, :focus-within),
+      body[data-lf-goto] lf-toc .lf-toc-nav {
+        --lf-toc-label-opacity: 1;
+      }
+      lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
+        animation: lf-toc-enable-links 0s .24s forwards;
+      }
+      /* A pointer waits for the labels it revealed to finish appearing. The go-to chord
+       * already made an explicit keyboard gesture, and its candidate reading needs these
+       * visible page routes to participate immediately. */
+      body[data-lf-goto] lf-toc:not([data-lf-dense]) .lf-toc-nav a {
+        pointer-events: auto;
+      }
+      /* When all labels cannot fit beside the track, the destination under the pointer or
+       * keyboard focus reveals on its own. Turning the rail into a second scrollable outline
+       * would put the markers and viewport lens in a different coordinate system. */
+      lf-toc[data-lf-dense] .lf-toc-rows { overflow: hidden; }
+      lf-toc[data-lf-dense] :is(.lf-toc-start, li) {
+        min-height: 0; pointer-events: auto;
+      }
+      lf-toc[data-lf-dense] :is(.lf-toc-start, li) a {
+        top: 0;
+        max-height: 1.25em; font-size: var(--t-6); line-height: 1.25;
+        -webkit-line-clamp: 1;
+      }
+      lf-toc[data-lf-dense] li:last-child a { top: auto; bottom: 0; }
+      lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
+        opacity: 0; animation: none; pointer-events: none;
+      }
+      lf-toc[data-lf-dense] .lf-toc-nav:hover
+        :is(.lf-toc-start, li):hover a,
+      lf-toc[data-lf-dense] .lf-toc-nav:focus-within a:focus {
+        opacity: 1;
+        animation: lf-toc-enable-links 0s .24s forwards;
+      }
     }
   }
 }
 @media (prefers-reduced-motion: reduce) {
   lf-toc a { transition: none; }
-  @container style(--lf-sidebar-posture: margin) {
-    lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
-      animation: none; pointer-events: auto;
-    }
-    lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
-      opacity: 0; pointer-events: none;
-    }
-    lf-toc[data-lf-dense] .lf-toc-nav:hover
-      :is(.lf-toc-start, li):hover a,
-    lf-toc[data-lf-dense] .lf-toc-nav:focus-within a:focus {
-      opacity: 1; pointer-events: auto;
+  @container lf-page style(--lf-sidebar-posture: margin) {
+    @container style(--lf-sidebar-slot: margin) {
+      lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
+        animation: none; pointer-events: auto;
+      }
+      lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
+        opacity: 0; pointer-events: none;
+      }
+      lf-toc[data-lf-dense] .lf-toc-nav:hover
+        :is(.lf-toc-start, li):hover a,
+      lf-toc[data-lf-dense] .lf-toc-nav:focus-within a:focus {
+        opacity: 1; pointer-events: auto;
+      }
     }
   }
 }

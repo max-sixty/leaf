@@ -10,10 +10,12 @@
  * of the section it leads as its flex share, so the quiet spine describes the document
  * before its labels appear. Labels pack beside those fixed positions without changing
  * them. The darker lens is the part of the document in the viewport.
- * ResizeObserver hears late diagrams, images, disclosures, and width changes; a widget
- * whose view rearranges descendants without changing its own size emits the shared layout
- * signal. The map writes only to itself, never the main box it observes. The ordinary
- * in-flow list remains the script-free, narrow, and paper form.
+ * ResizeObserver hears late diagrams, images, disclosures, and width changes in the
+ * document, and the height of the track the rows are laid into, which the page's chrome
+ * can shorten without the document moving at all; a widget whose view rearranges
+ * descendants without changing its own size emits the shared layout signal. The map
+ * writes only to itself, never the main box it observes, and never the track either. The
+ * ordinary in-flow list remains the script-free, narrow, and paper form.
  *
  * Every link is a real fragment link in both live pages and standalone copies. The
  * browser owns its navigation, history, :target state, wheel input, and scroll
@@ -168,6 +170,15 @@ customElements.define(
         this.#scroller === document.scrollingElement ? document : this.#scroller;
       this.#watching = new ResizeObserver(() => this.#scheduleMeasure());
       this.#watching.observe(this.#main);
+      // The track the map lays rows into is the other box that decides the layout, and
+      // it is not the document's: the map is sized to the window less the banner and
+      // less whatever band the key line is standing in, so a chord that grows the line
+      // shortens the spine without the page reflowing at all. Packing labels around
+      // markers that have since moved leaves them a label's height out of place, and
+      // the crowded reading is decided against this height too. Nothing measured here
+      // writes to this box — spans land on its rows, shifts on the labels inside them,
+      // and the dense mark changes neither — so hearing it cannot start a loop.
+      this.#watching.observe(this.#rows);
       for (const { heading } of this.#sections)
         if (heading !== this.#main) this.#watching.observe(heading);
       this.#scrollSource.addEventListener("scroll", this.#onScroll, { passive: true });

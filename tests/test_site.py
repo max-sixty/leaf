@@ -544,8 +544,21 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         toggle.click()
         expect(status).to_have_text("Accept a suggestion · Paused")
         assert page.evaluate("window.pauseProbe.playState") == "paused"
+        paused_suggestion = """suggestion => {
+            const retired = suggestion.querySelector('lf-old');
+            const style = getComputedStyle(retired);
+            return {
+                state: suggestion.dataset.lfState ?? null,
+                height: retired.getBoundingClientRect().height,
+                opacity: style.opacity,
+                animations: suggestion.getAnimations({subtree: true}).map(
+                    animation => [animation.playState, animation.currentTime]
+                ),
+            };
+        }"""
+        frozen = accept.evaluate(paused_suggestion)
         page.wait_for_timeout(800)
-        assert accept.get_attribute("data-lf-state") is None
+        assert accept.evaluate(paused_suggestion) == frozen
         toggle.click()
         assert page.evaluate("window.pauseProbe.playState") == "running"
         page.evaluate("window.pauseProbe.cancel()")

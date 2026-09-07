@@ -191,7 +191,7 @@ export function actionStands(event) {
 // the round trip happens behind them.
 //
 // A reaction is a comment too, and it is not a message: it paints as a mark on the page
-// through its own pill, and has no card in the list for a record to stand in.
+// through its own chip, and has no card in the list for a record to stand in.
 const messageKind = (event) =>
   (event.kind === "comment" || event.kind === "reply") && !event.token;
 

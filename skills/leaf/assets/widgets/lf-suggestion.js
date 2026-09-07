@@ -214,9 +214,7 @@ customElements.define(
             ? "failed"
             : this.#staging || this.#deciding || this.#undoing
               ? "busy"
-              : this.dataset.lfState
-                ? "settled"
-                : "idle",
+              : "idle",
         items: () =>
           this.dataset.lfState && !undoableAction(this, this.dataset.lfState)
             ? []
@@ -295,7 +293,7 @@ customElements.define(
         label,
         tone,
         role,
-        state: this.#failed ? "failed" : this.dataset.lfState ? "settled" : "idle",
+        state: this.#failed ? "failed" : "idle",
       });
       button.onclick = press;
       return button;
@@ -316,7 +314,7 @@ customElements.define(
           press: () => this.#undoOutcome(),
         });
         const undoing = Boolean(pending || this.#undoing);
-        marginButtonState(this.#undo, undoing ? "busy" : "settled");
+        marginButtonState(this.#undo, undoing ? "busy" : "idle");
         this.#undo.setAttribute("aria-disabled", String(undoing));
         this.#undo.setAttribute(
           "aria-label",

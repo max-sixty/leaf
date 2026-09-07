@@ -68,7 +68,7 @@ const GROUPS = [
   },
   {
     heading: "Lifecycle",
-    summary: "Every state remains visible at the same time",
+    summary: "Only work in flight is marked; the rest rank without painting",
     specimens: [
       {
         name: "Idle",
@@ -78,7 +78,7 @@ const GROUPS = [
       },
       {
         name: "Engaged",
-        detail: "dot",
+        detail: "no mark · ranks above idle",
         icon: "edit",
         state: "engaged",
       },
@@ -90,15 +90,9 @@ const GROUPS = [
       },
       {
         name: "Failed",
-        detail: "diamond",
+        detail: "no mark · ranks first",
         icon: "retry",
         state: "failed",
-      },
-      {
-        name: "Settled",
-        detail: "square",
-        icon: "undo",
-        state: "settled",
       },
     ],
   },

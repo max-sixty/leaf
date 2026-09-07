@@ -58,8 +58,9 @@ import { standingConversation } from "./conversation/landing.js";
 import { EVERYTHING, standingItem } from "./keyboard/page.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { anchorLabel } from "./conversation/messages.js";
+import { iconElement } from "./icons.js";
 
-// Standing tokens wear their word in strips and the settled witness in margin circles.
+// Standing tokens wear their emoji in strips and the settled witness in margin circles.
 // Both carry the event a second press takes back. The reaction rides the pill rather
 // than a map beside it, so a reconcile that keeps the node keeps the fact with it.
 export function paintReactionStanding(strip, standing) {
@@ -83,10 +84,9 @@ const suggestHere = () => setSuggestionMode(true);
 // row's bindings as the module evaluates, before the vocabulary is known.
 export const reactionTokens = () => Object.entries(reactionVocabulary() ?? {});
 
-// One token as a press, built the same way wherever it stands. The word shows only
-// while the token stands on its target, so a closed surface keeps the reader's marks
-// without offering the whole vocabulary. Digits remain keyboard accelerators without
-// changing the shape of every pill.
+// One token as a press, built the same way wherever it stands. Its authored meaning is
+// the accessible name and hover explanation; the compact face stays the declared mark.
+// Digits remain keyboard accelerators without changing the shape of every pill.
 function reactPill(
   name,
   entry,
@@ -106,13 +106,9 @@ function reactPill(
     });
   } else {
     pill.title = meaning;
-    pill.setAttribute("aria-label", name);
+    pill.setAttribute("aria-label", meaning);
     if (response) responseAction(pill, { glyph: entry.glyph, label: name });
-    else
-      pill.append(
-        el("span", "lf-react-glyph", entry.glyph),
-        el("span", "lf-react-word", name),
-      );
+    else pill.append(el("span", "lf-react-glyph", entry.glyph));
   }
   pill.onclick = () => pressed(name, pill);
   return pill;
@@ -137,14 +133,7 @@ export function buildReactSurface(
   if (!reactionTokens().length && !forceTrigger) return surface;
   surface.classList.add("lf-react-surface");
   const floatingResponses = surface === fabBar;
-  const trigger = offer(
-    "button",
-    floatingResponses ? "lf-react-trigger" : "lf-pill lf-react-trigger",
-    // The strip's trigger is a disclosure and wears the register's verb with the
-    // margin's own "…" suffix (visibleButtonLabel): a bare "…" under a reply was a
-    // control nobody could name without hovering it.
-    floatingResponses ? "" : "React…",
-  );
+  const trigger = offer("button", "lf-react-trigger");
   if (floatingResponses)
     responseAction(trigger, {
       icon: "more",
@@ -152,15 +141,12 @@ export function buildReactSurface(
       behavior: "options",
       collapse: true,
     });
+  else trigger.append(iconElement("reaction", "lf-react-trigger-icon"));
   trigger.setAttribute("aria-expanded", "false");
-  // The strip's trigger says its own word; only the icon-only floating trigger needs a
-  // name written on it, and a label that differed from the visible "React…" would fail
-  // a reader who works the page by saying what they see.
-  if (floatingResponses) {
-    const showLabel = triggerLabel ?? "Show reactions";
-    trigger.setAttribute("aria-label", showLabel);
-    trigger.title = showLabel;
-  }
+  const showLabel =
+    triggerLabel ?? (floatingResponses ? "Show reactions" : "Add reaction");
+  trigger.setAttribute("aria-label", showLabel);
+  trigger.title = showLabel;
   const palette = el("span", "lf-react-palette");
   palette.id = `lf-reactions-${++surfaceOrdinal}`;
   palette.setAttribute("role", "group");

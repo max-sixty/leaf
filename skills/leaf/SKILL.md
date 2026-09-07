@@ -37,8 +37,8 @@ path is `${CLAUDE_SKILL_DIR}/../../bin/leaf`, and Claude Code also puts it on
 incomplete. A checkout keeps it at `bin/leaf`.
 
 1. Run `leaf page init <page>`. Optional shapes need their packages named here:
-   `diagram` for Mermaid, `diff` for a unified diff, and `swipe` for rapid
-   pass-or-keep triage, as in
+   `diagram` for Mermaid, `diff` for a unified diff, `swipe` for rapid
+   pass-or-keep triage, and `playground` for declarative interactive explorers, as in
    `leaf page init --package diagram --package diff <page>`. Re-running `page init`
    with the selection adds it to a page already written.
 2. Read `references/page-authoring.md`, then the authoring reference each part of

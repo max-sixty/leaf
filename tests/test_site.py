@@ -194,11 +194,15 @@ def test_only_canonical_examples_keep_a_runtime_layer(site):
     product_media = {
         Path(media_url(source)).name: source
         for source in (
-            path
-            for pattern in ("*.gif", "*.jpg", "*.png")
-            for path in DOCS.glob(pattern)
+            path for pattern in ("*.gif", "*.png") for path in DOCS.glob(pattern)
         )
     }
+    product_media.update(
+        {
+            Path(media_url(source)).name: source
+            for source in site_build.example_previews().glob("example-*.jpg")
+        }
+    )
     assert {path.name for path in (site / "media").iterdir()} == set(product_media)
     for name, source in product_media.items():
         target = site / "media" / name
@@ -439,7 +443,8 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     cannot pass merely because it also contains no iframe or tab widget.
     """
     expected = {source.stem for source in authored_examples()}
-    assert {path.name for path in DOCS.glob("example-*.jpg")} == {
+    previews = site_build.example_previews()
+    assert {path.name for path in previews.glob("example-*.jpg")} == {
         f"example-{stem}.jpg" for stem in expected
     }
 
@@ -465,7 +470,8 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
             prefix, encoded = pair["image"].split(",", 1)
             assert prefix == "data:image/jpeg;base64"
             assert (
-                base64.b64decode(encoded) == (DOCS / f"example-{stem}.jpg").read_bytes()
+                base64.b64decode(encoded)
+                == (previews / f"example-{stem}.jpg").read_bytes()
             )
             reached.add(stem)
         assert reached == expected
@@ -561,6 +567,16 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         ).evaluate_all(
             "nodes => nodes.map(node => getComputedStyle(node).fontSize)"
         ) == ["11.5px", "11.5px", "11.5px"]
+        # The live line stands under the two presses at every width rather than beside
+        # them, because the runtime rewrites it as the demo runs and prose that changes
+        # length on a button's line moves the row while the reader is aiming at it.
+        assert gallery.evaluate(
+            """gallery => {
+                const toggle = gallery.querySelector('[data-interaction-toggle]');
+                const status = gallery.querySelector('[data-interaction-status]');
+                return status.offsetTop >= toggle.offsetTop + toggle.offsetHeight;
+            }"""
+        )
         expect(accept).to_have_attribute("data-lf-state", "accept")
         assert read_events(page_dir) == before
 
@@ -585,7 +601,6 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         assert gallery.locator("#bg-motion-board").evaluate(
             "board => getComputedStyle(board).gridAutoFlow === 'row'"
         )
-        assert status.evaluate("status => getComputedStyle(status).marginLeft") == "0px"
 
         replacement_installed = gallery.evaluate(
             """gallery => {

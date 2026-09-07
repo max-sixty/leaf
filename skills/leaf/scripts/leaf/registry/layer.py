@@ -311,6 +311,6 @@ def validate_layer_declarations(
     ):
         raise RegistryError(
             f"{path}: $reactions.tokens must map lowercase token names to entries "
-            "with a `glyph` of one or two characters, a non-empty `means`, and "
+            "with a short `glyph` of at most four code points, a non-empty `means`, and "
             "optionally a boolean `settles`"
         )

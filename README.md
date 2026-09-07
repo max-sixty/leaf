@@ -99,15 +99,17 @@ wt setup
 ```
 
 The everyday gate is `uv run pytest tests`. Docker is additionally required for the
-complete website preview and the Linux CI mirror. The catalog stills are generated
-from the live published-example routes on macOS:
+complete website preview and the Linux CI mirror. The catalog stills are fetched at the
+external revision pinned by this checkout. Regenerate and publish them from the live
+example routes on macOS with:
 
 ```sh
-uv run scripts/example-previews.py
+wt refresh-previews
 ```
 
 That command captures every worked example with the Playwright version pinned in
-`uv.lock`, updates the content-addressed catalog links, and rebuilds `.tmp/site`.
+`uv.lock`, pushes the images to `max-sixty/leaf-assets`, updates the pin and catalog
+links in this checkout, and rebuilds `.tmp/site`.
 
 ## Packages
 

@@ -2,23 +2,27 @@
 """Regenerate the public catalog's stills from the live example routes.
 
 The public gallery shows a real first viewport for each example, but the site build
-deliberately needs no browser. These checked-in JPEGs bridge that boundary. Capture
-them through the website's Leaf server, never from raw example files or a static host:
-that is the route a visitor receives, including the runtime, API, site note, seeded
-log, and data.
+deliberately needs no browser. These JPEGs live in max-sixty/leaf-assets so binary
+history does not ship with Leaf. This command captures them through the website's Leaf
+server, publishes the asset commit, updates Leaf's exact pin and catalog links, then
+rebuilds the site from the pinned bytes.
 
-Usage: example-previews.py  (writes docs/example-*.jpg, updates the catalog, and rebuilds .tmp/site)
+Usage: wt refresh-previews
 """
 
 import hashlib
 import importlib.util
 import io
+import json
 import re
+import subprocess
+import tempfile
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from example_assets import LOCK, specification
 from leaf.hosting import server_at
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
@@ -111,16 +115,58 @@ def update_catalog(previews: set[Path]) -> None:
     catalog.write_text(markup, encoding="utf-8")
 
 
+def run(*args: str, cwd: Path) -> str:
+    """Run a Git command and keep its failure attached to the operation."""
+    completed = subprocess.run(
+        args, cwd=cwd, check=False, capture_output=True, text=True
+    )
+    if completed.returncode:
+        output = f"{completed.stdout}{completed.stderr}".strip()
+        raise RuntimeError(f"{' '.join(args)} failed:\n{output}")
+    return completed.stdout.strip()
+
+
+def stage(captures: dict[str, bytes], staging: Path) -> Path:
+    """Put the complete preview set in a fresh checkout for verification."""
+    repository, _ = specification()
+    checkout = staging / "leaf-assets"
+    run(
+        "git",
+        "clone",
+        f"https://github.com/{repository}.git",
+        str(checkout),
+        cwd=staging,
+    )
+    previews = checkout / "examples"
+    previews.mkdir(exist_ok=True)
+    for stale in previews.glob("example-*.jpg"):
+        if stale.name not in captures:
+            stale.unlink()
+    for name, content in captures.items():
+        (previews / name).write_bytes(content)
+    return checkout
+
+
+def publish(checkout: Path) -> str:
+    """Commit and push a verified preview set, then update Leaf's exact pin."""
+    repository, _ = specification()
+    run("git", "add", "-A", cwd=checkout)
+    if run("git", "status", "--porcelain", cwd=checkout):
+        run("git", "commit", "-m", "Refresh generated example previews", cwd=checkout)
+        run("git", "push", cwd=checkout)
+    revision = run("git", "rev-parse", "HEAD", cwd=checkout)
+    LOCK.write_text(
+        json.dumps({"repository": repository, "revision": revision}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return revision
+
+
 def main() -> None:
     # The first build may be the one creating previews that the catalog already names.
     # Its other links still resolve; the ordinary verified rebuild below checks all of
     # them once the new bytes exist.
-    expected = {
-        DOCS / f"example-{source.stem}.jpg"
-        for source in site_build.worked_example_sources()
-    }
-    update_catalog({preview for preview in expected if preview.is_file()})
-    captures: dict[Path, bytes] = {}
+    captures: dict[str, bytes] = {}
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
@@ -139,7 +185,7 @@ def main() -> None:
                     png = page.screenshot(animations="disabled", caret="hide")
                     image = Image.open(io.BytesIO(png)).convert("RGB")
                     image = image.resize(OUTPUT_SIZE, Image.Resampling.LANCZOS)
-                    target = DOCS / f"example-{source.stem}.jpg"
+                    target = f"example-{source.stem}.jpg"
                     output = io.BytesIO()
                     image.save(
                         output, "JPEG", quality=82, optimize=True, progressive=True
@@ -148,15 +194,17 @@ def main() -> None:
                         raise RuntimeError(f"{source.name}: {errors[:3]}")
                     captures[target] = output.getvalue()
 
-            previews = set(captures)
-            for target, content in captures.items():
-                target.write_bytes(content)
-                print(f"  {target.relative_to(ROOT)}")
-            for stale in set(DOCS.glob("example-*.jpg")) - previews:
-                stale.unlink()
-                print(f"  removed {stale.relative_to(ROOT)}")
-            update_catalog(previews)
-            site_build.build(site_build.OUT, browser=browser)
+            with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
+                checkout = stage(captures, Path(raw))
+                previews = set((checkout / "examples").glob("example-*.jpg"))
+                update_catalog(previews)
+                site_build.build(
+                    site_build.OUT,
+                    browser=browser,
+                    catalog_previews=checkout / "examples",
+                )
+                revision = publish(checkout)
+                print(f"  max-sixty/leaf-assets@{revision}")
         finally:
             browser.close()
     print(f"✓ {len(site_build.worked_example_sources())} previews")

@@ -26,19 +26,11 @@ binding = "AGENT_WORKFLOW"
 class_name = "LeafExampleAgentWorkflow"
 
 [[ratelimits]]
-name = "READER_AGENT_RATE_LIMITER"
-namespace_id = "34301"
-
-  [ratelimits.simple]
-  limit = 4
-  period = 60
-
-[[ratelimits]]
-name = "GLOBAL_AGENT_RATE_LIMITER"
+name = "SOURCE_AGENT_RATE_LIMITER"
 namespace_id = "34302"
 
   [ratelimits.simple]
-  limit = 30
+  limit = 100
   period = 60
 
 [[migrations]]

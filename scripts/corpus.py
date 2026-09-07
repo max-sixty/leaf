@@ -35,7 +35,7 @@ PUBLIC_TABS = [
 FEATURE_GALLERY = EXAMPLES_DIR / "developer" / "feature-gallery.html"
 CONTENTS_SIDEBAR = re.compile(
     r'\s*<aside class="sidebar" id="[^"]+">\s*'
-    r'<lf-toc id="[^"]+"></lf-toc>\s*</aside>'
+    r"<lf-toc\b[^>]*></lf-toc>\s*</aside>"
 )
 TABS = [
     *((EXAMPLES_DIR / f"{stem}.html", label) for stem, label in PUBLIC_TABS),

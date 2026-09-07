@@ -23,6 +23,143 @@
         margin-bottom: 4px;
       }
 
+      #bg-playground-card {
+        --lf-frame: 1;
+        --bg-playground-card-ink: var(--ink);
+        --bg-playground-card-muted: var(--muted);
+        --bg-playground-card-surface: var(--card);
+        position: relative;
+        isolation: isolate;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: var(--sp-3);
+        width: min(100%, 21rem);
+        min-height: 15rem;
+        overflow: hidden;
+        padding: var(--sp-4);
+        border: 1px solid
+          color-mix(in srgb, var(--playground-accent) 72%, var(--border-2));
+        border-radius: var(--playground-radius);
+        background: color-mix(
+          in srgb,
+          var(--playground-accent) 4%,
+          var(--bg-playground-card-surface)
+        );
+        box-shadow: none;
+        color: var(--bg-playground-card-ink);
+        text-align: left;
+      }
+
+      #bg-playground-card::before {
+        position: absolute;
+        z-index: -1;
+        inset: 0 auto 0 0;
+        width: 5px;
+        background: var(--playground-accent);
+        content: "";
+      }
+
+      #bg-card-playground[data-playground-compact="true"] #bg-playground-card {
+        min-height: 12.5rem;
+        gap: var(--sp-2);
+        padding: var(--sp-3);
+      }
+
+      #bg-card-playground[data-playground-tone="bold"] #bg-playground-card {
+        --bg-playground-card-ink: var(--paper);
+        --bg-playground-card-muted: color-mix(in srgb, var(--paper) 72%, transparent);
+        --bg-playground-card-surface: color-mix(
+          in srgb,
+          var(--ink) 90%,
+          var(--playground-accent)
+        );
+        border-color: var(--playground-accent);
+      }
+
+      #bg-card-playground[data-playground-tone="tinted"] #bg-playground-card {
+        --bg-playground-card-muted: var(--ink-2);
+        background: color-mix(
+          in srgb,
+          var(--playground-accent) 13%,
+          var(--bg-playground-card-surface)
+        );
+      }
+
+      #bg-card-playground[data-playground-alignment="center"] #bg-playground-card {
+        text-align: center;
+      }
+
+      #bg-card-playground[data-playground-alignment="center"]
+        :is(.bg-playground-card-head, .bg-playground-card-foot) {
+        justify-content: center;
+      }
+
+      #bg-card-playground[data-playground-elevated="true"] #bg-playground-card {
+        box-shadow: 0 16px 38px color-mix(in srgb, var(--ink) 16%, transparent);
+        transform: translateY(-2px);
+      }
+
+      .bg-playground-card-head,
+      .bg-playground-card-foot {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: var(--sp-1) var(--sp-3);
+        color: var(--bg-playground-card-muted);
+        font: 550 var(--t-6) / 1.3 var(--sans);
+      }
+
+      .bg-playground-card-distance,
+      .bg-playground-card-foot {
+        font-variant-numeric: tabular-nums;
+      }
+
+      .bg-playground-route {
+        align-self: center;
+        width: 100%;
+        min-height: 4.5rem;
+        overflow: visible;
+      }
+
+      .bg-playground-contour {
+        fill: none;
+        stroke: var(--bg-playground-card-muted);
+        stroke-width: 1;
+        opacity: 0.22;
+      }
+
+      .bg-playground-path {
+        fill: none;
+        stroke: var(--playground-accent);
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 3;
+      }
+
+      .bg-playground-point {
+        fill: var(--playground-accent);
+        stroke: var(--bg-playground-card-surface);
+        stroke-width: 3;
+      }
+
+      .bg-playground-card-copy h5 {
+        margin: 0;
+        color: inherit;
+        font: 600 var(--t-2) / 1.12 var(--serif);
+        letter-spacing: -0.012em;
+      }
+
+      .bg-playground-card-copy h5::before {
+        content: var(--playground-title);
+      }
+
+      .bg-playground-card-copy p {
+        max-width: 31ch;
+        margin: var(--sp-1) auto 0;
+        color: var(--bg-playground-card-muted);
+        font: var(--t-5) / 1.45 var(--sans);
+      }
+
       .interaction-gallery lf-tabs {
         margin-top: 14px;
         margin-bottom: 0;
@@ -37,6 +174,10 @@
         margin-top: 14px;
       }
 
+      /* Shape only. The runtime built these two, so the layer's own pressable rules
+         already carry the hand, the hover tint, the disabled treatment, and the here
+         ring that names itself to the ring census; a page drawing any of them again
+         would be a second answer to a question the layer has already settled. */
       .interaction-gallery .interaction-control {
         min-height: var(--aim-floor);
         padding: 6px 13px;
@@ -45,7 +186,6 @@
         background: var(--card);
         color: var(--ink);
         font: 600 var(--t-6) / 1.2 var(--sans);
-        cursor: pointer;
       }
 
       .interaction-gallery
@@ -53,13 +193,11 @@
         border-color: var(--accent);
       }
 
-      .interaction-gallery .interaction-control:disabled {
-        color: var(--muted-2);
-        cursor: default;
-      }
-
+      /* Under the two presses rather than beside them, at every width. The runtime
+         rewrites this line as the demo runs, and prose that changes length on the line a
+         button stands on moves the row while the reader is aiming at it. */
       .interaction-gallery .interaction-status {
-        margin-left: 5px;
+        flex-basis: 100%;
         color: var(--muted);
         font: var(--t-6) / 1.4 var(--sans);
       }
@@ -156,11 +294,6 @@
           font-size: 13px;
           line-height: 1.4;
         }
-
-        .interaction-gallery .interaction-status {
-          flex-basis: 100%;
-          margin-left: 0;
-        }
       }
 
       @media print {
@@ -185,7 +318,7 @@
         and provides a live example, including focused replays of its motion.
       </p>
       <aside class="sidebar" id="bg-sidebar">
-        <lf-toc id="bg-contents"></lf-toc>
+        <lf-toc id="bg-contents" max-level="2"></lf-toc>
       </aside>
       <p id="bg-start">
         Use the contents spine or Map to find a feature; each eyebrow lists its element
@@ -344,26 +477,27 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           ><span class="bg-feature-detail">: short verdicts on a passage</span>
         </h2>
         <p id="bg-reactions-guide">
-          Select words and press R to add a reaction. A square Button shows a saved
-          reaction; press it to remove that reaction.
+          Select words and press R, or hover an agent reply and use its corner control.
+          The picker is feedback for the agent, not chat decoration. A saved reaction
+          leaves only its emoji; press that emoji to remove it.
         </p>
         <p id="bg-react-ok">
-          <strong>1 · ok · settled.</strong> The spare key is with reception.
+          <strong>1 · 👍 · keep this.</strong> The spare key is with reception.
         </p>
         <p id="bg-react-no">
-          <strong>2 · no · wrong.</strong> This sample claims Tuesday follows Thursday.
+          <strong>2 · ❌ · wrong.</strong> This sample claims Tuesday follows Thursday.
         </p>
         <p id="bg-react-lost">
-          <strong>3 · lost · unclear.</strong> Bring the thing from the other place.
+          <strong>3 · 🤔 · unclear.</strong> Bring the thing from the other place.
         </p>
         <p id="bg-react-cut">
-          <strong>4 · cut · too long.</strong> At this point in time, we can now begin.
+          <strong>4 · ✂️ · shorten.</strong> At this point in time, we can now begin.
         </p>
         <p id="bg-react-more">
-          <strong>5 · more · needs detail.</strong> The exercise involves a map.
+          <strong>5 · 🔎 · substantiate.</strong> The exercise involves a map.
         </p>
         <p id="bg-react-this">
-          <strong>6 · this · look here.</strong> The side entrance closes early.
+          <strong>6 · 👀 · pay attention.</strong> The side entrance closes early.
         </p>
       </section>
 
@@ -617,8 +751,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       <section id="bg-default-presentation">
         <p class="eyebrow bg-feature-elements">Default package</p>
         <h2 id="bg-default-presentation-heading">
-          <strong>Default presentation elements</strong
-          ><span class="bg-feature-detail">: widgets for structured evidence</span>
+          <strong>Evidence widgets</strong
+          ><span class="bg-feature-detail"
+            >: charts, diagrams, and structured views</span
+          >
         </h2>
         <p id="bg-default-guide">
           These shipped widgets use synthetic data so each feature has a focused
@@ -803,6 +939,219 @@ gallery/
               <p id="bg-tab-context-text">The earlier route crossed the courtyard.</p>
             </lf-tab>
           </lf-tabs>
+        </section>
+
+        <section id="bg-playground">
+          <p class="eyebrow bg-feature-elements">
+            lf-playground · lf-playground-control · lf-playground-choice ·
+            lf-playground-preset · lf-playground-setting · lf-playground-preview ·
+            lf-playground-output · lf-playground-value
+          </p>
+          <h3 id="bg-playground-heading">
+            <strong>Playground</strong
+            ><span class="bg-feature-detail">: configure, preview, and choose</span>
+          </h3>
+          <p id="bg-playground-guide">
+            Start with one of the agent’s three recommendations, then tune the controls.
+            The card and instruction update at once while the event log stays unchanged;
+            Apply card sends the complete configuration as one decision.
+          </p>
+          <lf-ask id="bg-card-playground-ask">
+            <h4 id="bg-card-playground-question">How should the sample card look?</h4>
+            <lf-playground id="bg-card-playground" submit-label="Apply card">
+              <lf-playground-control
+                name="radius"
+                label="Corner radius"
+                kind="range"
+                value="12"
+                min="0"
+                max="28"
+                step="1"
+                unit="px"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="compact"
+                label="Compact spacing"
+                kind="toggle"
+                value="false"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="tone"
+                label="Tone"
+                kind="choice"
+                value="quiet"
+              >
+                <lf-playground-choice
+                  value="quiet"
+                  label="Quiet"
+                ></lf-playground-choice>
+                <lf-playground-choice
+                  value="tinted"
+                  label="Tinted"
+                ></lf-playground-choice>
+                <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+              </lf-playground-control>
+              <lf-playground-control
+                name="alignment"
+                label="Alignment"
+                kind="choice"
+                value="left"
+              >
+                <lf-playground-choice value="left" label="Left"></lf-playground-choice>
+                <lf-playground-choice
+                  value="center"
+                  label="Center"
+                ></lf-playground-choice>
+              </lf-playground-control>
+              <lf-playground-control
+                name="elevated"
+                label="Lift from page"
+                kind="toggle"
+                value="false"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="accent"
+                label="Accent"
+                kind="color"
+                value="#4f766f"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="title"
+                label="Card title"
+                kind="text"
+                value="Field note"
+                placeholder="Card title"
+              ></lf-playground-control>
+              <lf-playground-preset label="Field note">
+                <lf-playground-setting for="radius" value="12"></lf-playground-setting>
+                <lf-playground-setting
+                  for="compact"
+                  value="false"
+                ></lf-playground-setting>
+                <lf-playground-setting for="tone" value="quiet"></lf-playground-setting>
+                <lf-playground-setting
+                  for="alignment"
+                  value="left"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="elevated"
+                  value="false"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="accent"
+                  value="#4f766f"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="title"
+                  value="Field note"
+                ></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preset label="Trail alert">
+                <lf-playground-setting for="radius" value="4"></lf-playground-setting>
+                <lf-playground-setting
+                  for="compact"
+                  value="true"
+                ></lf-playground-setting>
+                <lf-playground-setting for="tone" value="bold"></lf-playground-setting>
+                <lf-playground-setting
+                  for="alignment"
+                  value="left"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="elevated"
+                  value="true"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="accent"
+                  value="#b6533c"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="title"
+                  value="Trail alert"
+                ></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preset label="Evening invite">
+                <lf-playground-setting for="radius" value="24"></lf-playground-setting>
+                <lf-playground-setting
+                  for="compact"
+                  value="false"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="tone"
+                  value="tinted"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="alignment"
+                  value="center"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="elevated"
+                  value="true"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="accent"
+                  value="#8b4a5f"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="title"
+                  value="Evening walk"
+                ></lf-playground-setting>
+              </lf-playground-preset>
+
+              <lf-playground-preview id="bg-card-preview">
+                <article
+                  id="bg-playground-card"
+                  aria-labelledby="bg-playground-card-title"
+                >
+                  <header class="bg-playground-card-head">
+                    <span>North ridge</span>
+                    <span class="bg-playground-card-distance">4.8 km</span>
+                  </header>
+                  <svg
+                    class="bg-playground-route"
+                    viewBox="0 0 320 96"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path
+                      class="bg-playground-contour"
+                      d="M-8 73 C35 36 76 36 111 58 S179 89 217 54 S282 10 330 32"
+                    ></path>
+                    <path
+                      class="bg-playground-contour"
+                      d="M-12 90 C30 56 74 55 112 75 S182 104 220 72 S284 30 333 48"
+                    ></path>
+                    <path
+                      class="bg-playground-path"
+                      d="M10 75 C54 69 61 28 104 33 S156 78 195 59 S239 19 303 24"
+                    ></path>
+                    <circle class="bg-playground-point" cx="10" cy="75" r="5"></circle>
+                    <circle class="bg-playground-point" cx="303" cy="24" r="5"></circle>
+                  </svg>
+                  <div class="bg-playground-card-copy">
+                    <h5 id="bg-playground-card-title"></h5>
+                    <p>Follow the alder trail to the dusk overlook.</p>
+                  </div>
+                  <footer class="bg-playground-card-foot">
+                    <span>Depart 18:40</span>
+                    <span>11 °C · light rain</span>
+                  </footer>
+                </article>
+              </lf-playground-preview>
+              <lf-playground-output id="bg-card-instruction">
+                Style the card with a corner radius of
+                <lf-playground-value for="radius"></lf-playground-value>, compact
+                spacing set to
+                <lf-playground-value for="compact"></lf-playground-value>, a
+                <lf-playground-value for="tone"></lf-playground-value> tone,
+                <lf-playground-value for="alignment"></lf-playground-value> alignment,
+                elevation set to
+                <lf-playground-value for="elevated"></lf-playground-value>, and
+                <lf-playground-value for="accent"></lf-playground-value> accents. Keep
+                the title “<lf-playground-value for="title"></lf-playground-value>.”
+              </lf-playground-output>
+            </lf-playground>
+          </lf-ask>
         </section>
 
         <section id="bg-quoted-and-visual">

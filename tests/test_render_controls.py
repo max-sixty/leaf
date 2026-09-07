@@ -1076,12 +1076,23 @@ def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser,
     # The floor from above as well as below, because reserving more than the longest of
     # those lines needs is an address folded for nothing: at 37 characters instead of 34
     # this row loses Asks behind the door at 900, to buy the sentence 111 pixels it never
-    # asks for. A character of rounding is the whole of the slack this may keep.
+    # asks for.
+    #
+    # Two characters of slack, and the reason it is not one. Both sides are measured in
+    # the banner's live face, so type size cancels — but the quantity bounded is
+    # `need / ch`, a line's average advance over the digit advance, and that is a property
+    # of the face rather than its size. `--sans` is `system-ui`, which is SF here and
+    # whatever the pinned image maps it to in CI, and this test is nightly, so a bound
+    # that fits this machine to the character fails on main's nightly rather than on the
+    # branch that wrote it. The floor needs 33.2 characters here: one character of slack
+    # leaves 0.2 for the face, two leaves 1.2 and still refuses the 37 that cost the
+    # address, which sits 3.8 over. The floor is the number with evidence behind it; the
+    # slack is the part that was picked.
     fit = page.evaluate(FLOOR_VS_NEED, list(BANNER_LINES))
     assert fit["need"] <= fit["floor"], (
         f"the floor is under what {fit['widest']!r} needs for two lines: {fit}"
     )
-    assert fit["floor"] - fit["need"] <= fit["ch"], (
+    assert fit["floor"] - fit["need"] <= 2 * fit["ch"], (
         f"the floor reserves more than the longest line needs, which the row pays for in "
         f"folded addresses: {fit}"
     )

@@ -379,15 +379,37 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     assert (reader_dir / "events.jsonl").read_bytes() == reader_feedback
     assert reader_errors == []
     reader.close()
-    stopped = subprocess.run(
-        [*reader_command, "--stop"],
+
+    reset_automation = spawn(
+        [*reader_command, "--automation", "--reset"],
         cwd=ROOT,
-        capture_output=True,
-        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
-        timeout=30,
     )
-    assert stopped.returncode == 0, stopped.stdout + stopped.stderr
+    assert reset_automation.stdout.readline() == "prepared automation (1 version)\n"
+    assert reset_automation.stdout.readline() == "\n"
+    reset_url = reset_automation.stdout.readline().strip()
+    assert reset_url.startswith("http://127.0.0.1:")
+    assert (
+        reset_automation.stderr.readline().strip()
+        == "server   temporary (stops with this command)"
+    )
+    assert service_model.page_claim(reader_dir) is None
+    assert reader_event not in events_model.read_events(reader_dir)
+
+    reset_page, reset_errors = open_page(browser, reset_url)
+    expect(reset_page.locator(".lf-preview")).to_contain_text(
+        f"Automation · {runtime.name}"
+    )
+    expect(reset_page.locator("#opt-jwt")).not_to_have_attribute("chosen", "")
+    assert reset_errors == []
+    reset_page.close()
+
+    reset_automation.send_signal(signal.SIGINT)
+    _, reset_stderr = reset_automation.communicate(timeout=10)
+    assert reset_automation.returncode == 130, reset_stderr
+    assert "Traceback" not in reset_stderr
 
 
 @pytest.fixture

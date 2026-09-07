@@ -551,7 +551,7 @@ def retire_preview(page: Path, *, discard: bool) -> None:
     from leaf.event_log import flocked
     from leaf.hosting import cmd_stop
     from leaf.leases import transition_lock
-    from leaf.service import PageTransaction
+    from leaf.service import PageTransaction, claim_path
 
     metadata, lease_path, log_path = preview_files(page)
     state_lock = metadata.with_suffix(".state.lock")
@@ -566,6 +566,7 @@ def retire_preview(page: Path, *, discard: bool) -> None:
                         shutil.rmtree(page)
                 elif page.exists():
                     shutil.rmtree(page)
+                claim_path(page).unlink(missing_ok=True)
                 metadata.unlink(missing_ok=True)
                 log_path.unlink(missing_ok=True)
 

@@ -1,10 +1,10 @@
-"""Serve the published examples through Leaf's canonical HTTP handler.
+"""Serve leaf.page through Leaf's canonical HTTP handler.
 
 The Cloudflare Worker selects one container filesystem per browser session. This
-adapter selects a complete page directory by its clean public route, then hands the
-request to the same Handler and EventEndpoint as a locally served Leaf. Agent input
-comes from Leaf's shared projections; this adapter owns no parallel state store or
-event semantics.
+adapter selects the product or example page directory behind a clean public route,
+then hands the request to the same Handler and EventEndpoint as a locally served Leaf.
+Agent input comes from Leaf's shared projections; this adapter owns no parallel state
+store or event semantics.
 """
 
 from __future__ import annotations
@@ -31,13 +31,24 @@ from leaf.service import PageTransaction
 from leaf.thread_context import thread_roots
 
 PORT = 8080
-EXAMPLE_AGENT = "Leaf guide"
-EXAMPLE_AGENT_SESSION = "leaf-website-agent"
-EXAMPLE_PRESENTATION = {
-    "agent": EXAMPLE_AGENT,
+WEBSITE_AGENT = "Leaf guide"
+WEBSITE_AGENT_SESSION = "leaf-website-agent"
+PUBLICATION = {
+    "agent": WEBSITE_AGENT,
     "install_url": "/#install",
 }
 EXAMPLE_ROUTE = re.compile(r"^/examples/(?P<slug>[a-z0-9-]+)(?P<inside>/.*)?$")
+PRODUCT_ROUTES = {
+    "/": "index",
+    "/examples": "examples",
+    "/how-it-works": "how-it-works",
+    "/packages": "packages",
+    "/registry": "registry",
+}
+PAGE_RESOURCE = re.compile(
+    r"^/(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:/|$)"
+    r"|^/(?:icon\.svg|leaf\.js|registry\.json|theme\.css)$"
+)
 AGENT_EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 AGENT_TURN_PATH = "/_leaf/agent/turn"
 AGENT_REPLY_PATH = "/_leaf/agent/reply"
@@ -169,10 +180,62 @@ def _agent_event(posted: dict, *, with_text: bool) -> tuple[str, str | None]:
     return event_id, text
 
 
-class WebsiteExampleHandler(Handler):
-    """Bind a clean website route to one initialized page directory."""
+def published_page(site_root: Path, path: str) -> tuple[Path, str, str, str] | None:
+    """Resolve a public URL to its independent page directory and inside route."""
+    if path in {"/", ""} or path.startswith("/_leaf/agent/"):
+        inside = "/" if path in {"/", ""} else path
+        return site_root / "_leaf" / "pages" / "index", "", inside, "product"
 
-    examples_root: Path
+    for route, name in PRODUCT_ROUTES.items():
+        if route in {"/", "/examples"}:
+            continue
+        if path in {route, f"{route}/"}:
+            return site_root / "_leaf" / "pages" / name, route, "/", "product"
+        if path.startswith(f"{route}/"):
+            return (
+                site_root / "_leaf" / "pages" / name,
+                route,
+                path[len(route) :],
+                "product",
+            )
+
+    if path in {"/examples", "/examples/"}:
+        return (
+            site_root / "_leaf" / "pages" / "examples",
+            "/examples",
+            "/",
+            "product",
+        )
+    if path.startswith("/examples/"):
+        inside_catalog = path[len("/examples") :]
+        if PAGE_RESOURCE.match(inside_catalog) or inside_catalog.startswith(
+            "/_leaf/agent/"
+        ):
+            return (
+                site_root / "_leaf" / "pages" / "examples",
+                "/examples",
+                inside_catalog,
+                "product",
+            )
+        match = EXAMPLE_ROUTE.fullmatch(path)
+        if match is not None:
+            slug = match.group("slug")
+            return (
+                site_root / "examples" / slug,
+                f"/examples/{slug}",
+                match.group("inside") or "/",
+                "example",
+            )
+
+    if PAGE_RESOURCE.match(path):
+        return site_root / "_leaf" / "pages" / "index", "", path, "product"
+    return None
+
+
+class WebsitePageHandler(Handler):
+    """Bind every clean website route to one initialized page directory."""
+
+    site_root: Path
     sitenote: bytes
     protocol_version = "HTTP/1.1"
     layer = ""
@@ -182,7 +245,12 @@ class WebsiteExampleHandler(Handler):
         return True
 
     def _send(self, status: int, ctype: str, body: bytes) -> None:
-        if status == 200 and ctype.startswith("text/html"):
+        if (
+            status == 200
+            and ctype.startswith("text/html")
+            and self.publication
+            and self.publication["kind"] == "example"
+        ):
             body = with_sitenote(body, self.page_root)
         super()._send(status, ctype, body)
 
@@ -234,10 +302,10 @@ class WebsiteExampleHandler(Handler):
 
     def _select_page(self) -> bool:
         external = urlsplit(self.path)
-        match = EXAMPLE_ROUTE.fullmatch(external.path)
-        if match is None:
+        selected = published_page(self.site_root, external.path)
+        if selected is None:
             return False
-        page_dir = self.examples_root / match.group("slug")
+        page_dir, page_root, inside, kind = selected
         if not (page_dir / "events.jsonl").is_file():
             return False
 
@@ -248,9 +316,8 @@ class WebsiteExampleHandler(Handler):
         self.layer_identity = identity
         self.bootstrap = bootstrap
         self.preview = preview
-        self.example = EXAMPLE_PRESENTATION
-        self.page_root = f"/examples/{match.group('slug')}"
-        inside = match.group("inside") or "/"
+        self.publication = {**PUBLICATION, "kind": kind}
+        self.page_root = page_root
         self.path = inside + (f"?{external.query}" if external.query else "")
         return True
 
@@ -294,24 +361,24 @@ class WebsiteExampleHandler(Handler):
         super().do_POST()
 
 
-def handler_for(examples_root: Path) -> type[WebsiteExampleHandler]:
-    """Make one process handler over the page directories in a site build."""
-    root = examples_root.resolve()
+def handler_for(site_root: Path) -> type[WebsitePageHandler]:
+    """Make one process handler over every page directory in a site build."""
+    root = site_root.resolve()
     return type(
-        "PublishedExampleHandler",
-        (WebsiteExampleHandler,),
+        "PublishedPageHandler",
+        (WebsitePageHandler,),
         {
-            "examples_root": root,
-            "sitenote": (root.parent / "sitenote.js").read_bytes(),
+            "site_root": root,
+            "sitenote": (root / "sitenote.js").read_bytes(),
         },
     )
 
 
 def main() -> None:
-    os.environ.setdefault("LEAF_AGENT", EXAMPLE_AGENT)
-    os.environ.setdefault("LEAF_SESSION_ID", EXAMPLE_AGENT_SESSION)
+    os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
+    os.environ.setdefault("LEAF_SESSION_ID", WEBSITE_AGENT_SESSION)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
-    httpd = server_at("0.0.0.0", PORT, handler_for(site_root / "examples"))
+    httpd = server_at("0.0.0.0", PORT, handler_for(site_root))
     try:
         httpd.serve_forever()
     finally:

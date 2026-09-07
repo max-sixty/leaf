@@ -132,6 +132,7 @@ lf-swipe-pile[verdict="unseen"] > lf-swipe-card:first-of-type:focus-visible {
   lf-swipe-pile[verdict="unseen"] {
   display: block;
   width: auto;
+  margin-inline: 0;
   padding-bottom: 0;
 }
 

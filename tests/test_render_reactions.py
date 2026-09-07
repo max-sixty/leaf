@@ -45,8 +45,10 @@ PAINTED = """() => ({
     .map(el => el.id || el.dataset.id),
 })"""
 
-MARGIN_STATE_WITNESS = """button => {
-  const mark = getComputedStyle(button, '::after');
+# The corner witness a Button paints for its lifecycle state. Since #371 `busy` is the
+# only state that paints one, so on anything else this reads the absence of a mark.
+PAINTS_LIFECYCLE_MARK = """el => {
+  const mark = getComputedStyle(el, '::after');
   return mark.content === '\"\"' && parseFloat(mark.width) > 0
     && parseFloat(mark.height) > 0 && mark.backgroundColor !== 'rgba(0, 0, 0, 0)';
 }"""
@@ -338,7 +340,14 @@ def test_comment_reaction_digits_stop_at_nine_for_a_larger_vocabulary(browser, s
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme):
-    """A standing reaction keeps neutral furniture and a witness distinct from hover."""
+    """A standing reaction keeps neutral furniture, and the fill it holds with the
+    pointer away is what says it stands.
+
+    #371 left the lifecycle mark to `busy`, so a standing pill paints no corner witness
+    on top of itself and the fill is the whole of what the eye reads. Hover lays down
+    the same paint, so every reading here is taken with the pointer parked at the
+    origin: what tells a standing pill from a hovered idle one is that it keeps its
+    fill once the pointer has gone."""
     page, errors = open_page(
         browser,
         serve(
@@ -368,17 +377,22 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
             press()
         told(page)
 
-    def assert_selected_face(reaction, reopen, witness):
+    def assert_selected_face(reaction, reopen):
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "false")
         page.mouse.move(0, 0)
         resting = reaction.evaluate(read)
-        assert reaction.evaluate(witness) is False
+        assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
         reaction.hover()
         neutral_hover = reaction.evaluate(read)
         assert neutral_hover["ink"] == resting["ink"]
         assert neutral_hover["ring"] == resting["ring"]
-        assert reaction.evaluate(witness) is False
+        # The fill is the only thing that moves, so it is the only thing standing can
+        # be read from. Asserted rather than assumed: were hover to lay down the
+        # resting fill, `selected` below would collapse into `resting` and the whole
+        # comparison would hold of a pill that never painted anything.
+        assert neutral_hover["fill"] != resting["fill"]
+        assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
         stands(reaction.click)
         reopen()
         expect(reaction).to_be_visible()
@@ -386,17 +400,17 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         page.mouse.move(0, 0)
         selected = {**resting, "fill": neutral_hover["fill"]}
         assert reaction.evaluate(read) == selected
-        assert reaction.evaluate(witness) is True
+        assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
         reaction.hover()
         assert reaction.evaluate(read) == selected
-        assert reaction.evaluate(witness) is True
+        assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
         stands(reaction.click)
         reopen()
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "false")
         page.mouse.move(0, 0)
         assert reaction.evaluate(read) == resting
-        assert reaction.evaluate(witness) is False
+        assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
 
     item = page.locator('.lf-margin-item[data-lf-margin-for="draft"]')
 
@@ -407,9 +421,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
 
     open_margin_reactions()
     assert_selected_face(
-        item.locator('.lf-react[data-token="keep"]'),
-        open_margin_reactions,
-        MARGIN_STATE_WITNESS,
+        item.locator('.lf-react[data-token="keep"]'), open_margin_reactions
     )
     assert errors == []
     page.close()
@@ -2131,14 +2143,18 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
     # The other half of the same promise, and the half no gate can see: the copy's
     # `offering` reads the cursor and nothing else, so paint that arrives with the
     # pointer rather than standing on the page is invisible to it. A receipt in a file
-    # that lifts under the pointer says a press is there to take.
+    # that lifts under the pointer says a press is there to take. Read on both the fill
+    # and the corner mark, the two paints a live Button moves: the mark exists only
+    # while its reaction stands, so its presence is the whole of what it says, and a
+    # lifecycle witness laid on top of that in a file would state a state nothing can
+    # leave.
     mark = page.locator(
         '.lf-margin-item[data-lf-margin-for="how-store"] .lf-react-mark'
     )
     resting = mark.evaluate("el => getComputedStyle(el).backgroundColor")
-    assert mark.evaluate(MARGIN_STATE_WITNESS) is True
+    assert mark.evaluate(PAINTS_LIFECYCLE_MARK) is False
     mark.hover()
     assert mark.evaluate("el => getComputedStyle(el).backgroundColor") == resting
-    assert mark.evaluate(MARGIN_STATE_WITNESS) is True
+    assert mark.evaluate(PAINTS_LIFECYCLE_MARK) is False
     assert errors == []
     page.close()

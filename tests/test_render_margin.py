@@ -4315,12 +4315,13 @@ def test_the_shelf_keeps_its_height_when_its_chords_are_shadowed(browser, serve)
 
     The banner control that opens a stable destination carries its chord on a quiet
     second line, and that line comes and goes: the runtime writes `data-lf-chord`
-    only while the binding is live and unshadowed, so a reader who takes the chord
-    into the panel loses every chord on the row at once and gets them back on the
-    way out. While the room for that line belonged to the controls that happened to
-    carry a chord, the row changed height as the reader moved — and a control with
-    no chord of its own, the shelf's own More among them, sat its label above its
-    neighbours' on the compact row, which is the reading the sheet test below takes.
+    only while the binding is live and unshadowed, so a reader who starts a chord
+    and then filters its targets loses every chord on the row at once and gets them
+    back on the way out. While the room for that line belonged to the controls that
+    happened to be carrying one, each of them lost 2.7px on that gesture and the row
+    lost it with them, which is a metric reading state. The compact row is the other
+    end of the same band and the sheet test below takes that reading; there the aim
+    has no second line to give, so the shelf keeps the aim and gives up the hint.
     """
     page, errors = open_page(
         browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
@@ -4387,14 +4388,10 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
         })"""
     )
     assert text_insets
-    # Every control on the row reserves the chord's second line, whether or not it
-    # carries a chord, so what the row has to hold is one label offset rather than a
-    # label centred in each box: a control that took its room from its own chord
-    # would sit its label above a neighbour's and change height as bindings go live.
-    offsets = {inset["above"] for inset in text_insets}
-    assert max(offsets) - min(offsets) <= 1.5, (
-        f"compact banner labels do not share a line: {text_insets}"
-    )
+    for inset in text_insets:
+        assert inset["above"] == pytest.approx(inset["below"], abs=1.5), (
+            f"{inset['label']} is not vertically centred in the compact banner: {inset}"
+        )
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     if opener == "keyboard":

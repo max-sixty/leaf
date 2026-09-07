@@ -176,11 +176,12 @@ painted by its control, so a box the control stands in front of cannot stand ove
 the ring around it, and the sample outside the control's box lands on one of those
 whenever a control floats over content its own holder scrolls — the panel's edge
 grip does, at every width. The reading ranks the nearest box holding the neighbour
-that is present at that point and is not itself holding the control; a z-index
-named on the way up stops the walk, since only one can lift a box past the holder
-being ranked.
+that is present at that point and is not itself holding the control. Two things
+lift a box past the holder being ranked and both stop the walk: a z-index named on
+the way up, and a positioned box under a static holder, which leaves the flow that
+holder's rank answers for.
 `test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across` plants
-the same band under both orders.
+the same band under each order.
 
 Prefer the public route through the product. A CLI test invokes the command or
 the same command function the entry point uses. A browser test serves a

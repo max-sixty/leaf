@@ -4006,10 +4006,11 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     `test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll` down with
     nothing about the page wrong.
 
-    So: one neighbour under the grip's band and clear of its box, planted twice — once
-    where the grip paints across it, once lifted past the grip by a z-index of its own.
-    The lifted half is the population assertion; a reading gone quiet would pass the
-    first half on its own.
+    So: one neighbour under the grip's band and clear of its box, planted three times —
+    once where the grip paints across it, and twice lifted past the grip, by a z-index of
+    its own and by a holder that leaves it standing in the positioned layer while ranking
+    behind the grip itself. The lifted halves are the population assertion; a reading gone
+    quiet would pass the first half on its own.
     """
     url = serve(LONG_PAGE, comments=6)
     page, errors = open_page(browser, url)
@@ -4029,7 +4030,7 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     # putting the band in the page instead would leave it with nothing to rank against.
     # Neither paints anything the grip does not already stand in front of, until the band
     # names the z-index that lifts it past.
-    plant = """(z) => {
+    plant = """({z, wrap}) => {
       document.querySelector('.lf-under-plant')?.remove();
       const grip = document.querySelector('.lf-panel > .lf-edge');
       const cs = getComputedStyle(grip);
@@ -4040,7 +4041,11 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
         .appendChild(document.createElement('div'));
       holder.className = 'lf-under-plant';
       Object.assign(holder.style, {position: 'absolute', inset: '0'});
-      const band = holder.appendChild(document.createElement('div'));
+      // A static box filling that holder, when the plant wants one: it is what the walk
+      // ranks then, and it stands in the flow where the grip is painted over it.
+      const under = wrap ? holder.appendChild(document.createElement('div')) : holder;
+      if (wrap) Object.assign(under.style, {height: '100%'});
+      const band = under.appendChild(document.createElement('div'));
       Object.assign(band.style, {
         position: 'fixed', background: 'red',
         left: `${b.left - grow - 1}px`, top: `${mid - 20}px`,
@@ -4050,7 +4055,7 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
       return grow;
     }"""
 
-    grow = page.evaluate(plant, 0)
+    grow = page.evaluate(plant, {"z": 0, "wrap": False})
     assert grow > 0, (
         f"the grip draws its ring {grow}px outside its box, so there is no band outside "
         "it to lay anything under and this holds nothing"
@@ -4059,11 +4064,22 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
         "a neighbour the grip paints across was read as standing over its ring"
     )
 
-    page.evaluate(plant, 2)
+    page.evaluate(plant, {"z": 2, "wrap": False})
     covers = standing_ring(page)["covers"]
     assert any("left edge is under" in c for c in covers), (
         f"the same band lifted past the grip by a z-index of its own read as {covers}, "
         "so the half above passed on a reading that answers nothing"
+    )
+
+    # The other lift, which names no z-index: the band is fixed inside a static box that
+    # ranks behind the grip, so it leaves that box's place in the flow and paints in the
+    # positioned layer over the grip. The holder's rank answers for what stays in the
+    # flow with it, and nothing else.
+    page.evaluate(plant, {"z": 0, "wrap": True})
+    covers = standing_ring(page)["covers"]
+    assert any("left edge is under" in c for c in covers), (
+        f"the same band held by a static box behind the grip read as {covers}, so a "
+        "positioned neighbour standing over the ring goes unreported"
     )
 
     page.evaluate("() => document.querySelector('.lf-under-plant').remove()")

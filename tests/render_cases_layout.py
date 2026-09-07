@@ -1909,16 +1909,30 @@ RINGS_DRAWN = f"""async () => {{
         // there: `over` is not in it, but a box holding `over` usually is, and one
         // ranking below the control puts everything it holds below the control too. A
         // box that holds the control answers nothing — the control is inside it — so the
-        // walk stops there rather than reading its rank. Only a z-index of its own can
-        // lift a box past the holder this reads, so one named on the way up stops the
-        // walk as well and the reading says what it said before.
+        // walk stops there rather than reading its rank.
+        //
+        // Two things lift a box past the holder this ranks, and either stops the walk. A
+        // z-index of its own says so outright. Position says it without naming one: a
+        // positioned box leaves its holder's place in the flow to paint in the positioned
+        // layer of the nearest ancestor stacking context, so a static holder ranking
+        // below the control says nothing about what it holds. A positioned holder still
+        // answers for it, since a box it holds paints after it in that same layer and
+        // outside the control's subtree the tree order they are painted in is the
+        // holder's. Where either lifts, the reading says what it said before.
         const control = inside.findIndex((n) => n === el || holds(el, n));
         let under = false;
+        let hoisted = false;
         for (let a = over; a && control >= 0; a = above(a)) {{
           if (holds(a, el)) break;
+          const acs = getComputedStyle(a);
           const ranked = inside.indexOf(a);
-          if (ranked >= 0) {{ under = ranked > control; break; }}
-          if (getComputedStyle(a).zIndex !== 'auto') break;
+          if (ranked >= 0) {{
+            if (hoisted && acs.position === 'static') break;
+            under = ranked > control;
+            break;
+          }}
+          if (acs.zIndex !== 'auto') break;
+          if (acs.position !== 'static') hoisted = true;
         }}
         // Nothing beneath a box the control paints over is over the ring either, so this
         // side is answered rather than carried on down the stack.

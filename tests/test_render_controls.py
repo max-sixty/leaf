@@ -938,13 +938,21 @@ BANNER_LINES = (
         "session does."
     ),
     "Claude isn't watching right now. 999 updates are saved. It picks them up next turn.",
-    # The longest of them, and the one a hand-written list missed while the floor was a
-    # number: a claim whose turn ended and then went quiet is dated by the ending, which
-    # is the longer of the two datings, and it still owes the reader the remedy at the
-    # end. Twenty-two pixels wider here than the line the floor was set from.
+    # A claim whose turn ended and then went quiet is dated by the ending, which is the
+    # longer of the two datings, and it still owes the reader the remedy at the end.
     (
         "Claude left this when its turn ended 999d ago. 999 updates are saved. Nudge it "
         "in the terminal."
+    ),
+    # The longest line the banner writes, and it is that line said on a page nobody has
+    # commented on yet: "Your comments are saved." is two characters and nineteen pixels
+    # wider than the count that replaces it. Which is why the runtime crosses the writer's
+    # facts rather than pinning each at the value that looks widest — pinned at its
+    # counted spelling, this line was 18px over the floor on this desk and 18 over it on
+    # CI's, and a fresh page lost "Nudge it in the terminal." off the end of the clamp.
+    (
+        "Claude left this when its turn ended 999d ago. Your comments are saved. Nudge "
+        "it in the terminal."
     ),
 )
 WEBSITE_LINE = (
@@ -1056,9 +1064,9 @@ def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser,
 
     The floor is two lines of the longest of those lines and no more, measured in the face
     the row is set in rather than stated as a count of characters. Stated, it could not be
-    right about two faces at once: two lines of the same words take 35.3 characters where
-    `system-ui` is SF and 38.4 where it is DejaVu, which is what the image CI runs on
-    resolves the keyword to. Thirty-four was under both, and anything over 38.4 buys the
+    right about two faces at once: two lines of the same words take 37.5 characters where
+    `system-ui` is SF and 40.4 where it is DejaVu, which is what the image CI runs on
+    resolves the keyword to. Thirty-four was under both, and anything over 40.4 buys the
     sentence room here that the row pays for in folded addresses. The last stop is the
     website's own line, which is longer than any line a reader's page can reach and is
     reserved on the pages that write it: at 900 on a wide face it needs a third line in
@@ -1102,7 +1110,7 @@ def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser,
     # rounded up, which can land on either side of an integer. A slack stated in
     # characters could not have been written: the quantity bounded is `need / ch`, a
     # line's average advance over the advance of a zero, and that is a property of the
-    # face rather than its size — 35.3 characters where `system-ui` is SF and 38.4 where
+    # face rather than its size — 37.5 characters where `system-ui` is SF and 40.4 where
     # it is DejaVu, which is what the image CI runs on resolves it to. Any constant wide
     # enough for the second over-reserves on the first.
     fit = page.evaluate(FLOOR_VS_NEED, list(BANNER_LINES))
@@ -2682,19 +2690,40 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
     )
     page.emulate_media(forced_colors="none")
 
+    # Read across the door, the way BANNER_ORDER reads: the fold takes a run off the front
+    # of the row into the menu, and an address it has taken is still on the row and still
+    # where the order says it is. Off the row alone this was a claim about the face the
+    # suite happens to be running in — the same words set wider leave this width short of
+    # All leaves, and the list came back without its first entry rather than saying the
+    # row had folded one.
     def actions():
-        return page.locator(".lf-banner-actions > *").evaluate_all(
-            """els => els.map(el =>
-                 [['others', 'lf-others'], ['latest', 'lf-latest-chip'],
-                  ['asks', 'lf-asks'], ['version', 'lf-version'],
-                  ['comments', 'lf-threads-toggle'], ['signoff', 'lf-signoff']]
-                   .find(([, cls]) => el.classList.contains(cls))?.[0])
-                 .filter(Boolean)"""
+        return page.evaluate(
+            """() => {
+                 const shelf = document.querySelector('.lf-banner-actions');
+                 const menu = document.querySelector('.lf-banner-menu');
+                 return [...menu.children, ...shelf.children].map(el =>
+                   [['others', 'lf-others'], ['latest', 'lf-latest-chip'],
+                    ['asks', 'lf-asks'], ['version', 'lf-version'],
+                    ['comments', 'lf-threads-toggle'], ['signoff', 'lf-signoff']]
+                     .find(([, cls]) => el.classList.contains(cls))?.[0])
+                   .filter(Boolean);
+               }"""
         )
 
     wide = actions()
+    wide_folded = page.locator(".lf-banner-menu > *").count()
     assert wide == ["others", "latest", "asks", "version", "signoff", "comments"]
-    others_x = page.locator(".lf-others").bounding_box()["x"]
+
+    # Where the left tray's address begins the row — or, where this width has folded it,
+    # the door standing in its place, which is why the door stands at the row's start.
+    # Either way the address for the left panel is reached from the banner's left half.
+    def left_end():
+        folded = page.locator(".lf-others").evaluate(
+            "el => Boolean(el.closest('.lf-banner-menu'))"
+        )
+        return page.locator(".lf-banner-more" if folded else ".lf-others")
+
+    others_x = left_end().bounding_box()["x"]
     comments = page.locator(".lf-threads-toggle").bounding_box()
     assert others_x < page.viewport_size["width"] / 2, (
         "the control for the left tray is still sitting in the right half of the banner"
@@ -2728,15 +2757,31 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
     expect(page.locator(".lf-banner-more" if behind else ".lf-version")).to_be_focused()
 
     resized(page, 1200, 900)
-    # Back on the wide row, with every folded address back on it and back at its start,
-    # and the door quiet again because there is nothing behind it.
-    expect(page.locator(".lf-banner-actions > .lf-others")).to_have_count(1)
-    expect(page.locator(".lf-banner-more")).to_be_hidden()
-    expect(page.locator(".lf-banner-menu")).to_be_empty()
-    page.locator(".lf-others").focus()
-    assert page.evaluate(
-        "document.activeElement === document.querySelector('.lf-others')"
+    # Back on the wide row, and back to exactly what this width holds: narrowing and
+    # widening are reversible, so what the narrow row took is returned and what this width
+    # folds on its own account is still folded. Which of those this face is in decides the
+    # door: nothing behind it and it is quiet, one address behind it and it is standing
+    # where that address would have. Asserting an empty menu here asserted the first case
+    # for every face, and a face that sets these words wider is in the second at this
+    # width and always was.
+    assert actions() == wide, (
+        f"widening did not return the row to what this width holds: {actions()} vs {wide}"
     )
+    folded_now = page.locator(".lf-banner-menu > *").count()
+    assert folded_now == wide_folded, (
+        f"this width held {wide_folded} addresses behind the door before the narrowing "
+        f"and {folded_now} after it"
+    )
+    door = page.locator(".lf-banner-more")
+    if folded_now:
+        expect(door).to_be_visible()
+    else:
+        expect(door).to_be_hidden()
+    # And the address is reachable where it stands: on the row, or through the door that
+    # took it.
+    entry = left_end()
+    entry.focus()
+    expect(entry).to_be_focused()
     assert actions()[0] == "others" and actions()[-1] == "comments", (
         f"the two edge addresses left their edges: {actions()}"
     )

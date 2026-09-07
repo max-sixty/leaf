@@ -387,25 +387,52 @@ function renderStatusNow(state) {
 export const renderStatus = clocked(document.body, renderStatusNow);
 
 // ---------- the room the sentence keeps ----------
-// Every line this page can write about its own state, each at the widest it can be
-// written: the counters at 999, an age at its longest word, and the page's own agent
-// named. A claim's free detail is not among them — those are the agent's words, they
-// arrive long after any reservation could be taken, and the clamp and the title are
-// what carry them (see the stylesheet, beside the clamp).
+// Every line this page can write about its own state. The writer chooses its words from
+// seven facts, so every one of them is a list here and the lines are the whole cross of
+// them, rather than one value per fact that somebody judged the widest. Judging them one
+// at a time is how the last line went missing: `saved` was pinned at its counted
+// spelling, and the spelling for a page with no count — "Your comments are saved." — is
+// wider, so a page nobody had commented on wrapped to three lines and lost the remedy off
+// the end of the clamp. Which fact makes a line widest is not a thing to reason about
+// per fact; the cross is what measures it.
+//
+// Most of these repeat. A kind that names no count writes the same line for all three
+// savings, and the two thousand readings collapse to a couple of dozen distinct lines.
+// What the cross buys is that nothing is left out by a fact nobody thought to vary, and
+// a fact that gains a spelling gains it here beside the writer's own branch.
+//
+// `detail` is the one fact with a single value, and that is not a judgment: those are the
+// agent's own words, they arrive long after any reservation could be taken, and the clamp
+// and the title are what carry them (see the stylesheet, beside the clamp).
 function pageLines() {
   const agent = agentName();
+  // The widest word each shape of `ago` writes (presence.js), which is the largest count
+  // each of them reaches — the same convention the row's counters are reserved at.
+  const ages = ["just now", "59m ago", "23h ago", "999d ago"];
   const facts = {
-    agent,
-    dated: `${agent} left this when its turn ended 999d ago`,
-    detail: "",
-    obligations: 999,
-    saved: "999 updates are saved.",
+    agent: [agent],
+    dated: ages.flatMap((age) => [
+      `${agent} left this when its turn ended ${age}`,
+      `${agent} last checked in ${age}`,
+    ]),
+    detail: [""],
+    kind: Object.keys(TONE),
+    obligations: [1, 999],
+    pending: [0, 1],
+    quiet: [false, true],
+    saved: ["Your comments are saved.", "1 update is saved.", "999 updates are saved."],
   };
+  const names = Object.keys(facts);
   const lines = [OFFLINE_LINE, BROKEN_LINE];
-  for (const kind of Object.keys(TONE))
-    for (const quiet of [false, true])
-      for (const pending of [0, 1])
-        lines.push(statusWords({ ...facts, kind, pending, quiet }));
+  const cross = (depth, chosen) => {
+    if (depth === names.length) {
+      lines.push(statusWords(chosen));
+      return;
+    }
+    for (const value of facts[names[depth]])
+      cross(depth + 1, { ...chosen, [names[depth]]: value });
+  };
+  cross(0, {});
   if (publication) lines.push(publicationWords(publication).join(""));
   return [...new Set(lines)];
 }
@@ -416,8 +443,8 @@ function pageLines() {
 // Measured, because what it has to cover is the width a wrapped line of these words
 // takes in the face the row is set in, and no count of characters tracks that: a `ch`
 // is the advance of a zero, and how many of them a sentence takes is a property of the
-// face rather than of its size. Two lines of the longest of these take 35.3 characters
-// where `system-ui` is SF — this desk — and 38.4 where it is DejaVu, which is what the
+// face rather than of its size. Two lines of the longest of these take 37.5 characters
+// where `system-ui` is SF — this desk — and 40.4 where it is DejaVu, which is what the
 // image CI runs on resolves it to. Stated as thirty-four it was under both, and a number
 // over the second reserves on the first room the row can only find by folding an address.
 // This is the question `reserve` asks of a control's words, asked of the sentence's.
@@ -468,14 +495,18 @@ function measureStatusRoom(lines) {
 // The words the standing floor was measured against, so the row is measured again when
 // they change and not on every poll. Renewed outright at a breakpoint, where the row's
 // type and padding move under the same words (reserveBannerControls).
-let reservedLines = null;
+let reservedWords = null;
 function reserveStatusRoom() {
   if (!banner.isConnected) return false;
-  const lines = pageLines();
-  const key = lines.join("\n");
-  if (key === reservedLines) return false;
-  reservedLines = key;
-  banner.style.setProperty("--lf-status-floor", `${measureStatusRoom(lines)}px`);
+  // What the page supplies to those words: the name of the agent behind it, and the line
+  // a published page writes. Everything else the cross varies is the writer's own and
+  // cannot change under a reader, so this is the whole of what a later reading could say
+  // differently — and asking it costs two string reads on a poll that would otherwise
+  // build two thousand lines to find out nothing had.
+  const words = `${agentName()}\n${publication ? publicationWords(publication).join("") : ""}`;
+  if (words === reservedWords) return false;
+  reservedWords = words;
+  banner.style.setProperty("--lf-status-floor", `${measureStatusRoom(pageLines())}px`);
   return true;
 }
 
@@ -606,7 +637,7 @@ export function reserveBannerControls() {
   // The sentence's own room, taken in the same face and on the same occasions as the
   // addresses' — the words have not changed, but what they set has, which is the whole
   // reason none of these is a number.
-  reservedLines = null;
+  reservedWords = null;
   reserveStatusRoom();
   foldShelf();
   reservedCovering = covering().matches;

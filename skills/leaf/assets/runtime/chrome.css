@@ -914,22 +914,39 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      they would — both ends measured in the same face, so the size cancels — but what is
      bounded is a line's average advance over the advance of a zero, and that is a
      property of the face rather than of its size: two lines of the banner's longest
-     sentence take 35.3 characters where system-ui is SF — this desk — and 38.4 where it
+     sentence take 37.5 characters where system-ui is SF — this desk — and 40.4 where it
      is DejaVu, which is what the image CI runs on resolves it to. Thirty-four was under
      both. Measured, it is the same statement on either, and on the next face nobody has
      looked at.
 
      Two lines, and no more than the words need. A floor generous enough to hold any of
      them on one line would be paid for in addresses folded away at widths that had room
-     for them; two lines is what readable means here. The website's own line ("This is an
-     example on the Leaf website. … Install Leaf") is longer than any line a reader's own
-     page can reach, and it is in the reservation exactly where it is in the writing: on
-     the pages that say it, whose rows carry no Accept all and no Asks and can afford it.
+     for them; two lines is what readable means here. A published page's own line ("This
+     is an example on the Leaf website. … Install Leaf") is longer than any line a
+     reader's own page can reach, and it is in the reservation exactly where it is in the
+     writing: on the pages that say it, whose rows carry no Accept all and no Asks and
+     can afford it.
 
      The row does not shrink. A flexible one gives up room in the same breath the
      sentence does, so a row already folded to its floor goes on clipping while the
      sentence beside it has room to spare — the cap, not the shrink, is what decides
      who yields, and the fold is what the row yields with.
+
+     Nor does the row wrap. A banner that took a second line when its contents stopped
+     fitting would be answering the right question with the one measurement it must not
+     move: --lf-banner-h is the document's own top offset, so the height changing walks
+     the whole page down. What could legally decide it is a set that cannot change under
+     a reader — and the standing addresses are not that set. Asks is absent until a page
+     has one, and the first ask arriving with no gesture behind it would then push the
+     document down while somebody was reading it, which is the fault every reservation on
+     this row exists to prevent. The set that is stable is every address that could ever
+     stand, at its reserved width — and most of it is not there: on a pinned version that
+     is the latest chip's 251 reserved pixels for news that has not arrived, so the
+     banner would take two rows on a 1200px window showing four addresses. The row is an
+     open layer besides, and a package can seat an address after boot, so that set is not
+     knowable for the page's life either. The fold is the answer: what a crowded row
+     cannot hold goes behind a door standing where it would have, reachable by press and
+     by key, and the page under the banner never moves.
 
      The row packs against its end, so a control changing size moves itself and
      whatever stands before it while everything after it keeps its place. Safe

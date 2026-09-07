@@ -31,12 +31,14 @@ from render_support import (
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
     SEATED_QUESTION_PAGE,
+    button_radius,
     draw_edge,
     edge_settled,
     holding,
     in_threads_scrollport,
     leaf_page,
     open_page,
+    page_at_rest,
     panel_comment,
     panel_settled,
     resized,
@@ -421,9 +423,8 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     draft_image = thread.locator(".lf-composer-media img")
     expect(draft_image).to_be_visible()
     expect(draft_image).to_have_attribute("src", "/media/051bee487bfb5d13.png")
-    expect(thread.locator(".lf-composer-media-remove")).to_have_css(
-        "border-radius", "6px"
-    )
+    remove = thread.locator(".lf-composer-media-remove")
+    expect(remove).to_have_css("border-radius", button_radius(page))
     expect(thread.get_by_role("button", name="Send", exact=True)).to_have_attribute(
         "aria-disabled", "false"
     )
@@ -835,7 +836,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_on_its_metadata_row(
         assert short["resolve"]["right"] == pytest.approx(short["head"]["right"], abs=1)
         assert float(short["closeBorder"][:-2]) == 0
         assert float(short["resolveBorder"][:-2]) >= 1
-        assert set(short["radii"].values()) == {"6px"}
+        assert set(short["radii"].values()) == {button_radius(page)}
         assert short["overflow"] == 0
 
         textarea.focus()
@@ -3795,8 +3796,7 @@ def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serv
         page.mouse.down()
         page.mouse.move(span["x"] + span["width"] - 6, span["y"] + 6, steps=8)
         page.mouse.up()
-        page.evaluate(RENDERED)
-        page.wait_for_timeout(400)  # the travel is a glide, so let one finish if it ran
+        page_at_rest(page)
 
         drawn = page.evaluate("() => getSelection().toString()")
         assert len(drawn) > 8, (
@@ -3814,8 +3814,7 @@ def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serv
         # not the tail of the one before it.
         page.evaluate("() => getSelection().removeAllRanges()")
         quote.click()
-        page.evaluate(RENDERED)
-        page.wait_for_timeout(400)
+        page_at_rest(page)
         assert page.evaluate(where) != before, (
             "a plain press on the quote no longer travels to its passage, so this took "
             "the control away rather than the drag"

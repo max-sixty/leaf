@@ -13,6 +13,11 @@
    showing it and adds a press, so it is not overflow. With no contributed control,
    standing information supplies the primary Button in the fitting declared by its face.
 
+   Durable state provenance is the one standing fact kept in Page map without a target
+   Button. It explains whether effective state came from the reader, a provisional
+   report, or a version restatement; unlike an action it must not change target geometry,
+   control density, or keyboard order. Its Page-map row travels back to the target.
+
    The expanded budget is six fittings, including the primary or visible reading marker
    where one exists; a target made only of peer choices uses all six. A larger set shows
    the Buttons that fit and a final Page-map Button whose label gives the remaining count.
@@ -311,7 +316,7 @@ import { updateSequence, workClaimState } from "./updates.js";
 import { threadList } from "./conversation/reconcile.js";
 import { openAsks } from "./asks/model.js";
 import { goToAsk } from "./asks/view.js";
-import { stateProjection } from "./projection/fold.js";
+import { stateOrigins, stateProjection } from "./projection/fold.js";
 import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
 import { claimed, focusSurface } from "./conversation/surfaces.js";
@@ -321,6 +326,12 @@ import { renderMarginThread } from "./conversation/inline.js";
 const KINDS = {
   action: { label: "Action", icon: "dot", priority: -1 },
   change: { label: "Change", icon: "change", priority: 0 },
+  restated: {
+    label: "Rewritten",
+    icon: "change",
+    priority: 0,
+    indication: true,
+  },
   comment: { label: "Thread", icon: "comment", priority: 1 },
   ask: { label: "Ask", icon: "question", priority: 2 },
   sent: {
@@ -343,6 +354,18 @@ const KINDS = {
     priority: 3,
     indication: true,
     state: "busy",
+  },
+  reader: {
+    label: "Your change",
+    icon: "change",
+    priority: 4,
+    indication: true,
+  },
+  reported: {
+    label: "Reported update",
+    icon: "activity",
+    priority: 4,
+    indication: true,
   },
   activity: { label: "Active", icon: "activity", priority: 4, state: "busy" },
 };
@@ -1128,6 +1151,8 @@ function syncControlRoles(entry) {
   return primary;
 }
 const markerItems = (entry) => entry.items.filter((item) => item.marker !== false);
+const entryHasMarginHost = (entry) =>
+  entry.offers.length > 0 || markerItems(entry).length > 0;
 const readingKey = (entry, choice) => `${entry.key}:${choice.key}`;
 const readingChoices = (entry) => {
   const threadList = [];
@@ -1429,6 +1454,22 @@ function collectEntries() {
   }
 
   const projection = stateProjection();
+  for (const origin of stateOrigins(projection)) {
+    const target = elementById(origin.unit);
+    if (!target) continue;
+    const face = KINDS[origin.origin];
+    add(groups, target, {
+      kind: origin.origin,
+      id: `state-origin:${origin.origin}:${origin.unit}`,
+      // Durable provenance belongs in Page map rather than another target fitting:
+      // it remains explicit without changing the page's action density or geometry.
+      marker: false,
+      text: trimmed(
+        [face.label, itemWord(target), itemSays(target)].filter(Boolean).join(" · "),
+      ),
+      activate: () => revealTarget(target, `${face.label}: ${itemSays(target)}`),
+    });
+  }
   const claimActivity = new Map(
     acknowledgments()
       .filter((item) => item.phase === "active")
@@ -1543,8 +1584,9 @@ function collectEntries() {
 
   return [...groups.values()]
     .map((group) => {
+      const items = group.items;
       const represented = new Set(
-        group.items
+        items
           .filter((item) => item.marker === false && item.represents)
           .map((item) => item.kind),
       );
@@ -1556,7 +1598,7 @@ function collectEntries() {
             .join(" · "),
           72,
         ),
-        items: group.items
+        items: items
           .filter(
             (item) =>
               item.marker === false ||
@@ -2521,7 +2563,9 @@ function renderNow() {
     ]),
   );
   for (const entry of pageMapEntries) entry.shownControls = shownControls;
-  const live = new Set(pageMapEntries.map((entry) => entry.key));
+  const liveHosts = new Set(
+    pageMapEntries.filter(entryHasMarginHost).map((entry) => entry.key),
+  );
   const liveReadingKeys = new Set(
     pageMapEntries.flatMap((entry) =>
       readingChoices(entry).map((choice) => readingKey(entry, choice)),
@@ -2529,12 +2573,12 @@ function renderNow() {
   );
   for (const key of readingButtons.keys())
     if (!liveReadingKeys.has(key)) readingButtons.delete(key);
-  if (expandedOptionsKey && !live.has(expandedOptionsKey)) {
+  if (expandedOptionsKey && !liveHosts.has(expandedOptionsKey)) {
     expandedOptionsKey = null;
     expandedOptionsOwner = null;
   }
   for (const [key, marker] of rows)
-    if (!live.has(key)) {
+    if (!liveHosts.has(key)) {
       const host = hosts.get(key);
       unregisterMarginRow(host);
       host?.remove();
@@ -2547,6 +2591,7 @@ function renderNow() {
   const externalDocks = new Map();
   let corePosition = 0;
   pageMapEntries.forEach((entry) => {
+    if (!entryHasMarginHost(entry)) return;
     let marker = rows.get(entry.key);
     let more = moreButtons.get(entry.key);
     let options = optionGroups.get(entry.key);
@@ -2694,6 +2739,7 @@ function renderNow() {
   );
   pageMapEntries.forEach((entry, index) => {
     const marker = rows.get(entry.key);
+    if (!marker) return;
     const name = markerName(entry, index, pageMapEntries.length, positions[index]);
     keeps(marker, "aria-label", name);
   });

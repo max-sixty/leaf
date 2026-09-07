@@ -4414,7 +4414,10 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
     expect(page.locator(".lf-living-margin")).to_be_visible()
     expect(page.locator(".lf-page-map-toggle")).to_be_hidden()
     expect(sheet).to_be_visible()
-    expect(sheet.locator(".lf-page-map-action")).to_have_count(4)
+    expect(sheet.locator(".lf-page-map-action")).to_have_count(5)
+    expect(
+        sheet.get_by_role("button", name=re.compile(r"^Open your change: Your change"))
+    ).to_be_visible()
 
     assert errors == []
     page.close()
@@ -4429,7 +4432,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     page.locator(".lf-page-map-toggle").click()
     sheet = page.locator(".lf-page-map-sheet")
     actions = sheet.locator(".lf-page-map-action")
-    expect(actions).to_have_count(4)
+    expect(actions).to_have_count(5)
     page.keyboard.press("Tab")
     expect(actions.first).to_be_focused()
 
@@ -4450,7 +4453,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
             ".lf-margin-count"
         )
     ).to_have_text("2")
-    expect(actions).to_have_count(5)
+    expect(actions).to_have_count(6)
     expect(actions.first).to_be_focused()
 
     assert errors == []

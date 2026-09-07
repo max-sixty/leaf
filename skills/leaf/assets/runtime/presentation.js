@@ -529,20 +529,20 @@ export function renderSaid(root) {
 // The value is the word, or the attribute's own name where the value is empty: an enum
 // means what it says (`blocked`), and a flag attribute means what it is called.
 //
-// The runtime's own restatement paint is said here too — the same failure under a
+// The runtime's own restatement state is said here too — the same failure under a
 // different owner, and the one the code that paints it already calls a debt: a decision
-// undone looks exactly like one never made, and the outline stating the difference states
-// it in ink alone. It composes into the element's one quiet span rather than taking a
+// undone looks exactly like one never made. The living margin gives that fact a compact
+// visible Page-map reading; this local quiet word keeps it attached to the target for assistive
+// technology. It composes into the element's one quiet span rather than taking a
 // second, so the two cannot fight over the place, and every quiet word on the page is
 // written by one call whichever facts it is carrying.
 //
-// Its two neighbours in that vocabulary stay silent, and the line between them is what
-// the paint is the only copy of. A retraction is one: nothing else on the page says the
-// decision was undone. data-lf-reader-override and data-lf-reported are not — each marks a
+// Its two neighbours in that vocabulary stay locally silent. data-lf-reader-override and
+// data-lf-reported each mark a
 // state whose substance is already in the widget's visible and semantic state (for
 // example, a selected option's check and tint) or the status this pass speaks. The
-// outline identifies the state as a reader override or provisional report; work
-// receipts separately state whether the agent has processed it.
+// Page-map reading identifies the state as a reader override or provisional
+// report; work receipts separately state whether the agent has processed it.
 function quietFacts(el) {
   const words = el.hasAttribute(PAGE_PAINT_ATTRIBUTE.restated)
     ? ["rewritten since your decision"]

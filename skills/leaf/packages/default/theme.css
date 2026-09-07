@@ -211,15 +211,12 @@ lf-option[data-lf-added] { white-space: pre-wrap; }
  * on the joined axis: a titled option is a padded box that frames the author's blocks
  * wherever it stands, and a bordered card on its own ground only.
  *
- * A card's shadow carries two facts that do not answer each other — the ring its status
- * draws and the lift the pointer draws — so each takes a channel of its own. Sharing the
- * property, whichever fact was stated second had to restate the first to keep it, and a
- * status with no copy in the hover rule lost its ring the moment a pointer arrived.
- * Nothing else in this file draws an option's shadow, which is what says a row nobody
- * can press has no edges of its own. */
+ * A card's shadow carries only the temporary lift under the pointer. Its chosen state
+ * uses the border the card already owns plus the explicit check, so no second band has
+ * to be composed into this property. Nothing else in this file draws an option's
+ * shadow, which is what says a row nobody can press has no edges of its own. */
 lf-options:has(> lf-option > strong) > lf-option { padding: var(--sp-3); --lf-frame: 1;
-            --lf-ring: 0 0 #0000; --lf-lift: 0 0 #0000;
-            box-shadow: var(--lf-ring), var(--lf-lift); }
+            --lf-lift: 0 0 #0000; box-shadow: var(--lf-lift); }
 @container style(--lf-joined: 0) {
   lf-options:has(> lf-option > strong) > lf-option { border: 1px solid var(--rule);
               border-radius: var(--r); background: var(--card); }
@@ -322,14 +319,14 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
  * standing on its own — a card in a settled group, or any card on paper. A card in a
  * live group is a cell of one control, and the block further down states its pick,
  * hover and mark in those terms. */
-/* The rings: a card states its status as a border it already has, so both live with
+/* The chosen border: a card states its status with the border it already has, so both live with
  * the card form. A row has no border to color and says the same two things with a
  * wash (below), and a card taking a pick has no border either once the group takes it
  * over, so the joined form says both as a bar beside the option's words (further
  * below), in the same channel and under the guard that is true of it. */
 @container style(--lf-joined: 0) {
   lf-options:has(> lf-option > strong) > lf-option[chosen] {
-                         border-color: var(--ok); --lf-ring: 0 0 0 1px var(--ok); }
+                         border-color: var(--ok); }
 }
 /* The pick is the group's own gesture rather than a press on any one thing — a click
  * lands anywhere in the option — so nothing here wears the role `version export` strips
@@ -340,7 +337,7 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
  * withheld in exactly the same breath for exactly the same reason.
  *
  * Every option lifts on hover, the pick included — clicking it clears it, so it has to
- * keep looking clickable. A ring a card already wears layers under the lift. The joined
+ * keep looking clickable. The chosen border remains while the card lifts. The joined
  * form answers the same requirement without the lift, because a cell that rose would pull
  * away from the hairlines holding the group together.
  *
@@ -622,10 +619,6 @@ lf-options > .lf-done > .lf-address { position: absolute;
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid; background: var(--card);
     border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
-    /* The reader-origin outline would be a second exterior border around this already-
-     * framed control. The joined control already shows the effective choice and its
-     * state origin remains in the projection; keep the frame visually stable. */
-    &[data-lf-reader-override] { outline: none; }
     /* The joined group draws a frame, so it says so, like every box that draws one
      * (--lf-frame, theme.css). Its cells declare their own; this covers what stands
      * beside them. */
@@ -1711,8 +1704,8 @@ lf-source pre:is(:focus-visible, .lf-focus-visible) {
    "editable" and sharpens under the pointer, because the box is the door a press opens
    (lf-draft.js); the ✎ button is the door the keyboard uses. Newlines in a draft are
    content, so the body preserves them. A reader-edited body differing from authored
-   text wears the runtime's green data-lf-reader-override mark. Unupgraded, the same
-   box shows raw text.
+   text is named as the reader's change in Page map. Unupgraded, the same box shows raw
+   text.
 
    Reading and editing are one box, not a box inside a box. The two views state their
    shared metrics together — same font (both inherit the page's), same wrapping — and

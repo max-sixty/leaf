@@ -1652,12 +1652,11 @@ RINGS_DRAWN = f"""async () => {{
   // `var(--here-ring-w) solid var(--accent)`, so style, width and colour are all what
   // the element computes them to.
   //
-  // The colour is what tells a ring from the other outlines the layer draws at exactly
-  // its weight, and the sweep below needs telling: `[data-lf-restated]` and
-  // `[data-lf-reader-override]` are 2px solid, and a mark under the pointer takes the ring's own
-  // width over the mark's own hue. Asking style and width alone claims all three, and
-  // then reports the page painting a ring no rule named — a complaint that cannot be
-  // answered, since naming them puts them in a population the keyboard can never light.
+  // The colour is what tells a ring from another outline the layer draws at exactly
+  // its weight: a mark under the pointer takes the ring's own width while keeping the
+  // mark's own hue. Asking style and width alone claims it, then reports the page
+  // painting a ring no rule named — a complaint that cannot be answered, since naming
+  // it puts the mark in a population the keyboard can never light.
   // The control the reader is standing on is measured whatever paints its outline, since
   // a visible ring cut in half is a fault whoever drew it.
   //

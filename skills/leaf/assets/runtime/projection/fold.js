@@ -34,7 +34,7 @@
 import { runtime } from "../context.js";
 import { COLLAPSE, elementById } from "../passages.js";
 import { outbox } from "../outbox.js";
-import { authoredStates, domFacet } from "./authored.js";
+import { authoredFacet, authoredStates, domFacet } from "./authored.js";
 const { registry } = runtime;
 
 export function foldedFacet(e, record) {
@@ -137,6 +137,29 @@ export function stateProjection() {
     projection.desired.set(entry.coordinate, entry);
   }
   return projection;
+}
+
+// The durable provenance attached to each standing page unit. This is derived from the
+// same projection that renders widget state: consumers must not reconstruct it from the
+// data-lf-* attributes that paint the result. One unit gets one reading per origin even
+// when independent facets on it came through the same channel; unlike an outline, the
+// returned readings can coexist.
+export function stateOrigins(projection = stateProjection()) {
+  const origins = new Map();
+  const add = (origin, unit) => {
+    const key = `${origin}:${unit}`;
+    if (!origins.has(key)) origins.set(key, { origin, unit });
+  };
+
+  for (const entry of projection.classified.values())
+    for (const unit of entry.restated ?? []) add("restated", unit);
+
+  for (const [coordinate, { unit, e, spec, value }] of projection.desired) {
+    const overridesSource = spec.record ? value !== authoredFacet(coordinate) : true;
+    if (!overridesSource) continue;
+    add(e.kind === "action" ? "reader" : "reported", unit);
+  }
+  return [...origins.values()];
 }
 
 // Compose final values in memory. A placement action is absolute for its unit,

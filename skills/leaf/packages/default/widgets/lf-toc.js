@@ -149,7 +149,12 @@ customElements.define(
         link.textContent = label;
         row.append(link);
         list.append(row);
-        return { destination, row, link };
+        // The heading as well as the destination, because they answer different
+        // questions and only one of them can be watched. The destination is where the
+        // link goes, and where that is a section with no id of its own it is a generated
+        // 1x0 span — a box whose size cannot change, so a resize observation on it can
+        // never fire after its first delivery.
+        return { destination, heading: item, row, link };
       });
 
       this.#sections = [
@@ -173,8 +178,15 @@ customElements.define(
         this.#scroller === document.scrollingElement ? document : this.#scroller;
       this.#watching = new ResizeObserver(() => this.#scheduleMeasure());
       this.#watching.observe(this.#main);
-      for (const { destination } of this.#sections)
-        if (destination !== this.#main) this.#watching.observe(destination);
+      // Watched at the heading rather than at the destination the row points to. A
+      // section that grows — an image arriving, a fold opening — moves every marker
+      // below it, and the heading is the box that reports that. Where the destination is
+      // a generated target it has no size to report, so watching it would leave the map
+      // laid out against positions that have since moved, with nothing to say so.
+      for (const { destination, heading } of this.#sections) {
+        const watched = heading ?? destination;
+        if (watched !== this.#main) this.#watching.observe(watched);
+      }
       this.#scrollSource.addEventListener("scroll", this.#onScroll, { passive: true });
       this.#main.addEventListener("toggle", this.#onToggle, true);
       this.#main.addEventListener("load", this.#onLoad, true);

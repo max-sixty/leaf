@@ -4299,6 +4299,68 @@ def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, 
     page.close()
 
 
+SHELF_BOXES = """() => {
+  const row = document.querySelector(".lf-banner-actions");
+  const seen = [...row.querySelectorAll(":scope > .lf-btn")]
+    .filter(button => button.getBoundingClientRect().height > 0);
+  return {row: row.getBoundingClientRect().height,
+          chords: seen.filter(button => "lfChord" in button.dataset).length,
+          buttons: Object.fromEntries(seen.map(button =>
+            [button.textContent.trim(), button.getBoundingClientRect().height]))};
+}"""
+
+
+def test_the_shelf_keeps_its_height_when_its_chords_are_shadowed(browser, serve):
+    """A chord is paint on the shelf, and the shelf's height may not read it.
+
+    The banner control that opens a stable destination carries its chord on a quiet
+    second line, and that line comes and goes: the runtime writes `data-lf-chord`
+    only while the binding is live and unshadowed, so a reader who starts a chord
+    and then filters its targets loses every chord on the row at once and gets them
+    back on the way out. While the room for that line belonged to the controls that
+    happened to be carrying one, each of them lost 2.7px on that gesture and the row
+    lost it with them, which is a metric reading state. The compact row is the other
+    end of the same band and the sheet test below takes that reading; there the aim
+    has no second line to give, so the shelf keeps the aim and gives up the hint.
+    """
+    page, errors = open_page(
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
+    )
+    resized(page, 1200, 900)
+
+    before = page.evaluate(SHELF_BOXES)
+    assert before["chords"] >= 2, f"the row carries no chords to shadow: {before}"
+    assert len(before["buttons"]) > before["chords"], (
+        "every control on the row carries a chord, so nothing here tests the room a "
+        f"control without one has to keep: {before}"
+    )
+
+    page.keyboard.press("g")
+    expect(page.locator(".lf-keyline")).to_contain_text("Page map")
+    # A letter inside the go-to prefix filters the visible targets rather than naming
+    # one of them, and every chord on the row is what it takes away while it stands.
+    page.keyboard.press("t")
+    expect(page.locator(".lf-keyline")).to_contain_text("all targets")
+    # The chords going away is the transition, so it is also the fact to wait on: the
+    # heights are the same before it as after, and cannot wait for themselves.
+    page.wait_for_function(
+        "() => ![...document.querySelectorAll('.lf-banner-actions > .lf-btn')]"
+        "  .some(button => 'lfChord' in button.dataset)"
+    )
+
+    shadowed = page.evaluate(SHELF_BOXES)
+    assert shadowed["row"] == pytest.approx(before["row"], abs=0.5), (
+        f"the shelf changed height when its chords went away: {before['row']} "
+        f"then {shadowed['row']}"
+    )
+    assert shadowed["buttons"] == pytest.approx(before["buttons"], abs=0.5), (
+        f"a control took its height from its own chord: {before} then {shadowed}"
+    )
+
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize("opener", ["keyboard", "pointer"])
 def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, opener):
     """The rail becomes a touch-sized index when the margin no longer exists."""

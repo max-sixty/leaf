@@ -979,7 +979,17 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      opens them, including when the shelf folds that control into its menu. A quiet
      second line keeps the shortcut beside its destination without spending horizontal
      room or changing which controls fit on the shelf. The empty CSS speech alternative
-     leaves the button's accessible name as the action rather than the shortcut. */
+     leaves the button's accessible name as the action rather than the shortcut.
+
+     The wide shelf reserves that line rather than the controls that happen to be
+     carrying a chord. A binding is live and shadowed again as the reader moves — a
+     letter typed inside the go-to prefix filters the visible targets and takes every
+     chord on the row away — so a control drawing its room from its own chord changes
+     height on state, and the row changes with it. Reserved for every control the
+     shelf draws, the chord's own text is the only thing left for state to paint. The
+     compact block below has no second line to give out of a forty-pixel aim, and
+     states the row's whole box and drops the hint there instead. */
+  .lf-banner-actions > .lf-btn, .lf-banner-menu > .lf-btn,
   [data-lf-chord] { position: relative; padding-block: 3px 14px; line-height: 1; }
   [data-lf-chord]::after { content: attr(data-lf-chord) / "";
     position: absolute; inset-inline: 0; bottom: 3px; color: var(--muted);

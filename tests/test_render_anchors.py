@@ -606,7 +606,7 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
             "border-top-width", "border-top-style",
             "background-color"].map(p => [p, s.getPropertyValue(p)])); }"""
     raised = page.locator(".lf-fab-input").evaluate(family)
-    adjacent = page.locator(".lf-fab-bar .lf-react-trigger").evaluate(family)
+    adjacent = page.locator(".lf-fab-bar .lf-response-more").evaluate(family)
     assert raised == adjacent, (
         "the floating field and ellipsis are drawn differently:\n  "
         + "\n  ".join(

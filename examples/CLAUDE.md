@@ -16,6 +16,10 @@ examples catalog. `corpus.html` and `corpus.data.json` are generated from both s
 edit the source page and regenerate the corpus instead of patching either output
 (`test_corpus_is_generated_from_the_examples` holds the two to their sources).
 
+Current pages and tests use only the current interface. When an interface changes,
+remove obsolete ids, aliases, and assertions instead of preserving both forms. Files
+under `versions/` remain historical inputs only when the page's version story uses them.
+
 ## Every widget and idiom in the vocabulary stands here
 
 The nightly run uses this corpus in two ways. Page-sensitive contracts run every

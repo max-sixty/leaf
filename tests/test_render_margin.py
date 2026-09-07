@@ -1593,8 +1593,8 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     page.evaluate(
         """() => new Promise(resolve => {
           addEventListener('scrollend', resolve, {once: true});
-          const heading = document.querySelector('#bg-quoted-and-visual-heading');
-          document.scrollingElement.scrollTo(0, heading.offsetTop - 100);
+          const section = document.querySelector('#bg-quoted-and-visual');
+          document.scrollingElement.scrollTo(0, section.offsetTop - 100);
         })"""
     )
     page.locator("body").focus()

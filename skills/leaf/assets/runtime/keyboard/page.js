@@ -22,7 +22,16 @@ import {
   threadsBox,
 } from "../conversation/panel.js";
 import { inPanel, panelIsOpen, setPanel } from "../chrome-layout.js";
-import { composerOpen, fabInput, pendingDrawing } from "../composing/selection.js";
+import {
+  composerOpen,
+  fabInput,
+  focusedResponseOption,
+  pendingDrawing,
+  responseOptionsAreOpen,
+  responseReactionButtons,
+  setResponseOptions,
+  stepResponseOptions,
+} from "../composing/selection.js";
 import { draftOf } from "../composing/input.js";
 import {
   dismissFab,
@@ -62,6 +71,7 @@ import {
   labelOf,
   live,
   parsed,
+  PRESS,
   word,
 } from "./bindings.js";
 import {
@@ -705,7 +715,7 @@ const COMPOSER = {
       keys: ["Tab"],
       does: "Show other responses",
       line: "other responses",
-      when: () => fabOptionsAvailable(),
+      when: () => fabOptionsAvailable() && !responseOptionsAreOpen(),
       run: () => showFabOptions(),
     },
     {
@@ -718,7 +728,66 @@ const COMPOSER = {
       line: () =>
         draftOf(fabInput).trim() || pendingDrawing ? "close — draft kept" : "close",
       promoteEscape: false,
+      when: () => !responseOptionsAreOpen(),
       run: () => dismissFab(),
+    },
+  ],
+};
+
+const RESPONSE_OPTIONS = {
+  title: "With other responses open",
+  at: () => responseOptionsAreOpen(),
+  rows: [
+    {
+      id: "response.reaction.choose",
+      keys: () =>
+        responseReactionButtons()
+          .slice(0, 9)
+          .map((_, index) => String(index + 1)),
+      label: () => {
+        const count = Math.min(responseReactionButtons().length, 9);
+        return count > 1 ? `1–${count}` : "1";
+      },
+      does: () =>
+        `Put a reaction on the response target: ${reactionTokens()
+          .slice(0, 9)
+          .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
+          .join(", ")}`,
+      line: "react",
+      when: () => !takesLetters(focused()) && responseReactionButtons().length > 0,
+      run: (binding) => responseReactionButtons()[+binding - 1]?.click(),
+    },
+    {
+      id: "response.tab",
+      keys: ["Tab", "Shift+Tab"],
+      does: "Move between the comment and other responses",
+      line: "move",
+      repeat: true,
+      run: stepResponseOptions,
+    },
+    {
+      id: "response.move",
+      keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
+      does: "Move through other responses",
+      line: "move",
+      repeat: true,
+      when: () => focusedResponseOption(),
+      run: stepResponseOptions,
+    },
+    {
+      id: "response.activate",
+      keys: PRESS,
+      does: "Use the focused response",
+      line: "choose",
+      when: () => focusedResponseOption(),
+      run: () => focused()?.click(),
+    },
+    {
+      id: "response.close",
+      keys: ["Escape"],
+      does: "Close other responses",
+      line: "close",
+      run: () => setResponseOptions(false, { returnFocus: true }),
     },
   ],
 };
@@ -1173,7 +1242,8 @@ export function pageScopes() {
           // already complete. Capture it now so the command cannot advertise reaction
           // digits while opening no corresponding choices.
           if (pageSelection() && !fabAnchorAt()) updateFab();
-          setReact(true);
+          if (composerOpen && fabAnchorAt()) showFabOptions({ reaction: true });
+          else setReact(true);
         },
       },
       // Search remains one press from the shelf and named in full by the reference.
@@ -1330,6 +1400,7 @@ export function pageScopes() {
     SHORTCUT_SHELF,
     PAGE_MAP,
     GO,
+    RESPONSE_OPTIONS,
     REACT,
     SELECT,
     ELEMENTS,

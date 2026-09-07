@@ -74,15 +74,15 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     expect(shown.nth(1).locator("kbd")).to_have_text("⇥")
     expect(shown.nth(1)).to_contain_text("other responses")
 
-    # Text entry owns letters. Tab moves the response choices into the margin; Escape
-    # restores the same draft.
+    # Text entry owns letters. Tab extends the same response surface; Escape restores
+    # the same draft.
+    bar = page.locator(".lf-fab-bar")
     page.keyboard.press("s")
     expect(field).to_have_value("s")
     field.fill("Keep this draft")
     page.keyboard.press("Tab")
-    expect(page.locator(".lf-margin-reactions")).to_be_visible()
-    expect(page.locator('.lf-margin-reactions [data-token="keep"]')).to_be_focused()
-    expect(field).to_be_hidden()
+    expect(bar.locator('[data-token="keep"]')).to_be_focused()
+    expect(field).to_be_visible()
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
     expect(field).to_have_value("Keep this draft")
@@ -181,9 +181,7 @@ def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser,
     page.keyboard.press("Tab")
 
     responses = page.locator(".lf-fab-bar")
-    expect(responses).to_have_class(re.compile(r"\blf-react-open\b"))
-    expect(responses.locator(":scope > .lf-fab")).to_be_focused()
-    page.keyboard.press("ArrowRight")
+    expect(responses).to_have_class(re.compile(r"\blf-response-open\b"))
     expect(responses.locator(".lf-fab-suggest")).to_be_focused()
     expect(responses.locator(".lf-react")).to_have_count(0)
     assert errors == []

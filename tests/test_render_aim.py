@@ -3,11 +3,16 @@
 import io
 import math
 import re
+from datetime import datetime, timedelta
 
 import pytest
 from interact_support import append_command
 from leaf import event_log as events_model
+from leaf import service as service_model
+from leaf import session as session_model
+from leaf.served_state import page as served_page
 from leaf.validation import compatibility as validation_model
+from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_support import (
     AIM_CURSOR,
@@ -16,6 +21,7 @@ from render_support import (
     AIM_SEAM,
     AIM_SEAM_PAGE,
     AIMED,
+    ASK_PAGE,
     ASKS_PAGE,
     BOTH_STAMPS,
     CORNER_PAGE,
@@ -780,6 +786,55 @@ def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
         chrome_response["plane"] == "chrome"
         and chrome_response["z"] > chrome_response["tray"]
     ), f"a response bar about the Asks sheet paints beneath it: {chrome_response}"
+    assert errors == []
+    page.close()
+
+
+def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
+    """A transient chrome label paints above the page-level trace it summons."""
+    page, errors = open_page(browser, live_url(serve(ASK_PAGE)))
+    page_dir = serve.page_dir
+    resized(page, 1440, 900)
+    page.locator("#job-mounts").click()
+    round_trip(page)
+    logged_action = next(
+        event
+        for event in reversed(events_model.read_events(page_dir))
+        if event.get("widget") == "jobs" and event.get("action") == "choose"
+    )
+    sent_at = datetime.fromisoformat(logged_action["ts"])
+    advanced = (sent_at + timedelta(minutes=3)).isoformat()
+    for clock_owner in (served_page, events_model, service_model):
+        monkeypatch.setattr(clock_owner, "now_iso", lambda: advanced)
+    session_model.cmd_status(page_dir, "idle", "")
+    told(page)
+
+    marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
+    expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
+    marker.hover()
+    label = marker.locator(":scope > .lf-margin-button-label")
+    trace = page.locator('.lf-target-trace[data-for="jobs"]')
+    expect(label).to_be_visible()
+    expect(trace).to_be_visible()
+    label.evaluate(
+        "node => Promise.all(node.getAnimations().map(animation => animation.finished))"
+    )
+
+    label_box = label.bounding_box()
+    trace_box = trace.bounding_box()
+    assert (
+        label_box["x"]
+        < trace_box["x"] + trace_box["width"]
+        < label_box["x"] + label_box["width"]
+    ), "the status label does not cross the target trace"
+    traced = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
+    trace.evaluate("node => { node.style.visibility = 'hidden' }")
+    untraced = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
+    center = (3, 3, traced.width - 3, traced.height - 3)
+    assert (
+        ImageChops.difference(traced.crop(center), untraced.crop(center)).getbbox()
+        is None
+    ), "the target trace paints over the status label"
     assert errors == []
     page.close()
 

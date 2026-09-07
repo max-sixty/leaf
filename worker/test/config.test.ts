@@ -9,6 +9,7 @@ interface DeploymentConfig {
     name: string;
     class_name: string;
     max_instances: number;
+    instance_type: string;
   }>;
   durable_objects: {
     bindings: Array<{ class_name: string }>;
@@ -31,7 +32,8 @@ describe("deployment configuration", () => {
     expect(binding.class_name).toBe(container.class_name);
   });
 
-  it("reserves capacity for public product-page sessions", () => {
-    expect(container.max_instances).toBeGreaterThanOrEqual(100);
+  it("admits the full current account capacity of lite sessions", () => {
+    expect(container.max_instances).toBe(15_000);
+    expect(container.instance_type).toBe("lite");
   });
 });

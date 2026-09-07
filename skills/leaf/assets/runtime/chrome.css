@@ -919,6 +919,16 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      which reads overflow, would never fire; an address that cannot shrink is what
      hands the fold something to measure. */
   .lf-banner-actions > .lf-btn { flex: none; }
+  /* Stable global destinations carry their complete chord on the banner control that
+     opens them, including when the shelf folds that control into its menu. A quiet
+     second line keeps the shortcut beside its destination without spending horizontal
+     room or changing which controls fit on the shelf. The empty CSS speech alternative
+     leaves the button's accessible name as the action rather than the shortcut. */
+  [data-lf-chord] { position: relative; padding-block: 3px 14px; line-height: 1; }
+  [data-lf-chord]::after { content: attr(data-lf-chord) / "";
+    position: absolute; inset-inline: 0; bottom: 3px; color: var(--muted);
+    font-family: var(--mono); font-size: var(--t-6); font-weight: 400;
+    line-height: 1; text-align: center; }
   /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
      mask is the page's actual vendored mark, so a project that replaces icon.svg does
      not keep an unrelated leaf-like glyph in the banner. Shape is identity and colour
@@ -986,6 +996,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      taken away — the map above 900, a chip with no news — into the list as a blank. */
   .lf-banner-menu > .lf-btn { width: 100%; border-color: transparent;
     background: none; text-align: left; }
+  .lf-banner-menu > [data-lf-chord]::after { inset-inline-start: 10px;
+    text-align: left; }
   .lf-banner-menu > .lf-btn:hover { background: var(--chip); }
   /* The line's momentary other words (notifications.js), in its place rather than beside
      it: the row holds one sentence at a time, and a narrow window clips the notice the
@@ -1932,7 +1944,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     border-radius: 3px; background: var(--accent); color: var(--card); }
   .lf-goto-targets > .lf-chord-address { min-width: 0; height: auto; padding: 0;
     border: 0; background: transparent; }
-  .lf-chord-address > .lf-chord-prefix { color: var(--muted); }
   .lf-targets > .lf-target-hint.lf-in { transform: translate(-50%, 0); }
   /* The hint the keyboard is browsing is where the reader is standing in this mode, so
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can

@@ -1953,7 +1953,7 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
         assert reading["banner"] <= chip["top"] < chip["bottom"] <= reading["height"], (
             reading
         )
-        assert chip["route"] == f"…{chip['code']}", chip
+        assert chip["route"] == chip["code"], chip
     under_code = address_code(page, "Link", "under-banner")
     under_index = page.locator(CHIPS).evaluate_all(
         """(chips, code) => chips.findIndex(chip => chip.dataset.lfAddress === code)""",
@@ -1982,8 +1982,8 @@ def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact
 ):
     """Kind prefixes narrow the current generated map instead of replacing it.
 
-    A filtered map assigns short codes from its own members. Its chips retain only a quiet
-    sign that `g` already armed the chord; the complete route remains in the key line.
+    A filtered map assigns short codes from its own members. Its chips show only those
+    generated suffixes; the complete route remains in the key line.
     """
     page, errors = open_page(browser, serve(ADDRESSED_PAGE))
     resized(page, 1280, 800)
@@ -1997,8 +1997,8 @@ def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact
     )
     assert {"Link", "Fold", "Control"} <= initial_kinds, initial_kinds
     assert chips.evaluate_all(
-        "els => els.every(el => el.textContent === `…${el.dataset.lfAddress}`)"
-    ), "an inline hint repeated the chord leader or omitted its continuation mark"
+        "els => els.every(el => el.textContent === el.dataset.lfAddress)"
+    ), "an inline hint repeated the chord context"
 
     control_codes = page.locator(
         f'{CHIPS}[data-lf-address-kind="Control"]'
@@ -2609,6 +2609,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
 
     page.keyboard.press("g")
     expect(page.locator(".lf-keyline")).to_contain_text("All leaves panel")
+    expect(page.locator(".lf-others")).to_have_attribute("data-lf-chord", "g L")
     page.keyboard.press("Shift+l")
 
     expect(page.locator(".lf-others-panel")).to_be_visible()
@@ -4263,8 +4264,35 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     )
     assert key_faces[0] == key_faces[1], key_faces
     version = page.locator(".lf-version")
+    banner_chords = [
+        (page.locator(".lf-threads-toggle"), "T"),
+        (page.locator(".lf-asks"), "A"),
+        (page.locator(".lf-page-map-toggle"), "M"),
+    ]
+    for control, suffix in banner_chords:
+        expect(control).to_have_attribute("data-lf-chord", f"g {suffix}")
+        expect(control).to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
+        assert (
+            control.evaluate("el => getComputedStyle(el, '::after').content")
+            == f'"g {suffix}" / ""'
+        )
+    for control in (page.locator(".lf-threads-toggle"), page.locator(".lf-asks")):
+        expect(control).to_have_accessible_name(control.inner_text())
     expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    expect(version).to_have_attribute("data-lf-chord", "g V")
     expect(version).to_have_attribute("title", re.compile(r"\(g V\)$"))
+    resized(page, 390, 800)
+    folded_chords = page.locator(".lf-banner-menu > [data-lf-chord]")
+    chord_readings = folded_chords.evaluate_all(
+        """els => els.map(el => ({
+          chord: el.dataset.lfChord,
+          content: getComputedStyle(el, '::after').content,
+        }))"""
+    )
+    assert chord_readings and all(
+        reading["content"] == f'"{reading["chord"]}" / ""' for reading in chord_readings
+    ), f"a folded destination lost its visible chord: {chord_readings}"
+    resized(page, 1200, 900)
     expect(page.locator(".lf-latest-chip")).to_have_attribute(
         "title", re.compile(r"\(g V v\)$")
     )
@@ -4296,6 +4324,10 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     page.keyboard.press("Escape")
     expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
     expect(version).not_to_have_attribute("title", re.compile(r"\(g V\)$"))
+    for control, suffix in banner_chords:
+        expect(control).not_to_have_attribute("data-lf-chord", re.compile(".+"))
+        expect(control).not_to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
+    expect(version).not_to_have_attribute("data-lf-chord", re.compile(".+"))
     expect(page.locator(".lf-latest-chip")).not_to_have_attribute(
         "title", re.compile(r"\(g V v\)$")
     )
@@ -4338,7 +4370,11 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     create.click()
     expect(page.locator(".lf-help")).to_be_hidden()
     expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    expect(version).to_have_attribute("data-lf-chord", "g V")
     expect(version).to_have_attribute("title", re.compile(r"\(g V\)$"))
+    for control, suffix in banner_chords:
+        expect(control).to_have_attribute("data-lf-chord", f"g {suffix}")
+        expect(control).to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
     expect(page.locator(".lf-general textarea")).to_be_focused()
     expect(page.locator(".lf-general textarea")).to_have_attribute(
         "placeholder", re.compile(r"(⌘⏎|Ctrl\+⏎)$")

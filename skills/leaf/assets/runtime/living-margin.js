@@ -63,8 +63,8 @@
    concise semantic subject used to name that target away from its own paint. Supply it
    only when plain text concatenation loses a relation the widget paints visually, such as
    a rewrite's `old → new`; contributions at the same target must agree. `state` is a
-   value or live reading of `idle`, `engaged`, `busy`, `failed`, or `settled`; active
-   states keep the owner's peers exposed. A contribution item that sets `represents` and
+   value or live reading of `idle`, `engaged`, `busy`, or `failed`; every state but idle
+   keeps the owner's peers exposed. A contribution item that sets `represents` and
    names its `kind` is also the visible reading of that state, so the margin suppresses a
    generated reading of the same kind at that exact target rather than showing the fact
    twice. Every fitting in a contribution is built with `marginButton(control, {key, icon,

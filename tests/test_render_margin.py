@@ -2093,7 +2093,8 @@ def test_button_tone_colors_only_the_icon(browser, serve, scheme):
         mark: mark.content === 'none' ? null :
           [mark.color, mark.borderTopColor, mark.backgroundColor],
         shape: mark.content === 'none' ? null :
-          [mark.width, mark.height, mark.borderRadius, mark.borderRightWidth],
+          [mark.width, mark.height, mark.borderRadius,
+           mark.transform !== 'none', mark.borderRightWidth, mark.borderTopStyle],
         icon: getComputedStyle(button.querySelector('svg')).color
       };
     }"""
@@ -2104,13 +2105,15 @@ def test_button_tone_colors_only_the_icon(browser, serve, scheme):
         assert len({reading["icon"] for reading in readings}) == 3
 
     # Busy is the one state that paints, so it is the one state with a shape to read.
-    # Its transform is not among the properties read: the ring turns continuously, so
-    # sampling it is a race, and the two states whose rotation the column used to tell
-    # apart no longer paint at all.
+    # This page is emulating `reduce`, where the ring is held still and dotted, so the
+    # transform is a settled `none` rather than a sample of a turning one — which is
+    # what makes it the reading that catches the override losing to the rule it
+    # overrides, a specificity away from turning forever for a reader who asked for
+    # stillness.
     shapes = {
         "idle": None,
         "engaged": None,
-        "busy": ["8px", "8px", "50%", "2px"],
+        "busy": ["8px", "8px", "50%", False, "2px", "dotted"],
         "failed": None,
     }
     for state, shape in shapes.items():

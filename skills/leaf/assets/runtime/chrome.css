@@ -346,8 +346,11 @@ body { position: static; box-sizing: border-box; }
   animation: lf-runtime-4f3c2a8d-button-busy 650ms linear infinite;
 }
 @keyframes lf-runtime-4f3c2a8d-button-busy { to { transform: rotate(360deg); } }
+/* The same `:not(...)` the rule above carries, so this override matches its specificity
+   and, standing later, wins. Without it the ring keeps turning for a reader who asked
+   for stillness. */
 @media (prefers-reduced-motion: reduce) {
-  .lf-margin-button[data-lf-state="busy"]::after {
+  .lf-margin-button[data-lf-state="busy"]:not([data-lf-behavior="status"])::after {
     animation: none; border-style: dotted;
   }
 }

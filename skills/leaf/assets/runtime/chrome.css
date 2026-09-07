@@ -1801,16 +1801,26 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-help-empty { padding: 20px 0 8px; color: var(--muted); text-align: center; }
   .lf-help h3 { margin: 12px 0 4px; font-size: var(--t-6); font-weight: 600;
     text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-  .lf-help table { display: table; width: 100%; table-layout: fixed;
+  .lf-help table { display: table; width: 100%; table-layout: auto;
     border-collapse: collapse; }
-  .lf-help td { padding: 3px 0; vertical-align: baseline; }
+  .lf-help td { padding: 3px 0; vertical-align: top; }
   .lf-help tr.lf-chord-control td { padding-top: 8px;
     border-top: 1px solid var(--rule); }
-  .lf-help td:first-child { width: 104px; white-space: nowrap; }
-  .lf-help-binding-matches td:last-child { display: flex; align-items: baseline;
+  .lf-help td:first-child { width: 104px; padding-right: 8px; white-space: nowrap; }
+  .lf-help-binding-matches .lf-help-action { display: flex; align-items: baseline;
     justify-content: space-between; gap: 8px; }
   .lf-help-binding-matches .lf-help-command { flex: 1; width: auto; }
   .lf-help-scope { flex: none; color: var(--muted); font-size: var(--t-6); }
+  @media (max-width: 640px) {
+    .lf-help-binding-matches .lf-help-action { display: block; }
+    .lf-help-binding-matches .lf-help-command { width: 100%; }
+    .lf-help-binding-matches .lf-help-scope { display: block; margin-top: 1px; }
+  }
+  @media (max-width: 360px) {
+    .lf-help .lf-key-label > kbd { width: max-content; max-width: 132px; height: auto;
+      min-height: var(--lf-key-box); padding-block: 1px; line-height: 1.3;
+      white-space: normal; }
+  }
   .lf-help-command { width: 100%; margin: -3px -6px; padding: 3px 6px;
     border: 0; border-radius: 4px; background: transparent; color: inherit;
     font: inherit; text-align: left; cursor: pointer; }
@@ -1841,6 +1851,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     max-height: calc(100vh - var(--lf-banner-h) - 16px); margin: 0; }
   .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
     gap: 8px; }
+  .lf-page-map-head > strong { flex: 1; }
   .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
     line-height: 1.35; }
   .lf-margin-preview-close { flex: none; }

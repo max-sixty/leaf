@@ -458,7 +458,7 @@ lf-option .lf-pick { display: inline-flex; align-items: center; gap: 6px;
  * inside rather than sitting in it. (The border asks for 1.5px and Chrome uses 1; half a
  * pixel of ring is a paint decision, and the interior is what the glyph gets.) */
 lf-option .lf-pick::before { content: ""; width: 11px; height: 11px; flex: none;
-                     border: 1.5px solid var(--border-2);
+                     border: 1.5px solid var(--muted);
                      display: grid; place-items: center; box-sizing: border-box;
                      font-size: 8px; line-height: 1; color: var(--card); }
 /* The mark's corner is how many the group takes: a circle is one of these, a rounded
@@ -508,7 +508,7 @@ lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
  :where(html:not(.lf-copy)) {
   lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option:not([chosen]):is(:hover,
                      :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) > .lf-pick::before {
-                     border-color: var(--muted); }
+                     border-color: var(--ink-2); }
  }
 }
 /* Child combinators, for the same reason the corner rules reach only the options the

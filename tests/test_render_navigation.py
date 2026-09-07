@@ -3629,7 +3629,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     # chip — there is nothing to back out of.
     expect(line).to_contain_text("threads")
     expect(line).to_contain_text("more")
-    expect(line).not_to_contain_text("esc")
+    expect(line.locator("kbd").filter(has_text=re.compile(r"^esc$"))).to_have_count(0)
 
     # Armed with the panel closed: the direct panel destination and its way out are visible.
     page.keyboard.press("g")

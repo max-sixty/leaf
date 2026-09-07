@@ -1553,9 +1553,9 @@ def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
         "and the title Ridge note; alert."
     )
     expect(page.locator("#card-instruction")).to_have_css(
-        "font-family", "ui-monospace, SFMono-Regular, Menlo, monospace"
+        "font-family", 'system-ui, -apple-system, "Segoe UI", sans-serif'
     )
-    expect(page.locator("#card-instruction")).to_have_css("font-size", "12.5px")
+    expect(page.locator("#card-instruction")).to_have_css("font-size", "11.5px")
 
     with sending(page, "the playground configuration"):
         playground.get_by_role("button", name="Use these settings").click()
@@ -1635,11 +1635,22 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         "aria-pressed", "false"
     )
     playground.get_by_role("button", name="Dense").click()
-    copy = playground.get_by_role("button", name="Copy instruction")
+    copy = playground.locator(".lf-playground-copy")
+    expect(copy).to_have_accessible_name("Copy instruction")
     copy.scroll_into_view_if_needed()
     before = copy.bounding_box()
     copy.click()
-    expect(copy).to_have_text("Copy instruction")
+    expect(copy).to_have_text("Copied")
+    assert copy.evaluate("button => getComputedStyle(button).color") == page.evaluate(
+        """() => {
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--ok-ink)';
+          document.body.append(probe);
+          const color = getComputedStyle(probe).color;
+          probe.remove();
+          return color;
+        }"""
+    )
     expect(page.locator(".lf-notice")).to_have_text("Instruction copied")
     assert copy.bounding_box() == before
     assert page.evaluate("navigator.clipboard.readText()") == (
@@ -1648,6 +1659,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     )
 
     playground.get_by_role("button", name="Reset").click()
+    expect(copy).to_have_text("Copy instruction")
     assert playground.evaluate("root => root.values")["radius"] == 12
     resized(page, 420, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 420

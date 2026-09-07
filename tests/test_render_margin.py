@@ -3508,12 +3508,14 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
           const close = preview.querySelector('.lf-margin-preview-close');
           const resolve = thread.querySelector('.lf-resolve');
           const head = thread.querySelector('.lf-conversation-head');
-          const tr = thread.getBoundingClientRect();
+          const title = preview.querySelector('.lf-margin-preview-head');
           const ta = textarea.getBoundingClientRect();
           const hr = head.getBoundingClientRect();
           const rr = resolve.getBoundingClientRect();
           return {
-            threadRight: tr.right,
+            cardRight: title.getBoundingClientRect().right,
+            msgRight: thread.querySelector(
+              '.lf-conversation-msg').getBoundingClientRect().right,
             textareaRight: ta.right,
             closeBorder: getComputedStyle(close).borderTopWidth,
             resolveBorder: getComputedStyle(resolve, '::before').borderTopWidth,
@@ -3522,7 +3524,11 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
           };
         }"""
     )
-    assert geometry["textareaRight"] == pytest.approx(geometry["threadRight"], abs=1)
+    # The card is one column: the title row, the words of the conversation, and the
+    # reply field all end at the same edge. The conversation's own resting gutter is
+    # spent out of the card's padding rather than stepped in from it.
+    assert geometry["textareaRight"] == pytest.approx(geometry["cardRight"], abs=1)
+    assert geometry["msgRight"] == pytest.approx(geometry["cardRight"], abs=1)
     assert float(geometry["closeBorder"][:-2]) == 0
     assert float(geometry["resolveBorder"][:-2]) >= 1
     assert geometry["resolve"]["top"] == pytest.approx(geometry["head"]["top"], abs=1)

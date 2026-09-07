@@ -1860,6 +1860,16 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-margin-preview-list { display: grid; gap: 4px; margin-top: 10px; }
   .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
+  /* A conversation reserves a resting gutter (theme.css) so the quiet edge it draws
+     while the reader is standing in it lands without moving the words. This card
+     already keeps that room: its own padding surrounds the thread, and a second
+     gutter inside it only steps the conversation in from the title and close row,
+     which stand on the card's content column. The seat spends the card's padding for
+     it, so the edge draws into that room and the words keep the column. On the seat
+     rather than the thread, because the chrome's scope is the theme's vocabulary
+     seen from outside: naming the conversation's own class here would dress it in
+     the page too. */
+  .lf-margin-thread-body { margin: calc(-1 * var(--sp-1)); }
   .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
   .lf-margin-thread .lf-say { align-items: stretch; }
   .lf-margin-thread .lf-say textarea { min-width: 0; }

@@ -1455,15 +1455,24 @@ export function paintCoreControls() {
           control.dataset.lfKeyTitle = control.title;
         const active = live(row) && bindings(row).length > 0;
         const shortcut = controlShortcut(scope, row);
-        control.title = control.dataset.lfKeyTitle + (active ? ` (${shortcut})` : "");
-        if (active && scope.chord) control.dataset.lfChord = shortcut;
-        else delete control.dataset.lfChord;
+        // Every state application runs this pass, the two-second heartbeat among them,
+        // so each write asks first whether it changes anything: setting an attribute to
+        // the value it already holds is still a mutation, and a control restating its
+        // own name on a heartbeat nobody asked for is what
+        // `test_an_unchanged_heartbeat_restates_no_margin_name` reads. Removing an
+        // attribute that is not there writes nothing, so only the setting needs asking.
+        const title = control.dataset.lfKeyTitle + (active ? ` (${shortcut})` : "");
+        if (control.title !== title) control.title = title;
+        if (active && scope.chord) {
+          if (control.dataset.lfChord !== shortcut) control.dataset.lfChord = shortcut;
+        } else delete control.dataset.lfChord;
         // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
         // alternatives. The complete chord remains in the visible hint and accessible
         // keyboard reference instead of claiming its final press works alone.
-        if (active && !scope.chord)
-          control.setAttribute("aria-keyshortcuts", ariaShortcuts([row], false));
-        else control.removeAttribute("aria-keyshortcuts");
+        const keys = active && !scope.chord ? ariaShortcuts([row], false) : null;
+        if (keys === null) control.removeAttribute("aria-keyshortcuts");
+        else if (control.getAttribute("aria-keyshortcuts") !== keys)
+          control.setAttribute("aria-keyshortcuts", keys);
       }
     }
   const latestBound = bindings(CHOOSER).length && bindings(NEWEST).length;

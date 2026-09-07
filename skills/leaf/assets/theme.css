@@ -1370,9 +1370,16 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           display: inline-flex; align-items: center; justify-content: center;
           border: 1px solid transparent; border-radius: 50%; background: var(--card);
           opacity: 0; cursor: pointer; }
+/* Stand the trigger off the resolve control's ring, not off its box. The trigger is
+   painted above the head and turns opaque while the message is focus-within, which is
+   exactly when the resolve control beside it is wearing a ring, so 2px of clearance from
+   the box put it over the ring's outer band and cut the left edge off. The band is
+   `--here-ring-w` at the 1px offset the conversation rule above names; the 2px is the
+   gap that was already here, now measured from the ring outwards. */
 .lf-conversation-msg.claude:has(> .lf-conversation-head > .lf-resolve)
           > .lf-react-strip > .lf-react-trigger {
-          inset-inline-end: calc(max(28px, var(--aim-floor)) + 2px); }
+          inset-inline-end: calc(max(28px, var(--aim-floor))
+                    + var(--here-ring-w) + 1px + 2px); }
 .lf-react-strip.lf-react-open > .lf-react-trigger { display: none; }
 .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
           fill: none; stroke: currentColor; stroke-width: 1.6;

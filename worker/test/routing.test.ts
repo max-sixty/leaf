@@ -3,34 +3,44 @@ import { describe, expect, it } from "vitest";
 import {
   HTTP_SESSION_COOKIE,
   SESSION_COOKIE,
-  exampleRoute,
-  isExampleRequest,
-  isPrivateExampleRequest,
-  needsExampleSlash,
+  isPageRequest,
+  isPrivatePageRequest,
+  needsPageSlash,
   newSessionId,
+  pageRoute,
   sessionCookie,
   sessionFromCookie,
 } from "../src/routing";
 
-describe("website example routing", () => {
-  it("sends only concrete example routes to Leaf", () => {
-    expect(isExampleRequest("/examples/design-decision/")).toBe(true);
-    expect(isExampleRequest("/examples/design-decision/api/state")).toBe(true);
-    expect(isExampleRequest("/examples/design-decision")).toBe(true);
-    expect(isExampleRequest("/examples/")).toBe(false);
-    expect(isExampleRequest("/examples.html")).toBe(false);
-    expect(isExampleRequest("/examples/../registry.json")).toBe(false);
-    expect(needsExampleSlash("/examples/design-decision")).toBe(true);
-    expect(needsExampleSlash("/examples/design-decision/")).toBe(false);
-    expect(exampleRoute("/examples/design-decision/api/event")).toEqual({
-      slug: "design-decision",
+describe("website page routing", () => {
+  it("sends product and concrete example routes to Leaf", () => {
+    expect(isPageRequest("/")).toBe(true);
+    expect(isPageRequest("/api/state")).toBe(true);
+    expect(isPageRequest("/examples/")).toBe(true);
+    expect(isPageRequest("/examples/api/state")).toBe(true);
+    expect(isPageRequest("/examples/design-decision/")).toBe(true);
+    expect(isPageRequest("/examples/design-decision/api/state")).toBe(true);
+    expect(isPageRequest("/media/social-card.png")).toBe(false);
+    expect(isPageRequest("/examples.html")).toBe(false);
+    expect(isPageRequest("/examples/../registry.json")).toBe(false);
+    expect(needsPageSlash("/packages")).toBe(true);
+    expect(needsPageSlash("/examples/design-decision")).toBe(true);
+    expect(needsPageSlash("/examples/design-decision/")).toBe(false);
+    expect(pageRoute("/examples/api/event")).toEqual({
+      root: "/examples",
       inside: "api/event",
+      kind: "product",
     });
-    expect(exampleRoute("/examples/")).toBeNull();
-    expect(isPrivateExampleRequest("/examples/design-decision/_leaf/agent/reply")).toBe(
+    expect(pageRoute("/examples/design-decision/api/event")).toEqual({
+      root: "/examples/design-decision",
+      inside: "api/event",
+      kind: "example",
+    });
+    expect(isPrivatePageRequest("/_leaf/pages/index/index.html")).toBe(true);
+    expect(isPrivatePageRequest("/examples/design-decision/_leaf/agent/reply")).toBe(
       true,
     );
-    expect(isPrivateExampleRequest("/examples/design-decision/api/state")).toBe(false);
+    expect(isPrivatePageRequest("/examples/design-decision/api/state")).toBe(false);
   });
 
   it("reuses only a well-formed opaque session cookie", () => {

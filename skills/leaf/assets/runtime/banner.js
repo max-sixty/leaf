@@ -233,13 +233,17 @@ function renderStatusNow(state) {
     return;
   }
   renderPreview(state);
-  if (state.example) {
-    const install = el("a", "lf-example-install", "Install Leaf");
-    install.href = state.example.install_url;
+  if (state.publication) {
+    const install = el("a", "lf-publication-install", "Install Leaf");
+    install.href = state.publication.install_url;
+    const subject =
+      state.publication.kind === "example"
+        ? "This is an example on the Leaf website."
+        : "This website is a Leaf page.";
     showStatus(
       "unattended",
       TONE.unattended,
-      `This is an example on the Leaf website. ${state.example.agent} replies here, but cannot edit this page. `,
+      `${subject} ${state.publication.agent} replies here, but cannot edit this page. `,
       install,
     );
     return;

@@ -1,8 +1,8 @@
 name: publish-site
 
-# The static site and the canonical Python example server share one Cloudflare
-# Worker origin. The container image copies the exact site build verified here;
-# deployment therefore cannot publish one document while serving another.
+# Every product and example route uses the canonical Python Leaf server behind one
+# Cloudflare Worker origin. The container image copies the exact site build verified
+# here; deployment therefore cannot publish one document while serving another.
 
 on:
   push:
@@ -65,7 +65,7 @@ jobs:
       - run: npm test
         working-directory: worker
 
-      - name: Deploy site and example server
+      - name: Deploy public Leaf pages
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -76,18 +76,25 @@ jobs:
       # deployment successful; --retry-all-errors also covers the first-deploy 404/5xx
       # window while Cloudflare provisions the application and custom domain.
       #
-      # The per-attempt cap has to outlast the slowest answer that window produces
-      # rather than a healthy one. While every session slot is held, a seat request can
-      # hang with no bytes at all: run 34088384337 aborted twenty-seven attempts that
-      # way at ten seconds, while the four that did answer returned 500 within 1.4-5.7s.
-      # Probes taken minutes later, with the window still busy, took ~11.5s to return
-      # "Maximum number of running container instances exceeded", which ten seconds cuts off.
-      - name: Verify public example server
+      # The per-attempt cap has to outlast the slowest answer a busy seat produces
+      # rather than a healthy one. Both routes take a container seat, and while every
+      # slot is held a seat request can hang with no bytes at all: run 34088384337
+      # aborted twenty-seven attempts that way at ten seconds, while the four that did
+      # answer returned 500 within 1.4-5.7s. Probes taken minutes later, with the window
+      # still busy, took ~11.5s to return "Maximum number of running container instances
+      # exceeded", which ten seconds cuts off.
+      - name: Verify public Leaf pages
         run: |
-          COOKIE="__Host-leaf-example=$(openssl rand -hex 16)"
+          COOKIE="__Host-leaf-page=$(openssl rand -hex 16)"
+          curl --fail --silent --show-error \
+            --cookie "$COOKIE" \
+            --retry 30 --retry-all-errors --retry-delay 10 --max-time 25 \
+            https://leaf.page/api/state \
+            | jq --exit-status \
+              '.publication.kind == "product" and .claims == []'
           curl --fail --silent --show-error \
             --cookie "$COOKIE" \
             --retry 30 --retry-all-errors --retry-delay 10 --max-time 25 \
             https://leaf.page/examples/design-decision/api/state \
             | jq --exit-status \
-              '.example.install_url == "/#install" and .claims == []'
+              '.publication.kind == "example" and .claims == []'

@@ -3991,6 +3991,86 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     page.close()
 
 
+def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
+    browser, serve
+):
+    """The same half held to the other order, which it read backwards. An outline is
+    painted by its control at its control's level, so a box the control stands in front
+    of cannot stand over the ring around it — but the hit test that answers this half
+    samples the band outside the control's box, where whatever is beneath comes back.
+
+    The panel's edge grip is the shape that made that matter. It floats over the threads
+    at z-index 1, so its band crosses their own lines at every width and scroll position,
+    and the reading named whichever line it happened to land on: a two-pixel change to a
+    card's padding (#374) put a receipt under the coarse grip's foot and took
+    `test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll` down with
+    nothing about the page wrong.
+
+    So: one neighbour under the grip's band and clear of its box, planted twice — once
+    where the grip paints across it, once lifted past the grip by a z-index of its own.
+    The lifted half is the population assertion; a reading gone quiet would pass the
+    first half on its own.
+    """
+    url = serve(LONG_PAGE, comments=6)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    edge = page.locator(".lf-panel > .lf-edge")
+    edge.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    standing = standing_ring(page)
+    assert standing and standing["ring"] == "edge", (
+        f"the keyboard is not standing on the grip's own ring: {standing}"
+    )
+
+    # A band under one run of the grip's ring and clear of the grip's own box, inside a
+    # holder beside the grip in the panel: the holder is what the reading can rank, and
+    # putting the band in the page instead would leave it with nothing to rank against.
+    # Neither paints anything the grip does not already stand in front of, until the band
+    # names the z-index that lifts it past.
+    plant = """(z) => {
+      document.querySelector('.lf-under-plant')?.remove();
+      const grip = document.querySelector('.lf-panel > .lf-edge');
+      const cs = getComputedStyle(grip);
+      const grow = parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset);
+      const b = grip.getBoundingClientRect();
+      const mid = (Math.max(b.top - grow, 0) + Math.min(b.bottom + grow, innerHeight)) / 2;
+      const holder = document.querySelector('.lf-panel')
+        .appendChild(document.createElement('div'));
+      holder.className = 'lf-under-plant';
+      Object.assign(holder.style, {position: 'absolute', inset: '0'});
+      const band = holder.appendChild(document.createElement('div'));
+      Object.assign(band.style, {
+        position: 'fixed', background: 'red',
+        left: `${b.left - grow - 1}px`, top: `${mid - 20}px`,
+        width: `${grow + 1}px`, height: '40px',
+      });
+      if (z) band.style.zIndex = String(z);
+      return grow;
+    }"""
+
+    grow = page.evaluate(plant, 0)
+    assert grow > 0, (
+        f"the grip draws its ring {grow}px outside its box, so there is no band outside "
+        "it to lay anything under and this holds nothing"
+    )
+    assert standing_ring(page)["covers"] == [], (
+        "a neighbour the grip paints across was read as standing over its ring"
+    )
+
+    page.evaluate(plant, 2)
+    covers = standing_ring(page)["covers"]
+    assert any("left edge is under" in c for c in covers), (
+        f"the same band lifted past the grip by a z-index of its own read as {covers}, "
+        "so the half above passed on a reading that answers nothing"
+    )
+
+    page.evaluate("() => document.querySelector('.lf-under-plant').remove()")
+    assert errors == []
+    page.close()
+
+
 def test_a_reader_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
     browser, serve
 ):

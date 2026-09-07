@@ -38,6 +38,7 @@ from leaf import locations as interact_locations
 from leaf import packages as packages_model
 from leaf import schema as schema_model
 from leaf import vendoring as vendoring_model
+from leaf.registry import reactions as registry_reactions
 
 EXPECTED_PAGE_STATE_FILES = (
     "events.jsonl",
@@ -3416,9 +3417,9 @@ def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
             {
                 "$reactions": {
                     "tokens": {
-                        "ok": {"glyph": "👍", "means": "ship it", "settles": True},
-                        "cut": None,
-                        "meh": {"glyph": "~", "means": "neither here nor there"},
+                        "keep": {"glyph": "👍", "means": "ship it", "settles": True},
+                        "shorten": None,
+                        "meh": {"glyph": "~"},
                     }
                 }
             }
@@ -3431,26 +3432,33 @@ def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     tokens = json.loads((page / "registry.json").read_text())["$reactions"]["tokens"]
-    assert list(tokens) == ["ok", "no", "lost", "more", "this", "meh"]
-    assert tokens["ok"] == {"glyph": "👍", "means": "ship it", "settles": True}
-    assert tokens["meh"] == {"glyph": "~", "means": "neither here nor there"}
-    assert "settles" not in tokens["no"]
+    assert list(tokens) == ["keep", "change", "clarify", "support", "prioritize", "meh"]
+    assert tokens["keep"] == {"glyph": "👍", "means": "ship it", "settles": True}
+    assert tokens["meh"] == {"glyph": "~"}
+    assert "settles" not in tokens["change"]
+    assert registry_reactions.described(
+        {"token": "keep"}, {"$reactions": {"tokens": tokens}}
+    ) == {
+        "token": "keep",
+        "means": "ship it",
+    }
+    assert registry_reactions.described(
+        {"token": "meh"}, {"$reactions": {"tokens": tokens}}
+    ) == {"token": "meh"}
 
 
 @pytest.mark.parametrize(
     "entry",
     [
-        {"glyph": "✓"},  # no meaning for `leaf wait` to print
+        {"glyph": "✓", "means": ""},
         {"glyph": "", "means": "x"},
         {"glyph": "✓", "means": "x", "settle": True},  # a flag nothing reads
         {"glyph": "✓", "means": "x", "settles": "yes"},
     ],
 )
 def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch, entry):
-    """Every consumer reads a token's entry directly — the bar paints `glyph`,
-    `leaf wait` prints `means`, the panel reads `settles` — so a member missing or
-    misspelled is a token that paints nothing or a flag that settles nothing, and
-    nothing else would say so."""
+    """Consumers read declared fields directly, so an invalid glyph, explanation, or
+    misspelled behavior must fail at the package boundary instead of disappearing."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     assert runner.invoke(cli_model.cli, ["package", "init", ".leaf"]).exit_code == 0

@@ -513,7 +513,8 @@ def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
     back by. A token the layer keeps re-vendors as before."""
     publish(page_dir)
     events_model.append_event(
-        page_dir, {"kind": "comment", "author": "user", "revision": 1, "token": "cut"}
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "token": "shorten"},
     )
     assert (
         CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)]).exit_code
@@ -522,12 +523,12 @@ def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
     layer = page_dir.parent / ".leaf"
     layer.mkdir()
     (layer / "registry.json").write_text(
-        json.dumps({"$reactions": {"tokens": {"cut": None}}})
+        json.dumps({"$reactions": {"tokens": {"shorten": None}}})
     )
     monkeypatch.chdir(page_dir.parent)
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code != 0
-    assert "no longer speaks" in result.output and "`cut`" in result.output
+    assert "no longer speaks" in result.output and "`shorten`" in result.output
 
 
 def test_init_refuses_a_logged_event_field_the_incoming_layer_no_longer_speaks(
@@ -3966,12 +3967,12 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
             "unknown reaction token 'shrug'",
         ),
         (
-            {"kind": "comment", "revision": 1, "token": "ok", "text": "and"},
+            {"kind": "comment", "revision": 1, "token": "keep", "text": "and"},
             "valid under each of",
         ),
         ({"kind": "comment", "revision": 1}, "not valid under any"),
         (
-            {"kind": "comment", "revision": 1, "token": "ok", "suggestion": True},
+            {"kind": "comment", "revision": 1, "token": "keep", "suggestion": True},
             "suggestion",
         ),
         (
@@ -3990,7 +3991,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
                 {
                     "kind": "comment",
                     "revision": 1,
-                    "token": "cut",
+                    "token": "shorten",
                     "anchor": {"section": "plan", "quote": "Ship dark"},
                 }
             ).encode(),
@@ -4001,11 +4002,11 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         fetch(
             f"{server}/api/event",
             data=json.dumps(
-                {"kind": "reply", "revision": 1, "parent": root["id"], "token": "ok"}
+                {"kind": "reply", "revision": 1, "parent": root["id"], "token": "keep"}
             ).encode(),
         )[1]
     )["state"]["events"][-1]
-    assert nod["token"] == "ok" and nod["parent"] == root["id"]
+    assert nod["token"] == "keep" and nod["parent"] == root["id"]
 
     # A message with words in it is said rather than unsaid.
     status, body = fetch(

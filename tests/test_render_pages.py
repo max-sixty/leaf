@@ -1572,7 +1572,7 @@ def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "cut",
+            "token": "shorten",
             "anchor": {
                 "section": "old-line",
                 "quote": "Refill every feeder each morning.",

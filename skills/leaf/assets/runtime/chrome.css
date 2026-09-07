@@ -1450,9 +1450,10 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-fab-bar { position: absolute; display: none; width: max-content; align-items: center;
     gap: 4px; white-space: nowrap; max-width: var(--lf-float-w, calc(100vw - 16px)); }
   .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
-  /* The field and the choices are two states of one anchored response control. This
-     primitive owns their height, vertical padding, type, border, corners, and
-     elevation; Tab changes only the contents of the bar.
+  /* The field and the no-reactions fallback choices are two states of one anchored
+     response control. This primitive owns their height, vertical padding, type, border,
+     corners, and elevation. With a reaction vocabulary, Tab raises the target's margin
+     Buttons instead.
      The corner is half the resting height, written as that length rather than as
      999px: both draw the same one-line pill, and only the length survives growth. The
      field below grows with its words, and a corner kept in proportion to the box was

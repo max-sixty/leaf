@@ -1840,12 +1840,11 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
 
 
 def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
-    """`page state` lists every standing reaction explained, beside threads that
+    """`page state` lists every standing reaction, beside threads that
     leave a bare one out — paint on the page is not a conversation — and takes a
     reaction back in once someone answers it, as the panel does. The transcript
-    prints one as the reader's mark rather than a turn, glyph and meaning beside it,
-    since it is read where no bar explains the glyph. The registry owns that
-    vocabulary."""
+    prints one as the reader's mark rather than a turn. Its durable token is enough;
+    packages may add an explanation, but the default layer does not prescribe one."""
     published(page_dir)
     bare = events_model.append_event(
         page_dir,
@@ -1853,12 +1852,13 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "cut",
+            "token": "shorten",
             "anchor": {"section": "plan", "quote": "Ship dark"},
         },
     )
     answered = events_model.append_event(
-        page_dir, {"kind": "comment", "author": "user", "revision": 1, "token": "no"}
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "token": "change"},
     )
     reply = conversation_model.cmd_reply(page_dir, answered["id"], "Which part?", None)
     state = state_json(page_dir)
@@ -1871,13 +1871,14 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
         answered["id"],
         reply["id"],
     ]
-    assert [(r["token"], r["means"], r["thread"]) for r in state["reactions"]] == [
-        ("cut", "too long — shorten or remove this", bare["id"]),
-        ("no", "wrong — change this", answered["id"]),
+    assert [(r["token"], r["thread"]) for r in state["reactions"]] == [
+        ("shorten", bare["id"]),
+        ("change", answered["id"]),
     ]
+    assert all("means" not in reaction for reaction in state["reactions"])
     assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
 
     result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
-    assert "- **User** reacted: ✂️ cut — too long" in result.output
-    assert "- **User** reacted: ❌ no — wrong" in result.output
+    assert "- **User** reacted: ✂️ shorten\n" in result.output
+    assert "- **User** reacted: ❌ change\n" in result.output

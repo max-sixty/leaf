@@ -251,7 +251,7 @@ def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve, sect
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "ok",
+            "token": "keep",
             "anchor": {
                 **({"section": section} if section else {}),
                 "quote": "Run the migration before deploying.",

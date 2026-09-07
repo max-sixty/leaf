@@ -2324,26 +2324,35 @@ def test_swipe_deck_exit_echo_starts_at_the_dragged_card_box(browser, serve):
 
 
 def test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe(browser, serve):
-    """A projected action carries its semantic transition into the widget renderer."""
-    page, errors = open_page(browser, serve(SWIPE_PAGE), init_script=HOLD_MOTION)
+    """A remote action carries its production projection through the exit motion.
 
-    page.locator("#session-triage").evaluate(
-        """deck => deck.renderState({
-          verdict: {
-            action: 'swipe',
-            detail: {card: 'swipe-a', to: 'session-keep', index: 1},
-            value: {
-              'session-queue': ['swipe-b', 'swipe-c', 'swipe-d'],
-              'session-pass': ['already-passed'],
-              'session-keep': ['already-kept', 'swipe-a'],
-            },
-          },
-        })"""
+    A reload reads the same standing unit but arrives before presentation, so it restores
+    the final placement without replaying old news as a new transition.
+    """
+    url = serve(SWIPE_PAGE)
+    page, errors = open_page(browser, url, init_script=HOLD_MOTION)
+
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "session-triage",
+            "action": "swipe",
+            "detail": {"card": "swipe-a", "to": "session-keep", "index": 1},
+        },
     )
+    told(page)
 
     expect(page.locator(".lf-swipe-exit")).to_have_count(1)
     expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
     page.evaluate("window.__lfHeld[0].finish()")
+    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
+
+    page.reload()
+    page.wait_for_function(BOTH_STAMPS)
+    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
     expect(page.locator(".lf-swipe-exit")).to_have_count(0)
     assert errors == []
     page.close()

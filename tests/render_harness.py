@@ -404,7 +404,7 @@ TOKEN = "test-page-key"
 
 
 @pytest.fixture
-def serve(tmp_path, monkeypatch, clone_initialized_page):
+def serve(tmp_path, monkeypatch, initialized_page):
     """Publish HTML as the newest version of a fresh page directory and serve it,
     as the real server does — vendoring included, so the assets under test are this
     repo's. Markup is one version; an example is every version it ships, stamped
@@ -469,7 +469,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                 if packages is None
                 else "examples-" + ("-".join(selected_packages) or "no-packages")
             )
-            clone_initialized_page(template_name, d, initialize)
+            initialized_page(template_name, d, initialize)
         # An example is every authored version it ships, oldest first; markup is one.
         authored = (
             [version.read_text() for version in example_versions(example)]

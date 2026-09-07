@@ -258,8 +258,9 @@ lint fixtures, malformed markup, tokenizer input, line-number assertions, or a
 document whose missing boundary is the condition under test.
 
 The browser fixture `serve` is the normal owner of a specimen. It runs `page
-init` once per worker for the ordinary layer, clones that initialized page for
-each test, writes the document as v1, copies the example media that document
+init` once per worker for the ordinary layer, takes an initialized page of that
+shape from `initialized_page`, writes the document as v1, copies the example
+media that document
 names, adds the publishing note and any requested comments, then serves the
 directory with the real HTTP handler and page key at that version's immutable
 URL. Handed an example's path rather than its markup it also lays in the
@@ -274,11 +275,26 @@ with the seed between the first note and any later one, and the URL is the
 newest. Use `serve(example, seed_log=False)` when only the shipped conversation
 would be noise. Reach the page directory through `serve.page_dir` when a test
 needs to publish v2 or inspect the log. `page_dir` in `interact_support.py`
-owns command-level files without starting a browser and clones its ordinary
-initialized layer the same way. Runtime and vendor files are immutable fixture
-inputs and may be shared; state, contracts, theme, and modules remain private.
+owns command-level files without starting a browser and takes its ordinary
+initialized layer the same way.
+
+`initialized_page` composes one page per shape and lends it. A test gets that
+page moved to the path it asked for, and when the test ends the page goes back
+to the pool, where the next loan resets it: every file whose inode, size or
+modification time moved is put back from the shape, and everything the test
+added is removed. Copying the layer instead cost 146 files a test, which put
+2,272 pages and 393,473 directory entries through a nightly run — bytes a hard
+link shares, but a directory entry is what a filesystem event watcher counts.
+
+Runtime and vendor files are immutable fixture inputs and are hard links into
+the shape; the rest is a private copy. Nothing may write a page's layer in
+place — vendoring replaces, and a file written through its link fails the next
+loan by name. A page-owned file the reset has never heard of needs no entry
+anywhere: it is removed because the shape has not got it.
+
 Tests of initialization, re-vendoring, or a custom overlay still cross the real
-`page init` boundary.
+`page init` boundary, and a test whose subject is the composition itself passes
+`initialized_page` a shape of its own or builds its page without the fixture.
 
 ## Drive the browser a reader gets
 

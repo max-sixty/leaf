@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 import tinycss2
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, PagePool
 from interact_support import (
     PAGE,
     PAGE_PACKAGES,
@@ -781,6 +781,55 @@ def test_init_vendors_the_layer(page_dir):
         "revision": 0,
         "sources": {},
     }
+
+
+def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypatch):
+    """`initialized_page` composes a layer once and lends it, so the page a test
+    mutates is the page the test after it asserts on. What makes that safe is
+    that the reset reads the difference off the filesystem — identity, size,
+    modification time — rather than off a list of the files somebody remembered
+    a fixture writes. A page-owned file nobody has named yet is removed because
+    the shape has not got it, and an edited layer file comes back because its
+    stat moved.
+
+    Runtime and vendor stay hard links into the shape across the loan, which is
+    the sharing the reset must not quietly spend (tests/CLAUDE.md, "Fixtures own
+    the world they create")."""
+    monkeypatch.chdir(tmp_path)
+    pool = PagePool(tmp_path / "shapes")
+
+    def initialize(target):
+        made = CliRunner().invoke(cli_model.cli, ["page", "init", str(target)])
+        assert made.exit_code == 0, made.output
+
+    first = pool.lend("plain", tmp_path / "first", initialize)
+    shape = {path.relative_to(first).as_posix() for path in first.rglob("*")}
+
+    (first / "index.html").write_text("<html></html>")
+    (first / "media" / "shot.png").write_bytes(b"png")
+    (first / "notes").mkdir()
+    (first / "notes" / "held.txt").write_text("scratch")
+    (first / "theme.css").write_text("/* edited */")
+    (first / "widgets" / "lf-tabs.js").unlink()
+    (first / "runtime" / "chrome.css").unlink()
+    # A symlink where a layer file belongs, and one where nothing does: the reset
+    # reads a path as itself rather than as what it points at, so a broken link
+    # is a file it removes rather than a stat that raises.
+    (first / "leaf.js").unlink()
+    (first / "leaf.js").symlink_to(tmp_path / "nowhere")
+    (first / "widgets" / "lf-planted.js").symlink_to(tmp_path / "nowhere")
+    (first / "media" / "elsewhere").symlink_to(tmp_path, target_is_directory=True)
+    interact_files.write_json(first / "status.json", {"state": "working"})
+    pool.give_back("plain", first)
+
+    second = pool.lend("plain", tmp_path / "second", initialize)
+
+    template = pool.shapes["plain"].template
+    assert {path.relative_to(second).as_posix() for path in second.rglob("*")} == shape
+    for name in ("theme.css", "widgets/lf-tabs.js", "status.json", "registry.json"):
+        assert (second / name).read_bytes() == (template / name).read_bytes(), name
+    linked = "runtime/chrome.css"
+    assert (second / linked).stat().st_ino == (template / linked).stat().st_ino
 
 
 def test_init_does_not_vendor_the_mcp_app_resource(page_dir):

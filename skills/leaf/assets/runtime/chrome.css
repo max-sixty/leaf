@@ -916,7 +916,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      second line keeps the shortcut beside its destination without spending horizontal
      room or changing which controls fit on the shelf. The empty CSS speech alternative
      leaves the button's accessible name as the action rather than the shortcut. */
-  [data-lf-chord] { position: relative; padding-block: 3px 14px; }
+  [data-lf-chord] { position: relative; padding-block: 3px 14px; line-height: 1; }
   [data-lf-chord]::after { content: attr(data-lf-chord) / "";
     position: absolute; inset-inline: 0; bottom: 3px; color: var(--muted);
     font-family: var(--mono); font-size: var(--t-6); font-weight: 400;

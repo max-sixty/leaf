@@ -23,7 +23,7 @@
       content="Generative UI for agents: the agent builds the page your task needs and answers your comments and edits over a messaging and collaboration bus."
     />
     <meta property="og:url" content="https://leaf.page/" />
-    <meta property="og:image" content="https://leaf.page/media/849ee440f3fa3b04.png" />
+    <meta property="og:image" content="https://leaf.page/media/f3883f5c8f6d6f19.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="stylesheet" href="/theme.css" />
     <style>
@@ -87,18 +87,18 @@
         <picture>
           <source
             media="(prefers-color-scheme: dark)"
-            srcset="/media/cb38bea4a1835641.png"
+            srcset="/media/441bbbdb8abba87b.png"
           />
           <img
-            src="/media/849ee440f3fa3b04.png"
+            src="/media/f3883f5c8f6d6f19.png"
             alt="A live leaf in the browser: a migration plan with a comment anchored
 to a highlighted passage, Claude's reply in the thread, a version picker reading
-v2 (latest), and a banner reading 'Claude awaits'."
+v3 (latest), and a banner reading 'Claude awaits'."
           />
         </picture>
         <figcaption>
           A leaf in flight. The user asked about a rollback edge case; Claude replied in
-          the thread and shipped v2 covering it. The picker holds each immutable version
+          the thread and shipped v3 covering it. The picker holds each immutable version
           with its changelog and a Δ that marks what changed since it, and the banner
           tracks whether Claude is working or waiting on you.
         </figcaption>
@@ -167,15 +167,15 @@ v2 (latest), and a banner reading 'Claude awaits'."
             <strong>Mark it up.</strong> Select any passage and comment; the passage
             stays lit while you write, and the comment anchors to it and stays anchored
             as versions change — to the passage you picked, even where the page says the
-            same thing twice. Selecting an item with <code>s</code> raises Comment and
-            React beside it; choose Comment to open the compact field, or Alt-click the
-            item to go there directly. The field grows in place, Enter adds a line,
-            Command/Ctrl-Enter sends, and Tab reveals the other response options. Plain
-            clicks on unadorned diagrams and images keep their browser meaning;
-            Alt-click or <code>s</code> targets them. A suggestion mode in that response
-            row proposes replacement text that the agent takes verbatim or answers with
-            why not. The agent opens threads the same way — a question about one
-            sentence arrives in the margin beside it, not in the terminal.
+            same thing twice. Press <code>s</code> and its item hint, or Alt-click the
+            item, to open and focus the same compact Comment field beside it. The field
+            grows in place, Enter adds a line, Command/Ctrl-Enter sends, and Tab reveals
+            the other response options. Plain clicks on unadorned diagrams and images
+            keep their browser meaning; Alt-click or <code>s</code> opens the same field
+            on them. A suggestion mode in that response row proposes replacement text
+            that the agent takes verbatim or answers with why not. The agent opens
+            threads the same way — a question about one sentence arrives in the margin
+            beside it, not in the terminal.
           </li>
           <li id="loop-wake">
             <strong>Your comment reaches the session.</strong> On Claude Code, a
@@ -206,7 +206,7 @@ v2 (latest), and a banner reading 'Claude awaits'."
 
       <figure class="shot" id="loop-demo">
         <img
-          src="/media/63c9f291dbd21fb4.gif"
+          src="/media/45d6ed3b0b5889b0.gif"
           alt="A live leaf page. The user selects Backfill history and writes a
 comment while the passage stays highlighted. The agent replies, saves a new revision
 whose rehearsal count advances, and the user drags an on-call task to During."
@@ -322,9 +322,9 @@ codex plugin add leaf@leaf</code></pre>
           <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>
         <p>
-          This page is a standalone Leaf export. Choose a
-          <a href="/examples/">live example from the gallery</a> to try Leaf's controls
-          in a private session.
+          This website is running as a Leaf page in a private session. Choose an
+          <a href="/examples/">example from the gallery</a>, or use the controls on this
+          page.
         </p>
       </footer>
     </main>

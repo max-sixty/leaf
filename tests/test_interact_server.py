@@ -2874,12 +2874,12 @@ def _news(server):
     return stream, heard
 
 
-def test_an_open_stream_records_that_the_page_is_open(server, page_dir):
-    """A page nobody ever opened and one the user studied and left used to be
-    indistinguishable from the agent's side; a tab's news stream is the proof a
-    browser holds the page, so the server writes it down. A bare read is not
-    that proof — `curl`, the render gate and `page state` all read, and a tab
-    that has no news never reads again."""
+def test_an_open_stream_records_that_the_page_was_visible(server, page_dir):
+    """A page nobody ever viewed and one the user studied and left used to be
+    indistinguishable from the agent's side; a visible tab's news stream is the
+    proof of reader attention, so the server writes it down. A bare read is not
+    that proof — `curl`, the render gate and `page state` all read, and a visible
+    tab that has no news never reads again."""
     events = event_model.read_events(page_dir)
     assert presence_model.presence(page_dir, events)["viewed"] is None
     fetch(f"{server}/api/state")

@@ -111,6 +111,22 @@ SWIPE_PAGE = leaf_page(
 """,
 )
 
+EMPTY_QUOTED_SWIPE_PAGE = leaf_page(
+    "completed swipe deck",
+    """
+<h1>Completed triage</h1>
+<lf-specimen id="swipe-example" label="completed triage">
+  <lf-swipe-deck id="completed-swipe">
+    <lf-swipe-pile id="completed-queue" verdict="unseen"></lf-swipe-pile>
+    <lf-swipe-pile id="completed-pass" verdict="pass"></lf-swipe-pile>
+    <lf-swipe-pile id="completed-keep" verdict="keep">
+      <lf-swipe-card id="kept-card"><strong>Keep the expiry bound</strong></lf-swipe-card>
+    </lf-swipe-pile>
+  </lf-swipe-deck>
+</lf-specimen>
+""",
+)
+
 PLAYGROUND_PAGE = leaf_page(
     "card playground",
     """
@@ -730,25 +746,29 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
     """An eyebrow is the heading's label, so its small bottom margin is the room inside
     the title while the heading level's larger top margin remains outside the pair.
 
-    The contents widget inserts a zero-height fragment target before an id-less heading.
-    That generated node must not split the same authored pair into a different layout."""
+    An identified section owns the contents destination while its heading supplies the
+    label. The clean section fragment brings the whole title into view and needs no
+    generated node between the eyebrow and heading."""
     source = leaf_page(
         "eyebrow title rhythm",
         """
 <h1>Two labeled sections</h1>
 <lf-toc id="contents"></lf-toc>
+<div style="height: 110vh"></div>
 <p id="before-two">First section follows.</p>
-<section id="section-two">
+<section id="section-two" aria-labelledby="title-two">
   <p class="eyebrow">release shape</p>
   <h2 id="title-two">Prepare the readers</h2>
   <p>Take a snapshot.</p>
 </section>
+<div style="height: 110vh"></div>
 <p id="before-three">A subsection follows.</p>
 <section id="section-three">
   <p class="eyebrow">first cohort</p>
   <h3>Move the readers</h3>
   <p>Shift one cohort at a time.</p>
 </section>
+<div style="height: 110vh"></div>
 """,
     )
     page, errors = open_page(browser, serve(source))
@@ -775,12 +795,36 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
     )
     assert rhythm == {
         "h2": {"outer": 48, "inner": 10, "between": []},
-        "h3": {
-            "outer": 32,
-            "inner": 10,
-            "between": ["lf-toc-target lf-ui"],
-        },
+        "h3": {"outer": 32, "inner": 10, "between": []},
     }
+
+    toc = page.get_by_role("navigation", name="On this page")
+    assert toc.get_by_role("link").evaluate_all(
+        "links => links.map(link => link.getAttribute('href'))"
+    ) == ["#section-two", "#section-three"]
+    expect(page.locator("#section-two")).to_have_attribute(
+        "aria-labelledby", "title-two"
+    )
+    expect(page.locator("#section-two > h2")).to_have_attribute("id", "title-two")
+    toc.get_by_role("link", name="Move the readers").click()
+    expect(page.locator(":target")).to_have_attribute("id", "section-three")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    arrival = page.locator("#section-three").evaluate(
+        """section => {
+          const root = document.scrollingElement;
+          const eyebrow = section.querySelector(':scope > .eyebrow');
+          const heading = section.querySelector(':scope > h3');
+          return {
+            clear: parseFloat(getComputedStyle(root).scrollPaddingTop),
+            section: section.getBoundingClientRect().top,
+            eyebrow: eyebrow.getBoundingClientRect().top,
+            heading: heading.getBoundingClientRect().top,
+          };
+        }"""
+    )
+    assert arrival["section"] == pytest.approx(arrival["clear"], abs=1)
+    assert arrival["eyebrow"] == pytest.approx(arrival["clear"], abs=1)
+    assert arrival["heading"] > arrival["eyebrow"]
     assert errors == []
     page.close()
 
@@ -2451,10 +2495,27 @@ def test_a_quoted_swipe_deck_is_a_static_labeled_exhibit(browser, serve):
     expect(deck.locator("lf-swipe-card[tabindex]")).to_have_count(0)
     expect(deck.locator("lf-swipe-card:visible")).to_have_count(6)
     assert deck.get_by_role("list").count() == 3
+    deck.locator("#session-queue > lf-swipe-card").evaluate_all(
+        "cards => cards.forEach(card => document.querySelector('#session-keep').append(card))"
+    )
+    deck_box = deck.bounding_box()
+    queue_box = deck.locator("#session-queue").bounding_box()
+    assert deck_box and queue_box
+    assert queue_box["x"] == pytest.approx(deck_box["x"], abs=0.02)
+    assert queue_box["width"] == pytest.approx(deck_box["width"], abs=0.02)
     resized(page, 420, 900)
     passed = page.locator("#session-pass").bounding_box()
     kept = page.locator("#session-keep").bounding_box()
     assert passed and kept and passed["y"] + passed["height"] <= kept["y"]
+    assert errors == []
+    page.close()
+
+
+def test_an_empty_quoted_swipe_queue_says_it_is_empty(browser, serve):
+    page, errors = open_page(browser, serve(EMPTY_QUOTED_SWIPE_PAGE))
+    labels = page.locator("#completed-swipe .lf-swipe-pile-label")
+
+    assert labels.all_inner_texts() == ["QUEUE · 0", "PASSED · 0", "KEPT · 1"]
     assert errors == []
     page.close()
 

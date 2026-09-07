@@ -448,7 +448,7 @@ def test_a_workspace_lands_one_responsive_layout_and_carries_the_column_to_it(
         }"""
     )
 
-    page.keyboard.press("c")
+    page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
     assert page.evaluate("() => window.__lfHeld.length") == 1, (
         "opening the workspace did not produce one controllable column motion"
@@ -2223,7 +2223,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # This page heads the list, marked and never a link: the panel reads as the
     # whole machine, and this page is where the reader already is.
     self_row = others_panel.locator(".lf-others-self")
-    expect(self_row.locator(".lf-pill")).to_have_text("this page")
+    expect(self_row.locator(".lf-chip")).to_have_text("this page")
     expect(self_row.locator(".lf-others-title")).to_have_text("long")
     link = others_panel.locator("a.lf-others-row")
     expect(link.locator(".lf-others-title")).to_have_text("The other leaf")
@@ -2862,7 +2862,7 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
     Told it may break a word, the browser will also break one that was never meant to come
     apart: the tree's module spaces its badges by margin and writes no whitespace between
     them, so a line is one word to the breaker, and it split a two-character badge down the
-    middle and drew half the pill on each line. Read at a phone's width, where the column
+    middle and drew half the chip on each line. Read at a phone's width, where the column
     has the least to give and each of the three is at its worst."""
     page, errors = open_page(browser, serve(UNBREAKABLE_PAGE))
     resized(page, 420, 900)
@@ -2883,7 +2883,7 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
     )
     torn = """() => [...document.querySelectorAll('.lf-tree-badge')]
                       .map((b) => b.getClientRects().length)"""
-    assert page.evaluate(torn) == [1, 1], "a badge is one pill, and it was drawn as two"
+    assert page.evaluate(torn) == [1, 1], "a badge is one chip, and it was drawn as two"
     assert errors == []
     page.close()
 
@@ -3991,6 +3991,174 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     page.close()
 
 
+def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
+    browser, serve
+):
+    """The same half held to the other order, which it read backwards. An outline is
+    painted by its control at its control's level, so a box the control stands in front
+    of cannot stand over the ring around it — but the hit test that answers this half
+    samples the band outside the control's box, where whatever is beneath comes back.
+
+    The panel's edge grip is the shape that made that matter. It floats over the threads
+    at z-index 1, so its band crosses their own lines at every width and scroll position,
+    and the reading named whichever line it happened to land on: a two-pixel change to a
+    card's padding (#374) put a receipt under the coarse grip's foot and took
+    `test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll` down with
+    nothing about the page wrong.
+
+    So: one neighbour under the grip's band and clear of its box, planted three times —
+    where the grip paints across it, where a z-index of its own lifts it past the grip,
+    and where it is `position: fixed` inside a static box that ranks behind the grip. The
+    lifted half is the population assertion; a reading gone quiet would pass the others on
+    its own. The third is the grip's `z-index: 1` again: a neighbour that names no z-index
+    paints in the layer below it whatever holds it, so leaving its holder's flow does not
+    put it over the ring, and the reading that reported it there would be inventing a
+    cover the page does not paint.
+    """
+    url = serve(LONG_PAGE, comments=6)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    edge = page.locator(".lf-panel > .lf-edge")
+    edge.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    standing = standing_ring(page)
+    assert standing and standing["ring"] == "edge", (
+        f"the keyboard is not standing on the grip's own ring: {standing}"
+    )
+
+    # A band under one run of the grip's ring and clear of the grip's own box, inside a
+    # holder beside the grip in the panel: the holder is what the reading can rank, and
+    # putting the band in the page instead would leave it with nothing to rank against.
+    # Neither paints anything the grip does not already stand in front of, until the band
+    # names the z-index that lifts it past.
+    plant = """({z, wrap}) => {
+      document.querySelector('.lf-under-plant')?.remove();
+      const grip = document.querySelector('.lf-panel > .lf-edge');
+      const cs = getComputedStyle(grip);
+      const grow = parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset);
+      const b = grip.getBoundingClientRect();
+      const mid = (Math.max(b.top - grow, 0) + Math.min(b.bottom + grow, innerHeight)) / 2;
+      const holder = document.querySelector('.lf-panel')
+        .appendChild(document.createElement('div'));
+      holder.className = 'lf-under-plant';
+      Object.assign(holder.style, {position: 'absolute', inset: '0'});
+      // A static box filling that holder, when the plant wants one: it is what the walk
+      // ranks then, and it stands in the flow where the grip is painted over it.
+      const under = wrap ? holder.appendChild(document.createElement('div')) : holder;
+      if (wrap) Object.assign(under.style, {height: '100%'});
+      const band = under.appendChild(document.createElement('div'));
+      Object.assign(band.style, {
+        position: 'fixed', background: 'red',
+        left: `${b.left - grow - 1}px`, top: `${mid - 20}px`,
+        width: `${grow + 1}px`, height: '40px',
+      });
+      if (z) band.style.zIndex = String(z);
+      return grow;
+    }"""
+
+    grow = page.evaluate(plant, {"z": 0, "wrap": False})
+    assert grow > 0, (
+        f"the grip draws its ring {grow}px outside its box, so there is no band outside "
+        "it to lay anything under and this holds nothing"
+    )
+    assert standing_ring(page)["covers"] == [], (
+        "a neighbour the grip paints across was read as standing over its ring"
+    )
+
+    page.evaluate(plant, {"z": 2, "wrap": False})
+    covers = standing_ring(page)["covers"]
+    assert any("left edge is under" in c for c in covers), (
+        f"the same band lifted past the grip by a z-index of its own read as {covers}, "
+        "so the half above passed on a reading that answers nothing"
+    )
+
+    # The same band inside a static box, which is the shape that leaves a holder's flow:
+    # it paints in the positioned layer rather than the one its holder is ranked in. That
+    # is still the layer under the grip's own, so the page paints the grip in front and
+    # the reading has nothing to report.
+    page.evaluate(plant, {"z": 0, "wrap": True})
+    covers = standing_ring(page)["covers"]
+    assert covers == [], (
+        f"a band the grip's own z-index stands over read as {covers}, so leaving a "
+        "holder's flow was taken for standing over the control that names one"
+    )
+
+    page.evaluate("() => document.querySelector('.lf-under-plant').remove()")
+    assert errors == []
+    page.close()
+
+
+def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_in(
+    browser, serve
+):
+    """The other side of the half above, against a control that names no z-index.
+
+    The reading excuses a neighbour by ranking the box that holds it, and a box that
+    ranks behind the control puts what stays in its flow behind the control too. A
+    positioned neighbour does not stay: it leaves its holder's place in the flow to paint
+    in the positioned layer of the nearest ancestor stacking context, which is the layer a
+    control like the thread card's own buttons is in — `position: relative; z-index: auto`.
+    So a static holder's rank says nothing about it, and taken for an answer it drops a
+    cover the page paints.
+
+    The plant is that shape: a fixed band over the ring's top run, held by a static box
+    beside the control. The band comes back topmost where the ring is sampled, and the
+    reading has to say so.
+    """
+    example = next(e for e in EXAMPLES if e.stem == "release-notes")
+    url = serve(example, comments=2)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator("body").click()
+    page.locator(".lf-threads .lf-btn").first.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    standing = standing_ring(page)
+    assert standing and standing["covers"] == [], (
+        f"the control is reported covered before anything is put over it: {standing}"
+    )
+    assert page.evaluate(
+        """() => {
+          const cs = getComputedStyle(document.activeElement);
+          return cs.position !== 'static' && cs.zIndex === 'auto';
+        }"""
+    ), (
+        "the control names a z-index of its own, so it stands clear of the layer this "
+        "plants into and the band below could not reach its ring"
+    )
+
+    page.evaluate(
+        """() => {
+          const b = document.activeElement.getBoundingClientRect();
+          // A static box, so the flow is what its own rank answers for, pulled back over
+          // the panel it is appended to rather than adding height to it.
+          const holder = document.createElement('div');
+          holder.className = 'lf-under-plant';
+          holder.style.cssText = 'margin-top: -100vh; height: 100vh;';
+          const band = document.createElement('div');
+          // Over the ring's top run and clear of the control's own box, and positioned,
+          // so it leaves the holder's flow for the layer the control is in.
+          band.style.cssText = `position: fixed; background: red;
+            left: ${b.left - 8}px; top: ${b.top - 5}px;
+            width: ${b.width + 16}px; height: 4px;`;
+          holder.append(band);
+          document.activeElement.closest('.lf-panel').append(holder);
+        }"""
+    )
+    covers = standing_ring(page)["covers"]
+    assert any("top edge is under" in c for c in covers), (
+        f"a band standing over the ring read as {covers}, so a neighbour that left the "
+        "flow its holder was ranked in goes unreported"
+    )
+
+    page.evaluate("() => document.querySelector('.lf-under-plant').remove()")
+    assert errors == []
+    page.close()
+
+
 def test_a_reader_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
     browser, serve
 ):
@@ -4162,16 +4330,15 @@ RING_WALKS = (
     # screen for the sweep, which is where its band is read — the chips are a layer nothing
     # can focus, so the reader's place in that mode is not a stop.
     ("item hints", ("Tab", "s", "Shift+Tab", "Tab"), ("corpus", "ship-review")),
-    # Enter selects the item the keyboard is browsing and leaves the response undecided;
-    # c is the Comment gesture that opens the bar's field and focuses it.
+    # Enter opens Comment on the item the keyboard is browsing and focuses its field.
     (
         "the response bar",
-        ("Tab", "s", "Shift+Tab", "Tab", "Enter", "c"),
+        ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
         ("corpus", "ship-review"),
     ),
     ("the comments", ("c",), ("ship-review",)),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
-    # layer dresses in the chrome's pill face, and they are behind a press: the strip
+    # layer dresses in the chrome's chip face, and they are behind a press: the strip
     # shows a token nobody has pressed only while it is open, so a walk of the panel
     # that never opens one stands on the trigger and nothing under it.
     ("a reaction palette", (), ("ship-review",)),
@@ -4913,7 +5080,7 @@ AIM_BOXES = """(floor) => {
   for (const el of document.querySelectorAll(
     '[data-lf-offer], .lf-chrome button, .lf-chrome [role="button"],' +
     ' .lf-chrome [role="checkbox"], .lf-chrome [role="tab"], .lf-chrome .lf-btn,' +
-    ' .lf-chrome .lf-pill, .lf-chrome .lf-quote'
+    ' .lf-chrome .lf-chip, .lf-chrome .lf-quote'
   )) {
     if (seen.has(el)) continue;
     seen.add(el);
@@ -4946,7 +5113,7 @@ AIM_BOXES = """(floor) => {
 AIM_SURFACES = (
     ".lf-thread-action",
     ".lf-preview",
-    ".lf-pill",
+    ".lf-chip",
     ".lf-version-diff",
     ".lf-help-command",
     ".lf-quote",
@@ -4994,7 +5161,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
     """A press the reader cannot land on is a capability the page does not have.
 
     Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
-    reaction pills stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
+    reaction chips stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
     version's Δ, a command in the reference, and a quote at around twelve by seven.
     Three controls reached the coarse-pointer block and the rest reached neither floor,
     so the same presses were small under a finger too.

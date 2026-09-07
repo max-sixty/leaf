@@ -213,10 +213,11 @@ def presence(page_dir: Path, events: list) -> dict:
         # an hour after it. Read with .get like the rest of the claim's fields,
         # since a record written before this existed is still a valid claim.
         "turn_closed": claim.get("turn_closed") if claim else None,
-        # When a browser last held the page open (the server bumps viewed.json,
-        # throttled, while a tab's news stream stands), or None for a page nobody
-        # has ever opened — which used to be indistinguishable from one the user
-        # studied and left.
+        # When a browser last had the page visible (the server bumps viewed.json,
+        # throttled, while a visible tab's news stream stands), or None for a page
+        # nobody has ever viewed — which used to be indistinguishable from one the
+        # user studied and left. Hidden tabs release their stream, so this records
+        # reader attention rather than tab lifetime.
         "viewed": (read_json(page_dir / VIEWED_FILE) or {"t": None})["t"],
         # Where the claimant is working (claim_page), for the tray's hover: what
         # tells one leaf from another is the work behind it, and neither the title

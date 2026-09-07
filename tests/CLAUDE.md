@@ -171,6 +171,22 @@ clears an outward ring and lands inside an inset one.
 `test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_box`
 is the plant over the inset shape.
 
+The same stepped-in point answers the order the other way about. An outline is
+painted by its control, so a box the control stands in front of cannot stand over
+the ring around it, and the sample outside the control's box lands on one of those
+whenever a control floats over content its own holder scrolls — the panel's edge
+grip does, at every width. The reading ranks the nearest box holding the neighbour
+that is present at that point and is not itself holding the control; a z-index
+named on the way up stops the walk, since it lifts the box past the holder being
+ranked. Position lifts a box the same way without naming one, so where the ranked
+holder is static the answer is the control's own layer instead: one that names a
+z-index stands clear of the layer a lifted neighbour paints in, and one that names
+none shares it.
+`test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across` plants
+the same band under each order against the grip, which names one, and
+`test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_in`
+against a control that does not.
+
 Prefer the public route through the product. A CLI test invokes the command or
 the same command function the entry point uses. A browser test serves a
 vendored page and uses its HTTP API. A render-gate test calls
@@ -246,8 +262,10 @@ two tabs for a single reader unless they share a browser context:
 `Browser.new_page` creates an independent context; `one_reader` supplies one
 context for the tests whose subject is shared tab state.
 
-The product-site pages are standalone exports. They retain rendered widgets and
-native controls, but have no scripts, runtime chrome, or semantic page state.
+The product-site pages and examples are complete page directories served through the
+website's canonical Leaf adapter. Tests that exercise the public routes wait for both
+runtime stamps and assert the publication state; a rendered custom element alone does
+not prove that the interaction layer is present.
 
 For complete, valid browser fixtures, use `leaf_page(title, body, head="")`. It
 supplies the same language, charset, CSP, theme, module, and main-content shell
@@ -256,8 +274,9 @@ lint fixtures, malformed markup, tokenizer input, line-number assertions, or a
 document whose missing boundary is the condition under test.
 
 The browser fixture `serve` is the normal owner of a specimen. It runs `page
-init` once per worker for the ordinary layer, clones that initialized page for
-each test, writes the document as v1, copies the example media that document
+init` once per worker for the ordinary layer, takes an initialized page of that
+shape from `initialized_page`, writes the document as v1, copies the example
+media that document
 names, adds the publishing note and any requested comments, then serves the
 directory with the real HTTP handler and page key at that version's immutable
 URL. Handed an example's path rather than its markup it also lays in the
@@ -272,11 +291,26 @@ with the seed between the first note and any later one, and the URL is the
 newest. Use `serve(example, seed_log=False)` when only the shipped conversation
 would be noise. Reach the page directory through `serve.page_dir` when a test
 needs to publish v2 or inspect the log. `page_dir` in `interact_support.py`
-owns command-level files without starting a browser and clones its ordinary
-initialized layer the same way. Runtime and vendor files are immutable fixture
-inputs and may be shared; state, contracts, theme, and modules remain private.
+owns command-level files without starting a browser and takes its ordinary
+initialized layer the same way.
+
+`initialized_page` composes one page per shape and lends it. A test gets that
+page moved to the path it asked for, and when the test ends the page goes back
+to the pool, where the next loan resets it: every file whose inode, size or
+modification time moved is put back from the shape, and everything the test
+added is removed. Copying the layer instead cost 146 files a test, which put
+2,272 pages and 393,473 directory entries through a nightly run — bytes a hard
+link shares, but a directory entry is what a filesystem event watcher counts.
+
+Runtime and vendor files are immutable fixture inputs and are hard links into
+the shape; the rest is a private copy. Nothing may write a page's layer in
+place — vendoring replaces, and a file written through its link fails the next
+loan by name. A page-owned file the reset has never heard of needs no entry
+anywhere: it is removed because the shape has not got it.
+
 Tests of initialization, re-vendoring, or a custom overlay still cross the real
-`page init` boundary.
+`page init` boundary, and a test whose subject is the composition itself passes
+`initialized_page` a shape of its own or builds its page without the fixture.
 
 ## Drive the browser a reader gets
 

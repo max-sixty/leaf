@@ -6,6 +6,16 @@
 // under a directory of its own cannot have one of them agreeing with its URL while the
 // next two contradict it.
 export const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
+// A generated contained document has no address of its own. document.open() gives it
+// the outer page's URL, even though the content still has about:srcdoc's fixed-page
+// semantics. Runtime-owned markup states that semantic location explicitly; ordinary
+// authored and served documents continue to derive it from their real URL.
+const runtimeLocation = document.querySelector(
+  'meta[name="lf-location"][data-lf-runtime]',
+)?.content;
+export const PAGE_PATH = runtimeLocation
+  ? new URL(runtimeLocation).pathname
+  : location.pathname;
 // Where another version is: beside this one. It was "/versions/vN.html" at the three
 // seats that travel, which is a claim about where the page directory sits — true of a
 // server serving one page at a root of its own, and of nothing else. The published site
@@ -14,17 +24,16 @@ export const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
 // against the document, the travel agrees with the path the version number itself was
 // read off, which is the one form that cannot disagree with what this document is.
 export const versionUrl = (version) =>
-  `${location.pathname.match(VERSION_PATH) ? "" : "versions/"}v${version}.html`;
+  `${PAGE_PATH.match(VERSION_PATH) ? "" : "versions/"}v${version}.html`;
 // The live root follows the active revision in place; a virtual version address under
 // the path above stays pinned to its mapped revision.
-export const LIVE_ROOT = location.pathname.endsWith("/");
+export const LIVE_ROOT = PAGE_PATH.endsWith("/");
 // Which page this document belongs to, as a prefix for what the tab keeps: "" wherever a
 // server serves one page at its own root, so every key below is spelled exactly as it was.
 // Two leaf pages on one origin is what needs it — web storage is the origin's, so the
 // reading position a reader left on one example was handed back on the next, at an offset
 // that meant nothing there.
-export const PAGE_SCOPE =
-  location.pathname === "/" ? "" : location.pathname.replace(VERSION_PATH, "");
+export const PAGE_SCOPE = PAGE_PATH === "/" ? "" : PAGE_PATH.replace(VERSION_PATH, "");
 
 // ---------- what the page keeps, and what a store may refuse ----------
 // Reading or writing web storage throws outright where the browser has it switched off —

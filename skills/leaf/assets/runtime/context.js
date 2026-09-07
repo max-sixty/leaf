@@ -20,6 +20,11 @@ export const runtime = {
   data: { revision: -1, sources: {} },
   events: [],
   lastEventSeq: -1,
+  // A chrome placement is moving a box the reader may be standing in, so the focus it
+  // takes off and hands straight back is the layer's own, not the reader going
+  // anywhere. Standing here rather than beside the one placer, because what has to know
+  // is every reader of where the reader stands.
+  placingChrome: false,
   reading: null,
   state: null,
   restoringState: false,
@@ -29,6 +34,18 @@ export const runtime = {
   versions: [],
   view: null,
 };
+
+// A contained page is a Leaf document rendered as a picture inside another one. The
+// interaction gallery frames the chrome that is singleton by design, so a replay can
+// drive the production controls without moving the gallery around it;
+// `loadFrameDocument` stamps the document it writes. The reader is standing in that
+// outer document, so a contained page arrives without restoring their arrangements and
+// without placing focus: either would take the page they are actually on somewhere they
+// did not ask to go. Focus its chrome would place later is refused by the frame's body
+// rather than by this flag — `loadFrameDocument` writes that body `inert`, so a shown
+// dialog's focusing steps return against an inert subject and the reader never leaves
+// the page around the picture.
+export const containedPage = document.body.hasAttribute("data-lf-contained");
 
 export const agentName = () => runtime.agent;
 

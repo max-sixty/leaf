@@ -38,7 +38,7 @@
 
    `shownParts` supplies ring targets when a page styles an ask with `display:
    contents`. A normal boxed ask wears one outline on its own box. Hoisted controls
-   use the same ring token through the shared pill rule.
+   use the same ring token through the shared chip rule.
 
    Ask rows come from every active local `x-awaits` source and holder declaring
    `x-request.ask`, answered or open, not from a list of ask tags. Where a
@@ -233,7 +233,10 @@ function sayAsks(completed, total) {
   const title = total
     ? `${completed} of ${total} asks answered — show or hide the list`
     : "Show or hide this page's asks";
-  if (asksBtn.title !== title) asksBtn.title = title;
+  if (asksBtn.dataset.lfKeyTitle !== title) {
+    asksBtn.dataset.lfKeyTitle = title;
+    asksBtn.title = title;
+  }
 }
 // The banner's reading of that one list. Refreshed from every signal that can change
 // it: a widget saying it has just taken an answer (lf-answered, which is also when the

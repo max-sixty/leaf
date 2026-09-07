@@ -422,6 +422,9 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     draft_image = thread.locator(".lf-composer-media img")
     expect(draft_image).to_be_visible()
     expect(draft_image).to_have_attribute("src", "/media/051bee487bfb5d13.png")
+    expect(thread.locator(".lf-composer-media-remove")).to_have_css(
+        "border-radius", "6px"
+    )
     expect(thread.get_by_role("button", name="Send", exact=True)).to_have_attribute(
         "aria-disabled", "false"
     )
@@ -789,6 +792,10 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_on_its_metadata_row(
                   const own = thread.getBoundingClientRect();
                   const padding = parseFloat(getComputedStyle(
                     thread.querySelector('textarea')).paddingInlineEnd);
+                  const radius = (selector, pseudo = null) => getComputedStyle(
+                    selector.startsWith('.lf-panel')
+                      ? document.querySelector(selector)
+                      : thread.querySelector(selector), pseudo).borderRadius;
                   return {thread: {x: own.x, y: own.y, width: own.width,
                                    height: own.height, right: own.right, bottom: own.bottom},
                           compose: rect('.lf-compose'), field: rect('.lf-compose-field'),
@@ -799,6 +806,13 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_on_its_metadata_row(
                             '.lf-panel-head [aria-label="Close threads"]')).borderTopWidth,
                           resolveBorder: getComputedStyle(thread.querySelector(
                             '.lf-resolve'), '::before').borderTopWidth,
+                          radii: {
+                            send: radius('.lf-thread-send'),
+                            sendFill: radius('.lf-thread-send', '::before'),
+                            resolve: radius('.lf-resolve'),
+                            resolveFill: radius('.lf-resolve', '::before'),
+                            close: radius('.lf-panel-head [aria-label="Close threads"]'),
+                          },
                           padding,
                           overflow: thread.scrollWidth - thread.clientWidth};
                 }"""
@@ -822,6 +836,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_on_its_metadata_row(
         assert short["resolve"]["right"] == pytest.approx(short["head"]["right"], abs=1)
         assert float(short["closeBorder"][:-2]) == 0
         assert float(short["resolveBorder"][:-2]) >= 1
+        assert set(short["radii"].values()) == {"6px"}
         assert short["overflow"] == 0
 
         textarea.focus()
@@ -2369,6 +2384,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-compose-field",
         "lf-compose-submit",
         "lf-edited",
+        # The rail is chrome, and its whole document face — placement, the hidden
+        # state, and the widths that fold it away — is the authored theme's. The
+        # runtime sheet names it only to say which plane it stands on, so the movement
+        # the theme's rule causes is that deliberate face rather than a leaked one.
+        "lf-living-margin",
         "lf-react-open",
         "lf-react-palette",
         "lf-react-strip",
@@ -2403,7 +2423,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-focus",
         "lf-focus-visible",
         "lf-btn",
-        "lf-pill",
+        "lf-chip",
         "lf-address",
         "lf-over-mark",
         "lf-mark-el",

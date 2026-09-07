@@ -61,7 +61,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
     httpd = server_at(
         "127.0.0.1",
         0,
-        website_server.handler_for(site / "examples"),
+        website_server.handler_for(site),
     )
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
@@ -76,7 +76,8 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
 
         raw_state, headers = get(f"{root}/examples/decision/api/state")
         state = json.loads(raw_state)
-        assert state["example"] == {
+        assert state["publication"] == {
+            "kind": "example",
             "agent": "Leaf guide",
             "install_url": "/#install",
         }
@@ -168,6 +169,59 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         thread.join(timeout=2)
 
 
+@pytest.mark.parametrize(
+    ("page_root", "name"), [("", "index"), ("/examples", "examples")]
+)
+def test_a_product_route_uses_the_same_real_page_server(
+    page_dir, tmp_path, page_root, name
+):
+    site = tmp_path / "site"
+    published = site / "_leaf" / "pages" / name
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    (site / "sitenote.js").write_text("export {};")
+
+    httpd = server_at("127.0.0.1", 0, website_server.handler_for(site))
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    root = f"http://127.0.0.1:{httpd.server_address[1]}"
+    try:
+        document, _ = get(f"{root}{page_root}/")
+        assert b"data-lf-site" not in document
+        assert f'data-lf-entry="{page_root}/leaf.js"'.encode() in document
+        state = json.loads(get(f"{root}{page_root}/api/state")[0])
+        assert state["publication"] == {
+            "kind": "product",
+            "agent": "Leaf guide",
+            "install_url": "/#install",
+        }
+        posted = {
+            "kind": "comment",
+            "revision": state["active"]["revision"],
+            "text": "Can the product-page agent read this?",
+            "anchor": {"section": "plan"},
+            "attempt": f"website-product-{name}",
+        }
+        answer, _ = post(
+            f"{root}{page_root}/api/event",
+            posted,
+            {"Leaf-Layer": state["layer"]["generation"]},
+        )
+        comment = next(
+            event
+            for event in answer["state"]["events"]
+            if event.get("attempt") == posted["attempt"]
+        )
+        ready, _ = post(f"{root}{page_root}/_leaf/agent/turn", {"event": comment["id"]})
+        assert ready["status"] == "ready"
+        assert ready["turn"]["reply_to"] == comment["id"]
+        assert ready["turn"]["conversation"]["messages"][-1]["text"] == posted["text"]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+
+
 def test_an_agent_reply_is_dropped_when_a_newer_reader_turn_overtakes_it(
     page_dir, tmp_path
 ):
@@ -176,7 +230,7 @@ def test_an_agent_reply_is_dropped_when_a_newer_reader_turn_overtakes_it(
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
     (site / "sitenote.js").write_text("export {};")
-    httpd = server_at("127.0.0.1", 0, website_server.handler_for(site / "examples"))
+    httpd = server_at("127.0.0.1", 0, website_server.handler_for(site))
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     root = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision"
@@ -229,7 +283,8 @@ def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
     with example_previews.serve_examples(site) as root:
         state = json.loads(get(f"{root}/examples/decision/api/state")[0])
 
-    assert state["example"] == {
+    assert state["publication"] == {
+        "kind": "example",
         "agent": "Leaf guide",
         "install_url": "/#install",
     }

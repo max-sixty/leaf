@@ -321,9 +321,12 @@ def test_the_root_instructions_name_every_directory_ci_gates_on_its_own():
 
 def test_workflow_shell_continuations_use_literal_blocks():
     """A plain YAML scalar folds the newline before the shell sees the command."""
+    workflows = list((ROOT / ".github" / "workflows").glob("*.y*ml"))
+    assert workflows, "no workflows read — an empty set guards nothing"
+
     offenders = [
         f"{path.relative_to(ROOT)}:{line_number}"
-        for path in (ROOT / ".github" / "workflows").glob("*.y*ml")
+        for path in workflows
         for line_number, line in enumerate(
             path.read_text(encoding="utf-8").splitlines(), start=1
         )

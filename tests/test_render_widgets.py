@@ -1653,9 +1653,9 @@ def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
         "and the title Ridge note; alert."
     )
     expect(page.locator("#card-instruction")).to_have_css(
-        "font-family", "ui-monospace, SFMono-Regular, Menlo, monospace"
+        "font-family", 'system-ui, -apple-system, "Segoe UI", sans-serif'
     )
-    expect(page.locator("#card-instruction")).to_have_css("font-size", "12.5px")
+    expect(page.locator("#card-instruction")).to_have_css("font-size", "11.5px")
 
     with sending(page, "the playground configuration"):
         playground.get_by_role("button", name="Use these settings").click()
@@ -1735,11 +1735,22 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         "aria-pressed", "false"
     )
     playground.get_by_role("button", name="Dense").click()
-    copy = playground.get_by_role("button", name="Copy instruction")
+    copy = playground.locator(".lf-playground-copy")
+    expect(copy).to_have_accessible_name("Copy instruction")
     copy.scroll_into_view_if_needed()
     before = copy.bounding_box()
     copy.click()
-    expect(copy).to_have_text("Copy instruction")
+    expect(copy).to_have_text("Copied")
+    assert copy.evaluate("button => getComputedStyle(button).color") == page.evaluate(
+        """() => {
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--ok-ink)';
+          document.body.append(probe);
+          const color = getComputedStyle(probe).color;
+          probe.remove();
+          return color;
+        }"""
+    )
     expect(page.locator(".lf-notice")).to_have_text("Instruction copied")
     assert copy.bounding_box() == before
     assert page.evaluate("navigator.clipboard.readText()") == (
@@ -1748,6 +1759,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     )
 
     playground.get_by_role("button", name="Reset").click()
+    assert copy.text_content() == "Copy instruction"
     assert playground.evaluate("root => root.values")["radius"] == 12
     resized(page, 420, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 420
@@ -6147,34 +6159,53 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
 
     Three registers, because a pointer, a hand and a keyboard arrive by different routes
     and only one of them is on screen at rest. The hand is the resting answer, and a
-    control with nothing left to do gives it up while its face either fades or changes
-    from a fill to an outline. The latter is the icon composer's deliberate disabled
-    treatment: fading its whole layered control would also fade the paper that replaces
-    the active fill. The badges are read outside a choose group on purpose: a card group
-    makes the whole option the press, so a chip inside one inherits the hand from the
-    control it is sitting in and would be answering this question about its parent. The
-    wash is the aim, read as a change against each control's own resting shadow rather
-    than against a constant: a control is free to wear a drop shadow of its own, and
-    several here do, so an absolute reading would pin the theme's current furniture
-    instead of the rule. The ring is the keyboard's, and this is the half of it a shared
-    rule has to get right by losing: a control with a ring of its own keeps it and keeps
-    its name, so what is asserted here is that a named ring is drawn and not which rule
-    drew it. Which box wears it is a separate question from which one holds the focus -
-    a joined option group draws it on the row its picks give up, and
-    getComputedStyle(activeElement) reports 'no ring' for a control whose ring is
-    perfectly fine. Where nothing else claims one, the shared rule is what draws it, and
-    that case is asserted on a request press in test_render_projection.py, which is where
-    the layer has a control no widget rings."""
+    control with nothing left to do gives it up along with the face it wore while it was
+    live. The face is read as that change and not as the layer's own `.55`, for the
+    reason the ring below is: a control is free to dress its own spent state and outrank
+    the floor, and the composer's submit does — an empty Send trades an accent disc for a
+    muted ring on paper at full opacity, so that a field with nothing in it reads as
+    quiet rather than as broken. Pinning the number would pin whichever of the two
+    happened to be on this page. The badges are
+    read outside a choose group on purpose: a card group makes the whole option the
+    press, so a chip inside one inherits the hand from the control it is sitting in and
+    would be answering this question about its parent. The wash is the aim, read as a
+    change against each control's own resting shadow rather than against a constant: a
+    control is free to wear a drop shadow of its own, and several here do, so an
+    absolute reading would pin the theme's current furniture instead of the rule. The
+    ring is the keyboard's, and this is the half of it a shared rule has to get right by
+    losing: a control with a ring of its own keeps it and keeps its name, so what is
+    asserted here is that a named ring is drawn and not which rule drew it. Which box
+    wears it is a separate question from which one holds the focus - a joined option group
+    draws it on the row its picks give up, and getComputedStyle(activeElement) reports
+    'no ring' for a control whose ring is perfectly fine. Where nothing else claims one,
+    the shared rule is what draws it, and that case is asserted on a request press in
+    test_render_projection.py, which is where the layer has a control no widget rings."""
     page, errors = open_page(browser, serve(CHIP_PAGE))
     state = """() => {
+      // Whatever a control spends on saying it is live: the layer's wash, its own ink
+      // and ground, and the disc a compose submit paints in its ::before.
+      const face = (el) => [getComputedStyle(el), getComputedStyle(el, '::before')]
+        .map((cs) => [cs.opacity, cs.color, cs.backgroundColor, cs.borderTopColor,
+                      cs.filter].join(' '))
+        .join(' / ');
+      // The same control with the fact of being spent lifted off it, and put straight
+      // back: the comparison is against what this control would wear with something
+      // left to do, not against a number.
+      const armed = (el) => {
+        const native = el.disabled;
+        const declared = el.getAttribute('aria-disabled');
+        if (native) el.disabled = false;
+        if (declared !== null) el.removeAttribute('aria-disabled');
+        const reading = face(el);
+        if (native) el.disabled = true;
+        if (declared !== null) el.setAttribute('aria-disabled', declared);
+        return reading;
+      };
       const kind = (el) => {
         const cs = getComputedStyle(el);
-        const face = getComputedStyle(el, '::before');
-        const outlined = face.borderTopStyle !== 'none'
-          && face.backgroundColor === getComputedStyle(document.body).backgroundColor;
-        return {cursor: cs.cursor, opacity: cs.opacity,
-                quiet: Number(cs.opacity) < 1 || outlined,
-                off: el.matches('[aria-disabled="true"], :disabled')};
+        const off = el.matches('[aria-disabled="true"], :disabled');
+        return {cursor: cs.cursor, opacity: cs.opacity, off,
+                face: face(el), armed: off ? armed(el) : null};
       };
       const presses = [...document.querySelectorAll('[data-lf-offer]')]
         .filter((el) => el.dataset.lfOffer !== '');
@@ -6194,7 +6225,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     assert all(p["cursor"] == "pointer" for p in live), (
         f"a control a widget built does not take the hand: {live}"
     )
-    assert all(p["cursor"] == "default" and p["quiet"] for p in spent), (
+    assert all(p["cursor"] == "default" and p["face"] != p["armed"] for p in spent), (
         f"a control with nothing left to do still offers itself: {spent}"
     )
     assert not any(s["cursor"] == "pointer" for s in rest["said"]), (

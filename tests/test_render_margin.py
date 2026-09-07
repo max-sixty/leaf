@@ -263,9 +263,11 @@ HEARTBEAT_PAGES = (
     # The gallery draws the fittings the corpus has none of, and the writers that only
     # run for those are watched nowhere else: a reading option under an entry holding
     # several readings, and the readings whose move is made, which wear the `status`
-    # behavior on a span seat rather than a button. Every row it draws hangs, so no
-    # posture is cleared off one and the rail is not re-read; two of them stand where
-    # they would overlap, so the push measurement is read here and nowhere else.
+    # behavior on a span seat rather than a button. Two of its rows stand where they
+    # would overlap, so the push measurement is read here and nowhere else. All but one
+    # of its rows hang: the swipe specimen sits inside an unselected tab, so its row is
+    # withheld and the posture clear runs for that one. The rail is not re-read, which
+    # the corpus is here for.
     pytest.param(
         FEATURE_GALLERY,
         {
@@ -273,7 +275,7 @@ HEARTBEAT_PAGES = (
             ".lf-margin-reading-option": 1,
             '.lf-margin-button[data-lf-behavior="status"]': 2,
         },
-        {"row push", "fold rule"},
+        {"row posture", "row push", "fold rule"},
         id="gallery",
     ),
 )

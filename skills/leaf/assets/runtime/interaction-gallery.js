@@ -96,7 +96,7 @@ function frameSource(frame) {
       }
     </style>
   </head>
-  <body>
+  <body data-lf-contained>
     <main>${content.innerHTML}</main>
     <script type="module" src="${leafEntry}"></script>
     <script type="module" src="${adapter}"></script>
@@ -130,6 +130,12 @@ class Demo {
       const loaded = new Promise((resolve) =>
         this.frameElement.addEventListener("load", resolve, { once: true }),
       );
+      // The element is the author's; the document in it is the runtime's, and it is a
+      // whole second Leaf page. The mark says so on both sides of the boundary — the
+      // frame's own body carries it too — so the contained page knows to leave the
+      // reader's arrangements alone and a standalone copy knows this is a document it
+      // has no server to open.
+      this.frameElement.toggleAttribute("data-lf-contained", true);
       this.frameElement.srcdoc = frameSource(this.frameElement);
       await loaded;
       this.frameApi = await boundedRead(
@@ -175,6 +181,16 @@ class Demo {
     this.loadState = "ready";
   }
 
+  // The chord the replay is pressing, shown only while it is being pressed. The word
+  // travels as an attribute and lives in the caption for as long as the caption stands,
+  // because a copy exported between replays has no script left to reveal it and words a
+  // file holds without ever showing are words the copy has lost.
+  keypressCaption(shown) {
+    if (!this.keypress) return;
+    this.keypress.textContent = shown ? this.keypress.dataset.interactionKeypress : "";
+    this.keypress.hidden = !shown;
+  }
+
   setState(state) {
     this.state = state;
     this.changed(this);
@@ -188,7 +204,7 @@ class Demo {
     this.generation += 1;
     this.stopAnimations();
     this.pointer.hidden = true;
-    if (this.keypress) this.keypress.hidden = true;
+    this.keypressCaption(false);
     this.pointerPosition = null;
     this.pausedByView = false;
     if (!this.scenario) {
@@ -380,7 +396,7 @@ class Demo {
 
   async pressKeys(generation) {
     if (!this.keypress) return;
-    this.keypress.hidden = false;
+    this.keypressCaption(true);
     const animation = await this.animate(
       this.keypress,
       [
@@ -393,7 +409,7 @@ class Demo {
       generation,
     );
     animation.cancel();
-    this.keypress.hidden = true;
+    this.keypressCaption(false);
   }
 
   async hidePointer(generation) {

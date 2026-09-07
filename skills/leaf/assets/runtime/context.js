@@ -24,6 +24,14 @@ export const runtime = {
   view: null,
 };
 
+// A contained page is a Leaf document rendered as a picture inside another one. The
+// interaction gallery frames the chrome that is singleton by design, so a replay can drive
+// the production controls without moving the gallery around it; `frameSource` stamps the
+// frame it writes. The reader is standing in that outer document, so a contained page
+// restores none of their arrangements and never places focus: either would take the page
+// they are actually on somewhere they did not ask to go.
+export const containedPage = document.body.hasAttribute("data-lf-contained");
+
 export const agentName = () => runtime.agent;
 
 export const revisionLabel = (revision) => {

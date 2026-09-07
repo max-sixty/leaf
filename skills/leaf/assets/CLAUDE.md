@@ -135,7 +135,12 @@ stand in its menu;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
 `runtime/interaction-gallery.js` and `runtime/interaction-gallery-frame.js` own the
-Product Gallery's opt-in, ephemeral interaction replays, and playback controls;
+Product Gallery's opt-in, ephemeral interaction replays, playback controls, and the
+contained frames those replays run document-global chrome in. `data-lf-contained` marks
+both sides of that boundary — the frame element out in the gallery and the body of the
+page inside it — and a contained page is a picture rather than a place to stand: it
+restores none of the reader's arrangements, never places focus, and leaves a standalone
+copy with the scripts;
 `runtime/markdown.js` owns safe, lazy Markdown rendering for runtime-supplied text;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
 report, and work-claim feeds;

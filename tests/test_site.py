@@ -697,6 +697,40 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         page.close()
 
 
+def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
+    """A framed replay is a picture, and the reader is standing in the page holding it.
+
+    Each frame runs a whole second Leaf page, and a Leaf page arrives: it restores the
+    workspace this reader last had open and puts them on its own body. Neither is this
+    document's to do. The arrangements are the reader's, read from a store the frame
+    shares with the page around it, so restoring them opens a workspace inside the
+    picture that nobody asked this gallery for. The focus is worse, because a document
+    has only one: focus taken into a frame is focus taken off the page the reader is
+    actually on, which folds their open margin cluster, drops their selection hints and
+    leaves the next key they press going somewhere they cannot see.
+    """
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    try:
+        # The reader's own standing intent, written the way a reader writes it. It has to
+        # survive out here for the frames' silence about it to say anything.
+        page.locator(".lf-threads-toggle").click()
+        expect(page.locator(".lf-panel")).to_be_visible()
+        page.reload(wait_until="load")
+        page.wait_for_function(BOTH_STAMPS)
+        gallery = page.locator("#bg-interactions")
+        ready = gallery.locator("[data-interaction-frame][data-interaction-ready]")
+        expect(ready).to_have_count(2)
+        expect(page.locator("body")).to_have_attribute("data-lf-panel", "")
+        assert page.evaluate(
+            """() => [...document.querySelectorAll('[data-interaction-frame]')].map(
+                 (frame) => frame.contentDocument?.body.hasAttribute('data-lf-panel'))"""
+        ) == [False, False]
+        assert page.evaluate("() => document.activeElement?.tagName") != "IFRAME"
+        assert not errors, errors[:3]
+    finally:
+        page.close()
+
+
 def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
     url = serve(FEATURE_GALLERY)
     context = browser.new_context(

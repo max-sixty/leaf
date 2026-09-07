@@ -45,6 +45,7 @@ import {
   syncGeneral,
   threadsBox,
 } from "./conversation/panel.js";
+import { containedPage } from "./context.js";
 import { focused, paintHere } from "./keyboard/scopes.js";
 import { currentTray, reserveListClearance, showTray, traysEdge } from "./trays.js";
 import { foldBannerRow, toggleBtn } from "./banner.js";
@@ -144,7 +145,10 @@ function showPanelLayer() {
   // showing. Nothing to redo, and the focus below would otherwise fire against a reader
   // already standing inside.
   if (panel.open) return;
-  const invoker = document.activeElement;
+  // A contained page has no invoker to give focus back to: the reader is out in the
+  // document around it, and `activeElement` there reads body because nobody is standing
+  // in this one. Focusing it would take the embedder's page off whatever it was holding.
+  const invoker = containedPage ? null : document.activeElement;
   panel.show();
   if (invoker?.isConnected && !panel.contains(invoker))
     invoker.focus({ preventScroll: true });

@@ -924,9 +924,11 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
     page.close()
 
 
-# The longest lines the banner writes, each at the widest count it can carry. The floor
-# the row reserves is two lines of the longest of them (chrome.css, --lf-status-floor),
-# so these are what say whether the floor is the size it claims.
+# The longest lines the banner writes about the page's own state, each at the widest
+# count it can carry. The floor the row reserves is two lines of the longest of them
+# (chrome.css, --lf-status-floor), so these are what say whether the floor is the size it
+# claims. The website's own line is longer and the floor deliberately does not cover it;
+# it is measured on the page that writes it, at the end of this test.
 BANNER_LINES = (
     "Server offline — reconnecting. Keep this page open so pending changes can send.",
     (
@@ -934,11 +936,48 @@ BANNER_LINES = (
         "session does."
     ),
     "Claude isn't watching right now. 999 updates are saved. It picks them up next turn.",
-    (
-        "This is an example on the Leaf website. Claude replies here, but cannot edit "
-        "this page. Install Leaf"
-    ),
 )
+WEBSITE_LINE = (
+    "This is an example on the Leaf website. Leaf guide replies here, but cannot edit "
+    "this page. Install Leaf"
+)
+
+# The floor as a length, against the width the longest of those lines needs for two of
+# them — measured in the banner's own face, so a type token moving moves both together.
+FLOOR_VS_NEED = """(lines) => {
+  const banner = document.querySelector('.lf-banner');
+  const text = document.querySelector('.lf-status-text');
+  const gauge = document.createElement('span');
+  gauge.style.cssText =
+    'position:absolute;visibility:hidden;width:var(--lf-status-floor)';
+  banner.append(gauge);
+  const floor = gauge.getBoundingClientRect().width;
+  gauge.style.width = '1ch';
+  const ch = gauge.getBoundingClientRect().width;
+  gauge.remove();
+  const rig = text.cloneNode(false);
+  rig.style.cssText =
+    'position:absolute;left:-9999px;top:0;-webkit-line-clamp:none;display:block';
+  text.parentElement.append(rig);
+  const lh = parseFloat(getComputedStyle(rig).lineHeight);
+  const linesAt = (line, px) => {
+    rig.textContent = line;
+    rig.style.width = px + 'px';
+    return Math.round(rig.scrollHeight / lh);
+  };
+  let need = 0;
+  let widest = null;
+  for (const line of lines) {
+    let lo = 20, hi = 1400;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) / 2;
+      if (linesAt(line, mid) <= 2) hi = mid; else lo = mid;
+    }
+    if (hi > need) { need = hi; widest = line; }
+  }
+  rig.remove();
+  return {floor: Math.round(floor), need: Math.ceil(need), ch: +ch.toFixed(2), widest};
+}"""
 
 # What the sentence is given and what it needs, in the box it is actually rendered in.
 STATUS_FIT = """(sentence) => {
@@ -964,6 +1003,13 @@ def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser,
     where the row's rule already holds every control to its words and folds whole what it
     cannot hold. Both halves are asserted here: every line the banner writes fits the box
     it is given at every wide width, and the chip keeps its words wherever it stands.
+
+    The floor is two lines of the longest of those lines and no more. Wider costs a
+    standing address rather than words: at 37 characters instead of 34 this fixture folds
+    Asks behind the door at 900, which is a reader losing a destination to buy the
+    sentence room it was not asking for. The one line longer than the floor is the
+    website's, and the last stop here is the page that writes it, where nothing else
+    crowds the row.
     """
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
@@ -986,6 +1032,20 @@ def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser,
     panel_comment(serve.page_dir, "Is this ready?", author="claude")
     page, errors = open_page(browser, url)
     expect(page.locator(".lf-preview")).to_have_count(1)
+
+    # The floor from above as well as below, because reserving more than the longest of
+    # those lines needs is an address folded for nothing: at 37 characters instead of 34
+    # this row loses Asks behind the door at 900, to buy the sentence 111 pixels it never
+    # asks for. A character of rounding is the whole of the slack this may keep.
+    fit = page.evaluate(FLOOR_VS_NEED, list(BANNER_LINES))
+    assert fit["need"] <= fit["floor"], (
+        f"the floor is under what {fit['widest']!r} needs for two lines: {fit}"
+    )
+    assert fit["floor"] - fit["need"] <= fit["ch"], (
+        f"the floor reserves more than the longest line needs, which the row pays for in "
+        f"folded addresses: {fit}"
+    )
+
     # 841 is the narrowest row the cap applies to; the covering row below it is a layout
     # of its own with the status on a line to itself.
     for width in (841, 1024, 1440):
@@ -1026,6 +1086,25 @@ def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser,
             )
     assert errors == []
     page.close()
+
+    # The one line longer than the floor, on the page that writes it: no Accept all, no
+    # Asks, no preview chip, so nothing folds and the row leaves it more than the floor
+    # would have reserved. 900 is the narrowest wide window.
+    site, site_errors = open_page(
+        browser,
+        serve(
+            leaf_page("Website example", "<h1>Website example</h1>"),
+            website_example={"agent": "Leaf guide", "install_url": "/#install"},
+        ),
+    )
+    resized(site, 900, 900)
+    expect(site.locator(".lf-status-text")).to_have_text(WEBSITE_LINE)
+    read = site.evaluate(STATUS_FIT, WEBSITE_LINE)
+    assert read["down"]["shown"] >= read["down"]["needed"], (
+        f"the website's own example line lost its end on the page that writes it: {read}"
+    )
+    assert site_errors == []
+    site.close()
 
 
 def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):

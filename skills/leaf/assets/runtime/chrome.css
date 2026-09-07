@@ -883,7 +883,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      stated for the status box as a whole is one the mark and anything else standing in
      that box spends first, and it was: a developer preview's identity chip left the
      line 114 pixels, twelve characters, two of the four lines it had to say. */
-  .lf-banner { --lf-banner-gap: 10px; --lf-status-floor: 37ch;
+  .lf-banner { --lf-banner-gap: 10px; --lf-status-floor: 34ch;
     position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
     display: flex;
     align-items: center; gap: var(--lf-banner-gap);
@@ -907,16 +907,28 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      The floor is stated in the row's own characters rather than in pixels, so it says
      the same thing after a type token moves — three numbers stood along this row once
      and all three quietly stopped covering the day --t-5 went from 13.5px to 14px.
-     Thirty-seven of them is the two lines the longest sentence the banner writes needs,
-     which is the website's own ("This is an example on the Leaf website. Claude replies
-     here, but cannot edit this page.") at 36.5, and the mark and the two gaps beside it
-     are added here rather than folded into the number, so the floor is the sentence's
-     room and the cap is what has to know what else stands on the row. Measured the
-     other way round it read as one number covering both, and the sentence was left the
-     remainder: 31 characters on a reader's page at 1024, where the line that says a
-     comment is saved and when it will be read needs 33. A floor generous enough to hold
-     that sentence on one line would be paid for in addresses folded away at widths that
-     had room for them; two lines is what readable means here.
+     Thirty-four of them is the two lines the longest line the banner writes about the
+     page's own state needs: "No session holds this page. 999 updates are saved. It
+     picks up again when a session does." at 33.2, which is also the shape of the line
+     that says a comment is saved and when it will be read. The number was thirty-four
+     before this and meant the whole status box, mark and gaps included, so the sentence
+     was left the remainder — 30 characters, three short of that line, which is why a
+     reader's page at 1024 lost the half of it that says when. The mark and the two gaps
+     are added by the cap below instead, so the floor is the sentence's room and the cap
+     is what knows what else stands on the row.
+
+     What the floor does not cover is the website's own line ("This is an example on the
+     Leaf website. … Install Leaf"), which needs 36.5. Three more characters here is a
+     standing address at 900 — measured, the asks and suggestion fixtures fold Asks
+     behind the door at 37 and keep it at 34 — and the two never meet: that line is
+     written only where state.example is set, and those pages carry no Accept all and no
+     Asks, so their row is 459 wide and leaves the line 42.8 characters at 900 with
+     nothing folded at all. The floor is for the lines every reader can reach; the
+     website's is longer and is measured where it is actually said.
+
+     A floor generous enough to hold any of them on one line would be paid for in
+     addresses folded away at widths that had room for them; two lines is what readable
+     means here.
 
      The row does not shrink. A flexible one gives up room in the same breath the
      sentence does, so a row already folded to its floor goes on clipping while the

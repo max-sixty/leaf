@@ -121,6 +121,22 @@ CONTROL_STABILITY_PAGE = leaf_page(
     <strong>Keep every control row still</strong>
   </lf-task>
 </lf-command>
+<lf-ask id="stable-playground-decision"><h2>How should the release card look?</h2>
+<lf-playground id="stable-playground" submit-label="Use these settings">
+  <lf-playground-control name="radius" label="Corner radius" kind="range"
+    value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
+  <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
+    <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
+    <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+  </lf-playground-control>
+  <lf-playground-preview id="stable-playground-preview">
+    <article id="stable-playground-card"><strong>Release card</strong><p>The ceiling doubles per approval.</p></article>
+  </lf-playground-preview>
+  <lf-playground-output id="stable-playground-instruction">Use a
+    <lf-playground-value for="radius"></lf-playground-value> corner radius and a
+    <lf-playground-value for="tone"></lf-playground-value> tone.
+  </lf-playground-output>
+</lf-playground></lf-ask>
 <lf-diff id="stable-diff"><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
@@ -194,6 +210,17 @@ CONTROL_ARCHETYPES = (
         "name": "diff-review",
         "coverage": ".lf-diff-review",
         "target": "#stable-diff .lf-diff-review",
+    },
+    {
+        # The playground's action row: Reset, Copy instruction, and the send beside each
+        # other under the controls. The send is the press with something to prove — it
+        # posts the configuration and comes back disabled, and a control that changes its
+        # own paint on the press is where a neighbour moves. The row is also where the
+        # copy press used to say "Copied" in its own label; that feedback is a notice
+        # now, and this is the reading that keeps it off the row.
+        "name": "playground-actions",
+        "coverage": ".lf-playground-actions > button",
+        "target": "#stable-playground .lf-playground-submit",
     },
     {
         # The gallery's playback row. The runtime injects Play/Pause and Replay beside

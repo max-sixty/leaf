@@ -406,6 +406,14 @@ body { position: static; box-sizing: border-box; }
   opacity: 1; visibility: visible; transform: translateY(0);
   transition-delay: 90ms;
 }
+/* A keyboard destination says its label at once. Besides avoiding a needless delay for
+   the reader, this keeps a contribution that is rebuilt while the living margin settles
+   from restarting three paint-only transitions at time zero forever. Pointer discovery
+   retains the short delay and reveal above. */
+.lf-margin-button:is(:focus-visible, .lf-focus-visible):not([aria-expanded="true"])
+  > .lf-margin-button-label {
+  transition: none;
+}
 .lf-margin-item > .lf-margin-contribution >
   .lf-margin-button:not([data-lf-button-primary]),
 .lf-margin-item > .lf-margin-button.lf-margin-contribution:not([data-lf-button-primary]) {

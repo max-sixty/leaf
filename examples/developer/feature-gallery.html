@@ -228,13 +228,13 @@
       }
 
       .interaction-frame-stage {
-        min-height: 30rem;
+        height: 30rem;
         overflow: hidden;
         padding: 0;
       }
 
       .interaction-frame {
-        display: block;
+        display: none;
         width: 100%;
         height: 30rem;
         border: 0;
@@ -243,6 +243,7 @@
       }
 
       .interaction-frame[data-interaction-ready] {
+        display: block;
         opacity: 1;
       }
 

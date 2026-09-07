@@ -263,9 +263,10 @@ HEARTBEAT_PAGES = (
     # The gallery draws the fittings the corpus has none of, and the writers that only
     # run for those are watched nowhere else: a reading option under an entry holding
     # several readings, and the readings whose move is made, which wear the `status`
-    # behavior on a span seat rather than a button. Every row it draws hangs, so no
-    # posture is cleared off one and the rail is not re-read; two of them stand where
-    # they would overlap, so the push measurement is read here and nowhere else.
+    # behavior on a span seat rather than a button. The hidden swipe demonstration's row
+    # contributes the posture measurement without making the rail live; two hanging
+    # rows stand where they would overlap, so the push measurement is read here and
+    # nowhere else.
     pytest.param(
         FEATURE_GALLERY,
         {
@@ -273,7 +274,7 @@ HEARTBEAT_PAGES = (
             ".lf-margin-reading-option": 1,
             '.lf-margin-button[data-lf-behavior="status"]': 2,
         },
-        {"row push", "fold rule"},
+        {"row posture", "row push", "fold rule"},
         id="gallery",
     ),
 )
@@ -749,6 +750,14 @@ def test_a_transient_button_label_avoids_the_next_margin_button(browser, serve):
         "the fixture no longer exercises overlapping margin rows"
     )
     assert not overlaps(label_box, second_box)
+    page.mouse.move(0, 0)
+    button.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(button).to_be_focused()
+    assert label.evaluate("node => node.getAnimations().length") == 0, (
+        "a keyboard destination delayed its label behind paint-only motion"
+    )
     assert errors == []
     page.close()
 

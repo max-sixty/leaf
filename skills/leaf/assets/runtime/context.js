@@ -30,10 +30,10 @@ export const runtime = {
 // `loadFrameDocument` stamps the document it writes. The reader is standing in that
 // outer document, so a contained page arrives without restoring their arrangements and
 // without placing focus: either would take the page they are actually on somewhere they
-// did not ask to go. Focus the framed chrome places later is the gallery's to take back
-// rather than this document's to refuse — a shown dialog runs the browser's own
-// focusing steps whatever the page around it wants, and only that page knows where the
-// reader was standing.
+// did not ask to go. Focus its chrome would place later is refused by the frame's body
+// rather than by this flag — `loadFrameDocument` writes that body `inert`, so a shown
+// dialog's focusing steps return against an inert subject and the reader never leaves
+// the page around the picture.
 export const containedPage = document.body.hasAttribute("data-lf-contained");
 
 export const agentName = () => runtime.agent;

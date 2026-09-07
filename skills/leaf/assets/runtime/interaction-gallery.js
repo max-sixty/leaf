@@ -9,7 +9,7 @@
 
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { runtime } from "./context.js";
-import { focusDestination, offer, reserve } from "./widget-elements.js";
+import { offer, reserve } from "./widget-elements.js";
 
 class StaleDemo extends Error {}
 
@@ -134,6 +134,14 @@ async function loadFrameDocument(frame) {
   // arrangements alone and a standalone copy knows this is a document it has no
   // server to open.
   body.toggleAttribute("data-lf-contained", true);
+  // A picture is not a place to stand, and this is the platform's word for that. A
+  // document tree has one focus, so focus landing in here is focus taken off the page
+  // the reader is actually on: their open margin cluster folds, their selection hints
+  // drop, and the next chord they press goes somewhere they cannot see. The framed
+  // chrome still runs — the replays drive it through the adapter rather than by
+  // pointing at it — but its focusing steps reach nothing, including a shown dialog's,
+  // which return at once against an inert subject.
+  body.inert = true;
   body.replaceChildren(main);
   const doc = frame.contentDocument;
   doc.open();
@@ -149,37 +157,6 @@ async function loadFrameDocument(frame) {
         { once: true },
       );
     });
-}
-
-// A document tree has one focus, so focus that lands inside a frame is focus taken off
-// the page the reader is standing on: their open margin cluster folds, their selection
-// hints drop, and the next chord they press goes to a document they cannot see. The
-// contained page cannot hand it back — `activeElement` in there names one of its own
-// elements, and only the document around it knows where the reader was — so every call
-// into a frame comes back through this document. Behind that, the framed chrome is free
-// to run the browser's own dialog focusing steps like the page it is a picture of.
-function keepsReaderStanding(api, frame) {
-  const holding =
-    (call) =>
-    (...args) => {
-      const stood = document.activeElement;
-      try {
-        return call(...args);
-      } finally {
-        if (document.activeElement === frame) {
-          if (stood?.isConnected && stood !== frame) focusDestination(stood);
-          // Nobody was standing anywhere in particular, so the page itself is where the
-          // reader is: give it back rather than leaving the picture holding the keys.
-          else frame.blur();
-        }
-      }
-    };
-  return Object.fromEntries(
-    Object.entries(api).map(([name, value]) => [
-      name,
-      typeof value === "function" ? holding(value.bind(api)) : value,
-    ]),
-  );
 }
 
 class Demo {
@@ -219,7 +196,7 @@ class Demo {
       const frameApi = this.frameElement.contentWindow?.leafInteractionGalleryFrame;
       if (!frameApi)
         throw new Error("the contained Leaf page did not expose its gallery adapter");
-      this.frameApi = keepsReaderStanding(frameApi, this.frameElement);
+      this.frameApi = frameApi;
       await loadFrameModule(
         this.frameElement,
         leafEntry,

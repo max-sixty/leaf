@@ -758,9 +758,9 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
 
         # Arrival is the easy half. The Threads replay opens a <dialog> in the frame, and
         # a shown dialog runs the browser's own focusing steps whatever the page around
-        # it wants, so this is where the reader's focus actually goes if nobody takes it
-        # back. They are standing on the tab they just pressed, and the chord they press
-        # next has to still reach the page they are reading.
+        # it wants — the frame's inert body is what those steps land against. They are
+        # standing on the tab they just pressed, and the chord they press next has to
+        # still reach the page they are reading.
         threads_tab = gallery.get_by_role("tab", name="Open and close Threads")
         threads_tab.click()
         threads_frame = gallery.locator(
@@ -772,14 +772,14 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         expect(status).to_have_text("Open and close Threads · Complete", timeout=20_000)
         assert threads_tab.evaluate("tab => document.activeElement === tab")
 
-        # A tab is a tab stop of its own, so putting the reader back on one asks nothing
-        # of the handback. The places a reader actually addresses mostly are not: a `g`
-        # hint, a version swap and the skip link all land on a heading or a fold that
-        # `focusDestination` lent a stop to, and the frame taking focus is the blur that
-        # takes the lend away again. So the second run stands the reader where the go-to
-        # chord stands them — in the same synchronous step that starts the replay, before
-        # any framed call can run — and the panel opens against a destination that is no
-        # longer focusable by the time the handback comes.
+        # A tab holds focus on its own, so standing there survives anything short of
+        # something else taking it. The places a reader actually addresses mostly do not:
+        # a `g` hint, a version swap and the skip link all land on a heading or a fold
+        # that `focusDestination` lent a stop to behind a one-shot blur listener, so a
+        # frame that took focus even for a moment would spend the lend and leave nowhere
+        # to put the reader back. The second run stands them where the go-to chord stands
+        # them — in the same synchronous step that starts the replay, before any framed
+        # call can run — and the destination has to still be theirs when it completes.
         assert (
             page.evaluate(
                 """async () => {

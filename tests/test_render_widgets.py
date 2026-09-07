@@ -3286,8 +3286,8 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
     item = row.locator("xpath=..")
     expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
     page.unroute("**/api/event")
-    item.get_by_role("button", name="Retry", exact=True).click()
-    round_trip(page)
+    with sending(page, "the retried withdrawal"):
+        item.get_by_role("button", name="Retry", exact=True).click()
     expect(page.locator("#sug")).not_to_have_attribute(
         "data-lf-state", re.compile(".+")
     )
@@ -3469,12 +3469,14 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
     for widget in ("sug-refill", "sug-thistle", "sug-in-card"):
         expect(page.locator(f"#{widget} lf-new")).to_be_visible()
         # Waited for, not read once: each is decided by its own round trip, so the
-        # last of them is still in flight when the first has settled.
-        expect(
-            page.locator(f"[data-lf-for='{widget}']").get_by_role(
-                "button", name=re.compile(r"^Undo accepting")
-            )
-        ).to_be_visible()
+        # last of them is still in flight when the first has settled. Undo stands
+        # disabled while the decision it takes back is in the wire, so an enabled
+        # one is this row's own answer come back.
+        undo_button = page.locator(f"[data-lf-for='{widget}']").get_by_role(
+            "button", name=re.compile(r"^Undo accepting")
+        )
+        expect(undo_button).to_be_visible()
+        expect(undo_button).to_be_enabled()
         expect(
             page.locator(f"[data-lf-for='{widget}'] .lf-margin-receipt")
         ).to_have_count(0)
@@ -3486,9 +3488,8 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
     # Nothing left to accept, so the button says nothing rather than saying zero.
     expect(page.get_by_role("button", name=re.compile("Accept all"))).to_be_hidden()
 
-    # The controls settle from their individual authoritative answers. Wait for the
-    # whole outbox as well: the rows are asserted one at a time above, while this is
-    # the boundary before reading the shared log as a sequence.
+    # Every decision above is settled; this is the boundary for a stray post the
+    # sequence below would otherwise read as absent.
     round_trip(page)
     logged = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
@@ -6327,8 +6328,8 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
     assert flat["cut"], f"the words selected are inside the box already: {flat}"
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.locator(".lf-composer textarea").fill("Unwrapped, this line runs off the box.")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the comment on the unwrapped line"):
+        page.keyboard.press("ControlOrMeta+Enter")
 
     page.locator("lf-diff .lf-diff-wrap").click()
     folded = row.evaluate(_SELECT_IN_ROW, _DIFF_TAIL)
@@ -6338,8 +6339,8 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
     )
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.locator(".lf-composer textarea").fill("Wrapped, the same words are on screen.")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the comment on the wrapped line"):
+        page.keyboard.press("ControlOrMeta+Enter")
 
     anchors = [
         event["anchor"] for event in sent_events(serve.page_dir) if event.get("anchor")

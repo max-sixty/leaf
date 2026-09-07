@@ -64,6 +64,7 @@ from render_support import (
     resized,
     round_trip,
     select,
+    sending,
     stamp_version_file,
     told,
 )
@@ -142,8 +143,8 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     page.keyboard.type("because every active session must end before support continues")
     assert field.bounding_box()["height"] > one_line
     expect(page.locator(".lf-composer")).to_have_css("display", "contents")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the compact comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment"
     assert sent["text"] == (
@@ -795,8 +796,8 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     page, errors = open_page(browser, live_url(serve(ASK_PAGE)))
     page_dir = serve.page_dir
     resized(page, 1440, 900)
-    page.locator("#job-mounts").click()
-    round_trip(page)
+    with sending(page, "the mounts choice"):
+        page.locator("#job-mounts").click()
     logged_action = next(
         event
         for event in reversed(events_model.read_events(page_dir))
@@ -1147,9 +1148,9 @@ def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
     expect(composer).to_be_hidden()
 
     page.locator("#opt-shim .lf-pick").focus()
-    page.keyboard.press(" ")
+    with sending(page, "the pick"):
+        page.keyboard.press(" ")
     expect(page.locator("#approach > lf-option[chosen]")).to_have_count(1)
-    round_trip(page)
     assert [
         e["action"] for e in events_model.read_events(serve.page_dir) if "action" in e
     ] == ["choose"]
@@ -1285,8 +1286,8 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     composer_input.click()
     expect(composer_input).to_be_focused()
     composer_input.fill("the ring reads too heavy")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the design comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
     events = events_model.read_events(serve.page_dir)
     posted = [e for e in events if e["kind"] == "comment"]
     assert [(e["about"], e["anchor"]) for e in posted] == [
@@ -1475,8 +1476,8 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     expect(page.locator("#lf-composer-quote")).to_have_text(f"layer · {said} · banner")
     expect(page.locator(".lf-panel")).to_be_hidden()
     page.locator(".lf-composer textarea").fill("reads dim against the wash")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the comment on the chrome"):
+        page.keyboard.press("ControlOrMeta+Enter")
     posted = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
     ]
@@ -2180,8 +2181,8 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     page.locator(".lf-composer textarea").fill("name the retry path here")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the comment on the node"):
+        page.keyboard.press("ControlOrMeta+Enter")
 
     posted = [
         event
@@ -2222,8 +2223,8 @@ def test_design_mode_treats_a_renderer_node_as_part_of_its_widget(browser, serve
     page.locator(".lf-composer textarea").fill(
         "the diagram needs a stronger affordance"
     )
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the comment on the diagram"):
+        page.keyboard.press("ControlOrMeta+Enter")
     posted = [
         event
         for event in events_model.read_events(serve.page_dir)

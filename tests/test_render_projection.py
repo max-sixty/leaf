@@ -41,6 +41,7 @@ from render_support import (
     REF_PAGE,
     RELATIVE_WIDGET_MODULE,
     RELATIVE_WIDGET_PAGE,
+    RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     REPORT_PAGE,
@@ -943,8 +944,8 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     )
 
     page.locator(".lf-general textarea").fill("This comment belongs to the live draft.")
-    page.locator(".lf-general button").click()
-    round_trip(page)
+    with sending(page, "the comment on the live draft"):
+        page.locator(".lf-general button").click()
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
     assert errors == []
     page.close()
@@ -1446,14 +1447,40 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     # Reached with real presses, because :focus-visible answers the input device and a
     # control focused from script wears no ring for any reading to compare.
     page.keyboard.press("a")
+    suggestion = page.locator("#sug-refill")
+    expect(suggestion).to_have_attribute("data-lf-ask", "1")
     accept = page.locator(".lf-sug-accept")
     accept.focus()
+    # Tab inside the margin reaches the same suggestion's ✗ Reject, re-presented as the
+    # options group's proxy for it. A control that forwards another control's press
+    # stands where that control stands, so the reader is still deciding this change and
+    # the ring stays on it. It did not: the proxy stood nowhere, the band came off the
+    # suggestion for as long as the reader held that control, and returning to ✓ Accept
+    # brought it back a frame later — which is also how the read below came to be taken
+    # while nothing on the page was ringed at all.
+    #
+    # Read after the frame the focus move's repaint is coalesced into, so this states the
+    # band the page settles on rather than whichever side of that frame the read lands on.
     page.keyboard.press("Tab")
+    page.evaluate(RENDERED)
+    forwarded_ring = suggestion.evaluate(RING)
+    assert forwarded_ring == row_ring, (
+        "the decision lost its ring while the reader held the margin's proxy for one of "
+        f"its own controls: {forwarded_ring} against {row_ring}"
+    )
+    # The stand-in says where it stands in an attribute of its own. Said in the row's
+    # attribute instead, every selector meaning "the row for this change" — the runtime's
+    # own lookups, the theme, and a good part of this suite — would resolve to two
+    # elements for the one ask, since the options group is built on every margin render
+    # and merely hidden while it is closed.
+    assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
+        "the suggestion's margin row is no longer the one element that identifies it"
+    )
     page.keyboard.press("Shift+Tab")
     expect(accept).to_be_focused()
     # A decision that is not a joined control wears the ring itself, and it is the band
     # the row above wore: the two shapes say one thing about the reader.
-    decision_ring = page.locator("#sug-refill").evaluate(RING)
+    decision_ring = suggestion.evaluate(RING)
     assert decision_ring == row_ring, (
         "a decision and an options row are drawn in two different bands for the one "
         f"fact: {decision_ring} against {row_ring}"
@@ -4214,9 +4241,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
         page.locator(".lf-threads-toggle").click()
     expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
 
-    expect(page.locator(".lf-keyline")).to_contain_text("undo")
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
     assert events_model.read_events(d)[-1]["kind"] == "undo"
     expect(page.locator("#rp-live lf-option[chosen]")).to_have_count(0)
     assert errors == []
@@ -4296,7 +4321,8 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.locator("#tq-logs").click()
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
     expect(decisions).to_have_text("Asks 1/2")
-    page.locator("#tq-set .lf-done").click()
+    with sending(page, "the answer"):
+        page.locator("#tq-set .lf-done").click()
     expect(decisions).to_have_text("Asks 2/2")
     expect(decisions).to_have_attribute("data-lf-complete", "")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
@@ -4310,7 +4336,6 @@ def test_a_thread_question_asks_until_answered(browser, serve):
         render_checks_model.evaluate_probe(page, "undeclaredAttrs", page_registry(page))
         == []
     ), "the Done press left an attribute on a widget its entry never declared"
-    round_trip(page)
     actions = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
@@ -4730,13 +4755,13 @@ def test_command_goal_can_pause_after_an_ordinary_conversation_started(browser, 
     conversation = goal.locator(":scope > .lf-conversation")
     first = conversation.locator(":scope > .lf-say")
     first.get_by_role("textbox").fill("Keep parsing; this is only a note.")
-    first.get_by_role("button", name="Send", exact=True).click()
-    round_trip(page)
+    with sending(page, "the note"):
+        first.get_by_role("button", name="Send", exact=True).click()
 
     expect(first).to_be_visible()
     first.get_by_role("textbox").fill("Finish the hunk, then park.")
-    first.get_by_role("button", name="Send & pause", exact=True).click()
-    round_trip(page)
+    with sending(page, "the held send"):
+        first.get_by_role("button", name="Send & pause", exact=True).click()
 
     expect(goal).to_have_attribute("data-lf-held")
     roots = [
@@ -4811,11 +4836,11 @@ def test_command_hub_request_waits_for_one_linked_host_receipt(browser, serve):
           });
         }"""
     )
-    operations.get_by_role("button", name="Restart with a fresh worker").click()
+    with sending(page, "the restart request"):
+        operations.get_by_role("button", name="Restart with a fresh worker").click()
     assert page.evaluate("() => window.__lfFirstRequestAnswer") == (
         "Restart with a fresh worker"
     ), "the open Asks tray missed the package's first request projection"
-    round_trip(page)
     requests = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -4887,8 +4912,8 @@ def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
     page, errors = open_page(browser, live_url(serve(first)))
     operations = page.locator("#commands")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-    operations.get_by_role("button", name="Restart").click()
-    round_trip(page)
+    with sending(page, "the restart request"):
+        operations.get_by_role("button", name="Restart").click()
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
     request = next(
         event
@@ -5001,8 +5026,8 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     panel_settled(page)
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
     operations = page.locator("#thread-commands")
-    operations.get_by_role("button", name="Restart").click()
-    round_trip(page)
+    with sending(page, "the restart request"):
+        operations.get_by_role("button", name="Restart").click()
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/6")
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you")
     request = next(
@@ -5027,8 +5052,8 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
     expect(operations).to_contain_text("restart failed")
 
-    operations.get_by_role("button", name="Restart").click()
-    round_trip(page)
+    with sending(page, "the retried restart request"):
+        operations.get_by_role("button", name="Restart").click()
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you")
     request = [
         event
@@ -5065,10 +5090,10 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
 def test_a_succeeded_host_request_waits_for_an_authored_plan_revision(browser, serve):
     """A receipt records the host outcome; it does not rewrite the page's plan."""
     page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
-    page.locator("#dedupe-operations").get_by_role(
-        "button", name="Park it for tomorrow"
-    ).click()
-    round_trip(page)
+    with sending(page, "the park request"):
+        page.locator("#dedupe-operations").get_by_role(
+            "button", name="Park it for tomorrow"
+        ).click()
     request = next(
         event
         for event in events_model.read_events(serve.page_dir)
@@ -5122,8 +5147,8 @@ def test_a_failed_host_request_reopens_its_commands_without_changing_the_plan(
     """Failure makes another attempt available and leaves authored state alone."""
     page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     operations = page.locator("#dedupe-operations")
-    operations.get_by_role("button", name="Park it for tomorrow").click()
-    round_trip(page)
+    with sending(page, "the park request"):
+        operations.get_by_role("button", name="Park it for tomorrow").click()
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/5")
     request = next(
         event
@@ -5404,8 +5429,8 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     editor.fill(
         "ledger_id,customer_name,billing_email,amount\n7,[redacted],[redacted],42"
     )
-    controls.get_by_role("button", name="Save").click()
-    round_trip(page)
+    with sending(page, "the saved edit"):
+        controls.get_by_role("button", name="Save").click()
 
     edit = next(
         event
@@ -5659,8 +5684,8 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     goal = page.locator("#goal-parser")
     conversation = goal.locator(":scope > .lf-conversation")
     conversation.get_by_role("textbox").fill("Finish the current hunk, then park here.")
-    conversation.get_by_role("button", name="Send & pause", exact=True).click()
-    round_trip(page)
+    with sending(page, "the held send"):
+        conversation.get_by_role("button", name="Send & pause", exact=True).click()
     expect(goal).to_have_attribute("data-lf-held")
     expect(goal.locator(":scope > .lf-task-meta")).to_contain_text("paused by you")
     expect(page.locator("#atlas-record")).to_contain_text(
@@ -5690,14 +5715,13 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()
 
     page.get_by_role("button", name=re.compile("^Threads")).click()
-    page.locator(f'.lf-thread[data-id="{root["id"]}"]').get_by_role(
-        "button", name="Resolve thread", exact=True
-    ).click()
-    round_trip(page)
+    with sending(page, "the resolution"):
+        page.locator(f'.lf-thread[data-id="{root["id"]}"]').get_by_role(
+            "button", name="Resolve thread", exact=True
+        ).click()
     expect(goal).not_to_have_attribute("data-lf-held")
 
-    page.keyboard.press("z")
-    round_trip(page)
+    undo(page)
     expect(goal).to_have_attribute("data-lf-held", root["id"])
     assert [
         event["kind"]
@@ -6015,8 +6039,8 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
         "btn",
     ], f"a request press wears no here ring from the layer's shared rule: {ring}"
 
-    live.click()
-    round_trip(page)
+    with sending(page, "the request"):
+        live.click()
     request = next(
         event
         for event in events_model.read_events(serve.page_dir)

@@ -72,6 +72,15 @@ what a host actually runs is the subject. `shipped_payload()` and
 --exclude-standard` reports rather than walking the filesystem, so unstaged
 additions count and ignored build caches do not.
 
+That listing is why the run's temporary tree stays out of the checkout. A
+`--basetemp` inside it and not ignored makes every fixture the run writes a
+candidate payload, and the install boundary then fails about a tree full of
+temporary pages rather than about the flag, so `pytest_configure` in
+`interact_support.py` refuses one up front. Leave the flag off: pytest already
+puts the basetemp under `$TMPDIR`, and a concurrent sibling run cannot rotate it
+away, because pytest locks the numbered directory it is using and skips a locked
+one when it prunes.
+
 ## Put each assertion at the boundary that owns it
 
 The `test_interact_*.py` modules exercise authored markup, the registry, the

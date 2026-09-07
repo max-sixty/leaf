@@ -49,6 +49,7 @@ from render_support import (
     open_page,
     resized,
     round_trip,
+    sending,
     sent_events,
     stamp_page,
     stamp_version_file,
@@ -1621,8 +1622,8 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     page, errors = open_page(browser, live_url(url))
     d = serve.page_dir
 
-    page.locator("#job-mounts").click()
-    round_trip(page)
+    with sending(page, "the mounts choice"):
+        page.locator("#job-mounts").click()
     action = next(
         event
         for event in reversed(sent_events(d))
@@ -2344,13 +2345,13 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
         "one is not the quoting"
     )
     assert page.locator("#rp-memory").evaluate(hand) != "pointer"
-    page.locator("#rp-memory").click()
-    page.locator("#rp-stage").click()
-
     # Waiting on the log for *an* action would settle for the live group's and never see
-    # a second one the exhibit had no business sending. The page's own count is the whole
-    # of what it sent, so this waits out an exhibit's stray post too.
-    round_trip(page)
+    # a second one the exhibit had no business sending. Enclosing the presses waits for
+    # the page's own count to grow and then for every trip to end, so an exhibit's stray
+    # post is in the log to be read rather than still in flight.
+    with sending(page, "the live group's pick"):
+        page.locator("#rp-memory").click()
+        page.locator("#rp-stage").click()
     actions = [e for e in events_model.read_events(d) if e["kind"] == "action"]
     assert [(e["widget"], e["detail"]) for e in actions] == [
         ("rp-live", {"options": ["rp-stage"]})

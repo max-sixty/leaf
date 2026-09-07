@@ -3280,9 +3280,10 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
 
 def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     """A move outlives its notice: the card the user moved stays explicitly
-    identified as overriding authored placement and its grip says so, in the tab that moved
-    it and in a fresh replay alike, because the runtime compares the page's state
-    against the version's own snapshot rather than remembering who wrote what.
+    identified as overriding authored placement in the tab that moved it and in a fresh
+    replay alike, because the runtime compares the page's state against the version's
+    own snapshot rather than remembering who wrote what. The runtime's quiet word and
+    Page-map entry carry that origin while the grip names the move and its destination.
     The card the move displaced stays unmarked — the log named one card, not its
     neighbours. The honoring version says the state itself, so on it the
     disagreement and both renderings are gone."""

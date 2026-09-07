@@ -14,11 +14,11 @@
  *
  * The board also says what it is non-visually: columns are labeled lists and
  * cards their items (#structure), and each grip is named for the column its
- * card now sits in and whether its move awaits a version (#names). Both are
- * attributes on authored elements — the light DOM stays verbatim, which is
- * what the anchor pass and the version diff walk. The theme's column heading
- * is CSS generated content with empty alt text, so the label reaches the tree
- * once, as the list's name, rather than twice. */
+ * card now sits in (#names). Both are attributes on authored elements — the
+ * light DOM stays verbatim, which is what the anchor pass and the version diff
+ * walk. The theme's column heading is CSS generated content with empty alt
+ * text, so the label reaches the tree once, as the list's name, rather than
+ * twice. */
 import Sortable from "/vendor/sortable.esm.js";
 import {
   actionAvailable,
@@ -91,12 +91,11 @@ customElements.define(
       this.#stopActions ??= watchActions(this, null, this.#paintAvailability);
       this.#observeMotion();
       this.#names();
-      // Grip names come from where their cards sit and whether the runtime has
-      // marked the placement as their move, so mutations of those two inputs
-      // restate them — not the four paths that move a card (arrow step, drag,
-      // cancel, replay) plus the origin pass, any of which would eventually
-      // forget. Only the origin attribute is observed, so #names writing an
-      // aria-label cannot feed the pass back into itself.
+      // Grip names come from where their cards sit, so column child-list mutations
+      // restate them — not the four paths that move a card (arrow step, drag, cancel,
+      // replay), any of which would eventually forget. #names writes an aria-label on
+      // the grip, which is not a child-list mutation and cannot feed this pass back
+      // into itself.
       this.#observeNames();
     }
 

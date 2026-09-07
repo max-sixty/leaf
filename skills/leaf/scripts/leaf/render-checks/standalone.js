@@ -154,9 +154,14 @@ export function bake() {
       if (element.shadowRoot) roots.push(element.shadowRoot);
   const all = (selector) =>
     roots.flatMap((root) => [...root.querySelectorAll(selector)]);
+  //
+  // A contained frame goes for the same reason a script does. The document in it is a
+  // second Leaf page the runtime wrote, naming the runtime, the theme, and its adapter
+  // on a server the file has not got; left in place it opens a frame that fetches
+  // nothing and shows a blank stage where a replay used to be.
   all(
     "script, .lf-chrome, .lf-receipt, .lf-say, .lf-mark-note, " +
-      '[data-lf-behavior="status"]',
+      'iframe[data-lf-contained], [data-lf-behavior="status"]',
   ).forEach((el) => el.remove());
   // A measurement of this window is not a fact about the reader's. The live page states
   // each drawn edge's width inline on the root, and an inline value outranks every rule
@@ -220,7 +225,7 @@ export function bake() {
   // (the runtime's @media print rule, on these same two markers). A mark reading
   // "chosen" is the page stating which option won, and it stays with the role and the
   // tab stop taken off it; "choose one" is an invitation, and it leaves with the grips,
-  // the pills and the pencils. Where the words a removal takes with it are the page's —
+  // the chips and the pencils. Where the words a removal takes with it are the page's —
   // a settled group's disclosure names its chosen card, a tab's button names its panel —
   // the copy has those open underneath saying it themselves, which is why paper drops
   // the same two.

@@ -56,8 +56,8 @@
 
 /* Ordinary action controls use `.lf-btn`, whose shared theme rules also enter declared
    shadow trees. Packages may set placement and density, but keep its shape, border,
-   hover, and disabled treatment. Margin Buttons, reaction chips, and status labels retain
-   their own forms.
+   hover, and disabled treatment. Icon-only actions keep the same corner on a square
+   face. Margin Buttons, reaction chips, and status labels retain their own forms.
 
    Typography is presentation, not passage permission. A chip or code annotation may look
    like apparatus and still be a page word the reader can quote.
@@ -135,6 +135,7 @@
      focus conventions and reads as ink on ivory rather than as UI. */
   --accent: #2f5480; --ok: #3f7d4e;   --warn: #b4741a;   --danger: #b4402f;
   --r: 6px;
+  --chip-r: 3px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px;
   /* The smallest box the layer offers a reader to aim at, on either axis. One token
      rather than a number in each rule, and one token rather than two floors and a media
@@ -886,7 +887,7 @@ dd { margin: 0 0 8px 0; }
  * live and a quantity here is one that moves — a task's done fraction, a metric's
  * value, a badge's count, each rewritten in place by a report the reader never
  * asked for. The sans sets its digits to their own widths, so a rewrite resizes the
- * box the number is set in — a chip is a filled pill, so that edge is visible on its
+ * box the number is set in — a chip has a filled edge, so that edge is visible on its
  * own — and moves whatever stands after it, which for a metric is the delta riding
  * against its value. Measured in this stack, `1,412` and `1,398` stand 4.6px apart at
  * --t-2 and `11,111` and `41,208` 15.5px, all four identical once the figures are
@@ -902,7 +903,7 @@ dd { margin: 0 0 8px 0; }
 .lf-error {
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
-/* The pill a small label rides in. These numbers are a contract across layers: the
+/* The compact face a small label rides in. These numbers are a contract across layers: the
  * default-package widgets' chips (lf-chip, a milestone's attribute row) restate them in
  * packages/default/theme.css so a band of chips and an inline .tag stand the same height —
  * they drifted four pixels apart once, when the inline label padded itself and
@@ -910,9 +911,9 @@ dd { margin: 0 0 8px 0; }
  * own where the tint is the point. */
 .tag {
   display: inline-block; font-size: var(--t-6); line-height: 1.6; padding: 0 8px;
-  border-radius: 999px; background: var(--chip); color: var(--ink-2); }
+  border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 
-/* Pressable, said once per layer, and the pill above is what it is said against. A
+/* Pressable, said once per layer, and the chip above is what it is said against. A
  * chip that opens a section and a badge that counts something were the same object at
  * rest — one ground, one ink, one corner, one size — and the only page that said which
  * was which said it in prose. The reader had to press one to find out.
@@ -1008,7 +1009,7 @@ dd { margin: 0 0 8px 0; }
    than the body, looser, and in the ink the body isn't. */
 .lede { color: var(--ink-2); font-size: var(--t-3); line-height: 1.5;
         margin: 0 0 10px; }
-/* Riding in a line of prose is all this adds to the pill above. */
+/* Riding in a line of prose is all this adds to the chip above. */
 .tag { vertical-align: middle; }
 /* A tinted field with a hairline border — never a left-accent bar. What sits in it is the
    page's own prose at the page's own size, so the tint is the whole of the marking and
@@ -1352,19 +1353,19 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
   .lf-conversation-thread :is(.lf-say, button, .lf-receipt), .lf-mark-note {
           display: none !important; }
 }
-/* A reaction chip and its trigger wear the chrome's pill face. That face is written in
+/* A reaction chip and its trigger wear the chrome's chip face. That face is written in
    the chrome stylesheet, which no declared shadow root sees, so a widget's own thread
    outlet drew the platform's button instead: on the dark scheme its ButtonFace grey put
    the muted word at 1.86:1. Repeated here with the reset it needs, the way .lf-mark-note
    above repeats its own. */
-.lf-pill { appearance: none; margin: 0; padding: 0 8px; white-space: nowrap;
-          border: 1px solid var(--border-2); border-radius: 999px;
+.lf-chip { appearance: none; margin: 0; padding: 0 8px; white-space: nowrap;
+          border: 1px solid var(--border-2); border-radius: var(--chip-r);
           background: var(--card); color: var(--ink-2);
           font: inherit; font-size: var(--t-6); line-height: 1.7; }
-.lf-pill:is(button, [role="button"]) { cursor: pointer; }
-.lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
-.lf-pill:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-          --lf-here-ring: pill; outline-offset: 1px; }
+.lf-chip:is(button, [role="button"]) { cursor: pointer; }
+.lf-chip:is(button, [role="button"]):hover { background: var(--chip); }
+.lf-chip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+          --lf-here-ring: chip; outline-offset: 1px; }
 .lf-react-trigger { color: var(--muted); }
 .lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .lf-react-open > .lf-react-trigger { display: none; }
@@ -1385,7 +1386,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           inset-block-start: -3px; inset-inline-end: -2px;
           box-sizing: border-box; inline-size: 26px; block-size: 26px; padding: 0;
           display: inline-flex; align-items: center; justify-content: center;
-          border: 1px solid transparent; border-radius: 50%; background: var(--card);
+          border: 1px solid transparent; border-radius: var(--r); background: var(--card);
           opacity: 0; cursor: pointer; }
 /* Stand the trigger off the resolve control's ring, not off its box. The trigger is
    painted above the head and turns opaque while the message is focus-within, which is
@@ -1409,7 +1410,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-react-strip.lf-react-open > .lf-react-palette {
           position: absolute; z-index: 3; inset-block-start: 0;
           inset-inline-end: -2px; width: max-content; padding: 4px;
-          border: 1px solid var(--border-2); border-radius: 999px;
+          border: 1px solid var(--border-2); border-radius: var(--r);
           background: var(--card); box-shadow: 0 4px 12px var(--shade); }
 @media (hover: none) {
   .lf-react-strip > .lf-react-trigger { opacity: 1; }
@@ -1900,19 +1901,19 @@ html.lf-versioning::view-transition-new(root) {
           box-sizing: border-box; width: var(--lf-icon-action-hit);
           height: var(--lf-icon-action-hit); min-width: var(--lf-icon-action-hit);
           min-height: var(--lf-icon-action-hit); padding: 0; display: grid;
-          place-items: center; }
+          place-items: center; border-radius: var(--r); }
 .lf-action-icon { position: relative; z-index: 1; inline-size: 16px; block-size: 16px;
           overflow: visible; pointer-events: none; fill: none; stroke: currentColor; stroke-width: 1.6;
           stroke-linecap: round; stroke-linejoin: round; }
 /* Closing changes the view; resolving changes durable thread state. */
-.lf-close-action { border: 0; border-radius: 50%; background: transparent;
+.lf-close-action { border: 0; background: transparent;
           color: var(--muted); }
 .lf-close-action:hover { background: var(--chip); color: var(--ink); }
 .lf-compose-submit { position: absolute; z-index: 1; inset-inline-end: 6px;
-          inset-block-end: 6px; border: 0; border-radius: 50%;
+          inset-block-end: 6px; border: 0;
           background: transparent; color: var(--paper); filter: none; }
 .lf-compose-submit::before { content: ""; position: absolute; box-sizing: border-box;
-          width: 28px; height: 28px; border-radius: 50%; background: var(--accent); }
+          width: 28px; height: 28px; border-radius: var(--r); background: var(--accent); }
 .lf-compose-submit:hover { background: transparent; filter: none; }
 .lf-compose-submit:not(:disabled, [aria-disabled="true"]):hover::before { filter: brightness(.92); }
 .lf-compose-submit:is(:disabled, [aria-disabled="true"]) { opacity: 1;
@@ -1920,11 +1921,11 @@ html.lf-versioning::view-transition-new(root) {
 .lf-compose-submit:is(:disabled, [aria-disabled="true"])::before {
           border: 1px solid var(--border-2); background: var(--paper); }
 .lf-resolve.lf-icon-action { position: relative; flex: none; margin-inline-start: auto;
-          border: 0; border-radius: 50%; background: transparent; color: var(--ink);
+          border: 0; background: transparent; color: var(--ink);
           box-shadow: none; }
 .lf-resolve.lf-icon-action::before { content: ""; position: absolute;
           box-sizing: border-box; inline-size: 28px; block-size: 28px;
-          border: 1px solid var(--border-2); border-radius: 50%; background: var(--paper); }
+          border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper); }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover {
           background: transparent; color: var(--ok-ink); box-shadow: none; }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {

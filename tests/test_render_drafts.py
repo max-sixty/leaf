@@ -1257,10 +1257,8 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     page.close()
 
 
-def test_a_held_comment_send_leaves_a_later_keyboard_target_selected(
-    held_events, serve
-):
-    """The target chosen with `s` is later than a comment already in flight."""
+def test_a_held_comment_send_leaves_a_later_keyboard_comment_open(held_events, serve):
+    """The Comment opened with `s` is later than a comment already in flight."""
     browser, held = held_events
     page, errors = open_page(browser, serve(NOTED_PAGE))
     compose(page, "#p1", "The first remark.")
@@ -1268,7 +1266,7 @@ def test_a_held_comment_send_leaves_a_later_keyboard_target_selected(
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the comment send")
 
-    # Leave the sending field, then use the target-first keyboard path to choose p2.
+    # Leave the sending field, then use the keyboard Comment path on p2.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
     page.keyboard.press("s")
@@ -1283,8 +1281,10 @@ def test_a_held_comment_send_leaves_a_later_keyboard_target_selected(
         }"""
     )
     page.keyboard.type(target_code)
-    expect(page.locator(".lf-fab-input")).to_be_hidden()
-    expect(page.locator("#p2")).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator("#p2")).to_have_class(
+        re.compile(r"\blf-mark-el\b.*\blf-pending\b")
+    )
     expect(page.locator(".lf-fab-bar")).to_have_attribute(
         "aria-label", re.compile(r"^Respond to paragraph")
     )
@@ -1294,13 +1294,13 @@ def test_a_held_comment_send_leaves_a_later_keyboard_target_selected(
     round_trip(page)
 
     expect(page.locator(".lf-thread")).to_have_count(1)
-    expect(page.locator(".lf-fab-input")).to_be_hidden()
-    expect(page.locator("#p2")).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator("#p2")).to_have_class(
+        re.compile(r"\blf-mark-el\b.*\blf-pending\b")
+    )
     expect(page.locator(".lf-fab-bar")).to_have_attribute(
         "aria-label", re.compile(r"^Respond to paragraph")
     )
-    page.keyboard.press("c")
-    expect(page.locator(".lf-fab-input")).to_be_focused()
     assert composer_quote(page)["text"].endswith("A short second passage.")
     assert errors == []
     page.close()

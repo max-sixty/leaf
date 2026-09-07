@@ -5,10 +5,10 @@
  * state; answering its report therefore removes the clause rather than restoring an
  * authored copy of something that was true only between versions.
  *
- * The upgrade only adds — a state pill before whatever the author wrote and a live
+ * The upgrade only adds — a state chip before whatever the author wrote and a live
  * line after it — and never moves or rewrites an authored node, so an error here
  * surfaces on the console and leaves the prose untouched and there is no failSoft
- * (which replaces content). The gutter the pill hangs in and every tint are theme CSS.
+ * (which replaces content). The gutter the chip hangs in and every tint are theme CSS.
  *
  * Neither position is lf-task's, which inserts its chips after the <strong>, and the
  * difference is what each row is for. A task's chips qualify its title, so they belong
@@ -151,12 +151,12 @@ function say(row, cls, text, before) {
 function stateWord(el) {
   el.querySelector(":scope > .lf-state[data-lf-gen]")?.remove();
   const state = el.getAttribute("state");
-  const pill = word(`lf-state lf-state-${state}`, state);
-  pill.dataset.lfGen = "1";
+  const chip = word(`lf-state lf-state-${state}`, state);
+  chip.dataset.lfGen = "1";
   // First in the reading, wherever the gutter puts it on screen: "working, wren, …" is
   // the row in the order a listener needs it, and appending would have read the state
   // out after the elapsed line, as an afterthought to a row it is the subject of.
-  el.prepend(pill);
+  el.prepend(chip);
 }
 
 /* The gutter's width, measured from the words rather than stated. Five states, so the
@@ -174,7 +174,7 @@ function gutter(el) {
   const wide = Math.max(
     0,
     ...[...roster.querySelectorAll(":scope > lf-agent > .lf-state")].map(
-      (pill) => pill.getBoundingClientRect().width,
+      (chip) => chip.getBoundingClientRect().width,
     ),
   );
   if (wide) roster.style.setProperty("--lf-state-room", `${Math.ceil(wide)}px`);
@@ -198,11 +198,11 @@ function render(el) {
     row.append(ref);
   }
   el.insertBefore(row, directCommandRole(el, "evidence")[0] ?? null);
-  // The pill this row just drew may be the widest in the roster, and on the first pass
+  // The chip this row just drew may be the widest in the roster, and on the first pass
   // it is the last one to know: every row measures after its own render, so the column
   // is right once the last row has rendered and right again whenever a report changes
   // one of the words in it.
-  // Off the pills' own boxes, so it waits for one (`measure`): a roster quoted
+  // Off the chips' own boxes, so it waits for one (`measure`): a roster quoted
   // into a reply is built into the thread panel, which may not be open yet.
   measure(el, () => gutter(el));
 }

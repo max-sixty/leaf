@@ -22,7 +22,16 @@ import {
   threadsBox,
 } from "../conversation/panel.js";
 import { inPanel, panelIsOpen, setPanel } from "../chrome-layout.js";
-import { composerHolds, composerOpen, fabInput } from "../composing/selection.js";
+import {
+  composerHolds,
+  composerOpen,
+  fabInput,
+  focusedResponseOption,
+  responseOptionsAreOpen,
+  responseReactionButtons,
+  setResponseOptions,
+  stepResponseOptions,
+} from "../composing/selection.js";
 import { draftOf } from "../composing/input.js";
 import {
   dismissFab,
@@ -62,6 +71,7 @@ import {
   labelOf,
   live,
   parsed,
+  PRESS,
   word,
 } from "./bindings.js";
 import {
@@ -325,11 +335,6 @@ function commentDestination() {
 export function hasCapturedTarget() {
   return Boolean(fabAnchorAt());
 }
-
-export const responseInstructions = () =>
-  reactionTokens().length
-    ? "Press c to comment, or r to react."
-    : "Press c to comment.";
 
 // c goes where commenting happens: a live selection gets the composer (what the floating
 // button does), an element click's pending 💬 gets that, an open thread the reader is
@@ -710,7 +715,7 @@ const COMPOSER = {
       keys: ["Tab"],
       does: "Show other responses",
       line: "other responses",
-      when: () => fabOptionsAvailable(),
+      when: () => fabOptionsAvailable() && !responseOptionsAreOpen(),
       run: () => showFabOptions(),
     },
     {
@@ -722,7 +727,66 @@ const COMPOSER = {
           : "Close the composer",
       line: () => (composerHolds() ? "close — draft kept" : "close"),
       promoteEscape: false,
+      when: () => !responseOptionsAreOpen(),
       run: () => dismissFab(),
+    },
+  ],
+};
+
+const RESPONSE_OPTIONS = {
+  title: "With other responses open",
+  at: () => responseOptionsAreOpen(),
+  rows: [
+    {
+      id: "response.reaction.choose",
+      keys: () =>
+        responseReactionButtons()
+          .slice(0, 9)
+          .map((_, index) => String(index + 1)),
+      label: () => {
+        const count = Math.min(responseReactionButtons().length, 9);
+        return count > 1 ? `1–${count}` : "1";
+      },
+      does: () =>
+        `Put a reaction on the response target: ${reactionTokens()
+          .slice(0, 9)
+          .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
+          .join(", ")}`,
+      line: "react",
+      when: () => !takesLetters(focused()) && responseReactionButtons().length > 0,
+      run: (binding) => responseReactionButtons()[+binding - 1]?.click(),
+    },
+    {
+      id: "response.tab",
+      keys: ["Tab", "Shift+Tab"],
+      does: "Move between the comment and other responses",
+      line: "move",
+      repeat: true,
+      run: stepResponseOptions,
+    },
+    {
+      id: "response.move",
+      keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
+      does: "Move through other responses",
+      line: "move",
+      repeat: true,
+      when: () => focusedResponseOption(),
+      run: stepResponseOptions,
+    },
+    {
+      id: "response.activate",
+      keys: PRESS,
+      does: "Use the focused response",
+      line: "choose",
+      when: () => focusedResponseOption(),
+      run: () => focused()?.click(),
+    },
+    {
+      id: "response.close",
+      keys: ["Escape"],
+      does: "Close other responses",
+      line: "close",
+      run: () => setResponseOptions(false, { returnFocus: true }),
     },
   ],
 };
@@ -1139,17 +1203,16 @@ export function pageScopes() {
   const PAGE = {
     rows: [
       actionRow,
-      // Comment can act immediately because the page itself is its target. Selecting a
-      // more particular target is the second step; only then does React become an action.
+      // The page itself is already a Comment target. `s` plus a hint names a more
+      // particular one; either route opens Comment, while reactions wait for a target.
       COMMENT_CREATE,
       {
         id: "selection.open",
         keys: ["s"],
-        does: "Choose a visible item by hint",
-        line: "select item",
-        // Once a target is in hand, its actions own the two short-line slots. Escape clears
-        // it, while this projection-only gate leaves s live to replace the target and keeps
-        // that capability in the complete reference.
+        does: "Comment on a visible item by hint",
+        line: "comment on item",
+        // Once the field is open, its typing scope owns character keys. This gate also
+        // keeps the route off the short line while a target is in hand.
         lineWhen: () => !hasCapturedTarget(),
         when: anchoringIsReady,
         run: (...args) => startSelecting(...args),
@@ -1178,7 +1241,8 @@ export function pageScopes() {
           // already complete. Capture it now so the command cannot advertise reaction
           // digits while opening no corresponding choices.
           if (pageSelection() && !fabAnchorAt()) updateFab();
-          setReact(true);
+          if (composerOpen && fabAnchorAt()) showFabOptions({ reaction: true });
+          else setReact(true);
         },
       },
       // Search remains one press from the shelf and named in full by the reference.
@@ -1335,6 +1399,7 @@ export function pageScopes() {
     SHORTCUT_SHELF,
     PAGE_MAP,
     GO,
+    RESPONSE_OPTIONS,
     REACT,
     SELECT,
     ELEMENTS,
@@ -1389,9 +1454,10 @@ export function paintCoreControls() {
         if (!("lfKeyTitle" in control.dataset))
           control.dataset.lfKeyTitle = control.title;
         const active = live(row) && bindings(row).length > 0;
-        control.title =
-          control.dataset.lfKeyTitle +
-          (active ? ` (${controlShortcut(scope, row)})` : "");
+        const shortcut = controlShortcut(scope, row);
+        control.title = control.dataset.lfKeyTitle + (active ? ` (${shortcut})` : "");
+        if (active && scope.chord) control.dataset.lfChord = shortcut;
+        else delete control.dataset.lfChord;
         // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
         // alternatives. The complete chord remains in the visible hint and accessible
         // keyboard reference instead of claiming its final press works alone.

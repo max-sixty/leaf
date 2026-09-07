@@ -2,25 +2,24 @@
 
    Normal reading mode leaves a plain click on unadorned authored content to the
    browser. Visible native and Leaf controls keep their click actions; text selection
-   targets words. `s` chooses an item before the reader chooses a response, while
-   Alt-click and a visual's “Respond to…” proxy are explicit Comment gestures. They all
-   pass a stable target from `aimTargetAt` or the visual provider into this surface. A
-   whole item or picture names its authored id, while a visual part adds its declared
-   token. Comment opens the compact field; Tab or its ellipsis raises each reaction as
-   a Button in the target's margin. Tab, Shift-Tab, and the arrow keys then wrap through
-   the visible Buttons. Escape restores the field; Escape from the field hides the
-   draft. The same anchor resolves both states against the target's geometry.
+   targets words. Alt-click, `s`, and a visual's “Respond to…” proxy are explicit
+   Comment gestures. They pass a stable target from `aimTargetAt` or the visual provider
+   into this surface. A whole item or picture names its authored id, while a visual part
+   adds its declared token. Comment opens the compact field; Tab or its ellipsis extends
+   that field with the other response Buttons. Tab, Shift-Tab, and the arrow keys then
+   wrap through the visible Buttons. Escape folds the extension; Escape from the field
+   hides the draft.
+   The same anchor resolves both states against the target's geometry.
 
    The bar a selection or keyboard-selected item raises is `.lf-fab-bar`: the durable,
-   compact `.lf-fab-input` followed by one response ellipsis. Choosing an item with `s`
-   raises only that response surface's actions; an explicit Comment gesture opens and
-   focuses the field. Selecting a passage leaves the field open but unfocused
+   compact `.lf-fab-input` followed by one response ellipsis. An explicit item target
+   opens and focuses that field. Selecting a passage leaves the field open but unfocused
    without collapsing the browser selection; the reader can still copy
    the selection or use its native context menu, then enter the field with Comment. The
    field grows in place and never transfers text into a second composer card. A
-   one-line note is a pill. A longer one widens up to a readable 80ch and then wraps,
-   and grows into the available clear band before it scrolls; its corner stays the
-   pill's 16px rather than growing with the box, so the corner never reaches over the
+   one-line note uses the shared action corner. A longer one widens up to a readable
+   80ch and then wraps, and grows into the available clear band before it scrolls; its
+   corner stays fixed rather than growing with the box, so it never reaches over the
    first or last line. Placement states a float's room as `--lf-float-w` and
    `--lf-float-h`; the bar is capped by it and the field's `--lf-response-room`
    excludes its neighboring controls. The field's scroll extent supplies its desired
@@ -30,17 +29,16 @@
    without discarding its draft. If the disappearing bar held focus, the visible
    Threads list takes it; an unrelated focused control keeps it. A partially exposed
    page remains interactive whenever the bar fits its actual remaining room. Enter
-   inserts a newline; `Mod+Enter` sends. Tab raises the layer's reaction tokens in the
-   target's margin. A layer with no reaction vocabulary keeps the bar's Comment and
-   Suggest fallback.
+   inserts a newline; `Mod+Enter` sends. Tab extends the bar with the layer's reaction
+   tokens. A layer with no reaction vocabulary keeps the bar's Comment and Suggest
+   fallback.
 
    `showFab` places the bar; `openComposer` (composing/selection.js) binds its field to
-   the durable draft and takes the focus decision. Item selection passes its resolved
-   anchor to `selectTarget`; explicit Comment routes use `commentOnTarget`, which focuses
-   the field and carries an unsent draft to the new target. Automatic passage selection
-   opens that passage's own durable draft without moving focus. Submitted words still in
-   flight remain owned by their original anchor, while a later target starts clean and
-   keeps focus.
+   the durable draft and takes the focus decision. Every explicit item and visual route
+   passes its resolved anchor to `commentOnTarget`, which focuses the field and carries an
+   unsent draft to the new target. Automatic passage selection opens that passage's own
+   durable draft without moving focus. Submitted words still in flight remain owned by
+   their original anchor, while a later target starts clean and keeps focus.
 
    `placeClear` fits the response bar into a free band bounded by the viewport, its
    target, and controls carrying `data-lf-offer`. A quoted passage keeps its whole
@@ -61,12 +59,15 @@ import { documentPoint, shownBox, shownParts, shownRect } from "../geometry.js";
 import { targetElement, targetParts, targetSegments } from "../resolved-target.js";
 import {
   composerOpen,
-  detachComposer,
   fab,
   fabBar,
   fabInput,
   hideComposer,
   openComposer,
+  resetResponseOptions,
+  responseOptionsAvailable,
+  setResponseOptions,
+  syncResponseOptions,
 } from "./selection.js";
 import { designOn, designTarget, openOnDesign } from "../design.js";
 import { referenceOpen, showReference } from "../keyboard/reference.js";
@@ -204,6 +205,14 @@ function placeClear(node, left, top, target, wantedHeight) {
 let fabAnchor = null;
 let fabOrigin = null;
 let fabFloating = true;
+// Opening the trailing choices grows or wraps the bar. Hold the compact bar's left
+// edge through that state, including the ResizeObserver layout pass it causes.
+let fabFixedLeft = null;
+let fabFixedRightEdge = null;
+function releaseFabPosition() {
+  fabFixedLeft = null;
+  fabFixedRightEdge = null;
+}
 const union = (rects) => {
   if (!rects.length) return null;
   const left = Math.min(...rects.map((rect) => rect.left));
@@ -269,9 +278,21 @@ function anchorBox(anchor) {
 // The passage remains the exact anchor, but its containing paragraph is not spare
 // space: a short selection cannot lend the words after it to the response field.
 // Keep the bar beside that whole block, or above/below it when the rail is too narrow.
-function placeFab(target = anchorBox(fabAnchor)) {
+function placeFab(target = anchorBox(fabAnchor), fixedLeft = fabFixedLeft) {
   if (!fabAnchor || !target) return false;
-  const room = rightEdge() - 8;
+  const edge = rightEdge();
+  // The lock spans the expansion's own layout frames, not a changed viewport or
+  // workspace. Once the available band changes, re-place the whole group against its
+  // durable anchor instead of letting the old x-coordinate dismiss the draft.
+  if (
+    fixedLeft != null &&
+    fabFixedRightEdge != null &&
+    Math.abs(edge - fabFixedRightEdge) > 0.5
+  ) {
+    releaseFabPosition();
+    fixedLeft = null;
+  }
+  const room = edge - (fixedLeft ?? 8);
   // A covering workspace may leave no page band, or less than the controls can
   // shrink into. Report failed placement instead of assigning negative CSS sizes
   // and leaving a focused textarea behind that workspace.
@@ -294,7 +315,7 @@ function placeFab(target = anchorBox(fabAnchor)) {
     // CSS owns content sizing. Geometry contributes only the real room the field
     // can use, including the bar's other controls, before deciding where it stands.
     const controls = fabBar.offsetWidth - fabInput.offsetWidth;
-    const besideRoom = rightEdge() - keepClear.right - 6 - controls;
+    const besideRoom = edge - keepClear.right - 6 - controls;
     const minimum = parseFloat(
       getComputedStyle(fabInput).getPropertyValue("--lf-response-min-width"),
     );
@@ -305,9 +326,10 @@ function placeFab(target = anchorBox(fabAnchor)) {
   }
   if (!fabFits()) return false;
   const left =
-    keepClear.right + 6 + fabBar.offsetWidth <= rightEdge()
+    fixedLeft ??
+    (keepClear.right + 6 + fabBar.offsetWidth <= edge
       ? keepClear.right + 6
-      : keepClear.right - fabBar.offsetWidth;
+      : keepClear.right - fabBar.offsetWidth);
   // Read the field's scroll extent at its real width, without temporarily enlarging
   // it in either axis. A temporary enlargement reduces the scroll extent and clamps
   // scrollTop, so the captured scroll listener would make the last lines unreachable.
@@ -324,7 +346,7 @@ function placeFab(target = anchorBox(fabAnchor)) {
 export function showFab(
   anchor,
   target = null,
-  { returnFocus = "target", origin = null, place = true } = {},
+  { returnFocus = "target", origin = null, place = true, fixedLeft } = {},
 ) {
   const previous = fabAnchor;
   const previousOrigin = fabOrigin;
@@ -338,15 +360,20 @@ export function showFab(
           ? visualActionAnchor(previous)
           : null
       : null;
+  if (!anchor || (previous && !sameAnchor(previous, anchor))) resetResponseOptions();
   if (!anchor && composerOpen) hideComposer();
   fabAnchor = anchor;
   fabFloating = !fabAnchor || place;
+  if (!fabAnchor) releaseFabPosition();
+  else if (fixedLeft !== undefined) {
+    fabFixedLeft = fixedLeft;
+    fabFixedRightEdge = fixedLeft == null ? null : rightEdge();
+  } else if (!previous || !sameAnchor(previous, fabAnchor)) releaseFabPosition();
   fabOrigin = fabAnchor && origin?.isConnected ? origin : null;
   fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
   fabBar.style.display = fabAnchor ? "inline-flex" : "none";
   fabInput.style.display = fabAnchor && composerOpen ? "block" : "none";
-  const responses = fabBar.querySelector(":scope > .lf-react-trigger");
-  if (responses) responses.hidden = !fabAnchor || !hasOtherResponses(fabAnchor);
+  syncResponseOptions(fabAnchor);
   // Comment returns from the bar's choice state to this same field. With only a target
   // chosen, the button is the affordance; once Comment is open, the input replaces it.
   fab.style.display = fabAnchor ? "" : "none";
@@ -361,9 +388,11 @@ export function showFab(
     // screen. `r` still needs the durable anchor so it can extend that existing item;
     // in that route the floating bar is never painted and placement is deliberately
     // skipped. Every route that actually shows the bar keeps the geometry gate.
-    if (place && !placeFab(target ?? anchorBox(fabAnchor))) {
+    if (place && !placeFab(target ?? anchorBox(fabAnchor), fixedLeft)) {
       fabAnchor = null;
       fabOrigin = null;
+      releaseFabPosition();
+      resetResponseOptions();
       fabBar.removeAttribute("data-lf-target-only");
       if (composerOpen) hideComposer();
       fabBar.style.display = "none";
@@ -427,31 +456,21 @@ export const fabReturnTo = () =>
       : visualActionAnchor(fabAnchor)
     : null;
 // Every explicit target gesture ends here. The gesture has already resolved its stable
-// authored anchor; this owns the one transition into the response surface. Choosing a
-// target leaves the response undecided, while an explicit Comment gesture focuses its
-// field and carries an unsent draft. A visual proxy supplies its origin so Escape can
-// return to it.
-function raiseTarget({ anchor }, { origin = null, focus = false, carry = false } = {}) {
+// authored anchor; this command owns the one transition from that target into Comment.
+// Focusing the field drops any older browser selection, and an unsent draft follows the
+// deliberate move. A visual proxy supplies its origin so Escape can return to it.
+export function commentOnTarget({ anchor }, { origin = null } = {}) {
   clearTimeout(selectionUpdate);
   selectionUpdate = null;
   targetActivation = true;
   const selection = getSelection();
   if (selection?.rangeCount) selection.removeAllRanges();
-  if (focus) {
-    openComment(anchor, "", { focus, carry });
-    if (origin) showFab(anchor, null, { origin });
-  } else {
-    detachComposer();
-    showFab(anchor, null, { origin });
-  }
+  openComment(anchor, "", { carry: true });
+  if (origin) showFab(anchor, null, { origin });
   setTimeout(() => {
     targetActivation = false;
   });
 }
-export const commentOnTarget = (target, { origin = null } = {}) =>
-  raiseTarget(target, { origin, focus: true, carry: true });
-export const selectTarget = (target, { origin = null } = {}) =>
-  raiseTarget(target, { origin });
 // Focusing text entry collapses a native page selection. Hold that browser-authored
 // selectionchange out of updateFab: the durable anchor is already captured, and letting
 // the collapse re-read it as no selection dismisses the field the reader just entered.
@@ -464,10 +483,9 @@ export function focusFabComment() {
   else openComment(structuredClone(fabAnchor), "");
 }
 export const fabOptionsAvailable = () =>
-  Boolean(fabBar.querySelector(":scope > .lf-react-trigger:not([hidden])"));
-export function showFabOptions() {
-  fabBar.querySelector(":scope > .lf-react-trigger")?.click();
-}
+  Boolean(fabAnchor && hasOtherResponses(fabAnchor) && responseOptionsAvailable());
+export const showFabOptions = ({ reaction = false } = {}) =>
+  setResponseOptions(true, { focus: reaction ? "reaction" : "first" });
 // The response field follows the selection. What counts as one is measured on the quote it would
 // store, not on the selection's own toString(): those are different strings, and gating on
 // the one the reader sees while storing the one the document holds lets a two-character
@@ -760,7 +778,7 @@ export function standDown(target) {
     fabAnchor?.visual === visual.part?.id;
   if (
     !sameVisual &&
-    !target.closest?.(".lf-react-surface, .lf-composer") &&
+    !target.closest?.(".lf-fab-bar, .lf-react-surface, .lf-composer") &&
     !reactionContextContains(target)
   ) {
     if (composerOpen) hideComposer();

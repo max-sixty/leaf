@@ -369,12 +369,12 @@ class Handler(BaseHTTPRequestHandler):
         to differ from what this stream last said — an answer that crossed another,
         a presence that moved between a word here and the read it prompted.
 
-        The stream is also the one proof a browser holds the page open, and before
-        it the poll was: a page nobody ever opened and one the user studied and left
-        looked identical from the agent's side. A tab whose page has no news never
-        asks again, so presence is written from here, throttled — it needs a
-        recency, not a request log — and never from a preview, whose browser is the
-        render gate's rather than the reader's.
+        The stream is also the one proof a browser has the page visible, and before
+        it the poll was: a page nobody ever viewed and one the user studied and left
+        looked identical from the agent's side. A hidden tab releases its stream and
+        a visible tab whose page has no news never asks again, so presence is written
+        from here, throttled — it needs a recency, not a request log — and never from
+        a preview, whose browser is the render gate's rather than the reader's.
 
         Ends on the server stopping, or on the peer going: a closed tab makes the
         socket readable with nothing to read, which the wait between looks sees at

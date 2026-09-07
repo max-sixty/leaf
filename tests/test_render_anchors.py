@@ -607,7 +607,7 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
             "border-top-width", "border-top-style",
             "background-color"].map(p => [p, s.getPropertyValue(p)])); }"""
     raised = page.locator(".lf-fab-input").evaluate(family)
-    adjacent = page.locator(".lf-fab-bar .lf-react-trigger").evaluate(family)
+    adjacent = page.locator(".lf-fab-bar .lf-response-more").evaluate(family)
     assert raised == adjacent, (
         "the floating field and ellipsis are drawn differently:\n  "
         + "\n  ".join(
@@ -4199,15 +4199,18 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     panel_send = panel_thread.get_by_role("button", name="Send", exact=True)
     button_face = """button => {
       const style = getComputedStyle(button);
-      return Object.fromEntries([
+      const face = Object.fromEntries([
         'backgroundColor', 'color', 'borderTopColor', 'borderRadius', 'padding',
         'opacity', 'cursor', 'filter',
       ].map(property => [property, style[property]]));
+      face.fillBorderRadius = getComputedStyle(button, '::before').borderRadius;
+      return face;
     }"""
     expect(inline_send).to_be_disabled()
     expect(panel_send).to_be_disabled()
     quiet = inline_send.evaluate(button_face)
     assert quiet == panel_send.evaluate(button_face)
+    assert quiet["borderRadius"] == quiet["fillBorderRadius"] == "6px"
     assert quiet["backgroundColor"] == palette["page"]
     assert quiet["opacity"] == "1"
     assert quiet["filter"] == "none"

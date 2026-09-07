@@ -105,6 +105,14 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     resized(page, 1440, 900)
     margins_laid_out(page)
     assert page.locator(".lf-margin-item").count() >= 15
+    # The corpus carries the gallery's contained frames, and a frame still arriving lays
+    # itself out in this page's own process. Counted against five dispatches that touch
+    # nothing, that reads as the heartbeat forcing layout: the measurement is of a
+    # refresh, so what is measured has to have stopped arriving first.
+    page.wait_for_function(
+        """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
+             (frame) => frame.hasAttribute('data-interaction-ready'))"""
+    )
     session = page.context.new_cdp_session(page)
     session.send("Performance.enable")
     before = {
@@ -198,6 +206,14 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
     resized(page, 1440, 900)
     margins_laid_out(page)
     assert page.locator(".lf-margin-item").count() >= 15
+    # The corpus carries the gallery's contained frames, and a frame still arriving lays
+    # itself out in this page's own process. Counted against five dispatches that touch
+    # nothing, that reads as the heartbeat forcing layout: the measurement is of a
+    # refresh, so what is measured has to have stopped arriving first.
+    page.wait_for_function(
+        """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
+             (frame) => frame.hasAttribute('data-interaction-ready'))"""
+    )
     session = page.context.new_cdp_session(page)
     session.send("Performance.enable")
     before = {
@@ -263,9 +279,11 @@ HEARTBEAT_PAGES = (
     # The gallery draws the fittings the corpus has none of, and the writers that only
     # run for those are watched nowhere else: a reading option under an entry holding
     # several readings, and the readings whose move is made, which wear the `status`
-    # behavior on a span seat rather than a button. Every row it draws hangs, so no
-    # posture is cleared off one and the rail is not re-read; two of them stand where
-    # they would overlap, so the push measurement is read here and nowhere else.
+    # behavior on a span seat rather than a button. Two of its rows stand where they
+    # would overlap, so the push measurement is read here and nowhere else. All but one
+    # of its rows hang: the swipe specimen sits inside an unselected tab, so its row is
+    # withheld and the posture clear runs for that one. The rail is not re-read, which
+    # the corpus is here for.
     pytest.param(
         FEATURE_GALLERY,
         {
@@ -273,7 +291,7 @@ HEARTBEAT_PAGES = (
             ".lf-margin-reading-option": 1,
             '.lf-margin-button[data-lf-behavior="status"]': 2,
         },
-        {"row push", "fold rule"},
+        {"row posture", "row push", "fold rule"},
         id="gallery",
     ),
 )
@@ -749,6 +767,14 @@ def test_a_transient_button_label_avoids_the_next_margin_button(browser, serve):
         "the fixture no longer exercises overlapping margin rows"
     )
     assert not overlaps(label_box, second_box)
+    page.mouse.move(0, 0)
+    button.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(button).to_be_focused()
+    assert label.evaluate("node => node.getAnimations().length") == 0, (
+        "a keyboard destination delayed its label behind paint-only motion"
+    )
     assert errors == []
     page.close()
 
@@ -3159,10 +3185,10 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     page.close()
 
 
-def test_reaction_choices_and_their_receipt_share_an_unided_selected_block(
+def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     browser, serve
 ):
-    """The durable section coordinate does not pull the visible RHS item to its top."""
+    """The durable section coordinate does not pull the visible RHS receipt to its top."""
     page, errors = open_page(browser, serve(UNID_SELECTION_PAGE))
     resized(page, 1600, 900)
     paragraph = page.locator("#s-how > p:nth-of-type(2)")
@@ -3175,15 +3201,15 @@ def test_reaction_choices_and_their_receipt_share_an_unided_selected_block(
     )
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    bar.locator(".lf-react-trigger").click()
-    # The choices dock with the selected block's margin target. The standing reaction
-    # that replaces them must keep that same visual coordinate even though the durable
-    # section coordinate belongs to the surrounding id-bearing section.
-    expect(bar).to_be_hidden()
-    reactions = page.locator(".lf-margin-reactions")
+    bar.locator(".lf-response-more").click()
+    # The choices stay with the captured selection. The standing reaction that replaces
+    # them must keep that same visual coordinate even though the durable section
+    # coordinate belongs to the surrounding id-bearing section.
+    reactions = bar.locator(":scope > .lf-response-options")
     expect(reactions).to_be_visible()
 
     reactions.locator('.lf-react[data-token="keep"]').click()
+    expect(bar).to_be_hidden()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]

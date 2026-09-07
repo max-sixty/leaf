@@ -47,11 +47,20 @@ uv run pytest --lf --lfnf=none -x -n0
 
 Before handing over a browser-facing change, run its complete browser file and
 the everyday suite. `wt merge` runs pre-commit and the everyday suite after
-rebasing. CI runs the everyday suite on a pull request and, after it, the nightly
-cases in the test modules that pull request touches, so a change confined to a
-nightly module is gated before it lands rather than by the run after it. A change
-to the runtime those modules drive is still the nightly run's to catch: CI adds
-`--run-nightly` after main moves.
+rebasing. Every pull request runs the everyday suite. A product or shared test
+harness change also runs the complete suite; a change confined to test modules
+runs those modules' nightly cases; documentation and other workflow changes stop
+at the everyday suite. The extended cases use four isolated CI jobs, while the
+two-worker pytest default still caps the browser load inside each job.
+
+Main runs those same four groups without blocking a merge. A newer main commit
+cancels obsolete groups, while a separate daily run always finishes a complete
+checkpoint. Pytest-split balances both surfaces from `.test_durations`; refresh
+that file when the four job times diverge materially:
+
+```sh
+uv run pytest tests --run-nightly --store-durations --clean-durations
+```
 
 `scripts/linux-suite.sh` supplies the pinned headless shell, installed Chrome,
 and CI fonts. It accepts pytest arguments and needs a Docker daemon that can run

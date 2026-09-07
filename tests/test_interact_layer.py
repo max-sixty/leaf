@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 import tinycss2
+from ci_selection import select as select_ci_tests
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool
 from interact_support import (
@@ -335,6 +336,54 @@ def test_workflow_shell_continuations_use_literal_blocks():
     ]
 
     assert not offenders, f"plain run scalars with shell continuations: {offenders}"
+
+
+def test_ci_change_selection_defaults_product_and_shared_harness_paths_to_full():
+    assert select_ci_tests(["skills/leaf/assets/runtime.js"]) == {
+        "full": True,
+        "test_modules": [],
+    }
+    assert select_ci_tests(["tests/render_harness.py"]) == {
+        "full": True,
+        "test_modules": [],
+    }
+    assert select_ci_tests(
+        ["tests/test_render_margin.py", "skills/leaf/assets/theme.css"]
+    ) == {"full": True, "test_modules": ["tests/test_render_margin.py"]}
+
+
+def test_ci_change_selection_keeps_small_changes_on_their_own_surface():
+    assert select_ci_tests(
+        ["docs/how-it-works.html", ".github/workflows/tend-nightly.yaml", "README.md"]
+    ) == {"full": False, "test_modules": []}
+    assert select_ci_tests(
+        [
+            "tests/test_render_widgets.py",
+            "tests/test_render_margin.py",
+        ]
+    ) == {
+        "full": False,
+        "test_modules": [
+            "tests/test_render_margin.py",
+            "tests/test_render_widgets.py",
+        ],
+    }
+    assert select_ci_tests(["tests/test_removed.py"], existing_paths=[]) == {
+        "full": False,
+        "test_modules": [],
+    }
+
+
+def test_ci_infrastructure_changes_prove_the_complete_split_path():
+    for path in [
+        ".github/workflows/ci.yaml",
+        ".test_durations",
+        "pyproject.toml",
+        "uv.lock",
+        "tests/conftest.py",
+        "tests/ci_selection.py",
+    ]:
+        assert select_ci_tests([path]) == {"full": True, "test_modules": []}
 
 
 def test_hidden_hook_remains_callable():

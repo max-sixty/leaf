@@ -1464,6 +1464,14 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
         "the decision lost its ring while the reader held the margin's proxy for one of "
         f"its own controls: {forwarded_ring} against {row_ring}"
     )
+    # The stand-in says where it stands in an attribute of its own. Said in the row's
+    # attribute instead, every selector meaning "the row for this change" — the runtime's
+    # own lookups, the theme, and a good part of this suite — would resolve to two
+    # elements for the one ask, since the options group is built on every margin render
+    # and merely hidden while it is closed.
+    assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
+        "the suggestion's margin row is no longer the one element that identifies it"
+    )
     page.keyboard.press("Shift+Tab")
     expect(accept).to_be_focused()
     # A decision that is not a joined control wears the ring itself, and it is the band

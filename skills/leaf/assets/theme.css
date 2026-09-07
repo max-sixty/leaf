@@ -1601,13 +1601,15 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-item { position: absolute; z-index: 2; left: 100%; margin-left: 22px;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--here-ring-room); pointer-events: auto; }
+/* What a hovered or focused item says about the target it acts on is said on the target:
+ * `highlight` (living-margin.js) rings it with .lf-margin-target, or hands a status to
+ * target paint, which traces the region's own shape. The item draws no leader out to it.
+ * A leader would have to be measured, because the target's right edge is its own — a
+ * framed widget, a blockquote and a paragraph each end somewhere different — and a
+ * constant one is a hairline ending in the gutter, pointing at nothing. What it would
+ * buy once measured is a second statement of the fact the ring already makes, which is
+ * why the item's raise is the whole of its own hover paint. */
 .lf-margin-item:is(:hover, :focus-within) { z-index: 3; }
-.lf-margin-item::before { content: ""; position: absolute; right: 100%; top: 16px;
-    width: 18px; border-top: 1px solid var(--border-2); opacity: 0;
-    pointer-events: none; }
-.lf-margin-item:is(:hover, :focus-within)::before { opacity: 1; }
-.lf-margin-item:has(.lf-margin-button[data-lf-behavior="status"]:hover)::before {
-    border-color: var(--status-trace-ink); border-width: var(--status-trace-w); }
 .lf-margin-item.lf-waiting { display: none; }
 /* display, because the item is inline-flex where it hangs and absolute position is what
  * blockifies it there. Left inline-level once docked, the row joins whatever line box
@@ -1620,7 +1622,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * the whole width of a line the reader is trying to select in (pointer-events above). */
 .lf-margin-item.lf-docked { position: static; display: flex; width: fit-content;
     max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
-.lf-margin-item.lf-docked::before { display: none; }
 .lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
 .lf-margin-options[hidden] { display: none; }
@@ -1728,7 +1729,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   html.lf-copy .lf-margin-item:not(.lf-waiting) { position: static; display: flex;
       width: fit-content;
       max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
-  html.lf-copy .lf-margin-item::before { display: none; }
 }
 @media (pointer: coarse) {
   .lf-margin-item { margin-left: 10px; }

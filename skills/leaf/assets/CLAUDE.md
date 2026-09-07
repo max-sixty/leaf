@@ -526,7 +526,11 @@ shortcuts. Before adding or changing a binding, survey the complete register for
 meaning, scope, native overlap, entry and exit symmetry, and focus restoration.
 Each generated hint names the exact visible control it activates. An aggregate location
 may expose each of its visible Buttons or focus itself; it never selects a descendant
-action for the reader.
+action for the reader. Every press a widget built is one of those controls, read off the
+value `offer` and `selectableOffer` write, so a control reaches the chord by being built
+the layer's way and a widget family that lands next month is addressable with its module
+alone. That is what lets a capability decline a page letter without becoming unreachable:
+the row states the capability, and the chord reaches each control that routes to one.
 Document every inconsistency the survey exposes in the task handoff. If the rules
 here do not settle one, escalate it to the user before choosing locally; the
 absence of a dispatch conflict does not make a binding precise.

@@ -363,6 +363,10 @@ export function selectableOffer(role, cls, label) {
   return node;
 }
 
+// The presses among the chrome a widget injects. The theme states the same reading in CSS
+// for the hand and the here ring; this is it for the passes written in JavaScript.
+export const PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
+
 // A drag that ends on a control is that selection's mouseup, not a press: the
 // user was reaching for the words, and a control whose label is one of the
 // page's own words is exactly where they reach. Here rather than in each widget,

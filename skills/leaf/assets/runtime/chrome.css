@@ -846,6 +846,10 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      between the two. The target owner states the plane; document order keeps aim,
      response bar, and inspect in their ordinary order within it. */
   :is(.lf-page-paint, .lf-target-paint) { z-index: 8890; }
+  /* The rail cannot trap a raised item below the page paint it summons. Only the item
+     under pointer or focus crosses that paint; the full-page toolbar stays at rest. */
+  .lf-living-margin { z-index: auto; }
+  .lf-margin-item:is(:hover, :focus-within) { z-index: 8895; }
   .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: 9060; }
   /* Every living-margin control traces the content it concerns through one quiet
      overlay. Painting above the target keeps a package-owned frame from covering the

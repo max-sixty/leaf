@@ -75,12 +75,19 @@ jobs:
       # finishes. Prove the public route has crossed both boundaries before calling the
       # deployment successful; --retry-all-errors also covers the first-deploy 404/5xx
       # window while Cloudflare provisions the application and custom domain.
+      #
+      # The per-attempt cap has to outlast the slowest answer that window produces
+      # rather than a healthy one. A cold container start takes seconds, and the
+      # "Maximum number of running container instances exceeded" reply the Worker
+      # returns while every session slot is held takes longer still; a ten-second cap
+      # aborted those attempts, so the run recorded `curl (28)` where the reason had
+      # been and gave up ten minutes in, inside a window that cleared shortly after.
       - name: Verify public example server
         run: |
           COOKIE="__Host-leaf-example=$(openssl rand -hex 16)"
           curl --fail --silent --show-error \
             --cookie "$COOKIE" \
-            --retry 30 --retry-all-errors --retry-delay 10 --max-time 10 \
+            --retry 30 --retry-all-errors --retry-delay 10 --max-time 25 \
             https://leaf.page/examples/design-decision/api/state \
             | jq --exit-status \
               '.example.install_url == "/#install" and .claims == []'

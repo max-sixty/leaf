@@ -3514,6 +3514,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
           const rr = resolve.getBoundingClientRect();
           return {
             threadRight: tr.right,
+            threadPad: parseFloat(getComputedStyle(thread).paddingRight),
             textareaRight: ta.right,
             closeBorder: getComputedStyle(close).borderTopWidth,
             resolveBorder: getComputedStyle(resolve, '::before').borderTopWidth,
@@ -3522,7 +3523,12 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
           };
         }"""
     )
-    assert geometry["textareaRight"] == pytest.approx(geometry["threadRight"], abs=1)
+    # The card reserves symmetric resting room around its content and draws its
+    # focus edge inside that room, so what the composer spans is the content box:
+    # measured against the border box it reads as inset by exactly that padding.
+    assert geometry["textareaRight"] == pytest.approx(
+        geometry["threadRight"] - geometry["threadPad"], abs=1
+    )
     assert float(geometry["closeBorder"][:-2]) == 0
     assert float(geometry["resolveBorder"][:-2]) >= 1
     assert geometry["resolve"]["top"] == pytest.approx(geometry["head"]["top"], abs=1)

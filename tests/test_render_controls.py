@@ -4143,6 +4143,11 @@ RING_WALKS = (
         ("corpus", "ship-review"),
     ),
     ("the comments", ("c",), ("ship-review",)),
+    # The reaction palette a message's strip opens. Its chips are the last boxes the
+    # layer dresses in the chrome's pill face, and they are behind a press: the strip
+    # shows a token nobody has pressed only while it is open, so a walk of the panel
+    # that never opens one stands on the trigger and nothing under it.
+    ("a reaction palette", (), ("ship-review",)),
     ("the Asks tray", (), ("ship-review",)),
     ("the leaves tray", ("g", "Shift+l"), ("corpus",)),
     # The menu's own walk after the key that opens it: an open lands on the version being
@@ -4207,6 +4212,7 @@ RING_SCOPE_SURFACE = {
     "the versions menu": (".lf-version-menu:popover-open", None),
     "the reference": (".lf-help.open", None),
     "design mode": ("body.lf-design", None),
+    "a reaction palette": (".lf-react-strip.lf-react-open", None),
 }
 RING_SCOPE_CONTROL = {
     "the Asks tray": (".lf-asks", ".lf-asks-row"),
@@ -4216,6 +4222,12 @@ RING_SCOPE_CONTROL = {
     ),
     "message media": (None, ".lf-message-media"),
     "the page map sheet": (".lf-page-map-toggle", ".lf-page-map-action"),
+    # The trigger presses itself away, so the arrival is read from the open strip
+    # rather than from the palette a shut one still holds.
+    "a reaction palette": (
+        ".lf-react-strip > .lf-react-trigger",
+        ".lf-react-strip.lf-react-open > .lf-react-palette > .lf-react",
+    ),
 }
 # The window a scope's own surface stands in, where that is not the walk's own. Both
 # entries are a floor the layer states rather than a preference: the Map control is drawn

@@ -3548,16 +3548,27 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
         """preview => {
           const thread = preview.querySelector('.lf-conversation-thread');
           const textarea = thread.querySelector('textarea');
+          const send = thread.querySelector('.lf-compose-submit');
           const close = preview.querySelector('.lf-margin-preview-close');
           const resolve = thread.querySelector('.lf-resolve');
           const head = thread.querySelector('.lf-conversation-head');
           const tr = thread.getBoundingClientRect();
           const ta = textarea.getBoundingClientRect();
+          const sr = send.getBoundingClientRect();
           const hr = head.getBoundingClientRect();
           const rr = resolve.getBoundingClientRect();
+          const ts = getComputedStyle(thread);
           return {
-            threadRight: tr.right,
-            textareaRight: ta.right,
+            thread: {
+              top: tr.top,
+              right: tr.right - parseFloat(ts.borderRightWidth)
+                - parseFloat(ts.paddingRight),
+              bottom: tr.bottom,
+              left: tr.left + parseFloat(ts.borderLeftWidth)
+                + parseFloat(ts.paddingLeft),
+            },
+            textarea: {top: ta.top, right: ta.right, bottom: ta.bottom, left: ta.left},
+            send: {top: sr.top, right: sr.right, bottom: sr.bottom, left: sr.left},
             closeBorder: getComputedStyle(close).borderTopWidth,
             resolveBorder: getComputedStyle(resolve, '::before').borderTopWidth,
             head: {top: hr.top, right: hr.right, bottom: hr.bottom},
@@ -3565,7 +3576,18 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
           };
         }"""
     )
-    assert geometry["textareaRight"] == pytest.approx(geometry["threadRight"], abs=1)
+    # Send belongs inside the field instead of taking width beside it. The field
+    # fills the thread's content box, inside any padding the thread reserves.
+    assert geometry["textarea"]["left"] == pytest.approx(
+        geometry["thread"]["left"], abs=1
+    )
+    assert geometry["textarea"]["right"] == pytest.approx(
+        geometry["thread"]["right"], abs=1
+    )
+    assert geometry["send"]["left"] >= geometry["textarea"]["left"]
+    assert geometry["send"]["right"] <= geometry["textarea"]["right"]
+    assert geometry["send"]["top"] >= geometry["textarea"]["top"]
+    assert geometry["send"]["bottom"] <= geometry["textarea"]["bottom"]
     assert float(geometry["closeBorder"][:-2]) == 0
     assert float(geometry["resolveBorder"][:-2]) >= 1
     assert geometry["resolve"]["top"] == pytest.approx(geometry["head"]["top"], abs=1)
@@ -4361,23 +4383,43 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
           const after = getComputedStyle(button, '::after');
           const style = getComputedStyle(button);
           const hasChord = button.hasAttribute('data-lf-chord');
+          const borderTop = parseFloat(style.borderTopWidth);
+          const borderBottom = parseFloat(style.borderBottomWidth);
           const chordBottom = hasChord
-            ? box.bottom - parseFloat(style.borderBottomWidth)
-              - parseFloat(after.bottom)
+            ? box.bottom - borderBottom - parseFloat(after.bottom)
             : text.bottom;
           const chordTop = hasChord
             ? chordBottom - parseFloat(after.lineHeight)
             : text.top;
           return {label: button.textContent.trim(),
+                  hasChord,
+                  chordValue: button.getAttribute('data-lf-chord'),
+                  chordDisplay: after.display,
+                  chordVisibility: after.visibility,
+                  innerTop: box.top + borderTop,
+                  innerBottom: box.bottom - borderBottom,
+                  textTop: text.top,
+                  textBottom: text.bottom,
+                  chordTop,
+                  chordBottom,
                   above: Math.min(text.top, chordTop) - box.top,
                   below: box.bottom - Math.max(text.bottom, chordBottom)};
         })"""
     )
     assert text_insets
     for inset in text_insets:
-        assert inset["above"] == pytest.approx(inset["below"], abs=1.5), (
-            f"{inset['label']} is not vertically centred in the compact banner: {inset}"
-        )
+        if not inset["hasChord"]:
+            assert inset["above"] == pytest.approx(inset["below"], abs=1.5), (
+                f"{inset['label']} is not vertically centred in the compact banner: "
+                f"{inset}"
+            )
+            continue
+        assert inset["chordValue"]
+        assert inset["chordDisplay"] != "none"
+        assert inset["chordVisibility"] != "hidden"
+        assert inset["textTop"] >= inset["innerTop"] - 0.5
+        assert inset["textBottom"] <= inset["chordTop"] + 1.5
+        assert inset["chordBottom"] <= inset["innerBottom"] + 0.5
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     if opener == "keyboard":

@@ -20,11 +20,13 @@ import {
   failSoft,
   keeps,
   layoutChanged,
+  measure,
   notice,
   offer,
   once,
   paintKeys,
   quoted,
+  reserve,
   says,
   sendAction,
   tabStore,
@@ -52,6 +54,7 @@ customElements.define(
     #output = null;
     #submit = null;
     #copy = null;
+    #copyTimer = 0;
     #reset = null;
     #projected = undefined;
     #ready = false;
@@ -343,6 +346,7 @@ customElements.define(
       this.#submit.addEventListener("click", () => this.#choose());
       actions.append(this.#reset, this.#copy, this.#submit);
       this.append(actions);
+      measure(this.#copy, () => reserve(this.#copy, ["Copy instruction", "Copied"]));
     }
 
     #commands() {
@@ -436,6 +440,7 @@ customElements.define(
         const name = slot.getAttribute("for");
         slot.textContent = this.#formatted(this.#controlByName.get(name), values[name]);
       }
+      this.#resetCopyFeedback();
       this.#paintPresets();
       if (remember) tabStore.set(this.#storeKey(), JSON.stringify(values));
       this.dispatchEvent(
@@ -471,11 +476,24 @@ customElements.define(
         .trim();
     }
 
+    #resetCopyFeedback() {
+      clearTimeout(this.#copyTimer);
+      this.#copyTimer = 0;
+      if (!this.#copy) return;
+      this.#copy.textContent = "Copy instruction";
+      this.#copy.classList.remove("is-copied");
+    }
+
     async #copyInstruction() {
       try {
         await navigator.clipboard.writeText(this.#instruction());
+        clearTimeout(this.#copyTimer);
+        this.#copy.textContent = "Copied";
+        this.#copy.classList.add("is-copied");
+        this.#copyTimer = setTimeout(() => this.#resetCopyFeedback(), 2000);
         notice("Instruction copied");
       } catch (error) {
+        this.#resetCopyFeedback();
         notice(`Could not copy: ${error.message}`);
       }
     }

@@ -275,8 +275,8 @@
      outline-drawn one; the ring itself is still what the box paints, not what it
      names. */
   --here-shadow: 0 0 0 var(--here-ring-w);
-  --status-trace-w: 1.5px;
-  --status-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
+  --target-trace-w: 1.5px;
+  --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
   /* A keyboard address chip's box: the line box, which is a ratio of the font, plus
      the ring drawn around it (chrome.css dresses one). It is a token for the
      reason the ring's width is — a box somebody else holds room for has to be read
@@ -1370,9 +1370,16 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           display: inline-flex; align-items: center; justify-content: center;
           border: 1px solid transparent; border-radius: 50%; background: var(--card);
           opacity: 0; cursor: pointer; }
+/* Stand the trigger off the resolve control's ring, not off its box. The trigger is
+   painted above the head and turns opaque while the message is focus-within, which is
+   exactly when the resolve control beside it is wearing a ring, so 2px of clearance from
+   the box put it over the ring's outer band and cut the left edge off. The band is
+   `--here-ring-w` at the 1px offset the conversation rule above names; the 2px is the
+   gap that was already here, now measured from the ring outwards. */
 .lf-conversation-msg.claude:has(> .lf-conversation-head > .lf-resolve)
           > .lf-react-strip > .lf-react-trigger {
-          inset-inline-end: calc(max(28px, var(--aim-floor)) + 2px); }
+          inset-inline-end: calc(max(28px, var(--aim-floor))
+                    + var(--here-ring-w) + 1px + 2px); }
 .lf-react-strip.lf-react-open > .lf-react-trigger { display: none; }
 .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
           fill: none; stroke: currentColor; stroke-width: 1.6;
@@ -1601,13 +1608,15 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-item { position: absolute; z-index: 2; left: 100%; margin-left: 22px;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--here-ring-room); pointer-events: auto; }
+/* What a hovered or focused item says about the target it acts on is said on the target:
+ * `highlight` (living-margin.js) hands every item to target paint, which traces the
+ * region's own shape. The item draws no leader out to it.
+ * A leader would have to be measured, because the target's right edge is its own — a
+ * framed widget, a blockquote and a paragraph each end somewhere different — and a
+ * constant one is a hairline ending in the gutter, pointing at nothing. What it would
+ * buy once measured is a second statement of the fact the target trace already makes, which is
+ * why the item's raise is the whole of its own hover paint. */
 .lf-margin-item:is(:hover, :focus-within) { z-index: 3; }
-.lf-margin-item::before { content: ""; position: absolute; right: 100%; top: 16px;
-    width: 18px; border-top: 1px solid var(--border-2); opacity: 0;
-    pointer-events: none; }
-.lf-margin-item:is(:hover, :focus-within)::before { opacity: 1; }
-.lf-margin-item:has(.lf-margin-button[data-lf-behavior="status"]:hover)::before {
-    border-color: var(--status-trace-ink); border-width: var(--status-trace-w); }
 .lf-margin-item.lf-waiting { display: none; }
 /* display, because the item is inline-flex where it hangs and absolute position is what
  * blockifies it there. Left inline-level once docked, the row joins whatever line box
@@ -1620,7 +1629,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * the whole width of a line the reader is trying to select in (pointer-events above). */
 .lf-margin-item.lf-docked { position: static; display: flex; width: fit-content;
     max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
-.lf-margin-item.lf-docked::before { display: none; }
 .lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
 .lf-margin-options[hidden] { display: none; }
@@ -1658,8 +1666,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;
     border: 1px solid var(--paper); background: var(--ink); color: var(--paper);
     font: 600 10px/14px var(--sans); text-align: center; }
-.lf-margin-target { outline: var(--here-ring); --lf-here-ring: margin-target;
-    outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The one floor that asks the window rather than the page's own box, because it is the
  * half of a pair: below it the rule further down stops drawing the living margin at all,
  * and that rule is a media query because a marker's presence is not a thing a container
@@ -1728,7 +1734,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   html.lf-copy .lf-margin-item:not(.lf-waiting) { position: static; display: flex;
       width: fit-content;
       max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
-  html.lf-copy .lf-margin-item::before { display: none; }
 }
 @media (pointer: coarse) {
   .lf-margin-item { margin-left: 10px; }

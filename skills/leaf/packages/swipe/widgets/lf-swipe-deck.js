@@ -273,12 +273,13 @@ customElements.define(
       );
       if (!played) {
         echo.remove();
-        return;
+        return null;
       }
       played.finished.then(
         () => echo.remove(),
         () => echo.remove(),
       );
+      return played;
     }
 
     #restorePointer() {
@@ -352,6 +353,32 @@ customElements.define(
         focused?.localName === "lf-swipe-card" &&
         focused.closest("lf-swipe-deck") === this;
       const cards = this.#piles().flatMap((pile) => this.#cards(pile));
+      // A position facet keeps action metadata on its units. Work newest-first so one
+      // state read that brings several classifications animates the last arrival; all
+      // cards still reach their complete projected placement below. During initial
+      // projection motion() returns null, so standing units load directly at rest.
+      const transitions = Object.values(state.verdict.units ?? {}).reverse();
+      const transition = transitions.find(({ action, detail }) => {
+        const card = detail?.card
+          ? cards.find((candidate) => candidate.id === detail.card)
+          : null;
+        const destination = detail?.to ? document.getElementById(detail.to) : null;
+        return (
+          ["swipe", "finish"].includes(action) &&
+          card?.parentElement?.getAttribute("verdict") === "unseen" &&
+          destination?.closest("lf-swipe-deck") === this &&
+          ["pass", "keep"].includes(destination.getAttribute("verdict"))
+        );
+      });
+      const detail = transition?.detail;
+      const movingCard = detail?.card
+        ? cards.find((candidate) => candidate.id === detail.card)
+        : null;
+      const destination = detail?.to ? document.getElementById(detail.to) : null;
+      const verdict = destination?.getAttribute("verdict");
+      const played = transition
+        ? this.#exit(movingCard, verdict === "pass" ? -1 : 1)
+        : null;
       let moved = false;
       for (const [id, order] of Object.entries(state.verdict.value)) {
         const destination = document.getElementById(id);
@@ -367,6 +394,58 @@ customElements.define(
       else if (focused?.isConnected && document.activeElement !== focused)
         focused.focus({ preventScroll: true });
       if (moved) layoutChanged(this);
+      return played;
     }
   },
 );
+
+export const interactionGalleryScenario = {
+  reset(root) {
+    const deck = root.querySelector("lf-swipe-deck");
+    const card = deck.querySelector("lf-swipe-card");
+    const piles = [...deck.querySelectorAll(":scope > lf-swipe-pile")];
+    deck.renderState({
+      verdict: {
+        units: {},
+        value: Object.fromEntries(
+          piles.map((pile) => [
+            pile.id,
+            pile.getAttribute("verdict") === "unseen" ? [card.id] : [],
+          ]),
+        ),
+      },
+    });
+  },
+  async play({ root, arrive, press, track, until, finish }) {
+    await arrive();
+    const deck = root.querySelector("lf-swipe-deck");
+    const keep = deck.querySelector(".lf-swipe-keep");
+    await press(keep);
+    const card = deck.querySelector("lf-swipe-card");
+    const piles = [...deck.querySelectorAll(":scope > lf-swipe-pile")];
+    const keepPile = piles.find((pile) => pile.getAttribute("verdict") === "keep");
+    await track(
+      deck.renderState({
+        verdict: {
+          units: {
+            [card.id]: {
+              action: "finish",
+              value: keepPile.id,
+              detail: { card: card.id, to: keepPile.id, index: 0 },
+            },
+          },
+          value: Object.fromEntries(
+            piles.map((pile) => [pile.id, pile === keepPile ? [card.id] : []]),
+          ),
+        },
+      }),
+    );
+    await until(
+      () =>
+        deck.querySelector("lf-swipe-card").parentElement?.getAttribute("verdict") ===
+        "keep",
+      "the swipe card did not move to Kept",
+    );
+    await finish();
+  },
+};

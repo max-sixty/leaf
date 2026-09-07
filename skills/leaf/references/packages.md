@@ -231,10 +231,36 @@ Non-widget facets contain `units`, keyed by unit id, and position facets also co
 `value`, a map from container id to the complete ordered ids it holds. Missing
 recordless units are undecided. Render the final composition and keep independent
 nested widgets mounted; never recreate the owner to restore an initial state.
-Return false only while a live edit prevents rendering. When the edit closes,
-dispatch `lf-projection` on `document` so Leaf retries deferred state after the
-gesture has finished staging its local action. Optional recorded scalar
-attributes have a null initial value and must be removed when that value returns.
+`false` is the only return value state projection interprets: return it while a live
+edit prevents rendering. When the edit closes, dispatch `lf-projection` on `document`
+so Leaf retries deferred state after the gesture has finished staging its local action.
+Projection ignores every other return value. A renderer may return the `Animation` for
+its production transition so an interaction-gallery scenario can join that motion to
+the gallery's playback controls; the same call must still reach its complete state when
+the caller ignores the return. Optional recorded scalar attributes have a null initial
+value and must be removed when that value returns.
+
+### A package-owned interaction replay
+
+The developer Product Gallery can replay a package widget's production motion without
+moving that package into the default layer. Its figure names the widget module with
+`data-interaction-module`; that module exports one optional
+`interactionGalleryScenario` object with `reset(root)` and `play(context)` methods.
+`reset` receives the figure and restores its authored starting state without animation.
+`play` receives a frozen orchestration surface:
+
+- `root` is the same figure.
+- `arrive()` shows the illustrative pointer and waits for its opening beat.
+- `press(target)` moves the pointer to an element and shows the press.
+- `track(animation)` joins a returned `Animation` to pause, resume, and replay.
+- `until(read, message)` waits for an observable result and fails with `message` if it
+  never arrives.
+- `finish()` holds the result, then retires the pointer.
+
+The scenario imports only `/runtime/widget-api.js`, like every other behavior module;
+the gallery supplies this context when it invokes the export. The scenario calls the
+same widget method that handles projected state and does not send a gesture or write an
+event. The Swipe package's deck module is the worked example.
 
 A widget-owned composition box uses `wireInput()` from `/runtime/widget-api.js`.
 It keeps Enter as a newline and registers Mod+Enter for the contextual action, alongside
@@ -283,7 +309,8 @@ subscription lifetime to `owner`, and returns an explicit cleanup function. Pack
 not listen to Leaf's internal `lf-actions` invalidation event.
 
 `x-visual` exposes stable Comment targets on a rendered picture. The value `whole` uses
-the widget's authored id. A widget declaring `{parts: ATTR}` calls
+the widget's authored id and the widget itself as the visual surface, so aim and marks
+paint above its rendering. A widget declaring `{parts: ATTR}` calls
 `registerVisualParts(source, read)` once at upgrade. `read` returns the complete current
 inventory as `{id, element, label, surface?}` records. Leaf admits the ids authored in
 ATTR, derives token lookup and deepest-part hit testing from that one inventory, and

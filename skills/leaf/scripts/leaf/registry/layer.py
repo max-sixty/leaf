@@ -292,10 +292,9 @@ def validate_layer_declarations(
                 "does not resolve within the package; data contracts must be "
                 "self-contained"
             )
-    # Each token whole: every consumer reads the entry directly — the runtime paints
-    # `glyph`, `leaf wait` prints `means`, the panel's narrowing reads `settles` — so
-    # a missing or misspelled member would be a token that paints nothing or a
-    # `settle` that settles nothing, and neither says so anywhere else.
+    # Each token whole: the runtime paints `glyph`, the panel's narrowing reads
+    # `settles`, and off-page readers expose `means` only when a package supplies it.
+    # A missing glyph or misspelled behavior would otherwise fail silently.
     if not isinstance(tokens, dict) or not all(
         isinstance(name, str)
         and re.fullmatch(HTML_NAME, name)
@@ -304,13 +303,15 @@ def validate_layer_declarations(
         and isinstance(entry.get("glyph"), str)
         and entry["glyph"].strip()
         and len(entry["glyph"]) <= 4
-        and isinstance(entry.get("means"), str)
-        and entry["means"]
+        and (
+            "means" not in entry
+            or (isinstance(entry["means"], str) and bool(entry["means"]))
+        )
         and isinstance(entry.get("settles", False), bool)
         for name, entry in tokens.items()
     ):
         raise RegistryError(
             f"{path}: $reactions.tokens must map lowercase token names to entries "
-            "with a short `glyph` of at most four code points, a non-empty `means`, and "
-            "optionally a boolean `settles`"
+            "with a short `glyph` of at most four code points, optionally a non-empty "
+            "`means`, and optionally a boolean `settles`"
         )

@@ -323,6 +323,8 @@ const visualPartAttribute = (visual) => {
   const declaration = registry[visual?.localName]?.["x-visual"];
   return declaration && typeof declaration === "object" ? declaration.parts : null;
 };
+const wholeVisualSurface = (element) =>
+  registry[element?.localName]?.["x-visual"] ? element : null;
 const declaredVisualParts = (visual) => {
   const attribute = visualPartAttribute(visual);
   const value = attribute ? visual?.getAttribute(attribute) : "";
@@ -488,7 +490,20 @@ function prepareVisualActions() {
       if (holder.children[index] !== control)
         holder.insertBefore(control, holder.children[index] ?? null);
     });
-    if (seat.nextSibling !== holder) seat.after(holder);
+    // The living margin and this keyboard proxy can share the visual's authored seat.
+    // Keep one stable order so their independent reconciliation passes do not move each
+    // other on every state/layout update. Moving a focused retained holder still needs
+    // the same continuity guarantee as moving a margin host.
+    let after = seat;
+    while (after.nextSibling?.matches?.(".lf-margin-item[data-lf-external]"))
+      after = after.nextSibling;
+    if (after.nextSibling !== holder) {
+      const held = holder.contains(document.activeElement)
+        ? document.activeElement
+        : null;
+      after.after(holder);
+      if (held?.isConnected) held.focus({ preventScroll: true });
+    }
     kept.add(holder);
   }
   for (const holder of pageQueryAll(".lf-visual-actions"))
@@ -641,6 +656,7 @@ const itemAimTarget = (item) => ({
   anchor: { section: item.id },
   element: item,
   label: aimLabel(item),
+  surface: wholeVisualSurface(item),
 });
 const datumAimTarget = (datum) => {
   const dataRevision = Number(datum.dataset.lfSourceRevision);
@@ -783,7 +799,10 @@ export function resolveAnchor(anchor, text) {
   if (!anchor.quote) {
     const section = sectionOf(anchor);
     return section && !settledAway(section)
-      ? resolvedElement({ element: section })
+      ? resolvedElement({
+          element: section,
+          surface: wholeVisualSurface(section),
+        })
       : null;
   }
   const segments = findQuote(text, anchor.quote, anchor, sectionOf(anchor));
@@ -917,6 +936,11 @@ function paintVisualStates() {
   const pending = new Set(pendingOutline);
   const action = new Set(actionOutline);
   const hover = new Set(hoverParts);
+  const focus = new Set(
+    [...visualTargets.keys()].filter((element) =>
+      element.matches(":focus-visible, .lf-focus-visible"),
+    ),
+  );
   const here = new Set(hereParts);
   const stateSources = [
     ["comment", comments],
@@ -924,6 +948,7 @@ function paintVisualStates() {
     ["pending", pending],
     ["action", action],
     ["hover", hover],
+    ["focus", focus],
     ["here", here],
   ];
   setTargets(
@@ -1248,7 +1273,6 @@ function seatReactions(seats) {
           glyph: entry?.glyph ?? root.token,
           label: root.token,
           role: "secondary",
-          state: "settled",
         });
         mark.dataset.event = root.id;
         mark.dataset.token = root.token;

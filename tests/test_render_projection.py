@@ -5687,7 +5687,7 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
 
     page.get_by_role("button", name=re.compile("^Threads")).click()
     page.locator(f'.lf-thread[data-id="{root["id"]}"]').get_by_role(
-        "button", name="Resolve", exact=True
+        "button", name="Resolve thread", exact=True
     ).click()
     round_trip(page)
     expect(goal).not_to_have_attribute("data-lf-held")

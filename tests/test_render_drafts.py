@@ -58,6 +58,33 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def select_words(page, passage):
+    """Triple-click a passage's words, which is not the same point as its box.
+
+    Playwright aims at the element's centre, and a short paragraph in a wide column is
+    mostly empty there. The response bar the reader already opened on a neighbouring
+    passage stands in that empty half — it is placed to keep its own target clear, not
+    the page — so a gesture aimed at the centre lands on the field instead of on the
+    words and never reaches the passage. The words are where a reader aims, so the
+    click goes to the start of the first line the passage draws."""
+    locator = page.locator(passage)
+    locator.scroll_into_view_if_needed()
+    x, y = locator.evaluate(
+        """element => {
+          const range = element.ownerDocument.createRange();
+          range.selectNodeContents(element);
+          const [line] = range.getClientRects();
+          const box = element.getBoundingClientRect();
+          if (!line) return [box.width / 2, box.height / 2];
+          return [
+            line.left + Math.min(24, line.width / 2) - box.left,
+            line.top + line.height / 2 - box.top,
+          ];
+        }"""
+    )
+    locator.click(click_count=3, position={"x": x, "y": y})
+
+
 def draft_controls(page, draft_id="draft-ops"):
     return page.locator(f".lf-draft-controls[data-lf-for='{draft_id}']")
 
@@ -224,7 +251,7 @@ def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve, sect
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "ok",
+            "token": "keep",
             "anchor": {
                 **({"section": section} if section else {}),
                 "quote": "Run the migration before deploying.",
@@ -1257,7 +1284,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     """Opening a reply while a new comment is in flight is a later gesture. The
     comment still appears, but its arrival must not move focus into its new thread."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
-    page.locator("#p3").click(click_count=3)
+    select_words(page, "#p3")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("The earlier comment in flight.")
@@ -1301,7 +1328,7 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
     page.locator(".lf-find-box").fill("Comment 0")
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
 
-    page.locator("#p1").click(click_count=3)
+    select_words(page, "#p1")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill(
@@ -1312,7 +1339,7 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the filtered comment send")
     if later_selection:
-        page.locator("#p2").click(click_count=3)
+        select_words(page, "#p2")
         expect(page.locator(".lf-fab-input")).to_be_visible()
         assert pending_text(page) == "A short second passage."
 
@@ -1345,7 +1372,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     """Focus handed to a new reply is not itself a draft; an edit to empty is."""
     page, errors = open_page(browser, live_url(serve(NOTED_PAGE)))
     resized(page, 1440, 900)
-    page.locator("#p1").click(click_count=3)
+    select_words(page, "#p1")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Follow this discussion.")
@@ -1402,7 +1429,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     as a 💬 that never came up for the passage picked out after a send."""
     browser, held = held_events
     page, errors = open_page(browser, serve(NOTED_PAGE))
-    page.locator("#p1").click(click_count=3)
+    select_words(page, "#p1")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("The first remark.")
@@ -1411,7 +1438,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     holding(page, held, 1, "the comment send")
 
     # The reader picks out their next passage while the first send is still in the wire.
-    page.locator("#p2").click(click_count=3)
+    select_words(page, "#p2")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_have_value("")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
@@ -1496,12 +1523,12 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     field = page.locator(".lf-fab-input")
     original = "These words belong to the first passage."
 
-    page.locator("#p1").click(click_count=3)
+    select_words(page, "#p1")
     expect(field).to_be_visible()
     expect(field).not_to_be_focused()
     field.fill(original)
 
-    page.locator("#p2").click(click_count=3)
+    select_words(page, "#p2")
     expect(field).to_have_value("")
     expect(field).not_to_be_focused()
     assert (
@@ -1512,7 +1539,7 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
         == 1
     )
 
-    page.locator("#p1").click(click_count=3)
+    select_words(page, "#p1")
     expect(field).to_have_value(original)
     expect(field).not_to_be_focused()
     assert errors == []
@@ -2669,10 +2696,38 @@ def test_registered_control_keys_activate_once(browser, serve):
     expect(pencil).to_have_attribute("type", "button")
     pencil.focus()
     page.keyboard.press("Enter")
-    expect(page.locator("#draft-ops textarea")).to_be_focused()
-    assert page.locator("#draft-ops").evaluate(
-        "el => getComputedStyle(el).outlineStyle !== 'none'"
-    ), "the draft editor received focus without a visible focus indicator"
+    editor = page.locator("#draft-ops textarea")
+    expect(editor).to_be_focused()
+    focus_paint = page.locator("#draft-ops").evaluate(
+        """host => {
+          const editor = host.querySelector('textarea');
+          const hs = getComputedStyle(host), es = getComputedStyle(editor);
+          return {
+            host: {outline: hs.outlineStyle, width: parseFloat(hs.outlineWidth)},
+            editor: {outline: es.outlineStyle, shadow: es.boxShadow,
+                     ring: es.getPropertyValue('--lf-here-ring').trim()},
+          };
+        }"""
+    )
+    assert focus_paint["host"]["outline"] != "none"
+    assert focus_paint["host"]["width"] >= 2
+    assert focus_paint["editor"] == {
+        "outline": "none",
+        "shadow": "none",
+        "ring": "none",
+    }, "the draft's one editing surface acquired a second focus box"
+    page.emulate_media(forced_colors="active")
+    forced = page.locator("#draft-ops").evaluate(
+        """host => {
+          const editor = host.querySelector('textarea');
+          return {
+            host: getComputedStyle(host).outlineStyle,
+            editor: getComputedStyle(editor).outlineStyle,
+          };
+        }"""
+    )
+    assert forced == {"host": "solid", "editor": "none"}
+    page.emulate_media(forced_colors="none")
     page.keyboard.press("Escape")
 
     mark = page.locator("#opts .lf-pick").first

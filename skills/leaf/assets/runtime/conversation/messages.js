@@ -67,14 +67,15 @@ function buildMsgBody(m) {
   body.append(text);
   if (isReaction(m)) {
     // A thread whose root is a mark: the glyph and its word, in the chrome's own
-    // face, where a comment's words would be. What it meant is the entry's `means`,
-    // said on hover the way the bar says it.
+    // face, where a comment's words would be. A layer may add its own explanation on
+    // hover; the token itself remains sufficient.
     const said = el(
       "span",
       "lf-react-said",
       `${tokenEntry(m.token)?.glyph ?? ""} ${m.token}`.trim(),
     );
-    said.title = tokenEntry(m.token)?.means ?? "";
+    const meaning = tokenEntry(m.token)?.means;
+    if (meaning) said.title = meaning;
     text.append(said);
   } else if (m.suggestion) {
     // Verbatim: a suggestion's characters are bound for the page as typed, and a

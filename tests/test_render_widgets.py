@@ -75,6 +75,7 @@ from render_support import (
     select,
     sending,
     sent_events,
+    stamp_page,
     stamp_version_file,
     told,
     undo,
@@ -1652,9 +1653,9 @@ def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
         "and the title Ridge note; alert."
     )
     expect(page.locator("#card-instruction")).to_have_css(
-        "font-family", "ui-monospace, SFMono-Regular, Menlo, monospace"
+        "font-family", 'system-ui, -apple-system, "Segoe UI", sans-serif'
     )
-    expect(page.locator("#card-instruction")).to_have_css("font-size", "12.5px")
+    expect(page.locator("#card-instruction")).to_have_css("font-size", "11.5px")
 
     with sending(page, "the playground configuration"):
         playground.get_by_role("button", name="Use these settings").click()
@@ -1734,11 +1735,22 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         "aria-pressed", "false"
     )
     playground.get_by_role("button", name="Dense").click()
-    copy = playground.get_by_role("button", name="Copy instruction")
+    copy = playground.locator(".lf-playground-copy")
+    expect(copy).to_have_accessible_name("Copy instruction")
     copy.scroll_into_view_if_needed()
     before = copy.bounding_box()
     copy.click()
-    expect(copy).to_have_text("Copy instruction")
+    expect(copy).to_have_text("Copied")
+    assert copy.evaluate("button => getComputedStyle(button).color") == page.evaluate(
+        """() => {
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--ok-ink)';
+          document.body.append(probe);
+          const color = getComputedStyle(probe).color;
+          probe.remove();
+          return color;
+        }"""
+    )
     expect(page.locator(".lf-notice")).to_have_text("Instruction copied")
     assert copy.bounding_box() == before
     assert page.evaluate("navigator.clipboard.readText()") == (
@@ -1747,6 +1759,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     )
 
     playground.get_by_role("button", name="Reset").click()
+    assert copy.text_content() == "Copy instruction"
     assert playground.evaluate("root => root.values")["radius"] == 12
     resized(page, 420, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 420
@@ -2319,6 +2332,71 @@ def test_swipe_deck_exit_echo_starts_at_the_dragged_card_box(browser, serve):
     page.evaluate("window.__lfHeld[0].finish()")
     expect(echo).to_have_count(0)
     round_trip(page)
+    assert errors == []
+    page.close()
+
+
+def test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe(browser, serve):
+    """A remote action carries its production projection through the exit motion.
+
+    A reload reads the same standing unit but arrives before presentation, so it restores
+    the final placement without replaying old news as a new transition.
+    """
+    url = serve(SWIPE_PAGE)
+    page, errors = open_page(browser, url, init_script=HOLD_MOTION)
+
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "session-triage",
+            "action": "swipe",
+            "detail": {"card": "swipe-a", "to": "session-keep", "index": 1},
+        },
+    )
+    told(page)
+
+    expect(page.locator(".lf-swipe-exit")).to_have_count(1)
+    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
+    page.evaluate("window.__lfHeld[0].finish()")
+    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
+
+    page.reload()
+    page.wait_for_function(BOTH_STAMPS)
+    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
+    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_swipe_deck_activation_restores_a_standing_swipe_without_motion(browser, serve):
+    """A new revision carries an old classification at rest, as an arrival."""
+    url = serve(SWIPE_PAGE)
+    page, errors = open_page(browser, live_url(url), init_script=HOLD_MOTION)
+
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "session-triage",
+            "action": "swipe",
+            "detail": {"card": "swipe-a", "to": "session-keep", "index": 1},
+        },
+    )
+    told(page)
+    expect(page.locator(".lf-swipe-exit")).to_have_count(1)
+    page.evaluate("window.__lfHeld[0].finish()")
+    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
+
+    stamp_page(serve.page_dir, SWIPE_PAGE, "second")
+    wait_for_revision(page, 2)
+
+    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
+    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
     assert errors == []
     page.close()
 
@@ -6081,7 +6159,13 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
 
     Three registers, because a pointer, a hand and a keyboard arrive by different routes
     and only one of them is on screen at rest. The hand is the resting answer, and a
-    control with nothing left to do gives it up along with its opacity. The badges are
+    control with nothing left to do gives it up along with the face it wore while it was
+    live. The face is read as that change and not as the layer's own `.55`, for the
+    reason the ring below is: a control is free to dress its own spent state and outrank
+    the floor, and the composer's submit does — an empty Send trades an accent disc for a
+    muted ring on paper at full opacity, so that a field with nothing in it reads as
+    quiet rather than as broken. Pinning the number would pin whichever of the two
+    happened to be on this page. The badges are
     read outside a choose group on purpose: a card group makes the whole option the
     press, so a chip inside one inherits the hand from the control it is sitting in and
     would be answering this question about its parent. The wash is the aim, read as a
@@ -6098,10 +6182,30 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     test_render_projection.py, which is where the layer has a control no widget rings."""
     page, errors = open_page(browser, serve(CHIP_PAGE))
     state = """() => {
+      // Whatever a control spends on saying it is live: the layer's wash, its own ink
+      // and ground, and the disc a compose submit paints in its ::before.
+      const face = (el) => [getComputedStyle(el), getComputedStyle(el, '::before')]
+        .map((cs) => [cs.opacity, cs.color, cs.backgroundColor, cs.borderTopColor,
+                      cs.filter].join(' '))
+        .join(' / ');
+      // The same control with the fact of being spent lifted off it, and put straight
+      // back: the comparison is against what this control would wear with something
+      // left to do, not against a number.
+      const armed = (el) => {
+        const native = el.disabled;
+        const declared = el.getAttribute('aria-disabled');
+        if (native) el.disabled = false;
+        if (declared !== null) el.removeAttribute('aria-disabled');
+        const reading = face(el);
+        if (native) el.disabled = true;
+        if (declared !== null) el.setAttribute('aria-disabled', declared);
+        return reading;
+      };
       const kind = (el) => {
         const cs = getComputedStyle(el);
-        return {cursor: cs.cursor, opacity: cs.opacity,
-                off: el.matches('[aria-disabled="true"], :disabled')};
+        const off = el.matches('[aria-disabled="true"], :disabled');
+        return {cursor: cs.cursor, opacity: cs.opacity, off,
+                face: face(el), armed: off ? armed(el) : null};
       };
       const presses = [...document.querySelectorAll('[data-lf-offer]')]
         .filter((el) => el.dataset.lfOffer !== '');
@@ -6121,7 +6225,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     assert all(p["cursor"] == "pointer" for p in live), (
         f"a control a widget built does not take the hand: {live}"
     )
-    assert all(p["cursor"] == "default" and float(p["opacity"]) < 1 for p in spent), (
+    assert all(p["cursor"] == "default" and p["face"] != p["armed"] for p in spent), (
         f"a control with nothing left to do still offers itself: {spent}"
     )
     assert not any(s["cursor"] == "pointer" for s in rest["said"]), (

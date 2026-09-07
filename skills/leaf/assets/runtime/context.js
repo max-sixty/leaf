@@ -22,7 +22,7 @@ export const runtime = {
   lastEventSeq: -1,
   reading: null,
   state: null,
-  projectingState: false,
+  restoringState: false,
   registry: {},
   statePhase: "waiting",
   undoing: false,

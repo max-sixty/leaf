@@ -288,10 +288,9 @@ def batch_data(
     batch: list[dict],
 ) -> dict:
     """Build one complete delivery batch without taking receipt for it."""
-    # The batch explains itself off the page's own vendored vocabulary: a
-    # reaction's word beside it (`means`), and under `handling` what the layer
-    # asks of the agent for each kind present, so the rule reaches the agent at
-    # the moment it applies. A stale registry must not block the batch.
+    # The batch carries the page's own vendored vocabulary: a reaction's token,
+    # optionally its package-supplied `means`, and under `handling` what the layer asks
+    # of the agent for each kind present. A stale registry must not block the batch.
     registry = _batch_registry(page_dir)
     return {
         "page": str(page_dir),

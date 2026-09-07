@@ -846,7 +846,7 @@ def test_server_round_trip(server, page_dir):
         {
             "kind": "comment",
             "revision": 2,
-            "token": "ok",
+            "token": "keep",
             "anchor": {"section": "feeder-board"},
             "drawing": drawing,
         },
@@ -1363,7 +1363,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
     publish(page_dir, 1)
     reaction = event_model.append_event(
         page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "token": "ok"},
+        {"kind": "comment", "author": "user", "revision": 1, "token": "keep"},
     )
     event_model.append_event(
         page_dir,
@@ -1442,12 +1442,12 @@ def test_undo_candidates_keep_only_standing_reader_gestures():
             "author": "user",
             "parent": "c1",
         },
-        {"id": "rx1", "kind": "comment", "author": "user", "token": "ok"},
+        {"id": "rx1", "kind": "comment", "author": "user", "token": "keep"},
         {
             "id": "rx2",
             "kind": "comment",
             "author": "user",
-            "token": "ok",
+            "token": "keep",
         },
         {
             "id": "reply",

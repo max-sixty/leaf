@@ -238,6 +238,58 @@
         margin: 0;
       }
 
+      .interaction-frame-stage {
+        min-height: 30rem;
+        overflow: hidden;
+        padding: 0;
+      }
+
+      .interaction-frame {
+        display: block;
+        width: 100%;
+        height: 30rem;
+        border: 0;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .interaction-frame[data-interaction-ready] {
+        opacity: 1;
+      }
+
+      .interaction-keypress {
+        position: absolute;
+        z-index: 4;
+        right: 18px;
+        bottom: 18px;
+        padding: 7px 10px;
+        border: 1px solid var(--border-2);
+        border-radius: 8px;
+        background: var(--card);
+        box-shadow: 0 4px 14px var(--shade);
+        color: var(--ink);
+        font: 650 var(--t-6) / 1 var(--sans);
+        pointer-events: none;
+      }
+
+      .interaction-keypress[hidden] {
+        display: none;
+      }
+
+      .interaction-swipe-stage {
+        min-height: 25rem;
+        padding-inline: clamp(12px, 4vw, 40px);
+      }
+
+      .interaction-swipe-stage lf-ask {
+        display: block;
+        margin: 0;
+      }
+
+      .interaction-swipe-stage lf-ask > h3 {
+        margin-top: 0;
+      }
+
       .interaction-pointer {
         position: absolute;
         z-index: 3;
@@ -486,22 +538,22 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           leaves only its emoji; press that emoji to remove it.
         </p>
         <p id="bg-react-ok">
-          <strong>1 · 👍 · keep this.</strong> The spare key is with reception.
+          <strong>1 · 👍 · keep.</strong> The spare key is with reception.
         </p>
         <p id="bg-react-no">
-          <strong>2 · ❌ · wrong.</strong> This sample claims Tuesday follows Thursday.
+          <strong>2 · ❌ · change.</strong> This sample claims Tuesday follows Thursday.
         </p>
         <p id="bg-react-lost">
-          <strong>3 · 🤔 · unclear.</strong> Bring the thing from the other place.
+          <strong>3 · 🤔 · clarify.</strong> Bring the thing from the other place.
         </p>
         <p id="bg-react-cut">
           <strong>4 · ✂️ · shorten.</strong> At this point in time, we can now begin.
         </p>
         <p id="bg-react-more">
-          <strong>5 · 🔎 · substantiate.</strong> The exercise involves a map.
+          <strong>5 · 🔎 · support.</strong> The exercise involves a map.
         </p>
         <p id="bg-react-this">
-          <strong>6 · 👀 · pay attention.</strong> The side entrance closes early.
+          <strong>6 · 🎯 · prioritize.</strong> The side entrance closes early.
         </p>
       </section>
 
@@ -517,8 +569,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p id="bg-button-atlas-guide">
           <strong>Everything visible at once.</strong> The first row holds every role
           and all three behaviors and tones. The second fixes every lifecycle state in
-          place: no mark, dot, moving open ring, diamond, and square. These inert
-          specimens use the same constructor and stylesheet as the live Buttons.
+          place. Only busy paints a mark, because only busy has nothing else on the page
+          saying it; engaged and failed still rank their Button in the cluster and hold
+          it open. These inert specimens use the same constructor and stylesheet as the
+          live Buttons.
         </p>
         <lf-button-atlas id="bg-button-atlas-specimens"></lf-button-atlas>
         <h3 id="bg-button-workflow-heading">
@@ -528,9 +582,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p id="bg-button-workflow-guide">
           <strong>Act, fail, and settle.</strong> Accept or Reject starts as an action.
           The content changes immediately, and an open ring moves on Undo while the
-          event travels. A refused send restores the suggestion and leaves a diamond on
-          Retry and Cancel. Success leaves the changed content and square-marked Undo
-          Button. Sent remains as a status until an agent picks the decision up.
+          event travels. A refused send restores the suggestion and puts Failed in words
+          beside Retry and Cancel. Success leaves the changed content and an Undo Button
+          alone in the cluster. Sent remains as a status until an agent picks the
+          decision up.
         </p>
         <p id="bg-button-workflow-line">
           The practice route uses
@@ -549,9 +604,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
         <p id="bg-button-status-guide">
           <strong>Edit and hand off.</strong> Opening the draft above replaces Edit with
-          dot-marked Save and Cancel Buttons; Save uses the moving ring while it sends.
-          The saved draft arrives with a Waiting for pickup status. When an agent claims
-          that unsettled edit, the same target gains an animated Active disclosure.
+          Save and Cancel Buttons; Save uses the moving ring while it sends. The saved
+          draft arrives with a Waiting for pickup status. When an agent claims that
+          unsettled edit, the same target gains an animated Active disclosure.
         </p>
         <p id="bg-buttons-line">
           <strong>Combine roles.</strong> Use the
@@ -559,8 +614,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             ><lf-old>courtyard</lf-old><lf-new>covered terrace</lf-new></lf-suggestion
           >
           for the practice session. Accept and Reject act immediately; Thread and ⋯
-          disclose more; reaction marks are settled actions. Delivery statuses below
-          report what already happened without offering another press.
+          disclose more; a reaction mark stands only while its reaction does. Delivery
+          statuses below report what already happened without offering another press.
         </p>
       </section>
 
@@ -1211,17 +1266,19 @@ gallery/
         data-interaction-gallery
       >
         <p class="eyebrow bg-feature-elements">
-          lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board · lf-column ·
-          lf-card
+          Core · lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board ·
+          lf-column · lf-card · Thread Button · Threads panel · Swipe package ·
+          lf-swipe-deck · lf-swipe-pile · lf-swipe-card
         </p>
         <h2 id="bg-interactions-heading">
           <strong>Interactions</strong
           ><span class="bg-feature-detail">: motion and input sequences</span>
         </h2>
         <p id="bg-interactions-guide">
-          Play, pause, or replay a focused sequence against Leaf’s real widgets. The
-          preview applies state locally, so watching it does not add decisions to the
-          page’s event log.
+          Selecting a tab starts its focused sequence against Leaf’s production
+          component and transition code. Page-wide controls run inside the preview box,
+          so the gallery around it stays still. Pause while it plays, or replay from the
+          beginning; neither action writes to the page’s event log.
         </p>
 
         <lf-tabs id="bg-interaction-tabs">
@@ -1263,6 +1320,96 @@ gallery/
               <figcaption>
                 The pointer finds the card’s grip, then Leaf plays the same placement
                 transition used after a keyboard or drag move.
+              </figcaption>
+            </figure>
+          </lf-tab>
+
+          <lf-tab id="bg-interaction-comment" label="Send a comment">
+            <figure
+              class="interaction-demo"
+              data-interaction-demo="send-comment"
+              data-interaction-thread-id="2be2443f0bb6cc49fc86b52f340e6073"
+            >
+              <div class="interaction-stage interaction-frame-stage">
+                <iframe
+                  class="interaction-frame"
+                  data-interaction-frame
+                  data-interaction-eyebrow="review note"
+                  data-interaction-target="bg-thread-text"
+                  data-interaction-title="Agenda draft"
+                  data-interaction-copy="The sample agenda has room for one more topic."
+                  title="Contained Leaf comment animation"
+                  tabindex="-1"
+                  aria-hidden="true"
+                ></iframe>
+                <kbd class="interaction-keypress" data-interaction-keypress hidden
+                  >⌘/Ctrl + Enter</kbd
+                >
+                <span class="interaction-pointer" hidden aria-hidden="true"></span>
+              </div>
+              <figcaption>
+                Leaf’s real response field submits with ⌘/Ctrl+Enter, then becomes the
+                real inline thread. A seeded comment lets the gallery replay that
+                accepted-send transition without posting another one.
+              </figcaption>
+            </figure>
+          </lf-tab>
+
+          <lf-tab id="bg-interaction-threads" label="Open and close Threads">
+            <figure class="interaction-demo" data-interaction-demo="open-threads">
+              <div class="interaction-stage interaction-frame-stage">
+                <iframe
+                  class="interaction-frame"
+                  data-interaction-frame
+                  data-interaction-eyebrow="review workspace"
+                  data-interaction-title="Release notes"
+                  data-interaction-target="bg-thread-text"
+                  data-interaction-copy="The sample agenda has room for one more topic."
+                  title="Contained Leaf Threads animation"
+                  tabindex="-1"
+                  aria-hidden="true"
+                ></iframe>
+                <span class="interaction-pointer" hidden aria-hidden="true"></span>
+              </div>
+              <figcaption>
+                The pointer presses the real top-bar control inside a compact Leaf page;
+                the production Threads workspace opens and closes without changing this
+                gallery page.
+              </figcaption>
+            </figure>
+          </lf-tab>
+
+          <lf-tab id="bg-interaction-swipe" label="Swipe a card">
+            <figure
+              class="interaction-demo"
+              data-interaction-demo="swipe-card"
+              data-interaction-module="/widgets/lf-swipe-deck.js"
+            >
+              <div class="interaction-stage interaction-swipe-stage">
+                <lf-ask id="bg-motion-swipe-ask">
+                  <h3>Keep this follow-up?</h3>
+                  <lf-swipe-deck id="bg-motion-swipe">
+                    <lf-swipe-pile id="bg-motion-swipe-queue" verdict="unseen">
+                      <lf-swipe-card id="bg-motion-swipe-card">
+                        <strong>Document the keyboard route</strong>
+                        <p>Keep the interaction reachable without a pointer.</p>
+                      </lf-swipe-card>
+                    </lf-swipe-pile>
+                    <lf-swipe-pile
+                      id="bg-motion-swipe-pass"
+                      verdict="pass"
+                    ></lf-swipe-pile>
+                    <lf-swipe-pile
+                      id="bg-motion-swipe-keep"
+                      verdict="keep"
+                    ></lf-swipe-pile>
+                  </lf-swipe-deck>
+                </lf-ask>
+                <span class="interaction-pointer" hidden aria-hidden="true"></span>
+              </div>
+              <figcaption>
+                The pointer presses Keep; the swipe package plays its real exit motion
+                while the projected placement moves the card into Kept.
               </figcaption>
             </figure>
           </lf-tab>

@@ -343,13 +343,8 @@ customElements.define(
     }
 
     #destinationFor(heading, position) {
-      const section = heading.parentElement;
-      if (
-        section?.matches("section[id]") &&
-        [...section.children].find((child) => child.matches(HEADING_SELECTOR)) ===
-          heading
-      )
-        return section;
+      const section = heading.closest("section[id]");
+      if (section?.querySelector(HEADING_SELECTOR) === heading) return section;
       if (heading.id) return heading;
       return this.#targetFor(heading, position);
     }

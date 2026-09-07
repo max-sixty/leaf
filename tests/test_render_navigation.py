@@ -192,10 +192,10 @@ def test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone(browser,
     page.close()
 
 
-def test_the_feature_gallery_headings_are_stable_preview_destinations(browser, serve):
+def test_the_feature_gallery_sections_are_stable_preview_destinations(browser, serve):
     """A preview can name its subject directly instead of asking the reader to find it."""
     root = live_url(serve(FEATURE_GALLERY))
-    destination = "#bg-quoted-and-visual-heading"
+    destination = "#bg-quoted-and-visual"
     page, errors = open_page(browser, root + destination)
 
     links = page.get_by_role("navigation", name="On this page").get_by_role("link")
@@ -207,10 +207,9 @@ def test_the_feature_gallery_headings_are_stable_preview_destinations(browser, s
                   generated: target?.dataset.lfGen === '1'};
         })"""
     )
-    assert targets and all(
-        target["tag"] in {"h1", "h2", "h3", "h4", "h5", "h6"}
-        and not target["generated"]
-        for target in targets
+    assert targets[0] == {"href": "#bg-title", "tag": "h1", "generated": False}
+    assert all(
+        target["tag"] == "section" and not target["generated"] for target in targets[1:]
     ), targets
     assert len({target["href"] for target in targets}) == len(targets), targets
 

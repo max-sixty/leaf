@@ -22,10 +22,10 @@ surface must come from its owning runtime and theme through a shipped example or
 fixture; page-local HTML and CSS may frame it, but must not imitate it. Call an
 unimplemented imitation a sketch, not a preview. Confirm the expected content,
 review the changed surface at a representative viewport, and check the browser
-console. Navigate to the heading that owns the changed surface and hand off the
-exact URL including its fragment. Use a stable authored heading id; if the heading
-has none, add one to the source rather than relying on `lf-toc`'s position-derived
-target. Keep the process alive.
+console. Navigate to the semantic block that owns the changed surface and hand off
+the exact URL including its fragment. A titled section uses the section's stable id,
+so its eyebrow and heading arrive together. Add an id to the tight semantic container
+when it has none. Keep the process alive.
 
 ## Preview a shipped example
 
@@ -51,7 +51,7 @@ retained.
 
 ### In Codex
 
-1. Call `mcp__codex_app__open_in_codex` with the heading's fragment URL as a
+1. Call `mcp__codex_app__open_in_codex` with the destination's fragment URL as a
    browser target and `placement: "right"`.
 2. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>` so Leaf
    comments return to the current task.
@@ -87,9 +87,9 @@ scripts/preview.py --source <source.html> --runtime <candidate-root> \
 Each command verifies the checkout launcher, prepares or resumes its independent
 page, watches that runtime and source, and prints its exact URL. Exercise the
 same journey and viewport at both URLs, check both browser consoles, then
-navigate both to the same authored heading id. Hand off the labeled URL pair and
-the action that reveals the difference; in Codex, open those exact fragment URLs
-as browser targets.
+navigate both to the same authored destination id. Hand off the labeled URL pair
+and the action that reveals the difference; in Codex, open those exact fragment
+URLs as browser targets.
 
 ## Author or revise a page
 

@@ -38,7 +38,6 @@ from render_support import (
     DIFF_LANDING,
     DIFF_PRESS,
     DIFF_ROW_PLACEMENT,
-    FEATURE_GALLERY,
     HOLD_MOTION,
     LONG_LINE_DIFF_PAGE,
     LONG_PAGE,
@@ -109,6 +108,22 @@ SWIPE_PAGE = leaf_page(
     </lf-swipe-pile>
   </lf-swipe-deck>
 </lf-ask>
+""",
+)
+
+EMPTY_QUOTED_SWIPE_PAGE = leaf_page(
+    "completed swipe deck",
+    """
+<h1>Completed triage</h1>
+<lf-specimen id="swipe-example" label="completed triage">
+  <lf-swipe-deck id="completed-swipe">
+    <lf-swipe-pile id="completed-queue" verdict="unseen"></lf-swipe-pile>
+    <lf-swipe-pile id="completed-pass" verdict="pass"></lf-swipe-pile>
+    <lf-swipe-pile id="completed-keep" verdict="keep">
+      <lf-swipe-card id="kept-card"><strong>Keep the expiry bound</strong></lf-swipe-card>
+    </lf-swipe-pile>
+  </lf-swipe-deck>
+</lf-specimen>
 """,
 )
 
@@ -2497,8 +2512,8 @@ def test_a_quoted_swipe_deck_is_a_static_labeled_exhibit(browser, serve):
 
 
 def test_an_empty_quoted_swipe_queue_says_it_is_empty(browser, serve):
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
-    labels = page.locator("#bg-swipe-completed .lf-swipe-pile-label")
+    page, errors = open_page(browser, serve(EMPTY_QUOTED_SWIPE_PAGE))
+    labels = page.locator("#completed-swipe .lf-swipe-pile-label")
 
     assert labels.all_inner_texts() == ["QUEUE · 0", "PASSED · 0", "KEPT · 1"]
     assert errors == []

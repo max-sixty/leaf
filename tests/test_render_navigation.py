@@ -112,6 +112,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
 
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-details .lf-thread")).not_to_have_count(0)
     expect(page.locator("#bg-thread-media")).to_contain_text(
         "supplied by its companion thread log"
     )

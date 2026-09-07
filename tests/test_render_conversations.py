@@ -3579,12 +3579,12 @@ def test_a_press_on_the_comment_the_reader_is_already_in_brings_it_back(browser,
         first = page.locator(".lf-threads > .lf-thread:not([hidden])").first
         first.focus()
         page.evaluate(RENDERED)
-        page.evaluate(BURY, page.evaluate(UNDER_HEADING)["ring"])
+        page.evaluate(BURY, page.evaluate(UNDER_HEADING)["edge"])
         page.evaluate(RENDERED)
         under = page.evaluate(UNDER_HEADING)
-        assert under["covered"] >= under["ring"], (
+        assert under["covered"] >= under["edge"], (
             f"the list carried only {under['covered']}px under the heading, which the "
-            f"{under['ring']}px ring shows through — nothing here is cut yet"
+            f"{under['edge']}px edge shows through — nothing here is cut yet"
         )
         assert page.evaluate(
             "() => document.activeElement?.classList.contains('lf-thread')"

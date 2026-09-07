@@ -4143,6 +4143,10 @@ RING_WALKS = (
         ("corpus", "ship-review"),
     ),
     ("the comments", ("c",), ("ship-review",)),
+    # Message reactions are behind their local disclosure. The old worded trigger wore
+    # the pill face itself, so the page walk happened to cover that ring; the icon
+    # trigger is now an ordinary press and the choices are the pill-shaped controls.
+    ("a reaction palette", (), ("ship-review",)),
     ("the Asks tray", (), ("ship-review",)),
     ("the leaves tray", ("g", "Shift+l"), ("corpus",)),
     # The menu's own walk after the key that opens it: an open lands on the version being
@@ -4194,6 +4198,7 @@ def offered(page, selector):
 # reads, while page `c` enters its comment box and is exercised separately.
 RING_SCOPE_SURFACE = {
     "a thread card": (".lf-margin-preview:popover-open", None),
+    "a reaction palette": (".lf-react-strip.lf-react-open", None),
     "the page map sheet": (".lf-page-map-sheet[open]", None),
     "passage search": (".lf-target-search:not([hidden])", None),
     # The hint the keyboard is browsing, and the field the chosen item's bar opens with.
@@ -4210,6 +4215,10 @@ RING_SCOPE_SURFACE = {
 }
 RING_SCOPE_CONTROL = {
     "the Asks tray": (".lf-asks", ".lf-asks-row"),
+    "a reaction palette": (
+        ".lf-msg.claude .lf-react-trigger",
+        ".lf-react-palette .lf-react",
+    ),
     "a thread card": (
         '.lf-margin-marker[data-lf-kinds~="comment"]',
         ".lf-margin-preview",

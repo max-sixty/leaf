@@ -1537,7 +1537,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* A reply with no feedback keeps no row. Its add control sits over the unused
      top-right corner and appears only for the message under pointer or keyboard focus.
      Opening it temporarily gives the popover a row; at rest only feedback already left
-     earns flow space. */
+     earns flow space. Beside Resolve, its resting gap also reserves Resolve's focus
+     ring so the later-painted reaction control cannot cover that indication. */
   .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
     margin-top: 0; }
   .lf-react-strip:has(.lf-react[aria-pressed="true"]) { margin-top: 4px; }
@@ -1552,7 +1553,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   }
   .lf-msg.claude:has(> .lf-msg-head > .lf-resolve)
     > .lf-react-strip > .lf-react-trigger {
-    inset-inline-end: calc(max(28px, var(--aim-floor)) + 2px);
+    inset-inline-end: calc(max(28px, var(--aim-floor)) + 2px + var(--here-ring-w));
   }
   .lf-react-strip.lf-react-open > .lf-react-trigger { display: none; }
   .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;

@@ -862,9 +862,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
                 return {liveRoot: LIVE_ROOT, pageScope: PAGE_SCOPE};
             }"""
         ) == {"liveRoot": False, "pageScope": "srcdoc"}
-        contained.evaluate(
-            "dispatchEvent(new PageTransitionEvent('pagehide'))"
-        )
+        contained.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
         assert page.evaluate("sessionStorage.getItem('lf-view')") == "outer reading"
         assert page.evaluate("sessionStorage.getItem('srcdoclf-view')") is not None
         assert delayed, "no contained state read was held"

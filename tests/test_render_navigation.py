@@ -59,6 +59,7 @@ from render_support import (
     resized,
     round_trip,
     select,
+    sending,
     stamp_page,
     stamp_version_file,
     standing_mark,
@@ -251,8 +252,8 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     )
     expect(option).not_to_have_attribute("chosen", "")
     page.locator(".lf-composer textarea").fill("The sample option needs less padding.")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the design comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
     design_comment = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -266,8 +267,8 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     ready = page.locator("#bg-request-live")
     restart = ready.get_by_role("button", name="Restart the sample worker", exact=True)
 
-    restart.click()
-    round_trip(page)
+    with sending(page, "the restart request"):
+        restart.click()
     request = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -289,8 +290,8 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     )
     expect(restart).to_be_enabled()
 
-    restart.click()
-    round_trip(page)
+    with sending(page, "the retried restart request"):
+        restart.click()
     retried = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -723,9 +724,9 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     page.keyboard.press("ArrowDown")
     expect(marks.nth(1)).to_be_focused()
 
-    page.keyboard.press("1")
+    with sending(page, "the numbered pick"):
+        page.keyboard.press("1")
     expect(page.locator("#lq-keep")).to_have_attribute("chosen", "")
-    round_trip(page)
     expect(position).to_be_hidden()
     acts = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
@@ -4386,8 +4387,8 @@ def test_signoff_uses_its_visible_button_and_g_l_never_falls_through(browser, se
     ]
 
     approve.focus()
-    page.keyboard.press("Enter")
-    round_trip(page)
+    with sending(page, "the approval"):
+        page.keyboard.press("Enter")
     expect(approve).to_have_text("✓ Version approved")
     expect(approve).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
     assert "(L)" not in approve.get_attribute("title")

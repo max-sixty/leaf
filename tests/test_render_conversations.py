@@ -169,8 +169,8 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(
     )
     first = page.locator("#proposal > .lf-conversation > .lf-say")
     first.locator("textarea").fill("Please combine the jobs.")
-    first.get_by_role("button", name="Send", exact=True).click()
-    round_trip(page)
+    with sending(page, "the root comment"):
+        first.get_by_role("button", name="Send", exact=True).click()
     root = next(
         event
         for event in events_model.read_events(serve.page_dir)
@@ -357,8 +357,8 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
 
     box = page.locator(".lf-general textarea")
     box.fill("Where did my words go?")
-    page.locator(".lf-general button").click()  # the route that used to drop focus
-    round_trip(page)
+    with sending(page, "the first comment"):
+        page.locator(".lf-general button").click()  # the route that used to drop focus
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["text"]) == ("comment", "Where did my words go?")
     in_threads_scrollport(page, f'.lf-thread[data-id="{sent["id"]}"]')
@@ -369,8 +369,8 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     expect(box).to_have_value("")
 
     box.fill("And the second thought lands the same way.")
-    page.keyboard.press("ControlOrMeta+Enter")  # the other route, same destination
-    round_trip(page)
+    with sending(page, "the second comment"):
+        page.keyboard.press("ControlOrMeta+Enter")  # the other route, same destination
     second = events_model.read_events(serve.page_dir)[-1]
     in_threads_scrollport(page, f'.lf-thread[data-id="{second["id"]}"]')
     expect(box).to_be_focused()
@@ -1446,8 +1446,8 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
         1
     )
     page.locator(".lf-details summary").click()
-    page.locator(f'.lf-details .lf-thread[data-id="{comment}"] .lf-reopen').click()
-    round_trip(page)
+    with sending(page, "the reopen"):
+        page.locator(f'.lf-details .lf-thread[data-id="{comment}"] .lf-reopen').click()
 
     reopened = page.locator(f'.lf-threads > .lf-thread[data-id="{comment}"]')
     expect(reopened).to_be_in_viewport()

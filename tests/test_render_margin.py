@@ -1894,8 +1894,8 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
     page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
     expect(reject).to_have_attribute("data-test-identity", "held")
     reject.focus()
-    page.keyboard.press("Enter")
-    round_trip(page)
+    with sending(page, "the reject"):
+        page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["widget"], sent["action"]) == (
         "action",
@@ -2447,8 +2447,8 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     page.keyboard.press("r")
     expect(suggestion_item.locator(".lf-margin-button:visible")).to_have_count(6)
     expect(suggestion_item).to_have_class(re.compile(r"lf-docked"))
-    reactions.locator('.lf-react[data-token="keep"]').click()
-    round_trip(page)
+    with sending(page, "the keep reaction"):
+        reactions.locator('.lf-react[data-token="keep"]').click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "keep" and sent["anchor"] == {"section": "sug-refill"}
 
@@ -2501,8 +2501,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     resized(page, 1440, 900)
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
 
-    page.locator("#job-mounts").click()
-    round_trip(page)
+    with sending(page, "the mounts choice"):
+        page.locator("#job-mounts").click()
     logged_action = next(
         event
         for event in reversed(events_model.read_events(page_dir))
@@ -3208,9 +3208,9 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     reactions = bar.locator(":scope > .lf-response-options")
     expect(reactions).to_be_visible()
 
-    reactions.locator('.lf-react[data-token="keep"]').click()
+    with sending(page, "the keep reaction"):
+        reactions.locator('.lf-react[data-token="keep"]').click()
     expect(bar).to_be_hidden()
-    round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]
     receipt = page.locator(".lf-margin-item").filter(
@@ -3656,8 +3656,8 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     ticked(page)
     expect(reply).to_have_value("Yes. One visit can cover both jobs.")
     expect(reply).to_be_focused()
-    thread.get_by_role("button", name="Send").click()
-    round_trip(page)
+    with sending(page, "the reply"):
+        thread.get_by_role("button", name="Send").click()
 
     expect(thread.locator(".lf-conversation-thread")).to_contain_text(
         "Yes. One visit can cover both jobs."
@@ -3737,8 +3737,8 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Check the January failure mode.")
     passage_before = page.locator("#mounts-p").bounding_box()
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the anchored comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
 
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["text"]) == (

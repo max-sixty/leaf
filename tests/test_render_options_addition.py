@@ -8,6 +8,7 @@ from render_support import (
     ASK_WITH_CONTEXT_PAGE,
     open_page,
     round_trip,
+    sending,
     sent_events,
     told,
     undo,
@@ -200,8 +201,8 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     field.fill("Insulate the camera battery")
     add = added.get_by_role("button", name="Add option", exact=True)
     add.focus()
-    page.keyboard.press("Enter")
-    round_trip(page)
+    with sending(page, "the added option"):
+        page.keyboard.press("Enter")
     expect(field).to_be_focused()
 
     new_option = page.locator("#jobs > lf-option[data-lf-added]")

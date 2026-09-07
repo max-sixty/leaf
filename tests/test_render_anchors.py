@@ -2714,8 +2714,8 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
 
     # And the anchor that posts says the same thing, since the mark is drawn from it.
     page.locator(".lf-composer textarea").fill("The whole of it.")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    with sending(page, "the comment on the dragged passage"):
+        page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread")).to_have_count(1)
     expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
         re.compile("detached")

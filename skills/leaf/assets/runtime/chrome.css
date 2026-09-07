@@ -1246,8 +1246,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      covers the top: its height is the one number CSS cannot work out, since a long
      heading wraps, so renderThreads measures the tallest and writes it here. And
      the ring is drawn outside the box it names, so a control inside a thread scrolled
-     exactly to either edge had its ring in the strip beyond it — cut at the bottom walking
-     down, cut at the top and under the find row walking up. Gap plus width is the
+     exactly to either edge had its ring in the strip beyond it — cut at the bottom
+     walking down, cut at the top and under the find row walking up. Gap plus width is the
      room it needs, and it is the layer's own number (theme.css) rather than one
      worked out from the controls this list happens to hold. */
   .lf-threads { flex: 1; overflow-y: auto; overscroll-behavior: contain;

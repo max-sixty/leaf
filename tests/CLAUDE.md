@@ -128,9 +128,10 @@ wrap the control reached, a joined option group may stand for the pick that gave
 up focus, and an anchored element may have no focus of its own. The reading
 therefore sweeps every box painting a ring and asks the paint, never
 `getComputedStyle(activeElement)` and never a selector. A thread is the distinct
-large-composite case: the current card repaints its existing border and surface,
-and its tests compare that paint with a resting peer while checking the card's
-visible placement. The band has two carriers: `--here-ring`, the outline
+large-composite case: the current panel card repaints its existing border and surface,
+while an unbordered inline card draws the same quiet edge inside itself. Their tests
+compare that paint with a resting state while checking the card's visible placement.
+The band has two carriers: `--here-ring`, the outline
 nearly every rule draws, and `--here-shadow`, the same band cast as a shadow by
 the two boxes that cannot spend an outline on it — the anchored response bar and
 the item hint the keyboard is browsing. A shadow ring is the layer's spread with

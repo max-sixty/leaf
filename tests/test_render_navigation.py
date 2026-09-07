@@ -1266,6 +1266,71 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     page.close()
 
 
+def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser, serve):
+    """A thread is a current region; its reply is the control taking the next press."""
+    page, errors = open_page(
+        browser,
+        serve(INLINE_PAGE, anchored=[("p", "bold text")]),
+    )
+    thread = page.locator(".lf-margin-preview .lf-conversation-thread")
+
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    current = thread.evaluate(
+        """el => { const s = getComputedStyle(el); return {
+          outline: s.outlineStyle, background: s.backgroundColor,
+          shadow: s.boxShadow,
+        }; }"""
+    )
+    assert current["outline"] == "none"
+    assert current["shadow"] != "none"
+
+    page.keyboard.press("Enter")
+    reply = thread.locator("textarea")
+    expect(reply).to_be_focused()
+    writing = thread.evaluate(
+        """el => { const s = getComputedStyle(el); return {
+          outline: s.outlineStyle, background: s.backgroundColor,
+          shadow: s.boxShadow,
+        }; }"""
+    )
+    reply_ring = reply.evaluate(
+        """el => { const s = getComputedStyle(el); return {
+          style: s.outlineStyle, width: s.outlineWidth,
+        }; }"""
+    )
+    assert writing["outline"] == "none"
+    assert writing["background"] != current["background"]
+    assert writing["shadow"] == "none"
+    assert reply_ring == {"style": "solid", "width": "2px"}
+    assert errors == []
+    page.close()
+
+
+def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
+    """The system focus outline replaces the surface paint high contrast removes."""
+    context = browser.new_context(forced_colors="active")
+    try:
+        page, errors = open_page(
+            browser,
+            serve(INLINE_PAGE, anchored=[("p", "bold text")]),
+            context=context,
+        )
+        thread = page.locator(".lf-margin-preview .lf-conversation-thread")
+
+        page.keyboard.press("t")
+        expect(thread).to_be_focused()
+        focus = thread.evaluate(
+            """el => { const s = getComputedStyle(el); return {
+              style: s.outlineStyle, width: s.outlineWidth,
+            }; }"""
+        )
+        assert focus == {"style": "solid", "width": "2px"}
+        assert errors == []
+    finally:
+        context.close()
+
+
 @pytest.mark.parametrize("long_thread", [False, True], ids=["short", "long"])
 def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     browser, serve, long_thread

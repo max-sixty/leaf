@@ -245,8 +245,9 @@
   --react: #dfd1ed40;
   /* The compact "you are here" ring: a control or bounded decision receiving the
      reader's next press wears one consistent band. A large composite surface would
-     turn that band into a second box around the box; it instead repaints its existing
-     edge and ground with the two surface tokens below. Both treatments carry the same
+     turn that band into a second box around the box; it instead uses a quiet edge and
+     ground with the two surface tokens below. A card repaints its existing border;
+     an unbordered region draws the edge inside itself. Both treatments carry the same
      accent, while their geometry distinguishes a target from a current region. The
      gap is what the ring wants outside a box that stands on its own; a control packed
      into a list states its own inset instead.
@@ -1293,6 +1294,13 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation { display: none; margin-top: var(--sp-2); overflow-wrap: anywhere; }
 .lf-conversation-thread { min-width: 0; font-family: var(--sans); font-size: var(--t-5);
           line-height: var(--lf-ui-lh); color: var(--ink); overflow-wrap: anywhere; }
+.lf-conversation-thread:is(:focus-visible, .lf-focus-visible) {
+          outline: none; border-radius: var(--r); background: var(--here-surface);
+          box-shadow: inset 0 0 0 1px var(--here-surface-border); }
+@media (forced-colors: active) {
+  .lf-conversation-thread:is(:focus-visible, .lf-focus-visible) {
+          outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
+}
 .lf-say { display: none; align-items: flex-end;
           gap: var(--sp-2); margin-top: var(--sp-2); }
 .lf-conversation-thread > .lf-say:not([hidden]) { display: flex; }

@@ -105,6 +105,14 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     resized(page, 1440, 900)
     margins_laid_out(page)
     assert page.locator(".lf-margin-item").count() >= 15
+    # The corpus carries the gallery's contained frames, and a frame still arriving lays
+    # itself out in this page's own process. Counted against five dispatches that touch
+    # nothing, that reads as the heartbeat forcing layout: the measurement is of a
+    # refresh, so what is measured has to have stopped arriving first.
+    page.wait_for_function(
+        """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
+             (frame) => frame.hasAttribute('data-interaction-ready'))"""
+    )
     session = page.context.new_cdp_session(page)
     session.send("Performance.enable")
     before = {
@@ -198,6 +206,14 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
     resized(page, 1440, 900)
     margins_laid_out(page)
     assert page.locator(".lf-margin-item").count() >= 15
+    # The corpus carries the gallery's contained frames, and a frame still arriving lays
+    # itself out in this page's own process. Counted against five dispatches that touch
+    # nothing, that reads as the heartbeat forcing layout: the measurement is of a
+    # refresh, so what is measured has to have stopped arriving first.
+    page.wait_for_function(
+        """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
+             (frame) => frame.hasAttribute('data-interaction-ready'))"""
+    )
     session = page.context.new_cdp_session(page)
     session.send("Performance.enable")
     before = {

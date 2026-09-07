@@ -1,8 +1,8 @@
 name: publish-site
 
-# Every product and example route uses the canonical Python Leaf server behind one
-# Cloudflare Worker origin. The container image copies the exact site build verified
-# here; deployment therefore cannot publish one document while serving another.
+# Every product and example route uses one build through a Cloudflare Worker origin:
+# immutable documents and browser assets at the edge, and the canonical Python Leaf
+# server for per-reader API state.
 
 on:
   push:
@@ -78,24 +78,44 @@ jobs:
       - name: Verify public Leaf pages
         run: |
           COOKIE="__Host-leaf-page=$(openssl rand -hex 16)"
+          verify_shell() {
+            local response
+            response=$(mktemp)
+            curl --fail-with-body --silent --show-error \
+              --output "$response" \
+              --cookie "$COOKIE" \
+              https://leaf.page/examples/feature-gallery/
+            grep --quiet --fixed-strings 'data-lf-server="published"' "$response"
+            SHELL_LAYER=$(grep --only-matching 'data-lf-layer="[^"]*"' "$response" | head -1 | cut -d'"' -f2)
+            test -n "$SHELL_LAYER"
+          }
           verify_state() {
             local url="$1"
             local predicate="$2"
+            local response_layer
             local response
+            local headers
+            local attempt=0
             response=$(mktemp)
-            if ! curl --fail-with-body --silent --show-error \
-              --output "$response" \
-              --cookie "$COOKIE" \
-              --retry 20 --retry-all-errors --retry-delay 5 --max-time 25 \
-              "$url"; then
-              cat "$response" >&2
-              return 1
-            fi
-            if ! jq --exit-status "$predicate" "$response"; then
-              cat "$response" >&2
-              return 1
-            fi
+            headers=$(mktemp)
+            while (( attempt++ < 20 )); do
+              if curl --fail-with-body --silent --show-error \
+                --output "$response" \
+                --dump-header "$headers" \
+                --cookie "$COOKIE" \
+                --max-time 25 \
+                "$url"; then
+                response_layer=$(awk 'tolower($1) == "leaf-layer:" {gsub("\\r", "", $2); print $2}' "$headers" | tail -1)
+                if test "$response_layer" = "$SHELL_LAYER" && jq --exit-status "$predicate" "$response"; then
+                  return 0
+                fi
+              fi
+              sleep 5
+            done
+            cat "$response" >&2
+            return 1
           }
+          verify_shell
           verify_state \
             https://leaf.page/api/state \
             '.publication.kind == "product" and .claims == []'

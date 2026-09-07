@@ -56,6 +56,11 @@ export function isPageRequest(pathname: string): boolean {
   return pageRoute(pathname) !== null;
 }
 
+export function isPageApiRequest(pathname: string): boolean {
+  const route = pageRoute(pathname);
+  return route?.inside === "api" || route?.inside.startsWith("api/") || false;
+}
+
 export function needsPageSlash(pathname: string): boolean {
   return (
     (PRODUCT_ROOT_SET.has(pathname) && pathname !== "/") ||

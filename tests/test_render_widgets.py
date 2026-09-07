@@ -6107,26 +6107,33 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
 
     Three registers, because a pointer, a hand and a keyboard arrive by different routes
     and only one of them is on screen at rest. The hand is the resting answer, and a
-    control with nothing left to do gives it up along with its opacity. The badges are
-    read outside a choose group on purpose: a card group makes the whole option the
-    press, so a chip inside one inherits the hand from the control it is sitting in and
-    would be answering this question about its parent. The wash is the aim, read as a
-    change against each control's own resting shadow rather than against a constant: a
-    control is free to wear a drop shadow of its own, and several here do, so an
-    absolute reading would pin the theme's current furniture instead of the rule. The
-    ring is the keyboard's, and this is the half of it a shared rule has to get right by
-    losing: a control with a ring of its own keeps it and keeps its name, so what is
-    asserted here is that a named ring is drawn and not which rule drew it. Which box
-    wears it is a separate question from which one holds the focus - a joined option group
-    draws it on the row its picks give up, and getComputedStyle(activeElement) reports
-    'no ring' for a control whose ring is perfectly fine. Where nothing else claims one,
-    the shared rule is what draws it, and that case is asserted on a request press in
-    test_render_projection.py, which is where the layer has a control no widget rings."""
+    control with nothing left to do gives it up while its face either fades or changes
+    from a fill to an outline. The latter is the icon composer's deliberate disabled
+    treatment: fading its whole layered control would also fade the paper that replaces
+    the active fill. The badges are read outside a choose group on purpose: a card group
+    makes the whole option the press, so a chip inside one inherits the hand from the
+    control it is sitting in and would be answering this question about its parent. The
+    wash is the aim, read as a change against each control's own resting shadow rather
+    than against a constant: a control is free to wear a drop shadow of its own, and
+    several here do, so an absolute reading would pin the theme's current furniture
+    instead of the rule. The ring is the keyboard's, and this is the half of it a shared
+    rule has to get right by losing: a control with a ring of its own keeps it and keeps
+    its name, so what is asserted here is that a named ring is drawn and not which rule
+    drew it. Which box wears it is a separate question from which one holds the focus -
+    a joined option group draws it on the row its picks give up, and
+    getComputedStyle(activeElement) reports 'no ring' for a control whose ring is
+    perfectly fine. Where nothing else claims one, the shared rule is what draws it, and
+    that case is asserted on a request press in test_render_projection.py, which is where
+    the layer has a control no widget rings."""
     page, errors = open_page(browser, serve(CHIP_PAGE))
     state = """() => {
       const kind = (el) => {
         const cs = getComputedStyle(el);
+        const face = getComputedStyle(el, '::before');
+        const outlined = face.borderTopStyle !== 'none'
+          && face.backgroundColor === getComputedStyle(document.body).backgroundColor;
         return {cursor: cs.cursor, opacity: cs.opacity,
+                quiet: Number(cs.opacity) < 1 || outlined,
                 off: el.matches('[aria-disabled="true"], :disabled')};
       };
       const presses = [...document.querySelectorAll('[data-lf-offer]')]
@@ -6147,7 +6154,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     assert all(p["cursor"] == "pointer" for p in live), (
         f"a control a widget built does not take the hand: {live}"
     )
-    assert all(p["cursor"] == "default" and float(p["opacity"]) < 1 for p in spent), (
+    assert all(p["cursor"] == "default" and p["quiet"] for p in spent), (
         f"a control with nothing left to do still offers itself: {spent}"
     )
     assert not any(s["cursor"] == "pointer" for s in rest["said"]), (

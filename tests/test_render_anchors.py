@@ -4208,8 +4208,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator("textarea")).to_be_visible()
 
     # Resolve is the thread's own control, and the keyboard reaches it the way it
-    # reaches any other: the fold has no page-level letter of its own, so `x` stays the
-    # one word for closing what is open (skills/leaf/assets/runtime/conversation).
+    # reaches any other: #347 withdrew the page-level `x`, so the route is the PRESS
+    # row the control declares for itself (runtime/conversation/folding.js).
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     resolve.focus()
     expect(resolve).to_be_focused()

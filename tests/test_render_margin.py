@@ -2509,6 +2509,16 @@ def test_page_map_only_origins_do_not_count_as_margin_buttons(browser, serve):
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, 1 of 1,"))
     expect(page.locator('[data-lf-margin-for="t-mounts"]')).to_have_count(0)
     expect(page.get_by_role("navigation", name="Page map, 2 locations")).to_be_visible()
+    page.evaluate(
+        "async () => (await import('/runtime/living-margin.js')).enterPageMap()"
+    )
+    origin = page.get_by_role(
+        "button", name=re.compile(r"^Open reported update: Reported update")
+    )
+    origin.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator("#t-mounts")).to_be_focused()
+    expect(marker).not_to_be_focused()
 
     assert errors == []
     page.close()

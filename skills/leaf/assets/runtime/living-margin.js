@@ -283,11 +283,10 @@ import {
   updateMarginRow,
 } from "./margin-layout.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
-import { keeps, keepsHidden, offer } from "./widget-elements.js";
+import { el, focusDestination, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { landInConversation, showThread } from "./conversation/landing.js";
 import { ago, clocked } from "./presence.js";
-import { el } from "./widget-elements.js";
 import { runtime } from "./context.js";
 import { commentsEdge, panelIsOpen } from "./chrome-layout.js";
 import { designOn } from "./design.js";
@@ -2993,8 +2992,13 @@ function activate(item, entry, { focusMap = true } = {}) {
     sheetCloseOwnsFocus = true;
     sheet.close();
   }
-  if (focusMap) focusMapControl(entry);
+  const landsOnTarget = focusMap && !entryHasMarginHost(entry);
+  if (focusMap && !landsOnTarget) focusMapControl(entry);
   item.activate();
+  // A Page-map-only location has no margin control to receive the handoff. Reveal its
+  // target first, then lend that authored element a programmatic tab stop so keyboard
+  // focus and the visible arrival name the same place.
+  if (landsOnTarget && entry.target?.isConnected) focusDestination(entry.target);
 }
 
 function openThreadChoice(entry, button) {

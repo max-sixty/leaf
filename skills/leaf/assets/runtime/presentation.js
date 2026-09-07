@@ -107,6 +107,27 @@ export const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE)
 export const pagePresented = () =>
   document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 
+// The one initial turn in which box-derived page apparatus can read the complete
+// authoritative layout before the browser paints it. Widget upgrade gives components
+// enough geometry to build, while presentation adds replay, restored chrome, and
+// fragment reveal. Components keep observing later real layout changes through their
+// ordinary ResizeObserver or layout signal; this event exists only to replace a
+// provisional startup reading with the first visible one synchronously.
+export const PRESENTATION = "lf-presentation";
+
+// Optional runtime-owned page interface joins the same settlement boundary as the
+// widget modules it composes. Initial startup and an in-place version activation both
+// pass here, so a dynamically imported surface cannot appear after either page is
+// already in front of the reader.
+export const PAGE_INTERFACE = "lf-page-interface";
+export async function settlePageInterface() {
+  const pending = [];
+  document.dispatchEvent(new CustomEvent(PAGE_INTERFACE, { detail: { pending } }));
+  // Each optional owner reports its own failure. One rejected surface must not keep
+  // every generated control on the page hidden behind the presentation boundary.
+  await Promise.allSettled(pending);
+}
+
 // A word for a reader listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed after the element's leading title,
 // wearing .lf-ui (an invisible word is apparatus the anchor pass must not offer),

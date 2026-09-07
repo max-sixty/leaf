@@ -47,7 +47,7 @@ export {
   reducedMotion,
   scrollBehavior,
 } from "./motion.js";
-export { quietWord } from "./presentation.js";
+export { PRESENTATION, quietWord } from "./presentation.js";
 export { projectData } from "./projection/data.js";
 export { tabStore } from "./storage.js";
 export {

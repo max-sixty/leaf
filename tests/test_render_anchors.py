@@ -46,6 +46,7 @@ from render_support import (
     TWO_COPIES_PAGE,
     _publish,
     _traffic,
+    address_code,
     compare_with,
     composer_quote,
     key_line,
@@ -543,6 +544,40 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     expect(
         page.locator(".lf-composer")
     ).to_be_hidden()  # the press decided, it didn't compose
+    assert page.evaluate("getSelection().isCollapsed")
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("route", ["Enter", "Space", "g"])
+def test_every_suggestion_activation_dismisses_a_standing_selection(
+    browser, serve, route
+):
+    """A decision replaces the selection instead of reopening its Comment field."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    resized(page, 1440, 900)
+    box = page.locator("#replace").bounding_box()
+    select(
+        page,
+        (box["x"] + 4, box["y"] + 6),
+        (box["x"] + box["width"] - 8, box["y"] + box["height"] - 6),
+        steps=16,
+    )
+    expect(page.locator(".lf-composer")).to_be_visible()
+
+    accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
+    if route == "g":
+        page.keyboard.press("g")
+        page.keyboard.type(
+            address_code(page, "Page-map Button", "sug-refill", "accept")
+        )
+    else:
+        accept.focus()
+        page.keyboard.press(route)
+
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    assert page.evaluate("getSelection().isCollapsed")
     assert errors == []
     page.close()
 

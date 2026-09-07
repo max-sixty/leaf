@@ -7,10 +7,15 @@ export const escapeHtml = (text) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const escapeAttribute = (text) => escapeHtml(text).replace(/"/g, "&quot;");
 
-let render = (text) => escapeHtml(text);
+const escapedSource = (text) => escapeHtml(text);
+let render = escapedSource;
 let ready;
 
 export const renderMarkdown = (text) => render(text);
+// Whether a rendering taken now is the parser's or the escaped source standing in for
+// it. A caller that keeps what it painted needs to know which it kept, so the words can
+// be given their Markdown once the import lands.
+export const markdownReady = () => render !== escapedSource;
 
 const WEB_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 

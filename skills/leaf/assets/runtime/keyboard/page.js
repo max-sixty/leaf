@@ -337,11 +337,6 @@ export function hasCapturedTarget() {
   return Boolean(fabAnchorAt());
 }
 
-export const responseInstructions = () =>
-  reactionTokens().length
-    ? "Press c to comment, or r to react."
-    : "Press c to comment.";
-
 // c goes where commenting happens: a live selection gets the composer (what the floating
 // button does), an element click's pending 💬 gets that, an open thread the reader is
 // standing in gets its own reply box, the item they are standing in gets the box belonging
@@ -1210,17 +1205,16 @@ export function pageScopes() {
   const PAGE = {
     rows: [
       actionRow,
-      // Comment can act immediately because the page itself is its target. Selecting a
-      // more particular target is the second step; only then does React become an action.
+      // The page itself is already a Comment target. `s` plus a hint names a more
+      // particular one; either route opens Comment, while reactions wait for a target.
       COMMENT_CREATE,
       {
         id: "selection.open",
         keys: ["s"],
-        does: "Choose a visible item by hint",
-        line: "select item",
-        // Once a target is in hand, its actions own the two short-line slots. Escape clears
-        // it, while this projection-only gate leaves s live to replace the target and keeps
-        // that capability in the complete reference.
+        does: "Comment on a visible item by hint",
+        line: "comment on item",
+        // Once the field is open, its typing scope owns character keys. This gate also
+        // keeps the route off the short line while a target is in hand.
         lineWhen: () => !hasCapturedTarget(),
         when: anchoringIsReady,
         run: (...args) => startSelecting(...args),

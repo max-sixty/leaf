@@ -3992,7 +3992,7 @@ def test_a_narrowing_that_hides_the_card_the_reader_stands_in_lands_them_on_the_
     expect(card.locator("textarea")).to_be_focused()
     # A remote reaction answers the question, so the narrowing no longer shows the card.
     events_model.append_event(
-        d, {"kind": "reply", "author": "user", "parent": theirs, "token": "ok"}
+        d, {"kind": "reply", "author": "user", "parent": theirs, "token": "keep"}
     )
     told(page)
     expect(card).to_be_hidden()

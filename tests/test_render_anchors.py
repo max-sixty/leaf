@@ -4177,15 +4177,15 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     assert trigger.evaluate("b => getComputedStyle(b).opacity") == "1"
     strip.locator(".lf-react-trigger").click()
     expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
-    expect(strip.locator('.lf-react[data-token="no"]')).to_be_visible()
+    expect(strip.locator('.lf-react[data-token="change"]')).to_be_visible()
     assert errors == []
     with sending(page, "the inline reaction"):
-        strip.locator('.lf-react[data-token="no"]').click()
+        strip.locator('.lf-react[data-token="change"]').click()
     reacted = events_model.read_events(serve.page_dir)[-1]
     assert (reacted["kind"], reacted["parent"], reacted["token"]) == (
         "reply",
         reply["id"],
-        "no",
+        "change",
     )
 
     # A layout change can withdraw the outlet without a pointer press to dismiss
@@ -4883,7 +4883,7 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "ok",
+            "token": "keep",
             "anchor": {"section": "p7", "quote": "Paragraph 7."},
         },
     )

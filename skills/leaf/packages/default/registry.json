@@ -631,6 +631,7 @@
     "additionalProperties": false,
     "x-content": "none",
     "x-upgrade": true,
+    "x-visual": "whole",
     "x-example": "<h3>The option cards</h3>\n<p>The chips now sit above the title, so a scanning eye reads cost before prose.</p>\n<lf-shot id=\"shot-cards\" alt=\"the decision page's option cards\" before=\"/media/0f2c91a4b7de3105.png\" after=\"/media/6b40ac7719ee5d82.png\"></lf-shot>"
   },
   "lf-board": {
@@ -856,12 +857,12 @@
   },
   "$reactions": {
     "tokens": {
-      "ok":   {"glyph": "👍", "means": "good — keep this; no change asked", "settles": true},
-      "no":   {"glyph": "❌", "means": "wrong — change this"},
-      "lost": {"glyph": "🤔", "means": "unclear — rewrite or explain this"},
-      "cut":  {"glyph": "✂️", "means": "too long — shorten or remove this"},
-      "more": {"glyph": "🔎", "means": "needs support — expand or substantiate this"},
-      "this": {"glyph": "👀", "means": "pay attention here — no verdict"}
+      "keep":       {"glyph": "👍", "settles": true},
+      "change":     {"glyph": "❌"},
+      "clarify":    {"glyph": "🤔"},
+      "shorten":    {"glyph": "✂️"},
+      "support":    {"glyph": "🔎"},
+      "prioritize": {"glyph": "🎯"}
     }
   }
 }

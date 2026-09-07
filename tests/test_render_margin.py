@@ -105,6 +105,14 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     resized(page, 1440, 900)
     margins_laid_out(page)
     assert page.locator(".lf-margin-item").count() >= 15
+    # The corpus carries the gallery's contained frames, and a frame still arriving lays
+    # itself out in this page's own process. Counted against five dispatches that touch
+    # nothing, that reads as the heartbeat forcing layout: the measurement is of a
+    # refresh, so what is measured has to have stopped arriving first.
+    page.wait_for_function(
+        """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
+             (frame) => frame.hasAttribute('data-interaction-ready'))"""
+    )
     session = page.context.new_cdp_session(page)
     session.send("Performance.enable")
     before = {
@@ -198,6 +206,14 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
     resized(page, 1440, 900)
     margins_laid_out(page)
     assert page.locator(".lf-margin-item").count() >= 15
+    # The corpus carries the gallery's contained frames, and a frame still arriving lays
+    # itself out in this page's own process. Counted against five dispatches that touch
+    # nothing, that reads as the heartbeat forcing layout: the measurement is of a
+    # refresh, so what is measured has to have stopped arriving first.
+    page.wait_for_function(
+        """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
+             (frame) => frame.hasAttribute('data-interaction-ready'))"""
+    )
     session = page.context.new_cdp_session(page)
     session.send("Performance.enable")
     before = {
@@ -263,10 +279,11 @@ HEARTBEAT_PAGES = (
     # The gallery draws the fittings the corpus has none of, and the writers that only
     # run for those are watched nowhere else: a reading option under an entry holding
     # several readings, and the readings whose move is made, which wear the `status`
-    # behavior on a span seat rather than a button. The hidden swipe demonstration's row
-    # contributes the posture measurement without making the rail live; two hanging
-    # rows stand where they would overlap, so the push measurement is read here and
-    # nowhere else.
+    # behavior on a span seat rather than a button. Two of its rows stand where they
+    # would overlap, so the push measurement is read here and nowhere else. All but one
+    # of its rows hang: the swipe specimen sits inside an unselected tab, so its row is
+    # withheld and the posture clear runs for that one. The rail is not re-read, which
+    # the corpus is here for.
     pytest.param(
         FEATURE_GALLERY,
         {

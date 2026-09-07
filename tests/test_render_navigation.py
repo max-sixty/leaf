@@ -1,5 +1,6 @@
 """Comment marks, addresses, and keyboard navigation tests."""
 
+import json
 import re
 
 import pytest
@@ -5451,9 +5452,18 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     page.close()
 
 
-def test_other_responses_can_turn_the_compact_field_into_a_suggestion(browser, serve):
-    """A selected passage offers Suggest without reopening the retired composer card."""
-    page, errors = open_page(browser, serve(INLINE_PAGE))
+def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggestion(
+    browser, serve
+):
+    """A reactionless layer keeps Suggest in the compact response fallback."""
+    registry = json.loads(
+        (ROOT / "skills/leaf/packages/default/registry.json").read_text()
+    )
+    tokens = {name: None for name in registry["$reactions"]["tokens"]}
+    page, errors = open_page(
+        browser,
+        serve(INLINE_PAGE, layer_registry={"$reactions": {"tokens": tokens}}),
+    )
     page.locator("#p").click(click_count=3)
     box = page.locator(".lf-fab-input")
     expect(page.locator(".lf-fab-bar")).to_be_visible()

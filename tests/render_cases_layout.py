@@ -1911,15 +1911,27 @@ RINGS_DRAWN = f"""async () => {{
         // box that holds the control answers nothing — the control is inside it — so the
         // walk stops there rather than reading its rank.
         //
-        // Two things lift a box past the holder this ranks, and either stops the walk. A
-        // z-index of its own says so outright. Position says it without naming one: a
-        // positioned box leaves its holder's place in the flow to paint in the positioned
-        // layer of the nearest ancestor stacking context, so a static holder ranking
-        // below the control says nothing about what it holds. A positioned holder still
-        // answers for it, since a box it holds paints after it in that same layer and
-        // outside the control's subtree the tree order they are painted in is the
-        // holder's. Where either lifts, the reading says what it said before.
+        // A z-index named on the way up stops the walk: it lifts the box past the holder
+        // this would rank, so the reading says what it said before. Position lifts a box
+        // the same way without naming one — a positioned box leaves its holder's place in
+        // the flow to paint in the positioned layer of the nearest ancestor stacking
+        // context. A positioned holder still answers for it, since the two paint in that
+        // same layer and, with the control outside the holder, in the holder's own tree
+        // order. A static holder does not, and the question is then whether the control
+        // stands above that layer at all — which is what a z-index of its own says, and
+        // what the grip's `z-index: 1` says: nothing painting there can reach its ring,
+        // whatever holds it. A control that names none shares the layer, and a neighbour
+        // lifted into it can stand over the ring, so the reading reports it.
         const control = inside.findIndex((n) => n === el || holds(el, n));
+        // Whether this box stands clear of the layer a box with no z-index of its own
+        // paints in, read up to the box that holds them both.
+        const clears = (n) => {{
+          for (let a = n; a && !holds(a, over); a = above(a)) {{
+            const z = parseFloat(getComputedStyle(a).zIndex);
+            if (!Number.isNaN(z)) return z > 0;
+          }}
+          return false;
+        }};
         let under = false;
         let hoisted = false;
         for (let a = over; a && control >= 0; a = above(a)) {{
@@ -1927,8 +1939,9 @@ RINGS_DRAWN = f"""async () => {{
           const acs = getComputedStyle(a);
           const ranked = inside.indexOf(a);
           if (ranked >= 0) {{
-            if (hoisted && acs.position === 'static') break;
-            under = ranked > control;
+            under = hoisted && acs.position === 'static'
+              ? clears(el)
+              : ranked > control;
             break;
           }}
           if (acs.zIndex !== 'auto') break;

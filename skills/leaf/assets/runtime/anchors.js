@@ -1248,7 +1248,6 @@ function seatReactions(seats) {
           glyph: entry?.glyph ?? root.token,
           label: root.token,
           role: "secondary",
-          state: "settled",
         });
         mark.dataset.event = root.id;
         mark.dataset.token = root.token;

@@ -320,33 +320,30 @@ body { position: static; box-sizing: border-box; }
   box-shadow: none; cursor: default;
 }
 /* Tone colours only the icon. Category and interaction own the ring and fill;
-   lifecycle state keeps its separate neutral mark. */
+   work in flight keeps its separate neutral mark. */
 .lf-margin-button[data-lf-tone="positive"] > :is(.lf-margin-button-icon, .lf-margin-button-glyph) {
   color: var(--ok-ink);
 }
 .lf-margin-button[data-lf-tone="negative"] > :is(.lf-margin-button-icon, .lf-margin-button-glyph) {
   color: var(--danger-ink);
 }
-/* State has its own small lower-right witness. It changes neither the Button's ring
-   nor its tone: engaged is a dot, busy is a moving open ring, failed is a diamond,
-   and settled is a square. The witness is decoration: its rotation must not extend
-   the Button's pointer target into the gap beside it. */
-.lf-margin-button:where([data-lf-state]:not([data-lf-state="idle"])):not([data-lf-behavior="status"])::after {
-  content: ""; position: absolute; z-index: 2; inline-size: 6px; block-size: 6px;
+/* Work in flight gets a small lower-right witness, a moving open ring, and it is the
+   only state that gets one. It changes neither the Button's ring nor its tone. Busy
+   earns the paint because nothing else on the page states it: a busy Button keeps its
+   full opacity and its pointer, so with no ring an in-flight press looks exactly like
+   an idle one. Every other state is already said in words beside the Button — a failure
+   by the receipt reading "Failed" and the Retry it swaps in, an open interaction by the
+   editor standing open — and a filled shape this size cannot be told from its
+   neighbours at 1x, so a second mark for them bought a smudge and no fact. The witness
+   is decoration: it must not extend the Button's pointer target into the gap beside
+   it. */
+.lf-margin-button[data-lf-state="busy"]:not([data-lf-behavior="status"])::after {
+  content: ""; position: absolute; z-index: 2; inline-size: 8px; block-size: 8px;
   inset-inline-end: -2px; inset-block-end: -2px; box-sizing: border-box;
-  border: 1px solid var(--paper); background: currentColor; border-radius: 50%;
+  background: var(--paper); border: 2px solid currentColor;
+  border-block-start-color: transparent; border-radius: 50%;
   pointer-events: none;
-}
-.lf-margin-button[data-lf-state="busy"]::after {
-  inline-size: 8px; block-size: 8px; background: var(--paper);
-  border: 2px solid currentColor; border-block-start-color: transparent;
   animation: lf-runtime-4f3c2a8d-button-busy 650ms linear infinite;
-}
-.lf-margin-button[data-lf-state="failed"]::after {
-  border-radius: 1px; transform: rotate(45deg);
-}
-.lf-margin-button[data-lf-state="settled"]::after {
-  border-radius: 1px;
 }
 @keyframes lf-runtime-4f3c2a8d-button-busy { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {

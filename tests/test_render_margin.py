@@ -1013,7 +1013,7 @@ def test_the_feature_gallery_displays_the_complete_button_grammar(browser, serve
     atlas = page.locator("#bg-button-atlas-specimens")
     expect(atlas).to_be_visible()
     buttons = atlas.locator(".lf-margin-button")
-    expect(buttons).to_have_count(12)
+    expect(buttons).to_have_count(11)
     records = buttons.evaluate_all(
         """buttons => buttons.map(button => ({
           behavior: button.dataset.lfBehavior,
@@ -1042,37 +1042,31 @@ def test_the_feature_gallery_displays_the_complete_button_grammar(browser, serve
     def specimen(name):
         return atlas.locator(f'[data-button-specimen="{name}"] > .lf-margin-button')
 
-    engaged = specimen("engaged")
     busy = specimen("busy")
-    failed = specimen("failed")
-    settled = specimen("settled")
     marks = {
-        name: control.evaluate(
+        name: specimen(name).evaluate(
             """button => {
               const style = getComputedStyle(button, '::after');
               return {
+                content: style.content,
                 width: style.width,
                 radius: style.borderRadius,
-                transform: style.transform,
                 animation: style.animationName,
                 playState: style.animationPlayState,
               };
             }"""
         )
-        for name, control in {
-            "engaged": engaged,
-            "busy": busy,
-            "failed": failed,
-            "settled": settled,
-        }.items()
+        for name in ("idle", "engaged", "busy", "failed")
     }
-    assert marks["engaged"]["width"] == "6px"
-    assert marks["engaged"]["radius"] == "50%"
+    # Busy is the only state that paints. The others still rank and hold the cluster
+    # open, and say what they are in the words beside them, so a second 6px shape at
+    # this size added a smudge and no fact.
     assert marks["busy"]["width"] == "8px"
+    assert marks["busy"]["radius"] == "50%"
     assert "button-busy" in marks["busy"]["animation"]
     assert marks["busy"]["playState"] == "running"
-    assert marks["failed"]["transform"] != "none"
-    assert marks["settled"]["radius"] == "1px"
+    for name in ("idle", "engaged", "failed"):
+        assert marks[name]["content"] == "none", (name, marks[name])
     expect(busy).to_have_attribute("aria-busy", "true")
     expect(
         atlas.locator('[data-button-specimen="sent"] > .lf-margin-button')
@@ -1090,7 +1084,6 @@ def test_the_feature_gallery_displays_the_complete_button_grammar(browser, serve
             "Engaged",
             "Busy",
             "Failed",
-            "Settled",
         ]
     )
 
@@ -1208,7 +1201,7 @@ def test_the_feature_gallery_carries_a_button_through_its_whole_lifecycle(
     )
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     undo_button = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(undo_button).to_have_attribute("data-lf-state", "settled")
+    expect(undo_button).to_have_attribute("data-lf-state", "idle")
     sent = workflow.get_by_role("status", name=re.compile(r"^Sent for "))
     expect(sent).to_be_visible()
     expect(sent).to_have_attribute("data-lf-state", "busy")
@@ -1378,13 +1371,15 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
         "action": page.locator(f"{button_sample} .lf-sug-accept"),
         "disclosure": page.locator(f"{button_sample} .lf-margin-marker"),
         "more": page.locator(f"{button_sample} > .lf-margin-more"),
-        "settled": page.locator(f"{button_sample} .lf-react-mark").first,
+        "reaction": page.locator(f"{button_sample} .lf-react-mark").first,
     }
     expect(examples["action"]).to_have_attribute("data-lf-behavior", "action")
     for disclosure in (examples["disclosure"], examples["more"]):
         expect(disclosure).to_have_attribute("data-lf-behavior", "disclosure")
     expect(examples["action"]).to_have_attribute("data-lf-tone", "positive")
-    expect(examples["settled"]).to_have_attribute("data-lf-state", "settled")
+    # A standing reaction mark exists only while its reaction stands, so its presence
+    # is the whole of what it says and it carries no lifecycle paint on top.
+    expect(examples["reaction"]).to_have_attribute("data-lf-state", "idle")
     expect(
         page.locator(
             '[data-lf-margin-for="bg-react-lost"] '
@@ -2095,8 +2090,7 @@ def test_button_tone_colors_only_the_icon(browser, serve, scheme):
         mark: mark.content === 'none' ? null :
           [mark.color, mark.borderTopColor, mark.backgroundColor],
         shape: mark.content === 'none' ? null :
-          [mark.width, mark.height, mark.borderRadius,
-           mark.transform !== 'none', mark.borderRightWidth],
+          [mark.width, mark.height, mark.borderRadius, mark.borderRightWidth],
         icon: getComputedStyle(button.querySelector('svg')).color
       };
     }"""
@@ -2106,12 +2100,15 @@ def test_button_tone_colors_only_the_icon(browser, serve, scheme):
         assert readings[0]["mark"] == readings[1]["mark"] == readings[2]["mark"]
         assert len({reading["icon"] for reading in readings}) == 3
 
+    # Busy is the one state that paints, so it is the one state with a shape to read.
+    # Its transform is not among the properties read: the ring turns continuously, so
+    # sampling it is a race, and the two states whose rotation the column used to tell
+    # apart no longer paint at all.
     shapes = {
         "idle": None,
-        "engaged": ["6px", "6px", "50%", False, "1px"],
-        "busy": ["8px", "8px", "50%", False, "2px"],
-        "failed": ["6px", "6px", "1px", True, "1px"],
-        "settled": ["6px", "6px", "1px", False, "1px"],
+        "engaged": None,
+        "busy": ["8px", "8px", "50%", "2px"],
+        "failed": None,
     }
     for state, shape in shapes.items():
         page.evaluate("state => window.setToneState(state)", state)
@@ -2119,7 +2116,7 @@ def test_button_tone_colors_only_the_icon(browser, serve, scheme):
             expect(button).to_have_attribute("data-lf-state", state)
         readings = [button.evaluate(read) for button in buttons]
         assert all(
-            (reading["mark"] is None) == (state == "idle") for reading in readings
+            (reading["mark"] is None) == (state != "busy") for reading in readings
         )
         assert [reading["shape"] for reading in readings] == [shape] * len(buttons)
         assert_icon_only(readings)

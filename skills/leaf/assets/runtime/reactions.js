@@ -31,7 +31,6 @@ import {
   buttonContextContains,
   foldButtonOptions,
   marginButton,
-  marginButtonState,
   openButtonOptions,
   registerMarginItem,
   unfoldedButtons,
@@ -60,7 +59,8 @@ import { PRESS } from "./keyboard/bindings.js";
 import { anchorLabel } from "./conversation/messages.js";
 import { iconElement } from "./icons.js";
 
-// Standing tokens wear their emoji in strips and the settled witness in margin circles.
+// Standing tokens wear their emoji wherever they stand, and `aria-pressed` is the whole
+// of what a palette pill adds — the fill it reads carries the same fact for the eye.
 // Both carry the event a second press takes back. The reaction rides the pill rather
 // than a map beside it, so a reconcile that keeps the node keeps the fact with it.
 export function paintReactionStanding(strip, standing) {
@@ -68,8 +68,6 @@ export function paintReactionStanding(strip, standing) {
   for (const pill of strip.querySelectorAll(":scope > .lf-react-palette > .lf-react")) {
     const on = by.get(pill.dataset.token) ?? null;
     pill.setAttribute("aria-pressed", on ? "true" : "false");
-    if (pill.classList.contains("lf-margin-button"))
-      marginButtonState(pill, on ? "settled" : "idle");
     pill.lfReaction = on;
   }
 }

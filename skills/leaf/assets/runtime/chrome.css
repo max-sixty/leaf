@@ -17,7 +17,7 @@
 
    The runtime's private stylesheet is one `@scope` rooted at `.lf-chrome`. Private class
    names do not escape that root. The global vocabulary is deliberately small: shared
-   `.lf-ui`, `.lf-btn`, `.lf-pill`, `.lf-address`, `.lf-skip`, and the markers the runtime
+   `.lf-ui`, `.lf-btn`, `.lf-chip`, `.lf-address`, `.lf-skip`, and the markers the runtime
    paints on page elements. Adding a global selector widens the widget contract and must
    be covered by the render suite.
 
@@ -218,7 +218,7 @@ body { position: static; box-sizing: border-box; }
   .lf-btn, .lf-ui textarea, textarea.lf-ui { font: inherit; }
 }
 .lf-ui:is([role="button"], [role="checkbox"]):not([data-lf-said]):not(:has([data-lf-said])) { user-select: none; -webkit-user-select: none; }
-/* Pills remain the compact label shape used by chrome and conversation surfaces.
+/* Chips remain the compact label shape used by chrome and conversation surfaces.
    Target actions use .lf-margin-button below: one stricter control type shared by
    content widgets, page-map information, and communication gestures. */
 /* Words for a reader listening, silent on screen: real text, the one thing every
@@ -285,9 +285,9 @@ body { position: static; box-sizing: border-box; }
   outline-offset: calc(-1 * var(--here-ring-w));
   border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
   color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
-.lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
-.lf-pill:is(button, [role="button"]) { cursor: pointer; }
-.lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
+.lf-chip { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: var(--chip-r); background: var(--card); color: var(--ink-2); white-space: nowrap; }
+.lf-chip:is(button, [role="button"]) { cursor: pointer; }
+.lf-chip:is(button, [role="button"]):hover { background: var(--chip); }
 /* The pluggable RHS Button. Contributors choose glyph, label, tone, and behavior
    through marginButton(); this declaration owns every visual and interactive
    constant that makes unlike verbs read as one family. */
@@ -453,11 +453,11 @@ body { position: static; box-sizing: border-box; }
    Each states its own gap, because they stand at different densities and the ring may
    not reach its neighbour: the standing gap is what a box with room around it takes,
    the composer's row puts 6px between two buttons, and margin Buttons sit 4px
-   apart out in the margin. The pill's rule was the suggestion family's, which is a
+   apart out in the margin. The chip's rule was the suggestion family's, which is a
    family stating a fact about a shape the runtime owns — its own rules there are for
    what a decided suggestion adds, and a focus ring is nothing a decision changes. */
 .lf-btn:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: btn; outline-offset: 2px; }
-.lf-pill:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: pill; outline-offset: 1px; }
+.lf-chip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: chip; outline-offset: 1px; }
 /* One sequential step keeps one geometry in options, the key line, page addresses and
    the reference. A sequence composes these fixed boxes instead of making spaces inside
    one keycap carry time. A compact choice label such as g / G remains one decision
@@ -601,7 +601,7 @@ body.lf-drawing main .lf-conversation * { cursor: auto !important; }
    cannot hover the words to find out whether anything is there. */
 html.lf-copy mark.lf-react { background: var(--react); color: inherit;
   text-decoration: underline 2px dashed var(--mark-ink); text-underline-offset: 3px; }
-/* The glyphs of the reactions standing on a target — a pill per reaction, the pill
+/* The glyphs of the reactions standing on a target — a Button per reaction, the Button
    being the reaction's own eraser (anchors.js seatReactions). This is an unpositioned
    contribution: the living margin joins it to the target's other RHS controls and
    decides whether their one complete item hangs or docks. */
@@ -823,7 +823,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); }
   /* The floor under every aim the layer offers, stated once for all of them rather
      than left to whatever each control's type and padding happened to add up to.
-     Measured before it existed: a thread's Reopen and the panel's reaction pills stood
+     Measured before it existed: a thread's Reopen and the panel's reaction chips stood
      at 20 and 22 pixels, a version's Δ and a command in the reference at about seven —
      all of them presses a reader has to land on with a mouse, and none of them a
      control anybody chose the size of.
@@ -838,9 +838,9 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      is tall and two pixels wide is as hard to hit as a short one. Buttons centre their
      own label, so nothing here has to say where the words go.
 
-     .lf-pill is halved on how it is spelled, because the class dresses a standing chip
+     .lf-chip is halved on how it is spelled, because the class dresses a standing chip
      as well as a press and a chip is not something to aim at. */
-  :is(.lf-btn, .lf-pill:is(button, [role="button"]), .lf-thread-action,
+  :is(.lf-btn, .lf-chip:is(button, [role="button"]), .lf-thread-action,
     .lf-preview, .lf-react, .lf-version-diff, .lf-version-row, .lf-help-command,
     .lf-quote, .lf-margin-button) { min-height: var(--aim-floor); min-width: var(--aim-floor); }
   /* Page paint belongs under a covering workspace. Paint whose target is inside the
@@ -1311,7 +1311,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   }
   .lf-quote-label { min-width: 0; }
   .lf-anchor-status { display: inline-block; margin-left: 7px; padding: 1px 5px;
-    border: 1px solid var(--warn); border-radius: 999px; color: var(--warn-ink);
+    border: 1px solid var(--warn); border-radius: var(--chip-r); color: var(--warn-ink);
     background: var(--warn-tint); font: 600 var(--t-6)/1.25 var(--sans);
     vertical-align: baseline; }
   .lf-going { overflow: hidden; box-sizing: border-box; }
@@ -1575,7 +1575,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-react-strip.lf-react-open > .lf-react-palette {
     position: absolute; z-index: 3; inset-block-start: 0;
     inset-inline-end: -2px; width: max-content; padding: 4px;
-    border: 1px solid var(--border-2); border-radius: 999px;
+    border: 1px solid var(--border-2); border-radius: var(--r);
     background: var(--card); box-shadow: 0 4px 12px var(--shade);
   }
   @media (hover: none) {
@@ -2017,11 +2017,11 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     /* What is left here is what a finger changes besides the floor. The floor itself
        moved out: this block used to name three controls at 44px and the resting layer
        named none at all, so Reopen, the page preview, a version's Δ, a command in the
-       reference, a quote and the panel's pills were small under both pointers. They
+       reference, a quote and the panel's chips were small under both pointers. They
        are all in AIMS now, and AIMS reads --aim-floor, which is where the query lives. */
     .lf-margin-button { width: 44px; height: 44px; }
     :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 44px; }
-    .lf-pill:is(button, [role="button"]) { display: inline-flex; align-items: center; }
+    .lf-chip:is(button, [role="button"]) { display: inline-flex; align-items: center; }
     .lf-key-more { min-width: 44px; min-height: 44px; align-items: center; }
     .lf-edge { top: 50%; bottom: auto; width: 44px; height: 44px;
       transform: translateY(-50%); }

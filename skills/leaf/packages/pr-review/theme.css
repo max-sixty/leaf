@@ -45,7 +45,7 @@ lf-pull-request {
   flex: none;
   padding: 2px 8px;
   border: 1px solid var(--rule);
-  border-radius: 999px;
+  border-radius: var(--chip-r);
   color: var(--ink-2);
   font: var(--t-6) var(--sans);
   text-transform: capitalize;

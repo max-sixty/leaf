@@ -2404,7 +2404,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-focus",
         "lf-focus-visible",
         "lf-btn",
-        "lf-pill",
+        "lf-chip",
         "lf-address",
         "lf-over-mark",
         "lf-mark-el",

@@ -174,23 +174,12 @@
         margin-top: 14px;
       }
 
-      /* Shape only. The runtime built these two, so the layer's own pressable rules
-         already carry the hand, the hover tint, the disabled treatment, and the here
-         ring that names itself to the ring census; a page drawing any of them again
-         would be a second answer to a question the layer has already settled. */
+      /* Placement and density only. The runtime gives these ordinary actions the
+         shared lf-btn face; the gallery keeps their changing labels on one stable row. */
       .interaction-gallery .interaction-control {
         min-height: var(--aim-floor);
         padding: 6px 13px;
-        border: 1px solid var(--border-2);
-        border-radius: 999px;
-        background: var(--card);
-        color: var(--ink);
         font: 600 var(--t-6) / 1.2 var(--sans);
-      }
-
-      .interaction-gallery
-        .interaction-control:is(:hover, :focus-visible):not(:disabled) {
-        border-color: var(--accent);
       }
 
       /* Under the two presses rather than beside them, at every width. The runtime

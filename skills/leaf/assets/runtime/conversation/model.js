@@ -29,7 +29,7 @@ export function buildThreads() {
 }
 
 // The bare reactions standing on exactly this anchor — the bar's own question, asked
-// so its pills can say which tokens are already there. Anchors are compared as
+// so its chips can say which tokens are already there. Anchors are compared as
 // records, the way the file compares them.
 export const reactionsOn = (anchor) =>
   lastThreads

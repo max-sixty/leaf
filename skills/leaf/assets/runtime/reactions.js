@@ -64,16 +64,16 @@ import { anchorLabel } from "./conversation/messages.js";
 import { iconElement } from "./icons.js";
 
 // Standing tokens wear their emoji wherever they stand, and `aria-pressed` is the whole
-// of what a palette pill adds — the fill it reads carries the same fact for the eye.
-// Both carry the event a second press takes back. The reaction rides the pill rather
+// of what a palette chip adds — the fill it reads carries the same fact for the eye.
+// Both carry the event a second press takes back. The reaction rides the chip rather
 // than a map beside it, so a reconcile that keeps the node keeps the fact with it.
 export function paintReactionStanding(strip, standing) {
   if (strip === fabBar) connectFabTrigger();
   const by = new Map(standing.map((x) => [x.token, x]));
-  for (const pill of strip.querySelectorAll(":scope > .lf-react-palette > .lf-react")) {
-    const on = by.get(pill.dataset.token) ?? null;
-    pill.setAttribute("aria-pressed", on ? "true" : "false");
-    pill.lfReaction = on;
+  for (const chip of strip.querySelectorAll(":scope > .lf-react-palette > .lf-react")) {
+    const on = by.get(chip.dataset.token) ?? null;
+    chip.setAttribute("aria-pressed", on ? "true" : "false");
+    chip.lfReaction = on;
   }
 }
 
@@ -90,32 +90,32 @@ export const reactionTokens = () => Object.entries(reactionVocabulary() ?? {});
 // One token as a press, built the same way wherever it stands. The token names the
 // control; a layer may add an explanation without making prose part of the platform's
 // vocabulary. The compact face stays the declared mark. Digits remain keyboard
-// accelerators without changing the shape of every pill.
-function reactPill(
+// accelerators without changing the shape of every chip.
+function reactionChip(
   name,
   entry,
   pressed,
   { margin = false, response = false, ordinal = 0 } = {},
 ) {
-  const pill = offer("button", `${margin || response ? "" : "lf-pill "}lf-react`);
+  const chip = offer("button", `${margin || response ? "" : "lf-chip "}lf-react`);
   const meaning = entry.means ? `${name} — ${entry.means}` : name;
-  pill.dataset.token = name;
+  chip.dataset.token = name;
   if (margin) {
-    pill.setAttribute("aria-label", meaning);
-    marginButton(pill, {
+    chip.setAttribute("aria-label", meaning);
+    marginButton(chip, {
       key: `reaction:${String(ordinal).padStart(4, "0")}:${name}`,
       glyph: entry.glyph,
       label: meaning,
       role: "secondary",
     });
   } else {
-    pill.title = meaning;
-    pill.setAttribute("aria-label", meaning);
-    if (response) responseAction(pill, { glyph: entry.glyph, label: name });
-    else pill.append(el("span", "lf-react-glyph", entry.glyph));
+    chip.title = meaning;
+    chip.setAttribute("aria-label", meaning);
+    if (response) responseAction(chip, { glyph: entry.glyph, label: name });
+    else chip.append(el("span", "lf-react-glyph", entry.glyph));
   }
-  pill.onclick = () => pressed(name, pill);
-  return pill;
+  chip.onclick = () => pressed(name, chip);
+  return chip;
 }
 
 const surfaces = new WeakMap();
@@ -159,7 +159,7 @@ export function buildReactSurface(
   trigger.setAttribute("aria-controls", palette.id);
   for (const [ordinal, [name, entry]] of reactionTokens().entries())
     palette.append(
-      reactPill(name, entry, pressed, {
+      reactionChip(name, entry, pressed, {
         margin: marginActions,
         response: responseActions,
         ordinal,
@@ -223,7 +223,7 @@ const anchorWord = (anchor) => {
   return itemWord(item) || "the item";
 };
 
-async function reactHere(name, pill) {
+async function reactHere(name, chip) {
   const anchor = fabAnchorAt();
   const returnTo = fabReturnTo();
   const restoreTargetFocus = () => {
@@ -231,8 +231,8 @@ async function reactHere(name, pill) {
     destination?.focus({ preventScroll: true });
   };
   if (!anchor) return;
-  if (pill.lfReaction) {
-    await withdraw(pill.lfReaction);
+  if (chip.lfReaction) {
+    await withdraw(chip.lfReaction);
     hideComposer();
     showFab(null);
     setReact(false);
@@ -246,7 +246,7 @@ async function reactHere(name, pill) {
     anchor: structuredClone(anchor),
   };
   if (designOn) event.about = "layer";
-  const sent = await sendReaction(event, pill, anchorWord(anchor));
+  const sent = await sendReaction(event, chip, anchorWord(anchor));
   if (!sent) return;
   hideComposer();
   showFab(null);
@@ -255,14 +255,14 @@ async function reactHere(name, pill) {
   getSelection()?.removeAllRanges();
 }
 
-export async function sendReaction(event, pill, where) {
-  pill.setAttribute("aria-busy", "true");
+export async function sendReaction(event, chip, where) {
+  chip.setAttribute("aria-busy", "true");
   try {
     const sent = await post(event);
     if (sent) announce(`${event.token} on ${where}`);
     return sent;
   } finally {
-    pill.removeAttribute("aria-busy");
+    chip.removeAttribute("aria-busy");
   }
 }
 
@@ -322,7 +322,7 @@ function raiseMarginSurface() {
   paintReactionStanding(
     marginSurface,
     [...fabBar.querySelectorAll(".lf-react[aria-pressed='true']")]
-      .map((pill) => pill.lfReaction)
+      .map((chip) => chip.lfReaction)
       .filter(Boolean),
   );
   marginOffer = registerMarginItem({

@@ -541,9 +541,9 @@ export function installInteractionGallery() {
   const panels = [...tabs.querySelectorAll(":scope > lf-tab")];
   const controls = offer("div", "interaction-controls");
   controls.setAttribute("aria-label", "Animation controls");
-  const toggle = offer("button", "interaction-control", "Loading…");
+  const toggle = offer("button", "lf-btn interaction-control", "Loading…");
   toggle.dataset.interactionToggle = "";
-  const replay = offer("button", "interaction-control", "Replay");
+  const replay = offer("button", "lf-btn interaction-control", "Replay");
   replay.dataset.interactionReplay = "";
   const status = offer("span", "interaction-status", "Loading the first interaction…");
   status.dataset.interactionStatus = "";

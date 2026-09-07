@@ -220,7 +220,7 @@ export function bake() {
   // (the runtime's @media print rule, on these same two markers). A mark reading
   // "chosen" is the page stating which option won, and it stays with the role and the
   // tab stop taken off it; "choose one" is an invitation, and it leaves with the grips,
-  // the pills and the pencils. Where the words a removal takes with it are the page's —
+  // the chips and the pencils. Where the words a removal takes with it are the page's —
   // a settled group's disclosure names its chosen card, a tab's button names its panel —
   // the copy has those open underneath saying it themselves, which is why paper drops
   // the same two.

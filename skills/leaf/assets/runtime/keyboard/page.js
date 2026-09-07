@@ -1450,20 +1450,20 @@ function coreScopes() {
 // row says which control it duplicates; its projection follows liveness too, so a disabled
 // Ask does not advertise a shortcut the dispatcher has withdrawn. The latest-version
 // chip's route spans two rows, so it is composed from both.
+//
+// The pass runs in the standing chrome's frame, which the `lf-actions` heartbeat asks for
+// every two seconds on a page nobody has touched, so every name it writes goes through
+// `keeps` and says nothing where the control already says it. A restated title or chord
+// is news to whatever is reading the page — the mutation stream a screen reader rebuilds
+// its buffer from — and these controls stand on the banner the living margin watches.
 export function paintCoreControls() {
   const returningToMore = Boolean(keylineExpanded());
-  const closeText = returningToMore ? "Back to more shortcuts" : "Close";
-  if (helpClose.textContent !== closeText) helpClose.textContent = closeText;
-  keeps(
-    helpClose,
-    "data-lf-key-title",
-    returningToMore ? "Back to more shortcuts" : "Close the shortcuts",
-  );
-  keeps(
-    helpClose,
-    "aria-label",
-    returningToMore ? "Back to more shortcuts" : "Close the shortcuts",
-  );
+  const closeSays = returningToMore ? "Back to more shortcuts" : "Close";
+  const closeTitle = returningToMore ? "Back to more shortcuts" : "Close the shortcuts";
+  if (helpClose.textContent !== closeSays) helpClose.textContent = closeSays;
+  if (helpClose.dataset.lfKeyTitle !== closeTitle)
+    helpClose.dataset.lfKeyTitle = closeTitle;
+  keeps(helpClose, "aria-label", closeTitle);
   const controlShortcut = (scope, row) =>
     [...(word(scope.chordPrefix ?? scope.chord) ?? []), labelOf(row)]
       .filter(Boolean)
@@ -1485,15 +1485,13 @@ export function paintCoreControls() {
           control.dataset.lfKeyTitle + (active ? ` (${shortcut})` : ""),
         );
         if (active && scope.chord) keeps(control, "data-lf-chord", shortcut);
-        else if (control.hasAttribute("data-lf-chord"))
-          control.removeAttribute("data-lf-chord");
+        else delete control.dataset.lfChord;
         // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
         // alternatives. The complete chord remains in the visible hint and accessible
         // keyboard reference instead of claiming its final press works alone.
         if (active && !scope.chord)
           keeps(control, "aria-keyshortcuts", ariaShortcuts([row], false));
-        else if (control.hasAttribute("aria-keyshortcuts"))
-          control.removeAttribute("aria-keyshortcuts");
+        else control.removeAttribute("aria-keyshortcuts");
       }
     }
   const latestBound = bindings(CHOOSER).length && bindings(NEWEST).length;

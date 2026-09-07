@@ -2103,8 +2103,19 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
       align-items: center; justify-content: center; }
     /* Forty on the covering row, or the aim floor where a finger raises that past
        forty: this rule outranks the shared AIMS floor by standing later at the same
-       weight, so it has to carry the floor itself or a touch shelf loses four pixels. */
-    .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding-inline: 6px; }
+       weight, so it has to carry the floor itself or a touch shelf loses four pixels.
+       It states both axes for the same reason, and the band is the shared Button's:
+       the chord's rule states a band of its own, and a row where only the controls
+       with a chord kept it is a row whose words no longer sit on one line. */
+    .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 6px; }
+    /* A forty-pixel aim has no second line to give: the band the chord reserves comes
+       out of the aim's own height, which raised the words of every control that had a
+       chord eleven pixels above the door beside them and left the row this block centres
+       reading as two. The shelf keeps the aim and gives up the hint. The destination is
+       still reachable by its chord, which the key line, the reference, and the control's
+       own title all go on saying, and a control the shelf folds away carries the second
+       line into the menu, where a full-width row has the height for it. */
+    .lf-banner-actions > [data-lf-chord]::after { content: none; }
     .lf-version-menu { right: calc(8px + var(--lf-safe-right)); }
   }
   /* Coarse pointers get physical room without making the mouse layout pay for it.

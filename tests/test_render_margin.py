@@ -4380,46 +4380,15 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
           const range = document.createRange();
           range.selectNodeContents(button);
           const text = range.getBoundingClientRect();
-          const after = getComputedStyle(button, '::after');
-          const style = getComputedStyle(button);
-          const hasChord = button.hasAttribute('data-lf-chord');
-          const borderTop = parseFloat(style.borderTopWidth);
-          const borderBottom = parseFloat(style.borderBottomWidth);
-          const chordBottom = hasChord
-            ? box.bottom - borderBottom - parseFloat(after.bottom)
-            : text.bottom;
-          const chordTop = hasChord
-            ? chordBottom - parseFloat(after.lineHeight)
-            : text.top;
           return {label: button.textContent.trim(),
-                  hasChord,
-                  chordValue: button.getAttribute('data-lf-chord'),
-                  chordDisplay: after.display,
-                  chordVisibility: after.visibility,
-                  innerTop: box.top + borderTop,
-                  innerBottom: box.bottom - borderBottom,
-                  textTop: text.top,
-                  textBottom: text.bottom,
-                  chordTop,
-                  chordBottom,
-                  above: Math.min(text.top, chordTop) - box.top,
-                  below: box.bottom - Math.max(text.bottom, chordBottom)};
+                  above: text.top - box.top, below: box.bottom - text.bottom};
         })"""
     )
     assert text_insets
     for inset in text_insets:
-        if not inset["hasChord"]:
-            assert inset["above"] == pytest.approx(inset["below"], abs=1.5), (
-                f"{inset['label']} is not vertically centred in the compact banner: "
-                f"{inset}"
-            )
-            continue
-        assert inset["chordValue"]
-        assert inset["chordDisplay"] != "none"
-        assert inset["chordVisibility"] != "hidden"
-        assert inset["textTop"] >= inset["innerTop"] - 0.5
-        assert inset["textBottom"] <= inset["chordTop"] + 1.5
-        assert inset["chordBottom"] <= inset["innerBottom"] + 0.5
+        assert inset["above"] == pytest.approx(inset["below"], abs=1.5), (
+            f"{inset['label']} is not vertically centred in the compact banner: {inset}"
+        )
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     if opener == "keyboard":

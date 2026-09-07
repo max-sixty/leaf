@@ -75,26 +75,35 @@ jobs:
       # finishes. Prove the public route has crossed both boundaries before calling the
       # deployment successful. One cold start can exceed ten seconds, and writing the
       # response before testing it preserves Cloudflare's final error when retries fail.
+      #
+      # Each attempt asks as a reader arriving now, with its own session cookie. The
+      # cookie picks the Durable Object, and a container Cloudflare has already started
+      # stays up for its ten-minute idle timer, so re-asking one session keeps reporting
+      # the image that session started on rather than the image the fleet now hands a
+      # new reader — which is the property this step exists to prove. One deadline
+      # covers the whole rollout: the second page rides out the first page's wait, and
+      # the job's own timeout is the outer bound.
       - name: Verify public Leaf pages
         run: |
-          COOKIE="__Host-leaf-page=$(openssl rand -hex 16)"
+          deadline=$(( SECONDS + 900 ))
           verify_page() {
             local page_url="$1"
             local state_url="$2"
             local predicate="$3"
+            local cookie
             local shell_layer
             local response_layer
             local shell
             local response
             local headers
-            local attempt=0
             shell=$(mktemp)
             response=$(mktemp)
             headers=$(mktemp)
-            while (( attempt++ < 20 )); do
+            while true; do
+              cookie="__Host-leaf-page=$(openssl rand -hex 16)"
               if curl --fail-with-body --silent --show-error \
                 --output "$shell" \
-                --cookie "$COOKIE" \
+                --cookie "$cookie" \
                 --max-time 25 \
                 "$page_url" \
                 && grep --quiet --fixed-strings 'data-lf-server="published"' "$shell"; then
@@ -105,7 +114,7 @@ jobs:
               if test -n "$shell_layer" && curl --fail-with-body --silent --show-error \
                 --output "$response" \
                 --dump-header "$headers" \
-                --cookie "$COOKIE" \
+                --cookie "$cookie" \
                 --max-time 25 \
                 "$state_url"; then
                 response_layer=$(awk 'tolower($1) == "leaf-layer:" {gsub("\\r", "", $2); print $2}' "$headers" | tail -1)
@@ -113,8 +122,10 @@ jobs:
                   return 0
                 fi
               fi
-              sleep 5
+              (( SECONDS < deadline )) || break
+              sleep 10
             done
+            echo "$page_url served layer ${shell_layer:-none}; $state_url served layer ${response_layer:-none}" >&2
             cat "$response" >&2
             return 1
           }

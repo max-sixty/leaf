@@ -1718,6 +1718,7 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
             exact=True,
         )
     ).to_be_visible()
+    expect(page.locator("#card-baffle > .lf-quiet")).to_have_text("your change")
 
     assert board.aria_snapshot() == (
         '- list "Todo":\n'

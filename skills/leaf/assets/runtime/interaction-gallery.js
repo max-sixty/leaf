@@ -9,9 +9,24 @@
 
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { runtime } from "./context.js";
-import { offer } from "./widget-elements.js";
+import { offer, reserve } from "./widget-elements.js";
 
 class StaleDemo extends Error {}
+
+// Every word the toggle can say, out here because the row reserves the width of all of
+// them before it says the first. The button rewrites its own word as a demo runs, and
+// Replay stands beside it, so a word that costs a different width moves the control the
+// reader is aiming at. Reserved by the runtime rather than by the page, because the
+// runtime is what injects this row: the page it is injected into may carry no rule for
+// it at all, which is exactly the case in the generated corpus.
+const TOGGLE_WORDS = {
+  idle: "Loading…",
+  ready: "Play",
+  playing: "Pause",
+  paused: "Play",
+  finished: "Played",
+  error: "Unavailable",
+};
 
 const ARRIVAL_PAUSE = 900;
 const POINTER_TRAVEL = 1400;
@@ -535,6 +550,8 @@ export function installInteractionGallery() {
   status.setAttribute("aria-live", "polite");
   controls.append(toggle, replay, status);
   tabs.before(controls);
+  // After the row is in the document, which is where a width can be measured at all.
+  reserve(toggle, Object.values(TOGGLE_WORDS));
   let active = null;
   let onScreen = false;
 
@@ -548,14 +565,7 @@ export function installInteractionGallery() {
 
   function renderControls() {
     if (!active) return;
-    const words = {
-      idle: "Loading…",
-      ready: "Play",
-      playing: "Pause",
-      paused: "Play",
-      finished: "Played",
-      error: "Unavailable",
-    };
+    const words = TOGGLE_WORDS;
     toggle.textContent = words[active.state];
     toggle.disabled = ["idle", "finished", "error"].includes(active.state);
     replay.disabled = ["idle", "error"].includes(active.state);

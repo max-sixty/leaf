@@ -22,7 +22,7 @@
  *   evaluated again after the state that caused the refusal changes.
  *
  * The browser sends through `post`. It rejects reuse of an attempt already present in
- * this tab's `outbox`, appends one entry, stages an optimistic recorded action when
+ * this tab's `outbox`, appends one entry, stages an optimistic action when
  * appropriate, repaints key availability, and starts `drainOutbox`. There is one queue
  * and one delivery loop. Entries send in browser gesture order because the log order is
  * part of the user's statement.
@@ -31,8 +31,8 @@
  *
  * - `answered`: the server definitively accepted or refused the request;
  * - `readEvent`: a complete state read contained the accepted attempt;
- * - `projection`: the local semantic coordinate and absolute recorded value that the
- *   widget already painted.
+ * - `projection`: the local semantic coordinate and value that the widget already
+ *   painted.
  *
  * Acceptance and application are not the same fact. A successful POST must include state
  * containing the event minted for the attempt. `deliver` then knows the request was
@@ -48,12 +48,11 @@
  * a later poll applies a complete state. Do not resend an accepted event because its
  * rendering failed.
  *
- * A press whose result has not changed the DOM waits for the log. Recordless settlements
- * and completion presses do not enter the optimistic overlay. The control may say
- * `aria-busy` while the request is pending, but it must not paint the accepted outcome
- * before the server accepts it. A recorded toggle that the next gesture computes from
- * must paint before the next gesture, so the next absolute detail includes the state the
- * reader just chose.
+ * A reversible action may paint before it enters the optimistic overlay. Recorded actions
+ * always do; a recordless caller opts in when it has painted the same semantic outcome.
+ * A press with no local projection waits for the log with `aria-busy` on its control. A
+ * recorded toggle that the next gesture computes from must paint before the next gesture,
+ * so the next absolute detail includes the state the reader just chose.
  *
  * `deliver` races the POST against `entry.read`. A poll can account for an attempt whose
  * POST response was lost, and the accepted POST state can account for it without another
@@ -63,7 +62,7 @@
  * layer-generation refusal reloads instead of retrying a body under the wrong
  * vocabulary.
  *
- * On refusal, `drainOutbox` marks a recorded action `rejected`. It immediately stops
+ * On refusal, `drainOutbox` marks an optimistic action `rejected`. It immediately stops
  * contributing an optimistic winner, then `reconcileKnownState` restores the coordinate
  * from the last complete authoritative state. The entry remains until
  * `localCoordinateCommitted` proves the optimistic token no longer represents the DOM.
@@ -128,7 +127,12 @@ const actionMatches = (el, action) => {
 export const actionAvailable = (el, action) =>
   runtime.statePhase !== "waiting" && !quoted(el) && actionMatches(el, action);
 
-export async function sendAction(el, action, detail, { attempt } = {}) {
+export async function sendAction(
+  el,
+  action,
+  detail,
+  { attempt, optimistic = false } = {},
+) {
   // The exhibit rule enforced at the layer's own door, not left to each module
   // remembering quoted(): an exhibited widget is a mention, and a gesture on a
   // mention must not become a decision Claude reads. Failing closed costs a
@@ -143,14 +147,17 @@ export async function sendAction(el, action, detail, { attempt } = {}) {
   // Modules ask the same predicate before optimistic paint. Repeat it at the common
   // door so authored HTML cannot post while the first state projection is pending.
   if (!actionAvailable(el, action)) return null;
-  return post({
-    kind: "action",
-    revision: runtime.currentRevision,
-    widget: el.id,
-    action,
-    detail,
-    ...(attempt && { attempt }),
-  });
+  return post(
+    {
+      kind: "action",
+      revision: runtime.currentRevision,
+      widget: el.id,
+      action,
+      detail,
+      ...(attempt && { attempt }),
+    },
+    { optimistic },
+  );
 }
 
 // Whether the latest event list this tab has seen still leaves an accepted action as
@@ -332,7 +339,7 @@ async function drainOutbox() {
     drainingOutbox = false;
   }
 }
-export function post(event) {
+export function post(event, { optimistic = false } = {}) {
   const attempted = { ...event, attempt: event.attempt || newAttempt() };
   // One attempt names one gesture. A caller that reuses it while the first gesture
   // is still here has made a local protocol conflict; letting both entries wait for
@@ -361,7 +368,7 @@ export function post(event) {
     };
     outbox.push(entry);
     pendingTraffic(unresolved());
-    stageOutboxAction(entry);
+    stageOutboxAction(entry, { optimistic });
     // Staging commits the widget's optimistic coordinate. Its consumers need
     // that reading now, even while the POST is still waiting for a response.
     if (entry.projection) document.dispatchEvent(new Event("lf-actions"));

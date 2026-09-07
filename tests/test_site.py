@@ -53,6 +53,7 @@ _server_spec.loader.exec_module(website_server)
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}
+GALLERY_THREAD_TEXT = "Gallery conversation: I moved the practice exercise before lunch"
 
 # The module-scoped build and host are one shared setup, so they belong to one
 # xdist work unit rather than being rebuilt independently on every worker.
@@ -567,6 +568,16 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         ).evaluate_all(
             "nodes => nodes.map(node => getComputedStyle(node).fontSize)"
         ) == ["11.5px", "11.5px", "11.5px"]
+        # The live line stands under the two presses at every width rather than beside
+        # them, because the runtime rewrites it as the demo runs and prose that changes
+        # length on a button's line moves the row while the reader is aiming at it.
+        assert gallery.evaluate(
+            """gallery => {
+                const toggle = gallery.querySelector('[data-interaction-toggle]');
+                const status = gallery.querySelector('[data-interaction-status]');
+                return status.offsetTop >= toggle.offsetTop + toggle.offsetHeight;
+            }"""
+        )
         expect(accept).to_have_attribute("data-lf-state", "accept")
         assert read_events(page_dir) == before
 
@@ -601,7 +612,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         expect(status).to_have_text("Send a comment · Complete", timeout=10_000)
         expect(comment_frame.locator("#lf-margin-preview")).to_be_visible()
         expect(comment_frame.locator("#lf-margin-preview")).to_contain_text(
-            "should the practice exercise come before lunch?"
+            GALLERY_THREAD_TEXT
         )
         expect(page.locator("#lf-margin-preview")).to_be_hidden()
         assert read_events(page_dir) == before
@@ -651,7 +662,6 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         assert gallery.locator("#bg-motion-board").evaluate(
             "board => getComputedStyle(board).gridAutoFlow === 'row'"
         )
-        assert status.evaluate("status => getComputedStyle(status).marginLeft") == "0px"
 
         replacement_installed = gallery.evaluate(
             """gallery => {
@@ -721,20 +731,16 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
                 return Boolean(openInlineThread('2be2443f0bb6cc49fc86b52f340e6073'));
             }"""
         )
-        expect(page.locator("#lf-margin-preview")).to_contain_text(
-            "should the practice exercise come before lunch?"
-        )
+        expect(page.locator("#lf-margin-preview")).to_contain_text(GALLERY_THREAD_TEXT)
         comment_tab.click()
         toggle.click()
         expect(status).to_have_text("Send a comment · Complete", timeout=10_000)
-        expect(page.locator("#lf-margin-preview")).to_contain_text(
-            "should the practice exercise come before lunch?"
-        )
+        expect(page.locator("#lf-margin-preview")).to_contain_text(GALLERY_THREAD_TEXT)
         comment_frame = gallery.locator(
             "#bg-interaction-comment [data-interaction-frame]"
         ).content_frame
         expect(comment_frame.locator("#lf-margin-preview")).to_contain_text(
-            "should the practice exercise come before lunch?"
+            GALLERY_THREAD_TEXT
         )
 
         page.locator(".lf-threads-toggle").click()

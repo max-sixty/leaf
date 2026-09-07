@@ -1183,9 +1183,13 @@ def test_the_feature_gallery_carries_a_button_through_its_whole_lifecycle(
     sends = _traffic(page).sends
     accept.click()
     _until(page, lambda traffic: traffic.sends > sends, "held the acceptance")
-    expect(accept).to_have_attribute("data-lf-state", "busy")
-    expect(accept).to_have_attribute("aria-busy", "true")
-    assert accept.evaluate(
+    expect(accept).to_have_count(0)
+    pending_undo = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    expect(pending_undo).to_have_attribute("data-lf-state", "busy")
+    expect(pending_undo).to_have_attribute("aria-busy", "true")
+    expect(page.locator("#bg-button-workflow lf-old")).to_be_hidden()
+    expect(page.locator("#bg-button-workflow lf-new")).to_be_visible()
+    assert pending_undo.evaluate(
         """button => {
           const style = getComputedStyle(button, '::after');
           return style.animationName.includes('button-busy') &&
@@ -1199,7 +1203,9 @@ def test_the_feature_gallery_carries_a_button_through_its_whole_lifecycle(
     expect(page.locator("#bg-button-workflow")).to_have_attribute(
         "data-lf-state", "accept"
     )
-    expect(page.locator(".lf-notice")).to_have_text(re.compile(r"^Accepted .+ — sent$"))
+    expect(page.locator(".lf-notice")).not_to_have_text(
+        re.compile(r"^(Accepted|Rejected) .+ — sent$")
+    )
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     undo_button = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
     expect(undo_button).to_have_attribute("data-lf-state", "settled")
@@ -1537,7 +1543,7 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
 
     page.keyboard.press("g")
     expect(page.locator(".lf-page-map-sheet")).to_be_hidden()
-    locations = page.locator(f'{CHIPS}[data-lf-address-kind="Page-map location"]')
+    locations = page.locator(f'{CHIPS}[data-lf-address-kind="Page-map Button"]')
     expect(locations).to_have_count(1)
 
     # When the motion settles, regenerate the map over the newly visible window.
@@ -1549,7 +1555,7 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
         })"""
     )
     expect(locations).to_have_count(1)
-    page.keyboard.type(address_code(page, "Page-map location", "map-11"))
+    page.keyboard.type(address_code(page, "Page-map Button", "map-11"))
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(preview).to_contain_text("Map note 11")
@@ -1606,7 +1612,7 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     target = show_after.evaluate(
         "button => button.closest('[data-lf-margin-for]').dataset.lfMarginFor"
     )
-    page.keyboard.type(address_code(page, "Page-map location", target))
+    page.keyboard.type(address_code(page, "Page-map Button", target))
     expect(
         page.get_by_role(
             "button",
@@ -1630,7 +1636,7 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
     )
     page.mouse.move(pointer["x"], pointer["y"])
 
-    go_to_address(page, "Page-map location", "bg-choice-ask")
+    go_to_address(page, "Page-map Button", "bg-choice-ask")
     page.keyboard.press("Escape")
 
     page.wait_for_function(
@@ -1709,8 +1715,8 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
     page.close()
 
 
-def test_g_hints_press_the_first_button_at_each_location(browser, serve):
-    """A location hint has the same native press as its first available Button."""
+def test_g_hints_press_each_visible_page_map_button(browser, serve):
+    """Each visible Button gets an exact route rather than an aggregate default."""
     page, errors = open_page(
         browser,
         serve(
@@ -1731,8 +1737,16 @@ def test_g_hints_press_the_first_button_at_each_location(browser, serve):
         "button", name="Accept the suggested change: the second phrase", exact=True
     )
     disclosure = page.get_by_role("button", name="Edit address-disclosure", exact=True)
+    page.keyboard.press("g")
+    suggestion_hints = page.locator(
+        f'{CHIPS}[data-lf-address-kind="Page-map Button"]'
+        '[data-lf-address-for="address-action"]'
+    )
+    expect(suggestion_hints).to_have_count(2)
     with sending(page, "the addressed suggestion's acceptance"):
-        go_to_address(page, "Page-map location", "address-action")
+        page.keyboard.type(
+            address_code(page, "Page-map Button", "address-action", "accept")
+        )
     expect(page.locator("#address-action lf-old")).to_be_hidden()
     expect(page.locator("#address-action lf-new")).to_be_visible()
 
@@ -1740,6 +1754,15 @@ def test_g_hints_press_the_first_button_at_each_location(browser, serve):
         page.keyboard.press("z")
     expect(action).to_be_visible()
     expect(page.locator("#address-action lf-old")).to_be_visible()
+
+    with sending(page, "the addressed suggestion's rejection"):
+        go_to_address(page, "Page-map Button", "address-action", "reject")
+    expect(page.locator("#address-action lf-old")).to_be_visible()
+    expect(page.locator("#address-action lf-new")).to_be_hidden()
+
+    with sending(page, "the withdrawal of the addressed rejection"):
+        page.keyboard.press("z")
+    expect(action).to_be_visible()
 
     disclosure.evaluate(
         """button => {
@@ -1751,7 +1774,7 @@ def test_g_hints_press_the_first_button_at_each_location(browser, serve):
     page.keyboard.press("g")
     expect(
         page.locator(
-            f'{CHIPS}[data-lf-address-kind="Page-map location"]'
+            f'{CHIPS}[data-lf-address-kind="Page-map Button"]'
             '[data-lf-address-for="address-disclosure"]'
         )
     ).to_have_count(0)
@@ -1765,7 +1788,7 @@ def test_g_hints_press_the_first_button_at_each_location(browser, serve):
           button.tabIndex = 0;
         }"""
     )
-    go_to_address(page, "Page-map location", "address-disclosure")
+    go_to_address(page, "Page-map Button", "address-disclosure", "edit")
     expect(page.locator("#address-disclosure textarea")).to_be_focused()
     expect(disclosure).to_be_hidden()
 
@@ -2237,9 +2260,10 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
         control.evaluate("el => getComputedStyle(el).boxShadow")
         for control in (accept, edit, more)
     ]
-    assert shadows[0] != "none" and shadows[1:] == ["none", "none"], (
-        "only an immediate Action should rise off the shared paper surface"
-    )
+    assert shadows[0] != "none" and shadows[1:] == [
+        "none",
+        "none",
+    ], "only an immediate Action should rise off the shared paper surface"
 
     before_hover = edit.bounding_box()
     edit.hover()
@@ -2611,10 +2635,10 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     ), "no Button is left for Tab to enter the rail by"
 
     # The reader listening still reaches the phase through its visible generated hint.
-    phase = marker.evaluate(
+    address_target = marker.evaluate(
         "row => row.closest('[data-lf-margin-for]').dataset.lfMarginFor"
     )
-    go_to_address(page, "Page-map location", phase)
+    go_to_address(page, "Page-map Button", address_target)
     expect(marker).to_be_focused()
 
     # Standing there is not the same as being the way in. A repaint under the reader

@@ -25,34 +25,139 @@
 
       #bg-playground-card {
         --lf-frame: 1;
-        width: min(100%, 19rem);
+        --bg-playground-card-ink: var(--ink);
+        --bg-playground-card-muted: var(--muted);
+        --bg-playground-card-surface: var(--card);
+        position: relative;
+        isolation: isolate;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: var(--sp-3);
+        width: min(100%, 21rem);
+        min-height: 15rem;
+        overflow: hidden;
         padding: var(--sp-4);
-        border: 2px solid var(--playground-accent);
+        border: 1px solid
+          color-mix(in srgb, var(--playground-accent) 72%, var(--border-2));
         border-radius: var(--playground-radius);
-        background: var(--card);
+        background: color-mix(
+          in srgb,
+          var(--playground-accent) 4%,
+          var(--bg-playground-card-surface)
+        );
         box-shadow: none;
+        color: var(--bg-playground-card-ink);
         text-align: left;
       }
 
+      #bg-playground-card::before {
+        position: absolute;
+        z-index: -1;
+        inset: 0 auto 0 0;
+        width: 5px;
+        background: var(--playground-accent);
+        content: "";
+      }
+
       #bg-card-playground[data-playground-compact="true"] #bg-playground-card {
-        padding: var(--sp-2);
+        min-height: 12.5rem;
+        gap: var(--sp-2);
+        padding: var(--sp-3);
       }
 
       #bg-card-playground[data-playground-tone="bold"] #bg-playground-card {
-        background: var(--ink);
-        color: var(--paper);
+        --bg-playground-card-ink: var(--paper);
+        --bg-playground-card-muted: color-mix(in srgb, var(--paper) 72%, transparent);
+        --bg-playground-card-surface: color-mix(
+          in srgb,
+          var(--ink) 90%,
+          var(--playground-accent)
+        );
+        border-color: var(--playground-accent);
       }
 
       #bg-card-playground[data-playground-tone="tinted"] #bg-playground-card {
-        background: color-mix(in srgb, var(--playground-accent) 12%, var(--card));
+        --bg-playground-card-muted: var(--ink-2);
+        background: color-mix(
+          in srgb,
+          var(--playground-accent) 13%,
+          var(--bg-playground-card-surface)
+        );
       }
 
       #bg-card-playground[data-playground-alignment="center"] #bg-playground-card {
         text-align: center;
       }
 
+      #bg-card-playground[data-playground-alignment="center"]
+        :is(.bg-playground-card-head, .bg-playground-card-foot) {
+        justify-content: center;
+      }
+
       #bg-card-playground[data-playground-elevated="true"] #bg-playground-card {
-        box-shadow: 0 12px 30px color-mix(in srgb, var(--ink) 12%, transparent);
+        box-shadow: 0 16px 38px color-mix(in srgb, var(--ink) 16%, transparent);
+        transform: translateY(-2px);
+      }
+
+      .bg-playground-card-head,
+      .bg-playground-card-foot {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: var(--sp-1) var(--sp-3);
+        color: var(--bg-playground-card-muted);
+        font: 550 var(--t-6) / 1.3 var(--sans);
+      }
+
+      .bg-playground-card-distance,
+      .bg-playground-card-foot {
+        font-variant-numeric: tabular-nums;
+      }
+
+      .bg-playground-route {
+        align-self: center;
+        width: 100%;
+        min-height: 4.5rem;
+        overflow: visible;
+      }
+
+      .bg-playground-contour {
+        fill: none;
+        stroke: var(--bg-playground-card-muted);
+        stroke-width: 1;
+        opacity: 0.22;
+      }
+
+      .bg-playground-path {
+        fill: none;
+        stroke: var(--playground-accent);
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 3;
+      }
+
+      .bg-playground-point {
+        fill: var(--playground-accent);
+        stroke: var(--bg-playground-card-surface);
+        stroke-width: 3;
+      }
+
+      .bg-playground-card-copy h5 {
+        margin: 0;
+        color: inherit;
+        font: 600 var(--t-2) / 1.12 var(--serif);
+        letter-spacing: -0.012em;
+      }
+
+      .bg-playground-card-copy h5::before {
+        content: var(--playground-title);
+      }
+
+      .bg-playground-card-copy p {
+        max-width: 31ch;
+        margin: var(--sp-1) auto 0;
+        color: var(--bg-playground-card-muted);
+        font: var(--t-5) / 1.45 var(--sans);
       }
 
       .interaction-gallery lf-tabs {
@@ -69,6 +174,10 @@
         margin-top: 14px;
       }
 
+      /* Shape only. The runtime built these two, so the layer's own pressable rules
+         already carry the hand, the hover tint, the disabled treatment, and the here
+         ring that names itself to the ring census; a page drawing any of them again
+         would be a second answer to a question the layer has already settled. */
       .interaction-gallery .interaction-control {
         min-height: var(--aim-floor);
         padding: 6px 13px;
@@ -77,7 +186,6 @@
         background: var(--card);
         color: var(--ink);
         font: 600 var(--t-6) / 1.2 var(--sans);
-        cursor: pointer;
       }
 
       .interaction-gallery
@@ -85,18 +193,11 @@
         border-color: var(--accent);
       }
 
-      .interaction-gallery .interaction-control:focus-visible {
-        outline: var(--here-ring);
-        outline-offset: var(--here-ring-gap);
-      }
-
-      .interaction-gallery .interaction-control:disabled {
-        color: var(--muted-2);
-        cursor: default;
-      }
-
+      /* Under the two presses rather than beside them, at every width. The runtime
+         rewrites this line as the demo runs, and prose that changes length on the line a
+         button stands on moves the row while the reader is aiming at it. */
       .interaction-gallery .interaction-status {
-        margin-left: 5px;
+        flex-basis: 100%;
         color: var(--muted);
         font: var(--t-6) / 1.4 var(--sans);
       }
@@ -244,11 +345,6 @@
         .interaction-board-stage lf-card {
           font-size: 13px;
           line-height: 1.4;
-        }
-
-        .interaction-gallery .interaction-status {
-          flex-basis: 100%;
-          margin-left: 0;
         }
       }
 
@@ -479,10 +575,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </h3>
         <p id="bg-button-workflow-guide">
           <strong>Act, fail, and settle.</strong> Accept or Reject starts as an action.
-          Its small open-ring witness moves while the event travels. A refused send
-          leaves a diamond on Retry and Cancel. Success briefly announces Accepted or
-          Rejected; the changed content and square-marked Undo Button remain. Sent
-          remains as a status until an agent picks the decision up.
+          The content changes immediately, and an open ring moves on Undo while the
+          event travels. A refused send restores the suggestion and leaves a diamond on
+          Retry and Cancel. Success leaves the changed content and square-marked Undo
+          Button. Sent remains as a status until an agent picks the decision up.
         </p>
         <p id="bg-button-workflow-line">
           The practice route uses
@@ -973,7 +1069,7 @@ gallery/
               ></lf-playground-control>
               <lf-playground-control
                 name="title"
-                label="Instruction title"
+                label="Card title"
                 kind="text"
                 value="Field note"
                 placeholder="Card title"
@@ -1055,15 +1151,49 @@ gallery/
               </lf-playground-preset>
 
               <lf-playground-preview id="bg-card-preview">
-                <article id="bg-playground-card">
-                  <strong>Card preview</strong>
-                  <p>Ridge route at dusk</p>
+                <article
+                  id="bg-playground-card"
+                  aria-labelledby="bg-playground-card-title"
+                >
+                  <header class="bg-playground-card-head">
+                    <span>North ridge</span>
+                    <span class="bg-playground-card-distance">4.8 km</span>
+                  </header>
+                  <svg
+                    class="bg-playground-route"
+                    viewBox="0 0 320 96"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path
+                      class="bg-playground-contour"
+                      d="M-8 73 C35 36 76 36 111 58 S179 89 217 54 S282 10 330 32"
+                    ></path>
+                    <path
+                      class="bg-playground-contour"
+                      d="M-12 90 C30 56 74 55 112 75 S182 104 220 72 S284 30 333 48"
+                    ></path>
+                    <path
+                      class="bg-playground-path"
+                      d="M10 75 C54 69 61 28 104 33 S156 78 195 59 S239 19 303 24"
+                    ></path>
+                    <circle class="bg-playground-point" cx="10" cy="75" r="5"></circle>
+                    <circle class="bg-playground-point" cx="303" cy="24" r="5"></circle>
+                  </svg>
+                  <div class="bg-playground-card-copy">
+                    <h5 id="bg-playground-card-title"></h5>
+                    <p>Follow the alder trail to the dusk overlook.</p>
+                  </div>
+                  <footer class="bg-playground-card-foot">
+                    <span>Depart 18:40</span>
+                    <span>11 °C · light rain</span>
+                  </footer>
                 </article>
               </lf-playground-preview>
               <lf-playground-output id="bg-card-instruction">
-                Style the card with a
-                <lf-playground-value for="radius"></lf-playground-value> corner radius,
-                compact spacing set to
+                Style the card with a corner radius of
+                <lf-playground-value for="radius"></lf-playground-value>, compact
+                spacing set to
                 <lf-playground-value for="compact"></lf-playground-value>, a
                 <lf-playground-value for="tone"></lf-playground-value> tone,
                 <lf-playground-value for="alignment"></lf-playground-value> alignment,

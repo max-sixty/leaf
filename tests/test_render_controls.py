@@ -195,6 +195,19 @@ CONTROL_ARCHETYPES = (
         "coverage": ".lf-diff-review",
         "target": "#stable-diff .lf-diff-review",
     },
+    {
+        # The gallery's playback row. The runtime injects Play/Pause and Replay beside
+        # the authored demos and rewrites the toggle's own word as a demo runs, so what
+        # the row has to prove is that the word costs the button no width. Replay is the
+        # press for that reason: the toggle is the button that has to hold still, and
+        # pressing Replay is what sends it through every word it has. `example` because
+        # a demo is a scenario the module names rather than markup a page can compose,
+        # so the mechanism stands on the gallery and nowhere a synthetic page reaches.
+        "name": "interaction-playback",
+        "example": FEATURE_GALLERY,
+        "coverage": ".interaction-controls > button",
+        "target": "[data-interaction-replay]",
+    },
 )
 CONTROL_ROW_PRESS = (
     "button, summary, select, "
@@ -1585,9 +1598,15 @@ def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, 
 )
 def test_each_control_archetype_holds_its_neighbours_still(browser, serve, archetype):
     """Each row mechanism holds its other controls still across its causal transition."""
+    # The synthetic page composes every mechanism a page can author, and carries the
+    # standing comment the margin Button's row is made of. An archetype naming an example
+    # is one no page can compose, so its proof runs where the mechanism lives.
+    example = archetype.get("example")
     page, errors = open_page(
         browser,
-        serve(
+        serve(example)
+        if example
+        else serve(
             CONTROL_STABILITY_PAGE,
             events=[
                 {

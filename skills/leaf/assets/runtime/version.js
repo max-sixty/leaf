@@ -122,7 +122,12 @@ import {
   textNodesUnder,
   wrote,
 } from "./passages.js";
-import { MARKED_IN_PAGE, dress, markDeclared } from "./presentation.js";
+import {
+  MARKED_IN_PAGE,
+  dress,
+  markDeclared,
+  settlePageInterface,
+} from "./presentation.js";
 import { reachScrollers } from "./reach.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
@@ -1273,6 +1278,7 @@ async function activateRevision(doc, revision) {
   await Promise.allSettled(settling.slice(settlingFrom));
   reachScrollers(fresh);
   captureAuthoredFacets(fresh);
+  await settlePageInterface();
   syncLayout();
   if (designOn) paintLegend();
   return () => {

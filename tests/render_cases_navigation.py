@@ -271,19 +271,20 @@ def address_codes(page):
     )
 
 
-def address_code(page, kind, target):
-    chip = page.locator(
-        f'{CHIPS}[data-lf-address-kind="{kind}"][data-lf-address-for="{target}"]'
-    )
+def address_code(page, kind, target, button=None):
+    selector = f'{CHIPS}[data-lf-address-kind="{kind}"][data-lf-address-for="{target}"]'
+    if button:
+        selector += f'[data-lf-address-button="{button}"]'
+    chip = page.locator(selector)
     expect(chip).to_have_count(1)
     code = chip.get_attribute("data-lf-address")
     assert code
     return code
 
 
-def go_to_address(page, kind, target):
+def go_to_address(page, kind, target, button=None):
     page.keyboard.press("g")
-    code = address_code(page, kind, target)
+    code = address_code(page, kind, target, button)
     page.keyboard.type(code)
     return code
 

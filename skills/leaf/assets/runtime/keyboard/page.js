@@ -72,13 +72,7 @@ import {
   referenceOpen,
   runSelected,
 } from "./reference.js";
-import {
-  keylineExpanded,
-  keylineMore,
-  keylineMoreKey,
-  keylineMoreText,
-  less,
-} from "./keyline.js";
+import { keylineExpanded, keylineMore, less } from "./keyline.js";
 import { pagePresented } from "../presentation.js";
 import { runtime } from "../context.js";
 import { DISCLOSE } from "./disclosure.js";
@@ -1388,6 +1382,9 @@ export function paintCoreControls() {
       .join(" ");
   for (const scope of coreScopes())
     for (const row of scope.rows) {
+      // The key line owns the permanent More control because its binding must first pass
+      // through the same contextual shadowing as the line's ordinary rows.
+      if (row === REFERENCE) continue;
       const control = word(row.control);
       if (control) {
         if (!("lfKeyTitle" in control.dataset))
@@ -1404,16 +1401,6 @@ export function paintCoreControls() {
         else control.removeAttribute("aria-keyshortcuts");
       }
     }
-  const referenceBound = bindings(REFERENCE).length > 0;
-  keylineMoreKey.hidden = !referenceBound;
-  const shelf = referenceBound && Boolean(keylineExpanded()) && !referenceOpen();
-  keylineMoreText.textContent = shelf ? "all shortcuts" : "more";
-  keylineMore.title = shelf ? "All keyboard shortcuts" : "More keyboard shortcuts";
-  keylineMore.setAttribute("aria-expanded", String(shelf));
-  keylineMore.setAttribute(
-    "aria-label",
-    referenceBound ? (shelf ? "? all shortcuts" : "? more") : "More keyboard shortcuts",
-  );
   const latestBound = bindings(CHOOSER).length && bindings(NEWEST).length;
   latestChip.title =
     latestChip.dataset.lfKeyTitle +

@@ -1,9 +1,9 @@
 ---
-name: developing-with-leaf
-description: Uses the current Leaf checkout to author or revise pages and shipped guidance, preview examples, or test changes in the real browser loop.
+name: developing-leaf
+description: Develops Leaf from the current checkout by previewing examples, comparing runtimes, refreshing catalog stills, and testing page changes in the browser.
 ---
 
-# Develop with the checkout's Leaf
+# Develop Leaf from this checkout
 
 Resolve the repository root three directories above this `SKILL.md`, then resolve
 `<root>/bin/leaf` to an absolute path. Run that launcher with `--version` and
@@ -59,6 +59,19 @@ retained.
    thread. Codex Annotation mode creates visual comments that the user sends with
    their next chat message. Use the Codex review pane when feedback belongs to a
    source line.
+
+## Refresh the public catalog stills
+
+When a change adds or removes a worked example, or changes its first viewport, run
+`wt refresh-previews` from the repository root on macOS. Run `wt setup` first in a
+new checkout. If Worktrunk requests approval for the project commands, ask the user
+to run `wt config approvals add`. The refresh command captures every worked example,
+validates the rebuilt site, pushes the complete JPEG set to
+`max-sixty/leaf-assets`, and updates `example-previews.json` and the catalog links in
+this checkout. Because it pushes the asset repository immediately, run it only when
+the user has authorized that publication. The generator checks the required Charter
+and San Francisco fonts and fails rather than publishing images rendered with
+fallback fonts.
 
 ## Compare runtime versions
 

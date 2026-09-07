@@ -3191,9 +3191,9 @@ def test_forced_colors_keep_pointer_focused_threads_distinct(browser, serve):
         expect(current).to_be_focused()
         assert current.evaluate("el => el.matches(':focus-within')")
         assert not current.evaluate("el => el.matches(':focus-visible')")
-        assert current.evaluate("el => getComputedStyle(el).borderColor") != peer.evaluate(
+        assert current.evaluate(
             "el => getComputedStyle(el).borderColor"
-        )
+        ) != peer.evaluate("el => getComputedStyle(el).borderColor")
         assert errors == []
     finally:
         context.close()

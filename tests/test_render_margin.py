@@ -3193,15 +3193,16 @@ def test_reaction_choices_and_their_receipt_share_an_unided_selected_block(
     )
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    bar.locator(".lf-react-trigger").click()
-    # The choices dock with the selected block's margin target. The standing reaction
+    # The choices extend the bar anchored on the selected block. The standing reaction
     # that replaces them must keep that same visual coordinate even though the durable
     # section coordinate belongs to the surrounding id-bearing section.
-    expect(bar).to_be_hidden()
-    reactions = page.locator(".lf-margin-reactions")
-    expect(reactions).to_be_visible()
+    page.keyboard.press("r")
+    expect(bar).to_have_class(re.compile(r"\blf-response-open\b"))
+    choices = bar.locator(".lf-react-palette")
+    expect(choices).to_be_visible()
+    assert abs(choices.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
 
-    reactions.locator('.lf-react[data-token="keep"]').click()
+    choices.locator('.lf-react[data-token="keep"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]

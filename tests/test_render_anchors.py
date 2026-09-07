@@ -583,7 +583,7 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
 
 
 def test_the_floating_response_bar_has_one_compact_face(browser, serve):
-    """The input-first field and its reaction ellipsis read as one floating surface.
+    """The input-first field and its responses ellipsis read as one floating surface.
 
     The field is longer because it accepts words, but its type, border, colour, and
     elevation belong to the same compact family as the adjacent press. Its radius stays
@@ -606,7 +606,7 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
             "border-top-width", "border-top-style",
             "background-color"].map(p => [p, s.getPropertyValue(p)])); }"""
     raised = page.locator(".lf-fab-input").evaluate(family)
-    adjacent = page.locator(".lf-fab-bar .lf-react-trigger").evaluate(family)
+    adjacent = page.locator(".lf-fab-bar > .lf-response-more").evaluate(family)
     assert raised == adjacent, (
         "the floating field and ellipsis are drawn differently:\n  "
         + "\n  ".join(

@@ -14,6 +14,8 @@ def described(event: dict, registry: dict | None) -> dict:
     the vendored layer no longer declares keeps its word and says nothing more. Any
     other event passes through as it is.
     """
+    # TODO(2026-09-06): Reconsider whether reaction prose belongs in Leaf's
+    # contract at all; clear package-defined tokens may make `means` unnecessary.
     token = event.get("token")
     if not token:
         return event

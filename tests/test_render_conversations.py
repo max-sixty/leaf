@@ -2370,6 +2370,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-compose-field",
         "lf-compose-submit",
         "lf-edited",
+        # The rail is chrome, and its whole document face — placement, the hidden
+        # state, and the widths that fold it away — is the authored theme's. The
+        # runtime sheet names it only to say which plane it stands on, so the movement
+        # the theme's rule causes is that deliberate face rather than a leaked one.
+        "lf-living-margin",
         "lf-react-open",
         "lf-react-palette",
         "lf-react-strip",

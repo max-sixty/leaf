@@ -757,6 +757,7 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     draw_over(page, page.locator("#prose"))
     field = page.locator(".lf-fab-input")
     expect(field).to_have_value("")
+    expect(field).to_be_focused()
     expect(page.locator(".lf-composer .lf-compose-field .primary")).to_have_attribute(
         "aria-disabled", "false"
     )

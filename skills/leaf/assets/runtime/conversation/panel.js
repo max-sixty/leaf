@@ -11,7 +11,7 @@ import {
   loadDraftPayload,
   mirrorDraft,
   saveDraft,
-  sendDraft,
+  sendMessage,
   watchDraft,
 } from "../drafts.js";
 import { runtime } from "../context.js";
@@ -127,7 +127,7 @@ export function wireGeneralBox() {
     hasContent: (raw) => Boolean(raw.trim() || generalDrawing),
     save: saveGeneralDraft,
     send: async (text, raw, owns) => {
-      const sent = await sendDraft("general", owns, (attempt, payload) => {
+      const sent = await sendMessage("general", owns, (attempt, payload) => {
         const event = { kind: "comment", revision: runtime.currentRevision, attempt };
         if (text) event.text = text;
         const drawing = drawingIn(payload);

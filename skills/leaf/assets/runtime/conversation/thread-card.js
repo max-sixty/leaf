@@ -2,7 +2,7 @@
 import { isMarked, placedAt, scrollToThread } from "../anchors.js";
 import { threadsBox } from "./panel.js";
 import { turns } from "./model.js";
-import { anchorLabel, msgNode, syncMsgNode } from "./messages.js";
+import { anchorLabel, msgNode, msgNodeIn, syncMsgNode } from "./messages.js";
 import { paintReactStrips } from "./reaction-strips.js";
 import { el, reachedForWords } from "../widget-elements.js";
 import { panelCovers, setPanel } from "../chrome-layout.js";
@@ -10,7 +10,7 @@ import { keys, paintKeys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply } from "./replies.js";
 import { settlementControl } from "./folding.js";
-import { retainPanelLanding, showThread } from "./landing.js";
+import { retainPanelLanding, showThread, THREAD_ADOPTED } from "./landing.js";
 import { openThreads, threadList } from "./reconcile.js";
 import { focusSurface } from "./surfaces.js";
 
@@ -22,31 +22,70 @@ const hasDestination = (id) => isMarked(id) || Boolean(placedAt(id));
 // removes the reply box and reopening restores it, so either one rebuilds the node;
 // msgBodies carries the rendered bodies across. `grow` animates what this call creates,
 // for arrivals into a list the user is already looking at.
+// The card standing for this thread, by its id or — while the log is still answering for
+// a comment the reader just sent — by the attempt its root carries. The server's event
+// carries that attempt back, so the card the send drew keeps its place in the list, the
+// focus inside it, and any reply already typed into its box.
+const standingCard = (t) =>
+  threadsBox.querySelector(`.lf-thread[data-id="${t.root.id}"]`) ??
+  (t.root.attempt
+    ? threadsBox.querySelector(`.lf-thread[data-attempt="${t.root.attempt}"]`)
+    : null);
+
+// Where the row after this message begins: a receipt acknowledges the message above it,
+// so it belongs to that message rather than to whatever arrives next.
+const afterReceipts = (msg) => {
+  let at = msg.nextElementSibling;
+  while (at?.classList.contains("lf-receipt")) at = at.nextElementSibling;
+  return at;
+};
+
 export function threadNode(t, grow) {
-  const existing = threadsBox.querySelector(`.lf-thread[data-id="${t.root.id}"]`);
+  const existing = standingCard(t);
   const existingResolved = existing && !existing.querySelector(":scope > .lf-compose");
   if (existing && existingResolved === Boolean(t.resolved)) {
+    if (existing.dataset.id !== t.root.id) {
+      existing.dataset.id = t.root.id;
+      // The card has just stopped being pending. Anything that aimed at it while it
+      // was — the reveal the send started — hears so here, once, with the node.
+      document.dispatchEvent(
+        new CustomEvent(THREAD_ADOPTED, {
+          detail: { attempt: t.root.attempt, node: existing },
+        }),
+      );
+    }
     const compose = existing.querySelector(":scope > .lf-compose");
     const tail =
       existing.querySelector(":scope > .lf-receipt") ??
       compose ??
       existing.querySelector(":scope > .lf-thread-actions");
+    // Each message lands after the one before it, past any receipt trailing that
+    // message. `tail` is the first receipt in the card, which is the end of the run
+    // only while nothing has been acknowledged mid-thread; anchoring every arrival
+    // there puts a second one above the first.
+    let previous = null;
     for (const m of turns(t)) {
-      let msg = existing.querySelector(`:scope > .lf-msg[data-mid="${m.id}"]`);
+      let msg = msgNodeIn(existing, m);
       if (!msg) {
         msg = msgNode(m);
         if (grow) msg.classList.add("grow");
-        existing.insertBefore(msg, tail);
+        existing.insertBefore(msg, previous ? afterReceipts(previous) : tail);
       }
       syncMsgNode(msg, m);
+      previous = msg;
     }
     paintReactStrips(existing, t);
     return existing;
   }
 
   const div = el("div", "lf-thread");
+  // The card's own name for its thread, read at use rather than captured: the log
+  // answering for a comment the reader just sent renames this node in place, and a
+  // handler holding the earlier name would go on addressing a thread nothing wears.
+  const liveId = () => div.dataset.id;
   div.tabIndex = -1; // t/T focus target; the thread scope's Enter drops into its reply box
   div.dataset.id = t.root.id;
+  if (t.root.attempt) div.dataset.attempt = t.root.attempt;
   if (grow) div.classList.add("grow");
   const label = anchorLabel(t.anchor, t.root.about);
   if (label) {
@@ -63,10 +102,10 @@ export function threadNode(t, grow) {
       // A covering sheet should spend itself only on a real return. `detached` cannot
       // answer that: a resolved thread has no painted mark but keeps the placement it
       // can still travel to. Read the anchor pass's two destination records instead.
-      if (!hasDestination(t.root.id)) return;
+      if (!hasDestination(liveId())) return;
       if (panelCovers()) setPanel(false);
-      scrollToThread(t.root.id, {
-        land: () => focusSurface(t.root.id),
+      scrollToThread(liveId(), {
+        land: () => focusSurface(liveId()),
       });
     };
     keys(quote, "On a comment's quoted passage", [
@@ -75,7 +114,7 @@ export function threadNode(t, grow) {
         keys: PRESS,
         does: "Return to the quoted passage on the page",
         line: "return to the passage",
-        when: () => hasDestination(t.root.id),
+        when: () => hasDestination(liveId()),
         run: () => quote.click(),
       },
     ]);
@@ -94,6 +133,7 @@ export function threadNode(t, grow) {
     // frame the log settles it), so the landing is a thread rather than the room the
     // pressed one is still giving back.
     const resolve = settlementControl(t, {
+      liveId,
       prepareLanding: () => {
         const mayLand = retainPanelLanding(div);
         const at = openThreads().indexOf(div);
@@ -106,7 +146,7 @@ export function threadNode(t, grow) {
     });
     div.querySelector(":scope > .lf-msg:first-of-type > .lf-msg-head")?.append(resolve);
     row.append(input, send);
-    wireReply(t, input, send);
+    wireReply(t, input, send, liveId);
     div.append(row);
   } else {
     const actions = el("div", "lf-thread-actions");
@@ -121,10 +161,11 @@ export function threadNode(t, grow) {
       status.append(el("span", "lf-resolved-by", `✓ Resolved by ${by}`));
     }
     const reopen = settlementControl(t, {
+      liveId,
       prepareLanding: () => {
         const mayLand = retainPanelLanding(div);
         return () => {
-          if (mayLand()) showThread(t.root.id);
+          if (mayLand()) showThread(liveId());
         };
       },
     });

@@ -25,6 +25,7 @@
    explicitly enters its box supplies the caller-owned return target through
    `landInConversation`. */
 import { shownBand, shownBox } from "../geometry.js";
+import { PENDING } from "../context.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";
 import { closestAcross } from "../passages.js";
@@ -256,11 +257,40 @@ const listNode = (id) => {
   return node?.closest(".lf-thread[hidden]") ? null : node;
 };
 
+// A send reveals the card it drew, and the log's answer then gives that card its
+// receipt line. The card is taller afterwards, so the scroll that aimed at it stops a
+// receipt's height short and the reader's own words come to rest just below the list —
+// which is the thing this reveal exists to prevent. So it is finished when the card
+// settles.
+//
+// Unless the reader has taken the list over since: a scroll, a press, a word typed. Any
+// of those is an answer of theirs, and finishing the reveal would overrule it. Where the
+// card has got to is not asked, because the first scroll is usually still carrying the
+// reader toward it when the answer lands.
+export const THREAD_ADOPTED = "lf-thread-adopted";
+let revealing = null;
+// On the frame after the render rather than inside it: the receipt is what makes the
+// card grow, and the reconcile that adopts the card runs before the pass that paints
+// one. Measured mid-render, this would re-aim at the very height it is here to correct.
+document.addEventListener(THREAD_ADOPTED, (event) => {
+  if (!revealing || event.detail.attempt !== revealing.attempt) return;
+  const { intent } = revealing;
+  const node = event.detail.node;
+  revealing = null;
+  requestAnimationFrame(() => {
+    if (intent !== landingIntent || !threadsBox.contains(node)) return;
+    node.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+  });
+});
+
 // Direct navigation reveals what was requested, including a message's interactive
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
 // focus at its own words so Tab reaches its controls. Sending a reply stays with its
 // editor through revealConversation instead.
 export function showThread(id, { focus = "reply" } = {}) {
+  revealing = id.startsWith(PENDING)
+    ? { attempt: id.slice(PENDING.length), intent: landingIntent }
+    : null;
   setPanel(true);
   if (!listNode(id)) widen();
   let node = listNode(id);

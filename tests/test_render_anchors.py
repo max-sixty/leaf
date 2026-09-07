@@ -47,6 +47,7 @@ from render_support import (
     _publish,
     _traffic,
     address_code,
+    button_radius,
     compare_with,
     composer_quote,
     hold_selection,
@@ -4210,7 +4211,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(panel_send).to_be_disabled()
     quiet = inline_send.evaluate(button_face)
     assert quiet == panel_send.evaluate(button_face)
-    assert quiet["borderRadius"] == quiet["fillBorderRadius"] == "6px"
+    assert quiet["borderRadius"] == quiet["fillBorderRadius"] == button_radius(page)
     assert quiet["backgroundColor"] == palette["page"]
     assert quiet["opacity"] == "1"
     assert quiet["filter"] == "none"

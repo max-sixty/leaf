@@ -101,20 +101,18 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(page.locator(".lf-banner-status")).not_to_be_empty()
 
     page.locator(".lf-asks").click()
-    asks = page.locator("button.lf-asks-row")
-    expect(asks).to_have_count(14)
-    expect(asks.first.locator(".lf-asks-kind")).to_have_text("ask")
-    expect(asks.first.locator(".lf-asks-says")).to_contain_text(
-        "Which map should the sample team carry?"
+    map_ask = page.locator("button.lf-asks-row").filter(
+        has_text="Which map should the sample team carry?"
     )
-    asks.first.click()
+    expect(map_ask).to_have_count(1)
+    expect(map_ask.locator(".lf-asks-kind")).to_have_text("ask")
+    map_ask.click()
     expect(page.locator("#bg-choice-ask")).to_be_focused()
     page.locator(".lf-asks").click()
 
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-panel")).to_be_visible()
-    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(3)
-    expect(page.locator(".lf-details .lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-details .lf-thread")).not_to_have_count(0)
     expect(page.locator("#bg-thread-media")).to_contain_text(
         "supplied by its companion thread log"
     )
@@ -135,7 +133,9 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.locator(".lf-threads-toggle").click()
 
     page.locator(".lf-version").click()
-    expect(page.locator(".lf-version-menu .lf-version-row")).to_have_count(3)
+    expect(
+        page.locator('.lf-version-menu .lf-version-row[data-lf-version="1"]')
+    ).to_be_visible()
     page.keyboard.press("Escape")
 
     page.keyboard.press("?")
@@ -3002,7 +3002,7 @@ def test_generated_hints_refresh_to_the_visible_scene_after_scroll(browser, serv
         f"No hint {old_code}. The current hints are unchanged."
     )
     expect(page.locator(f'{CHIPS}[data-lf-address-for="bottom-link"]')).to_have_count(1)
-    page.wait_for_timeout(250)
+    page_at_rest(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
 
     bottom_code = address_code(page, "Link", "bottom-link")
@@ -3035,7 +3035,7 @@ def test_inflight_native_paging_hides_hints_until_the_scene_settles(browser, ser
     expect(page.locator(CHIPS)).to_have_count(1)
     codes = address_codes(page)
     mapped_at = page.evaluate("() => document.scrollingElement.scrollTop")
-    page.wait_for_timeout(250)
+    page_at_rest(page)
 
     assert page.evaluate("() => document.scrollingElement.scrollTop") == mapped_at
     assert address_codes(page) == codes

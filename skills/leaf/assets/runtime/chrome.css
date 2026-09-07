@@ -1463,13 +1463,13 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      rail, so it says so rather than relying on a hairline to separate it from
      whatever it happens to be over. */
   :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 32px; }
-  .lf-fab-bar { position: absolute; display: none; width: max-content; align-items: center;
-    gap: 4px; white-space: nowrap; max-width: var(--lf-float-w, calc(100vw - 16px)); }
+  .lf-fab-bar { position: absolute; display: none; width: max-content;
+    align-items: center; gap: 4px; white-space: nowrap;
+    max-width: var(--lf-float-w, calc(100vw - 16px)); }
   .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
-  /* The field and the no-reactions fallback choices are two states of one anchored
-     response control. This primitive owns their height, vertical padding, type, border,
-     corners, and elevation. With a reaction vocabulary, Tab raises the target's margin
-     Buttons instead.
+  /* The field and its choices are one anchored response control. This primitive owns
+     their height, vertical padding, type, border, corners, and elevation. Tab extends
+     the control at its trailing edge without replacing or moving the field.
      The corner is half the resting height, written as that length rather than as
      999px: both draw the same one-line pill, and only the length survives growth. The
      field below grows with its words, and a corner kept in proportion to the box was
@@ -1508,6 +1508,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     padding-inline: 12px calc(max(28px, var(--aim-floor)) + 12px);
     resize: none;
     field-sizing: content; overflow-y: auto; }
+  .lf-fab-bar .lf-compose-field { flex: 0 1 auto; }
   .lf-fab-bar .lf-compose-submit {
     inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
     inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2); }
@@ -1522,14 +1523,19 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-response-action-space { white-space: pre; }
   .lf-response-action[data-lf-collapse] > :is(.lf-response-action-space,
     .lf-response-action-label) { display: none; }
-  .lf-fab-bar:not(.lf-react-open) > :is(.lf-fab-suggest,
-    .lf-react-palette),
-  .lf-fab-bar:not(.lf-react-open):not([data-lf-target-only]) > .lf-fab {
+  .lf-fab-bar:not([data-lf-target-only]) > .lf-fab,
+  .lf-fab-bar:not(.lf-response-open) > .lf-response-options {
     display: none !important;
   }
-  .lf-fab-bar.lf-react-open { flex-wrap: wrap; }
-  .lf-fab-bar.lf-react-open > .lf-composer { display: none !important; }
-  .lf-fab-bar.lf-react-open > .lf-react-palette { display: contents; }
+  .lf-fab-bar.lf-response-open { flex-wrap: wrap; }
+  .lf-fab-bar.lf-response-open > .lf-response-more { display: none !important; }
+  .lf-fab-bar.lf-response-open > .lf-response-options {
+    display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px;
+    max-width: 100%;
+  }
+  .lf-response-options .lf-response-action {
+    min-height: var(--lf-response-height);
+  }
   /* A reaction surface offers one quiet trigger. It disappears when its list opens;
      a standing token remains visible in a closed message strip as the reader's receipt
      and eraser. */
@@ -1537,13 +1543,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-react-trigger:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]) {
     color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
   .lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
-  .lf-fab-bar > .lf-react-palette { flex-wrap: nowrap; }
+  .lf-response-options > .lf-react-palette { flex-wrap: wrap; }
   .lf-react-open > .lf-react-trigger { display: none; }
   .lf-react-surface:not(.lf-react-open) .lf-react:not([aria-pressed="true"]) {
     display: none; }
   .lf-react-strip:not(.lf-react-open) > .lf-react-palette:not(:has(> [aria-pressed="true"])) {
     display: none; }
-  .lf-fab-bar:not(.lf-react-open) > .lf-react-palette { display: none; }
   /* A standing token keeps a neutral fill. The floating response bar names choices in
      words through its own response-control anatomy; a message strip stays emoji-sized
      and carries the full meaning through its accessible name and hover title. */

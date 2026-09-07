@@ -31,6 +31,7 @@ from render_support import (
     REPORT_PAGE,
     leaf_page,
     open_page,
+    panel_settled,
     primed,
     refuse,
     resized,
@@ -1579,7 +1580,7 @@ def test_a_copy_carries_none_of_the_exporters_own_window(browser, serve, tmp_pat
     live.goto(url, wait_until="load")
     live.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     live.locator(".lf-threads-toggle").click()
-    live.wait_for_timeout(600)
+    panel_settled(live)
     measured = live.evaluate(inline_custom)
     live.close()
     stated = [name for name in session if name in measured]

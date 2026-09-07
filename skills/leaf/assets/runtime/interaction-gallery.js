@@ -104,6 +104,38 @@ function frameSource(frame) {
 </html>`;
 }
 
+// A document tree has one focus, so focus that lands inside a frame is focus taken off
+// the page the reader is standing on: their open margin cluster folds, their selection
+// hints drop, and the next chord they press goes to a document they cannot see. The
+// contained page cannot hand it back — `activeElement` in there names one of its own
+// elements, and only the document around it knows where the reader was — so every call
+// into a frame comes back through this document. Behind that, the framed chrome is free
+// to run the browser's own dialog focusing steps like the page it is a picture of.
+function keepsReaderStanding(api, frame) {
+  const holding =
+    (call) =>
+    (...args) => {
+      const stood = document.activeElement;
+      try {
+        return call(...args);
+      } finally {
+        if (document.activeElement === frame) {
+          if (stood?.isConnected && stood !== frame)
+            stood.focus({ preventScroll: true });
+          // Nobody was standing anywhere in particular, so the page itself is where the
+          // reader is: give it back rather than leaving the picture holding the keys.
+          else frame.blur();
+        }
+      }
+    };
+  return Object.fromEntries(
+    Object.entries(api).map(([name, value]) => [
+      name,
+      typeof value === "function" ? holding(value.bind(api)) : value,
+    ]),
+  );
+}
+
 class Demo {
   constructor(panel, changed) {
     this.panel = panel;
@@ -138,9 +170,12 @@ class Demo {
       this.frameElement.toggleAttribute("data-lf-contained", true);
       this.frameElement.srcdoc = frameSource(this.frameElement);
       await loaded;
-      this.frameApi = await boundedRead(
-        () => this.frameElement.contentWindow?.leafInteractionGalleryFrame,
-        "the contained Leaf page did not expose its gallery adapter",
+      this.frameApi = keepsReaderStanding(
+        await boundedRead(
+          () => this.frameElement.contentWindow?.leafInteractionGalleryFrame,
+          "the contained Leaf page did not expose its gallery adapter",
+        ),
+        this.frameElement,
       );
       await boundedRead(
         () => this.frameElement.contentDocument?.body.hasAttribute("data-lf-presented"),

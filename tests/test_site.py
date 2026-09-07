@@ -726,6 +726,24 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
                  (frame) => frame.contentDocument?.body.hasAttribute('data-lf-panel'))"""
         ) == [False, False]
         assert page.evaluate("() => document.activeElement?.tagName") != "IFRAME"
+
+        # Arrival is the easy half. The Threads replay opens a <dialog> in the frame, and
+        # a shown dialog runs the browser's own focusing steps whatever the page around
+        # it wants, so this is where the reader's focus actually goes if nobody takes it
+        # back. They are standing on the tab they just pressed, and the chord they press
+        # next has to still reach the page they are reading.
+        threads_tab = gallery.get_by_role("tab", name="Open and close Threads")
+        threads_tab.click()
+        threads_frame = gallery.locator(
+            "#bg-interaction-threads [data-interaction-frame]"
+        ).content_frame
+        expect(threads_frame.locator(".lf-panel")).to_be_visible()
+        assert threads_tab.evaluate("tab => document.activeElement === tab")
+        status = gallery.locator("[data-interaction-status]")
+        expect(status).to_have_text("Open and close Threads · Complete", timeout=20_000)
+        assert threads_tab.evaluate("tab => document.activeElement === tab")
+        page.keyboard.press("w")
+        expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
         assert not errors, errors[:3]
     finally:
         page.close()

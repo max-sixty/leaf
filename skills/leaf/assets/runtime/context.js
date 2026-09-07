@@ -28,8 +28,11 @@ export const runtime = {
 // interaction gallery frames the chrome that is singleton by design, so a replay can drive
 // the production controls without moving the gallery around it; `frameSource` stamps the
 // frame it writes. The reader is standing in that outer document, so a contained page
-// restores none of their arrangements and never places focus: either would take the page
-// they are actually on somewhere they did not ask to go.
+// arrives without restoring their arrangements and without placing focus: either would
+// take the page they are actually on somewhere they did not ask to go. Focus the framed
+// chrome places later is the gallery's to take back rather than this document's to
+// refuse — a shown dialog runs the browser's own focusing steps whatever the page around
+// it wants, and only that page knows where the reader was standing.
 export const containedPage = document.body.hasAttribute("data-lf-contained");
 
 export const agentName = () => runtime.agent;

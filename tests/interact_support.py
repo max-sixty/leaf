@@ -128,6 +128,37 @@ def spawn_probe(spawn, page_dir, body, **environment):
     )
 
 
+def pytest_configure(config):
+    """Refuse a `--basetemp` that `shipped_payload` below would sweep up.
+
+    The candidate payload is whatever git reports untracked and unignored as well
+    as what it tracks, which is the point: a file a change has written but not yet
+    added is payload a host would copy. So a basetemp inside the checkout makes
+    every fixture the run writes payload too, and the install boundary then fails
+    about a tree full of temporary pages rather than about the flag that put them
+    there. Only the flag is checked because only the flag is typed: pytest's own
+    default is a numbered directory under `$TMPDIR`. An ignored path is allowed,
+    since git's answer rather than the path's depth is what decides.
+    """
+    given = config.option.basetemp
+    if given is None:
+        return
+    given = Path(given).resolve()
+    if not given.is_relative_to(PLUGIN_ROOT.resolve()):
+        return
+    ignored = subprocess.run(
+        ["git", "-C", str(PLUGIN_ROOT), "check-ignore", "-q", str(given)],
+        check=False,
+    )
+    if ignored.returncode != 0:
+        raise pytest.UsageError(
+            f"--basetemp={given} is inside the checkout and git does not ignore "
+            "it, so this run's temporary files would count as shipped payload. "
+            "Drop the flag — pytest puts the basetemp under $TMPDIR already — or "
+            "name a path outside the checkout."
+        )
+
+
 def shipped_payload():
     """Every candidate payload path in the working tree.
 

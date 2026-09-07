@@ -223,6 +223,19 @@ Land through a pull request or with `wt merge`, which squash-merges directly to
 `git push origin main:main` because the skipped hook normally pushes.
 `✗ Can't push to local main branch` is a fast-forward failure instead.
 
+A branch lands with a red gate when every failure in it is one the branch did
+not cause. Establish that by running the failing node ids in a worktree at the
+merge base, under the conditions that produced them. That means the same
+platform, and the same selection and parallelism: a case can fail on CI's Linux
+fonts and pass on a Mac, or fail inside the whole suite under the default `-n 2`
+and pass alone under `-n0`. `scripts/linux-suite.sh` supplies that platform. A
+green CI run is not that control, because the queue leaves main's newest
+completed run several commits behind the base. Until the failure reproduces
+there, it is this branch's. Once it does, the branch lands the ordinary way, and
+a red hook takes the `--no-hooks` route above. `lint` is the only required
+check, so a red `test` does not block a merge and this rule is all that gates
+one.
+
 Installed sessions load host caches, not the checkout. After pushing, Claude
 Code updates on its marketplace sweep. The post-merge hook refreshes an installed
 Codex plugin; after a merge that skipped hooks, run

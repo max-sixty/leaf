@@ -2033,6 +2033,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     .lf-dot { background: CanvasText !important; }
     .lf-key-sequence > kbd[data-lf-key-state="pressed"] { border-color: Highlight;
       background: Highlight; color: HighlightText; }
+    .lf-thread:is(:focus-within, .lf-focus-within) { border-color: Highlight; }
     :scope :focus-visible { outline: 2px solid Highlight !important;
       outline-offset: 2px !important; box-shadow: none !important; }
     :scope :is([aria-pressed="true"], [aria-checked="true"], [aria-current]) {

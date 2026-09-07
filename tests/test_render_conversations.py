@@ -3170,6 +3170,35 @@ def thread_mark_fault(reading):
     return None
 
 
+def test_forced_colors_keep_pointer_focused_threads_distinct(browser, serve):
+    """High contrast keeps the current card visible when pointer focus has no ring."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    panel_comment(d, "The current card.", {"section": "lede"})
+    panel_comment(d, "Its resting peer.", {"section": "how-store"})
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, forced_colors="active"
+    )
+    try:
+        page, errors = open_page(browser, url, context=context)
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        current = page.locator(".lf-thread").filter(has_text="The current card.")
+        peer = page.locator(".lf-thread").filter(has_text="Its resting peer.")
+        box = current.bounding_box()
+        assert box
+        page.mouse.click(box["x"] + 6, box["y"] + 6)
+        expect(current).to_be_focused()
+        assert current.evaluate("el => el.matches(':focus-within')")
+        assert not current.evaluate("el => el.matches(':focus-visible')")
+        assert current.evaluate("el => getComputedStyle(el).borderColor") != peer.evaluate(
+            "el => getComputedStyle(el).borderColor"
+        )
+        assert errors == []
+    finally:
+        context.close()
+
+
 def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
     browser, serve
 ):

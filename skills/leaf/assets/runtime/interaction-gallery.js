@@ -31,7 +31,6 @@ const TOGGLE_WORDS = {
 const ARRIVAL_PAUSE = 900;
 const POINTER_TRAVEL = 1400;
 const RESULT_PAUSE = 1200;
-const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
 
 const delay = (demo, ms, generation) =>
   demo.animate(
@@ -63,18 +62,6 @@ function loadFrameModule(frame, source, message) {
     script.addEventListener("error", () => reject(new Error(message)), { once: true });
     frame.contentDocument.body.append(script);
   });
-}
-
-async function keepReaderOutsideFrames(loads) {
-  let loading = true;
-  void Promise.allSettled(loads).then(() => {
-    loading = false;
-  });
-  do {
-    await nextFrame();
-    const active = document.activeElement;
-    if (active?.matches("[data-interaction-frame]")) active.blur();
-  } while (loading);
 }
 
 async function loadFrameDocument(frame) {
@@ -362,7 +349,7 @@ class Demo {
   }
 
   async frame(generation) {
-    await nextFrame();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
     this.assertCurrent(generation);
   }
 
@@ -701,8 +688,8 @@ export function installInteractionGallery() {
     stopMotionPreference();
   };
 
-  const loads = [...demos.values()].map((demo) =>
-    demo
+  for (const demo of demos.values()) {
+    void demo
       .load()
       .catch((error) => {
         console.error(error);
@@ -711,11 +698,7 @@ export function installInteractionGallery() {
       })
       .finally(() => {
         if (gallery === installedGallery) syncActive();
-      }),
-  );
-  // A same-origin document load can make an illustrative iframe's inner body active
-  // despite tabindex=-1. Guard the whole concurrent load cohort so the reader's next
-  // page-level shortcut stays in the parent document throughout startup.
-  void keepReaderOutsideFrames(loads);
+      });
+  }
   syncActive();
 }

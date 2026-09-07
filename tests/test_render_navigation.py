@@ -62,7 +62,6 @@ from render_support import (
     stamp_version_file,
     standing_mark,
     told,
-    undo,
     wait_for_pending_mark,
     wait_for_revision,
     wait_hovered,
@@ -233,10 +232,8 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     approve.click()
     round_trip(page)
     expect(approve).to_have_text("✓ Version approved")
-    assert not page.evaluate(
-        "() => document.activeElement?.matches('[data-interaction-frame]')"
-    ), "an illustrative frame took the page's keyboard focus while loading"
-    undo(page)
+    page.keyboard.press("z")
+    round_trip(page)
     expect(approve).to_have_text("Approve version")
 
     option = page.locator("#bg-choice-street")
@@ -4277,8 +4274,10 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
         expect(control).to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
         assert (
             control.evaluate("el => getComputedStyle(el, '::after').content")
-            == f'"g {suffix}"'
+            == f'"g {suffix}" / ""'
         )
+    for control in (page.locator(".lf-threads-toggle"), page.locator(".lf-asks")):
+        expect(control).to_have_accessible_name(control.inner_text())
     expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
     expect(version).to_have_attribute("data-lf-chord", "g V")
     expect(version).to_have_attribute("title", re.compile(r"\(g V\)$"))

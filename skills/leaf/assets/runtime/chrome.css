@@ -908,9 +908,10 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      hands the fold something to measure. */
   .lf-banner-actions > .lf-btn { flex: none; }
   /* Stable global destinations carry their complete chord on the banner control that
-     opens them. Keep it as secondary text rather than another keycap: the action stays
-     the button's label, while the shortcut remains available without opening help. */
-  .lf-banner [data-lf-chord]::after { content: attr(data-lf-chord);
+     opens them, including when the shelf folds that control into its menu. Keep it as
+     secondary text rather than another keycap: the action stays the button's label,
+     while the shortcut remains available without opening help. */
+  [data-lf-chord]::after { content: attr(data-lf-chord) / "";
     margin-inline-start: 7px; color: var(--muted); font-family: var(--mono);
     font-size: var(--t-6); font-weight: 400; }
   /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The

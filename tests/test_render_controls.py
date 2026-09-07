@@ -75,6 +75,7 @@ from render_support import (
     ring_faults,
     rings_drawn,
     round_trip,
+    select,
     serious_axe_violations,
     stamp_version_file,
     standing_ring,
@@ -918,6 +919,193 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
     )
     assert "lf-btn" in (landed or ""), (
         f"the focus transfer left the reader on {landed!r} rather than on an address"
+    )
+    assert errors == []
+    page.close()
+
+
+# The longest lines the banner writes, each at the widest count it can carry. The floor
+# the row reserves is two lines of the longest of them (chrome.css, --lf-status-floor),
+# so these are what say whether the floor is the size it claims.
+BANNER_LINES = (
+    "Server offline — reconnecting. Keep this page open so pending changes can send.",
+    (
+        "No session holds this page. 999 updates are saved. It picks up again when a "
+        "session does."
+    ),
+    "Claude isn't watching right now. 999 updates are saved. It picks them up next turn.",
+    (
+        "This is an example on the Leaf website. Claude replies here, but cannot edit "
+        "this page. Install Leaf"
+    ),
+)
+
+# What the sentence is given and what it needs, in the box it is actually rendered in.
+STATUS_FIT = """(sentence) => {
+  const status = document.querySelector('.lf-status-text');
+  status.textContent = sentence;
+  return {across: {shown: status.clientWidth, needed: status.scrollWidth},
+          down: {shown: status.clientHeight, needed: status.scrollHeight},
+          width: status.getBoundingClientRect().width};
+}"""
+
+
+def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser, serve):
+    """A developer preview's identity is an address on the row, not a bite out of the line.
+
+    The row reserves a floor for the status sentence and folds addresses to keep it. The
+    reservation used to be stated for the whole status box, so anything else standing in
+    that box spent it first — and the preview chip is 240 pixels of exactly that. Measured
+    on the feature gallery at 1200: the sentence was left 114px, twelve characters, two of
+    the four lines it needed, while the chip beside it clipped its own name at scrollWidth
+    348 in a 238px box. At 1024 the sentence had 26 pixels.
+
+    So the floor is the sentence's own room now and the chip stands with the addresses,
+    where the row's rule already holds every control to its words and folds whole what it
+    cannot hold. Both halves are asserted here: every line the banner writes fits the box
+    it is given at every wide width, and the chip keeps its words wherever it stands.
+    """
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    # A long checkout name, because that is what a worktree is called and it is the width
+    # that broke this: the chip is not capped any more, so what it costs is real room.
+    url = serve(
+        html,
+        preview={
+            "kind": "example",
+            "example": "feature-gallery",
+            "checkout": "leaf.status-floor-and-selection",
+            "commit": "c79736ebfcc7",
+            "dirty": True,
+            "interaction": "automation",
+            "started": "2026-09-06T12:00:00+00:00",
+        },
+    )
+    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    page, errors = open_page(browser, url)
+    expect(page.locator(".lf-preview")).to_have_count(1)
+    # 841 is the narrowest row the cap applies to; the covering row below it is a layout
+    # of its own with the status on a line to itself.
+    for width in (841, 1024, 1440):
+        resized(page, width, 900)
+        for sentence in BANNER_LINES:
+            read = page.evaluate(STATUS_FIT, sentence)
+            assert read["across"]["shown"] == read["across"]["needed"], (
+                f"at {width} the banner cut {sentence!r} off its own edge: {read}"
+            )
+            assert read["down"]["shown"] >= read["down"]["needed"], (
+                f"at {width} the banner clamped {sentence!r} past the lines it has: "
+                f"{read}"
+            )
+        standing = page.evaluate(
+            """() => {
+              const chip = document.querySelector('.lf-preview');
+              const menu = document.querySelector('.lf-banner-menu');
+              return {inStatus: Boolean(chip.closest('.lf-banner-status')),
+                      parent: chip.parentElement.className,
+                      folded: menu.contains(chip),
+                      onRow: chip.getClientRects().length > 0,
+                      shown: chip.clientWidth, needed: chip.scrollWidth};
+            }"""
+        )
+        # Where it stands is what makes the floor above hold rather than a second
+        # statement of it: inside the status box the chip spends the sentence's room, and
+        # on the row it spends the addresses'.
+        assert not standing["inStatus"], (
+            f"at {width} the preview chip stood inside the status box: {standing}"
+        )
+        assert standing["folded"] or standing["onRow"], (
+            f"at {width} the preview chip was neither on the row nor behind the door: "
+            f"{standing}"
+        )
+        if standing["onRow"]:
+            assert standing["shown"] >= standing["needed"], (
+                f"at {width} the preview chip clipped its own name: {standing}"
+            )
+    assert errors == []
+    page.close()
+
+
+def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
+    """A drag out of a paragraph takes the passage, not the page and the panel with it.
+
+    The layer is fixed and stands after the document in it, so one range crossing into
+    anything selectable in the chrome runs through everything between. Three surfaces
+    said user-select: none and the rest did not, so a drag rightwards out of a paragraph
+    that overshot the open thread panel's left edge by five pixels took 14,472 characters
+    instead of the 67 aimed at, and pressing `c` put the whole page — the passage, every
+    widget under it, and the panel's own furniture — into the composer's quote and into
+    the field's accessible name.
+
+    The apparatus is answered at the layer's root now, so this asserts the statement
+    rather than the three surfaces: everything in here is unselectable except the words
+    somebody said, which are a reply and the passage it is about, and those stay
+    copyable.
+    """
+    # Anchored, so the thread carries both of the things a reader may want out of the
+    # panel: the passage it is about and the reply somebody wrote under it.
+    url = serve(LONG_PAGE, anchored=[("p40", "Paragraph 40.")])
+    page, errors = open_page(browser, url)
+    resized(page, 1200, 900)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator(".lf-thread")).to_have_count(1)
+
+    aim = page.evaluate(
+        """() => {
+          const para = [...document.querySelectorAll('p')].find((el) => {
+            const r = el.getBoundingClientRect();
+            return r.width > 200 && r.top > 140 && r.bottom < innerHeight - 60;
+          });
+          const r = para.getBoundingClientRect();
+          return {start: [r.left + 40, r.top + 8],
+                  edge: document.querySelector('.lf-panel').getBoundingClientRect().left,
+                  words: para.textContent,
+                  whole: document.body.textContent.length};
+        }"""
+    )
+    # Five pixels past the edge: the overshoot a reader gives a drag they meant to end at
+    # the end of a line, which at the covering width lands mid-line on every paragraph.
+    select(page, aim["start"], (aim["edge"] + 5, aim["start"][1]))
+    took = page.evaluate("() => getSelection().toString()")
+    assert took and took in aim["words"], (
+        f"the drag took {len(took)} characters from outside the paragraph it started in, "
+        f"out of {aim['whole']} in the document: {took[:80]!r}…{took[-80:]!r}"
+    )
+
+    # The statement, rather than the surfaces that happened to carry it: apparatus is
+    # unselectable, and what a reader may copy says so for itself.
+    open_layer = page.evaluate(
+        """() => {
+          const said = '.lf-quote, .lf-msg-body';
+          return [...document.querySelector('.lf-chrome').querySelectorAll('*')]
+            .filter((el) => getComputedStyle(el).webkitUserSelect !== 'none')
+            .filter((el) => !el.closest(said))
+            .map((el) => (el.className || el.tagName).toString().trim().split(/\\s+/)[0]);
+        }"""
+    )
+    assert open_layer == [], (
+        f"chrome surfaces outside a reply and its passage stayed selectable: {open_layer}"
+    )
+    copyable = page.evaluate(
+        """() => {
+          const out = {};
+          for (const [name, sel] of [['quote', '.lf-quote'], ['reply', '.lf-msg-body']]) {
+            const range = document.createRange();
+            range.selectNodeContents(document.querySelector(sel));
+            const selection = getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            out[name] = selection.toString().trim().length;
+            selection.removeAllRanges();
+          }
+          return out;
+        }"""
+    )
+    assert copyable["quote"] and copyable["reply"], (
+        f"the panel stopped a reader copying the words somebody said: {copyable}"
     )
     assert errors == []
     page.close()

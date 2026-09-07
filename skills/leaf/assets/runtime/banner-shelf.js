@@ -6,9 +6,10 @@ import { paintHere } from "./keyboard/scopes.js";
 // up any control's words, and it gives them up to somewhere a reader can still reach: the
 // banner's row folds the addresses it cannot hold into one menu (`foldShelf`) rather than
 // clipping them or scrolling them off its own edge, and its status sentence keeps a floor
-// stated in the row's own characters so a crowded row can never cut it. The row reads in
-// one order at every width, and a control the fold has taken is still at its place in
-// that order.
+// stated in the row's own characters so a crowded row can never cut it. That floor is the
+// sentence's own room and is spelled once, as --lf-status-floor beside .lf-banner; the cap
+// this fold reads is the row's share of what is left after it. The row reads in one order
+// at every width, and a control the fold has taken is still at its place in that order.
 
 // How many addresses stay on the row whatever the width. The last two are the page's
 // reading loop — approval and the conversation — and a reader must never open a menu to

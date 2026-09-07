@@ -817,9 +817,25 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      rather than the document's. The reset layer (above) is what keeps a control that
      *wears* the class from walking past it — the 💬 button once inherited straight
      into the page's serif at 17px that way — and this is the same answer for the
-     text around the controls. */
+     text around the controls.
+
+     user-select, because the layer is apparatus and the document below is the words. A
+     drag draws one range over the whole document, and this container is fixed and
+     stands after the document in it, so a selection that reaches any selectable part of
+     the chrome extends through everything between: a drag rightwards out of a paragraph
+     that overshot the thread panel's left edge by five pixels took 14,472 characters
+     instead of the 67 aimed at, and the composer quoted the page from that passage down
+     through every widget. Answered at the root, because a rule per surface is a list
+     that stops being complete: the banner, the key line and the panel's head were named
+     and the panel itself, the trays, the shelf's menu, the keyboard reference, the find
+     row and the asks list were left open, all of them selectable and every one of them
+     the same drag. What a reader may still copy out of here says so for itself, at
+     .lf-quote and .lf-msg-body below. */
   :scope, .lf-legend { position: static; }
-  :scope { cursor: auto;
+  /* The mark's box, at the root because two surfaces draw the same mark — the banner's
+     state leaf and a row per live page in the tray — and because the banner's cap has
+     to reserve the room it takes beside the status sentence. */
+  :scope { cursor: auto; user-select: none; -webkit-user-select: none; --lf-mark-w: 16px;
     font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); }
   /* The floor under every aim the layer offers, stated once for all of them rather
      than left to whatever each control's type and padding happened to add up to.
@@ -860,13 +876,22 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     border: 0; border-radius: 0 !important; background: none; }
   .lf-target-trace-shape {
     display: block; width: 100%; height: 100%; overflow: hidden; }
-  .lf-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
+  /* Three numbers the row's two ends both have to agree about, so they are said once
+     here rather than spelled again in the cap below: the gap between anything on this
+     row, the mark's box, and the sentence's floor. The floor is the sentence's own room
+     and nothing else's — the cap adds the furniture back itself — because a floor
+     stated for the status box as a whole is one the mark and anything else standing in
+     that box spends first, and it was: a developer preview's identity chip left the
+     line 114 pixels, twelve characters, two of the four lines it had to say. */
+  .lf-banner { --lf-banner-gap: 10px; --lf-status-floor: 37ch;
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
     display: flex;
-    align-items: center; gap: 10px;
+    align-items: center; gap: var(--lf-banner-gap);
     padding: var(--lf-safe-top) calc(14px + var(--lf-safe-right)) 0
       calc(14px + var(--lf-safe-left));
     background: var(--veil); backdrop-filter: blur(6px); border-bottom: 1px solid var(--rule); }
-  .lf-banner-status, .lf-banner-actions { display: flex; align-items: center; gap: 10px; }
+  .lf-banner-status, .lf-banner-actions { display: flex; align-items: center;
+    gap: var(--lf-banner-gap); }
   /* The sentence wins the row. It takes whatever the addresses leave and keeps a floor
      of its own below that, which is what the shelf's cap on the next rule states from
      the other end. Growing into free space rather than reserving its own words is what
@@ -882,10 +907,16 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      The floor is stated in the row's own characters rather than in pixels, so it says
      the same thing after a type token moves — three numbers stood along this row once
      and all three quietly stopped covering the day --t-5 went from 13.5px to 14px.
-     Thirty-four of them is the two lines the longest sentence the banner writes needs,
-     which is the offline one, with the mark and the gap beside it. A floor generous
-     enough to hold that sentence on one line would be paid for in addresses folded
-     away at widths that had room for them; two lines is what readable means here.
+     Thirty-seven of them is the two lines the longest sentence the banner writes needs,
+     which is the website's own ("This is an example on the Leaf website. Claude replies
+     here, but cannot edit this page.") at 36.5, and the mark and the two gaps beside it
+     are added here rather than folded into the number, so the floor is the sentence's
+     room and the cap is what has to know what else stands on the row. Measured the
+     other way round it read as one number covering both, and the sentence was left the
+     remainder: 31 characters on a reader's page at 1024, where the line that says a
+     comment is saved and when it will be read needs 33. A floor generous enough to hold
+     that sentence on one line would be paid for in addresses folded away at widths that
+     had room for them; two lines is what readable means here.
 
      The row does not shrink. A flexible one gives up room in the same breath the
      sentence does, so a row already folded to its floor goes on clipping while the
@@ -898,7 +929,9 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      overflowing end-packed row hangs off its start edge, where nothing can see it.
      Four pixels around the contents belong to the controls' outset focus ring. */
   .lf-banner-actions { flex: 0 0 auto; min-width: 0;
-    max-width: calc(100% - 34ch); justify-content: safe flex-end; overflow: hidden;
+    max-width: calc(100% - var(--lf-status-floor) - var(--lf-mark-w)
+      - 2 * var(--lf-banner-gap));
+    justify-content: safe flex-end; overflow: hidden;
     padding: 4px 5px; }
   /* An address keeps its words at every width, and says so: a flex item's default
      minimum is its own words, but the aim floor states a minimum width in pixels for
@@ -911,7 +944,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      mask is the page's actual vendored mark, so a project that replaces icon.svg does
      not keep an unrelated leaf-like glyph in the banner. Shape is identity and colour
      is state, from the same registry-owned tones the tab icon wears. */
-  .lf-dot { width: 16px; height: 16px; background: var(--muted-2); flex: none;
+  .lf-dot { width: var(--lf-mark-w); height: var(--lf-mark-w); background: var(--muted-2); flex: none;
     -webkit-mask: url("/icon.svg") center / contain no-repeat;
     mask: url("/icon.svg") center / contain no-repeat; }
   .lf-dot.working { background: var(--accent);
@@ -919,7 +952,16 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-dot.listening { background: var(--ok); }
   .lf-dot.away { background: var(--warn); }
   .lf-dot.offline { background: var(--danger); }
-  .lf-preview { flex: none; max-width: min(36vw, 240px); padding: 2px 7px;
+  /* An address on the row like the rest, which is where a developer preview's identity
+     belongs: standing beside the status it once stood inside, it spent the sentence's
+     floor before the sentence saw any of it — and clipped its own name doing it, at
+     scrollWidth 348 in a 238-pixel box. It keeps its words here and folds whole when
+     the row runs out, first of the foldable run (arrangeBannerControls), because a
+     checkout's name and commit are the one thing on this row a reader never needs and a
+     developer can always open the menu for. No width of its own: the row's address rule
+     holds every control to its words, and the menu is where one that does not fit goes.
+     A press copies the diagnostics, so its text is one line however long the name is. */
+  .lf-preview { padding: 2px 7px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     font: inherit; font-size: var(--t-6);
     cursor: pointer; }
@@ -1216,11 +1258,30 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-edge:hover::before, .lf-edge:is(:focus-visible, .lf-focus-visible)::before { opacity: 1; }
   .lf-edge:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: edge; }
   .lf-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
-  /* The banner, the key line and the panel's head are apparatus, not words the page says:
-     a drag that starts in a paragraph and ends past the top of the window swept "All
-     leaves (6) · Asks 0/2 · v1" into the copy. Messages and quotes stay selectable — a
-     reply is words the reader may want. */
-  .lf-banner, .lf-keyline, .lf-panel-head { user-select: none; -webkit-user-select: none; }
+  /* The words in here, against the apparatus the root has already answered for: a reply
+     and the passage it is about. A quote is the page's own words and a message is
+     somebody's, so a reader copying either is copying what was said rather than the
+     layer talking about itself — which is what a head, a count and a control's label
+     are, and why the run of them a drag once swept up ("All leaves (6) · Asks 0/2 · v1")
+     is not in this list.
+
+     Fields are not in it, and that is a measurement rather than a decision: a drag
+     inside an input under the root's none still selects its value in Chromium, Gecko
+     and WebKit alike, and the find box's own select() still takes. A rule saying so
+     again would state a guarantee the platform already keeps.
+
+     Where a selectable island stands, a drag that reaches it still runs the range from
+     the document through everything between, because the two are one document order and
+     nothing in CSS says "started outside" — that value is user-select: contain, which no
+     engine here implements. Overshooting the panel's left edge by 5 or 20 pixels lands
+     on its own apparatus and stops at 67 characters where it used to take 14,472; 40
+     reaches a thread's quote and takes 14,421. Naming fewer islands does not close that,
+     because the fields the platform keeps selectable are islands too: with nothing here
+     selectable at all, a drag onto the composer's own box still took 13,965. So this
+     property bounds the accident and cannot answer for the deliberate drag; a range
+     whose focus has left the document is a question for whatever reads the selection
+     into a quote, not for what the layer paints. */
+  :is(.lf-quote, .lf-msg-body) { user-select: text; -webkit-user-select: text; }
   /* The narrowing row, under the head and above the list it narrows. Standing rather
      than raised by a key or a count, for the reason every other control here stands:
      a row that arrives at the eighth thread moves the list under the reader at the

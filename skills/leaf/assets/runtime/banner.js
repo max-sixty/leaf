@@ -176,14 +176,26 @@ export function sayLine(text) {
   showStatus(saidKind, "", text);
   announce(text);
 }
+// The developer preview's identity: which checkout is serving this page, and a press to
+// copy the whole diagnostic. It is an address on the row rather than a chip inside the
+// status, because the status's room is the sentence's floor and a chip standing in it
+// spends that floor first — 240 pixels of it, which left the line twelve characters and
+// two of the four lines it had to say. On the row it keeps its words and folds whole,
+// ahead of every address, which is the right order for the one control here a reader
+// never needs.
 let previewButton = null;
+// A checkout goes dirty and clean again while a developer works, so the chip holds the
+// wider of its two spellings for the page's life rather than growing a character under
+// the reader's pointer. Renewed with the row's other reservations at a breakpoint.
+let previewLabels = [];
 let previewDiagnostics = "";
 function renderPreview(state) {
   const preview = state.preview;
   if (!preview) return;
-  const commit = preview.commit ? `@${preview.commit}${preview.dirty ? "+" : ""}` : "";
   const kind = preview.interaction === "automation" ? "Automation" : "Preview";
-  const label = `${kind} · ${preview.checkout}${commit}`;
+  const stem = `${kind} · ${preview.checkout}${preview.commit ? `@${preview.commit}` : ""}`;
+  previewLabels = preview.commit ? [stem, `${stem}+`] : [stem];
+  const label = preview.commit && preview.dirty ? `${stem}+` : stem;
   const safeUrl = new URL(location.href);
   safeUrl.searchParams.delete("t");
   previewDiagnostics = [
@@ -214,7 +226,12 @@ function renderPreview(state) {
         notice("Couldn't copy preview diagnostics");
       }
     });
-    statusText.before(previewButton);
+    // Seated by the same writer that seats every other address, so the row reads in one
+    // order and the fold knows about it; then measured, then folded against what it
+    // measured.
+    arrangeBannerControls();
+    reserve(previewButton, previewLabels);
+    foldShelf();
   }
   previewButton.textContent = label;
   previewButton.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
@@ -347,20 +364,31 @@ export const isSignoffDeclared = () => signoffDeclared;
 // narrow window changes now is how many of these addresses stand on the row at once; the
 // rest fold into the row's own menu, in this same order (`foldShelf`).
 //
+// A developer preview's identity chip stands ahead of the addresses rather than among
+// them, which is the same statement read for folding: the fold takes the row's first
+// control first, and what a crowded row should give up before any address is which
+// checkout is serving the page. It is absent on a reader's page (renderPreview).
+//
 // This is DOM order rather than CSS `order`, so the tab route says the same thing the row
 // draws. Reordering existing nodes can briefly drop native focus; put it back without
 // moving the page, and hand it to the menu's door where the fold has taken the address
 // the reader was standing on.
 function arrangeBannerControls() {
   const focused = document.activeElement;
-  const edges = new Set([toggleBtn, approveBtn, othersBtn]);
+  const edges = new Set([toggleBtn, approveBtn, othersBtn, previewButton]);
   // Registry-declared blanket answers can join the middle of this row after boot, and a
   // folded address is still on it. Preserve every such control in its standing relative
   // order while moving only the edge-owned addresses.
   const middle = [...overflowMenu.children, ...bannerActions.children].filter(
     (control) => control !== overflowBtn && !edges.has(control),
   );
-  const controls = [othersBtn, ...middle, ...(signoff ? [approveBtn] : []), toggleBtn];
+  const controls = [
+    ...(previewButton ? [previewButton] : []),
+    othersBtn,
+    ...middle,
+    ...(signoff ? [approveBtn] : []),
+    toggleBtn,
+  ];
   bannerActions.append(...controls);
   foldShelf();
   if (
@@ -424,6 +452,7 @@ let reservedCovering = null;
 export function reserveBannerControls() {
   unfoldShelf();
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
+  if (previewButton) reserve(previewButton, previewLabels);
   // News keeps one readable address while it changes words. The row folds rather than
   // clips, so no control has to collapse into an illegible pressure release.
   reserve(latestChip, [

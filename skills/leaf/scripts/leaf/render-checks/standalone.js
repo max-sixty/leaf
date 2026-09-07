@@ -154,9 +154,14 @@ export function bake() {
       if (element.shadowRoot) roots.push(element.shadowRoot);
   const all = (selector) =>
     roots.flatMap((root) => [...root.querySelectorAll(selector)]);
+  //
+  // A contained frame goes for the same reason a script does. The document in it is a
+  // second Leaf page the runtime wrote, naming the runtime, the theme, and its adapter
+  // on a server the file has not got; left in place it opens a frame that fetches
+  // nothing and shows a blank stage where a replay used to be.
   all(
     "script, .lf-chrome, .lf-receipt, .lf-say, .lf-mark-note, " +
-      '[data-lf-behavior="status"]',
+      'iframe[data-lf-contained], [data-lf-behavior="status"]',
   ).forEach((el) => el.remove());
   // A measurement of this window is not a fact about the reader's. The live page states
   // each drawn edge's width inline on the root, and an inline value outranks every rule

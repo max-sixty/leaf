@@ -10,7 +10,7 @@ import { leavesOffered } from "./runtime/live-leaves.js";
 import { openComposer, pendingComposer } from "./runtime/composing/selection.js";
 import { updateFab } from "./runtime/composing/surface.js";
 
-import { runtime } from "./runtime/context.js";
+import { containedPage, runtime } from "./runtime/context.js";
 import { promoteDeferredModals } from "./runtime/deferred-modals.js";
 import { reportPageError } from "./runtime/layer-client.js";
 
@@ -98,8 +98,10 @@ document.addEventListener(PAGE_INTERFACE, (event) => {
 // Here rather than in the start block below, which runs asynchronous upgrades while the
 // authored document is already readable: body can name the page now, and stateful widget
 // controls remain unavailable until presentPage crosses their semantic boundary.
-restoreArrangements();
-letGo();
+if (!containedPage) {
+  restoreArrangements();
+  letGo();
+}
 const { landArrival, savedView } = installArrival();
 const savedComposer = pendingComposer();
 

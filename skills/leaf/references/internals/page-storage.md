@@ -87,11 +87,12 @@ A page directory holds:
                          the command's life. A host session holds one lease at
                          sessions/<id>.wait instead, because one wait watches all
                          of that session's pages
-    viewed.json          when a browser last held the page open, bumped
-                         (throttled) by the server while a tab's news stream
-                         stands; absent for a page nobody has ever opened, which
-                         would otherwise be indistinguishable from one the user
-                         studied and left
+    viewed.json          when a browser last had the page visible, bumped
+                         (throttled) by the server while a visible tab's news
+                         stream stands; absent for a page nobody has ever viewed,
+                         which would otherwise be indistinguishable from one the
+                         user studied and left. Hidden tabs release their stream,
+                         so this is reader attention rather than tab lifetime
     cursor.json          seq of the last user event acknowledged after the complete
                          batch reached its next durable consumer — written by
                          `leaf ack`; a page-owned pickup event separately names

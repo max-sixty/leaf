@@ -245,6 +245,7 @@ Each mutable fact has one writer:
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the living margin reconciles |
 | canonical agent activity | the server fold of status, claim and turn identity, watcher lease, pickup events, and unsettled interactions | the banner, receipts, margin, and leaves tray paint `activity`; the browser only asks for a fresh server reading at `next_transition_at` |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
+| the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
 | panel visibility | `panelOpen` | `setPanel` |
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
@@ -475,6 +476,13 @@ crossing a fence is not captured as a quote the file cannot later confirm.
 Do not broaden the Python reader by guessing a module's DOM. Declare modelable
 words with `x-says`, `x-paints`, or the appropriate content key. Keep the widget
 fenced when its transformation cannot be represented faithfully.
+
+The layer is the document's other boundary, and a pointer drag that crosses it is
+not a passage: past the page's last words the browser extends through everything
+between, so the release puts back what the drag had inside the document and offers
+nothing where it had nothing (`leftThePage`, read on the pointer path alone). Select
+all lands its far end past the page by definition and still means the document, which
+is why the rule is the gesture's rather than every selection's.
 
 `coveredWords` is the render gate for text that is present in a browser reading
 but unavailable to the reader because of clipping, hiding, generated chrome, or
@@ -721,6 +729,7 @@ been removed. `render-checks/init.js` installs the pre-navigation window-error c
 | `retiredSlots` | declared settlement marks and retired-slot visibility agree with the projection |
 | `trappedMargins` | framed boxes show only their declared inset |
 | `paperWords` | print keeps every page statement and removes only affordance |
+| `paperVoids` | print gives room to nothing it does not also draw |
 | `replayOverrides` | the log, not conflicting authored markup, determines projected state |
 | `relativeReplays` | rendering each complete widget state twice changes nothing |
 

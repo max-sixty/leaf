@@ -181,8 +181,10 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         page.emulate_media(media="print")
         paper = evaluate_probe(page, "paperWords")
         # Paper is laid out by rules no other medium runs, and it is the medium
-        # nobody looks at, so the overlap reading is taken here too while it holds.
+        # nobody looks at, so the readings that only paper can fail are taken here
+        # while it holds: words drawn over each other, and room that prints nothing.
         on_paper = [f"[print] {c}" for c in evaluate_probe(page, "coveredWords")]
+        on_paper += [f"[print] {v}" for v in evaluate_probe(page, "paperVoids")]
         page.emulate_media(media="screen")
         # Paired on the words as well as the position: the page is live, and a state
         # landing between the two readings would otherwise shift one against the

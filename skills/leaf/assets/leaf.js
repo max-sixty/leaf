@@ -7,7 +7,7 @@ import { syncLayout } from "./runtime/chrome-layout.js";
 
 import { leavesOffered } from "./runtime/live-leaves.js";
 
-import { openComposer, pendingComposer } from "./runtime/composing/selection.js";
+import { openDraft, pendingComposer } from "./runtime/composing/selection.js";
 import { updateFab } from "./runtime/composing/surface.js";
 
 import { runtime } from "./runtime/context.js";
@@ -141,12 +141,7 @@ function presentPage() {
   landArrival();
   if (savedView && savedView.revision < runtime.currentRevision)
     notice(`Updated to ${runtime.currentLabel}`);
-  if (savedComposer)
-    openComposer(savedComposer.anchor, savedComposer.text, {
-      suggest: Boolean(savedComposer.suggest),
-      about: savedComposer.about ?? null,
-      drawing: savedComposer.drawing ?? null,
-    });
+  openDraft(savedComposer);
   promoteDeferredModals();
   // The presented attribute and every write after it are one JavaScript task, so the
   // browser has not painted the generated page interface yet. Give geometry consumers

@@ -39,6 +39,7 @@ from render_support import (
     hold_selection,
     holding,
     in_threads_scrollport,
+    key_line,
     live_url,
     open_page,
     painted,
@@ -2058,6 +2059,47 @@ def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_re
     again, again_errors = open_page(browser, url, context=one_reader)
     expect(again.locator(".lf-general textarea")).to_have_value(typed)
     assert again_errors == []
+
+
+def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, serve):
+    """A press on the banner takes the composer off screen and keeps the words, and for
+    a long time that was the whole of it: the bar went, the mark went, no notice and no
+    dialog said anything, and the only way back was returning to that version and
+    reselecting that exact passage. Words a reader cannot find again are words they have
+    lost, whatever localStorage still holds.
+
+    So the moment says what became of them and names the address that answers — and the
+    address is offered only while there is a draft standing to go to, which is the half
+    that keeps the sentence honest."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    kept = "Half a sentence, and then the banner."
+
+    # Nothing written, nothing to return to: the chord does not offer the destination.
+    page.keyboard.press("g")
+    expect(page.locator(".lf-keyline")).to_contain_text("Threads panel")
+    assert "your draft" not in key_line(page)
+    page.keyboard.press("Escape")
+
+    compose(page, "#p3", kept)
+    assert pending_text(page), "the open box left its own passage unmarked"
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    assert pending_text(page) == "", "a box off screen left its passage marked"
+    notice = page.locator(".lf-notice")
+    expect(notice).to_have_class(re.compile(r"\bshow\b"))
+    assert notice.inner_text() == "Draft kept — g D returns to it"
+
+    page.keyboard.press("g")
+    assert "your draft" in key_line(page)
+    page.keyboard.press("Shift+d")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_have_value(kept)
+    assert pending_text(page), "the box came back on nothing"
+    assert errors == []
+    page.close()
 
 
 def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, serve):

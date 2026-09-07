@@ -15,49 +15,86 @@ lf-swipe-pile {
   min-width: 0;
 }
 
+/* The queue's place in the deck, which every rendering that keeps the deck a grid uses:
+ * the whole width, above the verdict rails. Paper is the one that does not, and it makes
+ * the deck a block. */
 lf-swipe-pile[verdict="unseen"] {
-  display: grid;
   grid-column: 1 / -1;
   grid-row: 1;
-  grid-template: 1fr / 1fr;
-  width: min(100%, 34rem);
-  margin-inline: auto;
-  padding-bottom: 14px;
 }
 
-lf-swipe-pile[verdict="unseen"]::before,
-lf-swipe-pile[verdict="unseen"]::after {
-  content: "";
-  display: block;
-  box-sizing: border-box;
-  grid-area: 1 / 1;
-  min-height: 12rem;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
-}
+/* The queue is a stack only where it can be swiped. Three renderings show it flat
+ * instead — a deck frozen into thread markup, a standalone copy, and paper — and they do
+ * it by never entering the stack rather than by undoing it. Undoing it is what the copy
+ * and print paths each used to do, in two near-copies of one block, and the print copy
+ * carried one class less weight: `[verdict="unseen"] > lf-swipe-card:nth-of-type(n + 2)`
+ * kept `visibility: hidden` through the reset, so paper printed the first card, 308px of
+ * void where the other two lay out, and a label still reading "Queue · 3". Stated once as
+ * a guard, the three flat renderings cannot come apart from each other again. */
+@media not print {
+  html:not(.lf-copy) lf-swipe-deck:not(.lf-swipe-quoted) {
+    & lf-swipe-pile[verdict="unseen"] {
+      display: grid;
+      grid-template: 1fr / 1fr;
+      width: min(100%, 34rem);
+      margin-inline: auto;
+      padding-bottom: 14px;
+    }
 
-lf-swipe-pile[verdict="unseen"]::before {
-  z-index: 1;
-  transform: translateY(14px) scale(.976);
-}
+    & lf-swipe-pile[verdict="unseen"]::before,
+    & lf-swipe-pile[verdict="unseen"]::after {
+      content: "";
+      display: block;
+      box-sizing: border-box;
+      grid-area: 1 / 1;
+      min-height: 12rem;
+      border: 1px solid var(--border-2);
+      border-radius: var(--r);
+      background: var(--card);
+    }
 
-lf-swipe-pile[verdict="unseen"]::after {
-  z-index: 2;
-  transform: translateY(7px) scale(.988);
-}
+    & lf-swipe-pile[verdict="unseen"]::before {
+      z-index: 1;
+      transform: translateY(14px) scale(.976);
+    }
 
-lf-swipe-pile[verdict="unseen"]:not(:has(> lf-swipe-card:nth-of-type(2)))::after,
-lf-swipe-pile[verdict="unseen"]:not(:has(> lf-swipe-card:nth-of-type(3)))::before {
-  display: none;
-}
+    & lf-swipe-pile[verdict="unseen"]::after {
+      z-index: 2;
+      transform: translateY(7px) scale(.988);
+    }
 
-lf-swipe-pile[verdict="unseen"] > .lf-swipe-pile-label {
-  grid-area: 1 / 1;
-  align-self: start;
-  z-index: 4;
-  width: max-content;
-  margin: var(--sp-3) 0 0 var(--sp-3);
+    & lf-swipe-pile[verdict="unseen"]:not(:has(> lf-swipe-card:nth-of-type(2)))::after,
+    & lf-swipe-pile[verdict="unseen"]:not(:has(> lf-swipe-card:nth-of-type(3)))::before {
+      display: none;
+    }
+
+    & lf-swipe-pile[verdict="unseen"] > .lf-swipe-pile-label {
+      grid-area: 1 / 1;
+      align-self: start;
+      z-index: 4;
+      width: max-content;
+      margin: var(--sp-3) 0 0 var(--sp-3);
+    }
+
+    & lf-swipe-pile[verdict="unseen"] > lf-swipe-card {
+      grid-area: 1 / 1;
+      min-height: 12rem;
+      touch-action: pan-y;
+      user-select: text;
+    }
+
+    & lf-swipe-pile[verdict="unseen"] > lf-swipe-card:first-of-type {
+      position: relative;
+      z-index: 3;
+      cursor: grab;
+    }
+
+    /* Every card behind the top one. The pile shows one at a time and the ghosts above
+     * stand in for the rest. */
+    & lf-swipe-pile[verdict="unseen"] > lf-swipe-card:nth-of-type(n + 2) {
+      visibility: hidden;
+    }
+  }
 }
 
 .lf-swipe-pile-label {
@@ -105,58 +142,20 @@ lf-swipe-card > strong:first-child:not(:last-child) {
   margin-bottom: var(--sp-2);
 }
 
-lf-swipe-pile[verdict="unseen"] > lf-swipe-card {
-  grid-area: 1 / 1;
-  min-height: 12rem;
-  touch-action: pan-y;
-  user-select: text;
-}
-
-lf-swipe-pile[verdict="unseen"] > lf-swipe-card:first-of-type {
-  position: relative;
-  z-index: 3;
-  cursor: grab;
-}
-
-lf-swipe-pile[verdict="unseen"] > lf-swipe-card:nth-of-type(n + 2) {
-  visibility: hidden;
-}
-
 lf-swipe-pile[verdict="unseen"] > lf-swipe-card:first-of-type:focus-visible {
   outline: var(--here-ring);
   outline-offset: var(--here-ring-gap);
   --lf-here-ring: swipe-card;
 }
 
-:is(lf-swipe-deck.lf-swipe-quoted, html.lf-copy lf-swipe-deck)
-  lf-swipe-pile[verdict="unseen"] {
-  display: block;
-  width: auto;
-  padding-bottom: 0;
-}
-
-:is(lf-swipe-deck.lf-swipe-quoted, html.lf-copy lf-swipe-deck)
-  lf-swipe-pile[verdict="unseen"]::before,
-:is(lf-swipe-deck.lf-swipe-quoted, html.lf-copy lf-swipe-deck)
-  lf-swipe-pile[verdict="unseen"]::after {
-  display: none;
-}
-
-:is(lf-swipe-deck.lf-swipe-quoted, html.lf-copy lf-swipe-deck)
-  lf-swipe-pile[verdict="unseen"]
-  > .lf-swipe-pile-label {
-  width: auto;
-  margin: 0 0 var(--sp-2);
-}
-
+/* What a flat queue adds, rather than what it takes back: the cards are in flow, so they
+ * need the space between them the stack had no use for. `transform: none` is the one
+ * reset left, and it undoes the drag rule outside the guard above. */
 :is(lf-swipe-deck.lf-swipe-quoted, html.lf-copy lf-swipe-deck)
   lf-swipe-pile[verdict="unseen"]
   > lf-swipe-card {
-  min-height: 0;
   margin-bottom: var(--sp-2);
   transform: none;
-  visibility: visible;
-  cursor: auto;
 }
 
 lf-swipe-deck.lf-swipe-quoted lf-swipe-pile[verdict="pass"],
@@ -309,36 +308,21 @@ html.lf-copy .lf-swipe-controls {
   display: none;
 }
 
+/* Paper is the third flat rendering, and adds to it what the other two do not need: the
+ * deck's two verdict columns become one, and each pile is a section of its own. */
 @media print {
   lf-swipe-deck {
     display: block;
     width: auto;
   }
 
-  lf-swipe-pile,
-  lf-swipe-pile[verdict="unseen"] {
-    display: block;
-    width: auto;
+  lf-swipe-pile {
     margin: var(--sp-3) 0;
-    padding: 0;
-  }
-
-  lf-swipe-pile[verdict="unseen"] > .lf-swipe-pile-label {
-    width: auto;
-    margin: 0 0 var(--sp-2);
-  }
-
-  lf-swipe-pile[verdict="unseen"]::before,
-  lf-swipe-pile[verdict="unseen"]::after {
-    display: none;
   }
 
   lf-swipe-pile[verdict="unseen"] > lf-swipe-card {
-    min-height: 0;
     margin-bottom: var(--sp-2);
     transform: none;
-    visibility: visible;
-    cursor: auto;
   }
 
   lf-swipe-card {

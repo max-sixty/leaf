@@ -58,7 +58,8 @@ The main owners are:
   and standalone export;
 - `data` and `data_contracts`: typed snapshot storage, commands, bindings, and
   registry-contract validation;
-- `media` and `publishing`: page-bound media and deployment outputs.
+- `media` and `publishing`: page-bound media and public version stamps;
+- `live_shell`: the immutable HTTP files a static host can serve beside Leaf's API.
 
 Do not put domain logic into `cli.py` or branch across these owners there.
 

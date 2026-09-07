@@ -194,13 +194,16 @@ def scope_page_urls(value, page_root: str):
     return scoped
 
 
-def canonical_script_offset(source: str) -> int:
+def canonical_script_offset(source: str, page_root: str = "") -> int:
     """Locate the one authored module script that enters Leaf's runtime."""
     parsed = parse_structure(source)
+    entries = {"/leaf.js", f"{page_root.rstrip('/')}/leaf.js"}
     scripts = [
         script
         for script in parsed.external_scripts
-        if script["attrs"] == {"src": "/leaf.js", "type": "module"}
+        if script["attrs"].get("type") == "module"
+        and script["attrs"].get("src") in entries
+        and len(script["attrs"]) == 2
     ]
     if len(scripts) != 1:
         raise ValueError("document has no canonical script")

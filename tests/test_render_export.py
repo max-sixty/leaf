@@ -715,6 +715,55 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
     page.close()
 
 
+def test_a_failed_bootstrap_hears_a_static_registry_generation(
+    browser, watched_preview
+):
+    """A static host can supervise startup without synthesizing Leaf headers."""
+    _, _, directory, _, url = watched_preview
+    registry = json.loads((directory / "registry.json").read_text())
+    generation = registry["$layer"]["generation"]
+    page = browser.new_page()
+    failures = []
+    probes = []
+    navigations = []
+    page.on(
+        "framenavigated",
+        lambda frame: (
+            navigations.append(frame.url) if frame == page.main_frame else None
+        ),
+    )
+
+    def interrupt_entry(route):
+        if failures:
+            route.continue_()
+            return
+        failures.append(True)
+        route.abort()
+
+    def static_registry(route):
+        if len(navigations) > 1:
+            route.continue_()
+            return
+        probes.append(True)
+        body = json.loads(json.dumps(registry))
+        if len(probes) > 1:
+            body["$layer"]["generation"] = f"{generation}-replacement"
+        route.fulfill(content_type="application/json", body=json.dumps(body))
+
+    page.route("**/leaf.js", interrupt_entry)
+    page.route("**/registry.json", static_registry)
+    page.goto(url, wait_until="load")
+    status = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
+    expect(status).to_be_visible()
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-presented", "1", timeout=10000
+    )
+    assert len(probes) >= 2
+    assert len(navigations) == 2
+    expect(status).not_to_be_visible()
+    page.close()
+
+
 @pytest.mark.parametrize("interrupted", ["registry.json", "widgets/lf-options.js"])
 def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
     browser, watched_preview, interrupted

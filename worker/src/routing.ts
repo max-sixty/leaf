@@ -19,7 +19,6 @@ const SESSION_ID = /^[0-9a-f]{32}$/;
 
 export function pageRoute(pathname: string): PageRoute | null {
   if (pathname === "/") return { root: "/", inside: "", kind: "product" };
-  if (pathname.startsWith("/media/")) return null;
 
   for (const root of PRODUCT_ROOTS.filter((candidate) => candidate !== "/examples")) {
     if (pathname === root || pathname === `${root}/`) {
@@ -54,6 +53,16 @@ export function pageRoute(pathname: string): PageRoute | null {
 
 export function isPageRequest(pathname: string): boolean {
   return pageRoute(pathname) !== null;
+}
+
+export function isPageApiRequest(pathname: string): boolean {
+  const route = pageRoute(pathname);
+  return route?.inside === "api" || route?.inside.startsWith("api/") || false;
+}
+
+export function isPageMediaRequest(pathname: string): boolean {
+  const route = pageRoute(pathname);
+  return route?.inside === "media" || route?.inside.startsWith("media/") || false;
 }
 
 export function needsPageSlash(pathname: string): boolean {

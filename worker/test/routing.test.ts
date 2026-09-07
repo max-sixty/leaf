@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   HTTP_SESSION_COOKIE,
   SESSION_COOKIE,
+  isPageApiRequest,
+  isPageMediaRequest,
   isPageRequest,
   isPrivatePageRequest,
   needsPageSlash,
@@ -20,7 +22,18 @@ describe("website page routing", () => {
     expect(isPageRequest("/examples/api/state")).toBe(true);
     expect(isPageRequest("/examples/design-decision/")).toBe(true);
     expect(isPageRequest("/examples/design-decision/api/state")).toBe(true);
-    expect(isPageRequest("/media/social-card.png")).toBe(false);
+    expect(isPageApiRequest("/api/news")).toBe(true);
+    expect(isPageApiRequest("/examples/design-decision/api/state")).toBe(true);
+    expect(isPageApiRequest("/examples/design-decision/runtime/state-feed.js")).toBe(
+      false,
+    );
+    expect(isPageApiRequest("/examples/design-decision/")).toBe(false);
+    expect(isPageMediaRequest("/media/upload.png")).toBe(true);
+    expect(isPageMediaRequest("/examples/design-decision/media/upload.png")).toBe(
+      true,
+    );
+    expect(isPageMediaRequest("/examples/design-decision/theme.css")).toBe(false);
+    expect(isPageRequest("/media/social-card.png")).toBe(true);
     expect(isPageRequest("/examples.html")).toBe(false);
     expect(isPageRequest("/examples/../registry.json")).toBe(false);
     expect(needsPageSlash("/packages")).toBe(true);

@@ -39,28 +39,33 @@ function environment(overrides: Partial<Env> = {}): Env {
 }
 
 describe("product-site delivery", () => {
-  it.each(["/", "/how-it-works/", "/registry/", "/examples/", "/packages/"])(
-    "serves the product route %s through Leaf",
+  it.each([
+    "/",
+    "/how-it-works/",
+    "/registry/",
+    "/examples/",
+    "/examples/design-decision/",
+    "/packages/",
+  ])(
+    "serves the product document %s without starting its container",
     async (pathname) => {
-      const containerFetch = vi.fn(
+      const assetFetch = vi.fn(
         async () =>
           new Response("<!doctype html><title>Leaf</title>", {
-            headers: {
-              "Content-Type": "text/html; charset=utf-8",
-              "Content-Security-Policy": "frame-ancestors 'none'",
-            },
+            headers: { "Content-Type": "text/html; charset=utf-8" },
           }),
       );
-      vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
-      const env = environment();
+      const env = environment({
+        ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+      });
 
       const response = await worker.fetch(
         new Request(`https://leaf.page${pathname}`),
         env,
       );
 
-      expect(containerFetch).toHaveBeenCalledOnce();
-      expect(env.ASSETS.fetch).not.toHaveBeenCalled();
+      expect(assetFetch).toHaveBeenCalledOnce();
+      expect(getContainer).not.toHaveBeenCalled();
       expect(response.headers.get("Content-Security-Policy")).toBe(
         "frame-ancestors 'none'",
       );
@@ -70,6 +75,103 @@ describe("product-site delivery", () => {
       expect(await response.text()).toBe("<!doctype html><title>Leaf</title>");
     },
   );
+
+  it("serves a page's immutable runtime without allocating its session", async () => {
+    const asset = new Response("export {};", {
+      headers: { "Content-Type": "application/javascript" },
+    });
+    const assetFetch = vi.fn(async () => asset);
+    const env = environment({
+      ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+    });
+
+    const response = await worker.fetch(
+      new Request(
+        "https://leaf.page/examples/design-decision/runtime/state-feed.js",
+      ),
+      env,
+    );
+
+    expect(response).toBe(asset);
+    expect(assetFetch).toHaveBeenCalledOnce();
+    expect(getContainer).not.toHaveBeenCalled();
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+  });
+
+  it.each([
+    "/media/upload.png",
+    "/examples/design-decision/media/upload.png",
+  ])(
+    "falls back to the reader's container for uploaded media at %s",
+    async (pathname) => {
+      const sessionId = "08".repeat(16);
+      const assetFetch = vi.fn(
+        async () => new Response("not found", { status: 404 }),
+      );
+      const containerFetch = vi.fn(
+        async () =>
+          new Response(new Uint8Array([1, 2, 3]), {
+            headers: { "Content-Type": "image/png" },
+          }),
+      );
+      vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+      const env = environment({
+        ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+      });
+
+      const response = await worker.fetch(
+        new Request(`https://leaf.page${pathname}`, {
+          headers: { Cookie: `__Host-leaf-page=${sessionId}` },
+        }),
+        env,
+      );
+
+      expect(assetFetch).toHaveBeenCalledOnce();
+      expect(getContainer).toHaveBeenCalledWith(env.PAGES, sessionId);
+      expect(containerFetch).toHaveBeenCalledOnce();
+      expect(response.headers.get("Content-Type")).toBe("image/png");
+      expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+        new Uint8Array([1, 2, 3]),
+      );
+    },
+  );
+
+  it("keeps published media on the edge", async () => {
+    const media = new Response(new Uint8Array([4, 5, 6]), {
+      headers: { "Content-Type": "image/png" },
+    });
+    const assetFetch = vi.fn(async () => media);
+    const response = await worker.fetch(
+      new Request(
+        "https://leaf.page/examples/design-decision/media/published.png",
+      ),
+      environment({
+        ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+      }),
+    );
+
+    expect(response).toBe(media);
+    expect(assetFetch).toHaveBeenCalledOnce();
+    expect(getContainer).not.toHaveBeenCalled();
+  });
+
+  it("keeps page state on the reader's canonical container", async () => {
+    const containerFetch = vi.fn(async () => Response.json({ reading: "state-1" }));
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const env = environment();
+
+    const response = await worker.fetch(
+      new Request("https://leaf.page/examples/design-decision/api/state"),
+      env,
+    );
+
+    expect(containerFetch).toHaveBeenCalledOnce();
+    expect(env.ASSETS.fetch).not.toHaveBeenCalled();
+    expect(response.headers.get("Set-Cookie")).toMatch(
+      /^__Host-leaf-page=[0-9a-f]{32}; Path=\/; Secure; HttpOnly; SameSite=Lax$/,
+    );
+    expect(await response.json()).toEqual({ reading: "state-1" });
+  });
 
   it("passes a static non-HTML asset through unchanged", async () => {
     const asset = new Response("body {}", {

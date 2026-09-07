@@ -27,7 +27,14 @@
         const response = await fetch(script.dataset.lfProbe, { cache: "no-store" });
         if (response.status === 404) return;
         const current = response.headers.get("Leaf-Server");
-        const generation = response.headers.get("Leaf-Layer");
+        let generation = response.headers.get("Leaf-Layer");
+        if (!generation && response.ok) {
+          try {
+            generation = (await response.json())?.["$layer"]?.generation;
+          } catch {
+            // A non-registry probe can still identify itself through headers.
+          }
+        }
         if (
           (current && current !== incarnation) ||
           (generation && generation !== layer)

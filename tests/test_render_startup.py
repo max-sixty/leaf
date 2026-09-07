@@ -1973,6 +1973,12 @@ def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, ser
           document.dispatchEvent(new Event('visibilitychange'));
         }"""
     )
+    # Once the server has observed the closed socket, a forced opportunity to bump
+    # presence must leave the sentinel alone: a hidden, still-open tab no longer
+    # counts as reader attention. Reopening the stream below must replace it.
+    page.wait_for_timeout(100)
+    files_model.write_json(serve.page_dir / "viewed.json", {"t": 1.0})
+    serve.httpd.RequestHandlerClass.viewed_at = 0
     events_model.append_event(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "While away."},
@@ -1983,6 +1989,7 @@ def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, ser
     assert _traffic(page).asked == asked, (
         "a hidden page still heard or polled for state"
     )
+    assert files_model.read_json(serve.page_dir / "viewed.json")["t"] == 1.0
 
     with page.expect_request("**/api/news"):
         page.evaluate(
@@ -1993,6 +2000,7 @@ def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, ser
         )
     told(page)
     assert _traffic(page).asked == asked + 1
+    assert files_model.read_json(serve.page_dir / "viewed.json")["t"] > 1.0
     expect(page.locator(".lf-thread", has_text="While away.")).to_have_count(1)
     assert errors == []
     page.close()

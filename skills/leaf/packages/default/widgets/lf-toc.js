@@ -1,10 +1,12 @@
 /* lf-toc: navigation derived from the headings the page already says.
  *
  * The generated labels are link apparatus rather than a second copy of the page's
- * words, so the nav wears .lf-ui. An authored heading keeps its own attributes. When one
- * has no id, a generated sibling supplies a native fragment target instead; that target
- * remains useful after export removes this module. max-level bounds the authored outline
- * before the module creates either links or targets.
+ * words, so the nav wears .lf-ui. An authored heading keeps its own attributes. When a
+ * heading titles an identified section, that section is the destination: an eyebrow and
+ * heading arrive as one title, and the public fragment names the section rather than its
+ * label. Otherwise the heading's id is the destination, or a generated sibling supplies
+ * a native fragment target. That target remains useful after export removes this module.
+ * max-level bounds the authored outline before the module creates either links or targets.
  *
  * In the roomy margin the outline becomes a reading map. Each row receives the length
  * of the section it leads as its flex share, so the quiet spine describes the document
@@ -114,10 +116,11 @@ customElements.define(
       start.className = "lf-toc-start";
       start.dataset.lfDepth = "0";
       const startLink = document.createElement("a");
-      const startTarget = pageTitle
-        ? pageTitle.id || this.#targetFor(pageTitle, 0)
-        : this.#main.id || this.#targetFor(this.#main, 0);
-      startLink.href = `#${startTarget}`;
+      const startSource = pageTitle ?? this.#main;
+      const startDestination = startSource.id
+        ? startSource
+        : this.#targetFor(startSource, 0);
+      startLink.href = `#${startDestination.id}`;
       // The row's word is its text, as every other row's is. It was an attribute the rail
       // form drew with `content: attr()`, which meant the link had no text at all: every
       // reading that asks a link what it says — the accessible name it falls back to, a
@@ -136,21 +139,21 @@ customElements.define(
         ...headings.map(({ heading: item }) => Number(item.localName.slice(1))),
       );
       const items = headings.map(({ heading: item, label }, index) => {
-        const target = item.id || this.#targetFor(item, index + 1);
+        const destination = this.#destinationFor(item, index + 1);
         const row = document.createElement("li");
         row.dataset.lfDepth = String(
           Math.min(Number(item.localName.slice(1)) - floor, 4),
         );
         const link = document.createElement("a");
-        link.href = `#${target}`;
+        link.href = `#${destination.id}`;
         link.textContent = label;
         row.append(link);
         list.append(row);
-        return { heading: item, row, link };
+        return { destination, row, link };
       });
 
       this.#sections = [
-        { heading: pageTitle ?? this.#main, row: start, link: startLink },
+        { destination: startDestination, row: start, link: startLink },
         ...items,
       ];
       this.#rows.append(lens, start, list);
@@ -179,8 +182,8 @@ customElements.define(
       // writes to this box — spans land on its rows, shifts on the labels inside them,
       // and the dense mark changes neither — so hearing it cannot start a loop.
       this.#watching.observe(this.#rows);
-      for (const { heading } of this.#sections)
-        if (heading !== this.#main) this.#watching.observe(heading);
+      for (const { destination } of this.#sections)
+        if (destination !== this.#main) this.#watching.observe(destination);
       this.#scrollSource.addEventListener("scroll", this.#onScroll, { passive: true });
       this.#main.addEventListener("toggle", this.#onToggle, true);
       this.#main.addEventListener("load", this.#onLoad, true);
@@ -201,13 +204,14 @@ customElements.define(
     #measure() {
       if (!this.#main || !this.#scroller || !this.#rows) return;
       const mainTop = this.#documentTop(this.#main);
-      let previous = this.#documentTop(this.#sections[0].heading);
+      let previous = this.#documentTop(this.#sections[0].destination);
       this.#shown = this.#sections.map(
-        ({ heading }) => heading === this.#main || heading.checkVisibility(),
+        ({ destination }) =>
+          destination === this.#main || destination.checkVisibility(),
       );
-      this.#positions = this.#sections.map(({ heading }, index) => {
+      this.#positions = this.#sections.map(({ destination }, index) => {
         const position = this.#shown[index]
-          ? Math.max(previous, this.#documentTop(heading))
+          ? Math.max(previous, this.#documentTop(destination))
           : previous;
         previous = position;
         return position;
@@ -349,6 +353,13 @@ customElements.define(
       this.#currentLink = link;
     }
 
+    #destinationFor(heading, position) {
+      const section = heading.closest("section[id]");
+      if (section?.querySelector(HEADING_SELECTOR) === heading) return section;
+      if (heading.id) return heading;
+      return this.#targetFor(heading, position);
+    }
+
     #targetFor(heading, position) {
       const stem = `lf-${this.id}-section-${position}`;
       let id = stem;
@@ -361,7 +372,7 @@ customElements.define(
       target.dataset.lfGen = "1";
       target.setAttribute("aria-hidden", "true");
       heading.before(target);
-      return id;
+      return target;
     }
   },
 );

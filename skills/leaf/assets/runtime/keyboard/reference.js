@@ -15,9 +15,9 @@
    The reference lists every live capability the page has, grouped by scope, and filters
    those rows by normalized key, action, line word, and scope text. Search is a projection
    of the same gathered rows rather than another binding index. Computed ranges count
-   current members. A declaration must survive `merge` with its `when`, `at`, `claims`,
-   and rows intact so the reference does not advertise a scope the current page cannot
-   enter.
+   current members. A declaration must survive `merge` with its `when`, `at`,
+   `liveInReference`, and rows intact so the reference does not advertise a scope the
+   current page cannot enter.
 
    The reference is a complete keyboard layer. Its registered Tab row cycles through the
    close control, search field, and actual overflow regions without letting focus enter

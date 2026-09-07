@@ -40,7 +40,7 @@ export function paintReactStrips(node, t) {
       strip = el("div", "lf-react-strip");
       strip.setAttribute("role", "group");
       strip.setAttribute("aria-label", "React to this reply");
-      buildReactSurface(strip, (name, pill) => pressStrip(m, name, pill), {
+      buildReactSurface(strip, (name, chip) => pressStrip(m, name, chip), {
         label: "Reactions for this reply",
         target: "the reply",
       });
@@ -54,12 +54,12 @@ export function paintReactStrips(node, t) {
   }
 }
 
-async function pressStrip(m, name, pill) {
-  if (pill.lfReaction) await withdraw(pill.lfReaction);
+async function pressStrip(m, name, chip) {
+  if (chip.lfReaction) await withdraw(chip.lfReaction);
   else
     await sendReaction(
       { kind: "reply", parent: m.id, revision: runtime.currentRevision, token: name },
-      pill,
+      chip,
       `${m.agent || "the agent"}'s reply`,
     );
   reactDone();

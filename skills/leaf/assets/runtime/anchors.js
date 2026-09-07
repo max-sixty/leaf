@@ -181,7 +181,7 @@ export function setAnchoringReady(ready) {
    rather than `marked`: a wash through the `lf-react` highlight on a passage,
    `lf-react-el` on an element's shown parts, and a glyph reconciled by `seatReactions`.
    Its `.lf-reacts` span is an unpositioned contribution to the target's Button
-   cluster; the pill inside is the reaction's own eraser, posting the ordinary `undo`
+   cluster; the Button inside is the reaction's own eraser, posting the ordinary `undo`
    through `withdraw`. It wears `lf-ui` and `data-lf-gen`, so no reading takes it for
    the page's words. `markAt` does not see it: a reaction takes no press to a card and
    has no hover. Export keeps the glyph with its press taken off and writes the wash
@@ -1223,15 +1223,15 @@ export function paintAnchors(threads = buildThreads()) {
   }
 }
 
-// The margin glyphs: one contribution per target, holding a pill per reaction whose
+// The margin glyphs: one contribution per target, holding a Button per reaction whose
 // passage starts there, in log order. The living margin seats that contribution beside
 // the same target's decisions and available actions, so adding a committed reaction
 // cannot grow a second RHS row. Two reactions on one target share the contribution
-// rather than stacking on one point. The pill is the reaction's own eraser — its press
+// rather than stacking on one point. The Button is the reaction's own eraser — its press
 // is the ordinary undo naming the event — and wears the token's glyph, the token being
 // the runtime's word for what it means.
 //
-// Reconciled rather than rebuilt, so a pill whose press is in flight is the node the
+// Reconciled rather than rebuilt, so a Button whose press is in flight is the node the
 // reader pressed; stale seats are swept the way note lines are. The seat wears lf-ui
 // and data-lf-gen: an account of the passage, not words of the page, so selection,
 // quote capture and the diff readings skip it. Keep the target-to-contribution record

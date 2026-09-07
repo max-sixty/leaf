@@ -45,8 +45,8 @@ PAINTED = """() => ({
     .map(el => el.id || el.dataset.id),
 })"""
 
-# The corner witness a Button paints for its lifecycle state. Since #371 `busy` is the
-# only state that paints one, so on anything else this reads the absence of a mark.
+# The marker a Button paints for its lifecycle state. Since #371 `busy` is the only
+# state that paints one, anything else should report its absence.
 PAINTS_LIFECYCLE_MARK = """el => {
   const mark = getComputedStyle(el, '::after');
   return mark.content === '\"\"' && parseFloat(mark.width) > 0
@@ -343,11 +343,10 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     """A standing reaction keeps neutral furniture, and the fill it holds with the
     pointer away is what says it stands.
 
-    #371 left the lifecycle mark to `busy`, so a standing pill paints no corner witness
-    on top of itself and the fill is the whole of what the eye reads. Hover lays down
-    the same paint, so every reading here is taken with the pointer parked at the
-    origin: what tells a standing pill from a hovered idle one is that it keeps its
-    fill once the pointer has gone."""
+    #371 left the lifecycle marker to `busy`, so a standing reaction chip paints no
+    second witness on top of itself. Hover lays down the same fill; the readings here
+    therefore move the pointer away before distinguishing standing from idle.
+    """
     page, errors = open_page(
         browser,
         serve(
@@ -387,10 +386,6 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         neutral_hover = reaction.evaluate(read)
         assert neutral_hover["ink"] == resting["ink"]
         assert neutral_hover["ring"] == resting["ring"]
-        # The fill is the only thing that moves, so it is the only thing standing can
-        # be read from. Asserted rather than assumed: were hover to lay down the
-        # resting fill, `selected` below would collapse into `resting` and the whole
-        # comparison would hold of a pill that never painted anything.
         assert neutral_hover["fill"] != resting["fill"]
         assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
         stands(reaction.click)
@@ -859,8 +854,7 @@ def test_comment_more_keeps_the_field_when_suggest_is_the_only_secondary_respons
     page.close()
 
 
-# The field's box, with its corner as the platform draws it: the specified radius clamped
-# to the box's own half-sides, so a "pill" 999px reads as half the height here. `over` is
+# The field's box, with its corner as the platform draws it. `over` is
 # how far that corner's arc reaches over the first line's opening: at the line's top edge
 # the arc is `r - sqrt(r² - (r - y)²)` in from the side, and the first glyph starts at the
 # border plus the padding, so a positive number says the arc is over the letter.
@@ -883,31 +877,30 @@ FLOAT_ROOM = """() => {
 }"""
 
 
-def test_the_response_field_grows_as_a_rounded_rectangle_and_leaves_the_ellipsis_room(
+def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     browser, serve
 ):
-    """A one-line note is a pill. A longer one widens before it wraps, grows down as far
-    as the room the placement states — a note of a dozen lines shows them all, and only
-    one taller than the band below the banner scrolls, standing inside that band — and
-    the corner it keeps through all of that is the pill's own, half the resting height,
-    rather than half of whatever the box has become: at five lines a proportional corner
-    was a 48px arc over the first line's opening and the last line's close. On a narrow
-    screen the same room caps the bar and the field is what gives, so the ellipsis beside
-    it keeps its room."""
+    """A one-line note uses the shared action corner. A longer one widens before it
+    wraps, grows down as far as the room the placement states — a note of a dozen lines
+    shows them all, and only one taller than the band below the banner scrolls, standing
+    inside that band — and the corner stays fixed through all of that. On a narrow screen
+    the same room caps the bar and the field is what gives, so the ellipsis beside it
+    keeps its room."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
     field = bar.locator(".lf-fab-input")
     expect(field).to_be_visible()
+    expect(bar.locator(".lf-response-more")).to_have_css("border-radius", "6px")
     field.click()
     rest = field.evaluate(FIELD_BOX)
-    assert rest["r"] == rest["h"] / 2 and rest["over"] < 0, rest  # a pill, glyph clear
+    assert rest["r"] == 6 and rest["over"] < 0, rest
 
     field.fill("one\ntwo\nthree\nfour\nfive")
     tall = field.evaluate(FIELD_BOX)
     assert tall["h"] > rest["h"] and tall["w"] == rest["w"], (rest, tall)
     assert tall["over"] < 0, (rest, tall)  # the corner is not over the first line
-    assert tall["r"] == rest["r"], (rest, tall)  # it stayed the pill's, not the box's
+    assert tall["r"] == rest["r"], (rest, tall)
 
     field.fill("\n".join(f"line {n}" for n in range(1, 15)))
     shown = field.evaluate(FIELD_BOX)
@@ -2155,12 +2148,8 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
     }, copy
     # The other half of the same promise, and the half no gate can see: the copy's
     # `offering` reads the cursor and nothing else, so paint that arrives with the
-    # pointer rather than standing on the page is invisible to it. A receipt in a file
-    # that lifts under the pointer says a press is there to take. Read on both the fill
-    # and the corner mark, the two paints a live Button moves: the mark exists only
-    # while its reaction stands, so its presence is the whole of what it says, and a
-    # lifecycle witness laid on top of that in a file would state a state nothing can
-    # leave.
+    # pointer rather than standing on the page is invisible to it. A lifecycle marker
+    # in a file would state a state that nothing in the file can leave.
     mark = page.locator(
         '.lf-margin-item[data-lf-margin-for="how-store"] .lf-react-mark'
     )

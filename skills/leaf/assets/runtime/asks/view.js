@@ -38,7 +38,7 @@
 
    `shownParts` supplies ring targets when a page styles an ask with `display:
    contents`. A normal boxed ask wears one outline on its own box. Hoisted controls
-   use the same ring token through the shared pill rule.
+   use the same ring token through the shared chip rule.
 
    Ask rows come from every active local `x-awaits` source and holder declaring
    `x-request.ask`, answered or open, not from a list of ask tags. Where a

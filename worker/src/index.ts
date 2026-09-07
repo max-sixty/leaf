@@ -1,11 +1,11 @@
 /**
  * Public Leaf site as isolated, canonical Leaf sessions.
  *
- * Product and example routes go to the Python Leaf server in a container selected by
- * an opaque browser cookie. The container starts with complete page directories and
- * writes only to its own ephemeral filesystem, so one reader can exercise the real
- * event log without changing another reader's page or inventing a second state
- * implementation.
+ * Cloudflare serves the immutable live shell of each product and example page. API
+ * requests go to the Python Leaf server in a container selected by an opaque browser
+ * cookie. The container starts with the same complete page directories and writes only
+ * to its own ephemeral filesystem, so one reader can exercise the real event log
+ * without changing another reader's page or inventing a second state implementation.
  */
 
 import { Container, getContainer } from "@cloudflare/containers";
@@ -20,6 +20,8 @@ import { NonRetryableError } from "cloudflare:workflows";
 
 import {
   isPageRequest,
+  isPageApiRequest,
+  isPageMediaRequest,
   isPrivatePageRequest,
   needsPageSlash,
   newSessionId,
@@ -353,6 +355,22 @@ export default {
     const sessionId = existing ?? randomSessionId();
     const route = pageRoute(pathname);
     if (route === null) return new Response("not found", { status: 404 });
+    if (
+      (request.method === "GET" || request.method === "HEAD") &&
+      !isPageApiRequest(pathname)
+    ) {
+      const response = staticAssetResponse(await env.ASSETS.fetch(request));
+      if (response.status !== 404 || !isPageMediaRequest(pathname)) {
+        if (existing !== null || route.inside !== "") return response;
+        const headers = new Headers(response.headers);
+        headers.append("Set-Cookie", sessionCookie(sessionId, secure));
+        return new Response(response.body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers,
+        });
+      }
+    }
     const postedRequest =
       request.method === "POST" && route.inside === "api/event"
         ? request.clone()

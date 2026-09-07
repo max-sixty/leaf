@@ -68,7 +68,7 @@ def page_binding(page_dir: Path) -> tuple[EventEndpoint, dict, str, dict | None]
 def with_sitenote(document: bytes, page_root: str) -> bytes:
     """Insert website chrome at the canonical runtime boundary."""
     source = document.decode()
-    offset = canonical_script_offset(source)
+    offset = canonical_script_offset(source, page_root)
     site_script = (
         f'<script type="module" src="{page_root}/sitenote.js" data-lf-site></script>'
     )

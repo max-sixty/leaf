@@ -1024,6 +1024,20 @@ def token_colour(page, name):
     )
 
 
+def button_radius(page):
+    """Resolve the shared Button corner through the page's own theme token."""
+    return page.evaluate(
+        """() => {
+        const probe = document.createElement('span');
+        probe.style.borderRadius = 'var(--r)';
+        document.body.append(probe);
+        const seen = getComputedStyle(probe).borderRadius;
+        probe.remove();
+        return seen;
+    }"""
+    )
+
+
 def mark_edges(page, ident, ink):
     """How wide the mark is painted on each side of an element, in device pixels.
 

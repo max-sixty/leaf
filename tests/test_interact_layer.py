@@ -320,6 +320,23 @@ def test_the_root_instructions_name_every_directory_ci_gates_on_its_own():
     assert not unnamed, f"unnamed in CLAUDE.md: {unnamed}"
 
 
+def test_workflow_shell_continuations_use_literal_blocks():
+    """A plain YAML scalar folds the newline before the shell sees the command."""
+    workflows = list((ROOT / ".github" / "workflows").glob("*.y*ml"))
+    assert workflows, "no workflows read — an empty set guards nothing"
+
+    offenders = [
+        f"{path.relative_to(ROOT)}:{line_number}"
+        for path in workflows
+        for line_number, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        )
+        if re.match(r"^\s*run:\s+.*\\\s*$", line)
+    ]
+
+    assert not offenders, f"plain run scalars with shell continuations: {offenders}"
+
+
 def test_hidden_hook_remains_callable():
     result = CliRunner().invoke(cli_model.cli, ["hook"], input="{}")
 

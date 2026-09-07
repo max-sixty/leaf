@@ -11,14 +11,14 @@ binding = "ASSETS"
 run_worker_first = true
 
 [[containers]]
-class_name = "LeafWebsiteSession"
+class_name = "LeafExampleSession"
 image = "../Dockerfile.website"
 max_instances = 10
 instance_type = "lite"
 
 [[durable_objects.bindings]]
 name = "PAGES"
-class_name = "LeafWebsiteSession"
+class_name = "LeafExampleSession"
 
 [[workflows]]
 name = "leaf-website-agent"
@@ -36,10 +36,6 @@ namespace_id = "34302"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["LeafExampleSession"]
-
-[[migrations]]
-tag = "v2"
-renamed_classes = [{ from = "LeafExampleSession", to = "LeafWebsiteSession" }]
 
 [observability]
 enabled = true

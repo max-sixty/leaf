@@ -24,13 +24,13 @@ vi.mock("@openai/agents-openai", () => ({
 }));
 
 import { getContainer } from "@cloudflare/containers";
-import worker, { LeafWebsiteSession, type Env, runAgentWorkflow } from "../src/index";
+import worker, { LeafExampleSession, type Env, runAgentWorkflow } from "../src/index";
 
 function environment(overrides: Partial<Env> = {}): Env {
   const allow = { limit: vi.fn(async () => ({ success: true })) } as RateLimit;
   return {
     ASSETS: { fetch: vi.fn() } as unknown as Fetcher,
-    PAGES: {} as DurableObjectNamespace<LeafWebsiteSession>,
+    PAGES: {} as DurableObjectNamespace<LeafExampleSession>,
     AGENT_WORKFLOW: { create: vi.fn() } as unknown as Workflow,
     SOURCE_AGENT_RATE_LIMITER: allow,
     OPENAI_API_KEY: "test-key",

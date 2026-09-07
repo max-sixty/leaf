@@ -323,6 +323,8 @@ const visualPartAttribute = (visual) => {
   const declaration = registry[visual?.localName]?.["x-visual"];
   return declaration && typeof declaration === "object" ? declaration.parts : null;
 };
+const wholeVisualSurface = (element) =>
+  registry[element?.localName]?.["x-visual"] ? element : null;
 const declaredVisualParts = (visual) => {
   const attribute = visualPartAttribute(visual);
   const value = attribute ? visual?.getAttribute(attribute) : "";
@@ -641,6 +643,7 @@ const itemAimTarget = (item) => ({
   anchor: { section: item.id },
   element: item,
   label: aimLabel(item),
+  surface: wholeVisualSurface(item),
 });
 const datumAimTarget = (datum) => {
   const dataRevision = Number(datum.dataset.lfSourceRevision);
@@ -783,7 +786,10 @@ export function resolveAnchor(anchor, text) {
   if (!anchor.quote) {
     const section = sectionOf(anchor);
     return section && !settledAway(section)
-      ? resolvedElement({ element: section })
+      ? resolvedElement({
+          element: section,
+          surface: wholeVisualSurface(section),
+        })
       : null;
   }
   const segments = findQuote(text, anchor.quote, anchor, sectionOf(anchor));
@@ -917,6 +923,11 @@ function paintVisualStates() {
   const pending = new Set(pendingOutline);
   const action = new Set(actionOutline);
   const hover = new Set(hoverParts);
+  const focus = new Set(
+    [...visualTargets.keys()].filter((element) =>
+      element.matches(":focus-visible, .lf-focus-visible"),
+    ),
+  );
   const here = new Set(hereParts);
   const stateSources = [
     ["comment", comments],
@@ -924,6 +935,7 @@ function paintVisualStates() {
     ["pending", pending],
     ["action", action],
     ["hover", hover],
+    ["focus", focus],
     ["here", here],
   ];
   setTargets(

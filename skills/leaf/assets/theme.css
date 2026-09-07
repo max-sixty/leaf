@@ -275,8 +275,8 @@
      outline-drawn one; the ring itself is still what the box paints, not what it
      names. */
   --here-shadow: 0 0 0 var(--here-ring-w);
-  --status-trace-w: 1.5px;
-  --status-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
+  --target-trace-w: 1.5px;
+  --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
   /* A keyboard address chip's box: the line box, which is a ratio of the font, plus
      the ring drawn around it (chrome.css dresses one). It is a token for the
      reason the ring's width is — a box somebody else holds room for has to be read
@@ -1609,12 +1609,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--here-ring-room); pointer-events: auto; }
 /* What a hovered or focused item says about the target it acts on is said on the target:
- * `highlight` (living-margin.js) rings it with .lf-margin-target, or hands a status to
- * target paint, which traces the region's own shape. The item draws no leader out to it.
+ * `highlight` (living-margin.js) hands every item to target paint, which traces the
+ * region's own shape. The item draws no leader out to it.
  * A leader would have to be measured, because the target's right edge is its own — a
  * framed widget, a blockquote and a paragraph each end somewhere different — and a
  * constant one is a hairline ending in the gutter, pointing at nothing. What it would
- * buy once measured is a second statement of the fact the ring already makes, which is
+ * buy once measured is a second statement of the fact the target trace already makes, which is
  * why the item's raise is the whole of its own hover paint. */
 .lf-margin-item:is(:hover, :focus-within) { z-index: 3; }
 .lf-margin-item.lf-waiting { display: none; }
@@ -1666,8 +1666,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;
     border: 1px solid var(--paper); background: var(--ink); color: var(--paper);
     font: 600 10px/14px var(--sans); text-align: center; }
-.lf-margin-target { outline: var(--here-ring); --lf-here-ring: margin-target;
-    outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The one floor that asks the window rather than the page's own box, because it is the
  * half of a pair: below it the rule further down stops drawing the living margin at all,
  * and that rule is a media query because a marker's presence is not a thing a container

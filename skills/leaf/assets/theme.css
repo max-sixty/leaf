@@ -242,14 +242,13 @@
      someone reacted to reads as touched and a passage someone commented on reads as
      annotated, and the two never look alike side by side. */
   --react: #dfd1ed40;
-  /* The "you are here" ring: where the reader is standing, wherever they are
-     standing. The decision they are in wears it ([data-lf-ask], leaf.js), as do the
-     runtime's own controls, which is where a reader backing out of the panel lands.
-     One band for one fact — stated apart,
-     the same ring was free to become three, and a reader would have had to learn
-     that a blue rectangle on the banner and a blue rectangle down the page meant
-     the same thing. The gap is what the ring wants outside a box that stands on
-     its own; a control packed into a list states its own inset instead.
+  /* The compact "you are here" ring: a control or bounded decision receiving the
+     reader's next press wears one consistent band. A large composite surface would
+     turn that band into a second box around the box; it instead repaints its existing
+     edge and ground with the two surface tokens below. Both treatments carry the same
+     accent, while their geometry distinguishes a target from a current region. The
+     gap is what the ring wants outside a box that stands on its own; a control packed
+     into a list states its own inset instead.
 
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be
@@ -260,6 +259,8 @@
   --here-ring-w: 2px;
   --here-ring: var(--here-ring-w) solid var(--accent); --here-ring-gap: 3px;
   --here-ring-room: calc(var(--here-ring-w) + var(--here-ring-gap));
+  --here-surface-border: color-mix(in srgb, var(--accent) 55%, var(--rule));
+  --here-surface: color-mix(in srgb, var(--accent) 4%, var(--card));
   /* The same band cast as a shadow, for the boxes that cannot spend an outline on it:
      the anchored response bar, whose focused states already write `outline: none` so
      the field and its choices keep one silhouette, and an item hint, a chip in a layer
@@ -338,7 +339,7 @@
    looking at rather than every rule whose selector reached the element.
 
    Registered rather than reset, because the reset --lf-frame needs is a rule of its own
-   and this wants none: a name left to inherit would put a thread's ring on every word
+   and this wants none: a name left to inherit would put an ancestor's ring on every word
    inside it. Typed as one identifier, so a value that is no name — a shadow channel's,
    under a property somebody else spelled the same way, which is how this one came to be
    spelled out in full — falls back to `none` rather than reading as one.

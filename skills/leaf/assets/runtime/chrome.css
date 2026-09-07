@@ -43,20 +43,18 @@
    find that out. The property is registered non-inheriting, so a name means the box
    rather than each of its words.
 
-   The ring is drawn outside the box it names, so wherever the reader can be standing,
-   something has to have kept room for it. Two rules cover every case, and which one
-   applies is the same question theme.css already answers about the ring's gap. A box that
-   stands on its own draws its ring outside itself, and every scroll region that box can
-   land in reserves `--here-ring-room` at its edges through `scroll-padding` — the
-   document does this for its foot, the thread list for both of its own, where the outward
-   rings are the controls inside a card. A box whose own edge touches something that
-   paints draws its ring inset instead, because nothing outside it is free: a thread
-   touches the heading above it in flow, and no scroll position separates them. A box a
-   sticky offset holds against its scroller's own edge is that case with the scroll taken
-   out of it, which is why a run heading insets too. Where a module decides whether a
-   control fits somewhere, the room is part of what has to fit; the suggestion row carries
-   it as trailing padding so that the fit is still one measured box rather than a length
-   read out of CSS.
+   The compact ring is drawn outside the box it names, so wherever one of those targets
+   can be standing, something has to have kept room for it. A box that stands on its own
+   draws its ring outside itself, and every scroll region that box can land in reserves
+   `--here-ring-room` at its edges through `scroll-padding` — the document does this for
+   its foot, the thread list for both of its own, where the outward rings are the controls
+   inside a card. A box whose own edge touches something that paints draws its ring inset
+   instead, because nothing outside it is free; a sticky run heading is that case with
+   the scroll taken out of it. A large composite region spends no ring room: it repaints
+   its existing edge and ground inside its own box. Where a module decides whether a
+   compact control fits somewhere, the room is part of what has to fit; the suggestion
+   row carries it as trailing padding so the fit remains one measured box rather than a
+   length read out of CSS.
 
    The response bar (`.lf-fab-bar`): `.lf-response-control` keeps the field and every
    choice on one baseline with one type, border, corner, and elevation; the bar keeps its
@@ -1247,8 +1245,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      was flush with the edge. Two things stand in the way here. A stuck run heading
      covers the top: its height is the one number CSS cannot work out, since a long
      heading wraps, so renderThreads measures the tallest and writes it here. And
-     the ring is drawn outside the box it names, so a thread scrolled exactly to
-     either edge had its ring in the strip beyond it — cut at the bottom walking
+     the ring is drawn outside the box it names, so a control inside a thread scrolled
+     exactly to either edge had its ring in the strip beyond it — cut at the bottom walking
      down, cut at the top and under the find row walking up. Gap plus width is the
      room it needs, and it is the layer's own number (theme.css) rather than one
      worked out from the controls this list happens to hold. */
@@ -1327,27 +1325,22 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      jump: nothing above it moves, and the newcomer settles rather than appears. */
   .lf-thread.grow, .lf-msg.grow { animation: lf-runtime-4f3c2a8d-grow .32s cubic-bezier(.2,.7,.3,1); }
   /* The card of the comment the reader is standing in, which is the panel's half of
-     the pair the page paints as lf-mark-here. :focus-within and not :focus-visible,
-     because the two halves have to answer the same question: focus-visible is a claim
-     about the last input device, so a reader who reached the comment with the mouse
-     had the page marked and the card left plain, and the pair only read for the
-     keyboard. Within, because a reply box is inside the card and writing back is
-     still standing there — the same reason paintStanding reads the focus through
-     closest.
-
-     Inset, which is what theme.css says a control packed into a list draws — and this
-     row was the one breaking that rule. Drawn outside the box, the ring's top run fell
-     inside the opaque padding of the heading above it, so the first card of every run
-     stood with its top edge missing: the reader's own report, and the shape of it is
-     that no amount of scrolling can help, since the two boxes touch in flow. A ring
-     drawn inside the box it names cannot be covered by a neighbour or cut by an edge
-     the box itself is within. */
-  .lf-thread:is(:focus-within, .lf-focus-within) { outline: var(--here-ring); --lf-here-ring: thread;
-    outline-offset: calc(-1 * var(--here-ring-w)); }
-  /* The strong ring names the control receiving keys. Keep the thread's standing
-     visible while typing, with the reply box carrying the active ring itself. */
+     the pair the page paints as lf-mark-here. A thread is a composite region rather
+     than one control: another perimeter around a large card reads as a blue box, not
+     focus. Repaint its existing edge and ground instead, preserving its geometry and
+     leaving the compact ring for the actual controls inside it. :focus-within keeps
+     the page and panel halves paired whether the reader arrived by key or pointer. */
+  .lf-thread:is(:focus-within, .lf-focus-within) {
+    outline: none;
+    border-color: var(--here-surface-border);
+    background: var(--here-surface);
+  }
+  /* The reply box receives the strong ring while it takes keys. Leave only a quiet
+     edge on the parent so two simultaneous focus treatments do not compete. */
   .lf-thread:has(> .lf-compose textarea:is(:focus, .lf-focus)) {
-    outline-color: color-mix(in srgb, var(--accent) 25%, transparent); }
+    border-color: color-mix(in srgb, var(--accent) 20%, var(--rule));
+    background: var(--card);
+  }
   .lf-quote { margin: 0 0 8px; padding: 2px 8px; border-left: 3px solid var(--mark-ink); color: var(--muted); font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
   .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }
   .lf-quote:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: quote;
@@ -1880,8 +1873,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* Inside, because the line clips: the button pulls itself out of the row by 3px so
      its own padding does not grow the line, and a ring drawn a further pixel out lands
      past the line's padding box, which overflow: hidden cuts. A control packed into
-     a list states its own inset (theme.css, --here-ring) — the thread cards and the
-     joined option group do the same — and here the line's own border is what stands
+     a list states its own inset (theme.css, --here-ring) — the joined option group does
+     the same — and here the line's own border is what stands
      the whole thing off the page. */
   .lf-key-more:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: key-more;
     outline-offset: calc(-1 * var(--here-ring-w)); }

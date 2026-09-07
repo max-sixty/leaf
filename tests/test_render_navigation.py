@@ -5524,6 +5524,10 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
+    resting_thread = thread.evaluate(
+        "thread => { const s = getComputedStyle(thread); return {"
+        "border: s.borderColor, background: s.backgroundColor}; }"
+    )
     thread.focus()
     thread_standing = key_line(page)
     assert "reply" in thread_standing
@@ -5534,7 +5538,13 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     )
     page.mouse.down()
     assert key_line(page) == thread_standing
-    expect(thread).to_have_css("--lf-here-ring", "thread")
+    current_thread = thread.evaluate(
+        "thread => { const s = getComputedStyle(thread); return {"
+        "border: s.borderColor, background: s.backgroundColor, outline: s.outlineStyle}; }"
+    )
+    assert current_thread["outline"] == "none"
+    assert current_thread["border"] != resting_thread["border"]
+    assert current_thread["background"] != resting_thread["background"]
     page.mouse.up()
     assert "reply" not in key_line(page)
     assert errors == []

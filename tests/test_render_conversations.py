@@ -44,7 +44,6 @@ from render_support import (
     rings_drawn,
     round_trip,
     sending,
-    standing_ring,
     told,
     undo,
 )
@@ -3121,17 +3120,63 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
     page.close()
 
 
-def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
+THREAD_STANDING = """() => {
+  const active = document.activeElement;
+  const card = active?.closest('.lf-thread');
+  if (!card) return null;
+  const list = card.closest('.lf-threads');
+  const peer = [...list.querySelectorAll(':scope > .lf-thread:not([hidden])')]
+    .find(other => other !== card && !other.matches(':focus-within'));
+  const paint = getComputedStyle(card);
+  const resting = peer && getComputedStyle(peer);
+  const box = card.getBoundingClientRect();
+  const viewport = list.getBoundingClientRect();
+  return {
+    border: paint.borderColor,
+    background: paint.backgroundColor,
+    outline: paint.outlineStyle,
+    restingBorder: resting?.borderColor ?? null,
+    restingBackground: resting?.backgroundColor ?? null,
+    cuts: [
+      box.top < viewport.top - .5 && 'top',
+      box.right > viewport.right + .5 && 'right',
+      box.bottom > viewport.bottom + .5 && 'bottom',
+      box.left < viewport.left - .5 && 'left',
+    ].filter(Boolean),
+    scrolled: list.scrollHeight > list.clientHeight,
+  };
+}"""
+
+
+def standing_thread(page):
+    """The current thread's surface paint, beside a resting thread for comparison."""
+    return page.evaluate(THREAD_STANDING)
+
+
+def thread_mark_fault(reading):
+    """Why a current thread is indistinguishable from a resting card, if it is."""
+    if not reading:
+        return "focus is not inside a thread"
+    if reading["restingBorder"] is None or reading["restingBackground"] is None:
+        return "there is no resting peer to distinguish the current thread from"
+    if reading["outline"] != "none":
+        return f"the thread draws a {reading['outline']} outline around the whole card"
+    if reading["border"] == reading["restingBorder"]:
+        return "the current thread's edge is the same as a resting card's"
+    if reading["background"] == reading["restingBackground"]:
+        return "the current thread's surface is the same as a resting card's"
+    if reading["cuts"]:
+        return f"the current thread's {', '.join(reading['cuts'])} edge is cut"
+    return None
+
+
+def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
     browser, serve
 ):
-    """Where the reader is standing has to be visible from wherever they walked to it,
-    and the two ways it stops being visible are geometry rather than anything about the
-    control: a scroll region that never said how much of its own edge it cannot land on,
-    and a neighbour painting over the pixels the ring is in. Both had the panel's thread
-    list, in both directions — walking down cut the ring at the bottom, walking up cut it
-    at the top and slid it under the find row, and the first thread of every run had its
-    top edge painted over by the heading above it, which is what a reader sees as a card
-    with three sides.
+    """Where the reader is standing has to be visible from wherever they walked to it.
+    A current thread repaints its own edge and surface; compact controls inside the list
+    keep the focus ring. Either treatment can disappear at a scroll edge or beneath a
+    neighbour, and the thread list has had both failures in both directions.
 
     So this walks the list the way a reader does and asks the invariant at every landing,
     rather than naming the collisions one at a time. A rule stated once is a rule a new
@@ -3184,6 +3229,9 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
             page.keyboard.press(key)
             page.evaluate(RENDERED)
             walked += 1
+            mark_fault = thread_mark_fault(standing_thread(page))
+            if mark_fault:
+                faults.append(f"after {walked} presses, {mark_fault}")
             faults += ring_faults(
                 rings_drawn(page), f"after {walked} presses of the walk"
             )
@@ -3197,18 +3245,19 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
             [f"{len(faults)} of {walked} landings:"] + faults
         )
 
-        # Non-vacuity: the walk has to have been on threads inside the scrolling list,
-        # drawing rings, or the loop above asserted nothing at every step.
-        assert standing_ring(page), "the walk ends on nothing wearing a ring"
-        assert standing_ring(page)["scrolled"], (
+        # Non-vacuity: the walk has to have been on a thread inside the scrolling list,
+        # repainting its existing card, or the loop above asserted nothing at every step.
+        standing = standing_thread(page)
+        assert standing, "the walk ends outside a thread"
+        assert standing["scrolled"], (
             "the walk ends outside a scroll region, so the cut half proved nothing"
         )
 
         # The list's own controls, which t and T never reach: Reply and Resolve inside a
         # card draw their rings outside themselves, as does a run heading, which is a
         # button. They are what the room reserved at this list's edges is for — the
-        # threads' own rings being inset, nothing else spends it — so without this pass
-        # half of that scroll-padding is unheld. Tab scrolls each stop into view itself,
+        # current thread's paint stays inside its card — so without this pass half of
+        # that scroll-padding is unheld. Tab scrolls each stop into view itself,
         # which is the gesture that puts one against an edge.
         page.locator(".lf-threads").focus()
         # Counted off the list rather than floored at a number somebody picked: a
@@ -3379,7 +3428,7 @@ def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser,
 
 
 # What the burial below is aiming at: how deep the heading stands over the first card,
-# the ring that depth has to match, and the box the press is aimed into. `COVERED_TOP`
+# the edge that depth has to match, and the box the press is aimed into. `COVERED_TOP`
 # answers the covered question afterwards, by hit test and about the focused card.
 UNDER_HEADING = """() => {
   const list = document.querySelector('.lf-threads');
@@ -3387,7 +3436,7 @@ UNDER_HEADING = """() => {
   const head = list.querySelector('.lf-pinned');
   return {
     covered: head.getBoundingClientRect().bottom - card.getBoundingClientRect().top,
-    ring: parseFloat(getComputedStyle(card).getPropertyValue('--here-ring-w')),
+    edge: parseFloat(getComputedStyle(card).borderTopWidth),
     box: card.getBoundingClientRect().toJSON(),
   };
 }"""
@@ -3410,18 +3459,16 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
     browser, serve
 ):
     """The walk above never sees this, and that is the point of having it twice: t/T
-    scroll their landing into the band the list declares unlandable, so the keyboard
-    cannot put a thread anywhere its ring is cut. A click scrolls nothing. The reader
-    nudges the list a dozen pixels, the run heading pins over the first card of its run,
-    and the two pixels it takes are the whole of that card's inset ring — a card with
-    three sides, reported twice by the reader and never by the suite.
+    scroll their landing into the band the list declares unlandable. A click scrolls
+    nothing. The reader nudges the list, the run heading pins over the first card of its
+    run, and takes the edge that distinguishes the current card from a resting one.
 
     So the gesture here is a real press rather than a locator click, which would scroll
     the card into view for its own actionability check and quietly perform the fix it is
     meant to test. What is asserted is the same question the walk asks — where the
-    control can be seen, so can the ring that names it — and, beside it, that the card
-    actually came out, since a ring reported whole while the card is still buried would
-    mean the reading rather than the landing had moved."""
+    control can be seen, so can the current paint that names it — and, beside it, that
+    the card actually came out, since paint reported whole while the card is still
+    buried would mean the reading rather than the landing had moved."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     for i in range(4):
@@ -3437,20 +3484,16 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
 
-        # Bury the card by exactly its ring, which is the reader's own case: a list nudged
-        # a dozen pixels puts the first card of a run a couple of pixels under the
-        # heading, and a couple of pixels is the whole of an inset ring. The depth is the
-        # ring's width rather than a comfortable number on purpose. Deeper, and the card
-        # itself is under the heading, which `ring_faults` excuses by design — a control
-        # standing under something is a fact about where it was put. What is left when the
-        # card is otherwise in full view is the claim this file makes: where the control
-        # can be seen, so can the ring that names it.
-        page.evaluate(BURY, page.evaluate(UNDER_HEADING)["ring"])
+        # Bury the card by exactly its edge, which is the reader's own case: a list nudged
+        # a dozen pixels puts the first card of a run under the heading. The depth is the
+        # border's width rather than a comfortable number on purpose: it leaves the rest
+        # of the card visible while hiding exactly the edge that says this one is current.
+        page.evaluate(BURY, page.evaluate(UNDER_HEADING)["edge"])
         page.evaluate(RENDERED)
         buried = page.evaluate(UNDER_HEADING)
-        assert buried["ring"] <= buried["covered"] <= buried["ring"] + 1, (
+        assert buried["edge"] <= buried["covered"] <= buried["edge"] + 1, (
             f"the heading stands over {buried['covered']}px of the first card and its "
-            f"ring is {buried['ring']}px: the setup wanted the ring buried and the rest "
+            f"edge is {buried['edge']}px: the setup wanted the edge buried and the rest "
             "of the card showing, and this is neither"
         )
 
@@ -3462,8 +3505,9 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
         page.evaluate(RENDERED)
         assert page.evaluate(
             "() => document.activeElement?.classList.contains('lf-thread')"
-        ), "the press did not land the reader on a thread, so nothing wore a ring"
-        assert standing_ring(page), "the thread it landed on draws no ring"
+        ), "the press did not land the reader on a thread"
+        mark_fault = thread_mark_fault(standing_thread(page))
+        assert not mark_fault, mark_fault
         assert not ring_faults(
             rings_drawn(page), "after a press on a card under the run heading"
         )
@@ -3475,16 +3519,15 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
             f"{page.evaluate(COVERED_TOP)}"
         )
 
-        # The reply box is the same card and the same ring — it is drawn for the whole
-        # thread, so writing in the box is standing in the thread. Reached by key this
-        # was never wrong, because landIn already lands the thread around the box; a
-        # press into it went the way every other press did.
-        page.evaluate(BURY, buried["ring"])
+        # The reply box receives the compact ring and the parent keeps its quiet current
+        # edge. Reached by key this was never wrong, because landIn already lands the
+        # thread around the box; a press into it went the way every other press did.
+        page.evaluate(BURY, buried["edge"])
         page.evaluate(RENDERED)
         under = page.evaluate(UNDER_HEADING)
-        assert under["covered"] >= under["ring"], (
+        assert under["covered"] >= under["edge"], (
             f"the setup put the card back only {under['covered']}px under, which its "
-            f"{under['ring']}px ring shows through"
+            f"{under['edge']}px edge shows through"
         )
         reply = page.locator(".lf-threads > .lf-thread textarea").first
         reply_box = reply.bounding_box()
@@ -3495,7 +3538,7 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
         page.evaluate(RENDERED)
         expect(reply).to_be_focused()
         assert page.evaluate(COVERED_TOP) is None, (
-            "a press into the reply box left the thread's own ring under the heading: "
+            "a press into the reply box left the current thread under the heading: "
             f"{page.evaluate(COVERED_TOP)}"
         )
 

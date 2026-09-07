@@ -245,8 +245,8 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     /api/event POST that then produces no `response` and no `requestfailed`.
     The route's delay holds a post in the air so the navigation reliably lands
     on one. The ledger is the document's, so what can still go wrong is the new
-    document's own first trip: the same press again has to be counted there and
-    come back, with `round_trip` returning on exactly that."""
+    document's own first trip: the same press again has to be counted there, and the
+    attempt it puts in the outbox has to leave it with an outcome."""
     corpus = next(p for p in EXAMPLES if p.stem == "corpus")
     # The example itself, so the data its markup selects is laid in beside it; its
     # conversation is not, because the asks the cascade answers are the markup's.
@@ -275,14 +275,29 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     # instead ties this reading to how many asks the page happens to carry: the corpus
     # gained one, and under the suite's own load the cascade then outgrew a single
     # wait's budget with the fact under test already settled on its first trip.
+    #
+    # The trip is over when that first attempt leaves `pending`, which is the outbox's
+    # own list of attempts with no outcome — a failed post keeps its attempt there and
+    # retries it, so an attempt that has left came back. Neither neighbouring fact says
+    # that: `acked` is counted in a `finally` around the fetch, so a post that throws
+    # counts one and is retried anyway, and an empty `pending` is the momentary gap
+    # between the cascade's trips, which paint-to-paint sampling steps over. One
+    # attempt leaving is bounded by one trip and stays true once it holds.
     sends = _traffic(page).sends
     page.locator(".lf-answer-all").first.click()
-    _until(page, lambda t: t.sends > sends, "sent the new document's first answer")
-    _until(page, lambda t: t.acked > 0, "heard back its first answer")
-    t = _traffic(page).read()
-    assert t.sends >= 1 and t.acked >= 1, (
-        f"the new document's first trip did not count and complete: {t}"
-    )
+    first = []
+
+    def first_trip_home(reading):
+        # Latched on the first reading that carries the press's send. `pending` is in
+        # the outbox's serial order, so its head is the earliest attempt still without
+        # an outcome; a head already gone by then is a trip already home.
+        if not first and reading.sends > sends:
+            first.append(reading.pending[0] if reading.pending else None)
+        return bool(first) and first[0] not in reading.pending
+
+    # The wait is the assertion: it names the reading it gave up on, and no fact read
+    # behind it could fail once it has returned.
+    _until(page, first_trip_home, "heard back the new document's first answer")
 
 
 def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):

@@ -21,9 +21,9 @@ run_worker_first = true
 name = "leaf-website-leafexamplesession"
 class_name = "LeafWebsiteSession"
 image = "../Dockerfile.website"
-# Product routes give every browser a private Leaf session; the example-only ceiling
-# was exhausted by ordinary homepage and deployment-verification traffic.
-max_instances = 100
+# Product routes give every browser a private Leaf session. Cloudflare's current
+# account limits allow 15,000 concurrent instances of the lite type.
+max_instances = 15000
 instance_type = "lite"
 
 [[durable_objects.bindings]]

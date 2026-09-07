@@ -89,6 +89,13 @@ def hint_code(page, selector, hints):
     return page.evaluate(NEAREST_HINT, selector)
 
 
+def focus_item(page, selector):
+    """Stand on an item without opening its margin disclosure."""
+    item = page.locator(selector)
+    item.evaluate("node => { node.tabIndex = -1; node.focus({preventScroll: true}); }")
+    expect(item).to_be_focused()
+
+
 def painted(page, glyphs):
     """Wait for the page's reaction paint to show exactly these seated glyphs, then
     return the whole reading. `data-lf-applied` counts replayed actions and covers no
@@ -506,18 +513,18 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     page.close()
 
 
-def test_an_item_hint_raises_the_bar_and_a_token_outlines_the_item(browser, serve):
-    """Keyboard item selection leaves the response open. Choosing a token puts an
+def test_an_item_hint_opens_comment_and_a_token_outlines_the_item(browser, serve):
+    """Keyboard item selection opens Comment. Choosing a token puts an
     element anchor in the log, which paints as a dashed hairline on the item's boxes
     and a glyph seated at its first line."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.type(hint_code(page, "#prose", 3))
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(bar.locator(".lf-fab-input")).to_be_hidden()
-    page.keyboard.press("r")
-    page.locator('.lf-margin-reactions .lf-react[data-token="prioritize"]').click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(bar.locator(".lf-fab-input")).to_be_focused()
+    page.keyboard.press("Tab")
+    bar.locator('.lf-react[data-token="prioritize"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "prioritize" and sent["anchor"] == {"section": "prose"}
@@ -637,15 +644,15 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     page.keyboard.press("Escape")
     expect(strip.locator(".lf-react:visible")).to_have_count(0)
     expect(item).to_have_attribute("data-lf-options-open", "")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, open=False)
+    more.click()
+    expect(item).to_have_attribute("data-lf-options-open", "")
 
     # Nor does the raise that finds the fold already open: standing the choices in a
     # cluster the reader unfolded for themselves borrows it, and `openButtonOptions` is
     # a no-op there, so putting them down leaves the fold where the press found it.
-    # Focus goes back to the page first, the panel's own scope owning `s` where it is.
-    page.evaluate("() => document.body.focus()")
-    page.keyboard.type(hint_code(page, "#sug-refill", 10))
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.evaluate("() => document.body.focus()")
+    item.locator(".lf-sug-accept").focus()
     page.keyboard.press("r")
     expect(page.locator(".lf-margin-reactions")).to_be_visible()
     expect(item).to_have_attribute("data-lf-options-open", "")
@@ -654,14 +661,14 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     expect(item).to_have_attribute("data-lf-options-open", "")
 
     # The raise that does unfold a cluster to stand its choices in still folds it back.
-    item.locator(".lf-margin-options .lf-margin-button:visible").first.focus()
+    option = item.locator(".lf-margin-options .lf-margin-button:visible").first
+    option.focus()
+    expect(option).to_be_focused()
     page.keyboard.press("Escape")
     expect(more).to_be_visible()
-    page.keyboard.type(hint_code(page, "#replace", 10))
-    # A selected item has no open comment field, so the explicit reaction mode borrows
-    # its margin cluster and remains responsible for folding that cluster back.
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.evaluate("() => document.body.focus()")
+    focus_item(page, "#sug-refill")
+    # Explicit reaction mode borrows the target's margin cluster and remains
+    # responsible for folding that cluster back.
     page.keyboard.press("r")
     surface = page.locator(".lf-margin-reactions")
     expect(surface).to_have_class(re.compile("lf-react-open"))
@@ -682,9 +689,7 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
     thistle_accept = thistle.locator(".lf-sug-accept")
 
     def raise_choices_on_refill():
-        page.keyboard.type(hint_code(page, "#sug-refill", 10))
-        expect(page.locator(".lf-fab-bar")).to_be_visible()
-        page.evaluate("() => document.body.focus()")
+        focus_item(page, "#sug-refill")
         page.keyboard.press("r")
         expect(page.locator(".lf-margin-reactions")).to_be_visible()
         expect(refill).to_have_attribute("data-lf-options-open", "")
@@ -1200,11 +1205,9 @@ def test_a_declared_visual_and_its_figure_keep_their_own_targets(browser, serve)
     ]
     page.keyboard.press("Escape")
     page.keyboard.type(hint_code(page, "#caption", 6))
-    expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-pending\b"))
     page.keyboard.press("Escape")
-    expect(page.locator("#caption")).not_to_have_class(
-        re.compile(r"\blf-action-target\b")
-    )
+    expect(page.locator("#caption")).not_to_have_class(re.compile(r"\blf-pending\b"))
 
     start.click(modifiers=["Alt"])
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))

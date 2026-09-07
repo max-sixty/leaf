@@ -2,19 +2,18 @@
 
    Normal reading mode leaves a plain click on unadorned authored content to the
    browser. Visible native and Leaf controls keep their click actions; text selection
-   targets words. `s` chooses an item before the reader chooses a response, while
-   Alt-click and a visual's “Respond to…” proxy are explicit Comment gestures. They all
-   pass a stable target from `aimTargetAt` or the visual provider into this surface. A
-   whole item or picture names its authored id, while a visual part adds its declared
-   token. Comment opens the compact field; Tab or its ellipsis extends that field with
-   the other response Buttons. Tab, Shift-Tab, and the arrow keys then wrap through the
-   visible Buttons. Escape folds the extension; Escape from the field hides the draft.
+   targets words. Alt-click, `s`, and a visual's “Respond to…” proxy are explicit
+   Comment gestures. They pass a stable target from `aimTargetAt` or the visual provider
+   into this surface. A whole item or picture names its authored id, while a visual part
+   adds its declared token. Comment opens the compact field; Tab or its ellipsis extends
+   that field with the other response Buttons. Tab, Shift-Tab, and the arrow keys then
+   wrap through the visible Buttons. Escape folds the extension; Escape from the field
+   hides the draft.
    The same anchor resolves both states against the target's geometry.
 
    The bar a selection or keyboard-selected item raises is `.lf-fab-bar`: the durable,
-   compact `.lf-fab-input` followed by one response ellipsis. Choosing an item with `s`
-   raises only that response surface's actions; an explicit Comment gesture opens and
-   focuses the field. Selecting a passage leaves the field open but unfocused
+   compact `.lf-fab-input` followed by one response ellipsis. An explicit item target
+   opens and focuses that field. Selecting a passage leaves the field open but unfocused
    without collapsing the browser selection; the reader can still copy
    the selection or use its native context menu, then enter the field with Comment. The
    field grows in place and never transfers text into a second composer card. A
@@ -35,12 +34,11 @@
    fallback.
 
    `showFab` places the bar; `openComposer` (composing/selection.js) binds its field to
-   the durable draft and takes the focus decision. Item selection passes its resolved
-   anchor to `selectTarget`; explicit Comment routes use `commentOnTarget`, which focuses
-   the field and carries an unsent draft to the new target. Automatic passage selection
-   opens that passage's own durable draft without moving focus. Submitted words still in
-   flight remain owned by their original anchor, while a later target starts clean and
-   keeps focus.
+   the durable draft and takes the focus decision. Every explicit item and visual route
+   passes its resolved anchor to `commentOnTarget`, which focuses the field and carries an
+   unsent draft to the new target. Automatic passage selection opens that passage's own
+   durable draft without moving focus. Submitted words still in flight remain owned by
+   their original anchor, while a later target starts clean and keeps focus.
 
    `placeClear` fits the response bar into a free band bounded by the viewport, its
    target, and controls carrying `data-lf-offer`. A quoted passage keeps its whole
@@ -61,7 +59,6 @@ import { documentPoint, shownBox, shownParts, shownRect } from "../geometry.js";
 import { targetElement, targetParts, targetSegments } from "../resolved-target.js";
 import {
   composerOpen,
-  detachComposer,
   fab,
   fabBar,
   fabInput,
@@ -443,31 +440,21 @@ export const fabReturnTo = () =>
       : visualActionAnchor(fabAnchor)
     : null;
 // Every explicit target gesture ends here. The gesture has already resolved its stable
-// authored anchor; this owns the one transition into the response surface. Choosing a
-// target leaves the response undecided, while an explicit Comment gesture focuses its
-// field and carries an unsent draft. A visual proxy supplies its origin so Escape can
-// return to it.
-function raiseTarget({ anchor }, { origin = null, focus = false, carry = false } = {}) {
+// authored anchor; this command owns the one transition from that target into Comment.
+// Focusing the field drops any older browser selection, and an unsent draft follows the
+// deliberate move. A visual proxy supplies its origin so Escape can return to it.
+export function commentOnTarget({ anchor }, { origin = null } = {}) {
   clearTimeout(selectionUpdate);
   selectionUpdate = null;
   targetActivation = true;
   const selection = getSelection();
   if (selection?.rangeCount) selection.removeAllRanges();
-  if (focus) {
-    openComment(anchor, "", { focus, carry });
-    if (origin) showFab(anchor, null, { origin });
-  } else {
-    detachComposer();
-    showFab(anchor, null, { origin });
-  }
+  openComment(anchor, "", { carry: true });
+  if (origin) showFab(anchor, null, { origin });
   setTimeout(() => {
     targetActivation = false;
   });
 }
-export const commentOnTarget = (target, { origin = null } = {}) =>
-  raiseTarget(target, { origin, focus: true, carry: true });
-export const selectTarget = (target, { origin = null } = {}) =>
-  raiseTarget(target, { origin });
 // Focusing text entry collapses a native page selection. Hold that browser-authored
 // selectionchange out of updateFab: the durable anchor is already captured, and letting
 // the collapse re-read it as no selection dismisses the field the reader just entered.

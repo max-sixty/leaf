@@ -1954,6 +1954,58 @@ def test_a_page_hears_news_without_asking_for_it(browser, serve):
     page.close()
 
 
+def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, serve):
+    """Visibility is the reader lease on a live page. A hidden tab closes its standing
+    request and neither hears a changed reading nor polls for one; becoming visible opens
+    one new stream, whose first word catches the page up. The overridden platform reading
+    is the lifecycle input Chromium's headless shell cannot otherwise produce — all of
+    its tabs report visible even when another is brought to the front."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    asked = _traffic(page).asked
+
+    page.evaluate(
+        """() => {
+          window.__lfTestVisibility = 'hidden';
+          Object.defineProperty(document, 'visibilityState', {
+            configurable: true,
+            get: () => window.__lfTestVisibility,
+          });
+          document.dispatchEvent(new Event('visibilitychange'));
+        }"""
+    )
+    # Once the server has observed the closed socket, a forced opportunity to bump
+    # presence must leave the sentinel alone: a hidden, still-open tab no longer
+    # counts as reader attention. Reopening the stream below must replace it.
+    page.wait_for_timeout(100)
+    files_model.write_json(serve.page_dir / "viewed.json", {"t": 1.0})
+    serve.httpd.RequestHandlerClass.viewed_at = 0
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "While away."},
+    )
+    # The server checks its stream reading every 50ms. Ten checks give the news ample
+    # opportunity to expose a stream the hidden page failed to release.
+    page.wait_for_timeout(500)
+    assert _traffic(page).asked == asked, (
+        "a hidden page still heard or polled for state"
+    )
+    assert files_model.read_json(serve.page_dir / "viewed.json")["t"] == 1.0
+
+    with page.expect_request("**/api/news"):
+        page.evaluate(
+            """() => {
+              window.__lfTestVisibility = 'visible';
+              document.dispatchEvent(new Event('visibilitychange'));
+            }"""
+        )
+    told(page)
+    assert _traffic(page).asked == asked + 1
+    assert files_model.read_json(serve.page_dir / "viewed.json")["t"] > 1.0
+    expect(page.locator(".lf-thread", has_text="While away.")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
 def test_the_later_answer_wins_whichever_ask_it_answers(browser, serve):
     """Two reads cross on two sockets: the earlier ask is answered later, with the
     newer state. Nothing the log orders tells such answers apart when neither carries

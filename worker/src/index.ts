@@ -21,6 +21,7 @@ import { NonRetryableError } from "cloudflare:workflows";
 import {
   isPageRequest,
   isPageApiRequest,
+  isPageMediaRequest,
   isPrivatePageRequest,
   needsPageSlash,
   newSessionId,
@@ -359,14 +360,16 @@ export default {
       !isPageApiRequest(pathname)
     ) {
       const response = staticAssetResponse(await env.ASSETS.fetch(request));
-      if (existing !== null || route.inside !== "") return response;
-      const headers = new Headers(response.headers);
-      headers.append("Set-Cookie", sessionCookie(sessionId, secure));
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
+      if (response.status !== 404 || !isPageMediaRequest(pathname)) {
+        if (existing !== null || route.inside !== "") return response;
+        const headers = new Headers(response.headers);
+        headers.append("Set-Cookie", sessionCookie(sessionId, secure));
+        return new Response(response.body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers,
+        });
+      }
     }
     const postedRequest =
       request.method === "POST" && route.inside === "api/event"

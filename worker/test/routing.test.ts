@@ -4,6 +4,7 @@ import {
   HTTP_SESSION_COOKIE,
   SESSION_COOKIE,
   isPageApiRequest,
+  isPageMediaRequest,
   isPageRequest,
   isPrivatePageRequest,
   needsPageSlash,
@@ -27,7 +28,12 @@ describe("website page routing", () => {
       false,
     );
     expect(isPageApiRequest("/examples/design-decision/")).toBe(false);
-    expect(isPageRequest("/media/social-card.png")).toBe(false);
+    expect(isPageMediaRequest("/media/upload.png")).toBe(true);
+    expect(isPageMediaRequest("/examples/design-decision/media/upload.png")).toBe(
+      true,
+    );
+    expect(isPageMediaRequest("/examples/design-decision/theme.css")).toBe(false);
+    expect(isPageRequest("/media/social-card.png")).toBe(true);
     expect(isPageRequest("/examples.html")).toBe(false);
     expect(isPageRequest("/examples/../registry.json")).toBe(false);
     expect(needsPageSlash("/packages")).toBe(true);

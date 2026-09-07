@@ -78,35 +78,38 @@ jobs:
       - name: Verify public Leaf pages
         run: |
           COOKIE="__Host-leaf-page=$(openssl rand -hex 16)"
-          verify_shell() {
-            local response
-            response=$(mktemp)
-            curl --fail-with-body --silent --show-error \
-              --output "$response" \
-              --cookie "$COOKIE" \
-              https://leaf.page/examples/feature-gallery/
-            grep --quiet --fixed-strings 'data-lf-server="published"' "$response"
-            SHELL_LAYER=$(grep --only-matching 'data-lf-layer="[^"]*"' "$response" | head -1 | cut -d'"' -f2)
-            test -n "$SHELL_LAYER"
-          }
-          verify_state() {
-            local url="$1"
-            local predicate="$2"
+          verify_page() {
+            local page_url="$1"
+            local state_url="$2"
+            local predicate="$3"
+            local shell_layer
             local response_layer
+            local shell
             local response
             local headers
             local attempt=0
+            shell=$(mktemp)
             response=$(mktemp)
             headers=$(mktemp)
             while (( attempt++ < 20 )); do
               if curl --fail-with-body --silent --show-error \
+                --output "$shell" \
+                --cookie "$COOKIE" \
+                --max-time 25 \
+                "$page_url" \
+                && grep --quiet --fixed-strings 'data-lf-server="published"' "$shell"; then
+                shell_layer=$(grep --only-matching 'data-lf-layer="[^"]*"' "$shell" | head -1 | cut -d'"' -f2)
+              else
+                shell_layer=
+              fi
+              if test -n "$shell_layer" && curl --fail-with-body --silent --show-error \
                 --output "$response" \
                 --dump-header "$headers" \
                 --cookie "$COOKIE" \
                 --max-time 25 \
-                "$url"; then
+                "$state_url"; then
                 response_layer=$(awk 'tolower($1) == "leaf-layer:" {gsub("\\r", "", $2); print $2}' "$headers" | tail -1)
-                if test "$response_layer" = "$SHELL_LAYER" && jq --exit-status "$predicate" "$response"; then
+                if test "$response_layer" = "$shell_layer" && jq --exit-status "$predicate" "$response"; then
                   return 0
                 fi
               fi
@@ -115,10 +118,11 @@ jobs:
             cat "$response" >&2
             return 1
           }
-          verify_shell
-          verify_state \
+          verify_page \
+            https://leaf.page/ \
             https://leaf.page/api/state \
             '.publication.kind == "product" and .claims == []'
-          verify_state \
+          verify_page \
+            https://leaf.page/examples/design-decision/ \
             https://leaf.page/examples/design-decision/api/state \
             '.publication.kind == "example" and .claims == []'

@@ -98,6 +98,63 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
+  it.each([
+    "/media/upload.png",
+    "/examples/design-decision/media/upload.png",
+  ])(
+    "falls back to the reader's container for uploaded media at %s",
+    async (pathname) => {
+      const sessionId = "08".repeat(16);
+      const assetFetch = vi.fn(
+        async () => new Response("not found", { status: 404 }),
+      );
+      const containerFetch = vi.fn(
+        async () =>
+          new Response(new Uint8Array([1, 2, 3]), {
+            headers: { "Content-Type": "image/png" },
+          }),
+      );
+      vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+      const env = environment({
+        ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+      });
+
+      const response = await worker.fetch(
+        new Request(`https://leaf.page${pathname}`, {
+          headers: { Cookie: `__Host-leaf-page=${sessionId}` },
+        }),
+        env,
+      );
+
+      expect(assetFetch).toHaveBeenCalledOnce();
+      expect(getContainer).toHaveBeenCalledWith(env.PAGES, sessionId);
+      expect(containerFetch).toHaveBeenCalledOnce();
+      expect(response.headers.get("Content-Type")).toBe("image/png");
+      expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+        new Uint8Array([1, 2, 3]),
+      );
+    },
+  );
+
+  it("keeps published media on the edge", async () => {
+    const media = new Response(new Uint8Array([4, 5, 6]), {
+      headers: { "Content-Type": "image/png" },
+    });
+    const assetFetch = vi.fn(async () => media);
+    const response = await worker.fetch(
+      new Request(
+        "https://leaf.page/examples/design-decision/media/published.png",
+      ),
+      environment({
+        ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+      }),
+    );
+
+    expect(response).toBe(media);
+    expect(assetFetch).toHaveBeenCalledOnce();
+    expect(getContainer).not.toHaveBeenCalled();
+  });
+
   it("keeps page state on the reader's canonical container", async () => {
     const containerFetch = vi.fn(async () => Response.json({ reading: "state-1" }));
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);

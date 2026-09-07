@@ -11,6 +11,8 @@ binding = "ASSETS"
 run_worker_first = true
 
 [[containers]]
+# Cloudflare derives the deployed container application identity from this class.
+# Keep it stable even when the product-facing binding and surrounding code are renamed.
 class_name = "LeafExampleSession"
 image = "../Dockerfile.website"
 max_instances = 10

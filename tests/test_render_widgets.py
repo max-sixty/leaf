@@ -38,6 +38,7 @@ from render_support import (
     DIFF_LANDING,
     DIFF_PRESS,
     DIFF_ROW_PLACEMENT,
+    FEATURE_GALLERY,
     HOLD_MOTION,
     LONG_LINE_DIFF_PAGE,
     LONG_PAGE,
@@ -2479,10 +2480,27 @@ def test_a_quoted_swipe_deck_is_a_static_labeled_exhibit(browser, serve):
     expect(deck.locator("lf-swipe-card[tabindex]")).to_have_count(0)
     expect(deck.locator("lf-swipe-card:visible")).to_have_count(6)
     assert deck.get_by_role("list").count() == 3
+    deck.locator("#session-queue > lf-swipe-card").evaluate_all(
+        "cards => cards.forEach(card => document.querySelector('#session-keep').append(card))"
+    )
+    deck_box = deck.bounding_box()
+    queue_box = deck.locator("#session-queue").bounding_box()
+    assert deck_box and queue_box
+    assert queue_box["x"] == pytest.approx(deck_box["x"], abs=0.02)
+    assert queue_box["width"] == pytest.approx(deck_box["width"], abs=0.02)
     resized(page, 420, 900)
     passed = page.locator("#session-pass").bounding_box()
     kept = page.locator("#session-keep").bounding_box()
     assert passed and kept and passed["y"] + passed["height"] <= kept["y"]
+    assert errors == []
+    page.close()
+
+
+def test_an_empty_quoted_swipe_queue_says_it_is_empty(browser, serve):
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    labels = page.locator("#bg-swipe-completed .lf-swipe-pile-label")
+
+    assert labels.all_inner_texts() == ["QUEUE · 0", "PASSED · 0", "KEPT · 1"]
     assert errors == []
     page.close()
 

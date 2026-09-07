@@ -54,6 +54,7 @@ from render_support import (
     SCROLL_SETTLE_MS,
     SCROLL_SETTLED,
     SHORT_SUGGESTION,
+    SQUEEZED_BOARD_PAGE,
     STANDING_ASK,
     SUGGESTION_IN_CONTEXT_PAGE,
     SUGGESTION_PAGE,
@@ -896,7 +897,13 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     Section rows divide the available height according to the content they lead, a
     moving lens shows the visible band, and late content growth redraws both. Labels
     reveal without moving the map or changing the item under the pointer. The same
-    links remain an ordinary open outline where the margin posture is unavailable."""
+    links remain an ordinary open outline where the margin posture is unavailable.
+
+    The map runs to the window's foot, so the key line stands over the last section it
+    names — always the last, the map being sized to the viewport rather than scrolled.
+    The line is a hover here and the map is not one of the regions that ends above it;
+    `lf-toc`'s own rule in the default theme carries that decision and its TODO. This
+    holds the map to the window so the cutoff cannot close a region at a time."""
     source = leaf_page(
         "contents map",
         """
@@ -961,8 +968,19 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     assert nav_box is not None
     assert 23 <= nav_box["x"] <= 25
     assert 64 <= nav_box["y"] <= 68
-    assert nav_box["height"] >= 790, f"the reading map used only {nav_box['height']}px"
-    assert abs(nav_box["y"] + nav_box["height"] - 876) <= 1
+    assert nav_box["height"] >= 740, f"the reading map used only {nav_box['height']}px"
+    # The map is sized to the window, so it runs past the key line and the line stands
+    # over its last entry. That is the accepted state, not an oversight: the line is a
+    # hover, and `lf-toc`'s own rule carries the TODO for choosing between that and a
+    # line the whole layer ends above. This holds the map to the window so the cutoff
+    # cannot be closed by accident, one region at a time, without that being settled.
+    line_box = page.locator(".lf-keyline").bounding_box()
+    assert line_box is not None, "the fixture drew no key line"
+    assert line_box["y"] < nav_box["y"] + nav_box["height"], (
+        f"the map now ends above the key line: the layer has started giving the line a "
+        f"foot's reservation region by region — settle the TODO on `lf-toc`'s rule "
+        f"instead: map {nav_box}, line {line_box}"
+    )
     prepare_box = page.locator("#prepare").bounding_box()
     assert prepare_box is not None
     assert nav_box["width"] == pytest.approx(292, abs=1)
@@ -1309,6 +1327,75 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     context.close()
 
 
+def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve):
+    """A wrapper that leaves the box tree and returns leaves the map as it found it.
+
+    An author whose sidebar has nothing to say on a narrow shell hides it, which is
+    what the developer gallery does; opening Threads takes enough width to cross that
+    floor, so one open-and-close removes the map's whole wrapper and puts it back. The
+    map is restored from the page's own posture, not from anything the wrapper
+    remembers, because a box that has been away answers a style query with the reading
+    it left with: asking the wrapper cost the reader the spine for the rest of the
+    session — an outline of thirteen laid rows became a fifteen-pixel heading stub that
+    no settle, scroll, or further toggle brought back."""
+    source = leaf_page(
+        "hidden sidebar map",
+        """
+<style>
+  @container lf-shell (max-width: 1151px) { #route { display: none; } }
+</style>
+<h1>Migration plan for the readers already in flight</h1>
+<aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
+<section><h2 id="prepare">Prepare the copy</h2><p>Take a snapshot.</p></section>
+<div style="height: 600px"></div>
+<section><h2 id="move">Move each cohort</h2><p>Shift one cohort at a time.</p></section>
+<div style="height: 600px"></div>
+<section><h2 id="verify">Verify both readings</h2><p>Compare the totals.</p></section>
+<div style="height: 600px"></div>
+""",
+    )
+    context = browser.new_context(viewport={"width": 1200, "height": 900})
+    page, errors = open_page(browser, serve(source), context=context)
+    toc = page.locator("#contents")
+    nav = page.get_by_role("navigation", name="On this page")
+    heading = nav.locator(".lf-toc-heading")
+
+    def rows():
+        return nav.locator("li").evaluate_all(
+            "items => items.filter(item => item.getBoundingClientRect().height > 0)"
+            ".length"
+        )
+
+    expect(toc).to_have_css("position", "fixed")
+    expect(heading).to_be_hidden()
+    settled = toc.bounding_box()
+    assert settled is not None
+    laid = rows()
+    assert laid >= 3, f"the fixture laid only {laid} map rows to begin with"
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    # Read the hidden posture rather than merely waiting the wrapper out. The page reads
+    # it too — the map measures its own track on every reflow, hidden or not — and the
+    # reading is what leaves the wrapper repeating it after the box comes back.
+    expect(page.locator("#route")).to_have_css("display", "none")
+    expect(toc).to_have_css("position", "static")
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, open=False)
+    # The wrapper itself holds no height in this posture — the map inside it is fixed —
+    # so its return is a display reading rather than a visible box.
+    expect(page.locator("#route")).to_have_css("display", "flow-root")
+    expect(toc).to_have_css("position", "fixed")
+    expect(heading).to_be_hidden()
+    assert toc.bounding_box() == settled, (
+        f"the map came back as {toc.bounding_box()} rather than {settled}"
+    )
+    assert rows() == laid, "the map came back without its rows"
+    assert errors == []
+    page.close()
+
+
 def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser, serve):
     """Density leaves enough room to distinguish labels before showing them together.
 
@@ -1642,6 +1729,72 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         "    - strong: Squirrel baffle\n"
         "    - text: your change\n"
         "    - 'button \"Move: Squirrel baffle — Done\"': ⠿"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
+    browser, serve
+):
+    """A board lays its columns into whatever width it is given and scrolls once they
+    are as narrow as they go, which is the right order — but the floor has to know what
+    a column costs before it can say where narrow enough stops. Stated as the column's
+    own box (10rem), 70 of those 160 pixels were the column's inset and border, the
+    card's inset and border, and the column the drag grip hangs in, and the card's prose
+    got 90: `documented` is 92px of the page's own serif, so the shipped board broke
+    ordinary words across lines the moment the thread strip took its margin.
+
+    The reading is the visible failure and not the number behind it. A word set across
+    two lines with no hyphen is what the reader sees, and it is what the page-wide
+    `overflow-wrap` does with a box narrower than the word it has to show — the bargain
+    leaf makes for paths and shas, arriving here on an English sentence. The premise is
+    asserted first: the board must be at its floor and scrolling for the rest, or a
+    board that simply fitted would pass this while proving nothing."""
+    page, errors = open_page(browser, serve(SQUEEZED_BOARD_PAGE))
+    measured = page.evaluate(
+        """() => {
+        const board = document.getElementById('crowd');
+        const columns = [...board.querySelectorAll('lf-column')];
+        // A word broken to fit lands on two lines with no break opportunity in it, so
+        // the rects a range over it returns sit at two different tops. Ordinary words
+        // only: a path or a sha has nowhere to break and breaking one is the page's
+        // own bargain, not this floor's business.
+        const range = document.createRange(), broken = [];
+        for (const card of board.querySelectorAll('lf-card')) {
+            const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+            for (let node = walker.nextNode(); node; node = walker.nextNode())
+                for (const m of node.textContent.matchAll(/[^\\s]+/g)) {
+                    if (!/^[A-Za-z]+[.,;:]?$/.test(m[0])) continue;
+                    range.setStart(node, m.index);
+                    range.setEnd(node, m.index + m[0].length);
+                    const rects = [...range.getClientRects()];
+                    if (new Set(rects.map((r) => Math.round(r.top))).size > 1)
+                        broken.push(m[0]);
+                }
+        }
+        return { broken,
+                 scrolls: board.scrollWidth - board.clientWidth,
+                 widths: columns.map((c) => c.getBoundingClientRect().width),
+                 measure: (() => {
+                     const card = board.querySelector('lf-card');
+                     const s = getComputedStyle(card), b = card.getBoundingClientRect();
+                     return b.width - parseFloat(s.paddingLeft)
+                          - parseFloat(s.paddingRight) - parseFloat(s.borderLeftWidth)
+                          - parseFloat(s.borderRightWidth);
+                 })() };
+    }"""
+    )
+    # The premise, read off the layout rather than off the property behind it: a grid of
+    # `1fr` tracks that scrolls has every track at its minimum, so a board that scrolls
+    # is a board at its floor whatever the floor is written as. A board with room to
+    # spare would pass the reading below while asking it nothing.
+    assert measured["scrolls"] > 1 and len(set(measured["widths"])) == 1, (
+        f"this board is not at its floor, so its words prove nothing: {measured}"
+    )
+    assert measured["broken"] == [], (
+        f"a board at its floor gave each card {measured['measure']:.0f}px of measure "
+        f"and broke {', '.join(sorted(set(measured['broken'])))} across two lines"
     )
     assert errors == []
     page.close()
@@ -4375,7 +4528,13 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     # The banner's press opens the tray and keeps the focus, so the walk after it
     # measures from where the reader stands in the page and steps on rather than
     # restarting — the button being no place to measure from.
-    page.locator(".lf-asks").click()
+    #
+    # Reached through `banner_address` rather than by clicking the button where it
+    # would stand on a wide row: at this fixture's 900px the row cannot hold every
+    # address in a face wider than this desk's, and folding one is the row's stated
+    # answer. Which address the fold takes is the banner's business and not this
+    # walk's, so the helper opens the door where it has to.
+    banner_address(page, ".lf-asks").click()
     page.keyboard.press("a")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 

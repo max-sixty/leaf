@@ -10,13 +10,14 @@ import { iconElement } from "../icons.js";
 // surface (an impatient second click), and submit with `Mod+Enter`. Enter retains the
 // textarea's native newline. The stylesheet owns
 // textarea growth through `field-sizing: content`, within the room supplied by floating
-// placement; script does not derive textarea height from its text. wire() returns a
-// sync() the caller runs after setting .value programmatically, so the send button and
-// any containing chrome agree with what's in the box: that sync refreshes the composer's
-// placement for typed and programmatic edits alike, including drafts mirrored from
-// another tab. When the surface accepts images, a paste uploads bytes to page media. The
-// draft keeps the resulting Markdown, while the textarea shows only the reader's words
-// and a thumbnail projection.
+// placement; script does not derive textarea height from its text. When the surface
+// accepts images, a paste uploads bytes to page media. The draft keeps the resulting
+// Markdown, while the textarea shows only the reader's words and a thumbnail projection.
+// So the box holds more than its .value, and wire() returns the seam that says so:
+// sync.value() reads the complete draft, sync.load() replaces it — a stored record, a
+// draft mirrored from another tab, or the emptiness a send leaves — and sync() repaints
+// the send button, the placeholder, and the composer's placement around what stands.
+// Outside this module, .value is the reader's words alone and nothing writes it.
 // The submit binding owns the shortcut spelling used by the placeholder and tooltip.
 const SEND = "Mod+Enter";
 let uploadMedia;
@@ -78,7 +79,6 @@ export function wireInput(
   mediaShelf.setAttribute("aria-label", "Pasted images");
   field.before(mediaShelf);
   let pastedMedia = [];
-  let visibleValue = ta.value;
   const draftValue = () => writePastedMedia(ta.value, pastedMedia);
   const renderMedia = () => {
     mediaShelf.replaceChildren();
@@ -114,7 +114,6 @@ export function wireInput(
     const restored = readPastedMedia(value);
     pastedMedia = restored.paths;
     ta.value = restored.text;
-    visibleValue = ta.value;
     renderMedia();
   };
   hydrate(ta.value);
@@ -166,14 +165,23 @@ export function wireInput(
     altBtn?.setAttribute("aria-disabled", disabled);
     layout();
   };
-  // Callers use sync after replacing .value with a stored draft. Other calls repaint
-  // state without disturbing the thumbnail projection of the value already on screen.
-  const sync = () => {
-    if (ta.value !== visibleValue) hydrate(ta.value);
-    refresh();
-  };
+  // sync() repaints what the box holds. It is not how a draft gets in: what the reader
+  // would miss is the words and the pasted images together, and the images show only in
+  // the shelf, so a caller writing .value states half a draft. Emptying a box that way
+  // left an image standing in a box the runtime then read as still holding something —
+  // the box said "draft kept" over a comment it had just sent, and the picture rode into
+  // the next passage's draft.
+  const sync = () => refresh();
   sync.value = draftValue;
   sync.hasMedia = () => pastedMedia.length > 0;
+  // The one way a draft enters from outside: the complete value, words and image Markdown
+  // together, as the store holds it. Writing .value moves a focused caret to its end, so a
+  // value the box already holds is left where it is — which is what lets another tab's
+  // notification, a reopened composer, and a mirrored panel box all say it unconditionally.
+  sync.load = (value) => {
+    if (draftValue() !== value) hydrate(value);
+    refresh();
+  };
   inputDrafts.set(ta, sync);
   // A runtime-built box is normally wired before it can receive focus. Preserve the
   // bookkeeping too if a caller wires one that is already standing.
@@ -196,7 +204,6 @@ export function wireInput(
     }
   };
   ta.addEventListener("input", () => {
-    visibleValue = ta.value;
     save(draftValue());
     refresh();
   });

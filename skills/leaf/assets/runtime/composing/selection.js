@@ -7,7 +7,12 @@
    whole visible outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`;
    `openComposer`'s `focus` option decides focus independently. Outside clicks and
    Escape hide without discarding words. A successful send or an explicit draft close
-   discards the local record. */
+   discards the local record.
+
+   A hidden draft is news and a place: hiding one that still holds words says so once,
+   and `KEPT_DRAFT` is the address that brings it back — the same stored record startup
+   reopens (`openDraft`), reached mid-session. Every path that discards words empties
+   the box first, so those hide silently. */
 import { el, keeps, responseAction } from "../widget-elements.js";
 import { setReact } from "../reactions.js";
 import { designOn } from "../design.js";
@@ -25,13 +30,22 @@ import {
   watchDraft,
 } from "../drafts.js";
 import { wireInput } from "./input.js";
-import { fabAnchorAt, refreshFab, showFab } from "./surface.js";
+import {
+  anchorStands,
+  anchorTargetAt,
+  fabAnchorAt,
+  holdFabLeft,
+  refreshFab,
+  showFab,
+} from "./surface.js";
+import { bringForward } from "../navigation.js";
+import { goAddress } from "../keyboard/address.js";
 import { runtime } from "../context.js";
 import { post } from "../outbox.js";
 import { threadsBox } from "../conversation/panel.js";
 import { landTyping, mayLandTyping } from "./capture.js";
 import { panelIsOpen } from "../chrome-layout.js";
-import { focused, paintHere } from "../keyboard/scopes.js";
+import { focused, paintHere, paintKeys } from "../keyboard/scopes.js";
 import { paintAnchors } from "../anchors.js";
 import { elementById, inChrome } from "../passages.js";
 import { focusSurface } from "../conversation/surfaces.js";
@@ -78,7 +92,6 @@ fabMore.setAttribute("aria-expanded", "false");
 export const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   icon: "edit",
   label: "Suggest",
-  behavior: "disclosure",
   collapse: true,
 });
 fabOptions.append(fabSuggest);
@@ -158,8 +171,10 @@ const saveComposerDraft = (text = syncComposer.value()) =>
 // An open box the reader emptied keeps its record, which is what tells another tab's
 // composer on that passage that this one is merely empty rather than settled — and leaves
 // nothing to reopen on. So the draft to come back to is the most recently touched one
-// that still holds words.
-export function pendingComposer() {
+// that still holds words — and, for a caller that has to land on it rather than merely
+// reopen what it can, the most recently touched one this document can still stand a box
+// against.
+export function pendingComposer(accepts = () => true) {
   let best = null;
   for (const ctx of draftContexts()) {
     if (!ctx.startsWith(COMPOSER_KEY)) continue;
@@ -173,14 +188,26 @@ export function pendingComposer() {
     }
     if (
       (record?.text || validDrawing(record?.drawing)) &&
-      (!best || record.touched > best.touched)
+      (!best || record.touched > best.touched) &&
+      accepts(record)
     )
       best = record;
   }
   return best;
 }
+// The kept draft an address can offer: startup reopens whatever it finds and lets
+// placement decide, while a press promising a destination has to know there is one.
+export const keptDraft = () => pendingComposer((record) => anchorStands(record.anchor));
 let inFlight = null;
 let composerEpoch = 0;
+// What the box holds that a reader would miss, asked once. The complete draft, because a
+// pasted image is in it and not in the textarea, plus a drawing, which stands beside the
+// words rather than in them. Three places ask: the send's own guard, the sentence a
+// hiding box says about what became of the words, and the word Escape's row shows. They
+// had a spelling each, and the one over the textarea alone read a box holding a picture
+// and nothing else as empty.
+const holdsWords = (draft) => Boolean(draft.trim() || pendingDrawing);
+export const composerHolds = () => holdsWords(syncComposer.value());
 syncComposer = wireInput(composerInput, {
   hint: () =>
     suggestCheck.checked
@@ -191,7 +218,7 @@ syncComposer = wireInput(composerInput, {
   sends: () => (suggestCheck.checked ? "suggest" : "comment"),
   sendBtn: composerSend,
   allowsMedia: () => !suggestCheck.checked,
-  hasContent: (raw) => Boolean(raw.trim() || pendingDrawing),
+  hasContent: holdsWords,
   save: saveComposerDraft,
   layout: refreshFab,
   send: async (text, raw, owns, visible) => {
@@ -267,7 +294,6 @@ function syncSuggestMode() {
   responseAction(fabSuggest, {
     icon: suggest ? "edit" : "comment",
     label: suggest ? "Suggest" : "Comment",
-    behavior: "disclosure",
     collapse: true,
   });
   keeps(fabSuggest, "aria-label", suggest ? "Suggest" : "Comment");
@@ -286,10 +312,8 @@ export function setSuggestionMode(suggest) {
     return;
   }
   // Entering suggestion mode seeds the box with the passage to edit in place.
-  if (suggestCheck.checked && !syncComposer.value().trim() && pendingAnchor?.quote) {
-    composerInput.value = seededQuote = pendingAnchor.quote;
-    syncComposer();
-  }
+  if (suggestCheck.checked && !syncComposer.value().trim() && pendingAnchor?.quote)
+    syncComposer.load((seededQuote = pendingAnchor.quote));
   syncSuggestMode();
   saveComposerDraft();
   composerInput.focus({ preventScroll: true });
@@ -347,13 +371,12 @@ export function setResponseOptions(
     }
     return next;
   }
-  const fixedLeft = next ? fabBar.getBoundingClientRect().left : null;
+  holdFabLeft(next && place);
   if (next) setReact(false);
   responseOptionsOpen = next;
   fabBar.classList.toggle("lf-response-open", next);
   fabMore.setAttribute("aria-expanded", String(next));
-  if (place && fabAnchorAt())
-    showFab(fabAnchorAt(), null, { fixedLeft: next ? fixedLeft : null });
+  if (place && fabAnchorAt()) showFab(fabAnchorAt());
   if (next && focus) {
     const options = responseOptionButtons();
     const destination =
@@ -366,7 +389,7 @@ export function setResponseOptions(
       preventScroll: true,
     });
   }
-  paintHere();
+  paintKeys();
   return next;
 }
 
@@ -382,9 +405,7 @@ export function syncResponseOptions(anchor = fabAnchorAt()) {
 }
 
 export function resetResponseOptions() {
-  responseOptionsOpen = false;
-  fabBar.classList.remove("lf-response-open");
-  fabMore.setAttribute("aria-expanded", "false");
+  setResponseOptions(false, { place: false });
 }
 
 fabMore.onclick = () =>
@@ -404,6 +425,20 @@ document.addEventListener("focusin", (event) => {
 // a guard testing for one of them ran on every mousedown in the page and swallowed the
 // click. Painting hangs off the same call, so the mark and the box are up together.
 function showComposer(open) {
+  // Hiding keeps the words and used to say nothing at all, so a press on the banner took
+  // the box off screen with the reader's sentence in it and left no sign the sentence
+  // still existed — recoverable only by reselecting that exact passage on that exact
+  // version. Said here rather than at each dismissal because every one of them — an
+  // outside press, Escape, a covering panel taking the room — leaves the same state, and
+  // every path that discards the words empties the box before hiding it (leaveComposer),
+  // so those stay silent. The sentence names the address that brings the draft back,
+  // which is the whole of what the reader needs from this moment.
+  if (composerOpen && !open && composerHolds())
+    notice(
+      anchorStands(pendingAnchor)
+        ? `Draft kept — ${goAddress(KEPT_DRAFT)} returns to it`
+        : "Draft kept — it returns when its passage does",
+    );
   composerOpen = open;
   // The wrapper contributes no card or box. Its textarea is the extended Comment
   // control inside the response bar; the other composer controls stay hidden there.
@@ -435,7 +470,10 @@ export function openComposer(
   } = {},
 ) {
   closeReactions();
-  if (composerInput.value === seededQuote) composerInput.value = "";
+  // A box holding nothing but the machine's seed is a box holding nothing. Asked of the
+  // seed rather than of the box, because an empty seed matches an empty textarea, and a
+  // draft that is one pasted image and no words has exactly that textarea.
+  if (seededQuote && composerInput.value === seededQuote) syncComposer.load("");
   seededQuote = "";
   const ctx = composerCtx(anchor || null);
   const previousCtx = composerCtx(pendingAnchor);
@@ -446,7 +484,7 @@ export function openComposer(
     const previousText = syncComposer.value();
     const previousDrawing = pendingDrawing;
     const leavesFlight = inFlight?.ctx === previousCtx && previousText === inFlight.raw;
-    composerInput.value = "";
+    syncComposer.load("");
     // Automatic selection merely opens another passage's view. An explicit Comment
     // gesture may instead carry unsent words there, which preserves the old Alt-click
     // promise without making a reader's next selection silently re-anchor their draft.
@@ -470,7 +508,7 @@ export function openComposer(
     pendingDrawing = validDrawing(drawing) ? drawing : null;
   const target = pendingAnchor?.section ? elementById(pendingAnchor.section) : null;
   fabBar.dataset.lfPaintPlane = target && inChrome(target) ? "chrome" : "page";
-  composerInput.value = text || composerInput.value;
+  if (text) syncComposer.load(text);
   suggestCheck.checked = Boolean(suggest);
   syncSuggestMode();
   showComposer(true);
@@ -493,7 +531,7 @@ function watchComposer() {
     if (value === null) return closeComposer();
     const { text, suggest, about, drawing = null } = JSON.parse(value);
     if (syncComposer.value() !== text) {
-      composerInput.value = text;
+      syncComposer.load(text);
       // Whatever stood here is another tab's words now, not this box's machine seed.
       seededQuote = "";
     }
@@ -515,7 +553,7 @@ function leaveComposer(discard) {
   if (discard) clearDraft(composerCtx(pendingAnchor)); // before the anchor goes: the key is the anchor
   composerWatch?.();
   composerWatch = null;
-  composerInput.value = "";
+  syncComposer.load(""); // the whole draft, so a pasted image does not outlive its send
   seededQuote = "";
   suggestCheck.checked = false;
   pendingAnchor = null;
@@ -541,4 +579,57 @@ function closeComposer() {
 fab.onclick = () => {
   if (!fabAnchorAt()) return;
   openComposer(fabAnchorAt(), "");
+};
+
+// The one place a stored composer record becomes an open box. Startup reopens the most
+// recently touched draft through it, and the address below returns to that same record
+// mid-session; two hand-written copies of "what a record means" would be free to drift
+// about the mode a draft was written in.
+export function openDraft(record = pendingComposer()) {
+  if (!record) return false;
+  openComposer(record.anchor, record.text, {
+    suggest: Boolean(record.suggest),
+    about: record.about ?? null,
+    drawing: record.drawing ?? null,
+  });
+  return true;
+}
+
+// `g D`: the draft the composer put away, as a place. Hiding the box keeps its words and
+// the only route back was to reselect that exact passage on that exact version — durable
+// and unreachable, which is the same as lost for a reader who does not know where the
+// words went. A destination rather than a page letter: the page's alphabet is small, and
+// what this press does is travel to a passage and open the box standing on it, which is
+// what every other uppercase mnemonic in the chord does with its own workspace.
+//
+// Dead while the composer is up, because then the draft is already in front of the
+// reader and `c` is the press that enters it. Live off the stored record rather than
+// this module's own state: a draft written in another tab, or before a reload, is the
+// same draft and answers the same address.
+//
+// Dead too where this version no longer holds the passage the draft is about. Those
+// words survive the version they were written against and come back when their passage
+// does; until then there is nowhere to stand the box, and a destination that lands
+// nowhere is worse than none.
+export const KEPT_DRAFT = {
+  id: "composer.kept-draft",
+  keys: ["Shift+d"],
+  does: "Go to the draft you have not sent",
+  line: "your draft",
+  when: () => !composerOpen && keptDraft() !== null,
+  returnFrame: () => ({
+    active: () => composerOpen,
+    close: () => hideComposer(),
+    does: "Return from the draft",
+    line: "back",
+  }),
+  run: () => {
+    const record = keptDraft();
+    if (!record) return;
+    // The box is placed against its passage, so the passage has to be somewhere the
+    // reader can see before the box is measured — the same travel `c` makes to an item
+    // it is about to open a box on.
+    bringForward(anchorTargetAt(record.anchor));
+    openDraft(record);
+  },
 };

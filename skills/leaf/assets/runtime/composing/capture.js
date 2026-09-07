@@ -107,6 +107,21 @@ export const pageSelection = () => {
   const sel = getSelection();
   return sel && !sel.isCollapsed && pageWords(sel.anchorNode) ? sel : null;
 };
+// Where a selection ends, as against where it began: the near end is what `pageSelection`
+// asks about, and the far end is the one a drag can throw. The layer stands after and to
+// the right of the document, so a hand that overshoots it puts the browser's own extension
+// through everything in between — a passage five words long, a pointer 40px past the panel
+// edge, and the capture came back holding 14,387 characters, a mark over 22,140 of them,
+// and a field whose accessible name read the whole document out.
+//
+// Not a question `pageSelection` may fold in, and ⌘A is why: select-all means the document
+// and lands its far end past the page's last words by definition, so a rule over every
+// selection would refuse the one gesture that legitimately covers everything. Which
+// gesture made it is what tells the two apart, and only the pointer release knows
+// (composing/surface.js, where a drag that left the document is put back to what it had
+// inside it).
+export const leftThePage = (sel = getSelection()) =>
+  Boolean(sel) && !sel.isCollapsed && !pageWords(sel.focusNode);
 // Where a send ends is where typing continues, and the reader has the last word on it.
 // A send is a round trip, so this step lands whenever the server answers — long after
 // the gesture on a loaded machine — and focusing a box collapses whatever the page had

@@ -1616,13 +1616,12 @@ RING_NAMES = """() => {
 # Every here ring the page is showing right now, and what is wrong with each.
 #
 # Asked of every box painting one, rather than of the focused one.
-# The two are not the same set: four rules draw
-# the ring on something other than the control holding focus — a thread card wears it
-# for anything focused inside it, a decision wears it for whichever of its controls the
-# reader reached, a joined option group wears the one its picks give up, and an element
+# The two are not the same set: three rules draw the ring on something other than the
+# control holding focus — a decision wears it for whichever of its controls the reader
+# reached, a joined option group wears the one its picks give up, and an element
 # a focused thread is anchored to wears it with no focus of its own — and a reading that
 # asks only `getComputedStyle(activeElement)` returns `no ring here` for every one. A 2px
-# cut planted on `.lf-thread:focus-within` passed the entire example corpus.
+# cut planted on one of those carriers passed the entire example corpus.
 #
 # The focused element is a candidate too, whatever paints its outline, so a ring the
 # platform draws and the layer never named is still measured.
@@ -1950,6 +1949,26 @@ RINGS_DRAWN = f"""async () => {{
         // side is answered rather than carried on down the stack.
         if (under) break;
         const o = over.getBoundingClientRect();
+        // Or the control is in front of it, which answers the same question and answers
+        // it exactly. An outline is painted by its control, at its control's level, so a
+        // box the control paints over cannot be over the ring either, however little of
+        // the control it reaches. The depth test above cannot tell that from a band laid
+        // across the ring, because both are a box overlapping the control, and only the
+        // order says which — and the depth it asks for is more than a shallow overlap
+        // has: the comment panel's touch grip stands 44px over a scrolling list, a
+        // thread's receipt reached the last two pixels of it, and the ring's bottom run
+        // came back reported while every pixel of it was the accent's own. Asked where
+        // the two boxes meet, since that is the only place hit testing can order them,
+        // and only when both answer there — a point some third box owns says nothing
+        // about these two.
+        const meetX = [Math.max(o.left, b.left), Math.min(o.right, b.right)];
+        const meetY = [Math.max(o.top, b.top), Math.min(o.bottom, b.bottom)];
+        if (meetX[0] <= meetX[1] && meetY[0] <= meetY[1]) {{
+          const stack = document.elementsFromPoint(mid(...meetX), mid(...meetY));
+          const control = stack.indexOf(el);
+          const covering = stack.indexOf(over);
+          if (control >= 0 && covering >= 0 && control < covering) break;
+        }}
         covers.push(`its ${{side}} edge is under ` + named(over)
                     + ` (ring ${{at(ring)}} vs ${{at(o)}}, sampled ${{Math.round(x)}},`
                     + `${{Math.round(y)}})`);

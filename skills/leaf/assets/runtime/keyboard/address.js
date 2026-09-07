@@ -20,7 +20,8 @@
    an edge of the list; from a beside-panel, `g p` returns focus to the page while keeping
    the panel open. Uppercase mnemonics remain named
    global destinations: `g T` Threads, `g A` Asks, `g L` All leaves, `g M` the searchable
-   Page map, and `g V` Versions. Completing one exchanges the transient chord for a return
+   Page map, `g V` Versions, and `g D` the unsent draft the composer put away. Completing
+   one exchanges the transient chord for a return
    frame which restores the standing and workspace captured before `g` armed.
 
    `BUILTIN_DIRECT_DESTINATIONS` declares the uppercase destinations this owner implements;
@@ -66,6 +67,7 @@ import { targetElement } from "../resolved-target.js";
 import { focusDestination, PRESSABLE } from "../widget-elements.js";
 import { el } from "../widget-elements.js";
 import { CHOOSER } from "../version.js";
+import { KEPT_DRAFT } from "../composing/selection.js";
 import {
   allButTheReference,
   focusedThread,
@@ -114,8 +116,15 @@ import { glideTo, placeThreadEdge, seenScroller, stopGlide } from "../navigation
 export const addressLayer = el("div", "lf-ui lf-targets lf-goto-targets");
 addressLayer.setAttribute("aria-hidden", "true");
 
-// Asked when the chord is built: CHOOSER is version.js's, a module in the cycle.
-const directDestinations = () => [CHOOSER];
+// Asked when the chord is built: CHOOSER is version.js's and KEPT_DRAFT the selection
+// composer's, both modules in the cycle.
+const directDestinations = () => [CHOOSER, KEPT_DRAFT];
+
+// How a destination in this chord is written where the chord itself is not on screen —
+// a notice naming the way back to a draft that has just gone down, say. Spelled off the
+// row's own binding, so a rebinding cannot leave a sentence promising the old press.
+export const goAddress = (row) =>
+  [...chordPrefix(), labelOf(row)].filter(Boolean).join(" ");
 
 // ---------- the g chord: visible page targets ----------
 // These queries declare which page actions join the generated namespace. A link belongs

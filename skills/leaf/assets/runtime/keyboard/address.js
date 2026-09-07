@@ -532,7 +532,7 @@ export function paintAddresses() {
   const refreshed =
     !prefix && !scrolling && (refreshCandidates || detached || !candidates.length);
   if (refreshed) {
-    candidates = visibleCandidates();
+    candidates = visibleCandidates(targetFilter);
     hintActive = heard
       ? candidates.findIndex(
           (candidate) =>
@@ -696,8 +696,11 @@ export const GO = {
           ...(targetFilter ? [targetFilter.filterKey] : []),
           targetFilter ? "letters" : chordArmed ? "letters / kind" : "letters",
         ],
-        does: "Type a visible target's hint, or filter first: m Page-map Buttons, t tabs, a actions, h hyperlinks, f folds",
-        line: "visible target / filter",
+        does: () =>
+          targetFilter
+            ? "Type a visible target's hint"
+            : "Type a visible target's hint, or filter first: m Page-map Buttons, t tabs, a actions, h hyperlinks, f folds",
+        line: () => (targetFilter ? "visible target" : "visible target / filter"),
         when: () => (chordArmed ? candidates.length > 0 : targetCapability()),
         run: refineOrType,
       },

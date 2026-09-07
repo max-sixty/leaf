@@ -2022,6 +2022,7 @@ def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact
     assert target_route.locator("kbd").evaluate_all(
         "keys => keys.map(key => key.textContent)"
     ) == ["g", "a", "letters"]
+    expect(target_route).not_to_contain_text("filter")
 
     page.keyboard.press("Escape")
     key_line(page)
@@ -2035,8 +2036,21 @@ def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact
         == initial_kinds
     )
 
+    # A filter with no members stays empty through the same resize refresh that
+    # regenerates a populated map. Escape still restores the complete map.
+    page.keyboard.press("t")
+    expect(page.locator(CHIPS)).to_have_count(0)
+    expect(page.locator(".lf-live")).to_have_text("No visible tabs.")
+    resized(page, 1200, 800)
+    expect(page.locator(CHIPS)).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(page.locator(CHIPS).first).to_be_visible()
+
     page.keyboard.press("h")
     links = page.locator(f'{CHIPS}[data-lf-address-kind="Link"]')
+    expect(links).to_have_count(2)
+    expect(page.locator(f'{CHIPS}:not([data-lf-address-kind="Link"])')).to_have_count(0)
+    resized(page, 1180, 800)
     expect(links).to_have_count(2)
     expect(page.locator(f'{CHIPS}:not([data-lf-address-kind="Link"])')).to_have_count(0)
     page.keyboard.type(address_code(page, "Link", "lk2"))

@@ -168,23 +168,51 @@ class Demo {
 
   async load() {
     if (this.frameElement) {
-      await loadFrameDocument(this.frameElement);
+      // Creating and booting a same-origin frame can make it the outer document's
+      // active element in Chromium. These are inert demonstrations: background startup
+      // must not take a page-level key from the reader. Check both sides of every
+      // synchronous start and asynchronous completion, retaining a still-usable outer
+      // control when there is one and otherwise returning to the page.
+      let outerFocus = document.activeElement;
+      const restoreOuterFocus = () => {
+        if (document.activeElement !== this.frameElement) {
+          outerFocus = document.activeElement;
+          return;
+        }
+        const destination =
+          outerFocus?.isConnected && !outerFocus.matches?.(":disabled")
+            ? outerFocus
+            : document.body;
+        destination.focus({ preventScroll: true });
+      };
+      const loadWithoutFocus = async (load) => {
+        restoreOuterFocus();
+        const loading = load();
+        restoreOuterFocus();
+        await loading;
+        restoreOuterFocus();
+      };
+      await loadWithoutFocus(() => loadFrameDocument(this.frameElement));
       const adapter = new URL("./interaction-gallery-frame.js", import.meta.url).href;
       const leafEntry = new URL("../leaf.js", import.meta.url).href;
-      await loadFrameModule(
-        this.frameElement,
-        adapter,
-        "the contained Leaf page did not load its gallery adapter",
+      await loadWithoutFocus(() =>
+        loadFrameModule(
+          this.frameElement,
+          adapter,
+          "the contained Leaf page did not load its gallery adapter",
+        ),
       );
       this.frameApi = this.frameElement.contentWindow?.leafInteractionGalleryFrame;
       if (!this.frameApi)
         throw new Error("the contained Leaf page did not expose its gallery adapter");
-      await loadFrameModule(
-        this.frameElement,
-        leafEntry,
-        "the contained Leaf page did not load Leaf",
+      await loadWithoutFocus(() =>
+        loadFrameModule(
+          this.frameElement,
+          leafEntry,
+          "the contained Leaf page did not load Leaf",
+        ),
       );
-      await this.frameApi.ready;
+      await loadWithoutFocus(() => this.frameApi.ready);
       this.frameElement.dataset.interactionReady = "";
     }
     const modulePath = this.figure.dataset.interactionModule;

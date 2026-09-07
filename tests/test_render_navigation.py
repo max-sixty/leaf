@@ -232,6 +232,9 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     approve.click()
     round_trip(page)
     expect(approve).to_have_text("✓ Version approved")
+    assert not page.evaluate(
+        "() => document.activeElement?.matches('[data-interaction-frame]')"
+    ), "a background gallery frame took the page keyboard"
     page.keyboard.press("z")
     round_trip(page)
     expect(approve).to_have_text("Approve version")

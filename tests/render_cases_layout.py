@@ -1894,7 +1894,35 @@ RINGS_DRAWN = f"""async () => {{
         const step = grow + w + 1;
         const inx = x + (side === 'left' ? step : side === 'right' ? -step : 0);
         const iny = y + (side === 'top' ? step : side === 'bottom' ? -step : 0);
-        if (document.elementsFromPoint(inx, iny).includes(over)) break;
+        const inside = document.elementsFromPoint(inx, iny);
+        if (inside.includes(over)) break;
+        // Or the other way about: a box the control itself paints over. An outline is
+        // painted by its control at its control's level, so a box the control stands in
+        // front of cannot stand over the ring around it — and the sample lands on one of
+        // those whenever a control floats above content its own holder scrolls, which
+        // the coarse-pointer edge grip does over the panel's threads. Left unasked, the
+        // grip's ring read as covered by whichever line of a thread its band happened to
+        // cross, and a two-pixel change to the card's own padding was enough to move one
+        // under it.
+        //
+        // Read off the stepped-in point already taken, whose stack is the paint order
+        // there: `over` is not in it, but a box holding `over` usually is, and one
+        // ranking below the control puts everything it holds below the control too. A
+        // box that holds the control answers nothing — the control is inside it — so the
+        // walk stops there rather than reading its rank. Only a z-index of its own can
+        // lift a box past the holder this reads, so one named on the way up stops the
+        // walk as well and the reading says what it said before.
+        const control = inside.findIndex((n) => n === el || holds(el, n));
+        let under = false;
+        for (let a = over; a && control >= 0; a = above(a)) {{
+          if (holds(a, el)) break;
+          const ranked = inside.indexOf(a);
+          if (ranked >= 0) {{ under = ranked > control; break; }}
+          if (getComputedStyle(a).zIndex !== 'auto') break;
+        }}
+        // Nothing beneath a box the control paints over is over the ring either, so this
+        // side is answered rather than carried on down the stack.
+        if (under) break;
         const o = over.getBoundingClientRect();
         covers.push(`its ${{side}} edge is under ` + named(over)
                     + ` (ring ${{at(ring)}} vs ${{at(o)}}, sampled ${{Math.round(x)}},`

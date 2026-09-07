@@ -25,9 +25,9 @@ rules a new or changed example has to meet.
 
 ## Website and demo
 
-- `site.py` builds <https://leaf.page/> in `.tmp/site`, publishing each product page as
-  a standalone export and each example as a complete page directory. `--serve` opens
-  the same Wrangler and container boundary the deployed site uses, and needs
+- `site.py` builds <https://leaf.page/> in `.tmp/site`, publishing every product page
+  and example as a complete page directory. `--serve` opens the same Wrangler and
+  container boundary the deployed site uses, and needs
   `npm ci --prefix worker` and a running Docker.
   `.github/workflows/publish-site.yaml` deploys both halves for relevant pushes to
   `main`.

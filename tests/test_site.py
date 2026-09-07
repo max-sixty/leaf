@@ -1,8 +1,8 @@
 """The published site: what the build assembles, and what a reader gets.
 
-The site is the repo's standalone product pages plus its examples and developer feature
-gallery as live pages, so most of what could go wrong is a path that meant one thing in
-a checkout and another on a host.
+The site is the repo's product pages, examples, and developer feature gallery as live
+Leaf pages, so most of what could go wrong is a path that meant one thing in a checkout
+and another on a host.
 The build resolves every local link it wrote and stops on one that reaches
 nothing, which is the failure a static host answers with a 404 and no other
 signal; these tests hold the rest — that the theme a page links is the shipped
@@ -10,11 +10,10 @@ file, that an example served here is a working page rather than a picture of one
 and that a site claiming to ride the theme's tokens actually changes colour when
 the theme's palette does.
 
-Every page is reached over HTTP: product sources are rendered into self-contained files,
-while each example uses its page-scoped vendored layer through the canonical server.
+Every page is reached over HTTP through its page-scoped vendored layer and the canonical
+server.
 """
 
-import base64
 import hashlib
 import importlib.util
 import json
@@ -95,17 +94,29 @@ def published_pages():
 
 
 @pytest.fixture(scope="module")
-def site(tmp_path_factory, browser):
+def site(tmp_path_factory):
     """One build for the module: it vendors a layer and checks every published page."""
     out = tmp_path_factory.mktemp("published") / "site"
-    site_build.build(out, browser=browser)
+    site_build.build(out)
     return out
 
 
 @pytest.fixture(scope="module")
-def hosted(site):
-    with site_build.hosted(site) as origin:
-        yield origin
+def hosted(site, tmp_path_factory):
+    """One reader's private copy, matching the container boundary in production."""
+    session_site = tmp_path_factory.mktemp("website-session") / "site"
+    shutil.copytree(site, session_site)
+    httpd = hosting_model.server_at(
+        "127.0.0.1", 0, website_server.handler_for(session_site)
+    )
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{httpd.server_address[1]}"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
 
 
 @pytest.fixture
@@ -116,7 +127,7 @@ def served_example(site, tmp_path):
     examples.mkdir(parents=True)
     shutil.copy2(site / "sitenote.js", session_site / "sitenote.js")
     httpd = hosting_model.server_at(
-        "127.0.0.1", 0, website_server.handler_for(examples)
+        "127.0.0.1", 0, website_server.handler_for(session_site)
     )
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
@@ -134,7 +145,7 @@ def served_example(site, tmp_path):
 
 
 def product_url(hosted, name):
-    """The canonical route for one exported product source."""
+    """The canonical route for one product source."""
     return hosted + site_build.PRODUCT_ROUTES[name]
 
 
@@ -151,8 +162,8 @@ def opened(page, errors, url):
     navigate(page, errors, url, wait_until="load")
 
 
-def test_product_pages_inline_the_composed_theme(site):
-    """Authored sources use the Leaf scaffold; published copies need no stylesheet."""
+def test_product_pages_vendor_the_composed_theme(site):
+    """Every authored product source becomes an independent complete page."""
     theme_halves = [
         ROOT / "skills" / "leaf" / "assets" / "theme.css",
         ROOT / "skills" / "leaf" / "packages" / "default" / "theme.css",
@@ -164,33 +175,40 @@ def test_product_pages_inline_the_composed_theme(site):
     ]
     assert all(source.is_file() for source in theme_halves)
     for page in pages_under(DOCS):
-        target = site_build.product_target(site, site_build.PRODUCT_ROUTES[page.name])
-        published = target.read_text()
+        target = site_build.product_page(site, page.name)
+        published = (target / "index.html").read_text()
         source_markup = page.read_text()
         assert source_markup.count('href="/theme.css"') == 1, page.name
-        assert 'href="/theme.css"' not in published, page.name
+        assert published == source_markup, page.name
         for theme in theme_halves:
-            assert theme.read_text().rstrip() in published, (
+            assert theme.read_text().rstrip() in (target / "theme.css").read_text(), (
                 f"{page.name} is missing {theme.parent.name}'s theme"
             )
 
 
-def test_product_pages_are_published_as_self_contained_copies(site):
+def test_product_pages_are_published_as_complete_page_records(site):
     sources = pages_under(DOCS)
     assert {source.name for source in sources} == set(site_build.PRODUCT_ROUTES)
     for source in sources:
-        target = site_build.product_target(site, site_build.PRODUCT_ROUTES[source.name])
-        published = target.read_text()
-        assert 'class="lf-copy' in published, source.name
-        assert "<script" not in published, source.name
-        assert "data-lf-reading" not in published, source.name
-        assert 'src="/media/' not in published, source.name
-        assert not (target.parent / "data.json").exists(), source.name
-        assert not (target.parent / "events.jsonl").exists(), source.name
+        page = site_build.product_page(site, source.name)
+        assert (page / "index.html").read_bytes() == source.read_bytes()
+        for name in (
+            "data.json",
+            "events.jsonl",
+            "icon.svg",
+            "leaf.js",
+            "registry.json",
+            "status.json",
+            "theme.css",
+        ):
+            assert (page / name).is_file(), f"{source.name}: no {name}"
+        for name in ("guidance", "media", "revisions", "runtime", "vendor", "widgets"):
+            assert list((page / name).iterdir()), f"{source.name}: {name}/ is empty"
+        assert json.loads((page / "status.json").read_text())["state"] == "idle"
 
 
-def test_only_canonical_examples_keep_a_runtime_layer(site):
-    """Product exports inline their layer; shared media and the example note remain."""
+def test_page_layers_stay_inside_their_page_directories(site):
+    """Shared social media and the example note are the only root-level assets."""
     assert (site / "sitenote.js").read_bytes() == (DOCS / "sitenote.js").read_bytes()
     product_media = {
         Path(media_url(source)).name: source
@@ -218,9 +236,9 @@ def test_only_canonical_examples_keep_a_runtime_layer(site):
         "data.json",
         "events.jsonl",
     ):
-        assert not (site / name).exists(), f"obsolete product runtime asset: {name}"
+        assert not (site / name).exists(), f"unscoped runtime asset: {name}"
     for name in ("runtime", "widgets", "vendor"):
-        assert not (site / name).exists(), f"obsolete product runtime directory: {name}"
+        assert not (site / name).exists(), f"unscoped runtime directory: {name}"
 
 
 def test_every_published_page_keeps_its_canonical_page_record(site):
@@ -336,8 +354,8 @@ def test_a_website_example_keeps_its_version_identity_and_history(
         page.close()
 
 
-def test_every_product_route_is_a_standalone_leaf_copy(site, hosted, browser):
-    """Each product route is rendered, self-contained, and free of live controls."""
+def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
+    """Each product route runs the canonical runtime and exposes its page state."""
     names = list(site_build.PRODUCT_ROUTES)
     page = browser.new_page()
     errors = watched(page)
@@ -353,7 +371,8 @@ def test_every_product_route_is_a_standalone_leaf_copy(site, hosted, browser):
     try:
         for name in names:
             page.goto(product_url(hosted, name), wait_until="load")
-            expect(page.locator("html")).to_have_class(re.compile(r"\blf-copy\b"))
+            page.wait_for_function(BOTH_STAMPS)
+            expect(page.locator("html")).not_to_have_class(re.compile(r"\blf-copy\b"))
             assert page.evaluate("document.compatMode") == "CSS1Compat", name
             source = (DOCS / name).read_text(encoding="utf-8")
             expected_title = re.search(r"<title>(.*?)</title>", source, re.DOTALL)
@@ -361,16 +380,20 @@ def test_every_product_route_is_a_standalone_leaf_copy(site, hosted, browser):
             assert expected_title and expected_h1
             assert page.title() == expected_title.group(1).strip(), name
             expect(page.locator("h1")).to_have_text(expected_h1.group(1).strip())
-            expect(page.locator("script, .lf-chrome")).to_have_count(0)
-            expect(page.locator('link[rel="stylesheet"]')).to_have_count(0)
+            expect(page.locator(".lf-chrome")).to_have_count(1)
+            expect(page.locator("script[data-lf-runtime]")).to_have_count(1)
+            expect(page.locator('link[rel="stylesheet"]')).to_have_count(1)
             expect(page.locator("main > .sitenote")).to_have_count(0)
             if "<lf-toc" in source:
                 assert page.locator("lf-toc a").count() > 0, (
-                    f"{name}: the exported table of contents has no links"
+                    f"{name}: the table of contents has no links"
                 )
-            assert page.locator("lf-specimen button").count() == 0, (
-                f"{name}: a quoted specimen kept a live control"
-            )
+            state = page.evaluate("() => fetch('api/state').then(r => r.json())")
+            assert state["publication"] == {
+                "kind": "product",
+                "agent": "Leaf guide",
+                "install_url": "/#install",
+            }
             assert not errors, f"{name}: {errors[:3]}"
             assert not failed, f"{name}: {failed[:3]}"
     finally:
@@ -398,7 +421,9 @@ def test_the_product_diagram_fits_without_its_own_scroll(hosted, browser):
 def test_a_link_that_reaches_nothing_stops_the_build(site, tmp_path):
     staged = tmp_path / "staged"
     shutil.copytree(site, staged)
-    (staged / "index.html").write_text('<a href="whats-new.html">news</a>')
+    (site_build.product_page(staged, "index.html") / "index.html").write_text(
+        '<a href="whats-new.html">news</a>'
+    )
 
     with pytest.raises(SystemExit) as stopped:
         site_build.check_links(staged)
@@ -454,7 +479,9 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     page.on("pageerror", lambda error: errors.append(str(error)))
     try:
         page.goto(f"{hosted}/examples/", wait_until="load")
-        expect(page.locator("html")).to_have_class(re.compile(r"\blf-copy\b"))
+        page.wait_for_function(BOTH_STAMPS)
+        expect(page.locator("html")).not_to_have_class(re.compile(r"\blf-copy\b"))
+        expect(page.locator(".lf-chrome")).to_have_count(1)
         entries = page.locator(".example-catalog > li .example-link")
         assert entries.count() == len(expected)
         pairs = entries.evaluate_all(
@@ -468,11 +495,9 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
             match = re.fullmatch(r"/examples/([a-z0-9-]+)/", pair["href"])
             assert match, pair
             stem = match.group(1)
-            prefix, encoded = pair["image"].split(",", 1)
-            assert prefix == "data:image/jpeg;base64"
             assert (
-                base64.b64decode(encoded)
-                == (previews / f"example-{stem}.jpg").read_bytes()
+                pair["image"]
+                == f"/examples{media_url(previews / f'example-{stem}.jpg')}"
             )
             reached.add(stem)
         assert reached == expected
@@ -973,7 +998,8 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
             re.compile(r"^lf-dot\s*$")
         )
         state = page.evaluate("() => fetch('api/state').then(r => r.json())")
-        assert state["example"] == {
+        assert state["publication"] == {
+            "kind": "example",
             "agent": "Leaf guide",
             "install_url": "/#install",
         }

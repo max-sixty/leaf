@@ -24,13 +24,13 @@ vi.mock("@openai/agents-openai", () => ({
 }));
 
 import { getContainer } from "@cloudflare/containers";
-import worker, { LeafExampleSession, type Env, runAgentWorkflow } from "../src/index";
+import worker, { LeafWebsiteSession, type Env, runAgentWorkflow } from "../src/index";
 
 function environment(overrides: Partial<Env> = {}): Env {
   const allow = { limit: vi.fn(async () => ({ success: true })) } as RateLimit;
   return {
     ASSETS: { fetch: vi.fn() } as unknown as Fetcher,
-    EXAMPLES: {} as DurableObjectNamespace<LeafExampleSession>,
+    PAGES: {} as DurableObjectNamespace<LeafWebsiteSession>,
     AGENT_WORKFLOW: { create: vi.fn() } as unknown as Workflow,
     SOURCE_AGENT_RATE_LIMITER: allow,
     OPENAI_API_KEY: "test-key",
@@ -39,25 +39,30 @@ function environment(overrides: Partial<Env> = {}): Env {
 }
 
 describe("product-site delivery", () => {
-  it.each(["/", "/how-it-works", "/registry", "/examples", "/packages"])(
-    "denies framing for the static HTML route %s",
+  it.each(["/", "/how-it-works/", "/registry/", "/examples/", "/packages/"])(
+    "serves the product route %s through Leaf",
     async (pathname) => {
-      const fetchAsset = vi.fn(
+      const containerFetch = vi.fn(
         async () =>
           new Response("<!doctype html><title>Leaf</title>", {
-            headers: { "Content-Type": "text/html; charset=utf-8" },
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+              "Content-Security-Policy": "frame-ancestors 'none'",
+            },
           }),
       );
-      const env = environment({
-        ASSETS: { fetch: fetchAsset } as unknown as Fetcher,
-      });
+      vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+      const env = environment();
 
       const response = await worker.fetch(
-        new Request(`https://leaf.page${pathname}`),
+        new Request(`https://leaf.page${pathname}`, {
+          headers: { Cookie: `__Host-leaf-page=${"01".repeat(16)}` },
+        }),
         env,
       );
 
-      expect(fetchAsset).toHaveBeenCalledOnce();
+      expect(containerFetch).toHaveBeenCalledOnce();
+      expect(env.ASSETS.fetch).not.toHaveBeenCalled();
       expect(response.headers.get("Content-Security-Policy")).toBe(
         "frame-ancestors 'none'",
       );
@@ -74,7 +79,7 @@ describe("product-site delivery", () => {
     });
 
     const response = await worker.fetch(
-      new Request("https://leaf.page/theme.css"),
+      new Request("https://leaf.page/sitenote.js"),
       env,
     );
 
@@ -83,7 +88,7 @@ describe("product-site delivery", () => {
   });
 });
 
-describe("website example agent", () => {
+describe("website page agent", () => {
   beforeEach(() => {
     agents.apiKeys.length = 0;
     agents.run.mockReset();
@@ -100,51 +105,57 @@ describe("website example agent", () => {
     expect(getContainer).not.toHaveBeenCalled();
   });
 
-  it("starts one durable workflow for the accepted event that still needs a reply", async () => {
-    const sessionId = "01".repeat(16);
-    const eventId = "02".repeat(16);
-    const attempt = "reader-attempt-01";
-    const containerFetch = vi.fn(async () =>
-      Response.json({
-        ok: true,
-        state: {
-          events: [{ id: eventId, attempt }],
-          activity: { obligations: [{ event: eventId }] },
-        },
-      }),
-    );
-    vi.mocked(getContainer).mockReturnValue({
-      fetch: containerFetch,
-    } as never);
-    const create = vi.fn(async () => ({ id: `reply-${sessionId}-${eventId}` }));
-    const env = environment({
-      AGENT_WORKFLOW: { create } as unknown as Workflow,
-    });
+  it.each([
+    ["product", "/api/event", "/"],
+    ["example", "/examples/design-decision/api/event", "/examples/design-decision"],
+  ])(
+    "starts one durable workflow for an accepted %s-page event that needs a reply",
+    async (_kind, pathname, route) => {
+      const sessionId = "01".repeat(16);
+      const eventId = "02".repeat(16);
+      const attempt = "reader-attempt-01";
+      const containerFetch = vi.fn(async () =>
+        Response.json({
+          ok: true,
+          state: {
+            events: [{ id: eventId, attempt }],
+            activity: { obligations: [{ event: eventId }] },
+          },
+        }),
+      );
+      vi.mocked(getContainer).mockReturnValue({
+        fetch: containerFetch,
+      } as never);
+      const create = vi.fn(async () => ({ id: `reply-${sessionId}-${eventId}` }));
+      const env = environment({
+        AGENT_WORKFLOW: { create } as unknown as Workflow,
+      });
 
-    const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/api/event", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "CF-Connecting-IP": "203.0.113.1",
-          Cookie: `__Host-leaf-example=${sessionId}`,
-        },
-        body: JSON.stringify({ kind: "comment", attempt }),
-      }),
-      env,
-    );
+      const response = await worker.fetch(
+        new Request(`https://leaf.page${pathname}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "CF-Connecting-IP": "203.0.113.1",
+            Cookie: `__Host-leaf-page=${sessionId}`,
+          },
+          body: JSON.stringify({ kind: "comment", attempt }),
+        }),
+        env,
+      );
 
-    expect(response.status).toBe(200);
-    expect(create).toHaveBeenCalledWith({
-      id: `reply-${sessionId}-${eventId}`,
-      params: {
-        sessionId,
-        slug: "design-decision",
-        eventId,
-        sourceId: "203.0.113.1",
-      },
-    });
-  });
+      expect(response.status).toBe(200);
+      expect(create).toHaveBeenCalledWith({
+        id: `reply-${sessionId}-${eventId}`,
+        params: {
+          sessionId,
+          route,
+          eventId,
+          sourceId: "203.0.113.1",
+        },
+      });
+    },
+  );
 
   it("does not restart work after Leaf says the accepted event is settled", async () => {
     const sessionId = "06".repeat(16);
@@ -169,7 +180,7 @@ describe("website example agent", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Cookie: `__Host-leaf-example=${sessionId}`,
+          Cookie: `__Host-leaf-page=${sessionId}`,
         },
         body: JSON.stringify({ kind: "comment", attempt }),
       }),
@@ -210,7 +221,7 @@ describe("website example agent", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Cookie: `__Host-leaf-example=${sessionId}`,
+          Cookie: `__Host-leaf-page=${sessionId}`,
         },
         body: JSON.stringify({ kind: "comment", attempt }),
       }),
@@ -252,7 +263,7 @@ describe("website example agent", () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Cookie: `__Host-leaf-example=${sessionId}`,
+            Cookie: `__Host-leaf-page=${sessionId}`,
           },
           body: JSON.stringify({ kind: "comment", attempt }),
         }),
@@ -294,7 +305,7 @@ describe("website example agent", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Cookie: `__Host-leaf-example=${sessionId}`,
+          Cookie: `__Host-leaf-page=${sessionId}`,
         },
         body: JSON.stringify({ kind: "comment", attempt }),
       }),
@@ -308,7 +319,7 @@ describe("website example agent", () => {
   it("runs the model outside the container and appends through Leaf", async () => {
     const params = {
       sessionId: "03".repeat(16),
-      slug: "design-decision",
+      route: "/examples/design-decision",
       eventId: "04".repeat(16),
       sourceId: "203.0.113.1",
     };
@@ -360,7 +371,7 @@ describe("website example agent", () => {
   it("settles an over-limit turn without calling the model", async () => {
     const params = {
       sessionId: "13".repeat(16),
-      slug: "design-decision",
+      route: "/examples/design-decision",
       eventId: "14".repeat(16),
       sourceId: "203.0.113.2",
     };
@@ -401,7 +412,7 @@ describe("website example agent", () => {
   it("settles a turn visibly after generation exhausts its retries", async () => {
     const params = {
       sessionId: "08".repeat(16),
-      slug: "design-decision",
+      route: "/examples/design-decision",
       eventId: "09".repeat(16),
       sourceId: "203.0.113.3",
     };

@@ -1313,8 +1313,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-resolved { display: flex;
           align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .lf-conversation > .lf-say { margin-top: 0; }
-.lf-conversation-thread + .lf-conversation-thread {
-          border-top: 1px solid var(--rule); margin-top: var(--sp-3); padding-top: var(--sp-3); }
+.lf-conversation-thread + .lf-conversation-thread { margin-top: var(--sp-3); }
 .lf-conversation-msg { margin: var(--sp-2) 0; }
 .lf-conversation-msg.claude { position: relative; }
 .lf-conversation-head { display: flex; align-items: baseline; gap: var(--sp-2);

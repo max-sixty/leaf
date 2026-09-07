@@ -1363,11 +1363,13 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
 def test_inline_thread_edge_has_room_without_focus_reflow(browser, serve):
     """The region owns the breathing room its inset current edge requires."""
     url = serve(SEATED_QUESTION_PAGE)
+    panel_comment(serve.page_dir, "First job note", {"section": "jobs"})
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
     page, errors = open_page(browser, url)
     thread = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
+    expect(page.locator("#jobs .lf-conversation-thread")).to_have_count(2)
 
     resting = thread.evaluate(
         "el => ({width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height})"
@@ -1379,6 +1381,19 @@ def test_inline_thread_edge_has_room_without_focus_reflow(browser, serve):
         "el => ({width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height})"
     )
     assert focused == resting, "the current edge changed the inline thread's geometry"
+
+    frame = thread.evaluate(
+        """el => { const s = getComputedStyle(el); return {
+          padding: [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft],
+          borderTop: s.borderTopWidth,
+        }; }"""
+    )
+    assert len(set(frame["padding"])) == 1, (
+        f"a later inline thread inherited an asymmetric current edge: {frame}"
+    )
+    assert frame["borderTop"] == "0px", (
+        f"a sibling separator remained inside the current region: {frame}"
+    )
 
     clearances = thread.evaluate(
         """el => {

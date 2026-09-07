@@ -129,9 +129,10 @@ up focus, and an anchored element may have no focus of its own. The reading
 therefore sweeps every box painting a ring and asks the paint, never
 `getComputedStyle(activeElement)` and never a selector. A thread is the distinct
 large-composite case: the current panel card repaints its existing border and surface,
-while an unbordered inline card reserves resting room around its content and draws the
-same quiet edge inside that room. Their tests compare that paint with a resting state
-while checking the card's visible placement and unchanged focused geometry.
+while an unbordered inline card reserves symmetric resting room around its content and
+draws the same quiet edge inside that room. Their tests compare that paint with a
+resting state while checking the card's visible placement and unchanged focused
+geometry, including a later sibling that must not carry an old divider inside its edge.
 The band has two carriers: `--here-ring`, the outline
 nearly every rule draws, and `--here-shadow`, the same band cast as a shadow by
 the two boxes that cannot spend an outline on it — the anchored response bar and

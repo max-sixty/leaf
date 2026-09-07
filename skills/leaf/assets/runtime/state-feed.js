@@ -209,7 +209,7 @@ export function startFeed(present, initialRead = beginRead()) {
       renderStatus(error);
     }
   };
-  // The page's ear: one stream, open for the page's life, on which the server names the
+  // The page's ear: one stream per visible interval, on which the server names the
   // page's reading each time it changes, and again every five seconds whether or
   // not it did — nothing else rides it. State still comes by asking, so every reader
   // of a state request — in the page, or a test standing outside it with a route on

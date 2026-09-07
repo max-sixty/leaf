@@ -1135,8 +1135,8 @@ export function pageScopes() {
   const PAGE = {
     rows: [
       actionRow,
-      // Comment can act immediately because the page itself is its target. Selecting a
-      // more particular target is the second step; only then does React become an action.
+      // The page itself is already a Comment target. `s` plus a hint names a more
+      // particular one; either route opens Comment, while reactions wait for a target.
       COMMENT_CREATE,
       {
         id: "selection.open",

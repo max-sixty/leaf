@@ -146,6 +146,8 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
     expect(page.locator(".lf-fab-input")).to_be_focused()
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
     expect(shown).to_have_count(2)
+    expect(shown.nth(1).locator("kbd")).to_have_text("esc")
+    expect(bar.get_by_role("button", name="Show other responses")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).to_have_attribute(
         "aria-keyshortcuts", "Meta+Enter Control+Enter"
     )
@@ -286,7 +288,8 @@ def test_nested_item_hints_show_containment_without_covering_each_other(browser,
 
 def test_identical_nested_item_hints_choose_the_innermost_target(browser, serve):
     """A transparent wrapper and its only child can describe one visible box. The
-    chooser names that box once and agrees with direct aiming by selecting the child."""
+    chooser names that box once and agrees with direct aiming by opening Comment on
+    the child."""
     html = leaf_page(
         "identical nested targets",
         '<section id="outer"><div id="inner">One visible box.</div></section>',
@@ -309,7 +312,7 @@ def test_identical_nested_item_hints_choose_the_innermost_target(browser, serve)
     hints = page.locator(".lf-target-hint")
     expect(hints).to_have_count(1)
     page.keyboard.type(hints.get_attribute("data-lf-target"))
-    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == "inner"
     assert errors == []

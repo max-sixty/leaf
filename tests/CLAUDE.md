@@ -173,6 +173,22 @@ clears an outward ring and lands inside an inset one.
 `test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_box`
 is the plant over the inset shape.
 
+The same stepped-in point answers the order the other way about. An outline is
+painted by its control, so a box the control stands in front of cannot stand over
+the ring around it, and the sample outside the control's box lands on one of those
+whenever a control floats over content its own holder scrolls — the panel's edge
+grip does, at every width. The reading ranks the nearest box holding the neighbour
+that is present at that point and is not itself holding the control; a z-index
+named on the way up stops the walk, since it lifts the box past the holder being
+ranked. Position lifts a box the same way without naming one, so where the ranked
+holder is static the answer is the control's own layer instead: one that names a
+z-index stands clear of the layer a lifted neighbour paints in, and one that names
+none shares it.
+`test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across` plants
+the same band under each order against the grip, which names one, and
+`test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_in`
+against a control that does not.
+
 Prefer the public route through the product. A CLI test invokes the command or
 the same command function the entry point uses. A browser test serves a
 vendored page and uses its HTTP API. A render-gate test calls

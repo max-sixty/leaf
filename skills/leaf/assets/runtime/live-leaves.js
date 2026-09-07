@@ -178,7 +178,7 @@ function renderOthersNow(state) {
         ]);
       const head = el("div", "lf-others-head");
       head.append(el("span", "lf-dot"), el("span", "lf-others-title"));
-      if (key === "self") head.append(el("span", "lf-pill", "this page"));
+      if (key === "self") head.append(el("span", "lf-chip", "this page"));
       row.append(head, el("div", "lf-others-line"));
       othersRows.set(key, row);
     }

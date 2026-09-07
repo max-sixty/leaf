@@ -3083,7 +3083,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(cancel_reaction).to_have_attribute("data-lf-selected", "true")
     page.keyboard.press("Enter")
     expect(help_el.locator(".lf-help-meta")).to_have_text(
-        "Available with response choices open"
+        "Available with reactions open"
     )
 
     page.keyboard.press("Escape")
@@ -5599,8 +5599,6 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     choices = page.locator(".lf-fab-bar")
     suggest = choices.locator(".lf-fab-suggest")
     expect(choices).to_be_visible()
-    expect(choices.locator(".lf-fab")).to_be_focused()
-    page.keyboard.press("Tab")
     expect(suggest).to_be_focused()
 
     page.keyboard.press("Enter")

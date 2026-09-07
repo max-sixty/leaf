@@ -1434,9 +1434,9 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     ], f"the row the reader is on is not ringed in the page's own band: {row_ring}"
 
     # A suggestion hangs its ✓ Accept out in the page margin, so a reader working one has
-    # two marks for one fact — the ring on the change, the focus band on the pill deciding
-    # it — and they had better be one band. The pill's comes from the runtime's own
-    # .lf-pill rule, which every press in that margin wears: the suggestion family spelled
+    # two marks for one fact — the ring on the change, the focus band on the Button deciding
+    # it — and they had better be one band. The Button's comes from the runtime's own
+    # shared rule, which every press in that margin wears: the suggestion family spelled
     # its own once, which is a family stating a fact about a shape the runtime owns.
     #
     # Reached with real presses, because :focus-visible answers the input device and a

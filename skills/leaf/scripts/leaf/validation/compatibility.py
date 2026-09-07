@@ -96,7 +96,7 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
         elif error := event_contracts.event_record_error(contracts[kind], e):
             key = f"kind `{kind}` record: {error}"
         elif e.get("token") and e["token"] not in tokens:
-            # A token the layer drops has no glyph to paint and no pill to withdraw
+            # A token the layer drops has no glyph to paint and no chip to withdraw
             # it by, so a standing reaction on it would fall silent — the verb rule
             # (`declared_action_error`) read for the reaction vocabulary.
             key = f"reaction token `{e['token']}` no longer declared by $reactions"

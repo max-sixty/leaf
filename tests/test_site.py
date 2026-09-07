@@ -21,6 +21,7 @@ import json
 import re
 import shutil
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -785,15 +786,17 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
         gallery.get_by_role("tab", name="Send a comment").click()
         context.add_init_script(
             """() => {
-                const srcdoc = Object.getOwnPropertyDescriptor(
-                    HTMLIFrameElement.prototype, 'srcdoc'
-                );
-                Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', {
-                    ...srcdoc,
-                    set(value) {
-                        setTimeout(() => srcdoc.set.call(this, value), 2000);
-                    },
-                });
+                const append = Element.prototype.append;
+                Element.prototype.append = function(...nodes) {
+                    if (
+                        window.frameElement?.hasAttribute('data-interaction-frame')
+                        && nodes.some(node => node instanceof HTMLScriptElement)
+                    ) {
+                        setTimeout(() => append.apply(this, nodes), 2000);
+                        return;
+                    }
+                    return append.apply(this, nodes);
+                };
             }"""
         )
         page.reload(wait_until="domcontentloaded")
@@ -818,6 +821,40 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
                 "#bg-interaction-comment [data-interaction-frame]"
             ).content_frame.locator(".lf-fab-input")
         ).to_be_visible()
+        assert not errors, errors[:3]
+    finally:
+        context.close()
+
+
+def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser):
+    """A healthy contained page may present after an arbitrarily slow state read."""
+    url = serve(FEATURE_GALLERY)
+    context = browser.new_context(reduced_motion="reduce")
+    page = context.new_page()
+    errors = watched(page)
+    delayed = []
+
+    def delay_contained_state(route):
+        if route.request.frame.parent_frame and not delayed:
+            delayed.append(route.request.url)
+            time.sleep(5)
+        route.continue_()
+
+    page.route("**/api/state*", delay_contained_state)
+    try:
+        navigate(page, errors, f"{url}#bg-interactions")
+        gallery = page.locator("#bg-interactions")
+        expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
+            2, timeout=20_000
+        )
+        assert gallery.locator("iframe[data-interaction-ready]").evaluate_all(
+            """frames => frames.every(frame =>
+                !frame.hasAttribute('srcdoc')
+                && frame.contentDocument.doctype?.name === 'html'
+                && frame.contentDocument.scrollingElement
+            )"""
+        )
+        assert delayed, "no contained state read was held"
         assert not errors, errors[:3]
     finally:
         context.close()
@@ -859,7 +896,7 @@ def test_a_failed_gallery_frame_does_not_block_local_demos(serve, browser):
         )
         expect(toggle).to_be_enabled()
         assert any(
-            "contained Leaf page did not finish presenting" in error for error in errors
+            "contained Leaf page did not load Leaf" in error for error in errors
         ), errors
     finally:
         context.close()

@@ -44,6 +44,14 @@ PAINTED = """() => ({
     .map(el => el.id || el.dataset.id),
 })"""
 
+# The marker a Button paints for its lifecycle state. Since #371 `busy` is the only
+# state that paints one, anything else should report its absence.
+PAINTS_LIFECYCLE_MARK = """el => {
+  const mark = getComputedStyle(el, '::after');
+  return mark.content === '\"\"' && parseFloat(mark.width) > 0
+    && parseFloat(mark.height) > 0 && mark.backgroundColor !== 'rgba(0, 0, 0, 0)';
+}"""
+
 
 def select_paragraph(page, selector):
     """Drag across most of one paragraph, the way the anchor tests do."""
@@ -312,7 +320,13 @@ def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme):
-    """A standing reaction keeps neutral furniture distinct from hover."""
+    """A standing reaction keeps neutral furniture, and the fill it holds with the
+    pointer away is what says it stands.
+
+    #371 left the lifecycle marker to `busy`, so a standing reaction chip paints no
+    second witness on top of itself. Hover lays down the same fill; the readings here
+    therefore move the pointer away before distinguishing standing from idle.
+    """
     page, errors = open_page(
         browser,
         serve(
@@ -347,10 +361,13 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         expect(reaction).to_have_attribute("aria-pressed", "false")
         page.mouse.move(0, 0)
         resting = reaction.evaluate(read)
+        assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
         reaction.hover()
         neutral_hover = reaction.evaluate(read)
         assert neutral_hover["ink"] == resting["ink"]
         assert neutral_hover["ring"] == resting["ring"]
+        assert neutral_hover["fill"] != resting["fill"]
+        assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
         stands(reaction.click)
         reopen()
         expect(reaction).to_be_visible()
@@ -358,14 +375,17 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         page.mouse.move(0, 0)
         selected = {**resting, "fill": neutral_hover["fill"]}
         assert reaction.evaluate(read) == selected
+        assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
         reaction.hover()
         assert reaction.evaluate(read) == selected
+        assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
         stands(reaction.click)
         reopen()
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "false")
         page.mouse.move(0, 0)
         assert reaction.evaluate(read) == resting
+        assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
 
     item = page.locator('.lf-margin-item[data-lf-margin-for="draft"]')
 
@@ -376,8 +396,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
 
     open_margin_reactions()
     assert_selected_face(
-        item.locator('.lf-react[data-token="keep"]'),
-        open_margin_reactions,
+        item.locator('.lf-react[data-token="keep"]'), open_margin_reactions
     )
     assert errors == []
     page.close()
@@ -1994,12 +2013,15 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
     }, copy
     # The other half of the same promise, and the half no gate can see: the copy's
     # `offering` reads the cursor and nothing else, so paint that arrives with the
-    # pointer rather than standing on the page is invisible to it.
+    # pointer rather than standing on the page is invisible to it. A lifecycle marker
+    # in a file would state a state that nothing in the file can leave.
     mark = page.locator(
         '.lf-margin-item[data-lf-margin-for="how-store"] .lf-react-mark'
     )
     resting = mark.evaluate("el => getComputedStyle(el).backgroundColor")
+    assert mark.evaluate(PAINTS_LIFECYCLE_MARK) is False
     mark.hover()
     assert mark.evaluate("el => getComputedStyle(el).backgroundColor") == resting
+    assert mark.evaluate(PAINTS_LIFECYCLE_MARK) is False
     assert errors == []
     page.close()

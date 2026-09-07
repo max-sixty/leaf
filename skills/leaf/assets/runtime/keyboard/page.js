@@ -759,7 +759,7 @@ const RESPONSE_OPTIONS = {
           .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
           .join(", ")}`,
       line: "react",
-      when: () => responseReactionButtons().length > 0,
+      when: () => !takesLetters(focused()) && responseReactionButtons().length > 0,
       run: (binding) => responseReactionButtons()[+binding - 1]?.click(),
     },
     {

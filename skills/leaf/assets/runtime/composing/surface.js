@@ -206,6 +206,11 @@ let fabFloating = true;
 // Opening the trailing choices grows or wraps the bar. Hold the compact bar's left
 // edge through that state, including the ResizeObserver layout pass it causes.
 let fabFixedLeft = null;
+let fabFixedRightEdge = null;
+function releaseFabPosition() {
+  fabFixedLeft = null;
+  fabFixedRightEdge = null;
+}
 const union = (rects) => {
   if (!rects.length) return null;
   const left = Math.min(...rects.map((rect) => rect.left));
@@ -257,7 +262,19 @@ function anchorBox(anchor) {
 // Keep the bar beside that whole block, or above/below it when the rail is too narrow.
 function placeFab(target = anchorBox(fabAnchor), fixedLeft = fabFixedLeft) {
   if (!fabAnchor || !target) return false;
-  const room = rightEdge() - (fixedLeft ?? 8);
+  const edge = rightEdge();
+  // The lock spans the expansion's own layout frames, not a changed viewport or
+  // workspace. Once the available band changes, re-place the whole group against its
+  // durable anchor instead of letting the old x-coordinate dismiss the draft.
+  if (
+    fixedLeft != null &&
+    fabFixedRightEdge != null &&
+    Math.abs(edge - fabFixedRightEdge) > 0.5
+  ) {
+    releaseFabPosition();
+    fixedLeft = null;
+  }
+  const room = edge - (fixedLeft ?? 8);
   // A covering workspace may leave no page band, or less than the controls can
   // shrink into. Report failed placement instead of assigning negative CSS sizes
   // and leaving a focused textarea behind that workspace.
@@ -280,7 +297,7 @@ function placeFab(target = anchorBox(fabAnchor), fixedLeft = fabFixedLeft) {
     // CSS owns content sizing. Geometry contributes only the real room the field
     // can use, including the bar's other controls, before deciding where it stands.
     const controls = fabBar.offsetWidth - fabInput.offsetWidth;
-    const besideRoom = rightEdge() - keepClear.right - 6 - controls;
+    const besideRoom = edge - keepClear.right - 6 - controls;
     const minimum = parseFloat(
       getComputedStyle(fabInput).getPropertyValue("--lf-response-min-width"),
     );
@@ -292,7 +309,7 @@ function placeFab(target = anchorBox(fabAnchor), fixedLeft = fabFixedLeft) {
   if (!fabFits()) return false;
   const left =
     fixedLeft ??
-    (keepClear.right + 6 + fabBar.offsetWidth <= rightEdge()
+    (keepClear.right + 6 + fabBar.offsetWidth <= edge
       ? keepClear.right + 6
       : keepClear.right - fabBar.offsetWidth);
   // Read the field's scroll extent at its real width, without temporarily enlarging
@@ -329,9 +346,11 @@ export function showFab(
   if (!anchor && composerOpen) hideComposer();
   fabAnchor = anchor;
   fabFloating = !fabAnchor || place;
-  if (!fabAnchor) fabFixedLeft = null;
-  else if (fixedLeft !== undefined) fabFixedLeft = fixedLeft;
-  else if (!previous || !sameAnchor(previous, fabAnchor)) fabFixedLeft = null;
+  if (!fabAnchor) releaseFabPosition();
+  else if (fixedLeft !== undefined) {
+    fabFixedLeft = fixedLeft;
+    fabFixedRightEdge = fixedLeft == null ? null : rightEdge();
+  } else if (!previous || !sameAnchor(previous, fabAnchor)) releaseFabPosition();
   fabOrigin = fabAnchor && origin?.isConnected ? origin : null;
   fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
   fabBar.style.display = fabAnchor ? "inline-flex" : "none";
@@ -354,7 +373,7 @@ export function showFab(
     if (place && !placeFab(target ?? anchorBox(fabAnchor), fixedLeft)) {
       fabAnchor = null;
       fabOrigin = null;
-      fabFixedLeft = null;
+      releaseFabPosition();
       resetResponseOptions();
       fabBar.removeAttribute("data-lf-target-only");
       if (composerOpen) hideComposer();

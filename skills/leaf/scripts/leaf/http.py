@@ -272,10 +272,10 @@ class Handler(BaseHTTPRequestHandler):
     # Empty on the ordinary one-page server. The MCP delivery server sets this to
     # an unguessable `/p/<capability>` prefix and rewrites only Leaf-owned routes.
     page_root = ""
-    # Website examples use the complete server contract without a Leaf work claim.
-    # Their banner reads this explicit presentation fact instead of mistaking the
-    # deliberately unattended page for an abandoned ordinary Leaf.
-    example = None
+    # Published website pages use the complete server contract without a Leaf work
+    # claim. Their banner reads this explicit presentation fact instead of mistaking
+    # the deliberately unattended page for an abandoned ordinary Leaf.
+    publication = None
     frame_ancestors_policy = FRAME_ANCESTORS_CSP
 
     def _state_service(self) -> PageStateService:
@@ -284,7 +284,7 @@ class Handler(BaseHTTPRequestHandler):
             preview_source=self.preview_source,
             layer_identity=self.layer_identity,
             preview=self.preview,
-            example=self.example,
+            publication=self.publication,
         )
 
     def page_state(self, view_revision: int | None = None) -> dict:
@@ -789,7 +789,7 @@ def handler_for(
     token: str,
     preview_source=None,
     protocol_version="HTTP/1.0",
-    example=None,
+    publication=None,
 ):
     """A request handler bound to one page, publication view, and key. The key has no
     default: every server over a page directory is reachable by whatever reached the
@@ -811,6 +811,6 @@ def handler_for(
             "layer": identity["generation"],
             "layer_identity": identity,
             "preview": preview_metadata(page_dir),
-            "example": example,
+            "publication": publication,
         },
     )

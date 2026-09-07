@@ -122,6 +122,7 @@ async function loadFrameDocument(frame) {
   head.replaceChildren(
     charset,
     viewport,
+    meta("lf-location", "about:srcdoc"),
     meta("lf-revision", String(runtime.currentRevision)),
     meta("lf-version", String(runtime.currentStamp)),
     stylesheet,

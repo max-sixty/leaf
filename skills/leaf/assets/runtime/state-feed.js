@@ -16,7 +16,7 @@
 import { countTraffic } from "./traffic.js";
 import { activityTransitionDue, tickClock } from "./presence.js";
 import { runtime } from "./context.js";
-import { reportPageError, sameLayer } from "./layer-client.js";
+import { layerHeaders, reportPageError, sameLayer } from "./layer-client.js";
 import {
   projectionDeferred,
   reconcileKnownState,
@@ -45,9 +45,11 @@ async function readState() {
     try {
       const revision = runtime.currentRevision;
       res = await fetch("/api/state", {
-        headers: Number.isInteger(revision)
-          ? { "Leaf-View-Revision": String(revision) }
-          : {},
+        headers: layerHeaders({
+          ...(Number.isInteger(revision) && {
+            "Leaf-View-Revision": String(revision),
+          }),
+        }),
       });
     } catch {
       // Network absence is a completed answer: there is no log to replay, so the

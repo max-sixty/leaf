@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CONTAINER_COOKIE,
+  HTTP_CONTAINER_COOKIE,
   HTTP_SESSION_COOKIE,
   SESSION_COOKIE,
+  clearContainerCookie,
+  containerCookie,
+  containerFromCookie,
   isPageApiRequest,
   isPageMediaRequest,
   isPageRequest,
@@ -34,6 +39,7 @@ describe("website page routing", () => {
     );
     expect(isPageMediaRequest("/examples/design-decision/theme.css")).toBe(false);
     expect(isPageRequest("/media/social-card.png")).toBe(true);
+    expect(isPageRequest("/sitenote.js")).toBe(true);
     expect(isPageRequest("/examples.html")).toBe(false);
     expect(isPageRequest("/examples/../registry.json")).toBe(false);
     expect(needsPageSlash("/packages")).toBe(true);
@@ -54,6 +60,23 @@ describe("website page routing", () => {
       true,
     );
     expect(isPrivatePageRequest("/examples/design-decision/api/state")).toBe(false);
+  });
+
+  it("pins a mismatched page until its container catches the edge", () => {
+    expect(containerFromCookie(`${CONTAINER_COOKIE}=1`, true)).toBe(true);
+    expect(containerFromCookie(`${HTTP_CONTAINER_COOKIE}=1`, false)).toBe(true);
+    expect(containerFromCookie(`${HTTP_CONTAINER_COOKIE}=1`, true)).toBe(false);
+    expect(containerFromCookie(`${CONTAINER_COOKIE}=0`, true)).toBe(false);
+    expect(containerFromCookie(null, true)).toBe(false);
+    expect(containerCookie(true)).toBe(
+      `${CONTAINER_COOKIE}=1; Path=/; Secure; HttpOnly; SameSite=Lax`,
+    );
+    expect(containerCookie(false)).toBe(
+      `${HTTP_CONTAINER_COOKIE}=1; Path=/; HttpOnly; SameSite=Lax`,
+    );
+    expect(clearContainerCookie(true)).toBe(
+      `${CONTAINER_COOKIE}=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax`,
+    );
   });
 
   it("reuses only a well-formed opaque session cookie", () => {

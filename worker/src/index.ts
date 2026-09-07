@@ -6,6 +6,8 @@
  * cookie. The container starts with the same complete page directories and writes only
  * to its own ephemeral filesystem, so one reader can exercise the real event log
  * without changing another reader's page or inventing a second state implementation.
+ * During an image rollout, a layer mismatch pins that reader briefly to the container's
+ * complete shell so a static document never reloads against an older API in a loop.
  */
 
 import { Container, getContainer } from "@cloudflare/containers";
@@ -19,6 +21,9 @@ import {
 import { NonRetryableError } from "cloudflare:workflows";
 
 import {
+  clearContainerCookie,
+  containerCookie,
+  containerFromCookie,
   isPageRequest,
   isPageApiRequest,
   isPageMediaRequest,
@@ -334,6 +339,23 @@ function staticAssetResponse(response: Response): Response {
   });
 }
 
+async function staticLayer(
+  request: Request,
+  env: Env,
+  pageRoot: string,
+): Promise<string | null> {
+  const url = new URL(request.url);
+  url.pathname = `${pageRoot === "/" ? "" : pageRoot}/registry.json`;
+  url.search = "";
+  const response = await env.ASSETS.fetch(new Request(url));
+  if (!response.ok) return null;
+  const registry = (await response.json()) as {
+    $layer?: { generation?: unknown };
+  };
+  const generation = registry.$layer?.generation;
+  return typeof generation === "string" && generation ? generation : null;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -351,13 +373,16 @@ export default {
     }
 
     const secure = url.protocol === "https:";
-    const existing = sessionFromCookie(request.headers.get("Cookie"), secure);
+    const cookie = request.headers.get("Cookie");
+    const existing = sessionFromCookie(cookie, secure);
+    const containerOnly = containerFromCookie(cookie, secure);
     const sessionId = existing ?? randomSessionId();
     const route = pageRoute(pathname);
     if (route === null) return new Response("not found", { status: 404 });
     if (
       (request.method === "GET" || request.method === "HEAD") &&
-      !isPageApiRequest(pathname)
+      !isPageApiRequest(pathname) &&
+      !containerOnly
     ) {
       const response = staticAssetResponse(await env.ASSETS.fetch(request));
       if (response.status !== 404 || !isPageMediaRequest(pathname)) {
@@ -384,10 +409,27 @@ export default {
         await startAgentWorkflow(env, params);
       }
     }
-    if (existing !== null) return response;
+    const requestLayer = request.headers.get("Leaf-Layer");
+    const responseLayer = response.headers.get("Leaf-Layer");
+    const needsContainer =
+      requestLayer !== null &&
+      responseLayer !== null &&
+      requestLayer !== responseLayer;
+    const containerCaughtUp =
+      containerOnly &&
+      requestLayer !== null &&
+      requestLayer === responseLayer &&
+      (await staticLayer(request, env, route.root)) === responseLayer;
+    if (existing !== null && !needsContainer && !containerCaughtUp) return response;
 
     const headers = new Headers(response.headers);
-    headers.append("Set-Cookie", sessionCookie(sessionId, secure));
+    if (existing === null) {
+      headers.append("Set-Cookie", sessionCookie(sessionId, secure));
+    }
+    if (needsContainer) headers.append("Set-Cookie", containerCookie(secure));
+    if (containerCaughtUp) {
+      headers.append("Set-Cookie", clearContainerCookie(secure));
+    }
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,

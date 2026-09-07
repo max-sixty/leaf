@@ -84,11 +84,14 @@ jobs:
             local predicate="$3"
             local shell_layer
             local response_layer
+            local fallback_layer
             local shell
+            local fallback_shell
             local response
             local headers
             local attempt=0
             shell=$(mktemp)
+            fallback_shell=$(mktemp)
             response=$(mktemp)
             headers=$(mktemp)
             while (( attempt++ < 20 )); do
@@ -106,11 +109,26 @@ jobs:
                 --output "$response" \
                 --dump-header "$headers" \
                 --cookie "$COOKIE" \
+                --header "Leaf-Layer: $shell_layer" \
                 --max-time 25 \
                 "$state_url"; then
                 response_layer=$(awk 'tolower($1) == "leaf-layer:" {gsub("\\r", "", $2); print $2}' "$headers" | tail -1)
-                if test "$response_layer" = "$shell_layer" && jq --exit-status "$predicate" "$response"; then
-                  return 0
+                if jq --exit-status "$predicate" "$response"; then
+                  if test "$response_layer" = "$shell_layer"; then
+                    return 0
+                  fi
+                  if grep --quiet --ignore-case '^set-cookie: __Host-leaf-container=1;' "$headers" \
+                    && curl --fail-with-body --silent --show-error \
+                      --output "$fallback_shell" \
+                      --cookie "$COOKIE; __Host-leaf-container=1" \
+                      --max-time 25 \
+                      "$page_url"; then
+                    fallback_layer=$(grep --only-matching 'data-lf-layer="[^"]*"' "$fallback_shell" | head -1 | cut -d'"' -f2)
+                    if test "$fallback_layer" = "$response_layer" \
+                      && ! grep --quiet --fixed-strings 'data-lf-server="published"' "$fallback_shell"; then
+                      return 0
+                    fi
+                  fi
                 fi
               fi
               sleep 5

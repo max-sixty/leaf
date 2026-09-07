@@ -18,16 +18,24 @@ import { renderPanel } from "./reconcile.js";
    reopens. Resolving the last thread in an inline card closes it and returns focus to
    page navigation; a conversation seated in the page keeps a Reopen control. */
 const news = "lf-thread-settlement";
+// By either name the gesture's thread answers to: the send door rewrites a parent this
+// page named itself into the log's name (`nameParent`) a beat before the card wearing
+// the earlier one is renamed, and in that beat this control still asks by the earlier.
 const pendingSettlement = (id) =>
   outbox.find(
-    ({ event }) =>
-      event.parent === id && (event.kind === "resolve" || event.kind === "unresolve"),
+    (entry) =>
+      (entry.event.parent === id || entry.namedParent === id) &&
+      (entry.event.kind === "resolve" || entry.event.kind === "unresolve"),
   );
 const busy = (id) => Boolean(pendingSettlement(id));
 const tell = (id) => document.dispatchEvent(new CustomEvent(news, { detail: { id } }));
 
-export function settlementControl(t, { prepareLanding } = {}) {
-  const id = t.root.id;
+// `liveId` rather than the id this thread had when the control was built: a card the
+// reader's own send drew is named by its attempt until the log answers, and the node is
+// renamed in place rather than replaced, so a control that captured the earlier name
+// would go on resolving a thread that no longer exists under it.
+export function settlementControl(t, { prepareLanding, liveId } = {}) {
+  const id = liveId ?? (() => t.root.id);
   const reopen = Boolean(t.resolved);
   const kind = reopen ? "unresolve" : "resolve";
   const word = reopen ? "Reopen" : "Resolve";
@@ -42,7 +50,7 @@ export function settlementControl(t, { prepareLanding } = {}) {
   const sync = () => {
     // A fold owns its accepted outcome until it removes the old control.
     if (button.closest(".lf-going")) return;
-    const pending = pendingSettlement(id);
+    const pending = pendingSettlement(id());
     button.setAttribute("aria-disabled", String(Boolean(pending)));
     button.setAttribute("aria-busy", String(Boolean(pending)));
     const currentLabel = pending?.event.kind === kind ? pendingWord : label;
@@ -54,20 +62,20 @@ export function settlementControl(t, { prepareLanding } = {}) {
   };
   const update = (ev) => {
     if (!button.isConnected) return document.removeEventListener(news, update);
-    if (ev.detail.id !== id) return;
+    if (ev.detail.id !== id()) return;
     sync();
   };
   document.addEventListener(news, update);
   button.onclick = async () => {
-    if (busy(id)) return;
+    if (busy(id())) return;
     const land = prepareLanding?.();
-    const sent = post({ kind, parent: id });
-    tell(id);
+    const sent = post({ kind, parent: id() });
+    tell(id());
     paintKeys();
     try {
       if (await sent) land?.();
     } finally {
-      tell(id);
+      tell(id());
       paintKeys();
     }
   };
@@ -77,7 +85,7 @@ export function settlementControl(t, { prepareLanding } = {}) {
       keys: PRESS,
       does: `${word} it`,
       line: word.toLowerCase(),
-      when: () => !busy(id),
+      when: () => !busy(id()),
       run: () => button.click(),
     },
   ]);

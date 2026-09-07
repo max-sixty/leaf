@@ -243,14 +243,14 @@
      someone reacted to reads as touched and a passage someone commented on reads as
      annotated, and the two never look alike side by side. */
   --react: #dfd1ed40;
-  /* The "you are here" ring: where the reader is standing, wherever they are
-     standing. The decision they are in wears it ([data-lf-ask], leaf.js), as do the
-     runtime's own controls, which is where a reader backing out of the panel lands.
-     One band for one fact — stated apart,
-     the same ring was free to become three, and a reader would have had to learn
-     that a blue rectangle on the banner and a blue rectangle down the page meant
-     the same thing. The gap is what the ring wants outside a box that stands on
-     its own; a control packed into a list states its own inset instead.
+  /* The compact "you are here" ring: a control or bounded decision receiving the
+     reader's next press wears one consistent band. A large composite surface would
+     turn that band into a second box around the box; it instead uses a quiet edge and
+     ground with the two surface tokens below. A card repaints its existing border;
+     an unbordered region draws the edge inside itself. Both treatments carry the same
+     accent, while their geometry distinguishes a target from a current region. The
+     gap is what the ring wants outside a box that stands on its own; a control packed
+     into a list states its own inset instead.
 
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be
@@ -261,6 +261,8 @@
   --here-ring-w: 2px;
   --here-ring: var(--here-ring-w) solid var(--accent); --here-ring-gap: 3px;
   --here-ring-room: calc(var(--here-ring-w) + var(--here-ring-gap));
+  --here-surface-border: color-mix(in srgb, var(--accent) 55%, var(--rule));
+  --here-surface: color-mix(in srgb, var(--accent) 4%, var(--card));
   /* The same band cast as a shadow, for the boxes that cannot spend an outline on it:
      the anchored response bar, whose focused states already write `outline: none` so
      the field and its choices keep one silhouette, and an item hint, a chip in a layer
@@ -339,7 +341,7 @@
    looking at rather than every rule whose selector reached the element.
 
    Registered rather than reset, because the reset --lf-frame needs is a rule of its own
-   and this wants none: a name left to inherit would put a thread's ring on every word
+   and this wants none: a name left to inherit would put an ancestor's ring on every word
    inside it. Typed as one identifier, so a value that is no name — a shadow channel's,
    under a property somebody else spelled the same way, which is how this one came to be
    spelled out in full — falls back to `none` rather than reading as one.
@@ -545,6 +547,14 @@ main {
   position: relative;
   --lf-frame: 1;
   --lf-column: 1;
+  /* The page's readings — which strips are claimed, and what room and posture that
+   * leaves — are composed here, so this is the container a widget in the margin asks
+   * for them by name. An unnamed style query answers from the element's parent, and a
+   * parent an author may hide is a parent that leaves and comes back: measured in
+   * Chromium 151, such a box can go on answering with the reading it left with, so a
+   * map that asked its own wrapper for the page's posture never heard the posture
+   * return. Naming the page puts the question to a box that is always there. */
+  container-name: lf-page;
 }
 /* Evidence that is wider than the argument about it. The column above is the measure
  * prose is read at, and a board's columns or a diagram's graph are as wide as what they
@@ -1031,15 +1041,25 @@ dd { margin: 0 0 8px 0; }
    class equally usable around a nav, facts list, or short prose aside. Only the first
    direct sidebar child of main takes the margin. The catalog asks for one page-level
    wrapper, but leaving an accidental second one in flow is safer than laying two sticky
-   boxes over each other. */
+   boxes over each other.
+
+   What the sidebar's contents read is two declarations, and they are two because they
+   answer two different questions. Which box the margin belongs to never changes, so the
+   slot is stated on the sidebar itself, unconditionally. Whether the page is granting
+   that margin changes with every panel and tray, so the posture is stated on main with
+   the other shell readings: an author may hide a narrow sidebar, and a box that leaves
+   the tree cannot be trusted to answer a question whose answer changed while it was
+   gone. A resident asks the page for the posture and its own wrapper for the slot. */
 aside.sidebar { display: flow-root; margin: var(--sp-4) 0 30px; }
 aside.sidebar > :first-child { margin-top: 0; }
 aside.sidebar > :last-child { margin-bottom: 0; }
+main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; }
 @media screen {
   @container lf-shell (min-width: 1152px) {
   html:not(.lf-copy)
     main:has(> aside.sidebar):not(:has(aside.sidenote)) {
     --strip-l: var(--sidebar);
+    --lf-sidebar-posture: margin;
     /* Keep the reading column on the page's axis while both margin residents fit in
        its existing gutters. If they need more room, spend the outer page edges and
        shift only far enough to keep each resident on screen before narrowing prose. */
@@ -1057,7 +1077,6 @@ aside.sidebar > :last-child { margin-bottom: 0; }
   html:not(.lf-copy) main:not(:has(aside.sidenote))
     > aside.sidebar:nth-child(1 of aside.sidebar) {
     float: left; clear: left; position: sticky;
-    --lf-sidebar-posture: margin;
     top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
     width: calc(var(--sidebar) - var(--sp-4));
     max-height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
@@ -1069,12 +1088,12 @@ aside.sidebar > :last-child { margin-bottom: 0; }
   html:not(.lf-copy)
     main:has(> aside.sidebar):has(aside.sidenote) {
     --strip-l: var(--sidebar);
+    --lf-sidebar-posture: margin;
     & [data-lf-wide] { --lf-grow-l: 0px; }
   }
   html:not(.lf-copy) main:has(aside.sidenote)
     > aside.sidebar:nth-child(1 of aside.sidebar) {
     float: left; clear: left; position: sticky;
-    --lf-sidebar-posture: margin;
     top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
     width: calc(var(--sidebar) - var(--sp-4));
     max-height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
@@ -1290,8 +1309,19 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
           color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
 .lf-conversation { display: none; margin-top: var(--sp-2); overflow-wrap: anywhere; }
-.lf-conversation-thread { min-width: 0; font-family: var(--sans); font-size: var(--t-5);
-          line-height: var(--lf-ui-lh); color: var(--ink); overflow-wrap: anywhere; }
+.lf-conversation-thread { box-sizing: border-box; min-width: 0; padding: var(--sp-1);
+          font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh);
+          color: var(--ink); overflow-wrap: anywhere; }
+.lf-conversation-thread:is(:focus-within, .lf-focus-within) {
+          outline: none; border-radius: var(--r); background: var(--here-surface);
+          box-shadow: inset 0 0 0 1px var(--here-surface-border); }
+.lf-conversation-thread:has(> .lf-say textarea:is(:focus, .lf-focus)) {
+          background: transparent;
+          box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, var(--rule)); }
+@media (forced-colors: active) {
+  .lf-conversation-thread:is(:focus-within, .lf-focus-within) {
+          outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
+}
 .lf-say { display: none; align-items: flex-end;
           gap: var(--sp-2); margin-top: var(--sp-2); }
 .lf-conversation-thread > .lf-say:not([hidden]) { display: flex; }
@@ -1300,8 +1330,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-resolved { display: flex;
           align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .lf-conversation > .lf-say { margin-top: 0; }
-.lf-conversation-thread + .lf-conversation-thread {
-          border-top: 1px solid var(--rule); margin-top: var(--sp-3); padding-top: var(--sp-3); }
+.lf-conversation-thread + .lf-conversation-thread { margin-top: var(--sp-3); }
 .lf-conversation-msg { margin: var(--sp-2) 0; }
 .lf-conversation-msg.claude { position: relative; }
 .lf-conversation-head { display: flex; align-items: baseline; gap: var(--sp-2);
@@ -1430,6 +1459,31 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
  * sweep enters every declared tree, and a diff's lines scroll in one. No offsets:
  * relative moves nothing. */
 [data-lf-holds] { position: relative; }
+/* The layer's mark for a box that shows less than it holds across (reachScrollers, for
+ * why the sweep and not a rule beside each overflow decides who wears it). Scrolling is
+ * the honest answer when the room ran short, and on a platform drawing overlay
+ * scrollbars it is an answer the reader is never given: a flowchart cut 356px of 1026
+ * inside a tab panel read as a finished graph at every width from 1200 to 1920. A cut
+ * line of code announces itself by being a line; a drawing announces nothing, so the box
+ * says it.
+ *
+ * A soft inset shade on the side the rest is on, which is the shape a page falling off
+ * an edge has. On that side alone, and off the measurement rather than off scroll
+ * position: an edge that tracked the travel would be a write on every frame of a drag,
+ * and the reader arrives at the start of it, which is where a trailing edge is exactly
+ * right and where the whole cut lies. A reader already at the end knows the box scrolls,
+ * having scrolled it. Mirrored for a page read the other way, since the side is the
+ * inline end and box-shadow can only be told in physical terms.
+ *
+ * Paint and no metric: a shadow lays nothing out, so writing the attribute inside the
+ * sweep's own resize observation cannot feed itself. Screen only, because a mark whose
+ * whole meaning is "scroll to see the rest" says nothing on a sheet nobody can scroll.
+ * A copy keeps the mark it was exported with, the way it keeps the hold beside it and
+ * the stop the same sweep granted. */
+@media screen {
+  [data-lf-cut] { box-shadow: inset -22px 0 18px -22px var(--shade); }
+  [data-lf-cut]:dir(rtl) { box-shadow: inset 22px 0 18px -22px var(--shade); }
+}
 /* lf-shadow:end */
 @media screen {
   html:not(.lf-copy) {

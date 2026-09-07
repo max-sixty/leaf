@@ -23,10 +23,11 @@ import {
 } from "../conversation/panel.js";
 import { inPanel, panelIsOpen, setPanel } from "../chrome-layout.js";
 import {
+  composerHolds,
   composerOpen,
   fabInput,
+  fabOptions,
   focusedResponseOption,
-  pendingDrawing,
   responseOptionsAreOpen,
   responseReactionButtons,
   setResponseOptions,
@@ -723,11 +724,10 @@ const COMPOSER = {
       id: "composer.close",
       keys: ["Escape"],
       does: () =>
-        draftOf(fabInput).trim() || pendingDrawing
+        composerHolds()
           ? "Close the composer, keeping the draft"
           : "Close the composer",
-      line: () =>
-        draftOf(fabInput).trim() || pendingDrawing ? "close — draft kept" : "close",
+      line: () => (composerHolds() ? "close — draft kept" : "close"),
       promoteEscape: false,
       when: () => !responseOptionsAreOpen(),
       run: () => dismissFab(),
@@ -735,63 +735,81 @@ const COMPOSER = {
   ],
 };
 
+const RESPONSE_REACTION = {
+  id: "response.reaction.choose",
+  keys: () =>
+    responseReactionButtons()
+      .slice(0, 9)
+      .map((_, index) => String(index + 1)),
+  label: () => {
+    const count = Math.min(responseReactionButtons().length, 9);
+    return count > 1 ? `1–${count}` : "1";
+  },
+  does: () =>
+    `Put a reaction on the response target: ${reactionTokens()
+      .slice(0, 9)
+      .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
+      .join(", ")}`,
+  line: "react",
+  when: () => !takesLetters(focused()) && responseReactionButtons().length > 0,
+  run: (binding) => responseReactionButtons()[+binding - 1]?.click(),
+};
+const RESPONSE_TAB = {
+  id: "response.tab",
+  keys: ["Tab", "Shift+Tab"],
+  does: "Move between the comment and other responses",
+  line: "move",
+  repeat: true,
+  run: stepResponseOptions,
+};
+const RESPONSE_MOVE = {
+  id: "response.move",
+  keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
+  does: "Move through other responses",
+  line: "move",
+  repeat: true,
+  when: () => focusedResponseOption(),
+  run: stepResponseOptions,
+};
+const RESPONSE_ACTIVATE = {
+  id: "response.activate",
+  keys: PRESS,
+  does: "Use the focused response",
+  line: "choose",
+  when: () => focusedResponseOption(),
+  run: () => focused()?.click(),
+};
+const RESPONSE_CLOSE = {
+  id: "response.close",
+  keys: ["Escape"],
+  does: "Close other responses",
+  line: "close",
+  run: () => setResponseOptions(false, { returnFocus: true }),
+};
+const RESPONSE_OPTIONS_TITLE = "With other responses open";
 const RESPONSE_OPTIONS = {
-  title: "With other responses open",
-  at: () => responseOptionsAreOpen(),
+  title: RESPONSE_OPTIONS_TITLE,
+  at: () => responseOptionsAreOpen() && focused() === fabInput,
+  // These two keys move into and out of the disclosure itself, including while the
+  // field's return frame stands nearer than ordinary containing surfaces.
   rows: [
-    {
-      id: "response.reaction.choose",
-      keys: () =>
-        responseReactionButtons()
-          .slice(0, 9)
-          .map((_, index) => String(index + 1)),
-      label: () => {
-        const count = Math.min(responseReactionButtons().length, 9);
-        return count > 1 ? `1–${count}` : "1";
-      },
-      does: () =>
-        `Put a reaction on the response target: ${reactionTokens()
-          .slice(0, 9)
-          .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
-          .join(", ")}`,
-      line: "react",
-      when: () => !takesLetters(focused()) && responseReactionButtons().length > 0,
-      run: (binding) => responseReactionButtons()[+binding - 1]?.click(),
-    },
-    {
-      id: "response.tab",
-      keys: ["Tab", "Shift+Tab"],
-      does: "Move between the comment and other responses",
-      line: "move",
-      repeat: true,
-      run: stepResponseOptions,
-    },
-    {
-      id: "response.move",
-      keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-      does: "Move through other responses",
-      line: "move",
-      repeat: true,
-      when: () => focusedResponseOption(),
-      run: stepResponseOptions,
-    },
-    {
-      id: "response.activate",
-      keys: PRESS,
-      does: "Use the focused response",
-      line: "choose",
-      when: () => focusedResponseOption(),
-      run: () => focused()?.click(),
-    },
-    {
-      id: "response.close",
-      keys: ["Escape"],
-      does: "Close other responses",
-      line: "close",
-      run: () => setResponseOptions(false, { returnFocus: true }),
-    },
+    RESPONSE_REACTION,
+    RESPONSE_TAB,
+    RESPONSE_MOVE,
+    RESPONSE_ACTIVATE,
+    RESPONSE_CLOSE,
   ],
 };
+export function declareResponseOptionKeys() {
+  // Choice commands apply only while focus is inside the choices. They no longer stand
+  // ahead of the field's exact send command or native text-entry claims.
+  keys(
+    fabOptions,
+    RESPONSE_OPTIONS_TITLE,
+    [RESPONSE_REACTION, RESPONSE_TAB, RESPONSE_MOVE, RESPONSE_ACTIVATE, RESPONSE_CLOSE],
+    { when: responseOptionsAreOpen },
+  );
+}
 
 // The box a reply or a comment is typed into, which is the panel's; a page's own control
 // is somewhere the reader is standing, not something they are writing in. Declared above
@@ -1432,12 +1450,19 @@ function coreScopes() {
 // row says which control it duplicates; its projection follows liveness too, so a disabled
 // Ask does not advertise a shortcut the dispatcher has withdrawn. The latest-version
 // chip's route spans two rows, so it is composed from both.
+//
+// The pass runs in the standing chrome's frame, which the `lf-actions` heartbeat asks for
+// every two seconds on a page nobody has touched, so every name it writes goes through
+// `keeps` and says nothing where the control already says it. A restated title or chord
+// is news to whatever is reading the page — the mutation stream a screen reader rebuilds
+// its buffer from — and these controls stand on the banner the living margin watches.
 export function paintCoreControls() {
   const returningToMore = Boolean(keylineExpanded());
   const closeSays = returningToMore ? "Back to more shortcuts" : "Close";
   const closeTitle = returningToMore ? "Back to more shortcuts" : "Close the shortcuts";
   if (helpClose.textContent !== closeSays) helpClose.textContent = closeSays;
-  keeps(helpClose, "data-lf-key-title", closeTitle);
+  if (helpClose.dataset.lfKeyTitle !== closeTitle)
+    helpClose.dataset.lfKeyTitle = closeTitle;
   keeps(helpClose, "aria-label", closeTitle);
   const controlShortcut = (scope, row) =>
     [...(word(scope.chordPrefix ?? scope.chord) ?? []), labelOf(row)]
@@ -1460,15 +1485,13 @@ export function paintCoreControls() {
           control.dataset.lfKeyTitle + (active ? ` (${shortcut})` : ""),
         );
         if (active && scope.chord) keeps(control, "data-lf-chord", shortcut);
-        else if (control.hasAttribute("data-lf-chord"))
-          control.removeAttribute("data-lf-chord");
+        else delete control.dataset.lfChord;
         // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
         // alternatives. The complete chord remains in the visible hint and accessible
         // keyboard reference instead of claiming its final press works alone.
         if (active && !scope.chord)
           keeps(control, "aria-keyshortcuts", ariaShortcuts([row], false));
-        else if (control.hasAttribute("aria-keyshortcuts"))
-          control.removeAttribute("aria-keyshortcuts");
+        else control.removeAttribute("aria-keyshortcuts");
       }
     }
   const latestBound = bindings(CHOOSER).length && bindings(NEWEST).length;

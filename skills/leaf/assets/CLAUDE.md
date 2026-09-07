@@ -180,8 +180,9 @@ room left after the panel and trays, the final-layout column motion between work
 states, and page repaint caused by shell motion or reflow;
 `runtime/presentation.js` owns runtime paint, optional page-interface settlement, and
 the words it projects;
-`runtime/reach.js` owns keyboard access to overflow and the containing block a
-scroller owes what it scrolls;
+`runtime/reach.js` owns keyboard access to overflow, the containing block a
+scroller owes what it scrolls, and the mark a box wears while it shows less
+than it holds across;
 `runtime/shadow.js` owns declared shadow roots, their theme slice, shared
 highlight rules, the parent walk that crosses a root, and the chrome question
 (`uiInside`, `inUi`: which layer a node stands in); `runtime/shadow-stage.js`
@@ -198,9 +199,10 @@ conversion from viewport boxes to document-positioned chrome;
 `runtime/navigation.js` owns reader travel and scroller selection;
 `runtime/anchors.js` owns anchor resolution, paint, anchor-specific travel, and
 cross-widget projected-datum travel;
-`runtime/conversation/model.js` adapts server-projected threads to browser callers;
+`runtime/conversation/model.js` adapts server-projected threads to browser callers,
+and folds the reader's unread messages into them from the outbox;
 `runtime/conversation/messages.js` owns message rendering;
-`runtime/conversation/replies.js` owns reply drafts, mirrored send state, and delivery;
+`runtime/conversation/replies.js` owns reply drafts and delivery;
 `runtime/conversation/inline.js` owns conversation seats rendered into the page;
 `runtime/conversation/box.js` owns page-seated first-message boxes;
 `runtime/conversation/folding.js` owns shared Resolve/Reopen controls and resolution-fold
@@ -246,12 +248,14 @@ Each mutable fact has one writer:
 | the reading the page has applied | the server's `/api/state` answer | `receiveState` writes `runtime.reading` and paints `data-lf-reading` |
 | unresolved browser work | the ordered `outbox` | `post` adds, `accountOutbox` and `releaseProjectedOutbox` remove |
 | rendered semantic state | authored state, log projection, then outbox overlay | `reconcileState` |
+| rendered conversation | the server's thread projection, then the outbox's unread messages | `buildThreads` |
 | proof of what the DOM currently represents | `committedProjection` | `stageOutboxAction` and `reconcileState` |
 | anchor paint | thread and composer anchor records | `paintAnchors` |
 | where each thread's passage lands | this version's resolution of its anchor | `paintAnchors` writes a rich `placed` record with its element, exact datum, and exact/fallback/outdated status |
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the living margin reconciles |
 | canonical agent activity | the server fold of status, claim and turn identity, watcher lease, pickup events, and unsettled interactions | the banner, receipts, margin, and leaves tray paint `activity`; the browser only asks for a fresh server reading at `next_transition_at` |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
+| the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
 | panel visibility | `panelOpen` | `setPanel` |
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
@@ -483,6 +487,13 @@ Do not broaden the Python reader by guessing a module's DOM. Declare modelable
 words with `x-says`, `x-paints`, or the appropriate content key. Keep the widget
 fenced when its transformation cannot be represented faithfully.
 
+The layer is the document's other boundary, and a pointer drag that crosses it is
+not a passage: past the page's last words the browser extends through everything
+between, so the release puts back what the drag had inside the document and offers
+nothing where it had nothing (`leftThePage`, read on the pointer path alone). Select
+all lands its far end past the page by definition and still means the document, which
+is why the rule is the gesture's rather than every selection's.
+
 `coveredWords` is the render gate for text that is present in a browser reading
 but unavailable to the reader because of clipping, hiding, generated chrome, or
 another boundary. Keep the runtime's generated markers and the gate's exclusions
@@ -506,20 +517,29 @@ Control state is paint: ink, fill, border, or an inset ring. Do not express it b
 changing font weight, size, padding, border width, or another metric. Reserve
 space before a generated control appears. Transient feedback may repaint a control or
 briefly replace its label, but neither may change its geometry; `reserve` measures all
-enumerable labels in the control's current font and sets a minimum width. Re-measure
+enumerable labels in the control's current font and sets a minimum width. Text that
+wraps reserves on the same terms: the narrowest box in which every line it can write
+fits its stated clamp, measured in the face it is set in (`reserveStatusRoom`), because
+a count of characters tracks the advance of a zero rather than of a line. Re-measure
 after changing type tokens; avoid numeric reservations where the possible words are
 available. Pair local visual feedback with `notice` for an assistive announcement.
 
-Submission feedback uses the shared lifecycle: busy paint while delivery is
-unresolved, the resulting content or control state as durable confirmation, and
-`notice` for a transient acknowledgment. Persistent status text is for a state the
-reader must return to or act on, such as failure.
+Submission feedback uses the shared lifecycle: the result of the gesture as durable
+confirmation, and `notice` for a transient acknowledgment. Persistent status text is for
+a state the reader must return to or act on, such as failure.
 
-A suggestion decision is the exception: it paints its projected result in the gesture
-that queues it, and the outbox keeps that result ahead of the log and restores
-authoritative state on refusal. The resulting content and Undo control are that durable
-visual confirmation, so this path needs no success notice; announce the same decision
-for a reader listening to the page.
+Where the page can produce that result itself, it produces it in the gesture. A
+suggestion decision paints its projected outcome; a comment or reply paints the message
+and opens its thread. The outbox keeps the result ahead of the log and restores
+authoritative state on refusal. The content and its Undo control are the confirmation,
+so neither path needs a success notice; announce the same outcome for a reader listening
+to the page. For a message that announcement is `post`'s, made where the gesture is first
+known to be a message, so a box that sends one adds no second announcement. A box whose
+press did something beyond sending writes one notice for both and names the send in it,
+because a later write replaces the live region rather than joining it. A gesture whose
+result only the log can supply waits instead, with
+`aria-busy` on the surface, which `chrome.css` paints on a delay so a fast answer shows
+nothing at all.
 
 ## Keyboard, focus, and navigation
 
@@ -718,6 +738,7 @@ been removed. `render-checks/init.js` installs the pre-navigation window-error c
 | `misplacedBoxes` | boxes stay in the column or in genuinely reachable overflow |
 | `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
 | `withheldRoom` | a drawing scrolls only when the room, net of margin residents at its band, ran short |
+| `silentCuts` | a box showing less than it holds across wears the layer's mark for it |
 | `clippedControls` | actionable controls are visible and reachable |
 | `unreachableWords` | visible page words remain in reachable flow |
 | `coveredWords` | browser words are not silently clipped, hidden, or claimed by chrome |
@@ -727,6 +748,7 @@ been removed. `render-checks/init.js` installs the pre-navigation window-error c
 | `retiredSlots` | declared settlement marks and retired-slot visibility agree with the projection |
 | `trappedMargins` | framed boxes show only their declared inset |
 | `paperWords` | print keeps every page statement and removes only affordance |
+| `paperVoids` | print gives room to nothing it does not also draw |
 | `replayOverrides` | the log, not conflicting authored markup, determines projected state |
 | `relativeReplays` | rendering each complete widget state twice changes nothing |
 

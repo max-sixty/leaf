@@ -12,10 +12,12 @@
  * of the section it leads as its flex share, so the quiet spine describes the document
  * before its labels appear. Labels pack beside those fixed positions without changing
  * them. The darker lens is the part of the document in the viewport.
- * ResizeObserver hears late diagrams, images, disclosures, and width changes; a widget
- * whose view rearranges descendants without changing its own size emits the shared layout
- * signal. The map writes only to itself, never the main box it observes. The ordinary
- * in-flow list remains the script-free, narrow, and paper form.
+ * ResizeObserver hears late diagrams, images, disclosures, and width changes in the
+ * document, and the height of the track the rows are laid into, which the page's chrome
+ * can shorten without the document moving at all; a widget whose view rearranges
+ * descendants without changing its own size emits the shared layout signal. The map
+ * writes only to itself, never the main box it observes, and never the track either. The
+ * ordinary in-flow list remains the script-free, narrow, and paper form.
  *
  * Every link is a real fragment link in both live pages and standalone copies. The
  * browser owns its navigation, history, :target state, wheel input, and scroll

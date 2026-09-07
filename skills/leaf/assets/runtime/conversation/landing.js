@@ -25,6 +25,7 @@
    explicitly enters its box supplies the caller-owned return target through
    `landInConversation`. */
 import { shownBand, shownBox } from "../geometry.js";
+import { PENDING } from "../context.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";
 import { closestAcross } from "../passages.js";
@@ -175,11 +176,12 @@ export const retainPanelLanding = (source) => {
 };
 // Landing belongs to the list, not to whatever moved the focus. The list already says
 // which of its own edges cannot be stood on — `scroll-padding`, room for a stuck
-// heading and for a ring — and every route that could reach a thread was scrolling it
-// into that band for itself, so a route that did not scroll got nothing. A press does
-// not: the browser focuses the card under the pointer and scrolls nothing, so a list
-// nudged a dozen pixels leaves the first card of a run two pixels under its heading,
-// which is the whole of an inset ring's top run and reads as a card with three sides.
+// heading and for the focused card's edge — and every route that could reach a thread
+// was scrolling it into that band for itself, so a route that did not scroll got
+// nothing. A press does not: the browser focuses the card under the pointer and scrolls
+// nothing, so a list nudged a dozen pixels leaves the first card of a run two pixels
+// under its heading, which hides its top border and leaves the current card's quiet
+// edge-and-surface cue incomplete.
 // The routes that resolve a thread rather than press one — a page mark's comment note,
 // the thread a resolve or a reopen hands the reader on to — landed only by chance of
 // having remembered the line.
@@ -193,10 +195,11 @@ export const retainPanelLanding = (source) => {
 // the same correction this makes and the reason a reply box reached by key was never
 // the case that was wrong.
 //
-// The thread holding the focus, not the card alone: the ring is the thread's, drawn
-// for `:focus-within`, so it is cut in the same place whether the reader is standing
-// on the card or writing in its box. `block: "nearest"` moves the least that clears
-// the band, so a control at the card's foot comes with it rather than going under.
+// The thread holding the focus, not the card alone: the current-card paint belongs to
+// the thread and follows `:focus-within`, so the same edge must clear the band whether
+// the reader is standing on the card or writing in its box. `block: "nearest"` moves
+// the least that clears the band, so a control at the card's foot comes with it rather
+// than going under.
 //
 // A press is the reader's hand, and it may be the start of a drag across the comment's
 // own words. Focus lands on the way down, so scrolling there takes the words out from
@@ -254,11 +257,40 @@ const listNode = (id) => {
   return node?.closest(".lf-thread[hidden]") ? null : node;
 };
 
+// A send reveals the card it drew, and the log's answer then gives that card its
+// receipt line. The card is taller afterwards, so the scroll that aimed at it stops a
+// receipt's height short and the reader's own words come to rest just below the list —
+// which is the thing this reveal exists to prevent. So it is finished when the card
+// settles.
+//
+// Unless the reader has taken the list over since: a scroll, a press, a word typed. Any
+// of those is an answer of theirs, and finishing the reveal would overrule it. Where the
+// card has got to is not asked, because the first scroll is usually still carrying the
+// reader toward it when the answer lands.
+export const THREAD_ADOPTED = "lf-thread-adopted";
+let revealing = null;
+// On the frame after the render rather than inside it: the receipt is what makes the
+// card grow, and the reconcile that adopts the card runs before the pass that paints
+// one. Measured mid-render, this would re-aim at the very height it is here to correct.
+document.addEventListener(THREAD_ADOPTED, (event) => {
+  if (!revealing || event.detail.attempt !== revealing.attempt) return;
+  const { intent } = revealing;
+  const node = event.detail.node;
+  revealing = null;
+  requestAnimationFrame(() => {
+    if (intent !== landingIntent || !threadsBox.contains(node)) return;
+    node.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+  });
+});
+
 // Direct navigation reveals what was requested, including a message's interactive
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
 // focus at its own words so Tab reaches its controls. Sending a reply stays with its
 // editor through revealConversation instead.
 export function showThread(id, { focus = "reply" } = {}) {
+  revealing = id.startsWith(PENDING)
+    ? { attempt: id.slice(PENDING.length), intent: landingIntent }
+    : null;
   setPanel(true);
   if (!listNode(id)) widen();
   let node = listNode(id);

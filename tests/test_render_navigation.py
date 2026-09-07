@@ -30,6 +30,7 @@ from render_support import (
     ROOT,
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
+    SEATED_QUESTION_PAGE,
     TARGETS_PAGE,
     TOKEN,
     WHERE_I_STAND_PAGE,
@@ -1262,6 +1263,153 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(first).to_be_focused()
     page.keyboard.press("Enter")
     expect(first.locator("textarea")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser, serve):
+    """A thread is a current region; its reply is the control taking the next press."""
+    page, errors = open_page(
+        browser,
+        serve(INLINE_PAGE, anchored=[("p", "bold text")]),
+    )
+    thread = page.locator(".lf-margin-preview .lf-conversation-thread")
+    note = page.locator("#p .lf-mark-note")
+
+    note.click()
+    expect(thread).to_be_focused()
+    assert not thread.evaluate("el => el.matches(':focus-visible')")
+    pointer = thread.evaluate(
+        """el => { const s = getComputedStyle(el); return {
+          outline: s.outlineStyle, background: s.backgroundColor,
+          shadow: s.boxShadow,
+        }; }"""
+    )
+    assert pointer["outline"] == "none"
+    assert pointer["shadow"] != "none"
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    current = thread.evaluate(
+        """el => { const s = getComputedStyle(el); return {
+          outline: s.outlineStyle, background: s.backgroundColor,
+          shadow: s.boxShadow,
+        }; }"""
+    )
+    assert current["outline"] == "none"
+    assert current["shadow"] != "none"
+    assert current == pointer
+
+    page.keyboard.press("Enter")
+    reply = thread.locator("textarea")
+    expect(reply).to_be_focused()
+    writing = thread.evaluate(
+        """el => { const s = getComputedStyle(el); return {
+          outline: s.outlineStyle, background: s.backgroundColor,
+          shadow: s.boxShadow,
+        }; }"""
+    )
+    reply_ring = reply.evaluate(
+        """el => { const s = getComputedStyle(el); return {
+          style: s.outlineStyle, width: s.outlineWidth,
+        }; }"""
+    )
+    assert writing["outline"] == "none"
+    assert writing["background"] != current["background"]
+    assert writing["shadow"] != "none"
+    assert writing["shadow"] != current["shadow"]
+    assert reply_ring == {"style": "solid", "width": "2px"}
+    assert errors == []
+    page.close()
+
+
+def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
+    """The system focus outline replaces the surface paint high contrast removes."""
+    url = serve(SEATED_QUESTION_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Which job should come first?", {"section": "jobs"}
+    )
+    context = browser.new_context(forced_colors="active")
+    try:
+        page, errors = open_page(
+            browser,
+            url,
+            context=context,
+        )
+        thread = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
+
+        reply = thread.locator("textarea")
+        reply.click()
+        expect(reply).to_be_focused()
+        assert thread.evaluate("el => el.matches(':focus-within')")
+        focus = thread.evaluate(
+            """el => { const s = getComputedStyle(el); return {
+              style: s.outlineStyle, width: s.outlineWidth,
+              offset: s.outlineOffset, shadow: s.boxShadow,
+            }; }"""
+        )
+        assert focus == {
+            "style": "solid",
+            "width": "2px",
+            "offset": "-2px",
+            "shadow": "none",
+        }
+        assert errors == []
+    finally:
+        context.close()
+
+
+def test_inline_thread_edge_has_room_without_focus_reflow(browser, serve):
+    """The region owns the breathing room its inset current edge requires."""
+    url = serve(SEATED_QUESTION_PAGE)
+    panel_comment(serve.page_dir, "First job note", {"section": "jobs"})
+    root = panel_comment(
+        serve.page_dir, "Which job should come first?", {"section": "jobs"}
+    )
+    page, errors = open_page(browser, url)
+    thread = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
+    expect(page.locator("#jobs .lf-conversation-thread")).to_have_count(2)
+
+    resting = thread.evaluate(
+        "el => ({width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height})"
+    )
+    reply = thread.locator("textarea")
+    reply.click()
+    expect(reply).to_be_focused()
+    focused = thread.evaluate(
+        "el => ({width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height})"
+    )
+    assert focused == resting, "the current edge changed the inline thread's geometry"
+
+    frame = thread.evaluate(
+        """el => { const s = getComputedStyle(el); return {
+          padding: [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft],
+          borderTop: s.borderTopWidth,
+        }; }"""
+    )
+    assert len(set(frame["padding"])) == 1, (
+        f"a later inline thread inherited an asymmetric current edge: {frame}"
+    )
+    assert frame["borderTop"] == "0px", (
+        f"a sibling separator remained inside the current region: {frame}"
+    )
+
+    clearances = thread.evaluate(
+        """el => {
+          const root = el.getBoundingClientRect();
+          return [...el.children]
+            .filter(child => child.getClientRects().length && getComputedStyle(child).display !== 'none')
+            .flatMap(child => {
+              const box = child.getBoundingClientRect();
+              return [box.left - root.left, root.right - box.right,
+                      box.top - root.top, root.bottom - box.bottom];
+            });
+        }"""
+    )
+    assert clearances and min(clearances) >= 3, (
+        f"the 1px inset current edge landed on inline thread content: {clearances}"
+    )
     assert errors == []
     page.close()
 
@@ -5559,6 +5707,10 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
+    resting_thread = thread.evaluate(
+        "thread => { const s = getComputedStyle(thread); return {"
+        "border: s.borderColor, background: s.backgroundColor}; }"
+    )
     thread.focus()
     thread_standing = key_line(page)
     assert "reply" in thread_standing
@@ -5569,7 +5721,13 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     )
     page.mouse.down()
     assert key_line(page) == thread_standing
-    expect(thread).to_have_css("--lf-here-ring", "thread")
+    current_thread = thread.evaluate(
+        "thread => { const s = getComputedStyle(thread); return {"
+        "border: s.borderColor, background: s.backgroundColor, outline: s.outlineStyle}; }"
+    )
+    assert current_thread["outline"] == "none"
+    assert current_thread["border"] != resting_thread["border"]
+    assert current_thread["background"] != resting_thread["background"]
     page.mouse.up()
     assert "reply" not in key_line(page)
     assert errors == []

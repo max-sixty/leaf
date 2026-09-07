@@ -36,6 +36,7 @@ from render_support import (
     NEIGHBOURHOOD,
     PAGE_FIXTURES,
     PANEL_DIFF_MARKUP,
+    PANEL_PAGE,
     RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
@@ -4187,7 +4188,10 @@ def test_a_reader_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
         ), "the context did not ask for reduced motion, so the guard under test is off"
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
-        page.locator(".lf-threads > .lf-thread").first.focus()
+        control = page.locator(".lf-threads .lf-btn").first
+        control.focus()
+        page.keyboard.press("Tab")
+        page.keyboard.press("Shift+Tab")
 
         seen = page.evaluate(
             """() => {
@@ -4208,7 +4212,7 @@ def test_a_reader_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
         )
         # Non-vacuity: a control with no ring has nothing that could have transitioned.
         assert seen["ring"][:2] == [seen["want"].split()[0], "solid"], (
-            f"the thread reads {seen['ring']} where its ring is {seen['want']}, so "
+            f"the control reads {seen['ring']} where its ring is {seen['want']}, so "
             "nothing here was ever going to move"
         )
 
@@ -4230,29 +4234,31 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     outside its control, where the band is outside too and any step in clears it; asked
     one pixel in, as it was, the same question over an inset ring lands on the ring
     rather than past it, so every covered inset ring answered that the control was under
-    the same thing and the reading returned what it returns when nothing is wrong. The
-    panel's own threads are inset rings to the last one, so this was the half of the
-    reading that watches them.
+    the same thing and the reading returned what it returns when nothing is wrong.
 
-    So: a thread, which draws its ring inside itself, under a band exactly as deep as
-    that ring. The control case first, because a reading that reports over any thread
-    would pass the planted one without seeing it.
+    So: a run heading, which draws its ring inside itself, under a band exactly as deep
+    as that ring. The control case first, because a reading that reports over any inset
+    control would pass the planted one without seeing it.
     """
-    url = serve(LONG_PAGE, comments=6)
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "About the lede.", {"section": "lede"})
     page, errors = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator(".lf-threads > .lf-thread").first.focus()
+    heading = page.locator(".lf-threads > button.lf-group").first
+    heading.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
     page.evaluate(RENDERED)
 
     inset = page.evaluate(
         """() => {
-      const s = getComputedStyle(document.activeElement.closest('.lf-thread'));
+      const s = getComputedStyle(document.activeElement);
       return [parseFloat(s.outlineWidth), parseFloat(s.outlineOffset)];
     }"""
     )
     assert inset[1] <= -inset[0], (
-        f"the thread's ring is {inset[0]}px at offset {inset[1]}px, which is not drawn "
+        f"the heading's ring is {inset[0]}px at offset {inset[1]}px, which is not drawn "
         "inside its box, so this holds nothing about a reading of one that is"
     )
 
@@ -4263,15 +4269,14 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     plant = """(depth) => {
       document.querySelector('.lf-ring-plant')?.remove();
       if (!depth) return null;
-      const card = document.activeElement.closest('.lf-thread');
-      const r = card.getBoundingClientRect();
+      const control = document.activeElement;
+      const r = control.getBoundingClientRect();
       const over = document.documentElement.appendChild(
         document.createElement('div'));
       over.className = 'lf-ring-plant';
       Object.assign(over.style, {
         position: 'fixed', zIndex: '9999',
-        background: getComputedStyle(card).backgroundColor === 'rgba(0, 0, 0, 0)'
-          ? '#fff' : getComputedStyle(document.body).backgroundColor || '#fff',
+        background: 'var(--card)',
         left: `${r.left}px`, top: `${r.top}px`,
         width: `${r.width}px`, height: `${depth}px`,
       });
@@ -4280,15 +4285,15 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
 
     page.evaluate(plant, 0)
     assert standing_ring(page)["covers"] == [], (
-        "the thread is reported covered with nothing over it, so the planted case below "
+        "the heading is reported covered with nothing over it, so the planted case below "
         "would only be repeating whatever this reading always says"
     )
 
     laid = page.evaluate(plant, inset[0])
     covers = standing_ring(page)["covers"]
     assert any("top edge" in c for c in covers), (
-        f"a {laid}px band over the whole of the card's {inset[0]}px inset ring, with the "
-        f"rest of the card in full view, and the reading said {covers}"
+        f"a {laid}px band over the whole of the heading's {inset[0]}px inset ring, "
+        f"with the rest of the heading in full view, and the reading said {covers}"
     )
 
     assert errors == []

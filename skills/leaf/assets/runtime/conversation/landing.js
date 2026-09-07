@@ -175,11 +175,12 @@ export const retainPanelLanding = (source) => {
 };
 // Landing belongs to the list, not to whatever moved the focus. The list already says
 // which of its own edges cannot be stood on — `scroll-padding`, room for a stuck
-// heading and for a ring — and every route that could reach a thread was scrolling it
-// into that band for itself, so a route that did not scroll got nothing. A press does
-// not: the browser focuses the card under the pointer and scrolls nothing, so a list
-// nudged a dozen pixels leaves the first card of a run two pixels under its heading,
-// which is the whole of an inset ring's top run and reads as a card with three sides.
+// heading and for the focused card's edge — and every route that could reach a thread
+// was scrolling it into that band for itself, so a route that did not scroll got
+// nothing. A press does not: the browser focuses the card under the pointer and scrolls
+// nothing, so a list nudged a dozen pixels leaves the first card of a run two pixels
+// under its heading, which hides its top border and leaves the current card's quiet
+// edge-and-surface cue incomplete.
 // The routes that resolve a thread rather than press one — a page mark's comment note,
 // the thread a resolve or a reopen hands the reader on to — landed only by chance of
 // having remembered the line.
@@ -193,10 +194,11 @@ export const retainPanelLanding = (source) => {
 // the same correction this makes and the reason a reply box reached by key was never
 // the case that was wrong.
 //
-// The thread holding the focus, not the card alone: the ring is the thread's, drawn
-// for `:focus-within`, so it is cut in the same place whether the reader is standing
-// on the card or writing in its box. `block: "nearest"` moves the least that clears
-// the band, so a control at the card's foot comes with it rather than going under.
+// The thread holding the focus, not the card alone: the current-card paint belongs to
+// the thread and follows `:focus-within`, so the same edge must clear the band whether
+// the reader is standing on the card or writing in its box. `block: "nearest"` moves
+// the least that clears the band, so a control at the card's foot comes with it rather
+// than going under.
 //
 // A press is the reader's hand, and it may be the start of a drag across the comment's
 // own words. Focus lands on the way down, so scrolling there takes the words out from

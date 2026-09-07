@@ -1,5 +1,5 @@
 /* lf-roster / lf-agent: who is working, and where each of them stands. The rows and
- * the state pill's tints are CSS; everything on the live line — the state word, the
+ * the state chip's tints are CSS; everything on the live line — the state word, the
  * `doing` clause, the § reference and the elapsed line — is built by the lf-agent
  * upgrade, because all but the reference move between versions and the elapsed line
  * is computed from the log. Branch evidence comes from the worktree data source.
@@ -14,7 +14,7 @@
 lf-roster { display: block; margin: 14px 0; border-top: 1px solid var(--rule); }
 /* The state's column, and then the row's own text beside it. The width is the module's
  * (--lf-state-room, measured from the five words in the face this page is set in); the
- * gap is the theme's. The pill is out of flow so that a row of one line and a row of
+ * gap is the theme's. The chip is out of flow so that a row of one line and a row of
  * three both hang their state at the same place — in flow it would be the first word of
  * a paragraph and would sit where that paragraph's first line happened to start. */
 lf-agent { display: block; position: relative; padding: 10px 2px 10px
@@ -45,11 +45,11 @@ lf-agent[state="done"] > strong, lf-agent[state="idle"] > strong { color: var(--
 /* Silence against a claim of work. The word is the module's and says the whole of it;
  * the tint is the bonus, using the vocabulary's amber for work that needs attention. */
 .lf-cold { color: var(--warn-ink); background: var(--warn-tint);
-           padding: 0 8px; border-radius: 999px; font-size: var(--t-6); }
+           padding: 0 8px; border-radius: var(--chip-r); font-size: var(--t-6); }
 /* The state, in the vocabulary's own semantics: green for finished, accent for the one
  * in flight, amber for waiting, red for stuck, and neutral for a worker with nothing to
  * do — which is not a fault and is not tinted as one. */
-.lf-state { padding: 0 8px; border-radius: 999px; font-size: var(--t-6);
+.lf-state { padding: 0 8px; border-radius: var(--chip-r); font-size: var(--t-6);
             white-space: nowrap; background: var(--chip); color: var(--ink-2); }
 .lf-state-working { background: color-mix(in srgb, var(--accent) 14%, transparent);
                     color: var(--accent); }
@@ -89,7 +89,7 @@ lf-command > .lf-command-head { display: grid; grid-template-columns: minmax(0, 
 .lf-command-outcome > span { color: var(--muted); font-size: var(--t-6); }
 .lf-command-facts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-1); }
 .lf-command-facts > a, .lf-command-facts > [role="button"], .lf-command-facts > span,
-.lf-stopped-view a, .lf-fleet-view a { border: 0; border-radius: 999px;
+.lf-stopped-view a, .lf-fleet-view a { border: 0; border-radius: var(--chip-r);
   padding: 3px 8px; background: var(--chip); color: var(--ink-2); font: inherit;
   font-size: var(--t-6); cursor: pointer; text-decoration: none; }
 .lf-command-facts > span { cursor: default; }
@@ -110,7 +110,7 @@ lf-command [data-lf-command-goal] > strong { grid-column: 1; }
 lf-command [data-lf-command-goal] > .lf-task-meta { grid-column: 2 / 4;
   display: flex; align-items: center;
   justify-content: flex-end; gap: var(--sp-1); min-width: max-content; }
-.lf-task-meta > span, .lf-task-crew { border: 0; border-radius: 999px; padding: 1px 7px;
+.lf-task-meta > span, .lf-task-crew { border: 0; border-radius: var(--chip-r); padding: 1px 7px;
   background: var(--chip); color: var(--ink-2); font: inherit; font-size: var(--t-6); }
 .lf-task-crew { cursor: pointer; color: var(--accent); }
 .lf-task-held { color: var(--warn-ink) !important; background: var(--warn-tint) !important; }

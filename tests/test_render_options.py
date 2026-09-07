@@ -188,7 +188,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
 
     # Crowd the generated selection state's opening band at phone width. Its room is
     # held before the pick and excludes every line rather than hanging off whichever
-    # chip comes last, so wrapping metadata cannot enter the pill's corner.
+    # chip comes last, so wrapping metadata cannot enter the chip's corner.
     page.set_viewport_size({"width": 390, "height": 900})
     page.locator("#st-sd > strong").evaluate(
         """title => {
@@ -1477,14 +1477,14 @@ def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve)
     page.close()
 
 
-def test_one_pill_holds_every_short_fact(browser, serve):
+def test_one_chip_holds_every_short_fact(browser, serve):
     """The three writers of a chip, on one page: an author's inline label, a facet of a
     decision, and the row a task builds from its own attributes.
 
-    They stated the pill three times and agreed on every number but one, which is the
+    They stated the chip three times and agreed on every number but one, which is the
     kind of agreement nobody is keeping: the inline label alone padded itself top and
     bottom, so it stood four pixels taller than the chips in a band while matching them
-    everywhere else. One rule states the pill now and each wearer adds only where it
+    everywhere else. One rule states the chip now and each wearer adds only where it
     sits, which is why this reads the rendered box rather than the declarations — a
     wearer is free to restate, and the box is what a reader compares."""
     page, errors = open_page(browser, serve(CHIP_PAGE))
@@ -1501,6 +1501,7 @@ def test_one_pill_holds_every_short_fact(browser, serve):
         ]
     }
     ((first, (look, box)), *rest) = worn.items()
+    assert look["border-radius"] == "3px", look
     for where, (other, other_box) in rest:
         assert other == look, (
             f"the chip {where} is drawn unlike the one {first}:\n  "

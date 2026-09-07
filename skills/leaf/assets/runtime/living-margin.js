@@ -286,7 +286,7 @@ import { el } from "./widget-elements.js";
 import { runtime } from "./context.js";
 import { commentsEdge, panelIsOpen } from "./chrome-layout.js";
 import { designOn } from "./design.js";
-import { focused, keys, paintKeys } from "./keyboard/scopes.js";
+import { focused, keys, paintHere, paintKeys } from "./keyboard/scopes.js";
 import { chromeRoot } from "./chrome.js";
 import {
   comparisonBase,
@@ -2372,15 +2372,23 @@ function moveHost(host, move) {
   // Moving a focused expanded cluster between the hanging rail and document flow
   // synchronously emits focusout. That is a placement transition, not the reader
   // leaving the cluster, so keep the options state machine from treating it as an
-  // instruction to fold the controls it just exposed.
+  // instruction to fold the controls it just exposed — and say the same thing to every
+  // other reader of where the reader stands, which is what `placingChrome` is for.
   const wasSettlingOptionsFocus = settlingOptionsFocus;
+  const wasPlacingChrome = runtime.placingChrome;
   settlingOptionsFocus = true;
+  runtime.placingChrome = true;
   try {
     move();
     if (held?.isConnected) held.focus({ preventScroll: true });
   } finally {
     settlingOptionsFocus = wasSettlingOptionsFocus;
+    runtime.placingChrome = wasPlacingChrome;
   }
+  // The one case where the placement did move the reader: the control they were
+  // standing on did not survive it, so focus is wherever the removal left it and the
+  // standing paint is owed the news the guard above withheld.
+  if (held && document.activeElement !== held) paintHere();
 }
 
 const labelRect = (name, left, top, label) => ({

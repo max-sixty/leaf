@@ -11,8 +11,18 @@ binding = "ASSETS"
 run_worker_first = true
 
 [[containers]]
+# Cloudflare keys a container application to its Durable Object namespace, and a
+# namespace can hold only one. Wrangler matches the deployed application by name and
+# otherwise derives it from `<worker>-<class_name>`, so the v2 class rename below asked
+# it to create a second application against the namespace the first one already holds —
+# DURABLE_OBJECT_ALREADY_HAS_APPLICATION. Naming the standing application keeps the
+# deploy on the modify path. Renaming it would mean deleting the application first,
+# which drops every seated reader session.
+name = "leaf-website-leafexamplesession"
 class_name = "LeafWebsiteSession"
 image = "../Dockerfile.website"
+# Product routes give every browser a private Leaf session. Cloudflare's current
+# account limits allow 15,000 concurrent instances of the lite type.
 max_instances = 15000
 instance_type = "lite"
 

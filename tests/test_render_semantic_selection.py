@@ -76,26 +76,26 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     expect(shown.nth(1).locator("kbd")).to_have_text("r")
     expect(shown.nth(1)).to_contain_text("react")
 
-    # The visible ellipsis exposes each reaction as its own Button in the target margin.
-    # Escape returns to the target-only surface, not to a Comment field the reader has
-    # not chosen.
+    # The visible ellipsis extends the target-only surface in place. Escape returns to
+    # that compact surface, not to a Comment field the reader has not chosen.
+    bar = page.locator(".lf-fab-bar")
+    before = bar.bounding_box()
     responses = page.get_by_role("button", name="Show other responses")
     responses.click()
-    expect(page.locator(".lf-margin-reactions")).to_be_visible()
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    expect(bar.locator(".lf-react:visible")).to_have_count(6)
+    assert abs(bar.bounding_box()["x"] - before["x"]) <= 1
     page.keyboard.press("Escape")
     expect(responses).to_be_focused()
     expect(field).to_be_hidden()
 
-    # The reader chooses Comment before text entry owns letters. Tab then moves the
-    # response choices into the margin; Escape restores the field.
+    # The reader chooses Comment before text entry owns letters. Tab then extends the
+    # same response surface; Escape returns focus to the field.
     page.keyboard.press("c")
     expect(field).to_be_focused()
     field.fill("Keep this draft")
     page.keyboard.press("Tab")
-    expect(page.locator(".lf-margin-reactions")).to_be_visible()
-    expect(page.locator('.lf-margin-reactions [data-token="keep"]')).to_be_focused()
-    expect(field).to_be_hidden()
+    expect(bar.locator('[data-token="keep"]')).to_be_focused()
+    expect(field).to_be_visible()
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
     expect(field).to_have_value("Keep this draft")
@@ -199,9 +199,7 @@ def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser,
     page.keyboard.press("Tab")
 
     responses = page.locator(".lf-fab-bar")
-    expect(responses).to_have_class(re.compile(r"\blf-react-open\b"))
-    expect(responses.locator(":scope > .lf-fab")).to_be_focused()
-    page.keyboard.press("ArrowRight")
+    expect(responses).to_have_class(re.compile(r"\blf-response-open\b"))
     expect(responses.locator(".lf-fab-suggest")).to_be_focused()
     expect(responses.locator(".lf-react")).to_have_count(0)
     assert errors == []

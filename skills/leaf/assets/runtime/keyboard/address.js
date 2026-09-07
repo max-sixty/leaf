@@ -1,7 +1,7 @@
 /* The go-to chord: `g` opens one destination mode, and this owner holds its vocabulary.
 
    Visible, visually discovered targets share one generated-letter namespace. Links,
-   tabs, folds, and actionable Page-map locations are read together in screen order and
+   tabs, folds, and visible Page-map Buttons are read together in screen order and
    receive short prefix-free labels. Most cost one letter; only the tail branches when the
    scene contains more targets than the available alphabet. The mapping is local to the
    visible scene: scrolling refreshes it once motion settles, while a partly typed label
@@ -61,7 +61,7 @@ import { focusDestination } from "../widget-elements.js";
 import { el } from "../widget-elements.js";
 import { CHOOSER } from "../version.js";
 import {
-  EVERYTHING,
+  allButTheReference,
   focusedThread,
   letGo,
   pageParts,
@@ -91,9 +91,9 @@ import {
   enterPageMap,
   activeInlineThread,
   leavePageMap,
-  openPageMapItem,
+  openPageMapButton,
   pageMapIsActive,
-  pageMapItems,
+  pageMapButtons,
 } from "../living-margin.js";
 import { showThread } from "../conversation/landing.js";
 
@@ -240,9 +240,9 @@ const BUILTIN_DIRECT_DESTINATIONS = [
 ];
 const TARGET_KINDS = [
   {
-    kind: "Page-map location",
-    list: pageMapItems,
-    go: (...args) => openPageMapItem(...args),
+    kind: "Page-map Button",
+    list: pageMapButtons,
+    go: (...args) => openPageMapButton(...args),
     exposure: "self",
   },
   {
@@ -344,7 +344,11 @@ const addressChip = (candidate) => {
   const chip = el("span", "lf-address lf-target-hint lf-chord-address");
   chip.dataset.lfAddress = candidate.code;
   chip.dataset.lfAddressKind = candidate.kind;
+  const source = candidate.member.lfForwardedControl ?? candidate.member;
+  const buttonKey = source.dataset?.lfButtonKey;
+  if (buttonKey) chip.dataset.lfAddressButton = buttonKey;
   const targetId =
+    closestAcross(candidate.member, "[data-lf-margin-for]")?.dataset.lfMarginFor ||
     candidate.member.id ||
     candidate.member.dataset.lfMarginFor ||
     candidate.member.getAttribute("aria-controls");
@@ -555,8 +559,9 @@ export const GO = {
   reach: "with g armed",
   chord: chordKeys,
   chordPrefix,
+  liveInReference: true,
   at: () => chordArmed,
-  claims: EVERYTHING,
+  claims: allButTheReference,
   // Built on first use: the version chooser's row is version.js's, a module in the cycle,
   // so it is read once every module has evaluated.
   get rows() {

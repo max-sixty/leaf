@@ -117,6 +117,15 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
         try:
             wait_for_probe(page, "upgraded")
             wait_for_probe(page, "dataApplied", read_data(page_dir)["revision"])
+            # Both replayed kinds, as the render gate counts them: the caught-up
+            # stamp counts reports beside actions, and a page whose only recorded
+            # state is a worker's report would otherwise copy before it painted.
+            n_replayed = len(
+                [e for e in read_events(page_dir) if e["kind"] in ("action", "report")]
+            )
+            if n_replayed:
+                wait_for_probe(page, "logApplied", n_replayed)
+            wait_for_probe(page, "presented")
             # A live fragmented widget deliberately keeps unopened payloads out of the
             # DOM. A standalone copy has no fragment door after scripts are removed, so
             # let any renderer that owns such payloads materialize them before baking.
@@ -128,14 +137,6 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
                   await Promise.all(pending);
                 }"""
             )
-            # Both replayed kinds, as the render gate counts them: the caught-up
-            # stamp counts reports beside actions, and a page whose only recorded
-            # state is a worker's report would otherwise copy before it painted.
-            n_replayed = len(
-                [e for e in read_events(page_dir) if e["kind"] in ("action", "report")]
-            )
-            if n_replayed:
-                wait_for_probe(page, "logApplied", n_replayed)
             return inline_assets(evaluate_probe(page, "bake"), page_dir)
         except PlaywrightTimeout:
             sys.exit(

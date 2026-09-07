@@ -453,11 +453,12 @@ body { margin: 0; background: var(--paper); color: var(--ink);
        --lf-shell-inset-left: 0px;
        container: lf-shell / inline-size; }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
- * parse while JavaScript upgrades widgets and reads the standing log. Presentation is a
- * semantic boundary, not a paint gate: until the first read has applied (or established
- * the offline fallback), Leaf suppresses arrival transitions and withholds authored
- * dialogs and popovers. Those top-layer elements can otherwise escape their ancestors'
- * stacking and inertness; ordinary prose, links, scrolling, and layout stay available.
+ * parse while JavaScript upgrades widgets and reads the standing log. Generated page
+ * interface keeps its layout but stays hidden until the presentation task has applied
+ * authoritative state and given box-derived apparatus its final startup geometry.
+ * Authored dialogs and popovers stay hidden too: those top-layer elements can otherwise
+ * escape their ancestors' stacking and inertness. Ordinary prose, links, scrolling, and
+ * layout remain available.
  *
  * The anonymous layer is first in the merged theme, so these important declarations
  * outrank every later layer and unlayered stylesheet declaration without reserving a
@@ -474,6 +475,10 @@ body { margin: 0; background: var(--paper); color: var(--ink);
     html:has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]) .lf-ui {
       transition: none !important;
+    }
+    html:has(script[type="module"][src="/leaf.js"])
+      body:not([data-lf-presented]) > main .lf-ui {
+      visibility: hidden !important;
     }
     html:has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]) > main :is(dialog, [popover]) {

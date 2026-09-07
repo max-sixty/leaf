@@ -62,10 +62,11 @@ import { pageShifted } from "./anchors.js";
    what it represents, the optimistic overlay of unresolved gestures, the reconciliation
    every complete state goes through, and undo.
 
-   A recorded action may be optimistic because its gesture has already changed the DOM.
-   Drag and edit are examples. `stageOutboxAction` gives that local value the same
+   A reversible action can be optimistic because its gesture has already changed the DOM.
+   Recorded actions always are; a recordless action opts in when it has painted the same
+   semantic outcome. `stageOutboxAction` gives that local value the same
    semantic coordinate as the server view and commits it on the exact widget and unit
-   nodes that carry it. The browser projection adapter overlays all surviving recorded
+   nodes that carry it. The browser projection adapter overlays all surviving optimistic
    outbox actions after authoritative winners in `outboxOrder`. Until a complete read
    accounts for an attempt, its local winner outranks any older log winner on the same
    coordinate.
@@ -278,16 +279,16 @@ export function requirementMatches(widget, spec) {
   return awaiting === requirement.awaiting;
 }
 
-// A recorded action has already been painted by its widget when it enters this door.
+// An eligible action has already been painted by its widget when it enters this door.
 // Give that optimistic value the same semantic coordinate as authoritative state, and
-// commit it on the exact nodes that carry it. Record-less actions paint only after
-// acceptance, so putting one in this overlay would show a decision the server may refuse.
-export function stageOutboxAction(entry) {
+// commit it on the exact nodes that carry it. Recorded actions are eligible by contract;
+// a recordless caller opts in when it has painted its semantic outcome too.
+export function stageOutboxAction(entry, { optimistic = false } = {}) {
   const e = entry.event;
   if (e.kind !== "action") return;
   const widget = elementById(e.widget);
   const spec = widget && registry[widget.localName]?.["x-state"]?.[e.action];
-  if (!spec?.record) return;
+  if (!spec || (!spec.record && !optimistic)) return;
   const unit = unitOf(e, spec);
   if (typeof unit !== "string") return;
   const coordinate = stateCoordinate(e.widget, unit, spec);
@@ -297,7 +298,7 @@ export function stageOutboxAction(entry) {
     coordinate,
     localOrder: entry.order,
     e: { ...e, id: entry.localId },
-    value: foldedFacet(e, spec.record),
+    value: spec.record ? foldedFacet(e, spec.record) : e.action,
   };
   entry.projection = projection;
   committedWidgets.delete(e.widget);
@@ -441,7 +442,7 @@ export function projectionCommitted(projection, e) {
 
 function localCoordinateCommitted(projection, entry) {
   const local = entry.projection;
-  if (!local) return true; // record-less actions never painted before acceptance
+  if (!local) return true; // this action had no local projection
   const widget = elementById(local.e.widget);
   if (!widget) return true;
   const desired = projection.desired.get(local.coordinate) ?? null;

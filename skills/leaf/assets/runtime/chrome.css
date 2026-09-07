@@ -1860,6 +1860,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
     line-height: 1.478; text-align: center; white-space: nowrap;
     display: inline-flex; align-items: center; justify-content: center; }
+  .lf-key-more kbd[hidden] { display: none; }
   .lf-key-sequence { display: inline-flex; align-items: center; gap: 3px;
     white-space: nowrap; }
   .lf-key-sequence > kbd[data-lf-key-state="pressed"] { border-color: var(--accent);

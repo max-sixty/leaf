@@ -2054,7 +2054,7 @@ def test_a_generated_hint_is_never_drawn_on_the_key_line(browser, serve):
 def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     """Mnemonics reach global surfaces; generated hints reach the visible scene.
 
-    Threads, Asks, Page map, and page edges keep stable named routes. Page-map locations,
+    Threads, Asks, Page map, and page edges keep stable named routes. Page-map Buttons,
     tabs, links, and folds instead share one viewport-local letter namespace."""
     url = serve(ADDRESSED_PAGE)
     d = serve.page_dir
@@ -2356,9 +2356,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     ).to_be_focused()
     page.keyboard.press("Escape")
 
-    # A visible Page-map location shares the generated target map. Activating the hint
+    # A visible Page-map Button shares the generated target map. Activating the hint
     # opens the same thread preview as its marker.
-    go_to_address(page, "Page-map location", "p1")
+    go_to_address(page, "Page-map Button", "p1")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread textarea").first).to_be_focused()
     page.keyboard.press("Escape")
@@ -4692,8 +4692,12 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(visible_hints.nth(0)).to_contain_text("send")
     expect(visible_hints.nth(1)).to_contain_text("back to threads")
 
-    more = page.get_by_role("button", name="? more", exact=True)
+    # The pointer route remains while this text box owns `?`; the key face and
+    # accessible shortcut return when pressing the button moves focus out of the box.
+    more = page.get_by_role("button", name="More keyboard shortcuts", exact=True)
     expect(more).to_have_attribute("aria-expanded", "false")
+    expect(more.locator("kbd")).to_be_hidden()
+    expect(more).not_to_have_attribute("aria-keyshortcuts", re.compile(r".+"))
     more.click()
     help_el = page.locator(".lf-help")
     search = page.get_by_role("combobox", name="Search keyboard shortcuts")
@@ -5235,7 +5239,9 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
 
     The claim has to hold in both directions or it has bought nothing, so the control's
     own key is asserted beside the page's: a page whose keyboard stands over a radio must
-    not be taking Space off it."""
+    not be taking Space off it. The permanent More control is part of that same projection:
+    it keeps its pointer route in a text box but cannot show or expose `?` when that press
+    types into the box."""
     html = NOTED_PAGE.replace(
         "</main>",
         '<label><input id="flip" type="radio" name="frame"> after</label>'
@@ -5274,12 +5280,21 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     page.locator("#note").focus()
     expect(comment).to_have_count(0)
     expect(movement).to_have_count(0)
+    more = line.locator(".lf-key-more")
+    expect(more.locator("kbd")).to_be_hidden()
+    expect(more).to_have_attribute("aria-label", "More keyboard shortcuts")
+    expect(more).not_to_have_attribute("aria-keyshortcuts", re.compile(r".+"))
     page.keyboard.press("c")
     expect(page.locator("#note")).to_have_value("c")
     expect(page.locator(".lf-help")).to_be_hidden()
     page.keyboard.press("?")
     expect(page.locator("#note")).to_have_value("c?")
     expect(page.locator(".lf-help")).to_be_hidden()
+
+    page.evaluate("() => document.body.focus()")
+    expect(more.locator("kbd")).to_be_visible()
+    expect(more).to_have_attribute("aria-label", "? more")
+    expect(more).to_have_attribute("aria-keyshortcuts", "?")
     assert errors == []
     page.close()
 

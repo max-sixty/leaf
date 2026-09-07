@@ -30,6 +30,7 @@ from render_support import (
     leaf_page,
     live_url,
     mark_shows_beside_composer,
+    navigate,
     nudge,
     open_page,
     panel_settled,
@@ -2177,13 +2178,16 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
         "v2 rewrote the passage and the page marked it anyway"
     )
 
-    page.goto(url)
-    page.wait_for_selector("#p")
+    # Through the page's own readiness rather than the paragraph's arrival in markup:
+    # the restore of a standing draft is part of presenting the page, and a gesture made
+    # before that is a gesture the reader could not have made.
+    navigate(page, errors, url)
     page.locator("#p").click(click_count=3)
     expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
     expect(page.locator(".lf-fab-input")).to_have_value(
         "half-written when the version turned over"
     )
+    # The words come back; the reader's keyboard does not go with them.
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     quote = composer_quote(page)
     assert quote["text"] == f"“{passage}”", f"the quote says {quote['text']!r}"

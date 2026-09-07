@@ -426,6 +426,16 @@ def test_tab_raises_individual_emoji_buttons_in_the_margin(browser, serve):
     for token in ["change", "clarify", "shorten", "support", "prioritize", "keep"]:
         page.keyboard.press("ArrowRight")
         expect(surface.locator(f'[data-token="{token}"]')).to_be_focused()
+    assert (
+        surface.locator(".lf-fab, .lf-react:visible").evaluate_all(
+            """els => new Set(els.map(el => {
+              const box = el.getBoundingClientRect();
+              return Math.round(box.y + box.height / 2);
+            })).size"""
+        )
+        == 1
+    )
+    expect(surface.locator(".lf-address")).to_have_count(0)
     page.keyboard.press("4")
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]

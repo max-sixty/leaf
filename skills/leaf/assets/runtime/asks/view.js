@@ -709,6 +709,11 @@ addEventListener("resize", paintHere);
 // Tab, a click on one of its controls — left the ring somewhere else entirely, so the
 // same place was marked or not by how the reader had reached it.
 //
+// TODO(2026-09-06): Keep the Ask-wide location ring for keyboard navigation and
+// tray-directed focus without painting it after an ordinary pointer click inside the
+// Ask. On a large interactive widget, that click currently leaves a prominent ring
+// around the entire surface even though the focused control already shows the action.
+//
 // Keyed on focus and not on :focus-visible, which is a claim about the last input rather
 // than about where the reader is: a tray row's press lands the focus by script after a
 // click, and the ask it brought the reader to would wear nothing at all.

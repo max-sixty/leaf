@@ -32,7 +32,12 @@ import { beginRead, startFeed } from "./runtime/state-feed.js";
 import { installArrival } from "./runtime/version.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 
-import { PAGE_PAINT_ATTRIBUTE } from "./runtime/presentation.js";
+import {
+  PAGE_INTERFACE,
+  PAGE_PAINT_ATTRIBUTE,
+  PRESENTATION,
+  settlePageInterface,
+} from "./runtime/presentation.js";
 
 import { marksSheet } from "./runtime/shadow.js";
 
@@ -63,20 +68,28 @@ mountChrome();
 const initialStateRead = beginRead();
 
 let interactionGalleryModule;
-function syncInteractionGallery() {
+let interactionGalleryLoading;
+let failedInteractionGallery;
+async function syncInteractionGallery() {
   const gallery = document.querySelector("[data-interaction-gallery]");
-  if (!gallery && !interactionGalleryModule) return;
-  interactionGalleryModule ??= import("./runtime/interaction-gallery.js").catch(
-    (error) => {
-      reportPageError(
-        `interaction gallery failed to start: ${error?.message ?? error}`,
-      );
-      return null;
-    },
-  );
-  void interactionGalleryModule.then((module) => module?.installInteractionGallery());
+  if (gallery && gallery === failedInteractionGallery) return;
+  try {
+    if (!gallery && !interactionGalleryModule) return;
+    if (!interactionGalleryModule) {
+      interactionGalleryLoading ??= import("./runtime/interaction-gallery.js");
+      interactionGalleryModule = await interactionGalleryLoading;
+    }
+    interactionGalleryModule?.installInteractionGallery();
+  } catch (error) {
+    failedInteractionGallery = gallery;
+    if (!interactionGalleryModule) interactionGalleryLoading = null;
+    reportPageError(`interaction gallery failed to start: ${error?.message ?? error}`);
+  }
 }
-document.addEventListener("lf-actions", syncInteractionGallery);
+document.addEventListener("lf-actions", () => void syncInteractionGallery());
+document.addEventListener(PAGE_INTERFACE, (event) => {
+  event.detail.pending.push(syncInteractionGallery());
+});
 
 // A fresh arrival starts on the page, the same stable focus destination the Escape ladder
 // uses after chrome. Root scrolling no longer depends on this handoff; focus ownership
@@ -119,12 +132,12 @@ function presentPage() {
   showNews(othersBtn, leavesOffered());
   paintKeys();
   document.dispatchEvent(new Event("lf-actions"));
-  layoutMarginRows();
   paintApproval();
+  paintHere();
   // Fragment arrival reads after those controls have taken their final space. Margin
   // placement normally batches into a frame; a fresh arrival runs that pending layout
   // now so a docked row above the target cannot move it again after the landing.
-  paintHere();
+  layoutMarginRows();
   landArrival();
   if (savedView && savedView.revision < runtime.currentRevision)
     notice(`Updated to ${runtime.currentLabel}`);
@@ -135,6 +148,11 @@ function presentPage() {
       drawing: savedComposer.drawing ?? null,
     });
   promoteDeferredModals();
+  // The presented attribute and every write after it are one JavaScript task, so the
+  // browser has not painted the generated page interface yet. Give geometry consumers
+  // one synchronous read of that final startup layout before the task returns; later
+  // ResizeObserver and layout signals remain responsible for reader-driven changes.
+  document.dispatchEvent(new Event(PRESENTATION));
 }
 
 // Upgrades flush before the anchor pass and the view restore, so quotes and reading
@@ -158,6 +176,10 @@ async function startPage() {
   captureAuthoredFacets();
   buildBulkAnswers();
   syncAsks();
+  // Optional page interface adds controls and may reset the widgets it composes. Its
+  // dynamic imports and first installation settle beside this document's widgets; the
+  // same boundary runs when a later version replaces the authored page.
+  await settlePageInterface();
   // Every widget has upgraded and every async one has settled, so the geometry and
   // the drawn SVG are final. `version export` copies the page at this moment and has no
   // other way to know it arrived: a load event fires before the modules run, and

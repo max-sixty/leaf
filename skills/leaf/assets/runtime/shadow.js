@@ -79,10 +79,10 @@ export const inUi = (node) =>
 export let shadowRules = "";
 const SHADOW_CSS = /\/\* lf-shadow:start \*\/([\s\S]*?)\/\* lf-shadow:end \*\//g;
 // A top-layer element no longer composites through its light/shadow ancestors, so the
-// document's rules cannot withhold a dialog or popover promoted out of an x-shadow
-// widget. Every legitimate page shadow tree is built here; repeat that narrow boundary
-// inside it, together with transition suppression. The shadow's ordinary contents still
-// paint before presentation, just like authored light DOM.
+// document's rules cannot withhold generated interface, or a dialog or popover promoted
+// out of an x-shadow widget. Every legitimate page shadow tree is built here; repeat
+// those boundaries inside it, together with transition suppression. The shadow's
+// ordinary contents still paint before presentation, just like authored light DOM.
 export const SHADOW_STARTUP_CSS = `
 @layer {
   @media screen {
@@ -90,6 +90,9 @@ export const SHADOW_STARTUP_CSS = `
     :host-context(body:not([data-lf-presented])) *::before,
     :host-context(body:not([data-lf-presented])) *::after {
       transition: none !important;
+    }
+    :host-context(body:not([data-lf-presented])) .lf-ui {
+      visibility: hidden !important;
     }
     :host-context(body:not([data-lf-presented])) :is(dialog, [popover]),
     :host-context(body:not([data-lf-presented])) :is(dialog, [popover])::backdrop {

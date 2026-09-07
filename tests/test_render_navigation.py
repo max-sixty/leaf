@@ -2088,7 +2088,8 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
           width: document.documentElement.clientWidth,
           height: document.documentElement.clientHeight,
           banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
-          chips: [...document.querySelectorAll('.lf-goto-targets > .lf-chord-address')]
+          chips: [...document.querySelectorAll(
+            '.lf-goto-targets > .lf-chord-address[data-lf-address]')]
             .map(chip => ({
             route: chip.textContent,
             code: chip.dataset.lfAddress,
@@ -2138,6 +2139,52 @@ def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact
     resized(page, 1280, 800)
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
 
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    goto = page.locator(
+        ".lf-help-section", has=page.get_by_role("heading", name="Go to")
+    )
+    filters = goto.locator('tr[data-lf-command^="navigation.target.filter."]')
+    assert filters.evaluate_all(
+        """rows => rows.map(row => ({
+          command: row.dataset.lfCommand,
+          keys: [...row.querySelectorAll('kbd')].map(key => key.textContent),
+          action: row.querySelector('td:last-child').textContent,
+        }))"""
+    ) == [
+        {
+            "command": "navigation.target.filter.page-map-buttons",
+            "keys": ["g", "m"],
+            "action": "Show only visible Page-map Buttons",
+        },
+        {
+            "command": "navigation.target.filter.tabs",
+            "keys": ["g", "t"],
+            "action": "Show only visible tabs",
+        },
+        {
+            "command": "navigation.target.filter.actions",
+            "keys": ["g", "a"],
+            "action": "Show only visible actions",
+        },
+        {
+            "command": "navigation.target.filter.hyperlinks",
+            "keys": ["g", "h"],
+            "action": "Show only visible hyperlinks",
+        },
+        {
+            "command": "navigation.target.filter.folds",
+            "keys": ["g", "f"],
+            "action": "Show only visible folds",
+        },
+    ]
+    target_help = goto.locator('tr[data-lf-command="navigation.target"]')
+    expect(target_help.locator("kbd")).to_have_text(["g", "letters"])
+    expect(target_help).to_contain_text("Type a visible target's hint")
+    expect(target_help).not_to_contain_text("filter first")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+
     page.keyboard.press("g")
     chips = page.locator(CHIPS)
     expect(chips.first).to_be_visible()
@@ -2171,6 +2218,9 @@ def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact
     assert target_route.locator("kbd").evaluate_all(
         "keys => keys.map(key => key.textContent)"
     ) == ["g", "a", "letters"]
+    assert target_route.locator("kbd").evaluate_all(
+        "keys => keys.map(key => key.dataset.lfKeyState)"
+    ) == ["pressed", "pressed", "neutral"]
     expect(target_route).not_to_contain_text("filter")
 
     page.keyboard.press("Escape")
@@ -2190,6 +2240,13 @@ def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact
     page.keyboard.press("t")
     expect(page.locator(CHIPS)).to_have_count(0)
     expect(page.locator(".lf-live")).to_have_text("No visible tabs.")
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.keyboard.press("d")
+    expect(page.locator("body")).to_have_attribute("data-lf-goto", "")
+    expect(page.locator(".lf-live")).to_have_text(
+        "No hint d. The current hints are unchanged."
+    )
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     resized(page, 1200, 800)
     expect(page.locator(CHIPS)).to_have_count(0)
     page.keyboard.press("Escape")
@@ -2219,7 +2276,7 @@ def test_generated_hints_spread_without_hiding_a_crowded_target(browser, serve):
     piles = page.evaluate(
         """() => {
              const boxes = [...document.querySelectorAll(
-               '.lf-goto-targets > .lf-chord-address')]
+               '.lf-goto-targets > .lf-chord-address[data-lf-address]')]
                .map(chip => ({
                  code: chip.dataset.lfAddress,
                  r: chip.getBoundingClientRect(),
@@ -2269,7 +2326,7 @@ def test_a_generated_hint_is_never_drawn_on_the_key_line(browser, serve):
                await ({RENDERED})();
                const bar = line();
                for (const chip of document.querySelectorAll(
-                 '.lf-goto-targets > .lf-chord-address'))
+                 '.lf-goto-targets > .lf-chord-address[data-lf-address]'))
                  if (hit(chip.getBoundingClientRect(), bar))
                    out.push(chip.textContent + ' at ' + Math.round(document.scrollingElement.scrollTop));
              }}
@@ -2384,9 +2441,15 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         ),
         (
             "navigation.target",
-            ["g", "letters / kind"],
+            ["g", "letters"],
             ["pressed", "neutral"],
-            "visible target / filter",
+            "visible target",
+        ),
+        (
+            "navigation.target.filter.tabs",
+            ["g", "kind"],
+            ["pressed", "neutral"],
+            "filter by kind",
         ),
         (
             "navigation.page.top",
@@ -2758,7 +2821,21 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
 
     page.keyboard.press("g")
     expect(page.locator(".lf-keyline")).to_contain_text("All leaves panel")
-    expect(page.locator(".lf-others")).to_have_attribute("data-lf-chord", "g L")
+    leaves_hint = page.locator(
+        '.lf-goto-targets > [data-lf-address-command="navigation.panel.leaves"]'
+    )
+    expect(leaves_hint).to_have_attribute("data-lf-address-chord", "g L")
+    assert leaves_hint.locator("kbd").evaluate_all(
+        "keys => keys.map(key => [key.textContent, key.dataset.lfKeyState])"
+    ) == [["g", "pressed"], ["L", "neutral"]]
+    # A live control label may change while the chord stands. The detached overlay is
+    # owned by the address layer, so a routine poll cannot erase it.
+    live_leaf("third", "A third leaf")
+    round_trip(page)
+    expect(page.locator(".lf-others")).to_contain_text("All leaves (3)")
+    assert leaves_hint.locator("kbd").evaluate_all(
+        "keys => keys.map(key => [key.textContent, key.dataset.lfKeyState])"
+    ) == [["g", "pressed"], ["L", "neutral"]]
     page.keyboard.press("Shift+l")
 
     expect(page.locator(".lf-others-panel")).to_be_visible()
@@ -3086,7 +3163,6 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
         "BUTTON",
         "INPUT",
         "BUTTON",
-        "BUTTON",
     ]
 
     # And the box that does have something out of sight is one of those stops, which is
@@ -3211,6 +3287,64 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     )
     page.keyboard.press("ArrowDown")
     expect(commands.last).to_have_attribute("data-lf-selected", "true")
+
+    # A key query may also occur in command ids and prose. Actual bindings lead the
+    # filtered DOM, which is both the visual order and the Arrow-key command rail. A
+    # trailing separator asks for continuations, and case puts the shifted face first.
+    search.fill("g ")
+    ranked = help_el.locator("tr[data-lf-command]:visible").evaluate_all(
+        """rows => rows.map(row => ({
+          command: row.dataset.lfCommand,
+          binding: [...row.querySelectorAll('kbd')].map(key => key.textContent).join(' '),
+        }))"""
+    )
+    assert ranked and ranked[0]["binding"].startswith("g "), ranked
+    first_other = next(
+        (
+            index
+            for index, row in enumerate(ranked)
+            if not row["binding"].startswith("g ")
+        ),
+        len(ranked),
+    )
+    assert first_other > 0, ranked
+    assert not any(row["binding"].startswith("g ") for row in ranked[first_other:]), (
+        ranked
+    )
+    search.fill("g t")
+    assert (
+        help_el.locator("tr[data-lf-command]:visible").first.get_attribute(
+            "data-lf-command"
+        )
+        == "navigation.target.filter.tabs"
+    )
+    search.fill("g T")
+    assert (
+        help_el.locator("tr[data-lf-command]:visible").first.get_attribute(
+            "data-lf-command"
+        )
+        == "navigation.panel.threads"
+    )
+    page.keyboard.press("ArrowDown")
+    expect(
+        help_el.locator('.lf-help-command[data-lf-command="navigation.panel.threads"]')
+    ).to_have_attribute("data-lf-selected", "true")
+    search.fill("Tab")
+    tab_matches = help_el.locator(
+        ".lf-help-binding-matches tr[data-lf-command]:visible"
+    ).evaluate_all("rows => rows.map(row => row.dataset.lfCommand)")
+    assert "reference.focus.walk" in tab_matches, tab_matches
+    search.fill("w")
+    w_results = help_el.locator("tr[data-lf-command]:visible").evaluate_all(
+        "rows => rows.map(row => row.dataset.lfCommand)"
+    )
+    assert w_results.index("drawing.leave") < w_results.index("page.down"), w_results
+    w_matches = help_el.locator(
+        ".lf-help-binding-matches tr[data-lf-command]:visible"
+    ).evaluate_all("rows => rows.map(row => row.dataset.lfCommand)")
+    assert "drawing.leave" in w_matches, w_matches
+    assert "thread.waiting.toggle" in w_matches, w_matches
+    assert w_results.index("page.down") >= len(w_matches), w_results
 
     search.fill("resolve it")
     result = help_el.locator('.lf-help-command[data-lf-command="thread.resolve"]')
@@ -3545,6 +3679,25 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     }
     expect(page.locator(".lf-live")).to_have_text("7 targets remain.")
     expect(line).to_contain_text("back one letter")
+    target_route = line.locator(
+        '.lf-key:not([hidden])[data-lf-commands~="navigation.target"]'
+    )
+    assert target_route.locator("kbd").evaluate_all(
+        "keys => keys.map(key => [key.textContent, key.dataset.lfKeyState])"
+    ) == [["g", "pressed"], [prefix, "pressed"], ["…", "neutral"]]
+    browse_route = line.locator(
+        '.lf-key:not([hidden])[data-lf-commands~="navigation.target.next"]'
+    )
+    assert browse_route.locator("kbd").evaluate_all(
+        "keys => keys.map(key => [key.textContent, key.dataset.lfKeyState])"
+    ) == [["g", "pressed"], ["⇥ / ⇧⇥", "neutral"]]
+    continued_hint = page.locator(
+        f'{CHIPS}[data-lf-address="{branched[0]}"] .lf-key-sequence'
+    )
+    assert continued_hint.locator("kbd").evaluate_all(
+        "keys => keys.map(key => [key.textContent, key.dataset.lfKeyState])"
+    ) == [[prefix, "pressed"], [branched[0][1], "neutral"]]
+    expect(continued_hint).to_have_css("gap", "1px")
 
     # Escape removes only the opaque prefix; the same visible scene returns. A complete
     # two-letter code then activates immediately, with no timeout or terminator.
@@ -4399,19 +4552,15 @@ def test_signoff_uses_its_visible_button_and_g_l_never_falls_through(browser, se
     page.close()
 
 
-def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
-    browser, serve
-):
-    """Speech-input and error-prone readers can disable every character command.
-
-    The visible More button remains a native keyboard route back to the preference;
-    Enter, Escape, and other non-character controls keep their ordinary meanings."""
+def test_banner_destinations_use_transient_target_overlays(browser, serve):
+    """The g chord labels visible banner controls without changing their layout."""
     url = serve(ASKS_PAGE)
     events_model.append_event(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "A note."},
     )
     page, errors = open_page(browser, url)
+    resized(page, 1600, 900)
     more = page.locator(".lf-key-more")
     expect(more).to_have_attribute("aria-label", "? more")
     key_faces = page.evaluate(
@@ -4423,127 +4572,136 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     )
     assert key_faces[0] == key_faces[1], key_faces
     version = page.locator(".lf-version")
-    banner_chords = [
-        (page.locator(".lf-threads-toggle"), "T"),
-        (page.locator(".lf-asks"), "A"),
-        (page.locator(".lf-page-map-toggle"), "M"),
-    ]
-    for control, suffix in banner_chords:
-        expect(control).to_have_attribute("data-lf-chord", f"g {suffix}")
+    banner_destinations = {
+        "navigation.panel.threads": (page.locator(".lf-threads-toggle"), "T"),
+        "navigation.panel.asks": (page.locator(".lf-asks"), "A"),
+        "version.open": (version, "V"),
+    }
+    for control, suffix in banner_destinations.values():
         expect(control).to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
-        assert (
-            control.evaluate("el => getComputedStyle(el, '::after').content")
-            == f'"g {suffix}" / ""'
-        )
-    for control in (page.locator(".lf-threads-toggle"), page.locator(".lf-asks")):
-        expect(control).to_have_accessible_name(control.inner_text())
-    expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
-    expect(version).to_have_attribute("data-lf-chord", "g V")
-    expect(version).to_have_attribute("title", re.compile(r"\(g V\)$"))
-    resized(page, 390, 800)
-    folded_chords = page.locator(".lf-banner-menu > [data-lf-chord]")
-    chord_readings = folded_chords.evaluate_all(
-        """els => els.map(el => ({
-          chord: el.dataset.lfChord,
-          content: getComputedStyle(el, '::after').content,
-        }))"""
+        expect(control.locator(".lf-target-hint")).to_have_count(0)
+    expect(page.locator(".lf-goto-targets > [data-lf-address-command]")).to_have_count(
+        0
     )
-    assert chord_readings and all(
-        reading["content"] == f'"{reading["chord"]}" / ""' for reading in chord_readings
-    ), f"a folded destination lost its visible chord: {chord_readings}"
-    resized(page, 1200, 900)
     expect(page.locator(".lf-latest-chip")).to_have_attribute(
         "title", re.compile(r"\(g V v\)$")
     )
-    # An armed generated-target map does not change the complete named route this
-    # version control exposes.
+    # Put an ordinary page destination where the Threads hint will first stand. The
+    # second placement pass must treat the already-seated control hint as occupied.
+    threads_box = page.locator(".lf-threads-toggle").bounding_box()
+    page.evaluate(
+        """box => {
+          const probe = document.createElement('a');
+          probe.id = 'hint-collision-probe';
+          probe.href = '#hint-collision-probe';
+          probe.textContent = 'Collision probe';
+          const bannerBottom = document.querySelector('.lf-banner')
+            .getBoundingClientRect().bottom;
+          Object.assign(probe.style, {
+            position: 'fixed', left: `${box.x}px`, top: `${bannerBottom + 4}px`,
+          });
+          document.querySelector('main').append(probe);
+        }""",
+        threads_box,
+    )
+
+    before = page.locator(".lf-banner").bounding_box()
     page.keyboard.press("g")
     expect(page.locator(".lf-keyline")).to_contain_text("visible target")
+    expect(
+        page.locator(f'{CHIPS}[data-lf-address-for="hint-collision-probe"]')
+    ).to_be_visible()
+    for command, (control, suffix) in banner_destinations.items():
+        hint = page.locator(
+            f'.lf-goto-targets > .lf-target-hint[data-lf-address-command="{command}"]'
+        )
+        expect(hint).to_be_visible()
+        assert hint.locator("kbd").evaluate_all(
+            "keys => keys.map(key => [key.textContent, key.dataset.lfKeyState])"
+        ) == [["g", "pressed"], [suffix, "neutral"]]
+        expect(control.locator(".lf-target-hint")).to_have_count(0)
+        hint_box, control_box = control.evaluate(
+            """(control, command) => [
+              document.querySelector(
+                `.lf-goto-targets > [data-lf-address-command="${command}"]`
+              ).getBoundingClientRect().toJSON(),
+              control.getBoundingClientRect().toJSON(),
+            ]""",
+            command,
+        )
+        assert hint_box["y"] - control_box["y"] - control_box[
+            "height"
+        ] == pytest.approx(2, abs=0.5), (
+            command,
+            hint_box,
+            control_box,
+        )
+        assert hint_box["x"] + hint_box["width"] / 2 == pytest.approx(
+            control_box["x"] + control_box["width"] / 2, abs=0.5
+        ), (command, hint_box, control_box)
+    all_hints = page.locator(".lf-goto-targets > .lf-target-hint:visible")
+    boxes = all_hints.evaluate_all(
+        """hints => hints.map(hint => {
+          const box = hint.getBoundingClientRect();
+          return {left: box.left, right: box.right, top: box.top, bottom: box.bottom};
+        })"""
+    )
+    assert all(
+        not (
+            left["left"] < right["right"]
+            and right["left"] < left["right"]
+            and left["top"] < right["bottom"]
+            and right["top"] < left["bottom"]
+        )
+        for index, left in enumerate(boxes)
+        for right in boxes[index + 1 :]
+    ), boxes
+    assert page.locator(".lf-banner").bounding_box() == before
+
+    # A narrow banner folds less-used controls away. The surviving controls also have
+    # open space above, but each destination hint belongs immediately below its control.
+    resized(page, 390, 800)
+    for command, control in (
+        ("navigation.panel.threads", page.locator(".lf-threads-toggle")),
+        ("version.open", page.locator(".lf-version")),
+    ):
+        hint = page.locator(
+            f'.lf-goto-targets > .lf-target-hint[data-lf-address-command="{command}"]'
+        )
+        expect(hint).to_be_visible()
+        hint_box, control_box = control.evaluate(
+            """(control, command) => [
+              document.querySelector(
+                `.lf-goto-targets > [data-lf-address-command="${command}"]`
+              ).getBoundingClientRect().toJSON(),
+              control.getBoundingClientRect().toJSON(),
+            ]""",
+            command,
+        )
+        assert hint_box["y"] - control_box["y"] - control_box[
+            "height"
+        ] == pytest.approx(2, abs=0.5), (
+            command,
+            hint_box,
+            control_box,
+        )
+        assert hint_box["x"] + hint_box["width"] / 2 == pytest.approx(
+            control_box["x"] + control_box["width"] / 2, abs=0.5
+        ), (command, hint_box, control_box)
     expect(page.locator(".lf-latest-chip")).to_have_attribute(
         "title", re.compile(r"\(g V v\)$")
     )
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-general textarea")).to_have_attribute(
-        "placeholder", re.compile(r" · c$")
+    expect(page.locator(".lf-goto-targets > [data-lf-address-command]")).to_have_count(
+        0
     )
-    page.keyboard.press("c")
-    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
-    reply = page.locator(".lf-thread textarea")
-    expect(reply).to_have_attribute("placeholder", "Reply")
-    page.keyboard.press("Escape")
 
     page.keyboard.press("?")
     page.keyboard.press("?")
-    toggle = page.get_by_role("button", name="Character shortcuts")
-    expect(toggle).to_have_attribute("aria-pressed", "true")
-    toggle.click()
-    expect(toggle).to_have_attribute("aria-pressed", "false")
-    expect(page.locator(".lf-help")).not_to_contain_text("Go to the Threads panel")
-
-    page.keyboard.press("Escape")
-    expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
-    expect(version).not_to_have_attribute("title", re.compile(r"\(g V\)$"))
-    for control, suffix in banner_chords:
-        expect(control).not_to_have_attribute("data-lf-chord", re.compile(".+"))
-        expect(control).not_to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
-    expect(version).not_to_have_attribute("data-lf-chord", re.compile(".+"))
-    expect(page.locator(".lf-latest-chip")).not_to_have_attribute(
-        "title", re.compile(r"\(g V v\)$")
+    expect(page.locator(".lf-help")).not_to_contain_text(
+        "Letter, number & punctuation shortcuts"
     )
-    expect(page.locator(".lf-general textarea")).not_to_have_attribute(
-        "placeholder", re.compile(r" · c$")
-    )
-    expect(reply).to_have_attribute("placeholder", "Reply")
-    # Space is checkbox activation, not a character shortcut. The option's local
-    # navigation and activation remain available while letters, digits, and punctuation
-    # are off.
-    mark = page.locator("#live-question .lf-pick").first
-    mark.focus()
-    shortcuts = mark.get_attribute("aria-keyshortcuts").split()
-    assert shortcuts == ["ArrowUp", "ArrowDown", "Space"], shortcuts
-    page.keyboard.press("Space")
-    expect(page.locator("#lq-keep")).to_have_attribute("chosen", "")
-
-    expect(more).to_have_attribute("aria-label", "More keyboard shortcuts")
-    assert more.get_attribute("aria-keyshortcuts") is None
-    page.keyboard.press("c")
-    expect(page.locator(".lf-panel")).to_be_hidden()
-    page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_be_hidden()
-
-    # The preference survives a visit, and the non-character Enter path can reverse it.
-    page.reload()
-    page.wait_for_function("() => document.body.hasAttribute('data-lf-presented')")
-    more = page.locator(".lf-key-more")
-    expect(more).to_have_attribute("aria-label", "More keyboard shortcuts")
-    more.focus()
-    page.keyboard.press("Enter")
-    expect(page.locator(".lf-help")).to_be_visible()
-    toggle = page.get_by_role("button", name="Character shortcuts")
-    expect(toggle).to_have_attribute("aria-pressed", "false")
-    toggle.focus()
-    page.keyboard.press("Enter")
-    expect(toggle).to_have_attribute("aria-pressed", "true")
-    create = page.locator('.lf-help-command[data-lf-command="comment.create"]')
-    expect(create).to_have_attribute("data-lf-available", "true")
-    create.click()
-    expect(page.locator(".lf-help")).to_be_hidden()
-    expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
-    expect(version).to_have_attribute("data-lf-chord", "g V")
-    expect(version).to_have_attribute("title", re.compile(r"\(g V\)$"))
-    for control, suffix in banner_chords:
-        expect(control).to_have_attribute("data-lf-chord", f"g {suffix}")
-        expect(control).to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
-    expect(page.locator(".lf-general textarea")).to_be_focused()
-    expect(page.locator(".lf-general textarea")).to_have_attribute(
-        "placeholder", re.compile(r"(⌘⏎|Ctrl\+⏎)$")
-    )
-    expect(page.locator(".lf-panel")).to_be_visible()
-    # Running the declaration from the reference goes through the same return-stack
-    # invocation as its physical key, so Escape returns to the reference's door.
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-panel")).to_be_hidden()
-    expect(more).to_be_focused()
+    expect(page.locator(".lf-help-meta")).to_be_visible()
     assert errors == []
     page.close()
 
@@ -5280,8 +5438,7 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
     The press is the other half. The line and its chips take no pointer events, so a
     control the line stands over on some scroll position is still a control. Its More
     button does take them, and deliberately: it is the only pointer route to the keyboard
-    reference and so to the character-shortcut preference, which cannot be made to depend
-    on the character key it turns off. The band is aimed past it here for that reason."""
+    reference. The band is aimed past it here for that reason."""
     page, errors = open_page(browser, serve(FOOT_CONTROL_PAGE))
     control = page.locator("#foot-change")
     expect(control).to_be_visible()
@@ -5338,10 +5495,9 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
         f"the key line took a press aimed at the control underneath it: {under}"
     )
 
-    # More is the exception, and the one that has to stay: it is the only pointer route to
-    # the reference, and so to the preference that turns character shortcuts off. A reader
-    # who has turned them off cannot be asked to press `?` to get back. Asked as a press
-    # rather than as a declaration, the same way the chips above were.
+    # More is the exception, and the one that has to stay: it is the pointer route to the
+    # reference. Asked as a press rather than as a declaration, the same way the chips
+    # above were.
     expect(page.get_by_role("button", name="? more", exact=True)).to_be_visible()
     assert page.evaluate(
         """() => {

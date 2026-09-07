@@ -261,7 +261,7 @@ session.</p></details>
 )
 # Generated go-to hints, painted in their own transient layer. The code is metadata on the
 # chip because its visible text also carries the ellipsis marking a chord in progress.
-CHIPS = ".lf-goto-targets > .lf-chord-address"
+CHIPS = ".lf-goto-targets > .lf-chord-address[data-lf-address]"
 
 
 def address_codes(page):

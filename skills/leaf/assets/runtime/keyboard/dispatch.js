@@ -177,8 +177,8 @@ document.addEventListener("keydown", (ev) => {
   if (ev.isComposing) return;
   if (run(ev)) return;
   // Any other key disarms the chord and keeps its ordinary meaning, so a mistyped g costs
-  // nothing: g T is a panel trip and g g re-arms. A letter naming no list disarms the same
-  // way, and so does a digit past the end of the list a letter named. Spelled as walking
+  // nothing: g T is a panel trip and g g re-arms. A key naming no destination disarms the
+  // same way. Spelled as walking
   // again rather than as a rule, so the meaning a key keeps is the meaning the register
   // gives it. A modifier alone is half a press rather than a key: the Shift that
   // capitalizes G arrives as a keydown of its own ahead of it, and disarming on that

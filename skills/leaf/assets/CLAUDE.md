@@ -565,6 +565,21 @@ Document every inconsistency the survey exposes in the task handoff. If the rule
 here do not settle one, escalate it to the user before choosing locally; the
 absence of a dispatch conflict does not make a binding precise.
 
+A sequential key route is rendered as one box per physical step. The boxes stay close
+enough to read as one route. In an active mode, only the longest leading sequence that
+matches presses the mode accepted wears the pressed face; another route's next key stays
+neutral. A visible control's transient destination uses the same detached overlay shape as
+a generated target hint. The placement pass centers it in the open space immediately below
+and keeps it clear of its control if it must use another side. It stands only while its chord
+is active; the complete reference and control tooltip keep the route available at rest.
+
+The complete reference gives each distinct filter or destination its own command row.
+Search preserves a typed trailing separator and case: a query such as `g ` asks for chord
+continuations, and `g t` ranks the lowercase filter ahead of `g T`. Every declared
+alternative is indexed from the register even when its rendered cell compacts alternatives
+into one face. All binding-prefix matches lead the result list across scopes; prose and
+scope matches follow them. The visible row order is the keyboard command-rail order too.
+
 ### Page scope rows (keyboard/page.js)
 
 The register owns capabilities, not controls. Every capability the chrome offers
@@ -597,8 +612,9 @@ the reading page. Both follow the active region, share a quick glide, and jump u
 reduced motion. Native Space stays with the platform and focused controls. Other letters come
 from words the surface says: `w` narrows to threads waiting on the reader while focus is
 in that panel, and enters Draw mode from the page. The Go-to chord
-(`keyboard/address.js`) uses case to separate complete destinations from numbered
-lists. A key spelling something nothing on screen says is a key nobody reaches for twice.
+(`keyboard/address.js`) uses uppercase letters for named destinations and lowercase
+letters for target-kind filters and generated hints. A key spelling something nothing on
+screen says is a key nobody reaches for twice.
 Approval spends no fixed page letter: its visible button stays in the Tab order and takes
 native Enter or Space, while the Ask-local list gives it a contextual binding. In particular,
 a conditional chord mnemonic must not share its final key

@@ -1449,13 +1449,16 @@ function coreScopes() {
 // A control the keyboard reaches names its shortcut from the row. `control` is where a
 // row says which control it duplicates; its projection follows liveness too, so a disabled
 // Ask does not advertise a shortcut the dispatcher has withdrawn. The latest-version
-// chip's route spans two rows, so it is composed from both.
+// chip's route spans two rows, so it is composed from both. The address owner paints
+// sequential chord overlays while its mode stands; this projection keeps the complete
+// route in the tooltip at rest.
 //
 // The pass runs in the standing chrome's frame, which the `lf-actions` heartbeat asks for
 // every two seconds on a page nobody has touched, so every name it writes goes through
-// `keeps` and says nothing where the control already says it. A restated title or chord
-// is news to whatever is reading the page — the mutation stream a screen reader rebuilds
-// its buffer from — and these controls stand on the banner the living margin watches.
+// `keeps` and says nothing where the control already says it. Restated title or shortcut
+// metadata is news to whatever is reading the page — the mutation stream a screen reader
+// rebuilds its buffer from — and these controls stand on the banner the living margin
+// watches.
 export function paintCoreControls() {
   const returningToMore = Boolean(keylineExpanded());
   const closeSays = returningToMore ? "Back to more shortcuts" : "Close";
@@ -1484,11 +1487,9 @@ export function paintCoreControls() {
           "title",
           control.dataset.lfKeyTitle + (active ? ` (${shortcut})` : ""),
         );
-        if (active && scope.chord) keeps(control, "data-lf-chord", shortcut);
-        else delete control.dataset.lfChord;
         // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
-        // alternatives. The complete chord remains in the visible hint and accessible
-        // keyboard reference instead of claiming its final press works alone.
+        // alternatives. The complete chord remains in the overlay, tooltip, and
+        // accessible keyboard reference instead of claiming its final press works alone.
         if (active && !scope.chord)
           keeps(control, "aria-keyshortcuts", ariaShortcuts([row], false));
         else control.removeAttribute("aria-keyshortcuts");

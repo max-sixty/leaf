@@ -98,8 +98,6 @@
    and the visible surfaces change together. */
 // Which platform's spelling, and which modifier is the chord's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
-import { readerStore } from "../storage.js";
-
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 // How a key is spelled, in one column. The line said "esc" where the overlay said "Esc"
@@ -170,31 +168,12 @@ export const spokenBinding = (binding) => {
 // of the page. That is what lets a key whose meaning moves say the meaning it has: the
 // surfaces render this press rather than the set of presses the key could be.
 export const word = (cell) => (typeof cell === "function" ? cell() : cell);
-// Readers who use speech input or are prone to stray presses must be able to turn off
-// character-only shortcuts. Keep that preference inside the binding vocabulary so the
-// dispatcher and every projection lose the same keys together. Shift still produces a
-// character and does not exempt a shortcut; Mod and Alt make it a modified command.
-// A reader preference, not page state: it follows them across Leaf pages, while the
-// visible More button keeps the setting reachable when its own `?` shortcut is off.
-export const CHARACTER_SHORTCUTS_KEY = "lf-character-shortcuts";
-let characterShortcutsOn = readerStore.get(CHARACTER_SHORTCUTS_KEY) !== "0";
-export const characterShortcuts = () => characterShortcutsOn;
-export function setCharacterShortcuts(on) {
-  characterShortcutsOn = on;
-  readerStore.set(CHARACTER_SHORTCUTS_KEY, on ? null : "0");
-}
-const characterBinding = (binding) => {
-  const { key, mods } = parsed(binding);
-  // Space activates native and offered buttons; it is not the letter/number/punctuation
-  // shortcut the preference promises to silence.
-  return key !== " " && [...key].length === 1 && mods.every((mod) => mod === "Shift");
-};
 export const declaredBindings = (row) => word(row.keys) ?? [];
 export const commandRoutes = (row) => word(row.routes) ?? [];
-export const bindings = (row) =>
-  declaredBindings(row).filter(
-    (binding) => characterShortcuts() || !characterBinding(binding),
-  );
+// TODO(2026-09-07): Let people and host agents configure character shortcuts through a
+// reader-configuration surface. Apply that setting here so dispatch and every projection
+// continue to consume one binding vocabulary.
+export const bindings = declaredBindings;
 // The command identities under one row. Equivalent bindings keep the row's identity
 // and share its implementation; distinct results are routes and expose only those exact
 // identities. Dispatch and every command-facing projection consume this split.
@@ -283,9 +262,9 @@ function validateActive(active, where, bindingOf) {
   return active;
 }
 
-// A scope's own validation, run when its first paint reads the rows, deliberately ignores
-// the reader's character-shortcut preference. A saved preference must not let an ambiguous
-// register stand and then fail halfway through turning the commands back on.
+// A scope's own validation, run when its first paint reads the rows, checks the declared
+// vocabulary rather than a projection of it. A projection must not conceal an ambiguous
+// register and let it fail only after the projection changes.
 export const validateRows = (rows, where = "a scope") =>
   validateActive(rows.filter(live), where, declaredBindings);
 

@@ -77,11 +77,11 @@ jobs:
       # window while Cloudflare provisions the application and custom domain.
       #
       # The per-attempt cap has to outlast the slowest answer that window produces
-      # rather than a healthy one. A cold container start takes seconds, and the
-      # "Maximum number of running container instances exceeded" reply the Worker
-      # returns while every session slot is held takes longer still; a ten-second cap
-      # aborted those attempts, so the run recorded `curl (28)` where the reason had
-      # been and gave up ten minutes in, inside a window that cleared shortly after.
+      # rather than a healthy one. While every session slot is held, a seat request can
+      # hang with no bytes at all: run 34088384337 aborted twenty-seven attempts that
+      # way at ten seconds, while the four that did answer returned 500 within 1.4-5.7s.
+      # Probes taken minutes later, with the window still busy, took ~11.5s to return
+      # "Maximum number of running container instances exceeded", which ten seconds cuts off.
       - name: Verify public example server
         run: |
           COOKIE="__Host-leaf-example=$(openssl rand -hex 16)"

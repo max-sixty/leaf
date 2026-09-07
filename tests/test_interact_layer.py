@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import threading
 from pathlib import Path
 
@@ -618,6 +619,44 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         for path in shipped_payload()
         if path.suffix == ".lock"
     ] == ["uv.lock"]
+
+
+def test_a_run_keeps_its_temporary_tree_out_of_the_candidate_payload(tmp_path):
+    """The one flag that can put a run's fixtures inside the tree is refused.
+
+    `--basetemp` is the whole reachable condition: it is the only way the run's
+    temporary tree lands anywhere but `$TMPDIR`, and inside the checkout it would
+    hand the payload test above every page the run writes. The refusal happens at
+    configure time, so collecting one node id is enough to ask for it, and the
+    outside path is the control that says what is refused is where the basetemp
+    points rather than the flag itself.
+    """
+
+    def collect(basetemp):
+        return subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "-q",
+                "--collect-only",
+                f"--basetemp={basetemp}",
+                "-o",
+                f"cache_dir={tmp_path / 'cache'}",
+                f"{__file__}::test_claude_and_codex_load_the_same_plugin_payload",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+
+    inside = PLUGIN_ROOT / "basetemp-under-test"
+    refused = collect(inside)
+    assert refused.returncode != 0, refused.stdout + refused.stderr
+    assert "would count as shipped payload" in refused.stdout + refused.stderr
+
+    assert collect(tmp_path / "outside").returncode == 0
 
 
 def test_claude_and_codex_read_the_same_repository_skills():

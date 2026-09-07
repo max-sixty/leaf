@@ -30,6 +30,7 @@ from render_support import (
     ROOT,
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
+    SEATED_QUESTION_PAGE,
     TARGETS_PAGE,
     TOKEN,
     WHERE_I_STAND_PAGE,
@@ -1273,7 +1274,21 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
         serve(INLINE_PAGE, anchored=[("p", "bold text")]),
     )
     thread = page.locator(".lf-margin-preview .lf-conversation-thread")
+    note = page.locator("#p .lf-mark-note")
 
+    note.click()
+    expect(thread).to_be_focused()
+    assert not thread.evaluate("el => el.matches(':focus-visible')")
+    pointer = thread.evaluate(
+        """el => { const s = getComputedStyle(el); return {
+          outline: s.outlineStyle, background: s.backgroundColor,
+          shadow: s.boxShadow,
+        }; }"""
+    )
+    assert pointer["outline"] == "none"
+    assert pointer["shadow"] != "none"
+
+    page.keyboard.press("Escape")
     page.keyboard.press("t")
     expect(thread).to_be_focused()
     current = thread.evaluate(
@@ -1284,6 +1299,7 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
     )
     assert current["outline"] == "none"
     assert current["shadow"] != "none"
+    assert current == pointer
 
     page.keyboard.press("Enter")
     reply = thread.locator("textarea")
@@ -1301,7 +1317,8 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
     )
     assert writing["outline"] == "none"
     assert writing["background"] != current["background"]
-    assert writing["shadow"] == "none"
+    assert writing["shadow"] != "none"
+    assert writing["shadow"] != current["shadow"]
     assert reply_ring == {"style": "solid", "width": "2px"}
     assert errors == []
     page.close()
@@ -1309,23 +1326,35 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
 
 def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
     """The system focus outline replaces the surface paint high contrast removes."""
+    url = serve(SEATED_QUESTION_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Which job should come first?", {"section": "jobs"}
+    )
     context = browser.new_context(forced_colors="active")
     try:
         page, errors = open_page(
             browser,
-            serve(INLINE_PAGE, anchored=[("p", "bold text")]),
+            url,
             context=context,
         )
-        thread = page.locator(".lf-margin-preview .lf-conversation-thread")
+        thread = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
 
-        page.keyboard.press("t")
-        expect(thread).to_be_focused()
+        reply = thread.locator("textarea")
+        reply.click()
+        expect(reply).to_be_focused()
+        assert thread.evaluate("el => el.matches(':focus-within')")
         focus = thread.evaluate(
             """el => { const s = getComputedStyle(el); return {
               style: s.outlineStyle, width: s.outlineWidth,
+              offset: s.outlineOffset, shadow: s.boxShadow,
             }; }"""
         )
-        assert focus == {"style": "solid", "width": "2px"}
+        assert focus == {
+            "style": "solid",
+            "width": "2px",
+            "offset": "-2px",
+            "shadow": "none",
+        }
         assert errors == []
     finally:
         context.close()

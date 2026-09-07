@@ -496,11 +496,11 @@ signal for later changes. Provisional defaults may reserve space, but they do no
 
 Control state is paint: ink, fill, border, or an inset ring. Do not express it by
 changing font weight, size, padding, border width, or another metric. Reserve
-space before a generated control appears. An action that still means the same thing
-keeps its label; report transient success with `notice` instead of relabeling the
-control. When a control's meaning genuinely changes, `reserve` measures all enumerable
-labels in its current font and sets a minimum width. Re-measure after changing type
-tokens; avoid numeric reservations where the possible words are available.
+space before a generated control appears. Transient feedback may repaint a control or
+briefly replace its label, but neither may change its geometry; `reserve` measures all
+enumerable labels in the control's current font and sets a minimum width. Re-measure
+after changing type tokens; avoid numeric reservations where the possible words are
+available. Pair local visual feedback with `notice` for an assistive announcement.
 
 Submission feedback uses the shared lifecycle: busy paint while delivery is
 unresolved, the resulting content or control state as durable confirmation, and
@@ -526,7 +526,13 @@ shortcuts. Before adding or changing a binding, survey the complete register for
 meaning, scope, native overlap, entry and exit symmetry, and focus restoration.
 Each generated hint names the exact visible control it activates. An aggregate location
 may expose each of its visible Buttons or focus itself; it never selects a descendant
-action for the reader.
+action for the reader. A press a widget built is one of those controls too, read off the
+value `offer` and `selectableOffer` write: the tag for a button, the role for a selectable
+offer. That is what lets a capability decline a page letter without becoming unreachable —
+the row states the capability, and the chord reaches each control that routes to one. The
+reading stops where the theme's hand stops, because it is the same reading. A widget that
+builds its press as some other native control gets the empty string, the value naming the
+tag rather than pressability, and still spends a binding to make that press reachable.
 Document every inconsistency the survey exposes in the task handoff. If the rules
 here do not settle one, escalate it to the user before choosing locally; the
 absence of a dispatch conflict does not make a binding precise.

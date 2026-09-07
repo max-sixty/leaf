@@ -1,21 +1,22 @@
 /* Element-target paint in Leaf's chrome layer.
  *
- * Ordinary anchors keep their CSS outlines. A registered visual surface contributes its
- * shown box or, for SVG, painted geometry that Leaf clones into chrome, so aim, status
- * hover, and persistent states cover the same package drawing. The painter owns geometry
- * caching: scroll only moves cached paint; a layout, resize, source replacement, or target
- * change rebuilds it. */
+ * Ordinary anchors keep their CSS outlines. A declared visual widget, or a registered
+ * visual part, contributes its shown box or, for SVG, painted geometry that Leaf clones
+ * into chrome, so aim, margin correspondence, and persistent states cover the same
+ * package drawing. The painter owns geometry caching: scroll only moves cached paint; a
+ * layout, resize, source replacement, or target change rebuilds it. */
 
 import { clippedRect, documentPoint, shownBox } from "./geometry.js";
 import { el } from "./widget-elements.js";
 import { aimBox } from "./composing/aim.js";
-import { marginTraceBox } from "./living-margin.js";
 import { inChrome } from "./passages.js";
 
 // Persistent paint for semantic visual parts. target-paint.js owns these pointer-inert
 // projections and keeps every anchored state above the package drawing.
 export const visualMarkLayer = el("div", "lf-ui lf-visual-marks");
 visualMarkLayer.setAttribute("aria-hidden", "true");
+export const targetTraceBox = el("div", "lf-ui lf-target-trace lf-target-paint");
+targetTraceBox.setAttribute("aria-hidden", "true");
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const SHAPE_STROKE_ROOM = 2;
@@ -26,6 +27,7 @@ const STATE_CLASSES = {
   pending: "lf-visual-mark-pending",
   action: "lf-visual-mark-action",
   hover: "lf-visual-mark-hover",
+  focus: "lf-visual-mark-focus",
   here: "lf-visual-mark-here",
 };
 
@@ -172,9 +174,9 @@ const aimShape = document.createElementNS(SVG_NS, "svg");
 aimShape.classList.add("lf-aim-shape");
 aimShape.setAttribute("aria-hidden", "true");
 const aimMaskId = "lf-runtime-aim-shape-mask";
-const marginTraceShape = document.createElementNS(SVG_NS, "svg");
-marginTraceShape.classList.add("lf-margin-status-trace-shape");
-marginTraceShape.setAttribute("aria-hidden", "true");
+const targetTraceShape = document.createElementNS(SVG_NS, "svg");
+targetTraceShape.classList.add("lf-target-trace-shape");
+targetTraceShape.setAttribute("aria-hidden", "true");
 let targets = new Map();
 const overlays = new Map();
 let traceElement = null;
@@ -226,11 +228,11 @@ function clearTrace() {
   traceSurface = null;
   traceGeometry = null;
   traceShapeKey = "";
-  marginTraceBox.style.display = "none";
-  marginTraceBox.classList.remove("lf-shaped");
-  marginTraceShape.replaceChildren();
-  marginTraceBox.removeAttribute("data-for");
-  delete marginTraceBox.dataset.lfPaintPlane;
+  targetTraceBox.style.display = "none";
+  targetTraceBox.classList.remove("lf-shaped");
+  targetTraceShape.replaceChildren();
+  targetTraceBox.removeAttribute("data-for");
+  delete targetTraceBox.dataset.lfPaintPlane;
 }
 
 function drawTrace(
@@ -254,21 +256,21 @@ function drawTrace(
   traceSurface = surface;
   traceGeometry = geometry;
   if (!placed) {
-    marginTraceBox.style.display = "none";
+    targetTraceBox.style.display = "none";
     return;
   }
   const { rect, shapeKey } = placed;
   let shaped = Boolean(geometry);
   if (shaped && (changed || rebuildGeometry || shapeKey !== traceShapeKey))
-    shaped = paintShape(marginTraceShape, geometry, rect);
-  if (!shaped) marginTraceShape.replaceChildren();
+    shaped = paintShape(targetTraceShape, geometry, rect);
+  if (!shaped) targetTraceShape.replaceChildren();
   traceShapeKey = shaped ? shapeKey : "";
-  marginTraceBox.classList.toggle("lf-shaped", shaped);
-  if (element.id) marginTraceBox.setAttribute("data-for", element.id);
-  else marginTraceBox.removeAttribute("data-for");
-  marginTraceBox.dataset.lfPaintPlane = inChrome(element) ? "chrome" : "page";
+  targetTraceBox.classList.toggle("lf-shaped", shaped);
+  if (element.id) targetTraceBox.setAttribute("data-for", element.id);
+  else targetTraceBox.removeAttribute("data-for");
+  targetTraceBox.dataset.lfPaintPlane = inChrome(element) ? "chrome" : "page";
   const at = documentPoint(rect.left, rect.top);
-  Object.assign(marginTraceBox.style, {
+  Object.assign(targetTraceBox.style, {
     display: "block",
     left: `${at.left}px`,
     top: `${at.top}px`,
@@ -401,5 +403,5 @@ export function geometryChanged() {
 // The shapes into the aim's and the margin's boxes; mounted from chrome.js.
 export function mountTargetPaint() {
   aimBox.append(aimShape);
-  marginTraceBox.append(marginTraceShape);
+  targetTraceBox.append(targetTraceShape);
 }

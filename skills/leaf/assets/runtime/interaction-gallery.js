@@ -128,6 +128,7 @@ async function loadFrameDocument(frame) {
     stylesheet,
     style,
   );
+  body.inert = true;
   body.replaceChildren(main);
   const doc = frame.contentDocument;
   doc.open();

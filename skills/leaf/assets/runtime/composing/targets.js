@@ -18,12 +18,8 @@ import { shownParts, shownRect } from "../geometry.js";
 import { focused, paintHere } from "../keyboard/scopes.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "../keyboard/hints.js";
 import { announce } from "../notifications.js";
-import { selectTarget, updateFab } from "./surface.js";
-import {
-  allButTheReference,
-  hasCapturedTarget,
-  responseInstructions,
-} from "../keyboard/page.js";
+import { commentOnTarget, updateFab } from "./surface.js";
+import { allButTheReference, hasCapturedTarget } from "../keyboard/page.js";
 
 // The selection chooser's two faces. Hints and the active search result are paint only;
 // the search box is a real control, kept beside them so its focus and accessible name are
@@ -46,8 +42,8 @@ selectionStatus.setAttribute("role", "status");
 selectionSearch.append(selectionInput, selectionStatus);
 
 // Keyboard item selection and whole-page text search. `s` opens a viewport-local map of
-// the same stable items and visual parts Alt-click reaches, then raises their general
-// response actions; `/` opens the page's text search directly or from that map.
+// the same stable items and visual parts Alt-click reaches, then opens Comment on the
+// chosen target; `/` opens the page's text search directly or from that map.
 //
 // The short, viewport-local hints form a prefix-free tree over one alphabet. Most
 // targets cost one letter; only the tail branches when the viewport holds more targets
@@ -367,8 +363,8 @@ function matchDescription(segments) {
 function choose(target) {
   setOpen(false);
   document.body.focus({ preventScroll: true });
-  selectTarget(target);
-  announce(`Selected ${target.label}. ${responseInstructions()}`);
+  commentOnTarget(target);
+  announce(`Selected ${target.label}.`);
 }
 
 function typeHint(key) {

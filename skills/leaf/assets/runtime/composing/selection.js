@@ -390,9 +390,9 @@ function leaveComposer(discard) {
   syncSuggestMode(); // after the state it renders, which is now all of it
   hideComposer();
 }
-// Target selection leaves the prior draft in its own context but detaches this view
-// from it. Advancing the generation makes the selection later than both a draft watch
-// and a send already in flight, so neither can reclaim the view when it settles.
+// Detaching leaves the prior draft in its own context but removes this view from it.
+// Advancing the generation makes the detachment later than both a draft watch and a
+// send already in flight, so neither can reclaim the view when it settles.
 export function detachComposer() {
   composerEpoch += 1;
   leaveComposer(false);

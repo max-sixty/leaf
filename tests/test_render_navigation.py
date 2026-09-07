@@ -4899,8 +4899,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
 def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, serve):
     """The sentence a reader reads before they have pressed anything.
 
-    Comment can act immediately because the page itself is its target. React cannot: the
-    reader first selects an item, then chooses the response. Whole-page search and page
+    The two Comment routes identify their targets directly. Whole-page search and page
     movement remain in the complete reference.
 
     Read off `:not([hidden])`, because renderLine leaves every live row in the DOM and
@@ -4912,7 +4911,7 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     expect(shown).to_have_count(2)
     expect(page.get_by_role("button", name="? more", exact=True)).to_be_visible()
     # One settled read, which pins the count, the order, the keys and the words together.
-    assert key_line(page) == "c\ncomment on the page\ns\nselect item\n?\nmore", (
+    assert key_line(page) == "c\ncomment on the page\ns\ncomment on item\n?\nmore", (
         key_line(page)
     )
 
@@ -4932,7 +4931,7 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     help_el = page.locator(".lf-help")
     expect(help_el).to_be_visible()
     expect(help_el).to_contain_text("Search all the text on the page")
-    expect(help_el).to_contain_text("Choose a visible item by hint")
+    expect(help_el).to_contain_text("Comment on a visible item by hint")
     expect(help_el).not_to_contain_text("Open reactions")
     expect(help_el).to_contain_text("Move 60% of a page down")
     expect(help_el).to_contain_text("Move 60% of a page up")

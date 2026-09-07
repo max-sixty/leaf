@@ -899,6 +899,22 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
         page.close()
 
 
+def test_interaction_gallery_frames_do_not_take_page_focus(browser, serve):
+    """A contained Leaf page focuses its body at startup. The gallery keeps that
+    internal handoff from taking keyboard commands away from the page around it."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    gallery = page.locator("#bg-interactions")
+    expect(
+        gallery.locator("[data-interaction-frame][data-interaction-ready]")
+    ).to_have_count(2)
+
+    assert page.evaluate(
+        "() => !document.activeElement?.matches('[data-interaction-frame]')"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_a_broken_optional_page_interface_does_not_withhold_presentation(
     browser, serve
 ):

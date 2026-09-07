@@ -477,17 +477,17 @@ def test_tab_raises_individual_emoji_buttons_in_the_margin(browser, serve):
     page.close()
 
 
-def test_an_item_hint_raises_the_bar_and_a_token_outlines_the_item(browser, serve):
-    """Keyboard item selection leaves the response open. Choosing a token puts an
+def test_an_item_hint_opens_comment_and_a_token_outlines_the_item(browser, serve):
+    """Keyboard item selection opens Comment. Choosing a token puts an
     element anchor in the log, which paints as a dashed hairline on the item's boxes
     and a glyph seated at its first line."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.type(hint_code(page, "#prose", 3))
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(bar.locator(".lf-fab-input")).to_be_hidden()
-    page.keyboard.press("r")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(bar.locator(".lf-fab-input")).to_be_focused()
+    page.keyboard.press("Tab")
     page.locator('.lf-margin-reactions .lf-react[data-token="prioritize"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -1049,11 +1049,9 @@ def test_a_declared_visual_and_its_figure_keep_their_own_targets(browser, serve)
     ]
     page.keyboard.press("Escape")
     page.keyboard.type(hint_code(page, "#caption", 6))
-    expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-pending\b"))
     page.keyboard.press("Escape")
-    expect(page.locator("#caption")).not_to_have_class(
-        re.compile(r"\blf-action-target\b")
-    )
+    expect(page.locator("#caption")).not_to_have_class(re.compile(r"\blf-pending\b"))
 
     start.click(modifiers=["Alt"])
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))

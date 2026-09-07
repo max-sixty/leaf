@@ -3,6 +3,7 @@
 import { landInConversation, SAY_BOX, showThread } from "./landing.js";
 import { ago } from "../presence.js";
 import { renderMessageMarkdown, syncEdited } from "./messages.js";
+import { markdownReady } from "../markdown.js";
 import { el, offer } from "../widget-elements.js";
 import { seatRoot, turns } from "./model.js";
 import { settlementControl } from "./folding.js";
@@ -27,17 +28,34 @@ function paintConversationBody(body, message) {
     body.append(el("span", "lf-drawing-reference", "Drawing comment"));
 }
 
+// What a painted body was made from: the prose revision, and whether the Markdown
+// renderer had arrived when it was painted. A message the reader sends paints in their
+// gesture, before the lazy import it needs has necessarily landed.
+const inlineRevision = (message) =>
+  `${message.edited?.id ?? ""}:${markdownReady() ? "md" : "raw"}`;
+
 function conversationMessageNode(thread, message) {
-  let node = thread.querySelector(
-    `:scope > .lf-conversation-msg[data-event="${message.id}"]`,
-  );
+  // By its event, or — while the log is still answering for words the reader just sent —
+  // by the attempt both the pending record and the server's event carry. Found that way,
+  // the node the send drew is renamed rather than replaced, so the reader keeps the
+  // caret, focus and selection they have in it.
+  let node =
+    thread.querySelector(`:scope > .lf-conversation-msg[data-event="${message.id}"]`) ??
+    (message.attempt
+      ? thread.querySelector(
+          `:scope > .lf-conversation-msg[data-attempt="${message.attempt}"]`,
+        )
+      : null);
   if (node) {
+    if (node.dataset.event !== message.id) node.dataset.event = message.id;
+    if (message.pending) node.setAttribute("aria-busy", "true");
+    else node.removeAttribute("aria-busy");
     const time = node.querySelector("time");
     const when = ago(message.ts);
     if (time.textContent !== when) time.textContent = when;
     syncEdited(node.querySelector(":scope > .lf-conversation-head"), message);
     const body = node.querySelector(":scope > .lf-conversation-body");
-    const revision = message.edited?.id ?? "";
+    const revision = inlineRevision(message);
     if (node.lfRevision !== revision) {
       paintConversationBody(body, message);
       node.lfRevision = revision;
@@ -46,6 +64,8 @@ function conversationMessageNode(thread, message) {
   }
   node = offer("div", `lf-conversation-msg ${message.author}`);
   node.dataset.event = message.id;
+  if (message.attempt) node.dataset.attempt = message.attempt;
+  if (message.pending) node.setAttribute("aria-busy", "true");
   const head = el("div", "lf-conversation-head");
   head.append(
     el("b", "", message.author === "claude" ? message.agent || "Agent" : "You"),
@@ -54,7 +74,7 @@ function conversationMessageNode(thread, message) {
   syncEdited(head, message);
   const body = el("div", "lf-conversation-body");
   paintConversationBody(body, message);
-  node.lfRevision = message.edited?.id ?? "";
+  node.lfRevision = inlineRevision(message);
   node.append(head, body);
   if (message.markup) {
     const open = offer(
@@ -69,9 +89,15 @@ function conversationMessageNode(thread, message) {
 }
 
 function conversationThreadNode(host, t, collapsible = false) {
-  let thread = host.querySelector(
-    `:scope > .lf-conversation-thread[data-thread="${CSS.escape(t.root.id)}"]`,
-  );
+  let thread =
+    host.querySelector(
+      `:scope > .lf-conversation-thread[data-thread="${CSS.escape(t.root.id)}"]`,
+    ) ??
+    (t.root.attempt
+      ? host.querySelector(
+          `:scope > .lf-conversation-thread[data-attempt="${CSS.escape(t.root.attempt)}"]`,
+        )
+      : null);
   const wantedTag = collapsible ? "DETAILS" : "DIV";
   if (thread && thread.tagName !== wantedTag) {
     thread.remove();
@@ -79,9 +105,13 @@ function conversationThreadNode(host, t, collapsible = false) {
   }
   if (!thread) {
     thread = offer(collapsible ? "details" : "div", "lf-conversation-thread");
-    thread.dataset.thread = t.root.id;
+    if (t.root.attempt) thread.dataset.attempt = t.root.attempt;
     thread.tabIndex = -1;
   }
+  if (thread.dataset.thread !== t.root.id) thread.dataset.thread = t.root.id;
+  // Read at use, not captured: the log answering for a comment the reader just sent
+  // renames this node rather than replacing it, and the controls below outlive that.
+  const liveId = () => thread.dataset.thread;
   let summary = null;
   if (collapsible) {
     summary = thread.querySelector(":scope > .lf-conversation-summary");
@@ -114,7 +144,7 @@ function conversationThreadNode(host, t, collapsible = false) {
         : "✓ Resolved";
     if (!tail) {
       tail = offer("div", "lf-conversation-resolved");
-      tail.append(el("span"), settlementControl(t));
+      tail.append(el("span"), settlementControl(t, { liveId }));
     }
     if (tail.firstChild.textContent !== settledBy)
       tail.firstChild.textContent = settledBy;
@@ -122,7 +152,7 @@ function conversationThreadNode(host, t, collapsible = false) {
     resolve =
       thread.querySelector(
         ":scope > .lf-conversation-msg > .lf-conversation-head > .lf-resolve",
-      ) ?? settlementControl(t);
+      ) ?? settlementControl(t, { liveId });
     messages[0]?.querySelector(":scope > .lf-conversation-head")?.append(resolve);
     if (t.root.response?.kind !== "version") {
       tail = thread.querySelector(":scope > .lf-say");
@@ -131,7 +161,7 @@ function conversationThreadNode(host, t, collapsible = false) {
         const input = offer("textarea");
         const send = offer("button", "lf-btn primary", "Send");
         tail.append(input, send);
-        wireReply(t, input, send);
+        wireReply(t, input, send, liveId);
       }
     }
   }

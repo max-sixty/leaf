@@ -110,7 +110,8 @@ event, so historical readers do not need a surviving widget to recover it.
 Python derives winners, retractions, settlement, asks, threads, and updates in
 one transaction-consistent browser view. JavaScript combines that view with
 authored initial values and unresolved local gestures to derive complete widget
-state. Widgets render that state, including unset and undecided values; undo
+and conversation state, so a gesture whose result the page can draw is on screen
+before the log answers for it. Widgets render that state, including unset and undecided values; undo
 does not reconstruct widgets or replay baseline actions into the DOM. Page-widget
 state is bounded by document version; widgets frozen into thread markup use the
 conversation window.

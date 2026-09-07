@@ -3,6 +3,12 @@
    Collections keep stable identities so a projection can hold them while a state
    application replaces their contents. Scalar transitions go through this record
    directly. */
+// The id a message wears between the gesture that sends it and the log's answer. It sits
+// here, beside the shared facts rather than among them, because the modules that mint
+// it, read it back, and navigate by it are on three different sides of the owner cycle,
+// and a constant they all import must not draw a new edge across it.
+export const PENDING = "pending:";
+
 export const runtime = {
   active: null,
   activity: null,

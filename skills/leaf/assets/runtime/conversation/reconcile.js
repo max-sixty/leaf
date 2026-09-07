@@ -10,7 +10,7 @@ import { clocked } from "../presence.js";
 
 import { setReact } from "../reactions.js";
 
-import { runtime } from "../context.js";
+import { PENDING, runtime } from "../context.js";
 
 import { el } from "../widget-elements.js";
 import { elementById, inChrome } from "../passages.js";
@@ -108,7 +108,10 @@ function renderHolds(threads) {
   for (const node of document.querySelectorAll("[data-lf-held]"))
     node.removeAttribute("data-lf-held");
   for (const thread of threads) {
+    // The attribute names a thread, and a hold the log has not named yet has only the
+    // name this page gave it. The mark arrives with the answer, a breath later.
     if (thread.resolved || !thread.root.holds) continue;
+    if (thread.root.id.startsWith(PENDING)) continue;
     const target = elementById(thread.root.holds);
     if (target && !inChrome(target)) target.dataset.lfHeld = thread.root.id;
   }

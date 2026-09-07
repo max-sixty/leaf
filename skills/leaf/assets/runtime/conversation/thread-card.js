@@ -32,6 +32,14 @@ const standingCard = (t) =>
     ? threadsBox.querySelector(`.lf-thread[data-attempt="${t.root.attempt}"]`)
     : null);
 
+// Where the row after this message begins: a receipt acknowledges the message above it,
+// so it belongs to that message rather than to whatever arrives next.
+const afterReceipts = (msg) => {
+  let at = msg.nextElementSibling;
+  while (at?.classList.contains("lf-receipt")) at = at.nextElementSibling;
+  return at;
+};
+
 export function threadNode(t, grow) {
   const existing = standingCard(t);
   const existingResolved = existing && !existing.querySelector(":scope > .lf-compose");
@@ -51,14 +59,20 @@ export function threadNode(t, grow) {
       existing.querySelector(":scope > .lf-receipt") ??
       compose ??
       existing.querySelector(":scope > .lf-thread-actions");
+    // Each message lands after the one before it, past any receipt trailing that
+    // message. `tail` is the first receipt in the card, which is the end of the run
+    // only while nothing has been acknowledged mid-thread; anchoring every arrival
+    // there puts a second one above the first.
+    let previous = null;
     for (const m of turns(t)) {
       let msg = msgNodeIn(existing, m);
       if (!msg) {
         msg = msgNode(m);
         if (grow) msg.classList.add("grow");
-        existing.insertBefore(msg, tail);
+        existing.insertBefore(msg, previous ? afterReceipts(previous) : tail);
       }
       syncMsgNode(msg, m);
+      previous = msg;
     }
     paintReactStrips(existing, t);
     return existing;

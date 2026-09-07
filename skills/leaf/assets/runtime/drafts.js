@@ -335,7 +335,10 @@ export function sendMessage(ctx, owns, send) {
   standingMessages.set(ctx, current.attempt);
   tellDraft(ctx, null);
   void Promise.resolve(flight).then((sent) => {
-    standingMessages.delete(ctx);
+    // Lift this generation's mask, not whatever is standing for the context: a second
+    // send into the box this one emptied has masked its own words by the time this
+    // answer arrives, and they are on screen as a pending message of their own.
+    if (standingMessages.get(ctx) === current.attempt) standingMessages.delete(ctx);
     if (sent) {
       if (settleDraft(ctx, current.attempt)) tellDraft(ctx, null);
       return;

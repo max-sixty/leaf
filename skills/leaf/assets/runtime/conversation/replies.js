@@ -1,12 +1,10 @@
 /* One reply draft and send lifecycle shared by every view of a thread.
 
-   A reply send keeps its editor and actions visible only while the reader remains
-   there. Moving to another input, closing the panel, or scrolling away relinquishes
-   that continuation. The send preserves the panel's narrowing. A general-comment send
-   keeps focus in its originating box.
-
-   The send focuses the reply box only when no later selection, edit, or typing gesture
-   stands. */
+   A reply send returns in the gesture that makes it, so whether the reader is still in
+   this box is read once, there, and typing continues here only on that reading. The
+   send preserves the panel's narrowing, and focuses the reply box only when no later
+   selection, edit, or typing gesture stands. A general-comment send keeps focus in its
+   originating box. */
 import { heldConversation, revealConversation } from "./landing.js";
 import {
   loadDraft,
@@ -56,37 +54,16 @@ export function wireReply(t, input, send, liveId = () => t.root.id) {
       saveDraft(draftCtx, v);
       tellDraft(draftCtx, v);
     },
-    send: async (text, raw, owns) => {
-      // Scrolling away or leaving the window can keep the old editor's focus. Both
-      // withdraw this send's continuation, while its draft and delivery still settle.
-      const continuation = new AbortController();
-      const listening = { capture: true, passive: true, signal: continuation.signal };
-      const leave = () => continuation.abort();
-      addEventListener("blur", leave, { signal: continuation.signal });
-      document.addEventListener("wheel", leave, listening);
-      document.addEventListener("touchmove", leave, listening);
-      document.addEventListener(
-        "pointerdown",
-        (event) => {
-          const path = event.composedPath();
-          if (!path.includes(input) && !path.includes(send)) leave();
-        },
-        listening,
-      );
-      try {
-        const sent = await sendReply(t, liveId, text, raw, owns);
-        if (
-          !sent ||
-          continuation.signal.aborted ||
-          (focused() !== input && focused() !== send) ||
-          !mayLandTyping(input)
-        )
-          return;
-        landTyping(input);
-        revealConversation(heldConversation(), input);
-      } finally {
-        continuation.abort();
-      }
+    // The send returns in the gesture, so where the reader is reading is still where
+    // they were when they pressed it. Whether typing continues here is that one
+    // reading, taken now, rather than a race against a scroll or a blur arriving during
+    // a flight this no longer waits on.
+    send: (text, raw, owns) => {
+      const sent = sendReply(t, liveId, text, raw, owns);
+      if (!sent || (focused() !== input && focused() !== send) || !mayLandTyping(input))
+        return;
+      landTyping(input);
+      revealConversation(heldConversation(), input);
     },
   });
   sync();

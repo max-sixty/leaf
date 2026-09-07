@@ -1140,6 +1140,79 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     page.close()
 
 
+def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
+    """One box, two sends: answering the first must not hand back the second's words.
+
+    A send empties the box it was written in and masks that generation, so this
+    document stops showing words it is now showing in the thread. The answer lifts that
+    mask — and lifting whichever mask happens to be standing, rather than the one this
+    send put there, lifts a later send's: words the reader is already watching as a
+    pending reply go back on offer while that reply is still in flight. The outbox
+    delivers in order, so the first answer always lands while the second send is
+    unanswered. That makes the window ordinary rather than rare.
+    """
+    browser, held = held_events
+    url = serve(SEATED_QUESTION_PAGE)
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "jobs"},
+            "text": "Which job comes first?",
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(".lf-threads > .lf-thread")
+    reply = thread.locator("textarea")
+    send = thread.get_by_role("button", name="Send", exact=True)
+
+    first = "The reply already on its way."
+    reply.fill(first)
+    send.click()
+    holding(page, held, 1, "the first reply send")
+    expect(reply).to_have_value("")
+
+    second = "The reply the reader is watching."
+    reply.fill(second)
+    send.click()
+    expect(reply).to_have_value("")
+    # Both stand, in the order they were written. A card gains messages by insertion,
+    # and a receipt acknowledging an earlier one sits between them.
+    expect(thread.locator(".lf-msg").last).to_contain_text(second)
+    expect(thread.locator(".lf-msg").nth(-2)).to_contain_text(first)
+
+    held.pop(0).continue_()
+    holding(page, held, 1, "the second reply send, once the first is answered")
+
+    # What a widget asks of a draft box, through the public helper surface. The boxes
+    # alone would not say this: nothing repaints one when a mask is lifted, so the
+    # offer stands unseen until some view of this thread is next built and reads it.
+    standing = page.evaluate(
+        """async (ctx) => {
+          const api = await import('/runtime/widget-api.js');
+          return api.loadDraft(ctx);
+        }""",
+        f"reply:{root['id']}",
+    )
+    assert standing is None, "the second send's words were offered back while in flight"
+    expect(reply).to_have_value("")
+    expect(page.locator("#jobs .lf-conversation-thread textarea")).to_have_value("")
+
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    spoken = thread.locator(".lf-msg").all_inner_texts()
+    assert [
+        words for words in (first, second) if not any(words in s for s in spoken)
+    ] == []
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize("same_thread", [False, True])
 def test_a_held_reply_send_leaves_a_later_reply_box_focused(
     held_events, serve, same_thread

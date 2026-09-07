@@ -6093,7 +6093,13 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
 
     Three registers, because a pointer, a hand and a keyboard arrive by different routes
     and only one of them is on screen at rest. The hand is the resting answer, and a
-    control with nothing left to do gives it up along with its opacity. The badges are
+    control with nothing left to do gives it up along with the face it wore while it was
+    live. The face is read as that change and not as the layer's own `.55`, for the
+    reason the ring below is: a control is free to dress its own spent state and outrank
+    the floor, and the composer's submit does — an empty Send trades an accent disc for a
+    muted ring on paper at full opacity, so that a field with nothing in it reads as
+    quiet rather than as broken. Pinning the number would pin whichever of the two
+    happened to be on this page. The badges are
     read outside a choose group on purpose: a card group makes the whole option the
     press, so a chip inside one inherits the hand from the control it is sitting in and
     would be answering this question about its parent. The wash is the aim, read as a
@@ -6110,10 +6116,30 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     test_render_projection.py, which is where the layer has a control no widget rings."""
     page, errors = open_page(browser, serve(CHIP_PAGE))
     state = """() => {
+      // Whatever a control spends on saying it is live: the layer's wash, its own ink
+      // and ground, and the disc a compose submit paints in its ::before.
+      const face = (el) => [getComputedStyle(el), getComputedStyle(el, '::before')]
+        .map((cs) => [cs.opacity, cs.color, cs.backgroundColor, cs.borderTopColor,
+                      cs.filter].join(' '))
+        .join(' / ');
+      // The same control with the fact of being spent lifted off it, and put straight
+      // back: the comparison is against what this control would wear with something
+      // left to do, not against a number.
+      const armed = (el) => {
+        const native = el.disabled;
+        const declared = el.getAttribute('aria-disabled');
+        if (native) el.disabled = false;
+        if (declared !== null) el.removeAttribute('aria-disabled');
+        const reading = face(el);
+        if (native) el.disabled = true;
+        if (declared !== null) el.setAttribute('aria-disabled', declared);
+        return reading;
+      };
       const kind = (el) => {
         const cs = getComputedStyle(el);
-        return {cursor: cs.cursor, opacity: cs.opacity,
-                off: el.matches('[aria-disabled="true"], :disabled')};
+        const off = el.matches('[aria-disabled="true"], :disabled');
+        return {cursor: cs.cursor, opacity: cs.opacity, off,
+                face: face(el), armed: off ? armed(el) : null};
       };
       const presses = [...document.querySelectorAll('[data-lf-offer]')]
         .filter((el) => el.dataset.lfOffer !== '');
@@ -6133,7 +6159,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     assert all(p["cursor"] == "pointer" for p in live), (
         f"a control a widget built does not take the hand: {live}"
     )
-    assert all(p["cursor"] == "default" and float(p["opacity"]) < 1 for p in spent), (
+    assert all(p["cursor"] == "default" and p["face"] != p["armed"] for p in spent), (
         f"a control with nothing left to do still offers itself: {spent}"
     )
     assert not any(s["cursor"] == "pointer" for s in rest["said"]), (

@@ -1067,6 +1067,21 @@ STANDING_PAGE = leaf_page(
   <lf-swipe-pile id="ab-pass" verdict="pass"></lf-swipe-pile>
   <lf-swipe-pile id="ab-keep" verdict="keep"></lf-swipe-pile>
 </lf-swipe-deck></lf-ask>
+<lf-ask id="ab-card-decision"><h2>How should the cutover note look?</h2>
+<lf-playground id="ab-card" submit-label="Use these settings">
+  <lf-playground-control name="radius" label="Corner radius" kind="range" value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
+  <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
+    <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
+    <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+  </lf-playground-control>
+  <lf-playground-preview id="ab-card-preview">
+    <article id="ab-card-note"><strong>The cutover lands on Friday</strong><p>Read the migration notes before the freeze.</p></article>
+  </lf-playground-preview>
+  <lf-playground-output id="ab-card-instruction">Use a
+    <lf-playground-value for="radius"></lf-playground-value> corner radius and a
+    <lf-playground-value for="tone"></lf-playground-value> tone.
+  </lf-playground-output>
+</lf-playground></lf-ask>
 <lf-diff id="ab-patch"><pre>
 diff --git a/ab/bracket.py b/ab/bracket.py
 --- a/ab/bracket.py
@@ -1104,6 +1119,14 @@ STANDING_ACTIONS = [
         {"card": "ab-capacity", "to": "ab-keep", "index": 0},
     ),
     ("ab-patch", "review", {"file": "ab/bracket.py", "reviewed": True}),
+    (
+        "ab-card",
+        "choose",
+        {
+            "values": {"radius": 20, "tone": "bold"},
+            "instruction": "Use a 20px corner radius and a bold tone.",
+        },
+    ),
 ]
 RELATIVE_WIDGET_PAGE = leaf_page(
     "relative widget",

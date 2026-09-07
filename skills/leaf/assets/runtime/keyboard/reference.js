@@ -1,5 +1,5 @@
-/* The keyboard reference: the complete listing behind `?`, the mode that owns the
-   keyboard while it stands, and the character-shortcut preference it keeps.
+/* The keyboard reference: the complete listing behind `?` and the mode that owns the
+   keyboard while it stands.
 
    A true mode may own the keyboard. An armed address chord and the open reference claim
    the relevant keys through their scope. A longer-lived menu keeps the reference
@@ -12,10 +12,14 @@
    declares because the platform's own runs one way only — so the layer's way out survives
    the round trip too.
 
-   The reference lists every live capability the page has, grouped by scope, and filters
-   those rows by normalized key, action, line word, and scope text. Search is a projection
-   of the same gathered rows rather than another binding index. Computed ranges count
-   current members. A declaration must survive `merge` with its `when`, `at`,
+   The reference lists every live capability the page has, grouped by scope, and searches
+   those rows by key, action, line word, and scope text. Every declared binding alternative
+   remains searchable even when its cell compacts several alternatives into one face.
+   Binding-prefix matches form one leading result group across scopes; exact case leads
+   case-insensitive matches, so a shifted key remains distinguishable. Search is a
+   projection of the same gathered rows rather than another binding index. Computed ranges
+   count current members.
+   A declaration must survive `merge` with its `when`, `at`,
    `liveInReference`, and rows intact so the reference does not advertise a scope the
    current page cannot enter.
 
@@ -26,24 +30,15 @@
    Restoration waits one frame only when that element is the temporarily removed More
    control.
 
-   The reference also owns the persistent character-shortcut preference. Turning it off
-   removes unmodified and Shift-only letter, number, and punctuation bindings from
-   dispatch, the key line, the reference, tooltips, address labels, placeholders, and
-   `aria-keyshortcuts` in one projection. Space is activation, not a character shortcut,
-   and remains live. The native More button and its Enter activation are the route back to
-   the setting; do not make the setting depend on the character key it disables.
-
    An overlay may become stale while open. If a row goes dead, its dispatch no longer
    runs. A newly live row may wait until the reference is reopened. Do not rebuild a
    focused help surface under the reader merely to keep it live to the latest poll. */
 import {
   bindings,
-  characterShortcuts,
   clampedRow,
   commandPresentations,
   declaredBindings,
   live,
-  setCharacterShortcuts as rememberCharacterShortcuts,
   spell,
   spokenBinding,
   word,
@@ -52,20 +47,16 @@ import { completeRowSteps, keySequence, neutralStates } from "./presentation.js"
 import { captureReturnPlace, restoreReturnPlace } from "./return-stack.js";
 import { el } from "../widget-elements.js";
 import { ELEMENTS, pageScopes } from "./page.js";
-import { setChord } from "./address.js";
-import { setReact } from "../reactions.js";
 import {
   byCommand,
   elementScopes,
   focused,
   merge,
   paintHere,
-  paintKeys,
   pruneScopedElements,
   scopeRefs,
   scopesFor,
 } from "./scopes.js";
-import { syncGeneral } from "../conversation/panel.js";
 import { pageSelection } from "../composing/capture.js";
 import { readingBlock } from "../version.js";
 import { availableCommands, executeCommand, readerIn } from "./dispatch.js";
@@ -80,24 +71,6 @@ export const helpClose = el("button", "lf-btn lf-help-close", "Close");
 helpClose.type = "button";
 helpClose.title = "Close the shortcuts";
 helpClose.setAttribute("aria-label", "Close the shortcuts");
-
-// The toggle behind the reference's own control: every surface loses or regains the
-// same keys together, and a paint that throws puts the preference back.
-const setCharacterShortcuts = (on) => {
-  const before = characterShortcuts();
-  rememberCharacterShortcuts(on);
-  setChord(false);
-  setReact(false);
-  try {
-    paintKeys();
-    syncGeneral();
-  } catch (error) {
-    rememberCharacterShortcuts(before);
-    paintKeys();
-    syncGeneral();
-    throw error;
-  }
-};
 
 // Every scope the page has, gathered by title, for the reference. Not the stack: the
 // reference answers "what could I do here", so it names a card grip's keys whether or not
@@ -210,6 +183,13 @@ const helpWords = (value) =>
     .toLocaleLowerCase()
     .replace(/\s+/g, " ")
     .trim();
+// A binding query retains a trailing separator: `g ` means the routes below the `g`
+// prefix, while prose matching still treats it as the word `g`. Case is retained for the
+// first rank so `g t` and `g T` can put the actual requested face first.
+const helpBinding = (value) =>
+  String(value ?? "")
+    .replace(/^\s+/, "")
+    .replace(/\s+/g, " ");
 helpEl.addEventListener("cancel", (event) => {
   event.preventDefault();
   showHelp(false);
@@ -265,33 +245,6 @@ function showHelp(open, restoreFocus = true) {
     search.spellcheck = false;
     const meta = el("div", "lf-help-meta");
     meta.setAttribute("aria-live", "polite");
-    const preference = el("div", "lf-help-preference");
-    const characterToggle = el("button", "lf-btn lf-help-shortcuts");
-    characterToggle.type = "button";
-    characterToggle.setAttribute("aria-label", "Character shortcuts");
-    const paintCharacterToggle = () => {
-      const on = characterShortcuts();
-      characterToggle.setAttribute("aria-pressed", String(on));
-      characterToggle.title = `Turn ${on ? "off" : "on"} letter, number, and punctuation shortcuts`;
-      characterToggle.replaceChildren(
-        document.createTextNode("Character shortcuts "),
-        el("span", "", on ? "on" : "off"),
-      );
-    };
-    paintCharacterToggle();
-    characterToggle.onclick = () => {
-      setCharacterShortcuts(!characterShortcuts());
-      // Re-enter through the page so the dispatch snapshot sees the newly available
-      // bindings before this modal scope shadows them. This rebuilds one surface rather
-      // than entering another: preserve the place the original reference displaced and
-      // focus the replacement preference instead of minting either control as an origin.
-      const origin = helpOrigin;
-      showHelp(false, false);
-      showHelp(true);
-      helpOrigin = origin;
-      helpEl.querySelector(".lf-help-shortcuts").focus({ preventScroll: true });
-    };
-    preference.append(meta, characterToggle);
     const results = el("div", "lf-help-results");
     results.id = "lf-help-results";
     results.setAttribute("role", "grid");
@@ -359,6 +312,7 @@ function showHelp(open, restoreFocus = true) {
           keyCell.append(sequence);
           const actionCell = document.createElement("td");
           actionCell.setAttribute("role", "gridcell");
+          const scopeLabel = el("span", "lf-help-scope", scopeTitle);
           const available = commandsAtOpen.has(id);
           if (row.run && row.runFromReference !== false) {
             const command = el("button", "lf-help-command", word(does));
@@ -395,8 +349,17 @@ function showHelp(open, restoreFocus = true) {
           } else actionCell.textContent = word(does);
           tr.append(keyCell, actionCell);
           t.append(tr);
+          const prefix = word(row.chord) ?? [];
+          const alternatives = route ? [route.binding] : bindings(row);
           entries.push({
             el: tr,
+            order: entries.length,
+            actionCell,
+            scopeLabel,
+            bindingForms: alternatives.map((binding) => ({
+              display: [...prefix, spell(binding)].join(" "),
+              spoken: [...prefix, spokenBinding(binding)].join(" "),
+            })),
             directWords: helpWords(
               `${id} ${scopeTitle} ${label} ${word(does)} ${word(route?.line ?? row.line)}`,
             ),
@@ -428,14 +391,12 @@ function showHelp(open, restoreFocus = true) {
       // identical bindings are alternatives at different focus locations, not competing
       // meanings in one dispatch scope, so conflict validation stays on each registered
       // scope and this aggregate only filters the rows relevant to the current state.
+      // Pointer-native actions can deliberately carry a label but no key, so the
+      // complete reference filters commands by meaning and liveness rather than by
+      // whether they currently have a keyboard route.
       const rows = scope.rows.filter(
         (row) =>
-          row.does &&
-          // Pointer-native actions can deliberately carry a label but no key. Keep
-          // those in the complete reference; only hide a row whose declared character
-          // binding the reader has turned off.
-          (bindings(row).length > 0 || declaredBindings(row).length === 0) &&
-          (!inIt || (row.referenceWhen ? row.referenceWhen() : live(row))),
+          row.does && (!inIt || (row.referenceWhen ? row.referenceWhen() : live(row))),
       );
       if (!rows.length) continue;
       const title = scope.title ?? "On this page";
@@ -456,15 +417,32 @@ function showHelp(open, restoreFocus = true) {
       results.append(section);
       sections.push({
         el: section,
+        order: sections.length,
         heading,
         table: body.el,
         words: helpWords(title),
         entries: body.entries,
       });
     }
+    const bindingSection = document.createElement("section");
+    bindingSection.className = "lf-help-section lf-help-binding-matches";
+    bindingSection.setAttribute("role", "rowgroup");
+    const bindingHeading = el("h3", "", "Binding matches");
+    bindingHeading.id = "lf-help-binding-matches";
+    bindingSection.setAttribute("aria-labelledby", bindingHeading.id);
+    const bindingHeadingRow = document.createElement("div");
+    bindingHeadingRow.setAttribute("role", "row");
+    const bindingHeadingCell = document.createElement("div");
+    bindingHeadingCell.setAttribute("role", "gridcell");
+    bindingHeadingCell.append(bindingHeading);
+    bindingHeadingRow.append(bindingHeadingCell);
+    const bindingTable = document.createElement("table");
+    bindingTable.setAttribute("role", "presentation");
+    bindingSection.append(bindingHeadingRow, bindingTable);
+    bindingSection.hidden = true;
     results.append(emptyRow);
     const visibleCommands = () =>
-      commandButtons.filter(
+      [...results.querySelectorAll(".lf-help-command")].filter(
         (button) => !button.closest("tr").hidden && !button.closest("section").hidden,
       );
     const keepOneCommandReachable = () => {
@@ -483,29 +461,98 @@ function showHelp(open, restoreFocus = true) {
     };
     const filter = () => {
       const query = helpWords(search.value);
+      const bindingQuery = helpBinding(search.value);
+      const foldedBindingQuery = bindingQuery.toLocaleLowerCase();
       const directMatch =
         query &&
         sections.some((section) =>
           section.entries.some((entry) => entry.directWords.includes(query)),
         );
-      let shown = 0;
+      const ranked = [];
       for (const section of sections) {
+        section.table.append(
+          ...[...section.entries]
+            .sort((left, right) => left.order - right.order)
+            .map((entry) => entry.el),
+        );
+        for (const entry of section.entries) entry.scopeLabel.remove();
         const sectionMatch = query && section.words.includes(query);
-        let sectionShown = 0;
         for (const entry of section.entries) {
-          const match =
-            !query ||
-            sectionMatch ||
-            entry.directWords.includes(query) ||
-            (!directMatch && entry.familyWords.includes(query));
+          const exactBinding =
+            bindingQuery &&
+            entry.bindingForms.some(({ display }) => display.startsWith(bindingQuery));
+          const foldedBinding =
+            foldedBindingQuery &&
+            entry.bindingForms.some(({ display }) =>
+              display.toLocaleLowerCase().startsWith(foldedBindingQuery),
+            );
+          const spokenPrefix =
+            foldedBindingQuery &&
+            entry.bindingForms.some(({ spoken }) =>
+              spoken.toLocaleLowerCase().startsWith(foldedBindingQuery),
+            );
+          const rank = !query
+            ? 0
+            : exactBinding
+              ? 0
+              : foldedBinding
+                ? 1
+                : spokenPrefix
+                  ? 2
+                  : sectionMatch || entry.directWords.includes(query)
+                    ? 3
+                    : !directMatch && entry.familyWords.includes(query)
+                      ? 4
+                      : Infinity;
+          const match = Number.isFinite(rank);
           entry.el.hidden = !match;
-          if (match) sectionShown++;
+          ranked.push({ entry, rank, section });
         }
-        section.el.hidden = sectionShown === 0;
-        section.heading.hidden = sectionShown === 0;
-        section.table.hidden = sectionShown === 0;
-        shown += sectionShown;
       }
+      const bindingMatches = query
+        ? ranked
+            .filter(({ rank }) => rank <= 2)
+            .sort(
+              (left, right) =>
+                left.rank - right.rank ||
+                left.section.order - right.section.order ||
+                left.entry.order - right.entry.order,
+            )
+        : [];
+      bindingTable.replaceChildren(
+        ...bindingMatches.map(({ entry }) => {
+          entry.actionCell.append(entry.scopeLabel);
+          return entry.el;
+        }),
+      );
+      bindingSection.hidden = bindingMatches.length === 0;
+      for (const section of sections) {
+        const remaining = ranked
+          .filter(
+            (item) =>
+              item.section === section &&
+              Number.isFinite(item.rank) &&
+              !bindingMatches.includes(item),
+          )
+          .sort(
+            (left, right) =>
+              left.rank - right.rank || left.entry.order - right.entry.order,
+          );
+        section.table.append(...remaining.map(({ entry }) => entry.el));
+        section.el.hidden = remaining.length === 0;
+        section.heading.hidden = remaining.length === 0;
+        section.table.hidden = remaining.length === 0;
+        section.rank = remaining[0]?.rank ?? Infinity;
+      }
+      const shown = ranked.filter(({ rank }) => Number.isFinite(rank)).length;
+      const rankedSections = [...sections].sort(
+        (left, right) => left.rank - right.rank || left.order - right.order,
+      );
+      results.replaceChildren(
+        bindingSection,
+        ...rankedSections.map(({ el }) => el),
+        emptyRow,
+      );
       emptyRow.hidden = shown !== 0;
       // The hint's verbs are the rows' (HELP in leaf.js: "choose next", "run"), since the
       // short key line has no slot for the arrow rows and this head is where a reader
@@ -518,7 +565,7 @@ function showHelp(open, restoreFocus = true) {
     };
     search.addEventListener("input", filter);
     filter();
-    helpEl.append(search, preference, results);
+    helpEl.append(search, meta, results);
   }
   helpEl.classList.toggle("open", open);
   if (open && !helpEl.open) helpEl.showModal();

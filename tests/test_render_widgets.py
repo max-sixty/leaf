@@ -2172,51 +2172,6 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     page.close()
 
 
-def test_character_shortcuts_off_removes_a_contextual_ask_digit(browser, serve):
-    """A live arrow cannot keep filtered contextual actions on the key line."""
-    page, errors = open_page(
-        browser,
-        serve(SHORT_SUGGESTION),
-        init_script="localStorage.setItem('lf-character-shortcuts', '0')",
-    )
-    page.evaluate(
-        """async () => {
-          const {commands} = await import('/runtime/widget-api.js');
-          const suggestion = document.getElementById('sug');
-          const inspect = document.createElement('button');
-          inspect.textContent = 'Inspect';
-          inspect.onclick = () => { inspect.dataset.activated = '1'; };
-          suggestion.append(inspect);
-          commands(inspect, 'Explicit non-character action', [{
-            id: 'test.inspect-left',
-            keys: ['ArrowLeft'],
-            control: inspect,
-            decision: 'Inspect',
-            does: 'Inspect this suggestion',
-            line: 'Inspect',
-            run: () => inspect.click(),
-          }]);
-        }"""
-    )
-
-    page.locator(".lf-asks").click()
-    page.locator("button.lf-asks-row").click()
-    expect(page.locator("#sug")).to_be_focused()
-    assert "←\nInspect" in key_line(page)
-    assert "Accept / Reject" not in key_line(page)
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text("←")
-
-    before = len(actions(serve.page_dir))
-    page.keyboard.press("1")
-    assert len(actions(serve.page_dir)) == before
-    page.keyboard.press("ArrowLeft")
-    expect(page.get_by_role("button", name="Inspect", exact=True)).to_have_attribute(
-        "data-activated", "1"
-    )
-    assert errors == []
-    page.close()
-
-
 def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve):
     """Every input route ends at a button click, and quick classifications retain
     gesture order while the outbox serializes their requests."""

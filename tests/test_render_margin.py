@@ -3185,10 +3185,10 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     page.close()
 
 
-def test_reaction_choices_and_their_receipt_share_an_unided_selected_block(
+def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     browser, serve
 ):
-    """The durable section coordinate does not pull the visible RHS item to its top."""
+    """The durable section coordinate does not pull the visible RHS receipt to its top."""
     page, errors = open_page(browser, serve(UNID_SELECTION_PAGE))
     resized(page, 1600, 900)
     paragraph = page.locator("#s-how > p:nth-of-type(2)")
@@ -3201,15 +3201,15 @@ def test_reaction_choices_and_their_receipt_share_an_unided_selected_block(
     )
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    bar.locator(".lf-react-trigger").click()
-    # The choices dock with the selected block's margin target. The standing reaction
-    # that replaces them must keep that same visual coordinate even though the durable
-    # section coordinate belongs to the surrounding id-bearing section.
-    expect(bar).to_be_hidden()
-    reactions = page.locator(".lf-margin-reactions")
+    bar.locator(".lf-response-more").click()
+    # The choices stay with the captured selection. The standing reaction that replaces
+    # them must keep that same visual coordinate even though the durable section
+    # coordinate belongs to the surrounding id-bearing section.
+    reactions = bar.locator(":scope > .lf-response-options")
     expect(reactions).to_be_visible()
 
     reactions.locator('.lf-react[data-token="keep"]').click()
+    expect(bar).to_be_hidden()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]

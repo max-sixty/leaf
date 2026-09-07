@@ -534,8 +534,10 @@ and opens its thread. The outbox keeps the result ahead of the log and restores
 authoritative state on refusal. The content and its Undo control are the confirmation,
 so neither path needs a success notice; announce the same outcome for a reader listening
 to the page. For a message that announcement is `post`'s, made where the gesture is first
-known to be a message, so a box that sends one adds nothing and says only what its press
-did beyond sending. A gesture whose result only the log can supply waits instead, with
+known to be a message, so a box that sends one adds no second announcement. A box whose
+press did something beyond sending writes one notice for both and names the send in it,
+because a later write replaces the live region rather than joining it. A gesture whose
+result only the log can supply waits instead, with
 `aria-busy` on the surface, which `chrome.css` paints on a delay so a fast answer shows
 nothing at all.
 

@@ -60,6 +60,7 @@ const APPLICATION_RUNTIME_FIELDS = Object.freeze([
   "events",
   "lastEventSeq",
   "reading",
+  "restoringState",
   "state",
   "statePhase",
   "view",
@@ -206,98 +207,93 @@ export async function receiveState(state) {
   let replyNotice = null;
   let restoreClaimState = () => {};
   const apply = async () => {
-    // An activation replaces the authored DOM before projecting its standing log. The
-    // replacement is an arrival, not a new gesture: keep every production motion at
-    // rest until this complete state has settled into the new document.
-    const priorRestoringState = runtime.restoringState;
+    // A revision activation is an arrival: its already-standing state must settle into
+    // the replacement markup without being presented as a new gesture.
     if (willActivate) runtime.restoringState = true;
-    try {
-      runtime.events = nextEvents;
-      runtime.activity = state.activity;
-      runtime.browser = nextBrowser;
-      let finishActivation = null;
-      runtime.statePhase = "ready";
-      if (willActivate) finishActivation = await activation.install();
-      runtime.view = nextBrowser.views?.[String(runtime.currentRevision)] ?? null;
-      // What is left for this to catch, now that a late answer is dropped above: an
-      // answer that is malformed rather than late, and an activation that left the page
-      // somewhere the gate did not predict. Both are faults, so both are loud.
-      if (
-        !runtime.view ||
-        runtime.view.basis?.through_seq !== eventSeq ||
-        runtime.view.basis?.revision !== runtime.currentRevision
-      )
-        throw new TypeError("state browser has no matching revision view");
-      settleAcceptedDrafts();
-      runtime.agent = state.agent || "Claude";
-      restoreClaimState = replaceClaimState({
-        sources: state.claims || [],
-        held: state.activity.held,
-      });
-      renderStatus(state);
-      renderVersions(state);
-      stateSignoff(isSignoffDeclared());
-      paintApproval();
-      renderOthers(state);
-      if (eventSeq > runtime.lastEventSeq || finishActivation) {
-        await renderPanel();
-        // Sign-off is a fact in the log, not a click this tab happens to remember, so a
-        // reload (or the other tab) shows it too.
-        const agentReplies = (runtime.browser.conversation?.threads ?? []).flatMap(
-          (thread) =>
-            thread.msgs.filter(
-              (message) => message.author === "claude" && message.kind === "reply",
-            ),
-        );
-        if (agentMsgCount >= 0 && agentReplies.length > agentMsgCount && !panelIsOpen())
-          replyNotice = `${agentReplies.at(-1).agent || "Agent"} replied — open Threads`;
-        nextAgentMsgCount = agentReplies.length;
-      }
-      // Last, because the panel has just rendered the log: a widget carried by a reply is
-      // on the page by now, so an action naming one that isn't names a widget no version
-      // holds, and reconciliation can retire it instead of looking for it forever.
-      reconcileState();
-      // One complete tail after widget rendering: it may change derived content, including
-      // the row and outlet holding a local thread. Re-resolve anchors, reconcile declared
-      // surfaces, then their fallbacks and receipts from that final DOM. This also repaints
-      // time-dependent claim chrome on a state heartbeat with no new event.
+    runtime.events = nextEvents;
+    runtime.activity = state.activity;
+    runtime.browser = nextBrowser;
+    let finishActivation = null;
+    runtime.statePhase = "ready";
+    if (willActivate) finishActivation = await activation.install();
+    runtime.view = nextBrowser.views?.[String(runtime.currentRevision)] ?? null;
+    // What is left for this to catch, now that a late answer is dropped above: an
+    // answer that is malformed rather than late, and an activation that left the page
+    // somewhere the gate did not predict. Both are faults, so both are loud.
+    if (
+      !runtime.view ||
+      runtime.view.basis?.through_seq !== eventSeq ||
+      runtime.view.basis?.revision !== runtime.currentRevision
+    )
+      throw new TypeError("state browser has no matching revision view");
+    settleAcceptedDrafts();
+    runtime.agent = state.agent || "Claude";
+    restoreClaimState = replaceClaimState({
+      sources: state.claims || [],
+      held: state.activity.held,
+    });
+    renderStatus(state);
+    renderVersions(state);
+    stateSignoff(isSignoffDeclared());
+    paintApproval();
+    renderOthers(state);
+    if (eventSeq > runtime.lastEventSeq || finishActivation) {
       await renderPanel();
-      if (finishActivation) {
-        finishActivation();
-        updateFab();
-        notice(`Updated to ${runtime.currentLabel}`);
-      }
-      // Only a complete application advances the read boundary. A render fault may
-      // already have changed some local surfaces, but it has not made a state safe to use
-      // for replay or undo; leaving the sequence unresolved retries the whole read.
-      runtime.lastEventSeq = Math.max(runtime.lastEventSeq, eventSeq);
-      // Stamped in the same place, because it answers the same question about a
-      // wider subject: the sequence says how much of the log the page holds, the
-      // reading how much of the page's whole state — status, data, claims, versions
-      // — none of which moves the sequence at all. Not by the same rule: a hash has
-      // no order, so the moment the server took the answer is what keeps a stale one
-      // from writing it, and that answer was turned away at the door above.
-      runtime.reading = state.reading ?? null;
-      // Kept so the heartbeat can re-render time-dependent chrome without asking the
-      // server for a copy of what the page already has, and for `taken`, which the
-      // door above judges the next answer by.
-      runtime.state = state;
-      if (runtime.reading !== null)
-        document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
-      // Accounting changes no hold by itself. It first projects this complete log plus
-      // every surviving optimistic action, then releases the entries whose attempts the
-      // read contained. A same-widget event later in this state can therefore never be
-      // skipped under the hold and exposed only after the hold disappears.
-      accountOutbox(nextBrowser.receipts ?? []);
-      // Sequence consumers render after replay, so their history and the widget's
-      // standing body describe the same poll. This also fires when the event list did
-      // not grow: renderState may have deferred while a user was typing, then become
-      // applicable on the next poll after they close the editor.
-      document.dispatchEvent(new Event("lf-actions"));
-      await notifyDataSubscribers();
-    } finally {
-      runtime.restoringState = priorRestoringState;
+      // Sign-off is a fact in the log, not a click this tab happens to remember, so a
+      // reload (or the other tab) shows it too.
+      const agentReplies = (runtime.browser.conversation?.threads ?? []).flatMap(
+        (thread) =>
+          thread.msgs.filter(
+            (message) => message.author === "claude" && message.kind === "reply",
+          ),
+      );
+      if (agentMsgCount >= 0 && agentReplies.length > agentMsgCount && !panelIsOpen())
+        replyNotice = `${agentReplies.at(-1).agent || "Agent"} replied — open Threads`;
+      nextAgentMsgCount = agentReplies.length;
     }
+    // Last, because the panel has just rendered the log: a widget carried by a reply is
+    // on the page by now, so an action naming one that isn't names a widget no version
+    // holds, and reconciliation can retire it instead of looking for it forever.
+    reconcileState();
+    // One complete tail after widget rendering: it may change derived content, including
+    // the row and outlet holding a local thread. Re-resolve anchors, reconcile declared
+    // surfaces, then their fallbacks and receipts from that final DOM. This also repaints
+    // time-dependent claim chrome on a state heartbeat with no new event.
+    await renderPanel();
+    if (finishActivation) {
+      finishActivation();
+      updateFab();
+      notice(`Updated to ${runtime.currentLabel}`);
+    }
+    // Only a complete application advances the read boundary. A render fault may
+    // already have changed some local surfaces, but it has not made a state safe to use
+    // for replay or undo; leaving the sequence unresolved retries the whole read.
+    runtime.lastEventSeq = Math.max(runtime.lastEventSeq, eventSeq);
+    // Stamped in the same place, because it answers the same question about a
+    // wider subject: the sequence says how much of the log the page holds, the
+    // reading how much of the page's whole state — status, data, claims, versions
+    // — none of which moves the sequence at all. Not by the same rule: a hash has
+    // no order, so the moment the server took the answer is what keeps a stale one
+    // from writing it, and that answer was turned away at the door above.
+    runtime.reading = state.reading ?? null;
+    // Kept so the heartbeat can re-render time-dependent chrome without asking the
+    // server for a copy of what the page already has, and for `taken`, which the
+    // door above judges the next answer by.
+    runtime.state = state;
+    if (runtime.reading !== null)
+      document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
+    // Accounting changes no hold by itself. It first projects this complete log plus
+    // every surviving optimistic action, then releases the entries whose attempts the
+    // read contained. A same-widget event later in this state can therefore never be
+    // skipped under the hold and exposed only after the hold disappears.
+    accountOutbox(nextBrowser.receipts ?? []);
+    // Sequence consumers render after replay, so their history and the widget's
+    // standing body describe the same poll. This also fires when the event list did
+    // not grow: renderState may have deferred while a user was typing, then become
+    // applicable on the next poll after they close the editor.
+    document.dispatchEvent(new Event("lf-actions"));
+    await notifyDataSubscribers();
+    runtime.restoringState = prior.runtime.restoringState;
   };
   try {
     const running = (async () => {

@@ -1919,6 +1919,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     border-radius: 3px; background: var(--accent); color: var(--card); }
   .lf-goto-targets > .lf-chord-address { min-width: 0; height: auto; padding: 0;
     border: 0; background: transparent; }
+  .lf-chord-address > .lf-chord-prefix { color: var(--muted); }
   .lf-targets > .lf-target-hint.lf-in { transform: translate(-50%, 0); }
   /* The hint the keyboard is browsing is where the reader is standing in this mode, so
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can

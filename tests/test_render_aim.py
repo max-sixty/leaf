@@ -816,9 +816,8 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     trace = page.locator('.lf-target-trace[data-for="jobs"]')
     expect(label).to_be_visible()
     expect(trace).to_be_visible()
-    page.wait_for_function(
-        """() => document.querySelector('.lf-margin-button-label')
-                     .getAnimations().length === 0"""
+    label.evaluate(
+        "node => Promise.all(node.getAnimations().map(animation => animation.finished))"
     )
 
     label_box = label.bounding_box()
@@ -835,7 +834,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     assert (
         ImageChops.difference(traced.crop(center), untraced.crop(center)).getbbox()
         is None
-    )
+    ), "the target trace paints over the status label"
     assert errors == []
     page.close()
 

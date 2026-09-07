@@ -1,34 +1,80 @@
-/** Pure request routing for the public site worker. */
+/** Pure request routing for the public Leaf pages. */
 
-export const SESSION_COOKIE = "__Host-leaf-example";
-export const HTTP_SESSION_COOKIE = "leaf-example-local";
+export const SESSION_COOKIE = "__Host-leaf-page";
+export const HTTP_SESSION_COOKIE = "leaf-page-local";
 
-const EXAMPLE_PATH = /^\/examples\/[a-z0-9-]+(?:\/|$)/;
-const EXAMPLE_WITHOUT_SLASH = /^\/examples\/[a-z0-9-]+$/;
+export interface PageRoute {
+  root: string;
+  inside: string;
+  kind: "product" | "example";
+}
+
+const PRODUCT_ROOTS = ["/examples", "/how-it-works", "/packages", "/registry"];
+const PRODUCT_ROOT_SET = new Set(["/", ...PRODUCT_ROOTS]);
+const PAGE_RESOURCE =
+  /^(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:\/|$)|^(?:icon\.svg|leaf\.js|registry\.json|theme\.css)$/;
 const EXAMPLE_ROUTE = /^\/examples\/([a-z0-9-]+)(?:\/(.*))?$/;
+const EXAMPLE_WITHOUT_SLASH = /^\/examples\/[a-z0-9-]+$/;
 const SESSION_ID = /^[0-9a-f]{32}$/;
 
-export function isExampleRequest(pathname: string): boolean {
-  return EXAMPLE_PATH.test(pathname);
+export function pageRoute(pathname: string): PageRoute | null {
+  if (pathname === "/") return { root: "/", inside: "", kind: "product" };
+  if (pathname.startsWith("/media/")) return null;
+
+  for (const root of PRODUCT_ROOTS.filter((candidate) => candidate !== "/examples")) {
+    if (pathname === root || pathname === `${root}/`) {
+      return { root, inside: "", kind: "product" };
+    }
+    if (pathname.startsWith(`${root}/`)) {
+      return { root, inside: pathname.slice(root.length + 1), kind: "product" };
+    }
+  }
+
+  if (pathname === "/examples" || pathname === "/examples/") {
+    return { root: "/examples", inside: "", kind: "product" };
+  }
+  if (pathname.startsWith("/examples/")) {
+    const inside = pathname.slice("/examples/".length);
+    if (PAGE_RESOURCE.test(inside)) {
+      return { root: "/examples", inside, kind: "product" };
+    }
+    const example = EXAMPLE_ROUTE.exec(pathname);
+    if (example !== null) {
+      return {
+        root: `/examples/${example[1]}`,
+        inside: example[2] ?? "",
+        kind: "example",
+      };
+    }
+  }
+
+  const inside = pathname.slice(1);
+  return PAGE_RESOURCE.test(inside) ? { root: "/", inside, kind: "product" } : null;
 }
 
-export function needsExampleSlash(pathname: string): boolean {
-  return EXAMPLE_WITHOUT_SLASH.test(pathname);
+export function isPageRequest(pathname: string): boolean {
+  return pageRoute(pathname) !== null;
 }
 
-export function exampleRoute(
-  pathname: string,
-): { slug: string; inside: string } | null {
-  const match = EXAMPLE_ROUTE.exec(pathname);
-  if (match === null) return null;
-  return { slug: match[1], inside: match[2] ?? "" };
+export function needsPageSlash(pathname: string): boolean {
+  return (
+    (PRODUCT_ROOT_SET.has(pathname) && pathname !== "/") ||
+    EXAMPLE_WITHOUT_SLASH.test(pathname)
+  );
 }
 
-export function isPrivateExampleRequest(pathname: string): boolean {
-  return exampleRoute(pathname)?.inside.startsWith("_leaf/") ?? false;
+export function isPrivatePageRequest(pathname: string): boolean {
+  return (
+    pathname === "/_leaf" ||
+    pathname.startsWith("/_leaf/") ||
+    (pageRoute(pathname)?.inside.startsWith("_leaf/") ?? false)
+  );
 }
 
-export function sessionFromCookie(cookie: string | null, secure: boolean): string | null {
+export function sessionFromCookie(
+  cookie: string | null,
+  secure: boolean,
+): string | null {
   if (cookie === null) return null;
   const expected = secure ? SESSION_COOKIE : HTTP_SESSION_COOKIE;
   for (const item of cookie.split(";")) {

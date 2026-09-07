@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """Assemble the published site (https://leaf.page/) into .tmp/site.
 
-Every product document under `docs/` is a Leaf source. The build checks all five in one
-temporary page directory, then publishes their browser-drawn standalone exports through
-one shared browser. The catalog previews come from the external revision pinned in
-`example-previews.json`. Each export gets an isolated browser context, inlines the
-composed theme and media, retains the rendered widgets, and removes runtime scripts and
-controls.
+Every product document under `docs/` is a Leaf source. The build publishes all five as
+complete page directories, alongside the worked examples, and the Worker gives every
+browser a private copy served by Leaf's canonical Python server. The catalog previews
+come from the external revision pinned in `example-previews.json`.
 
 The worked examples and developer feature gallery become complete Leaf page directories
 under examples/<name>/. The same preparation path that serves a local fixture vendors
@@ -28,19 +26,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import threading
-from contextlib import contextmanager
-from functools import partial
 from html.parser import HTMLParser
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit
 
 from example_assets import example_previews
-from leaf.exporting import export_page
 from leaf.http import scope_document_routes
-from leaf.render_gate.browser import browser_hint, launch_browser
-from leaf.render_gate.preview import preview_server
 from preview import prepare
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -51,7 +42,7 @@ INTERNAL_EXAMPLES = {"corpus"}
 FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
 OUT = (
     ROOT / ".tmp" / "site"
-)  # gitignored; both the Worker asset binding and its container image consume it
+)  # gitignored; the container consumes it and .assetsignore bounds the asset binding
 WRANGLER = ROOT / "worker" / "node_modules" / ".bin" / "wrangler"
 
 PRODUCT_ROUTES = {
@@ -99,27 +90,54 @@ def local_targets(html: str) -> list[str]:
     return targets
 
 
-def resolves(out: Path, page: Path, target: str) -> bool:
-    """A leading slash is the site's root; anything else is where it was written.
+def published_pages(out: Path) -> list[tuple[Path, str]]:
+    """The page directories and clean public roots the website server projects."""
+    product = [
+        (product_page(out, source.name), PRODUCT_ROUTES[source.name].rstrip("/"))
+        for source in product_sources()
+    ]
+    examples = [
+        (page, f"/examples/{page.name}")
+        for page in sorted((out / "examples").iterdir())
+        if (page / "events.jsonl").is_file()
+    ]
+    return product + examples
 
-    A target naming a directory is what the host answers with that directory's index, so
-    that is what has to be there — a link to examples/triage-board/ with no index in it
-    resolves to a listing on one host and a 404 on this one."""
-    base = out if target.startswith("/") else page.parent
-    named = base / target.lstrip("/")
-    return (named / "index.html").is_file() if target.endswith("/") else named.exists()
+
+def resolves(out: Path, pages: list[tuple[Path, str]], url: str) -> bool:
+    """Resolve one public URL through the same longest-page-root rule as the server."""
+    path = unquote(urlsplit(url).path)
+    physical = out / path.lstrip("/")
+    if physical.is_file():
+        return True
+    for page_dir, page_root in sorted(
+        pages, key=lambda item: len(item[1]), reverse=True
+    ):
+        if path == page_root or path == f"{page_root}/":
+            return (page_dir / "index.html").is_file()
+        prefix = f"{page_root}/" if page_root else "/"
+        if path.startswith(prefix):
+            named = page_dir / path[len(prefix) :]
+            return (
+                (named / "index.html").is_file()
+                if path.endswith("/")
+                else named.exists()
+            )
+    return False
 
 
 def check_links(out: Path) -> None:
     dead = []
-    for page in sorted(out.rglob("*.html")):
-        relative = page.relative_to(out)
-        html = page.read_bytes()
-        if len(relative.parts) >= 3 and relative.parts[0] == "examples":
-            html = scope_document_routes(html, f"/examples/{relative.parts[1]}")
-        for target in local_targets(html.decode()):
-            if not resolves(out, page, target):
-                dead.append(f"{relative} → {target}")
+    pages = published_pages(out)
+    for page_dir, page_root in pages:
+        for page in sorted(page_dir.rglob("*.html")):
+            relative = page.relative_to(page_dir)
+            html = scope_document_routes(page.read_bytes(), page_root)
+            public_page = f"{page_root}/{relative}" if page_root else f"/{relative}"
+            for target in local_targets(html.decode()):
+                public_target = urljoin(public_page, target)
+                if not resolves(out, pages, public_target):
+                    dead.append(f"{public_page} → {target}")
     if dead:
         sys.exit(
             "the site would publish links that reach nothing:\n  " + "\n  ".join(dead)
@@ -141,27 +159,6 @@ def leaf(env: dict, *args: str, input_text: str | None = None) -> None:
     )
     if done.returncode:
         sys.exit(f"leaf {' '.join(args)}:\n{done.stdout}{done.stderr}")
-
-
-class _Quiet(SimpleHTTPRequestHandler):
-    def log_message(self, *args):
-        pass
-
-
-@contextmanager
-def hosted(directory: Path):
-    """The built site on a loopback port, which is the only way its own links resolve."""
-    server = ThreadingHTTPServer(
-        ("127.0.0.1", 0), partial(_Quiet, directory=str(directory))
-    )
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield f"http://127.0.0.1:{server.server_address[1]}"
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join()
 
 
 def worked_example_sources() -> list[Path]:
@@ -197,9 +194,9 @@ def product_sources() -> list[Path]:
     return sources
 
 
-def product_target(out: Path, route: str) -> Path:
-    """The index file a canonical trailing-slash route serves."""
-    return out / "index.html" if route == "/" else out / route.strip("/") / "index.html"
+def product_page(out: Path, source_name: str) -> Path:
+    """The independent page directory behind one product source's public route."""
+    return out / "_leaf" / "pages" / Path(source_name).stem
 
 
 def checked_product_sources(page: Path, env: dict) -> list[tuple[Path, bytes]]:
@@ -214,22 +211,19 @@ def checked_product_sources(page: Path, env: dict) -> list[tuple[Path, bytes]]:
 
 
 def publish_product_pages(
-    page: Path, out: Path, products: list[tuple[Path, bytes]], browser
+    page: Path, out: Path, products: list[tuple[Path, bytes]], env: dict
 ) -> None:
-    """Publish validated product documents through one shared browser."""
+    """Publish every validated product document as a complete Leaf page."""
     for source, markup in products:
-        (page / "index.html").write_bytes(markup)
-        with preview_server(page, markup, 1) as url:
-            exported = export_page(browser, url, page, source.name)
-        target = product_target(out, PRODUCT_ROUTES[source.name])
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(exported, encoding="utf-8")
+        target = product_page(out, source.name)
+        shutil.copytree(page, target)
+        (target / "index.html").write_bytes(markup)
+        leaf(env, "version", "stamp", str(target), "--text", "As published")
+        leaf(env, "status", str(target), "idle")
 
 
-def publish_pages(
-    out: Path, env: dict, browser=None, catalog_previews: Path | None = None
-) -> None:
-    """Standalone product documents and canonical interactive pages."""
+def publish_pages(out: Path, env: dict, catalog_previews: Path | None = None) -> None:
+    """Canonical interactive product documents and worked examples."""
     with tempfile.TemporaryDirectory() as tmp:
         product_page = Path(tmp) / "product-page"
         packages = json.loads((EXAMPLES / "layer.json").read_text(encoding="utf-8"))
@@ -251,31 +245,15 @@ def publish_pages(
             *(str(path) for path in product_media),
         )
         products = checked_product_sources(product_page, env)
-        if browser is not None:
-            publish_product_pages(product_page, out, products, browser)
-        else:
-            try:
-                from playwright.sync_api import Error as PlaywrightError
-                from playwright.sync_api import sync_playwright
-            except ImportError:
-                sys.exit("the site build needs Playwright to render its product pages")
-            with sync_playwright() as playwright:
-                try:
-                    launched, _ = launch_browser(playwright)
-                except PlaywrightError as error:
-                    sys.exit(
-                        "the site build needs a browser, and none launched "
-                        f"({str(error).strip().splitlines()[0]}). {browser_hint()}"
-                    )
-                try:
-                    publish_product_pages(product_page, out, products, launched)
-                finally:
-                    launched.close()
-        # The social card is the reference that keeps this: every page names its
-        # og:image at an absolute https://leaf.page/media/… URL, which no export
-        # inlines and no link check can see. The rest is already in the exports.
+        publish_product_pages(product_page, out, products, env)
+        # Social crawlers fetch the absolute https://leaf.page/media/… URL without a
+        # page session, so keep that small public asset set outside the private page
+        # directories as well.
         shutil.copytree(product_page / "media", out / "media")
         shutil.copy2(DOCS / "sitenote.js", out / "sitenote.js")
+        (out / ".assetsignore").write_text(
+            "*\n!media/\n!media/**\n!sitenote.js\n", encoding="utf-8"
+        )
 
         for source in published_page_sources():
             published = out / "examples" / source.stem
@@ -295,7 +273,6 @@ def build(
     out: Path,
     *,
     verify_links: bool = True,
-    browser=None,
     catalog_previews: Path | None = None,
 ) -> None:
     shutil.rmtree(out, ignore_errors=True)
@@ -316,7 +293,7 @@ def build(
     env.pop("CODEX_THREAD_ID", None)
     with tempfile.TemporaryDirectory() as config_home:
         env["XDG_CONFIG_HOME"] = config_home
-        publish_pages(out, env, browser, catalog_previews)
+        publish_pages(out, env, catalog_previews)
 
     if verify_links:
         check_links(out)

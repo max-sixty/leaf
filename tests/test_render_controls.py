@@ -1196,7 +1196,11 @@ def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser,
         browser,
         serve(
             leaf_page("Website example", "<h1>Website example</h1>"),
-            website_example={"agent": "Leaf guide", "install_url": "/#install"},
+            website_publication={
+                "kind": "example",
+                "agent": "Leaf guide",
+                "install_url": "/#install",
+            },
         ),
     )
     resized(site, 900, 900)

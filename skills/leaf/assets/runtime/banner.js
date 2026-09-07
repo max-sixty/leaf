@@ -247,10 +247,16 @@ function renderPreview(state) {
 const OFFLINE_LINE =
   "Server offline — reconnecting. Keep this page open so pending changes can send.";
 const BROKEN_LINE = "Page couldn't apply current state — reload";
-// The website's own line, in the two parts it is written in: the sentence, and the link
-// that ends it. Said once, so what the row measures is what the row says.
-const exampleWords = (example) => [
-  `This is an example on the Leaf website. ${example.agent} replies here, but cannot edit this page. `,
+// A published page's own line, in the two parts it is written in: the sentence, and the
+// link that ends it. Said once, so what the row measures is what the row says. The two
+// subjects are the two kinds of published page, and the longer of them is what the room
+// is measured against, since which one this page is arrives with its first state.
+const publicationWords = (published) => [
+  `${
+    published.kind === "example"
+      ? "This is an example on the Leaf website."
+      : "This website is a Leaf page."
+  } ${published.agent} replies here, but cannot edit this page. `,
   "Install Leaf",
 ];
 
@@ -318,9 +324,10 @@ function statusWords({
   return `${why} ${saved} ${how}`;
 }
 
-// Which page this is, once it has said so, because the line it writes is longer than
-// any a reader's own page can reach and the room it needs is measured with the rest.
-let websiteExample = null;
+// Whether this page is published, once it has said so, because the line a published
+// page writes is longer than any a reader's own page can reach and the room it needs
+// is measured with the rest.
+let publication = null;
 
 function renderStatusNow(state) {
   if (state instanceof Error) {
@@ -332,15 +339,15 @@ function renderStatusNow(state) {
     return;
   }
   renderPreview(state);
-  websiteExample = state.example ?? null;
+  publication = state.publication ?? null;
   // Before the words, because the row folds against the room they will need: a page
-  // learning its agent's name or that it is a website example is a page whose longest
-  // line has just changed, and the addresses beside it are what pay for the difference.
+  // learning its agent's name, or that it is published, is a page whose longest line has
+  // just changed, and the addresses beside it are what pay for the difference.
   if (reserveStatusRoom()) foldShelf();
-  if (websiteExample) {
-    const [said, installs] = exampleWords(websiteExample);
-    const install = el("a", "lf-example-install", installs);
-    install.href = websiteExample.install_url;
+  if (publication) {
+    const [said, installs] = publicationWords(publication);
+    const install = el("a", "lf-publication-install", installs);
+    install.href = publication.install_url;
     showStatus("unattended", TONE.unattended, said, install);
     return;
   }
@@ -399,7 +406,7 @@ function pageLines() {
     for (const quiet of [false, true])
       for (const pending of [0, 1])
         lines.push(statusWords({ ...facts, kind, pending, quiet }));
-  if (websiteExample) lines.push(exampleWords(websiteExample).join(""));
+  if (publication) lines.push(publicationWords(publication).join(""));
   return [...new Set(lines)];
 }
 

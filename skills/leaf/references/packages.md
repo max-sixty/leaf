@@ -164,8 +164,12 @@ A rule that draws a box's inset — padding, border, or tinted field — declare
 margins and bound wide content, and the render gate reports a frame that omits it. The
 runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-wide]`, and
 `[data-lf-exhibit]`; shared selectors read those attributes instead of naming widget
-tags. In particular, an interactive affordance stands down inside
-`[data-lf-exhibit]`, where the widget is quoted rather than offered. The stylesheet is
+tags. A box a package scrolls sideways needs no declaration of its own: the runtime
+measures every scroller on each layout and marks the ones showing less than they
+hold across, and Leaf paints the cut edge from that mark, so a widget that has to
+scroll says so without the package writing anything. In particular, an interactive
+affordance stands down inside `[data-lf-exhibit]`, where the widget is quoted rather
+than offered. The stylesheet is
 inlined into an export, so use fonts available on the reader's machine rather than a
 remote font a standalone copy would have to fetch.
 

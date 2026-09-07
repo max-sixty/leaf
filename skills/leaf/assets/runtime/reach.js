@@ -65,6 +65,32 @@ export const FOCUSABLE =
 const overflows = (el) =>
   el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
 const mayScroll = new Set();
+// The same measurement spent on the eye. Scrolling is the layer's honest degrade for a
+// box whose content is wider than the room it was given — a diagram at the size it was
+// drawn, a board's columns, a line of code — and on a platform that draws overlay
+// scrollbars the only sign of it is a bar the platform hides until it is used. Measured:
+// a twelve-node flowchart in a tab panel showed seven, cut 356px of 1026 at every window
+// width from 1200 to 1920, with nothing on the page saying so. A reader can guess that a
+// line of code continues; nobody can guess a graph does.
+//
+// So the box says it is a window, and this is where it is said, because this is where the
+// layer already knows: `paintReach` is asked whether something is out of sight on every
+// layout that moves a candidate, and until now spent the answer on the keyboard alone.
+// Off the composed box like the stop above, so a page author's scroller and a package's
+// are marked on the same terms as the theme's own and nobody declares anything.
+//
+// Across the box and not down it, which is the axis every reading of a cut takes: a box
+// cut off below its container is usually cut on purpose — a collapsed disclosure, a
+// draft's box, a shot's frame are all a height with the rest hidden — where one cut at
+// the side never is. The page itself is the down direction and the window's own bar
+// answers for it.
+//
+// The mark is paint (theme.css, [data-lf-cut]), so writing it inside a resize observation
+// moves nothing and cannot feed itself. Its candidate set is every declared sideways
+// scroller and not `mayScroll`, which stops at boxes holding a control of their own: a
+// board is reached through its grips and needs no stop, and is cut exactly as silently as
+// anything else.
+const sideways = new Set();
 export const runtimeOwnsScrollerStop = (el) => mayScroll.has(el);
 export function reachScrollers(root) {
   // The root too: a rebuilt widget is handed as itself, and the panel's thread list is
@@ -90,6 +116,12 @@ export function reachScrollers(root) {
         !el.hasAttribute(PAGE_PAINT_ATTRIBUTE.holds)
       )
         el.setAttribute(PAGE_PAINT_ATTRIBUTE.holds, "1");
+      // A textarea is out of the cut mark for its own reason: it scrolls its value, which
+      // the reader is writing and already knows continues.
+      if (/^(auto|scroll)$/.test(style.overflowX) && !el.matches("textarea")) {
+        sideways.add(el);
+        reachSizes.observe(el);
+      }
       // A box that already carries a stop of its own is somewhere the reader can be put,
       // whoever put it there; this sweep neither adds to it nor takes it away.
       if (el.tabIndex >= 0 && !mayScroll.has(el)) continue;
@@ -104,21 +136,36 @@ export function reachScrollers(root) {
     }
   paintReach();
 }
-// Which of the candidates has something out of sight right now. Both directions, because
-// a reader who widens the window is owed the stop's removal as much as its arrival: a box
-// that fits carries nothing to scroll to, and a tab stop on it is a press that goes
-// nowhere. Cheap enough for chrome-layout.js — the set is what declared it may scroll,
-// which on the corpus is single digits — and it writes only `tabIndex`, which moves no box
-// (the rule syncLayout keeps).
+// Which of the candidates has something out of sight right now, asked once for both
+// answers. Both directions for the stop, because a reader who widens the window is owed
+// its removal as much as its arrival: a box that fits carries nothing to scroll to, and a
+// tab stop on it is a press that goes nowhere. Cheap enough for chrome-layout.js — the
+// sets are what declared they may scroll, which on the corpus is a couple of dozen boxes
+// — and it writes `tabIndex` and one attribute the theme spends on a shadow, neither of
+// which moves a box (the rule syncLayout keeps).
 const reachSizes = new ResizeObserver(() => paintReach());
+// A pixel of tolerance, where the stop takes any overflow at all: the stop is owed
+// wherever the keyboard cannot reach something, and a shadow drawn for a sub-pixel
+// rounding is a promise of more with nothing behind it.
+const cutAcross = (el) => el.scrollWidth > el.clientWidth + 1;
+function gone(el) {
+  if (el.isConnected) return false;
+  mayScroll.delete(el);
+  sideways.delete(el);
+  reachSizes.unobserve(el);
+  return true;
+}
 function paintReach() {
   for (const el of mayScroll) {
-    if (!el.isConnected) {
-      mayScroll.delete(el);
-      reachSizes.unobserve(el);
-      continue;
-    }
+    if (gone(el)) continue;
     const wanted = overflows(el) ? 0 : -1;
     if (el.tabIndex !== wanted) el.tabIndex = wanted;
+  }
+  for (const el of sideways) {
+    if (gone(el)) continue;
+    const cut = cutAcross(el);
+    if (cut === el.hasAttribute(PAGE_PAINT_ATTRIBUTE.cut)) continue;
+    if (cut) el.setAttribute(PAGE_PAINT_ATTRIBUTE.cut, "1");
+    else el.removeAttribute(PAGE_PAINT_ATTRIBUTE.cut);
   }
 }

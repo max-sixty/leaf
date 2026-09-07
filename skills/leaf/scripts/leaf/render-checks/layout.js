@@ -1,4 +1,5 @@
 import { pageScroller, shownBand, uiInside } from "/runtime/widget-api.js";
+import { openRoots } from "./open-roots.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) =>
@@ -400,6 +401,46 @@ export function withheldRoom() {
         `whole, with nothing standing in the margin beside it`,
     );
   }
+  return found;
+}
+
+// A box showing less than it holds across, with nothing on it that says so. Every
+// reading above ends at the same excuse: a scroller answers for what ran out of it,
+// because the reader can reach the rest. That excuse is worth exactly what the reader
+// can tell, and on a platform drawing overlay scrollbars it is worth nothing at rest —
+// measured, a twelve-node flowchart in a tab panel showed seven of them at 1200, 1440
+// and 1920, cut 356px of 1026, and every reading here called the page well. It is where
+// WITHHELD_ROOM stops too, that one asking whether the room was there to give and
+// excusing a drawing inside a frame by the zero it inherits: a drawing that genuinely
+// could not fit is a page the layer is content with, and a reader who cannot tell it
+// was cut is not.
+//
+// So the mark is what is asked for, not the scrollbar: the layer paints one on every
+// box its own sweep finds cut (reachScrollers, and [data-lf-cut] in theme.css), which is
+// the platform-independent half of the answer and the half a copy keeps. A finding here
+// is a scroller the sweep never reached — a tree handed to no caller, a box that started
+// scrolling after the last layout the sweep saw — and the box is named rather than the
+// rule, because the rule is the layer's and there is only one.
+//
+// Across and not down, the axis every reading of a cut here takes, and out of `main` and
+// its declared trees: the panel is shut while the gate reads and a shut box has no
+// boxes. Not a textarea, which scrolls a value its reader is writing.
+export function silentCuts() {
+  const main = document.querySelector("main");
+  if (!main) return [];
+  const found = [];
+  for (const root of openRoots(main))
+    for (const el of root.querySelectorAll("*")) {
+      if (!el.checkVisibility() || el.matches("textarea")) continue;
+      if (!/^(auto|scroll)$/.test(getComputedStyle(el).overflowX)) continue;
+      const short = el.scrollWidth - el.clientWidth;
+      if (short <= 1 || el.hasAttribute("data-lf-cut")) continue;
+      found.push(
+        `${at(el)} shows ${el.clientWidth}px of the ${el.scrollWidth}px it holds ` +
+          `across and wears no mark for the ${short}px it is hiding — the platform's ` +
+          `scrollbar is the only sign, and it draws none at rest`,
+      );
+    }
   return found;
 }
 

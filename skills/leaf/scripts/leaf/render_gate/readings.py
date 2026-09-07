@@ -54,6 +54,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     overflow = evaluate_probe(page, "rootOverflow")
     misplaced = evaluate_probe(page, "misplacedBoxes")
     withheld = evaluate_probe(page, "withheldRoom")
+    silent_cuts = evaluate_probe(page, "silentCuts")
     squeezed = evaluate_probe(page, "squeezedTables")
     clipped = evaluate_probe(page, "clippedControls")
     unreachable = evaluate_probe(page, "unreachableWords")
@@ -257,6 +258,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         found.append(f"[{scheme}] the page scrolls sideways by {overflow}px")
     found += [f"[{scheme}] {s}" for s in misplaced]
     found += [f"[{scheme}] {w}" for w in withheld]
+    found += [f"[{scheme}] {c}" for c in silent_cuts]
     found += [f"[{scheme}] {s}" for s in squeezed]
     found += [
         f"[{scheme}] the control .{c['ctrl'].split()[0]}"

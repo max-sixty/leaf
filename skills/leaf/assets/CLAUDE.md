@@ -172,8 +172,9 @@ room left after the panel and trays, the final-layout column motion between work
 states, and page repaint caused by shell motion or reflow;
 `runtime/presentation.js` owns runtime paint, optional page-interface settlement, and
 the words it projects;
-`runtime/reach.js` owns keyboard access to overflow and the containing block a
-scroller owes what it scrolls;
+`runtime/reach.js` owns keyboard access to overflow, the containing block a
+scroller owes what it scrolls, and the mark a box wears while it shows less
+than it holds across;
 `runtime/shadow.js` owns declared shadow roots, their theme slice, shared
 highlight rules, the parent walk that crosses a root, and the chrome question
 (`uiInside`, `inUi`: which layer a node stands in); `runtime/shadow-stage.js`
@@ -710,6 +711,7 @@ been removed. `render-checks/init.js` installs the pre-navigation window-error c
 | `misplacedBoxes` | boxes stay in the column or in genuinely reachable overflow |
 | `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
 | `withheldRoom` | a drawing scrolls only when the room, net of margin residents at its band, ran short |
+| `silentCuts` | a box showing less than it holds across wears the layer's mark for it |
 | `clippedControls` | actionable controls are visible and reachable |
 | `unreachableWords` | visible page words remain in reachable flow |
 | `coveredWords` | browser words are not silently clipped, hidden, or claimed by chrome |

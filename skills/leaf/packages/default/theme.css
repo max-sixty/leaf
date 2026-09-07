@@ -1069,10 +1069,35 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
  * All presentation is CSS; the lf-board upgrade only wires dragging (grips,
  * dropzones) and reports each drop as a `move` action. Unupgraded it reads as a
  * static board. */
-lf-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(10rem, 1fr);
+/* The floor a column stops narrowing at, and the reason it is arithmetic rather than a
+ * round number. A board lays its columns into whatever width it is given and scrolls
+ * once they are at their narrowest, which is the right order — but the floor was stated
+ * as the column's own box (10rem), and a column is mostly not its card's words: 18px of
+ * the column's border and inset, then the card's border, its two insets and the column
+ * the grip hangs in. Measured at 160px, 70 of them were furniture and the card's prose
+ * got 90 — twelve characters, in which `documented` (92px of Charter at the page's own
+ * 17) cannot be set at all, so the shipped board broke ordinary words across lines the
+ * moment the thread strip took its margin. A board is meant to scroll before it squeezes,
+ * and a floor that does not count what the board spends does not know when to.
+ *
+ * So the measure is the number chosen and the furniture is derived from the rules that
+ * spend it, each inset named where it is set below rather than added up here a second
+ * time. 136px is about seventeen characters of the page's serif — one ordinary word to
+ * the line with room for the space after it. Long unbreakable runs (a path, a sha) still
+ * break where they must; that is the page-wide bargain and no width buys it back.
+ *
+ * The grip's column is in the floor for the same reason it is in the card's padding: it
+ * is room only where a grip hangs, so paper, copies and quoted boards floor a column at
+ * the measure and its insets alone. */
+lf-board { display: grid; grid-auto-flow: column;
+           --lf-card-measure: 136px; --lf-column-inset: 8px; --lf-card-inset: 10px;
+           grid-auto-columns: minmax(calc(var(--lf-card-measure)
+             + 2 * var(--lf-column-inset) + 2 * var(--lf-card-inset)
+             + var(--lf-grip-room, 0px) + 4px), 1fr); /* 4px: the two 1px borders */
            gap: var(--sp-2); margin: 14px 0; align-items: stretch; overflow-x: auto; }
 lf-column { display: block; background: var(--field); border: 1px solid var(--rule);
-            border-radius: var(--r); padding: 8px; min-height: 64px; --lf-frame: 1; }
+            border-radius: var(--r); padding: var(--lf-column-inset); min-height: 64px;
+            --lf-frame: 1; }
 /* The heading is written by lf-board.js rather than by the x-says pass, because
    it is the list's accessible name as well as its visible words and the pass
    knows nothing about names. Where the upgrade ran, the column carries those
@@ -1087,7 +1112,7 @@ lf-column::before { content: attr(label); }
 lf-column:has(> [data-lf-said="label"])::before { content: none; }
 lf-card { display: block; position: relative; background: var(--card);
           border: 1px solid var(--rule); border-radius: var(--r);
-          padding: 8px 10px; margin: 0 0 var(--sp-2); --lf-frame: 1; }
+          padding: 8px var(--lf-card-inset); margin: 0 0 var(--sp-2); --lf-frame: 1; }
 /* The column the grip hangs in, spent only where a grip hangs: the module measures its
    own grip's box and states the room (--lf-grip-room, lf-board.js), the same answer the
    pick column already is, so the ladder moving or a platform substituting a different
@@ -1098,7 +1123,7 @@ lf-card { display: block; position: relative; background: var(--card);
    the rule asks the medium too. */
 @media screen {
  :where(html:not(.lf-copy)) {
-  lf-card { padding-right: calc(10px + var(--lf-grip-room, 0px)); }
+  lf-card { padding-right: calc(var(--lf-card-inset) + var(--lf-grip-room, 0px)); }
  }
 }
 lf-card:last-child { margin-bottom: 0; }

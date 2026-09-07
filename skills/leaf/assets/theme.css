@@ -1446,6 +1446,31 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
  * sweep enters every declared tree, and a diff's lines scroll in one. No offsets:
  * relative moves nothing. */
 [data-lf-holds] { position: relative; }
+/* The layer's mark for a box that shows less than it holds across (reachScrollers, for
+ * why the sweep and not a rule beside each overflow decides who wears it). Scrolling is
+ * the honest answer when the room ran short, and on a platform drawing overlay
+ * scrollbars it is an answer the reader is never given: a flowchart cut 356px of 1026
+ * inside a tab panel read as a finished graph at every width from 1200 to 1920. A cut
+ * line of code announces itself by being a line; a drawing announces nothing, so the box
+ * says it.
+ *
+ * A soft inset shade on the side the rest is on, which is the shape a page falling off
+ * an edge has. On that side alone, and off the measurement rather than off scroll
+ * position: an edge that tracked the travel would be a write on every frame of a drag,
+ * and the reader arrives at the start of it, which is where a trailing edge is exactly
+ * right and where the whole cut lies. A reader already at the end knows the box scrolls,
+ * having scrolled it. Mirrored for a page read the other way, since the side is the
+ * inline end and box-shadow can only be told in physical terms.
+ *
+ * Paint and no metric: a shadow lays nothing out, so writing the attribute inside the
+ * sweep's own resize observation cannot feed itself. Screen only, because a mark whose
+ * whole meaning is "scroll to see the rest" says nothing on a sheet nobody can scroll.
+ * A copy keeps the mark it was exported with, the way it keeps the hold beside it and
+ * the stop the same sweep granted. */
+@media screen {
+  [data-lf-cut] { box-shadow: inset -22px 0 18px -22px var(--shade); }
+  [data-lf-cut]:dir(rtl) { box-shadow: inset 22px 0 18px -22px var(--shade); }
+}
 /* lf-shadow:end */
 @media screen {
   html:not(.lf-copy) {

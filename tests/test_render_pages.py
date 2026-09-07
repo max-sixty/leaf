@@ -25,6 +25,7 @@ from render_support import (
     BROKEN_DIAGRAM_PAGE,
     CHROME_ROOM,
     CORPUS_SOURCES,
+    CUT_BOXES_PAGE,
     DIAGRAM_AND_RAIL_PAGE,
     DIAGRAM_ROOM,
     DRAWING_PLACEMENT,
@@ -1899,6 +1900,70 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
     assert render_checks_model.evaluate_probe(page, "withheldRoom") == []
     assert errors == []
     page.close()
+
+
+def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, serve):
+    """Where the reading above stops. WITHHELD_ROOM asks whether the room was there to
+    give, and a drawing that genuinely could not fit is a page the layer is content with
+    — scrolling being the honest degrade. What it is not content with is a reader who
+    cannot tell: measured, a twelve-node flowchart in a tab panel showed seven of them at
+    1200, 1440 and 1920, cut 356px of its 1026, and every reading in the gate called that
+    page well, because the platform's own scrollbar is the whole of the sign and it draws
+    none at rest.
+
+    So the sweep that already asks whether something is out of sight, once per layout,
+    spends the answer on the eye as well as on the keyboard, and the box wears a mark
+    (`reachScrollers`, `[data-lf-cut]`). The reading here is that a cut box has one. The
+    line of code that fits is the control: a mark on a box holding nothing back would be
+    a promise of more with nothing behind it, and this reading would never have noticed.
+
+    The plant is the failure that is actually reachable — content grown inside a box
+    whose own border box never changes, so the sweep's per-candidate resize observation
+    never fires and nothing re-asks. That is the same miss that costs such a box its
+    keyboard stop, and the reading names the box rather than the rule, there being one
+    rule and many callers who owe it a sweep."""
+    url = serve(CUT_BOXES_PAGE)
+    page, errors = open_page(browser, url)
+    marks = page.evaluate("""() => {
+        const read = (id) => {
+            const el = document.getElementById(id);
+            return { short: el.scrollWidth - el.clientWidth,
+                     marked: el.hasAttribute('data-lf-cut'),
+                     paints: getComputedStyle(el).boxShadow !== 'none' };
+        };
+        return { flow: read('flow'), fits: read('short') };
+    }""")
+    assert marks["flow"]["short"] > 1, (
+        f"the graph fits its box here, so nothing is being cut: {marks}"
+    )
+    assert marks["flow"]["marked"] and marks["flow"]["paints"], marks
+    assert marks["fits"]["short"] == 0, (
+        f"the control box scrolls too, so it controls nothing: {marks}"
+    )
+    assert not marks["fits"]["marked"] and not marks["fits"]["paints"], marks
+    assert render_checks_model.evaluate_probe(page, "silentCuts") == []
+
+    # One line grown past its box, on its own text node: the box keeps its width and its
+    # single line's height, so no observation of it fires and no sweep runs.
+    page.evaluate("""() => {
+        const pre = document.getElementById('short');
+        pre.firstChild.data += ' ' + 'kept-in-one-run'.repeat(40);
+    }""")
+    grown = page.evaluate("""() => {
+        const el = document.getElementById('short');
+        return { short: el.scrollWidth - el.clientWidth,
+                 marked: el.hasAttribute('data-lf-cut') };
+    }""")
+    assert grown["short"] > 1 and not grown["marked"], grown
+    found = render_checks_model.evaluate_probe(page, "silentCuts")
+    assert [f for f in found if "<pre id=short>" in f], (
+        f"a box hiding {grown['short']}px with no mark on it went unreported: "
+        f"{found or 'nothing'}"
+    )
+    assert errors == []
+    page.close()
+
+    assert render_gate_model.render_version(browser, url) == []
 
 
 def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(

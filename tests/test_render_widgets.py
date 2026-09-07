@@ -54,6 +54,7 @@ from render_support import (
     SCROLL_SETTLE_MS,
     SCROLL_SETTLED,
     SHORT_SUGGESTION,
+    SQUEEZED_BOARD_PAGE,
     STANDING_ASK,
     SUGGESTION_IN_CONTEXT_PAGE,
     SUGGESTION_PAGE,
@@ -1681,6 +1682,72 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         "  - listitem:\n"
         "    - strong: Squirrel baffle\n"
         "    - 'button \"Move: Squirrel baffle — Done — your move\"': ⠿"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
+    browser, serve
+):
+    """A board lays its columns into whatever width it is given and scrolls once they
+    are as narrow as they go, which is the right order — but the floor has to know what
+    a column costs before it can say where narrow enough stops. Stated as the column's
+    own box (10rem), 70 of those 160 pixels were the column's inset and border, the
+    card's inset and border, and the column the drag grip hangs in, and the card's prose
+    got 90: `documented` is 92px of the page's own serif, so the shipped board broke
+    ordinary words across lines the moment the thread strip took its margin.
+
+    The reading is the visible failure and not the number behind it. A word set across
+    two lines with no hyphen is what the reader sees, and it is what the page-wide
+    `overflow-wrap` does with a box narrower than the word it has to show — the bargain
+    leaf makes for paths and shas, arriving here on an English sentence. The premise is
+    asserted first: the board must be at its floor and scrolling for the rest, or a
+    board that simply fitted would pass this while proving nothing."""
+    page, errors = open_page(browser, serve(SQUEEZED_BOARD_PAGE))
+    measured = page.evaluate(
+        """() => {
+        const board = document.getElementById('crowd');
+        const columns = [...board.querySelectorAll('lf-column')];
+        // A word broken to fit lands on two lines with no break opportunity in it, so
+        // the rects a range over it returns sit at two different tops. Ordinary words
+        // only: a path or a sha has nowhere to break and breaking one is the page's
+        // own bargain, not this floor's business.
+        const range = document.createRange(), broken = [];
+        for (const card of board.querySelectorAll('lf-card')) {
+            const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+            for (let node = walker.nextNode(); node; node = walker.nextNode())
+                for (const m of node.textContent.matchAll(/[^\\s]+/g)) {
+                    if (!/^[A-Za-z]+[.,;:]?$/.test(m[0])) continue;
+                    range.setStart(node, m.index);
+                    range.setEnd(node, m.index + m[0].length);
+                    const rects = [...range.getClientRects()];
+                    if (new Set(rects.map((r) => Math.round(r.top))).size > 1)
+                        broken.push(m[0]);
+                }
+        }
+        return { broken,
+                 scrolls: board.scrollWidth - board.clientWidth,
+                 widths: columns.map((c) => c.getBoundingClientRect().width),
+                 measure: (() => {
+                     const card = board.querySelector('lf-card');
+                     const s = getComputedStyle(card), b = card.getBoundingClientRect();
+                     return b.width - parseFloat(s.paddingLeft)
+                          - parseFloat(s.paddingRight) - parseFloat(s.borderLeftWidth)
+                          - parseFloat(s.borderRightWidth);
+                 })() };
+    }"""
+    )
+    # The premise, read off the layout rather than off the property behind it: a grid of
+    # `1fr` tracks that scrolls has every track at its minimum, so a board that scrolls
+    # is a board at its floor whatever the floor is written as. A board with room to
+    # spare would pass the reading below while asking it nothing.
+    assert measured["scrolls"] > 1 and len(set(measured["widths"])) == 1, (
+        f"this board is not at its floor, so its words prove nothing: {measured}"
+    )
+    assert measured["broken"] == [], (
+        f"a board at its floor gave each card {measured['measure']:.0f}px of measure "
+        f"and broke {', '.join(sorted(set(measured['broken'])))} across two lines"
     )
     assert errors == []
     page.close()

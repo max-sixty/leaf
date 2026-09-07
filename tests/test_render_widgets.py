@@ -1758,7 +1758,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     )
 
     playground.get_by_role("button", name="Reset").click()
-    expect(copy).to_have_text("Copy instruction")
+    assert copy.text_content() == "Copy instruction"
     assert playground.evaluate("root => root.values")["radius"] == 12
     resized(page, 420, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 420

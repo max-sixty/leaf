@@ -20,6 +20,7 @@ import {
   failSoft,
   keeps,
   layoutChanged,
+  measure,
   notice,
   offer,
   once,
@@ -345,7 +346,7 @@ customElements.define(
       this.#submit.addEventListener("click", () => this.#choose());
       actions.append(this.#reset, this.#copy, this.#submit);
       this.append(actions);
-      reserve(this.#copy, ["Copy instruction", "Copied"]);
+      measure(this.#copy, () => reserve(this.#copy, ["Copy instruction", "Copied"]));
     }
 
     #commands() {

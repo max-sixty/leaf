@@ -4493,7 +4493,13 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     # The banner's press opens the tray and keeps the focus, so the walk after it
     # measures from where the reader stands in the page and steps on rather than
     # restarting — the button being no place to measure from.
-    page.locator(".lf-asks").click()
+    #
+    # Reached through `banner_address` rather than by clicking the button where it
+    # would stand on a wide row: at this fixture's 900px the row cannot hold every
+    # address in a face wider than this desk's, and folding one is the row's stated
+    # answer. Which address the fold takes is the banner's business and not this
+    # walk's, so the helper opens the door where it has to.
+    banner_address(page, ".lf-asks").click()
     page.keyboard.press("a")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 

@@ -747,13 +747,19 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
         bar.locator(".lf-response-more").click()
     else:
         page.keyboard.press("Tab")
+    page.evaluate(RENDERED)
     expect(bar).to_be_visible()
     expect(field).to_be_visible()
     expect(field).to_have_value("Keep this draft")
     choices = bar.locator(":scope > .lf-response-options .lf-response-action:visible")
     expect(choices).to_have_count(7)
+    expect(bar.locator(":scope > .lf-response-options")).to_have_attribute(
+        "aria-keyshortcuts",
+        "1 2 3 4 5 6 Tab Shift+Tab ArrowLeft ArrowRight ArrowUp ArrowDown Enter Space Escape",
+    )
     suggest = bar.get_by_role("button", name="Suggest", exact=True)
     expect(suggest).to_be_focused()
+    assert suggest.get_attribute("aria-expanded") is None
     expect(bar.locator(".lf-react:visible")).to_have_count(6)
     route = bar.evaluate(
         """bar => new Promise(done => requestAnimationFrame(() =>
@@ -793,10 +799,12 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
     expect(field).to_be_focused()
     expect(field).to_have_value("Keep this draft, still anchored")
     expect(bar.locator(".lf-fab-suggest")).to_have_attribute("aria-label", "Comment")
+    assert suggest.get_attribute("aria-expanded") is None
     bar.locator(".lf-fab-suggest").click()
     expect(field).to_be_focused()
     expect(field).to_have_value("Keep this draft, still anchored")
     expect(bar.locator(".lf-fab-suggest")).to_have_attribute("aria-label", "Suggest")
+    assert suggest.get_attribute("aria-expanded") is None
     field.click()
     expect(bar).to_have_class(re.compile("lf-response-open"))
     expect(choices).to_have_count(7)
@@ -821,6 +829,9 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
     expect(suggest).to_be_focused()
     page.keyboard.press("Escape")
     expect(bar.locator(".lf-response-more")).to_be_visible()
+    expect(bar.locator(":scope > .lf-response-options")).not_to_have_attribute(
+        "aria-keyshortcuts", re.compile(r".+")
+    )
     expect(field).to_be_focused()
     expect(field).to_have_value("Keep this draft, still anchored 3 lines")
     page.keyboard.press("Escape")

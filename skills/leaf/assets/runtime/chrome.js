@@ -22,7 +22,12 @@ import { liveEl } from "./notifications.js";
 import { FOCUSABLE } from "./reach.js";
 import { mountLayout } from "./chrome-layout.js";
 import { declareLeavesKeys } from "./live-leaves.js";
-import { commentBox, commentRows, declareFindBoxKeys } from "./keyboard/page.js";
+import {
+  commentBox,
+  commentRows,
+  declareFindBoxKeys,
+  declareResponseOptionKeys,
+} from "./keyboard/page.js";
 import { activeRowLabel } from "./keyboard/dispatch.js";
 import { wireFabInput } from "./composing/surface.js";
 import { mountAnchors } from "./anchors.js";
@@ -157,5 +162,6 @@ export function mountChrome() {
   wireFabInput();
   declareLeavesKeys();
   declareFindBoxKeys();
+  declareResponseOptionKeys();
   wireGeneralBox();
 }

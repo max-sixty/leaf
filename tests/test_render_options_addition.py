@@ -6,6 +6,7 @@ from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
     ASK_WITH_CONTEXT_PAGE,
+    button_radius,
     open_page,
     round_trip,
     sent_events,
@@ -124,7 +125,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert circle_radius == "50%"
     assert face["button"] == "rgba(0, 0, 0, 0)"
     assert face["fill"] != face["button"]
-    assert face["radius"] == "6px"
+    assert face["radius"] == button_radius(page)
     assert face["radius"] != circle_radius
     page.keyboard.press("Tab")
     expect(add).to_be_focused()

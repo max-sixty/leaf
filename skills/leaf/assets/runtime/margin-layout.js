@@ -229,7 +229,10 @@ export function layoutMarginRows() {
   let docked = false;
   for (const { row, options, rect, shown, hangs } of measured) {
     if (!shown) mark(row, "lf-waiting");
-    else if (!hangs || rect.right > room) {
+    // A row the posture read kept docked is measured where it stands, in flow, so its
+    // own rect says it fits a rail it is not in. It takes the docked path on the reading
+    // that kept it, not on a measurement of somewhere it is not standing.
+    else if (!hangs || staysDocked.has(row) || rect.right > room) {
       if (options.fallback === "hide") mark(row, "lf-waiting");
       else {
         mark(row, "lf-docked");

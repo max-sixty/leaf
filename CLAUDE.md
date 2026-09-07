@@ -191,10 +191,11 @@ main moves.
 That suite reads one file under `worker/`: `tests/test_website_server.py` loads
 `worker/server.py` and drives the route adapter, and pre-commit's ruff hooks
 take it as they take every other Python file. Nothing on either landing path
-reads `worker/src/`, because pre-commit's prettier and eslint hooks take
-JavaScript and HTML rather than TypeScript. So a TypeScript change carries no
-gate until `ci`'s `website-worker` job runs it, which on a `wt merge` is after
-main has already moved. Run it before landing one:
+parses `worker/src/`: pre-commit's whitespace and typos hooks take those files,
+but its prettier and eslint hooks take JavaScript and HTML rather than
+TypeScript. So a TypeScript change carries no gate until `ci`'s
+`website-worker` job runs it, which on a `wt merge` is after main has already
+moved. Run it before landing one:
 
 ```sh
 npm ci --prefix worker

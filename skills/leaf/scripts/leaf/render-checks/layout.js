@@ -432,9 +432,24 @@ export function silentCuts() {
   for (const root of openRoots(main))
     for (const el of root.querySelectorAll("*")) {
       if (!el.checkVisibility() || el.matches("textarea")) continue;
-      if (!/^(auto|scroll)$/.test(getComputedStyle(el).overflowX)) continue;
+      const style = getComputedStyle(el);
+      if (!/^(auto|scroll)$/.test(style.overflowX)) continue;
       const short = el.scrollWidth - el.clientWidth;
-      if (short <= 1 || el.hasAttribute("data-lf-cut")) continue;
+      if (short <= 1) continue;
+      // The mark is a promise about what the reader can see, so this asks the promise
+      // and not the attribute. `[data-lf-cut]` is one attribute selector, so a single
+      // class setting `box-shadow` on the same element outranks it and takes the shade
+      // away with the mark still written — which reads as a clean gate and a page that
+      // cuts a drawing at its edge saying nothing, the state this reading exists for.
+      if (el.hasAttribute("data-lf-cut")) {
+        if (style.boxShadow !== "none") continue;
+        found.push(
+          `${at(el)} wears the cut mark for the ${short}px it is hiding across but ` +
+            `draws nothing for it: something outranks the mark's own rule, so the ` +
+            `mark is written and the reader still has no sign`,
+        );
+        continue;
+      }
       found.push(
         `${at(el)} shows ${el.clientWidth}px of the ${el.scrollWidth}px it holds ` +
           `across and wears no mark for the ${short}px it is hiding — the platform's ` +

@@ -227,9 +227,15 @@ function renderPreview(state) {
       }
     });
     // Seated by the same writer that seats every other address, so the row reads in one
-    // order and the fold knows about it; then measured, then folded against what it
-    // measured.
+    // order and the fold knows about it; then measured with the whole run standing, then
+    // folded against what it measured. The unfold is the measurement's precondition, not
+    // tidiness: `arrangeBannerControls` ends in a fold, this chip is seated first so it
+    // is the first thing folded, and inside a shut popover every word measures zero — so
+    // reserving here without it sets a floor of 0px and the chip grows by a glyph, on the
+    // row, the first time the checkout goes dirty. `reserveBannerControls` opens with the
+    // same call for the same reason.
     arrangeBannerControls();
+    unfoldShelf();
     reserve(previewButton, previewLabels);
     foldShelf();
   }

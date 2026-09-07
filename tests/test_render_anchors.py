@@ -901,11 +901,18 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     # is the passage this release has to come back to, and the browser only says a
     # selection changed on a turn of its own.
     hold_selection(page, (para["left"] + 4, line), (para["left"] + 190, line), steps=12)
-    page.wait_for_timeout(120)
+    # The selection saying it covers something is the fact this read wants, and the drag
+    # is still held, so there is no composer to wait on yet.
+    page.wait_for_function("() => getSelection().toString().length > 0")
     covered = page.evaluate("() => getSelection().toString()")
     page.mouse.move(into["x"] + 40, into["y"] + into["height"] / 2, steps=20)
     page.mouse.up()
-    page.wait_for_timeout(250)
+    # The release restores the remembered range and raises the composer on it, so the box
+    # standing and its passage painted are the two facts the three readings below are
+    # taken from. Waiting out `deferSelectionUpdate`'s timer instead would read a composer
+    # that may not be there yet and report it as a missing box.
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    wait_for_pending_mark(page)
 
     assert covered, "the drag selected nothing inside the document to come back to"
     quote = composer_quote(page)["text"].strip("“”")

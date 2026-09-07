@@ -988,6 +988,46 @@ STATUS_FIT = """(sentence) => {
           width: status.getBoundingClientRect().width};
 }"""
 
+# The chip written in its other spelling, which is what a checkout going dirty does to it.
+# The reservation exists so that costs nothing: `renderPreview` measures both spellings and
+# floors the control at the wider, so the news of a dirty tree repaints the chip and moves
+# nothing. Read as boxes rather than as `min-width`, because a floor measured against the
+# wrong label is also a number, and only the row holding still says it was the right one.
+SPELLING_SWAP = """() => {
+  const chip = document.querySelector('.lf-preview');
+  const row = [...document.querySelector('.lf-banner-actions').children];
+  const said = chip.textContent;
+  const dirty = said.endsWith('+') ? said : said + '+';
+  const clean = said.endsWith('+') ? said.slice(0, -1) : said;
+  const floor = parseFloat(getComputedStyle(chip).minWidth) || 0;
+  // What the wider spelling is worth on its own, so the floor can be compared against the
+  // thing it is supposed to be a measurement of. Measured in a copy of the chip seated on
+  // the row rather than in the chip itself: the chip may be behind the shut door, where
+  // every word is zero — which is the whole fault this reads for, and reading the chip in
+  // place would answer 0 for the floor and 0 for what it should have been, and call that
+  // agreement.
+  const rig = chip.cloneNode(false);
+  rig.textContent = dirty;
+  rig.style.cssText = 'position:absolute;left:-9999px;top:0;min-width:0';
+  document.querySelector('.lf-banner-actions').append(rig);
+  const widest = rig.getBoundingClientRect().width;
+  rig.remove();
+  // Then the rule the floor exists for, where the chip stands on the row to show it: the
+  // dirty spelling arrives and nothing before it moves.
+  const lefts = () => row.map((el) => el.getBoundingClientRect().left);
+  chip.textContent = clean;
+  const before = lefts();
+  const narrow = chip.getBoundingClientRect().width;
+  chip.textContent = dirty;
+  const after = lefts();
+  const wide = chip.getBoundingClientRect().width;
+  chip.textContent = said;
+  return {said, clean, dirty, floor, widest, wide, narrow, onRow: row.includes(chip),
+          moved: row
+            .map((el, i) => [el.className, Math.abs(after[i] - before[i])])
+            .filter(([, d]) => d > 0.5)};
+}"""
+
 
 def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser, serve):
     """A developer preview's identity is an address on the row, not a bite out of the line.
@@ -1084,6 +1124,36 @@ def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser,
             assert standing["shown"] >= standing["needed"], (
                 f"at {width} the preview chip clipped its own name: {standing}"
             )
+    # News arriving without a gesture must not move a chrome control, and a checkout going
+    # dirty is that news: the chip gains a `+` where it stands. The reservation is what
+    # keeps the row still, and it is taken once, when the chip is first drawn — so it is a
+    # real number only if the row was standing when it was measured. A first read narrow
+    # enough to fold is where that goes wrong: the chip is seated first, so it is the first
+    # thing folded, and inside a shut popover every word measures zero. Measured on this
+    # fixture with the unfold removed: `min-width` 0px after a 900px first read, against
+    # 282px after a 1200px one. It stays 0px, because only a covering crossing re-measures
+    # and 900 is above that. Widening to where the chip stands again is where the reader
+    # finally pays, which is why this reads the row and not the floor.
+    resized(page, 841, 900)
+    page.reload()
+    page.wait_for_function(BOTH_STAMPS)
+    resized(page, 1600, 900)
+    swap = page.evaluate(SPELLING_SWAP)
+    assert swap["floor"] >= swap["widest"] - 1, (
+        f"the preview chip's reservation is under the wider of its two spellings, so it "
+        f"was measured while the chip was folded away: {swap}"
+    )
+    # And where the chip stands, the rule itself. A long checkout name can keep it behind
+    # the door at every width this fixture reaches, which is a fold working, not a floor
+    # failing — the reservation above is what says the floor is real either way.
+    if swap["onRow"]:
+        assert not swap["moved"], (
+            f"spelling the preview chip {swap['dirty']!r} instead of {swap['clean']!r} "
+            f"moved the row: {swap}"
+        )
+        assert swap["wide"] == swap["narrow"], (
+            f"the preview chip changed width between its two spellings: {swap}"
+        )
     assert errors == []
     page.close()
 

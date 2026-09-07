@@ -86,10 +86,15 @@ const mayScroll = new Set();
 // answers for it.
 //
 // The mark is paint (theme.css, [data-lf-cut]), so writing it inside a resize observation
-// moves nothing and cannot feed itself. Its candidate set is every declared sideways
-// scroller and not `mayScroll`, which stops at boxes holding a control of their own: a
-// board is reached through its grips and needs no stop, and is cut exactly as silently as
-// anything else.
+// moves nothing and cannot feed itself. Its candidate set is every box whose computed
+// `overflow-x` is `auto` or `scroll`, and not `mayScroll`, which stops at boxes holding a
+// control of their own: a board is reached through its grips and needs no stop, and is cut
+// exactly as silently as anything else. Computed, not declared, is wider than it sounds
+// and is the set on purpose: `overflow-x: visible` computes to `auto` whenever
+// `overflow-y` is not visible, so a box that only ever meant to scroll down — the panel's
+// list, a tray, the sidebar — is in here too. It earns the mark on the same terms as the
+// rest, by actually holding more across than it shows; a box that scrolls only downwards
+// never does, and the ones that do were cutting a word off with nothing to say so.
 const sideways = new Set();
 export const runtimeOwnsScrollerStop = (el) => mayScroll.has(el);
 export function reachScrollers(root) {

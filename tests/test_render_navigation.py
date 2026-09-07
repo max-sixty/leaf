@@ -101,7 +101,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
 
     page.locator(".lf-asks").click()
     asks = page.locator("button.lf-asks-row")
-    expect(asks).to_have_count(13)
+    expect(asks).to_have_count(14)
     expect(asks.first.locator(".lf-asks-kind")).to_have_text("ask")
     expect(asks.first.locator(".lf-asks-says")).to_contain_text(
         "Which map should the sample team carry?"
@@ -1953,7 +1953,7 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
         assert reading["banner"] <= chip["top"] < chip["bottom"] <= reading["height"], (
             reading
         )
-        assert chip["route"] == f"g{chip['code']}", chip
+        assert chip["route"] == chip["code"], chip
     under_code = address_code(page, "Link", "under-banner")
     under_index = page.locator(CHIPS).evaluate_all(
         """(chips, code) => chips.findIndex(chip => chip.dataset.lfAddress === code)""",
@@ -1973,6 +1973,89 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
     page.keyboard.type(code)
     expect(page.locator(CHIPS)).to_have_count(0)
     expect(page.locator("#top")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact(
+    browser, serve
+):
+    """Kind prefixes narrow the current generated map instead of replacing it.
+
+    A filtered map assigns short codes from its own members. Its chips show only those
+    generated suffixes; the complete route remains in the key line.
+    """
+    page, errors = open_page(browser, serve(ADDRESSED_PAGE))
+    resized(page, 1280, 800)
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+
+    page.keyboard.press("g")
+    chips = page.locator(CHIPS)
+    expect(chips.first).to_be_visible()
+    initial_kinds = set(
+        chips.evaluate_all("els => els.map(el => el.dataset.lfAddressKind)")
+    )
+    assert {"Link", "Fold", "Control"} <= initial_kinds, initial_kinds
+    assert chips.evaluate_all(
+        "els => els.every(el => el.textContent === el.dataset.lfAddress)"
+    ), "an inline hint repeated the chord context"
+
+    control_codes = page.locator(
+        f'{CHIPS}[data-lf-address-kind="Control"]'
+    ).evaluate_all("els => els.map(el => el.dataset.lfAddress)")
+    assert len(control_codes) >= 2, control_codes
+    page.keyboard.press("a")
+    filtered = page.locator(CHIPS)
+    expect(filtered).to_have_count(len(control_codes))
+    assert set(
+        filtered.evaluate_all("els => els.map(el => el.dataset.lfAddressKind)")
+    ) == {"Control"}
+    filtered_codes = address_codes(page)
+    assert all(len(code) == 1 for code in filtered_codes), filtered_codes
+    assert filtered_codes != control_codes, {
+        "before": control_codes,
+        "filtered": filtered_codes,
+    }
+    target_route = page.locator(
+        '.lf-keyline .lf-key[data-lf-commands~="navigation.target"]'
+    )
+    assert target_route.locator("kbd").evaluate_all(
+        "keys => keys.map(key => key.textContent)"
+    ) == ["g", "a", "letters"]
+    expect(target_route).not_to_contain_text("filter")
+
+    page.keyboard.press("Escape")
+    key_line(page)
+    expect(page.locator("body")).to_have_attribute("data-lf-goto", "")
+    assert (
+        set(
+            page.locator(CHIPS).evaluate_all(
+                "els => els.map(el => el.dataset.lfAddressKind)"
+            )
+        )
+        == initial_kinds
+    )
+
+    # A filter with no members stays empty through the same resize refresh that
+    # regenerates a populated map. Escape still restores the complete map.
+    page.keyboard.press("t")
+    expect(page.locator(CHIPS)).to_have_count(0)
+    expect(page.locator(".lf-live")).to_have_text("No visible tabs.")
+    resized(page, 1200, 800)
+    expect(page.locator(CHIPS)).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(page.locator(CHIPS).first).to_be_visible()
+
+    page.keyboard.press("h")
+    links = page.locator(f'{CHIPS}[data-lf-address-kind="Link"]')
+    expect(links).to_have_count(2)
+    expect(page.locator(f'{CHIPS}:not([data-lf-address-kind="Link"])')).to_have_count(0)
+    resized(page, 1180, 800)
+    expect(links).to_have_count(2)
+    expect(page.locator(f'{CHIPS}:not([data-lf-address-kind="Link"])')).to_have_count(0)
+    page.keyboard.type(address_code(page, "Link", "lk2"))
+    page.wait_for_url(re.compile(r"#p2$"))
+    expect(page.locator("#p2")).to_be_focused()
     assert errors == []
     page.close()
 
@@ -2152,9 +2235,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         ),
         (
             "navigation.target",
-            ["g", "letters"],
+            ["g", "letters / kind"],
             ["pressed", "neutral"],
-            "visible target",
+            "visible target / filter",
         ),
         (
             "navigation.page.top",
@@ -2526,6 +2609,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
 
     page.keyboard.press("g")
     expect(page.locator(".lf-keyline")).to_contain_text("All leaves panel")
+    expect(page.locator(".lf-others")).to_have_attribute("data-lf-chord", "g L")
     page.keyboard.press("Shift+l")
 
     expect(page.locator(".lf-others-panel")).to_be_visible()
@@ -2744,7 +2828,7 @@ def test_generated_hints_refresh_to_the_visible_scene_after_scroll(browser, serv
     )
 
     page.keyboard.press("g")
-    old_code = address_code(page, "Link", "top-link-three")
+    old_code = address_code(page, "Link", "top-link-two")
     assert old_code == "d"
     expect(page.locator(f'{CHIPS}[data-lf-address-for="bottom-link"]')).to_have_count(0)
     page.keyboard.press("Tab")
@@ -3000,7 +3084,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(cancel_reaction).to_have_attribute("data-lf-selected", "true")
     page.keyboard.press("Enter")
     expect(help_el.locator(".lf-help-meta")).to_have_text(
-        "Available with response choices open"
+        "Available with reactions open"
     )
 
     page.keyboard.press("Escape")
@@ -3244,7 +3328,13 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     expect(tabs).to_have_count(2)
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
-    go_to_address(page, "Tab", "tab-bath")
+    # The old tab mnemonic now narrows the generated map to that kind; its fresh
+    # codes retain the same activation and focus behavior as the unfiltered map.
+    page.keyboard.press("g")
+    page.keyboard.press("t")
+    expect(page.locator(f'{CHIPS}[data-lf-address-kind="Tab"]')).to_have_count(2)
+    expect(page.locator(f'{CHIPS}:not([data-lf-address-kind="Tab"])')).to_have_count(0)
+    page.keyboard.type(address_code(page, "Tab", "tab-bath"))
 
     expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
     expect(tabs.nth(1)).to_be_focused()
@@ -3281,10 +3371,10 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     assert all(
         not other.startswith(code) for code in codes for other in codes if code != other
     )
-    assert not set("gjkp") & {code for code in codes if len(code) == 1}
-    assert sum(len(code) == 1 for code in codes) == 21
+    assert not set("afghjkmpt") & {code for code in codes if len(code) == 1}
+    assert sum(len(code) == 1 for code in codes) == 16
     branched = [code for code in codes if len(code) == 2]
-    assert len(branched) == 2 and branched[0][0] == branched[1][0]
+    assert len(branched) == 7 and len({code[0] for code in branched}) == 1
 
     prefix = branched[0][0]
     page.keyboard.press(prefix)
@@ -3294,14 +3384,14 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
         "line": key_line(page),
         "live": page.locator(".lf-live").text_content(),
     }
-    expect(page.locator(".lf-live")).to_have_text("2 targets remain.")
+    expect(page.locator(".lf-live")).to_have_text("7 targets remain.")
     expect(line).to_contain_text("back one letter")
 
     # Escape removes only the opaque prefix; the same visible scene returns. A complete
     # two-letter code then activates immediately, with no timeout or terminator.
     page.keyboard.press("Escape")
     assert address_codes(page) == codes
-    page.keyboard.type(branched[1])
+    page.keyboard.type(branched[-1])
     page.wait_for_url(re.compile(r"#link-23$"))
     expect(page.locator(CHIPS)).to_have_count(0)
     assert errors == []
@@ -3540,7 +3630,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     # chip — there is nothing to back out of.
     expect(line).to_contain_text("threads")
     expect(line).to_contain_text("more")
-    expect(line).not_to_contain_text("esc")
+    expect(line.locator("kbd").filter(has_text=re.compile(r"^esc$"))).to_have_count(0)
 
     # Armed with the panel closed: the direct panel destination and its way out are visible.
     page.keyboard.press("g")
@@ -4174,8 +4264,35 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     )
     assert key_faces[0] == key_faces[1], key_faces
     version = page.locator(".lf-version")
+    banner_chords = [
+        (page.locator(".lf-threads-toggle"), "T"),
+        (page.locator(".lf-asks"), "A"),
+        (page.locator(".lf-page-map-toggle"), "M"),
+    ]
+    for control, suffix in banner_chords:
+        expect(control).to_have_attribute("data-lf-chord", f"g {suffix}")
+        expect(control).to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
+        assert (
+            control.evaluate("el => getComputedStyle(el, '::after').content")
+            == f'"g {suffix}" / ""'
+        )
+    for control in (page.locator(".lf-threads-toggle"), page.locator(".lf-asks")):
+        expect(control).to_have_accessible_name(control.inner_text())
     expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    expect(version).to_have_attribute("data-lf-chord", "g V")
     expect(version).to_have_attribute("title", re.compile(r"\(g V\)$"))
+    resized(page, 390, 800)
+    folded_chords = page.locator(".lf-banner-menu > [data-lf-chord]")
+    chord_readings = folded_chords.evaluate_all(
+        """els => els.map(el => ({
+          chord: el.dataset.lfChord,
+          content: getComputedStyle(el, '::after').content,
+        }))"""
+    )
+    assert chord_readings and all(
+        reading["content"] == f'"{reading["chord"]}" / ""' for reading in chord_readings
+    ), f"a folded destination lost its visible chord: {chord_readings}"
+    resized(page, 1200, 900)
     expect(page.locator(".lf-latest-chip")).to_have_attribute(
         "title", re.compile(r"\(g V v\)$")
     )
@@ -4207,6 +4324,10 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     page.keyboard.press("Escape")
     expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
     expect(version).not_to_have_attribute("title", re.compile(r"\(g V\)$"))
+    for control, suffix in banner_chords:
+        expect(control).not_to_have_attribute("data-lf-chord", re.compile(".+"))
+        expect(control).not_to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
+    expect(version).not_to_have_attribute("data-lf-chord", re.compile(".+"))
     expect(page.locator(".lf-latest-chip")).not_to_have_attribute(
         "title", re.compile(r"\(g V v\)$")
     )
@@ -4249,7 +4370,11 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     create.click()
     expect(page.locator(".lf-help")).to_be_hidden()
     expect(version).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
+    expect(version).to_have_attribute("data-lf-chord", "g V")
     expect(version).to_have_attribute("title", re.compile(r"\(g V\)$"))
+    for control, suffix in banner_chords:
+        expect(control).to_have_attribute("data-lf-chord", f"g {suffix}")
+        expect(control).to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
     expect(page.locator(".lf-general textarea")).to_be_focused()
     expect(page.locator(".lf-general textarea")).to_have_attribute(
         "placeholder", re.compile(r"(⌘⏎|Ctrl\+⏎)$")
@@ -4810,8 +4935,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
 def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, serve):
     """The sentence a reader reads before they have pressed anything.
 
-    Comment can act immediately because the page itself is its target. React cannot: the
-    reader first selects an item, then chooses the response. Whole-page search and page
+    The two Comment routes identify their targets directly. Whole-page search and page
     movement remain in the complete reference.
 
     Read off `:not([hidden])`, because renderLine leaves every live row in the DOM and
@@ -4823,7 +4947,7 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     expect(shown).to_have_count(2)
     expect(page.get_by_role("button", name="? more", exact=True)).to_be_visible()
     # One settled read, which pins the count, the order, the keys and the words together.
-    assert key_line(page) == "c\ncomment on the page\ns\nselect item\n?\nmore", (
+    assert key_line(page) == "c\ncomment on the page\ns\ncomment on item\n?\nmore", (
         key_line(page)
     )
 
@@ -4843,7 +4967,7 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     help_el = page.locator(".lf-help")
     expect(help_el).to_be_visible()
     expect(help_el).to_contain_text("Search all the text on the page")
-    expect(help_el).to_contain_text("Choose a visible item by hint")
+    expect(help_el).to_contain_text("Comment on a visible item by hint")
     expect(help_el).not_to_contain_text("Open reactions")
     expect(help_el).to_contain_text("Move 60% of a page down")
     expect(help_el).to_contain_text("Move 60% of a page up")
@@ -5500,8 +5624,6 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     choices = page.locator(".lf-fab-bar")
     suggest = choices.locator(".lf-fab-suggest")
     expect(choices).to_be_visible()
-    expect(choices.locator(".lf-fab")).to_be_focused()
-    page.keyboard.press("Tab")
     expect(suggest).to_be_focused()
 
     page.keyboard.press("Enter")

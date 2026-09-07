@@ -1894,7 +1894,62 @@ RINGS_DRAWN = f"""async () => {{
         const step = grow + w + 1;
         const inx = x + (side === 'left' ? step : side === 'right' ? -step : 0);
         const iny = y + (side === 'top' ? step : side === 'bottom' ? -step : 0);
-        if (document.elementsFromPoint(inx, iny).includes(over)) break;
+        const inside = document.elementsFromPoint(inx, iny);
+        if (inside.includes(over)) break;
+        // Or the other way about: a box the control itself paints over. An outline is
+        // painted by its control at its control's level, so a box the control stands in
+        // front of cannot stand over the ring around it — and the sample lands on one of
+        // those whenever a control floats above content its own holder scrolls, which
+        // the coarse-pointer edge grip does over the panel's threads. Left unasked, the
+        // grip's ring read as covered by whichever line of a thread its band happened to
+        // cross, and a two-pixel change to the card's own padding was enough to move one
+        // under it.
+        //
+        // Read off the stepped-in point already taken, whose stack is the paint order
+        // there: `over` is not in it, but a box holding `over` usually is, and one
+        // ranking below the control puts everything it holds below the control too. A
+        // box that holds the control answers nothing — the control is inside it — so the
+        // walk stops there rather than reading its rank.
+        //
+        // A z-index named on the way up stops the walk: it lifts the box past the holder
+        // this would rank, so the reading says what it said before. Position lifts a box
+        // the same way without naming one — a positioned box leaves its holder's place in
+        // the flow to paint in the positioned layer of the nearest ancestor stacking
+        // context. A positioned holder still answers for it, since the two paint in that
+        // same layer and, with the control outside the holder, in the holder's own tree
+        // order. A static holder does not, and the question is then whether the control
+        // stands above that layer at all — which is what a z-index of its own says, and
+        // what the grip's `z-index: 1` says: nothing painting there can reach its ring,
+        // whatever holds it. A control that names none shares the layer, and a neighbour
+        // lifted into it can stand over the ring, so the reading reports it.
+        const control = inside.findIndex((n) => n === el || holds(el, n));
+        // Whether this box stands clear of the layer a box with no z-index of its own
+        // paints in, read up to the box that holds them both.
+        const clears = (n) => {{
+          for (let a = n; a && !holds(a, over); a = above(a)) {{
+            const z = parseFloat(getComputedStyle(a).zIndex);
+            if (!Number.isNaN(z)) return z > 0;
+          }}
+          return false;
+        }};
+        let under = false;
+        let hoisted = false;
+        for (let a = over; a && control >= 0; a = above(a)) {{
+          if (holds(a, el)) break;
+          const acs = getComputedStyle(a);
+          const ranked = inside.indexOf(a);
+          if (ranked >= 0) {{
+            under = hoisted && acs.position === 'static'
+              ? clears(el)
+              : ranked > control;
+            break;
+          }}
+          if (acs.zIndex !== 'auto') break;
+          if (acs.position !== 'static') hoisted = true;
+        }}
+        // Nothing beneath a box the control paints over is over the ring either, so this
+        // side is answered rather than carried on down the stack.
+        if (under) break;
         const o = over.getBoundingClientRect();
         covers.push(`its ${{side}} edge is under ` + named(over)
                     + ` (ring ${{at(ring)}} vs ${{at(o)}}, sampled ${{Math.round(x)}},`

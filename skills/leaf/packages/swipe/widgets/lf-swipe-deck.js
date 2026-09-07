@@ -94,7 +94,7 @@ customElements.define(
         heading.dataset.lfGen = "1";
         heading.className = "lf-swipe-pile-label";
         heading.setAttribute("aria-hidden", "true");
-        heading.textContent = label;
+        heading.textContent = `${label} · ${this.#cards(pile).length}`;
         pile.prepend(heading);
       }
     }

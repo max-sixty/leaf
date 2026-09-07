@@ -96,6 +96,7 @@ import {
 import { RETURN, invoke } from "./return-stack.js";
 import { isChordArmed, setChord } from "./address.js";
 import { REACT, setReact } from "../reactions.js";
+import { runtime } from "../context.js";
 
 const beforeCommand = (row) => {
   if (
@@ -292,7 +293,16 @@ export function executeCommand(id, origin = null) {
 // call answers for it. Focus entering a box, or a control that claims Escape, also disarms
 // the chord — a digit typed in a box is text, and a chip left blooming would promise a
 // cancel the control would consume.
+//
+// Not for a placement, which emits the same pair around a focus that never left: the
+// margin takes a docked cluster out of flow to measure where it can hang and puts it and
+// the reader back, once per layout pass. Answering that as a move painted the standing
+// chrome, whose layout pass asked for the next placement, and a page with the reader
+// standing in a docked cluster laid its margin out on every frame for as long as they
+// stood there. The reader has not moved and nothing they can see has changed, so there
+// is nothing here to paint.
 document.addEventListener("focusin", () => {
+  if (runtime.placingChrome) return;
   // The same question `setChord` asks before arming, so it takes the same answer: two
   // readings of where the reader is standing would refuse to arm somewhere they then
   // failed to disarm.
@@ -303,4 +313,6 @@ document.addEventListener("focusin", () => {
   }
   paintHere();
 });
-document.addEventListener("focusout", () => paintHere());
+document.addEventListener("focusout", () => {
+  if (!runtime.placingChrome) paintHere();
+});

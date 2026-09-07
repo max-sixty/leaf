@@ -402,7 +402,7 @@ export async function undoLast() {
   if (e) await withdraw(e);
 }
 // Naming the gesture rather than walking to it: a standing mark is its own eraser — a
-// reaction's glyph in the margin, its pill on a strip — and a press there takes back
+// reaction's glyph in the margin, its chip on a strip — and a press there takes back
 // exactly that event, which need not be the newest. Same door, same notice.
 export async function withdraw(e) {
   if (unaccountedGesture()) {

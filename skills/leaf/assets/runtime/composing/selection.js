@@ -8,7 +8,7 @@
    `openComposer`'s `focus` option decides focus independently. Outside clicks and
    Escape hide without discarding words. A successful send or an explicit draft close
    discards the local record. */
-import { el, responseAction } from "../widget-elements.js";
+import { el, keeps, responseAction } from "../widget-elements.js";
 import { setReact } from "../reactions.js";
 import { designOn } from "../design.js";
 import {
@@ -31,7 +31,7 @@ import { post } from "../outbox.js";
 import { threadsBox } from "../conversation/panel.js";
 import { landTyping, mayLandTyping } from "./capture.js";
 import { panelIsOpen } from "../chrome-layout.js";
-import { paintHere } from "../keyboard/scopes.js";
+import { focused, paintHere } from "../keyboard/scopes.js";
 import { paintAnchors } from "../anchors.js";
 import { elementById, inChrome } from "../passages.js";
 import { focusSurface } from "../conversation/surfaces.js";
@@ -40,8 +40,9 @@ import { notice } from "../notifications.js";
 import { paintDrawings, validDrawing } from "./drawing.js";
 
 // The floating field immediately accepts a comment on the target the reader named.
-// Pressing Tab or its ellipsis raises the reaction Buttons in the target's margin. A
-// layer without reactions keeps the compact Comment/Suggest fallback here.
+// Its ellipsis unfolds every other response the target offers. The field is the
+// group's stable primary control; reaction vocabulary changes the choices, not the
+// disclosure or the field's place.
 // One affordance, raised only where the reader has already pointed: a native text
 // selection or an explicit Comment target gesture on an item or visual part.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
@@ -60,7 +61,28 @@ export const fab = responseAction(el("button", "lf-ui lf-fab"), {
 });
 fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";
-fabBar.append(fab);
+export const fabMore = responseAction(el("button", "lf-ui lf-response-more"), {
+  icon: "more",
+  label: "Other responses",
+  behavior: "disclosure",
+  collapse: true,
+});
+fabMore.setAttribute("aria-label", "Show other responses");
+fabMore.title = "Show other responses";
+export const fabOptions = el("span", "lf-response-options");
+fabOptions.id = "lf-response-options";
+fabOptions.setAttribute("role", "group");
+fabOptions.setAttribute("aria-label", "Other responses");
+fabMore.setAttribute("aria-controls", fabOptions.id);
+fabMore.setAttribute("aria-expanded", "false");
+export const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
+  icon: "edit",
+  label: "Suggest",
+  behavior: "disclosure",
+  collapse: true,
+});
+fabOptions.append(fabSuggest);
+fabBar.append(fab, fabMore, fabOptions);
 
 export const composer = el("div", "lf-ui lf-composer");
 // Only ever shown detached — paintAnchors, its one writer, keeps it out of sight while
@@ -241,7 +263,17 @@ function syncSuggestMode() {
   // layer proposes no words, whatever it quotes.
   suggestRow.style.display =
     pendingAnchor?.quote && !pendingAbout && !pendingDrawing ? "flex" : "none";
+  const suggest = !suggestCheck.checked;
+  responseAction(fabSuggest, {
+    icon: suggest ? "edit" : "comment",
+    label: suggest ? "Suggest" : "Comment",
+    behavior: "disclosure",
+    collapse: true,
+  });
+  keeps(fabSuggest, "aria-label", suggest ? "Suggest" : "Comment");
+  fabSuggest.title = suggest ? "Suggest" : "Comment";
   syncComposer();
+  syncResponseOptions();
   paintHere(); // the submit action says which of the two the box will do
 }
 export function setSuggestionMode(suggest) {
@@ -263,6 +295,108 @@ export function setSuggestionMode(suggest) {
   composerInput.focus({ preventScroll: true });
 }
 suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);
+fabSuggest.onclick = () => setSuggestionMode(!suggestCheck.checked);
+
+let responseOptionsOpen = false;
+const availableResponseOptions = () => [
+  ...fabOptions.querySelectorAll(".lf-response-action:not([hidden])"),
+];
+
+export const responseOptionsAreOpen = () => responseOptionsOpen;
+export const responseOptionsAvailable = () => availableResponseOptions().length > 0;
+export const responseOptionButtons = () =>
+  availableResponseOptions().filter((control) => control.checkVisibility());
+export const focusedResponseOption = () => responseOptionButtons().includes(focused());
+export const responseReactionButtons = () =>
+  responseOptionButtons().filter((control) => control.classList.contains("lf-react"));
+
+export function stepResponseOptions(binding) {
+  const options = responseOptionButtons();
+  const tabbing = binding === "Tab" || binding === "Shift+Tab";
+  const field = composerOpen && fabInput.checkVisibility() ? fabInput : null;
+  const choices = tabbing && field ? [field, ...options] : options;
+  if (!choices.length) return;
+  const at = choices.indexOf(focused());
+  const backward =
+    binding === "Shift+Tab" || binding === "ArrowLeft" || binding === "ArrowUp";
+  const next =
+    at < 0
+      ? backward
+        ? choices.length - 1
+        : 0
+      : (at + (backward ? -1 : 1) + choices.length) % choices.length;
+  choices[next].focus({ preventScroll: true });
+}
+
+// More has the same contract as a target's margin disclosure: replace the ellipsis
+// with the remaining local actions and keep the group's primary control in place.
+// The composer supplies a field instead of a primary Button, so it owns this layout
+// adapter rather than borrowing the margin's target aggregation and spill machinery.
+export function setResponseOptions(
+  open,
+  { focus = null, returnFocus = false, place = true } = {},
+) {
+  const next = Boolean(open && fabAnchorAt() && responseOptionsAvailable());
+  if (next === responseOptionsOpen) {
+    if (next && focus) {
+      const options = responseOptionButtons();
+      (focus === "reaction"
+        ? options.find((control) => control.classList.contains("lf-react"))
+        : options[0]
+      )?.focus({ preventScroll: true });
+    }
+    return next;
+  }
+  const fixedLeft = next ? fabBar.getBoundingClientRect().left : null;
+  if (next) setReact(false);
+  responseOptionsOpen = next;
+  fabBar.classList.toggle("lf-response-open", next);
+  fabMore.setAttribute("aria-expanded", String(next));
+  if (place && fabAnchorAt())
+    showFab(fabAnchorAt(), null, { fixedLeft: next ? fixedLeft : null });
+  if (next && focus) {
+    const options = responseOptionButtons();
+    const destination =
+      focus === "reaction"
+        ? options.find((control) => control.classList.contains("lf-react"))
+        : options[0];
+    destination?.focus({ preventScroll: true });
+  } else if (!next && returnFocus) {
+    (composerOpen && fabInput.checkVisibility() ? fabInput : fabMore).focus({
+      preventScroll: true,
+    });
+  }
+  paintHere();
+  return next;
+}
+
+export function syncResponseOptions(anchor = fabAnchorAt()) {
+  fabSuggest.hidden = !(
+    anchor?.quote &&
+    !designOn &&
+    (!composerOpen || (!pendingAbout && !pendingDrawing))
+  );
+  fabMore.hidden = !anchor || !responseOptionsAvailable();
+  if (responseOptionsOpen && !responseOptionsAvailable())
+    setResponseOptions(false, { place: false });
+}
+
+export function resetResponseOptions() {
+  responseOptionsOpen = false;
+  fabBar.classList.remove("lf-response-open");
+  fabMore.setAttribute("aria-expanded", "false");
+}
+
+fabMore.onclick = () =>
+  setResponseOptions(!responseOptionsOpen, {
+    focus: responseOptionsOpen ? null : "first",
+    returnFocus: responseOptionsOpen,
+  });
+
+document.addEventListener("focusin", (event) => {
+  if (responseOptionsOpen && !fabBar.contains(event.composedPath()[0]))
+    setResponseOptions(false);
+});
 
 // Whether the composer is up, and the only thing that decides it. The stylesheet renders
 // this state; nothing reads it back, because the rendering has a third value the state
@@ -390,9 +524,9 @@ function leaveComposer(discard) {
   syncSuggestMode(); // after the state it renders, which is now all of it
   hideComposer();
 }
-// Target selection leaves the prior draft in its own context but detaches this view
-// from it. Advancing the generation makes the selection later than both a draft watch
-// and a send already in flight, so neither can reclaim the view when it settles.
+// Detaching leaves the prior draft in its own context but removes this view from it.
+// Advancing the generation makes the detachment later than both a draft watch and a
+// send already in flight, so neither can reclaim the view when it settles.
 export function detachComposer() {
   composerEpoch += 1;
   leaveComposer(false);

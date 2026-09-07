@@ -57,7 +57,7 @@ _server_spec.loader.exec_module(website_server)
 def serve_examples(site: Path) -> Iterator[str]:
     """Host a built site's examples through the production route adapter."""
     website_server.page_binding.cache_clear()
-    server = server_at("127.0.0.1", 0, website_server.handler_for(site / "examples"))
+    server = server_at("127.0.0.1", 0, website_server.handler_for(site))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -171,7 +171,7 @@ def main() -> None:
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         try:
-            site_build.build(site_build.OUT, verify_links=False, browser=browser)
+            site_build.build(site_build.OUT, verify_links=False)
             with serve_examples(site_build.OUT) as origin:
                 page = browser.new_page(viewport=VIEWPORT, color_scheme="light")
                 errors = []
@@ -200,7 +200,6 @@ def main() -> None:
                 update_catalog(previews)
                 site_build.build(
                     site_build.OUT,
-                    browser=browser,
                     catalog_previews=checkout / "examples",
                 )
                 revision = publish(checkout)

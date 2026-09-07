@@ -134,6 +134,7 @@ import { targetElement, targetSegments } from "./resolved-target.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import {
   LIVE_ROOT,
+  PAGE_PATH,
   PAGE_SCOPE,
   tabStore,
   VERSION_PATH,
@@ -175,7 +176,7 @@ import {
 // Which document this is, read off the served page before anything else asks: the
 // revision the server rendered, the stamp a pinned version URL or its marker names, and
 // the label that stamp wears.
-const VERSION_MATCH = location.pathname.match(VERSION_PATH);
+const VERSION_MATCH = PAGE_PATH.match(VERSION_PATH);
 const servedRevision = document.querySelector(
   'meta[name="lf-revision"][data-lf-runtime]',
 )?.content;

@@ -53,36 +53,54 @@ async function boundedRead(
   throw new Error(message);
 }
 
-function frameSource(frame) {
+function loadFrameModule(frame, source, message) {
+  return new Promise((resolve, reject) => {
+    const script = frame.contentDocument.createElement("script");
+    script.type = "module";
+    script.src = source;
+    script.addEventListener("load", resolve, { once: true });
+    script.addEventListener("error", () => reject(new Error(message)), { once: true });
+    frame.contentDocument.body.append(script);
+  });
+}
+
+async function loadFrameDocument(frame) {
+  const source = document.implementation.createHTMLDocument();
+  const root = source.documentElement;
+  const head = source.head;
+  const body = source.body;
   const theme = new URL("../theme.css", import.meta.url).href;
-  const leafEntry = new URL("../leaf.js", import.meta.url).href;
-  const adapter = new URL("./interaction-gallery-frame.js", import.meta.url).href;
-  const content = document.createElement("div");
-  const eyebrow = document.createElement("p");
+  const content = source.createDocumentFragment();
+  const eyebrow = source.createElement("p");
   eyebrow.className = "eyebrow";
   eyebrow.textContent = frame.dataset.interactionEyebrow;
   content.append(eyebrow);
   if (frame.dataset.interactionTitle) {
-    const heading = document.createElement("h1");
+    const heading = source.createElement("h1");
     heading.textContent = frame.dataset.interactionTitle;
     content.append(heading);
   }
-  const copy = document.createElement("p");
+  const copy = source.createElement("p");
   copy.append(frame.dataset.interactionCopy);
   if (frame.dataset.interactionTarget) {
     copy.id = frame.dataset.interactionTarget;
     copy.className = "interaction-frame-target";
   }
   content.append(copy);
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="lf-revision" data-lf-runtime content="${runtime.currentRevision}">
-    <meta name="lf-version" data-lf-runtime content="${runtime.currentStamp}">
-    <link rel="stylesheet" href="${theme}">
-    <style>
+  const meta = (name, value) => {
+    const element = source.createElement("meta");
+    element.name = name;
+    element.content = value;
+    element.dataset.lfRuntime = "";
+    return element;
+  };
+  const charset = source.createElement("meta");
+  charset.charset = "utf-8";
+  const viewport = source.createElement("meta");
+  viewport.name = "viewport";
+  viewport.content = "width=device-width, initial-scale=1";
+  const style = source.createElement("style");
+  style.textContent = `
       body { overflow: hidden; }
       main {
         box-sizing: border-box;
@@ -94,14 +112,51 @@ function frameSource(frame) {
         font-size: var(--t-3);
         line-height: 1.7;
       }
-    </style>
-  </head>
-  <body>
-    <main>${content.innerHTML}</main>
-    <script type="module" src="${leafEntry}"></script>
-    <script type="module" src="${adapter}"></script>
-  </body>
-</html>`;
+    `;
+  const stylesheet = source.createElement("link");
+  stylesheet.rel = "stylesheet";
+  stylesheet.href = theme;
+  const main = source.createElement("main");
+  main.append(content);
+  root.lang = "en";
+  head.replaceChildren(
+    charset,
+    viewport,
+    meta("lf-location", "about:srcdoc"),
+    meta("lf-revision", String(runtime.currentRevision)),
+    meta("lf-version", String(runtime.currentStamp)),
+    stylesheet,
+    style,
+  );
+  // The document in the frame is the runtime's, and it is a whole second Leaf page.
+  // The mark says so on both sides of the boundary — the frame element out in the
+  // gallery carries it too — so the contained page knows to leave the reader's
+  // arrangements alone and a standalone copy knows this is a document it has no
+  // server to open.
+  body.toggleAttribute("data-lf-contained", true);
+  // A picture is not a place to stand, and this is the platform's word for that. A
+  // document tree has one focus, so focus landing in here is focus taken off the page
+  // the reader is actually on: their open margin cluster folds, their selection hints
+  // drop, and the next chord they press goes somewhere they cannot see. The framed
+  // chrome still runs — the replays drive it through the adapter rather than by
+  // pointing at it — but its focusing steps reach nothing, including a shown dialog's,
+  // which return at once against an inert subject.
+  body.inert = true;
+  body.replaceChildren(main);
+  const doc = frame.contentDocument;
+  doc.open();
+  doc.write(`<!doctype html>${root.outerHTML}`);
+  doc.close();
+  const loadedStylesheet = doc.querySelector('link[rel="stylesheet"]');
+  if (!loadedStylesheet.sheet)
+    await new Promise((resolve, reject) => {
+      loadedStylesheet.addEventListener("load", resolve, { once: true });
+      loadedStylesheet.addEventListener(
+        "error",
+        () => reject(new Error("the contained Leaf page did not load its theme")),
+        { once: true },
+      );
+    });
 }
 
 class Demo {
@@ -127,18 +182,25 @@ class Demo {
 
   async load() {
     if (this.frameElement) {
-      const loaded = new Promise((resolve) =>
-        this.frameElement.addEventListener("load", resolve, { once: true }),
+      // The element is the author's; the document about to be written into it is the
+      // runtime's, and both sides of the boundary carry the mark.
+      this.frameElement.toggleAttribute("data-lf-contained", true);
+      await loadFrameDocument(this.frameElement);
+      const adapter = new URL("./interaction-gallery-frame.js", import.meta.url).href;
+      const leafEntry = new URL("../leaf.js", import.meta.url).href;
+      await loadFrameModule(
+        this.frameElement,
+        adapter,
+        "the contained Leaf page did not load its gallery adapter",
       );
-      this.frameElement.srcdoc = frameSource(this.frameElement);
-      await loaded;
-      this.frameApi = await boundedRead(
-        () => this.frameElement.contentWindow?.leafInteractionGalleryFrame,
-        "the contained Leaf page did not expose its gallery adapter",
-      );
-      await boundedRead(
-        () => this.frameElement.contentDocument?.body.hasAttribute("data-lf-presented"),
-        "the contained Leaf page did not finish presenting",
+      const frameApi = this.frameElement.contentWindow?.leafInteractionGalleryFrame;
+      if (!frameApi)
+        throw new Error("the contained Leaf page did not expose its gallery adapter");
+      this.frameApi = frameApi;
+      await loadFrameModule(
+        this.frameElement,
+        leafEntry,
+        "the contained Leaf page did not load Leaf",
       );
       await this.frameApi.ready;
       this.frameElement.dataset.interactionReady = "";
@@ -175,6 +237,16 @@ class Demo {
     this.loadState = "ready";
   }
 
+  // The chord the replay is pressing, shown only while it is being pressed. The word
+  // travels as an attribute and lives in the caption for as long as the caption stands,
+  // because a copy exported between replays has no script left to reveal it and words a
+  // file holds without ever showing are words the copy has lost.
+  keypressCaption(shown) {
+    if (!this.keypress) return;
+    this.keypress.textContent = shown ? this.keypress.dataset.interactionKeypress : "";
+    this.keypress.hidden = !shown;
+  }
+
   setState(state) {
     this.state = state;
     this.changed(this);
@@ -188,7 +260,7 @@ class Demo {
     this.generation += 1;
     this.stopAnimations();
     this.pointer.hidden = true;
-    if (this.keypress) this.keypress.hidden = true;
+    this.keypressCaption(false);
     this.pointerPosition = null;
     this.pausedByView = false;
     if (!this.scenario) {
@@ -380,7 +452,7 @@ class Demo {
 
   async pressKeys(generation) {
     if (!this.keypress) return;
-    this.keypress.hidden = false;
+    this.keypressCaption(true);
     const animation = await this.animate(
       this.keypress,
       [
@@ -393,7 +465,7 @@ class Demo {
       generation,
     );
     animation.cancel();
-    this.keypress.hidden = true;
+    this.keypressCaption(false);
   }
 
   async hidePointer(generation) {
@@ -541,9 +613,9 @@ export function installInteractionGallery() {
   const panels = [...tabs.querySelectorAll(":scope > lf-tab")];
   const controls = offer("div", "interaction-controls");
   controls.setAttribute("aria-label", "Animation controls");
-  const toggle = offer("button", "interaction-control", "Loading…");
+  const toggle = offer("button", "lf-btn interaction-control", "Loading…");
   toggle.dataset.interactionToggle = "";
-  const replay = offer("button", "interaction-control", "Replay");
+  const replay = offer("button", "lf-btn interaction-control", "Replay");
   replay.dataset.interactionReplay = "";
   const status = offer("span", "interaction-status", "Loading the first interaction…");
   status.dataset.interactionStatus = "";

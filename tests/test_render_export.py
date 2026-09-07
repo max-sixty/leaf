@@ -375,6 +375,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     )
     assert refused.returncode == 1
     assert "choose a new --slot" in refused.stderr
+    assert "--reset" in refused.stderr
     assert (reader_dir / "events.jsonl").read_bytes() == reader_feedback
     assert reader_errors == []
     reader.close()
@@ -583,6 +584,37 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     assert (directory / "events.jsonl").stat().st_ino == inode
     assert errors == []
     page.close()
+
+
+def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(
+    browser, watched_preview
+):
+    """Reset replaces the selected preview instead of carrying its event log over."""
+    source, _, directory, command, url = watched_preview
+    page, errors = open_page(browser, url)
+    with sending(page, "the reader option pick before reset"):
+        page.locator("#opt-redis .lf-pick").click()
+    expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+    assert b'"kind": "action"' in (directory / "events.jsonl").read_bytes()
+    assert errors == []
+    page.close()
+
+    reset = subprocess.run(
+        [*command, "--reset"],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=90,
+    )
+    assert reset.returncode == 0, reset.stdout + reset.stderr
+    assert (directory / "index.html").read_bytes() == source.read_bytes()
+    assert b'"kind": "action"' not in (directory / "events.jsonl").read_bytes()
+
+    fresh, fresh_errors = open_page(browser, reset.stdout.splitlines()[-1])
+    expect(fresh.locator("#opt-redis")).not_to_have_attribute("chosen", "")
+    assert fresh_errors == []
+    fresh.close()
 
 
 @pytest.mark.parametrize(

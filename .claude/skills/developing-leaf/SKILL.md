@@ -45,9 +45,9 @@ mode.
 
 When finished with a preview, run the matching preview command with `--stop` (and
 `--automation` for its automation slot); it waits for the watcher and server to
-stop. Ctrl-C stops a foreground preview. Changing an occupied slot to a different
-source or seeded history requires a new slot; the existing page and feedback are
-retained.
+stop. Ctrl-C stops a foreground preview. A slot refuses a different source or seeded
+history so it keeps the existing page and feedback. Use `--reset` to discard the
+selected slot and rebuild it from the current fixture.
 
 ### In Codex
 

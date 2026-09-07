@@ -25,11 +25,13 @@ compatibility gate, stamps changed source, and restarts at the same URL. The
 browser reloads through the existing layer generation handshake. The page log
 and reader decisions survive; a refused update stays visible in the terminal
 or background log and is retried after the next edit. Existing slots resume.
-Changing fixture identity or seeded history requires a new slot. `version stamp`
-lints the example on the way past. The browser gate a page normally passes before
-its URL goes out is left to the suite: `version check --render` and `test_page_fixture_renders` drive the same
-`render_version` over the same files, so running it here would only repeat what
-the suite has already said about these exact pages.
+Changing fixture identity or seeded history is refused so a slot keeps its feedback.
+Use `--reset` to discard that feedback and rebuild the slot. `version stamp` lints
+the example on the way past. The browser gate a page normally passes before its URL
+goes out is left to the suite: `version check --render` and
+`test_page_fixture_renders` drive the same `render_version` over the same files, so
+running it here would only repeat what the suite has already said about these exact
+pages.
 
 Named slots let several previews coexist. `--source` keeps one authored fixture
 fixed while `--runtime` vendors it from another Leaf checkout. `--background`
@@ -197,6 +199,11 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
         action="store_true",
         help="watch through the process-owned browser harness",
     )
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="discard this preview's feedback and rebuild it from the fixture",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--background",
@@ -220,6 +227,8 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
         parser.error(
             "--automation is a foreground watcher; omit --background or --export"
         )
+    if parsed.reset and (parsed.stop or parsed.export):
+        parser.error("--reset starts a fresh preview; omit --stop or --export")
     return parser, parsed
 
 
@@ -440,7 +449,8 @@ def refresh_preview(
         key: identity[key] for key in ("source", "runtime", "seed", "interaction")
     }:
         raise ValueError(
-            "fixture identity or seeded history changed; use a new --slot to preview it"
+            "fixture identity or seeded history changed; choose a new --slot to "
+            "preserve feedback, or rerun with --reset to discard it"
         )
     incoming = source.read_bytes()
     incoming_digest = hashlib.sha256(incoming).hexdigest()
@@ -536,17 +546,39 @@ def update_preview_state(page: Path, **changes) -> dict:
         return state
 
 
-def stop_preview(page: Path) -> None:
-    """Wait for the watcher to retire, including any in-flight recompose."""
+def retire_preview(page: Path, *, discard: bool) -> None:
+    """Wait for the watcher to retire, then optionally discard the preview."""
     from leaf.event_log import flocked
     from leaf.hosting import cmd_stop
+    from leaf.leases import transition_lock
+    from leaf.service import PageTransaction
 
-    _, lease_path, _ = preview_files(page)
+    metadata, lease_path, log_path = preview_files(page)
+    state_lock = metadata.with_suffix(".state.lock")
     lease_path.parent.mkdir(parents=True, exist_ok=True)
     update_preview_state(page, enabled=False)
     with flocked(lease_path):
         cmd_stop(page)
+        if discard:
+            with flocked(state_lock), flocked(transition_lock(page)):
+                if (page / "events.jsonl").is_file():
+                    with PageTransaction(page):
+                        shutil.rmtree(page)
+                elif page.exists():
+                    shutil.rmtree(page)
+                metadata.unlink(missing_ok=True)
+                log_path.unlink(missing_ok=True)
+
+
+def stop_preview(page: Path) -> None:
+    """Stop the selected watcher while preserving its page and feedback."""
+    retire_preview(page, discard=False)
     print(f"stopped preview {page}", flush=True)
+
+
+def reset_preview(page: Path) -> None:
+    """Stop and discard the selected preview so its next start is fresh."""
+    retire_preview(page, discard=True)
 
 
 def preview_ready(
@@ -601,7 +633,9 @@ def watch_preview(
             ):
                 lease.close()
                 raise ValueError(
-                    f"{page} contains another fixture or changed seed history; choose a new --slot (existing feedback is preserved)"
+                    f"{page} contains another fixture or changed seed history; "
+                    "choose a new --slot to preserve feedback, or rerun with "
+                    "--reset to discard it"
                 )
             identity = (
                 identity
@@ -639,13 +673,17 @@ def watch_preview(
             )
             return
         raise ValueError(
-            f"a watcher already owns {page}; choose a new --slot for another fixture"
+            f"a watcher already owns {page}; choose a new --slot to preserve it, "
+            "or rerun with --reset to replace it"
         )
     temporary = None
     with lease:
         try:
             if automation and PageTransaction(page).active_claim is not None:
-                raise ValueError(f"{page} has an active task claim; use a new --slot")
+                raise ValueError(
+                    f"{page} has an active task claim; choose a new --slot to "
+                    "preserve it, or rerun with --reset to replace it"
+                )
             if page.exists():
                 if not automation:
                     cmd_stop(page)
@@ -761,6 +799,7 @@ def start_preview_worker(
     background: bool,
     stop: bool,
     automation: bool,
+    reset: bool,
 ) -> None:
     """Run in the selected checkout's uv environment, including --runtime previews."""
     command = [
@@ -777,6 +816,10 @@ def start_preview_worker(
         command.extend(("--slot", page.name))
     if automation:
         command.append("--automation")
+    if reset:
+        result = subprocess.run([*command, "--reset"], cwd=runtime, check=False)
+        if result.returncode:
+            raise SystemExit(result.returncode)
     if stop:
         command.append("--stop")
     if not background:
@@ -810,7 +853,9 @@ def main() -> None:
         runtime = args.runtime.resolve()
         source = args.source.resolve()
         page = preview_directory(source, args.slot, args.automation)
-        if args.stop:
+        if args.reset:
+            reset_preview(page)
+        elif args.stop:
             stop_preview(page)
         else:
             watch_preview(
@@ -844,7 +889,13 @@ def main() -> None:
 
     page = preview_directory(source, args.slot, args.automation)
     start_preview_worker(
-        source, page, runtime, args.background, args.stop, args.automation
+        source,
+        page,
+        runtime,
+        args.background,
+        args.stop,
+        args.automation,
+        args.reset,
     )
 
 

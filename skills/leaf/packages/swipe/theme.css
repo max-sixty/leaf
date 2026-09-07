@@ -150,7 +150,12 @@ lf-swipe-pile[verdict="unseen"] > lf-swipe-card:first-of-type:focus-visible {
 
 /* What a flat queue adds, rather than what it takes back: the cards are in flow, so they
  * need the space between them the stack had no use for. `transform: none` is the one
- * reset left, and it undoes the drag rule outside the guard above. */
+ * reset left, and it undoes the drag rule outside the guard above.
+ *
+ * Main's #387 added `margin-inline: 0` to the reset this replaces, so that a quoted queue
+ * did not keep the stack's centring. That reset is gone rather than dropped: the centring
+ * is `margin-inline: auto` inside the guard above, which a quoted deck and a copy never
+ * enter, so there is no longer a margin to take back. */
 :is(lf-swipe-deck.lf-swipe-quoted, html.lf-copy lf-swipe-deck)
   lf-swipe-pile[verdict="unseen"]
   > lf-swipe-card {

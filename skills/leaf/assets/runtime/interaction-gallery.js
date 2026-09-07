@@ -10,9 +10,6 @@
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { runtime } from "./context.js";
 import { offer, reserve } from "./widget-elements.js";
-import { focused } from "./keyboard/scopes.js";
-import { captureReturnPlace, restoreReturnPlace } from "./keyboard/return-stack.js";
-import { readingBlock } from "./version.js";
 
 class StaleDemo extends Error {}
 
@@ -131,6 +128,9 @@ async function loadFrameDocument(frame) {
     stylesheet,
     style,
   );
+  // A gallery frame is a replay surface, not a second place for the reader to stand.
+  // Keep its runtime free to exercise real widgets without taking the outer keyboard.
+  body.inert = true;
   body.replaceChildren(main);
   const doc = frame.contentDocument;
   doc.open();
@@ -171,68 +171,24 @@ class Demo {
 
   async load() {
     if (this.frameElement) {
-      // Creating and booting a same-origin frame can make it the outer document's
-      // active element in Chromium. These are inert demonstrations: background startup
-      // must not take a page-level key from the reader. Follow outer focus throughout
-      // the load so a restore returns to where the reader most recently stood, even
-      // when they moved during an awaited inner request.
-      let outerPlace = captureReturnPlace({ focused, readingBlock });
-      const rememberOuterPlace = (event) => {
-        const target = event.composedPath()[0];
-        if (target.matches?.("[data-interaction-frame]")) return;
-        outerPlace = captureReturnPlace({
-          focused: () => target,
-          readingBlock,
-        });
-      };
-      document.addEventListener("focusin", rememberOuterPlace, true);
-      document.addEventListener("focusout", rememberOuterPlace, true);
-      const restoreOuterFocus = () => {
-        if (document.activeElement === this.frameElement) {
-          // A pressed control may become disabled before the frame finishes loading.
-          // It no longer accepts focus, so retain the current reading place instead.
-          const control = outerPlace.control;
-          const place =
-            control && (!control.isConnected || control.matches(":disabled"))
-              ? captureReturnPlace({ focused: () => document.body, readingBlock })
-              : outerPlace;
-          restoreReturnPlace(place);
-        }
-      };
-      const loadWithoutFocus = async (load) => {
-        restoreOuterFocus();
-        const loading = load();
-        restoreOuterFocus();
-        await loading;
-        restoreOuterFocus();
-      };
-      try {
-        await loadWithoutFocus(() => loadFrameDocument(this.frameElement));
-        const adapter = new URL("./interaction-gallery-frame.js", import.meta.url).href;
-        const leafEntry = new URL("../leaf.js", import.meta.url).href;
-        await loadWithoutFocus(() =>
-          loadFrameModule(
-            this.frameElement,
-            adapter,
-            "the contained Leaf page did not load its gallery adapter",
-          ),
-        );
-        this.frameApi = this.frameElement.contentWindow?.leafInteractionGalleryFrame;
-        if (!this.frameApi)
-          throw new Error("the contained Leaf page did not expose its gallery adapter");
-        await loadWithoutFocus(() =>
-          loadFrameModule(
-            this.frameElement,
-            leafEntry,
-            "the contained Leaf page did not load Leaf",
-          ),
-        );
-        await loadWithoutFocus(() => this.frameApi.ready);
-        this.frameElement.dataset.interactionReady = "";
-      } finally {
-        document.removeEventListener("focusin", rememberOuterPlace, true);
-        document.removeEventListener("focusout", rememberOuterPlace, true);
-      }
+      await loadFrameDocument(this.frameElement);
+      const adapter = new URL("./interaction-gallery-frame.js", import.meta.url).href;
+      const leafEntry = new URL("../leaf.js", import.meta.url).href;
+      await loadFrameModule(
+        this.frameElement,
+        adapter,
+        "the contained Leaf page did not load its gallery adapter",
+      );
+      this.frameApi = this.frameElement.contentWindow?.leafInteractionGalleryFrame;
+      if (!this.frameApi)
+        throw new Error("the contained Leaf page did not expose its gallery adapter");
+      await loadFrameModule(
+        this.frameElement,
+        leafEntry,
+        "the contained Leaf page did not load Leaf",
+      );
+      await this.frameApi.ready;
+      this.frameElement.dataset.interactionReady = "";
     }
     const modulePath = this.figure.dataset.interactionModule;
     if (modulePath) {

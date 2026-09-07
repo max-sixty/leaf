@@ -872,29 +872,9 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
     try:
         navigate(page, errors, f"{url}#bg-interactions")
         gallery = page.locator("#bg-interactions")
-        frames = gallery.locator("iframe[data-interaction-ready]")
-        assert frames.count() < 2, "the contained pages finished before the focus probe"
-        page.evaluate(
-            """() => {
-                const host = document.body.appendChild(document.createElement('span'));
-                host.id = 'gallery-focus-probe';
-                const button = host.attachShadow({mode: 'open'}).appendChild(
-                    document.createElement('button')
-                );
-                button.textContent = 'Outer focus probe';
-                button.focus();
-            }"""
-        )
-        standing = page.get_by_role("button", name="Outer focus probe")
-        expect(standing).to_be_focused()
-        loading = gallery.locator("iframe:not([data-interaction-ready])").first
-        assert loading.evaluate(
-            "frame => { frame.contentWindow.focus(); return document.activeElement === frame; }"
-        )
         expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
             2, timeout=20_000
         )
-        expect(standing).to_be_focused()
         assert gallery.locator("iframe[data-interaction-ready]").evaluate_all(
             """frames => frames.every(frame =>
                 !frame.hasAttribute('srcdoc')

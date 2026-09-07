@@ -2369,6 +2369,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-compose-field",
         "lf-compose-submit",
         "lf-edited",
+        "lf-living-margin",
         "lf-react-open",
         "lf-react-palette",
         "lf-react-strip",

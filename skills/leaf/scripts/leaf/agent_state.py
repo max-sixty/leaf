@@ -19,7 +19,7 @@ from .projection import (
     FrozenThreadReading,
     canonical_updates,
     frozen_thread_reading,
-    page_projection,
+    page_reading,
     retirement_outcomes,
 )
 from .registry.reactions import described
@@ -76,9 +76,9 @@ def _read_active_document(
     if revision is None:
         return None
     html = revision_path(page_dir, revision).read_text(encoding="utf-8")
-    prepared = page_projection(html, events, registry, revision)
-    threads = build_threads(events, enclosing_of(prepared[2]))
-    return read_document(html, events, registry, revision, threads, prepared=prepared)
+    page = page_reading(html, events, registry, revision)
+    threads = build_threads(events, page.within)
+    return read_document(page, threads)
 
 
 def _base_state(

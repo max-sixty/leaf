@@ -6,7 +6,7 @@ from pathlib import Path
 from mcp.types import CallToolResult, TextContent
 from tinycss2 import parse_stylesheet, serialize
 
-from .event_endpoint import EventEndpoint
+from .event_endpoint import accept_event
 from .exporting import inline_assets, inline_css_assets
 from .files import revision_path
 from .mcp_page import (
@@ -17,14 +17,11 @@ from .mcp_page import (
 )
 from .passages import TEXT_BLOCK_TAGS
 from .registry.contract import RegistryError
-from .registry.storage import layer_generation
 from .served_state.service import PageStateService
 from .structure import parse_structure
 
 APP_MIME = "text/html;profile=mcp-app"
 SNAPSHOT_FORMAT = "leaf.snapshot/v1"
-
-_ENDPOINTS: dict[tuple[Path, str], EventEndpoint] = {}
 
 
 def split_theme(theme: str) -> tuple[str, str]:
@@ -131,16 +128,15 @@ def apply_event(page: str, event: dict, view_revision: int | None) -> CallToolRe
             structuredContent={"ok": False, "status": 400},
             isError=True,
         )
-    layer = layer_generation(page_dir)
     # The app renders the authored source with no runtime behind it, so a selection
     # here names a passage nothing has resolved yet. The door captures it against the
     # page under the same lease that appends it.
-    endpoint = _ENDPOINTS.setdefault(
-        (page_dir, layer), EventEndpoint(page_dir, capture_anchors=True)
-    )
     service = PageStateService(page_dir)
-    status, answer = endpoint.accept(
-        candidate, lambda: service.page_state(view_revision)
+    status, answer = accept_event(
+        page_dir,
+        candidate,
+        lambda: service.page_state(view_revision),
+        capture_anchors=True,
     )
     if status != 200:
         return CallToolResult(

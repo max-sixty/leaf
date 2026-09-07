@@ -10,7 +10,7 @@ from typing import NamedTuple
 from .asks import page_ask_readings
 from .events import retractions, seats_with_agent
 from .passages import Passages, enclosing_of, page_passages
-from .projection import StateProjection, page_projection, retirement_outcomes
+from .projection import PageReading, StateProjection, retirement_outcomes
 from .requests import request_lifecycles_for, request_phases
 from .structure import StructParser
 
@@ -28,13 +28,8 @@ class DocumentReading(NamedTuple):
 
 
 def read_document(
-    html: str,
-    events: list,
-    registry: dict,
-    revision: int,
+    page: PageReading,
     threads: dict,
-    *,
-    prepared: tuple | None = None,
 ) -> DocumentReading:
     """Resolve a document's durable state and its reader's outstanding Asks.
 
@@ -42,9 +37,13 @@ def read_document(
     based on construction. `passages` removes retired slots; exact replacement
     bodies and position details remain in `projection.desired`'s winning events.
     """
-    projection, parser, spk = prepared or page_projection(
-        html, events, registry, revision
-    )
+    html = page.html
+    revision = page.revision
+    events = page.events
+    registry = page.registry
+    projection = page.projection
+    parser = page.parser
+    spk = page.spoken
     passages = page_passages(
         html, registry, retirement_outcomes(projection.actions, registry)
     )

@@ -21,6 +21,7 @@ import { paintHere } from "./keyboard/scopes.js";
 import { announce, notice, noticeEl } from "./notifications.js";
 
 export const banner = el("header", "lf-ui lf-banner");
+banner.id = "lf-banner";
 export const dot = el("span", "lf-dot");
 const statusText = el("span", "lf-status-text", "Connecting…");
 // The line's momentary other words (notifications.js): a gesture recorded, a version

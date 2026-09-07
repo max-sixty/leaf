@@ -34,7 +34,7 @@ from .layer import (
 )
 from .leases import lock_is_held, transition_lock
 from .locations import located, locations_overlap, path_is_within, path_location
-from .projection import page_projection
+from .projection import page_reading
 from .schema import (
     DATA_FILE,
     EVENTS_FILE,
@@ -232,11 +232,11 @@ def _refuse_untargeted_work(page_dir: Path, events: list[dict], incoming: dict) 
     if revision is None:
         return
     html = revision_path(page_dir, revision).read_text(encoding="utf-8")
-    projection, parser, _spk = page_projection(html, events, incoming, revision)
+    page = page_reading(html, events, incoming, revision)
     untargeted = widget_work_without_targets(
         html,
-        parser,
-        projection,
+        page.parser,
+        page.projection,
         events,
         read_json(page_dir / STATUS_FILE) or {},
         incoming,

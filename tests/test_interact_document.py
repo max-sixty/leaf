@@ -2917,9 +2917,9 @@ diff --git a/docs/old.md b/docs/new.md
 similarity index 100%
 rename from docs/old.md
 rename to docs/new.md
-diff --git "a/caf\\303\\251 notes.py" "b/caf\\303\\251 notes.py"
---- "a/caf\\303\\251 notes.py"
-+++ "b/caf\\303\\251 notes.py"
+diff --git "a/caf\\303\\2512026 notes.py" "b/caf\\303\\2512026 notes.py"
+--- "a/caf\\303\\2512026 notes.py"
++++ "b/caf\\303\\2512026 notes.py"
 @@ -1 +1 @@
 -OLD = True
 +NEW = True
@@ -2979,8 +2979,8 @@ diff --git a/src/second file.py b/src/second file.py
             "deletions": 0,
         },
         {
-            "key": "café notes.py",
-            "path": "café notes.py",
+            "key": "café2026 notes.py",
+            "path": "café2026 notes.py",
             "kind": "patch",
             "additions": 1,
             "deletions": 1,
@@ -2996,6 +2996,20 @@ diff --git a/src/second file.py b/src/second file.py
     assert all(
         file["patch"].startswith("diff --git ") for file in source["value"]["files"]
     )
+
+
+@pytest.mark.parametrize("escaped", [r"bad\x41.py", r"bad\400.py", r"bad\q.py"])
+def test_unified_diff_rejects_c_escapes_git_does_not_use(escaped):
+    patch = f"""diff --git "a/{escaped}" "b/{escaped}"
+--- "a/{escaped}"
++++ "b/{escaped}"
+@@ -1 +1 @@
+-old
++new
+"""
+
+    with pytest.raises(data_model.DataError, match="invalid quoted Git path"):
+        data_model.unified_diff_manifest(patch)
 
 
 @pytest.mark.parametrize(

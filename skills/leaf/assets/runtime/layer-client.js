@@ -15,7 +15,7 @@
 
 import { countTraffic } from "./traffic.js";
 import { runtime } from "./context.js";
-import { sayLine } from "./banner.js";
+import { notice } from "./notifications.js";
 
 const layerGeneration = "__LEAF_LAYER_GENERATION__";
 
@@ -31,7 +31,7 @@ export function sameLayer(generation) {
     // Say what is about to happen before it happens. The reader is looking at a page
     // that re-vendoring has moved out from under, and a tab that reloads itself with
     // nothing said is a page that appears to have lost their place for no reason.
-    sayLine("Leaf has been updated — reloading this page.");
+    notice("Leaf has been updated — reloading this page.");
     location.reload();
   }
   return false;

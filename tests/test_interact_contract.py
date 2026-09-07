@@ -3050,6 +3050,7 @@ def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tm
         {"comment": ""},
         {"comment": 5},
         "Reply in French.",
+        None,
     ],
 )
 def test_init_refuses_handling_that_a_batch_could_not_carry(
@@ -3112,46 +3113,28 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     assert keys["x-says"]  # the rest of the shipped members stand
 
 
-@pytest.mark.parametrize("field", ["restated", "session"])
-def test_init_requires_the_event_vocabulary_the_layer_writes(page_dir, tmp_path, field):
+def test_event_kinds_are_the_kernel_contract_not_a_layer_extension(page_dir, tmp_path):
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     registry = json.loads((page_dir / "registry.json").read_text())
-    del registry["$events"]["kinds"]["note"]["record"]["properties"][field]
+    registry["$events"]["kinds"]["signal"] = registry["$events"]["kinds"]["error"]
     (overlay / "registry.json").write_text(json.dumps(registry))
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-    assert result.exit_code != 0
-    assert "current layer writes" in result.output
-    assert "note" in result.output
-    assert field in result.output
-
-
-def test_the_registry_door_validates_event_schemas(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["$events"]["kinds"]["comment"]["record"]["properties"]["text"] = {
-        "type": "not-a-type"
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
 
     assert result.exit_code != 0
-    assert "$events kind `comment` record is not a valid JSON Schema" in result.output
+    assert "$events.kinds is Leaf's fixed transport contract" in result.output
 
-
-def test_registry_refuses_hidden_event_record_constraints(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["$events"]["kinds"]["comment"]["record"]["not"] = {
-        "required": ["author"],
-        "properties": {"author": {"const": "claude"}},
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
-
+    (overlay / "registry.json").write_text(json.dumps({"$events": {"kinds": None}}))
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code != 0
-    assert "record must use only type, properties, required" in result.output
+    assert "$events.kinds is Leaf's fixed transport contract" in result.output
+
+    with pytest.raises(
+        registry_contract.RegistryError,
+        match=r"\$events.kinds must equal Leaf's fixed transport contract",
+    ):
+        registry_validation.validate_registry(registry, "incoming")
 
 
 def test_an_empty_host_name_uses_the_host_default(page_dir, sessionless, monkeypatch):
@@ -3164,69 +3147,6 @@ def test_an_empty_host_name_uses_the_host_default(page_dir, sessionless, monkeyp
     assert result.exit_code == 0, result.output
     event = events_model.read_events(page_dir)[-1]
     assert (event["agent"], event["session"]) == ("Codex", "worker-1")
-
-
-def test_event_required_order_is_not_a_contract_change(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    required = registry["$events"]["kinds"]["comment"]["record"]["required"]
-    required.reverse()
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
-
-    assert result.exit_code == 0, result.output
-
-
-def test_an_event_kind_contract_replaces_whole_across_layers():
-    """A kind is one schema contract. Merging its record and browser members from
-    different layers would produce a contract neither layer authored."""
-    old = {"record": {"const": "old"}, "browser": {"const": "old"}}
-    replacement = {"record": {"const": "new"}}
-    merged = {"$events": {"kinds": {"signal": old}}}
-
-    registry_layer.merge_layer_entries(
-        merged, {"$events": {"kinds": {"signal": replacement}}}
-    )
-
-    assert merged["$events"]["kinds"]["signal"] == replacement
-
-
-def test_a_record_contract_does_not_open_a_browser_event_kind(server, page_dir):
-    """The log may carry a kind written through another door. Browser authorship
-    is a separate assertion and must be opted into on the kind itself."""
-    publish(page_dir)
-    registry = json.loads((page_dir / "registry.json").read_text())
-    contract = json.loads(json.dumps(registry["$events"]["kinds"]["error"]))
-    del contract["browser"]
-    contract["record"]["properties"]["kind"] = {"const": "signal"}
-    registry["$events"]["kinds"]["signal"] = contract
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps({"kind": "signal", "text": "hello"}).encode(),
-    )
-
-    assert status == 400, body
-    assert "kind must be one of" in json.loads(body)["error"]
-
-
-def test_an_overlay_cannot_silently_drop_an_event_kind(page_dir, tmp_path):
-    """Layers are additive: $ members merge by key, so an overlay omitting a
-    kind leaves the shipped one standing rather than deleting it. A whole
-    vocabulary genuinely missing one is still refused at the registry door."""
-    overlay = tmp_path / ".leaf"
-    overlay.mkdir(parents=True)
-    registry = json.loads((page_dir / "registry.json").read_text())
-    del registry["$events"]["kinds"]["note"]
-    (overlay / "registry.json").write_text(json.dumps(registry))
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-    assert result.exit_code == 0, result.output
-    merged = json.loads((page_dir / "registry.json").read_text())
-    assert "note" in merged["$events"]["kinds"]
-
-    with pytest.raises(registry_contract.RegistryError, match="current layer writes"):
-        registry_validation.validate_registry(registry, "incoming")
 
 
 def test_a_widget_nobody_has_touched_is_not_the_gate_s_business(page_dir):
@@ -4119,7 +4039,7 @@ def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
 
     from leaf.asks import answered_ask
     from leaf.files import latest_revision
-    from leaf.projection import page_projection
+    from leaf.projection import page_reading
     from leaf.validation.compatibility import vocabulary_gaps
 
     registry = json.loads((page_dir / "registry.json").read_text())
@@ -4158,13 +4078,13 @@ def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
     registry_validation.validate_registry(incoming, "changed completion")
 
     def answered(layer):
-        projection, parser, words = page_projection(source, events, layer, revision)
+        page = page_reading(source, events, layer, revision)
         return answered_ask(
-            parser.by_id["session-triage"],
+            page.parser.by_id["session-triage"],
             layer["lf-swipe-deck"],
-            projection,
-            parser.by_id,
-            words,
+            page.projection,
+            page.parser.by_id,
+            page.spoken,
             layer,
         )
 
@@ -4180,7 +4100,7 @@ def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
 def test_conversation_and_state_use_the_same_winning_coordinate(page_dir, facet):
     from copy import deepcopy
 
-    from leaf.projection import page_projection
+    from leaf.projection import page_reading
     from leaf.thread_context import thread_memberships
 
     registry = registry_storage.require_registry(page_dir)
@@ -4207,11 +4127,9 @@ def test_conversation_and_state_use_the_same_winning_coordinate(page_dir, facet)
     }
     events = [{**COMMENT, "seq": 1}, {**ACCEPT, "id": "accept1", "seq": 2}, event]
     html = '<lf-suggestion id="sug-a"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
-    projection, _, words = page_projection(html, events, registry, 1)
-    winner, _ = projection.actions[("sug-a", "sug-a", "settlement")]
-    threads = event_folds_model.build_threads(
-        events, passages_model.enclosing_of(words)
-    )
+    page = page_reading(html, events, registry, 1)
+    winner, _ = page.projection.actions[("sug-a", "sug-a", "settlement")]
+    threads = event_folds_model.build_threads(events, page.within)
     assert bool(threads["c1"]["resolved"]) == (winner["id"] == "accept1")
     memberships = thread_memberships(events, {"c1": "c1"}, {}, {})
     assert memberships["label1"] == (["c1"] if facet == "settlement" else [])

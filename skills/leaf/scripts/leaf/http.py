@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, urlsplit
 from . import presence as presence_model
 from .data import DataError, read_data_fragment
 from .data_contracts import valid_snapshot_id
-from .event_endpoint import EventEndpoint, event_rejection
+from .event_endpoint import accept_event, event_rejection
 from .event_log import read_events
 from .files import (
     latest_revision,
@@ -267,7 +267,6 @@ class Handler(BaseHTTPRequestHandler):
     page_dir = None
     token = None
     server_id = secrets.token_hex(16)
-    event_endpoint = None
     # Set by `authorized` when the key arrived in the query, cleared by the one
     # writer that spends it.
     set_cookie = False
@@ -506,6 +505,21 @@ class Handler(BaseHTTPRequestHandler):
             ).encode(),
         )
 
+    def _select_page(self) -> bool | None:
+        """Bind this request to a page before entering its HTTP boundary.
+
+        A one-page server is already bound by its handler class. Multiplexed
+        transports override this hook and return false for an unknown route, or
+        ``None`` after answering a transport-owned route such as a health check.
+        """
+        return True
+
+    def _not_found(self) -> None:
+        # An unread body makes an HTTP/1.1 connection unsafe to reuse.
+        if self.headers.get("Content-Length") or self.headers.get("Transfer-Encoding"):
+            self.close_connection = True
+        self._json({"error": "not found"}, 404)
+
     def do_GET(self):
         self._answer(self._get)
 
@@ -570,7 +584,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": error}, status)
 
     def _answer(self, route, prepare=None) -> None:
-        """One boundary for authorization, route preparation, and route faults.
+        """One boundary for page selection, authorization, preparation, and faults.
 
         Unanswered, a fault
         drops the socket, socketserver buries the traceback in stderr nothing reads, and
@@ -581,7 +595,14 @@ class Handler(BaseHTTPRequestHandler):
         route added later cannot be the one that forgot to ask. POST preparation is
         deliberately after that gate, so an unknown peer cannot choose a body-read cost.
         """
+        prepared = False
         try:
+            selected = self._select_page()
+            if selected is None:
+                return
+            if not selected:
+                self._not_found()
+                return
             if prepare:
                 self.posted, self.posted_error = {}, None
             if not self.authorized():
@@ -593,10 +614,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if prepare:
                 self.posted, self.posted_error = prepare()
+                prepared = True
             route()
         except Exception as error:  # noqa: BLE001 - the boundary answers, never buries
             # Not a refusal: a fault may have landed either side of the append, so the
             # browser must retry the same attempt instead of putting its gesture back.
+            if prepare and not prepared:
+                self.close_connection = True
             try:
                 self._json({"error": f"{type(error).__name__}: {error}"}, 500)
             except OSError:
@@ -781,8 +805,8 @@ class Handler(BaseHTTPRequestHandler):
         ):
             self._refuse(f"unknown view revision r{view_revision}")
             return
-        status, answer = self.event_endpoint.accept(
-            self.posted, lambda: self.page_state(view_revision)
+        status, answer = accept_event(
+            self.page_dir, self.posted, lambda: self.page_state(view_revision)
         )
         self._json(answer, status)
 
@@ -810,7 +834,6 @@ def handler_for(
             ),
             "preview_source": preview_source,
             "protocol_version": protocol_version,
-            "event_endpoint": EventEndpoint(page_dir),
             "layer": identity["generation"],
             "layer_identity": identity,
             "preview": preview_metadata(page_dir),

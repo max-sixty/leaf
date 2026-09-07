@@ -36,7 +36,6 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
-from leaf import event_endpoint as event_endpoint_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
@@ -1642,96 +1641,59 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
     assert scanned.is_set()
 
 
-def test_concurrent_retries_share_one_attempt_execution_then_release_it(
+def test_a_state_fault_after_append_leaves_the_attempt_retryable(
     server, page_dir, monkeypatch
 ):
-    """A retry arriving while the original request is validating waits for that
-    outcome. It cannot independently refuse while the original remains free to
-    append later, which would make the refusal a lie to the browser. Once complete,
-    the receipt leaves and a later retry evaluates afresh."""
+    """The log receipt settles an uncertain POST when its state response failed."""
     publish(page_dir)
-    entered = threading.Event()
-    release = threading.Event()
-    waiter_entered = threading.Event()
-    calls = 0
-    original_attempt_init = event_model.AttemptExecution.__init__
-
-    def observe_attempt(execution, payload):
-        original_attempt_init(execution, payload)
-        original_wait = execution.done.wait
-
-        def observed_wait(*args, **kwargs):
-            waiter_entered.set()
-            return original_wait(*args, **kwargs)
-
-        execution.done.wait = observed_wait
-
-    def refuse_once(*args, **kwargs):
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            entered.set()
-            assert release.wait(5), "the test never released the first attempt"
-        return "the action was refused"
-
-    monkeypatch.setattr(event_endpoint_model, "action_contract_error", refuse_once)
-    monkeypatch.setattr(event_model.AttemptExecution, "__init__", observe_attempt)
     sent = {
-        "kind": "action",
+        "kind": "comment",
         "revision": 1,
-        "widget": "feeder-board",
-        "action": "move",
-        "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
-        "attempt": "attempt-flight-001",
+        "text": "The write landed before its response failed.",
+        "attempt": "attempt-state-fault-001",
     }
-    results = []
+    original_state = served_page.full_state
+
+    def fail_state(*_args, **_kwargs):
+        raise RuntimeError("state response failed")
+
     layer = registry_storage.layer_generation(page_dir)
-
-    def post():
-        # A real retry already carries the layer of the attempt it is retrying. The
-        # generic helper otherwise polls first to discover one; state reads now take
-        # the page lease for an atomic log/status snapshot, which would serialize this
-        # test before either request reached the attempt coordinator.
-        results.append(
-            fetch(
-                f"{server}/api/event",
-                data=json.dumps(sent).encode(),
-                layer=layer,
-            )
-        )
-
-    first = threading.Thread(target=post)
-    second = threading.Thread(target=post)
-    first.start()
-    assert entered.wait(5), "the first attempt never entered validation"
-    second.start()
-    try:
-        assert waiter_entered.wait(5), "the retry never joined the active attempt"
-        assert not results, "the retry answered while the original attempt was active"
-    finally:
-        release.set()
-        first.join()
-        second.join()
-
-    assert calls == 1
-    assert len(results) == 2
-    assert {status for status, _ in results} == {400}
-    answers = [json.loads(body) for _, body in results]
-    assert answers == [answers[0], answers[0]]
-    assert answers[0] == {
+    monkeypatch.setattr(served_page, "full_state", fail_state)
+    status, body = fetch(
+        f"{server}/api/event", data=json.dumps(sent).encode(), layer=layer
+    )
+    assert status == 500
+    assert json.loads(body) == {
         "ok": False,
         "attempt": sent["attempt"],
-        "error": "the action was refused",
-        "final": True,
+        "error": "RuntimeError: state response failed",
     }
-    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
-    assert status == 400 and json.loads(body) == answers[0]
-    assert calls == 2, "a completed refusal left a receipt behind"
-    assert [
+    accepted = [
         event
         for event in event_model.read_events(page_dir)
-        if event["kind"] == "action"
-    ] == []
+        if event.get("attempt") == sent["attempt"]
+    ]
+    assert len(accepted) == 1
+
+    monkeypatch.setattr(served_page, "full_state", original_state)
+    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+    assert status == 200
+    receipt = next(
+        event
+        for event in json.loads(body)["state"]["events"]
+        if event.get("attempt") == sent["attempt"]
+    )
+    assert receipt["id"] == accepted[0]["id"]
+    assert (
+        len(
+            [
+                event
+                for event in event_model.read_events(page_dir)
+                if event.get("attempt") == sent["attempt"]
+            ]
+        )
+        == 1
+    )
 
 
 def test_flocked_refuses_a_platform_without_cross_process_locking(
@@ -2226,7 +2188,7 @@ def test_server_refuses_a_thread_request_that_swaps_typed_page_subjects(
         # ordinary state — and the reader meets it by clicking, not by running anything.
         (
             lambda registry: json.dumps({**registry, "$events": {"kinds": {}}}),
-            "$events.kinds omits or changes contracts the current layer writes",
+            "$events.kinds must equal Leaf's fixed transport contract",
         ),
     ],
 )

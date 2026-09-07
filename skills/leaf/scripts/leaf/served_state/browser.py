@@ -6,8 +6,7 @@ from ..acknowledgments import canonical_acknowledgments
 from ..activity import canonical_activity
 from ..events import UndoReading, build_threads, taken_back
 from ..files import list_revisions, revision_path
-from ..passages import enclosing_of
-from ..projection import canonical_updates, page_projection
+from ..projection import canonical_updates, page_reading
 from ..registry.contract import RegistryError
 from ..registry.storage import load_registry
 from .conversation import browser_conversation
@@ -32,10 +31,8 @@ def browser_state(
     """
     through_seq = events[-1]["seq"] if events else 0
     active_html = documents[active_revision]
-    active_projection, active_parser, active_spk = page_projection(
-        active_html, events, registry, active_revision
-    )
-    active_within = enclosing_of(active_spk)
+    active_page = page_reading(active_html, events, registry, active_revision)
+    active_within = active_page.within
     withdrawn = taken_back(events)
     threads = build_threads(events, active_within, withdrawn=withdrawn)
     undo_reading = UndoReading(events, threads=threads, withdrawn=withdrawn)
@@ -45,16 +42,12 @@ def browser_state(
     views = {}
     for revision in sorted(view_revisions):
         html = documents[revision]
-        document, projection = browser_document(
-            html,
-            events,
-            registry,
-            revision,
-            threads,
-            prepared=(active_projection, active_parser, active_spk)
+        page = (
+            active_page
             if revision == active_revision
-            else None,
+            else page_reading(html, events, registry, revision)
         )
+        document, projection = browser_document(page, threads)
         classified = {
             **projection.classified,
             **conversation_projection.classified,
@@ -99,14 +92,10 @@ def browser_state(
             "published_at": published_at,
         }
     interaction_evidence = canonical_acknowledgments(
-        events,
         present["claims"],
         threads,
-        active_projection,
-        active_parser,
-        active_spk,
         conversation_reading,
-        registry,
+        page=active_page,
     )
     return {
         "basis": {"through_seq": through_seq},

@@ -7,7 +7,7 @@ explicit experiment, not a prerequisite for full Leaf in Codex.
 
 A developer-only direct-resource probe under `scripts/mcp-app/direct-*` bundles the
 canonical vendored runtime and routes reads/writes through MCP tools to the same
-PageStateService and EventEndpoint. Experiment 56 in `notes/mcp-apps/` verifies
+PageStateService and event admission. Experiment 56 in `notes/mcp-apps/` verifies
 the design-decision fixture, a keyboard choice, and an anchored comment with no
 nested Leaf iframe or external resource requests in the official reference host.
 It also verifies accepted ui/message transport, not Codex idle wake. This is a
@@ -71,7 +71,7 @@ capability. This keeps arbitrary package modules on the ordinary
 `/runtime/widget-api.js` contract while ensuring every subsequent request proves the
 same page capability. Unknown or unscoped paths receive 404. The nested frame
 therefore runs the same authored document, package modules, comments, actions,
-versions, state stream, and `EventEndpoint` as an ordinary Leaf tab.
+versions, state stream, and event admission as an ordinary Leaf tab.
 
 The app first reads the host-approved `sandbox.csp.frameDomains` capability. When
 that field is present and lacks the exact inline origin, it never assigns the

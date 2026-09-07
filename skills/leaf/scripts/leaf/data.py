@@ -1,5 +1,6 @@
 """Page-bound current data and immutable capture storage."""
 
+import codecs
 import json
 import re
 from pathlib import Path
@@ -25,17 +26,9 @@ _HUNK_HEADER = re.compile(
 )
 _GIT_PATH_TOKEN = r'(?:(?:"(?:\\.|[^"\\])*")|\S+)'
 
-_GIT_PATH_ESCAPES = {
-    "a": 0x07,
-    "b": 0x08,
-    "t": 0x09,
-    "n": 0x0A,
-    "v": 0x0B,
-    "f": 0x0C,
-    "r": 0x0D,
-    '"': 0x22,
-    "\\": 0x5C,
-}
+_GIT_QUOTED_PATH = re.compile(
+    r'(?:[^\\]|\\(?:[abtnvfr"\\]|[0-3][0-7]{2}|[0-7]{1,2}(?![0-7])))*'
+)
 
 
 def _decode_git_path(path: str) -> str:
@@ -44,34 +37,10 @@ def _decode_git_path(path: str) -> str:
         return path
     if len(path) < 2 or not path.endswith('"'):
         raise DataError(f"invalid quoted Git path {path!r}")
-    encoded = bytearray()
     inner = path[1:-1]
-    index = 0
-    while index < len(inner):
-        character = inner[index]
-        if character != "\\":
-            encoded.extend(character.encode("utf-8"))
-            index += 1
-            continue
-        index += 1
-        if index == len(inner):
-            raise DataError(f"invalid quoted Git path {path!r}")
-        escaped = inner[index]
-        if escaped in _GIT_PATH_ESCAPES:
-            encoded.append(_GIT_PATH_ESCAPES[escaped])
-            index += 1
-            continue
-        if escaped in "01234567":
-            end = index + 1
-            while end < min(index + 3, len(inner)) and inner[end] in "01234567":
-                end += 1
-            byte = int(inner[index:end], 8)
-            if byte > 0xFF:
-                raise DataError(f"invalid quoted Git path escape \\{inner[index:end]}")
-            encoded.append(byte)
-            index = end
-            continue
-        raise DataError(f"invalid quoted Git path escape \\{escaped}")
+    if _GIT_QUOTED_PATH.fullmatch(inner) is None:
+        raise DataError(f"invalid quoted Git path {path!r}")
+    encoded = codecs.escape_decode(inner.encode("utf-8"))[0]
     if 0 in encoded:
         raise DataError("quoted Git path contains a NUL byte")
     try:

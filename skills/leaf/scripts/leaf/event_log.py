@@ -4,7 +4,6 @@ import contextlib
 import json
 import os
 import secrets
-import threading
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
@@ -70,20 +69,6 @@ def jsonl_line(event: dict) -> str:
 
 class AttemptConflict(ValueError):
     """One browser attempt was reused for a different event payload."""
-
-
-class AttemptExecution:
-    """One execution shared by concurrent HTTP requests for the same attempt.
-
-    Success is durable in the event log. The record coordinates requests while a
-    handler is executing and is released once that handler finishes, so a concurrent
-    retry receives the same outcome and a later one is free to be evaluated again.
-    """
-
-    def __init__(self, payload: dict):
-        self.payload = payload
-        self.done = threading.Event()
-        self.result = None
 
 
 def _attempt_payload(event: dict) -> dict:

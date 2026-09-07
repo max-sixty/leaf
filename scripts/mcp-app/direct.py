@@ -6,7 +6,7 @@ import sys
 from functools import partial
 from pathlib import Path
 
-from leaf.event_endpoint import EventEndpoint, event_rejection
+from leaf.event_endpoint import accept_event, event_rejection
 from leaf.exporting import inline_assets
 from leaf.files import revision_path
 from leaf.http import runtime_document
@@ -36,7 +36,6 @@ def document_for(page: Path, bundle: Path, service: PageStateService) -> str:
 def main() -> None:
     page, bundle = map(Path, sys.argv[1:3])
     service = PageStateService(page)
-    endpoint = EventEndpoint(page)
     for line in sys.stdin:
         request = json.loads(line)
         args = request.get("args", {})
@@ -55,7 +54,8 @@ def main() -> None:
                             event, "Vendored layer changed", 409
                         )
                     else:
-                        status, body = endpoint.accept(
+                        status, body = accept_event(
+                            page,
                             event,
                             partial(service.page_state, args.get("view_revision")),
                         )

@@ -1933,6 +1933,70 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     assert second_errors == []
 
 
+@pytest.mark.parametrize("newer", [None, "A newer thought must survive."])
+def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
+    browser, serve, one_reader, newer
+):
+    """A final answer belongs to one execution; the accepted log owns the draft."""
+    url = serve(SEATED_QUESTION_PAGE)
+    first, first_errors = open_page(browser, url, context=one_reader)
+    second, second_errors = open_page(browser, url, context=one_reader)
+    first_say = first.locator("#jobs > .lf-conversation > .lf-say")
+    second_say = second.locator("#jobs > .lf-conversation > .lf-say")
+    raw = "The shared generation one tab will accept."
+    first_say.locator("textarea").fill(raw)
+    expect(second_say.locator("textarea")).to_have_value(raw)
+
+    held_event = []
+    held_state = []
+    first.route("**/api/event", lambda route: held_event.append(route))
+    first.route("**/api/state*", lambda route: held_state.append(route))
+    try:
+        first_say.get_by_role("button", name="Send", exact=True).click()
+        holding(first, held_event, 1, "the first tab's answer")
+        attempt = held_event[0].request.post_data_json["attempt"]
+
+        second_say.get_by_role("button", name="Send", exact=True).click()
+        round_trip(second)
+        expect(first_say.locator("textarea")).to_have_value("")
+        first.wait_for_function(STORED_DRAFT_SETTLED, arg="say:jobs")
+        holding(first, held_state, 1, "the accepted attempt's state read")
+        if newer is not None:
+            first_say.locator("textarea").fill(newer)
+
+        with first.expect_response(
+            lambda response: "/api/event" in response.url
+        ) as refused:
+            held_event.pop(0).fulfill(
+                status=400,
+                json={
+                    "ok": False,
+                    "final": True,
+                    "attempt": attempt,
+                    "error": "the earlier execution was refused",
+                },
+            )
+        expect(first.locator(".lf-notice")).to_contain_text("Couldn't send")
+        expected_error = f"400 {refused.value.url}"
+        first_errors.remove(expected_error)
+        first_errors.remove(
+            "Failed to load resource: the server responded with a status of 400 "
+            "(Bad Request)"
+        )
+        expect(first_say.locator("textarea")).to_have_value(newer or "")
+
+        held_state.pop(0).continue_()
+        first.unroute("**/api/state*")
+        round_trip(first)
+        expect(first_say.locator("textarea")).to_have_value(newer or "")
+        assert first_errors == []
+        assert second_errors == []
+    finally:
+        for route in held_event + held_state:
+            refuse(route)
+        first.unroute_all(behavior="wait")
+
+
 def test_a_question_can_send_when_draft_storage_refuses_writes(browser, serve):
     """Persistence failure costs recovery, not the live textarea's Send action."""
     page, errors = open_page(

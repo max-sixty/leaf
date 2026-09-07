@@ -18,13 +18,13 @@ the page and carries two readings:
   JSONL records, and `leaf transcript <page>` is the human-facing Markdown export.
 - `handling`: for each event kind present in the batch, what the layer asks of
   you. The sentences are the page's vendored `$events.handling`, so a project
-  layer can restate one kind and its pages say so; a page vendored before the
-  layer carried `handling` gets the installed kernel's sentences. A reaction
-  carries its token, plus `means` when its package chose to explain a specialized
-  vocabulary.
+  layer can restate one kind and its pages say so. A missing or invalid registry
+  leaves this map empty rather than substituting another layer's instructions. A
+  reaction carries its token, plus `means` when its package chose to explain a
+  specialized vocabulary.
 
-Then each event, one per line. Address every one of them; `handling` is the rule
-for each kind, and this reference is the mechanism around it.
+Then each event, one per line. Address every one of them; where present,
+`handling` is the rule for its kind, and this reference is the mechanism around it.
 
 ## Delivery and acknowledgement
 

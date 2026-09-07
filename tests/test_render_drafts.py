@@ -1143,6 +1143,44 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     page.close()
 
 
+@pytest.mark.parametrize("box", ["seat", "general"])
+def test_every_message_send_says_so_to_a_reader_listening(held_events, serve, box):
+    """A send whose result the reader cannot see still reaches them.
+
+    The message standing in the conversation is the whole acknowledgement for a reader
+    looking at it, which is why no box writes a success notice for it. But neither the
+    seat nor the panel's list is a live region, so for a reader listening to the page
+    that send would pass in silence. `post` says it once, where a gesture is first known
+    to be a message, which is what covers every box that sends one.
+    """
+    browser, held = held_events
+    page, errors = open_page(browser, serve(SEATED_QUESTION_PAGE))
+    live = page.locator(".lf-live")
+    if box == "seat":
+        seat = page.locator("#jobs > .lf-conversation > .lf-say")
+        field = seat.locator("textarea")
+        press = seat.get_by_role("button", name="Send", exact=True)
+    else:
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        field = page.locator(".lf-general textarea")
+        press = page.locator(".lf-general").get_by_role(
+            "button", name="Send", exact=True
+        )
+    field.fill("A remark whose arrival nothing else will say.")
+    press.click()
+    # Held: the gesture is the only thing that can have written the region, and the
+    # words are said before the log has answered rather than because it did.
+    holding(page, held, 1, "the send")
+    expect(live).to_have_text("Message sent")
+
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    assert errors == []
+    page.close()
+
+
 def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     """One box, two sends: answering the first must not hand back the second's words.
 

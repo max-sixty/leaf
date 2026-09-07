@@ -101,7 +101,7 @@ import { elementById } from "./passages.js";
 import { RETRY_MS } from "./state-feed.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { postEvent } from "./layer-client.js";
-import { notice } from "./notifications.js";
+import { announce, notice } from "./notifications.js";
 import { receiveState } from "./state-application.js";
 import { newAttempt } from "./drafts.js";
 import { stateCoordinate, unitOf } from "./projection/authored.js";
@@ -467,8 +467,15 @@ export function post(event, { optimistic = false } = {}) {
     // that reading now, even while the POST is still waiting for a response.
     if (entry.projection) document.dispatchEvent(new Event("lf-actions"));
     // The panel is the message's consumer, and it reads the conversation rather than
-    // this list, so it has to be asked. This render is the send's visible result.
-    if (entry.message) void renderPanel();
+    // this list, so it has to be asked. This render is the send's visible result — and
+    // for a reader who has no view of it, the live region is. Said here rather than by
+    // each of the four boxes that send a message, so a fifth cannot arrive silent: this
+    // is the one place that has already decided the gesture was a message. A reaction
+    // is not one, and says its own richer sentence where it is sent.
+    if (entry.message) {
+      announce("Message sent");
+      void renderPanel();
+    }
   });
   paintKeys();
   void drainOutbox();

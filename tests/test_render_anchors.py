@@ -329,10 +329,20 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve
         )
         assert selected == quote
         page.dispatch_event("body", "mouseup")
-        expect(page.locator(".lf-fab-input")).to_be_visible()
+        # The field is one element for the page's whole life, so "it is on screen"
+        # says only that some composer is open. This release states the passage the
+        # field took, and the field describes itself by it, so a release the field
+        # never answered fails here naming the passage left standing.
+        expect(page.locator("#lf-composer-quote")).to_have_text(f"“{quote}”")
         page.locator(".lf-fab-input").click()
         page.locator(".lf-composer textarea").fill(f"fence {index}")
-        page.keyboard.press("ControlOrMeta+Enter")
+        # The panel renders the card from state, which can carry the append before
+        # this page's own post comes back. Behind the card alone the log read below
+        # answers with the comment before this one, or with nothing at all. The
+        # same answer settles the draft, so this case's composer is down before the
+        # next case asks for one.
+        with sending(page, f"the fence {index} comment"):
+            page.keyboard.press("ControlOrMeta+Enter")
         expect(page.locator(".lf-thread")).to_have_count(index)
         actual_anchor = [
             event["anchor"]

@@ -20,6 +20,7 @@ from render_support import (
     ROOT,
     SUGGESTION_PAGE,
     TARGETS_PAGE,
+    button_radius,
     key_line,
     open_page,
     panel_comment,
@@ -896,10 +897,13 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     bar = page.locator(".lf-fab-bar")
     field = bar.locator(".lf-fab-input")
     expect(field).to_be_visible()
-    expect(bar.locator(".lf-response-more")).to_have_css("border-radius", "6px")
+    shared_radius = button_radius(page)
+    expect(bar.locator(".lf-response-more")).to_have_css("border-radius", shared_radius)
     field.click()
     rest = field.evaluate(FIELD_BOX)
-    assert rest["r"] == 6 and rest["over"] < 0, rest
+    assert rest["r"] == float(shared_radius.removesuffix("px")) and rest["over"] < 0, (
+        rest
+    )
 
     field.fill("one\ntwo\nthree\nfour\nfive")
     tall = field.evaluate(FIELD_BOX)

@@ -103,6 +103,7 @@ import { outbox } from "../outbox.js";
 import { narrowed, needsYou, widen } from "../conversation/narrowing.js";
 import { awaitsReader } from "../conversation/model.js";
 import { replyBoxHasDraft } from "../conversation/replies.js";
+import { keeps } from "../widget-elements.js";
 
 export function pageParts(sel) {
   return pageQueryAll(sel).filter((el) => !inChrome(el));
@@ -1433,14 +1434,11 @@ function coreScopes() {
 // chip's route spans two rows, so it is composed from both.
 export function paintCoreControls() {
   const returningToMore = Boolean(keylineExpanded());
-  helpClose.textContent = returningToMore ? "Back to more shortcuts" : "Close";
-  helpClose.dataset.lfKeyTitle = returningToMore
-    ? "Back to more shortcuts"
-    : "Close the shortcuts";
-  helpClose.setAttribute(
-    "aria-label",
-    returningToMore ? "Back to more shortcuts" : "Close the shortcuts",
-  );
+  const closeSays = returningToMore ? "Back to more shortcuts" : "Close";
+  const closeTitle = returningToMore ? "Back to more shortcuts" : "Close the shortcuts";
+  if (helpClose.textContent !== closeSays) helpClose.textContent = closeSays;
+  keeps(helpClose, "data-lf-key-title", closeTitle);
+  keeps(helpClose, "aria-label", closeTitle);
   const controlShortcut = (scope, row) =>
     [...(word(scope.chordPrefix ?? scope.chord) ?? []), labelOf(row)]
       .filter(Boolean)
@@ -1456,21 +1454,30 @@ export function paintCoreControls() {
           control.dataset.lfKeyTitle = control.title;
         const active = live(row) && bindings(row).length > 0;
         const shortcut = controlShortcut(scope, row);
-        control.title = control.dataset.lfKeyTitle + (active ? ` (${shortcut})` : "");
-        if (active && scope.chord) control.dataset.lfChord = shortcut;
-        else delete control.dataset.lfChord;
+        keeps(
+          control,
+          "title",
+          control.dataset.lfKeyTitle + (active ? ` (${shortcut})` : ""),
+        );
+        if (active && scope.chord) keeps(control, "data-lf-chord", shortcut);
+        else if (control.hasAttribute("data-lf-chord"))
+          control.removeAttribute("data-lf-chord");
         // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
         // alternatives. The complete chord remains in the visible hint and accessible
         // keyboard reference instead of claiming its final press works alone.
         if (active && !scope.chord)
-          control.setAttribute("aria-keyshortcuts", ariaShortcuts([row], false));
-        else control.removeAttribute("aria-keyshortcuts");
+          keeps(control, "aria-keyshortcuts", ariaShortcuts([row], false));
+        else if (control.hasAttribute("aria-keyshortcuts"))
+          control.removeAttribute("aria-keyshortcuts");
       }
     }
   const latestBound = bindings(CHOOSER).length && bindings(NEWEST).length;
-  latestChip.title =
+  keeps(
+    latestChip,
+    "title",
     latestChip.dataset.lfKeyTitle +
-    (latestBound ? ` (${controlShortcut(GO, CHOOSER)} ${labelOf(NEWEST)})` : "");
+      (latestBound ? ` (${controlShortcut(GO, CHOOSER)} ${labelOf(NEWEST)})` : ""),
+  );
 }
 
 // A gesture of the reader's that the page has not accounted for in a log read, asked of

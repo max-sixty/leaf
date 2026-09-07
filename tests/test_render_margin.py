@@ -250,9 +250,11 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
         )
     }
     # The write-on-change guards keep the corpus at 8 layouts and 57–58 style
-    # recalculations over five refreshes. These bounds leave room for browser
-    # bookkeeping while refusing the 33 / 127–128 regression from unconditional writes.
-    assert work["LayoutCount"] <= refreshes * 4, work
+    # recalculations over five refreshes. The process counters include the corpus's
+    # contained frames, while `geometry_reads` below is the exact product reading; these
+    # bounds leave room for that browser bookkeeping while refusing the 33 / 127–128
+    # regression from unconditional writes.
+    assert work["LayoutCount"] <= refreshes * 5, work
     assert work["RecalcStyleCount"] <= refreshes * 18, work
     assert geometry_reads == refreshes, geometry_reads
     assert errors == []
@@ -4309,21 +4311,34 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     assert toggle.evaluate(
         "button => button.parentElement.matches('.lf-banner-actions')"
     ), "the small-screen map was folded behind the banner's door"
-    text_insets = page.locator(".lf-banner-actions > .lf-btn:visible").evaluate_all(
+    button_ink = page.locator(".lf-banner-actions > .lf-btn:visible").evaluate_all(
         """buttons => buttons.map(button => {
           const box = button.getBoundingClientRect();
           const range = document.createRange();
           range.selectNodeContents(button);
           const text = range.getBoundingClientRect();
-          return {label: button.textContent.trim(),
-                  above: text.top - box.top, below: box.bottom - text.bottom};
+          const chord = button.dataset.lfChord ?? null;
+          const after = getComputedStyle(button, '::after');
+          const chordBottom = chord ? box.height - parseFloat(after.bottom) : null;
+          return {label: button.textContent.trim(), chord, content: after.content,
+                  height: box.height, above: text.top - box.top,
+                  labelBottom: text.bottom - box.top,
+                  below: box.bottom - text.bottom,
+                  chordTop: chordBottom === null
+                    ? null : chordBottom - parseFloat(after.lineHeight),
+                  chordBottom};
         })"""
     )
-    assert text_insets
-    for inset in text_insets:
-        assert inset["above"] == pytest.approx(inset["below"], abs=1.5), (
-            f"{inset['label']} is not vertically centred in the compact banner: {inset}"
-        )
+    assert button_ink
+    for ink in button_ink:
+        if ink["chord"] is None:
+            assert ink["above"] == pytest.approx(ink["below"], abs=1.5), (
+                f"{ink['label']} is not vertically centred in the compact banner: {ink}"
+            )
+            continue
+        assert ink["content"] == f'"{ink["chord"]}" / ""', ink
+        assert 0 < ink["above"] < ink["labelBottom"] < ink["chordTop"], ink
+        assert ink["chordTop"] < ink["chordBottom"] < ink["height"], ink
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     if opener == "keyboard":

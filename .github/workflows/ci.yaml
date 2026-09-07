@@ -21,6 +21,10 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 105
+    env:
+      # Keep a human-readable slow-test census in the log. JUnit below carries the
+      # complete per-test outcomes and durations for comparisons across runs.
+      PYTEST_ADDOPTS: --durations=25 --durations-min=1
 
     steps:
       # Two commits, so a pull request's merge commit has its base parent and
@@ -40,7 +44,7 @@ jobs:
       - name: 🧪 Everyday suite
         if: github.event_name == 'pull_request'
         timeout-minutes: 45
-        run: uv run pytest tests -v
+        run: uv run pytest tests -v --junitxml=.tmp/test-results/everyday.xml
 
       # The everyday suite deselects the nightly-marked modules, so a pull request
       # whose whole diff is one of them goes green having run none of it: that is
@@ -66,14 +70,25 @@ jobs:
             exit 0
           fi
           echo "Touched test modules: ${touched[*]}"
-          uv run pytest "${touched[@]}" -m nightly -v || [ $? -eq 5 ]
+          uv run pytest "${touched[@]}" -m nightly -v \
+            --junitxml=.tmp/test-results/touched-nightly.xml || [ $? -eq 5 ]
 
       # `-v` names a stalled test. The step timeout makes a wedge a failure that
       # `tend-ci-fix` can act on.
       - name: 🧪 Nightly suite
         if: github.event_name == 'push'
         timeout-minutes: 90
-        run: uv run pytest tests --run-nightly -v
+        run: uv run pytest tests --run-nightly -v \
+          --junitxml=.tmp/test-results/nightly.xml
+
+      - name: Upload pytest results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-results-${{ github.event_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .tmp/test-results/*.xml
+          if-no-files-found: ignore
+          retention-days: 30
 
   lint:
     runs-on: ubuntu-24.04

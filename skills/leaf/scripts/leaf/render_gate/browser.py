@@ -84,6 +84,9 @@ def launch_browser(p):
     A host that named an executable, or whose channel missed, never ran Chrome,
     so naming Chrome there would be the same false claim the failure messages
     stopped making."""
+    # Imported where a browser is about to launch, here and in the other gates,
+    # rather than at module top: playwright.sync_api is half of what a `leaf`
+    # command spends importing, and most commands never open a browser.
     from playwright.sync_api import Error as PlaywrightError
 
     if named := named_executable():

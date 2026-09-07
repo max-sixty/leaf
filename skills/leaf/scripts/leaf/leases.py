@@ -6,6 +6,7 @@ from pathlib import Path
 
 from leaf.event_log import flocked, require_cross_process_locking
 from leaf.host import state_home
+from leaf.schema import WAITER_LOCK
 
 try:
     import fcntl
@@ -71,7 +72,7 @@ def waiter_lease_path(page_dir: Path | None, session: dict | None) -> Path | Non
     """
     if session:
         return state_home() / "sessions" / f"{session['id']}.wait"
-    return page_dir / "waiter.lock" if page_dir is not None else None
+    return page_dir / WAITER_LOCK if page_dir is not None else None
 
 
 def adapter_lease_path(session_id: str) -> Path:

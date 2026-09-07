@@ -1,5 +1,5 @@
-/* The vendored-generation gate, the one door events post through, and the page's error
-   channel to the agent.
+/* The vendored-generation gate, the event and media doors, and the page's error channel
+   to the agent.
 
    A vendored runtime and registry are one generation. This module carries the
    `__LEAF_LAYER_GENERATION__` placeholder (quoted, once) and the registry carries the same epoch
@@ -63,6 +63,41 @@ export const postEvent = async (event) => {
   const responseGeneration = response.headers.get("Leaf-Layer");
   if (response.ok && responseGeneration && !sameLayer(responseGeneration)) return null;
   return response;
+};
+
+// Pasted pixels become page content before their Markdown reference enters a draft.
+// The raw body keeps binary data out of JSON and the append-only log; the server
+// derives the served extension and returns the canonical page-relative path. Like an
+// event POST, this request waits for a known layer and accounts for its whole trip.
+export const uploadMedia = async (file) => {
+  await layerReady;
+  countTraffic("sends");
+  let response;
+  try {
+    response = await fetch("/api/media", {
+      method: "POST",
+      headers: {
+        "Content-Type": file.type,
+        "Leaf-Layer": layerGeneration,
+      },
+      body: file,
+    });
+  } finally {
+    countTraffic("acked");
+  }
+  const responseGeneration = response.headers.get("Leaf-Layer");
+  if (response.ok && responseGeneration && !sameLayer(responseGeneration)) return null;
+  let answer;
+  try {
+    answer = await response.json();
+  } catch {
+    throw new Error(`image upload returned HTTP ${response.status}`);
+  }
+  if (!response.ok)
+    throw new Error(answer?.error ?? `image upload returned HTTP ${response.status}`);
+  if (typeof answer?.path !== "string")
+    throw new Error("image upload returned no media path");
+  return answer.path;
 };
 
 // The page reporting itself broken, to the party who can fix it: the agent

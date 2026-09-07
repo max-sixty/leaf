@@ -4,8 +4,9 @@
  *
  * The log owns the absolute outcome, so reloads and tabs converge. Once that outcome
  * stands, the surviving slot remains and the retired slot folds away as trackable
- * motion. The durable outcome is visible, selectable receipt text; its circle is Undo,
- * so a Button-shaped thing always still performs or reveals something.
+ * motion. Undo remains while that decision can still be withdrawn. The optimistic
+ * content and Undo carry visual feedback; a live announcement says the same decision
+ * without restating it on screen, and refusal restores actionable failure controls.
  *
  * The suggestion owns only those controls and their semantics. It contributes the row
  * through `registerMarginItem`; the living margin joins it to comment threads,
@@ -19,6 +20,7 @@ import {
   actionAvailable,
   actionStands,
   alignText,
+  announce,
   commands,
   FOLD_MS,
   marginButton,
@@ -123,8 +125,9 @@ customElements.define(
   "lf-suggestion",
   class extends HTMLElement {
     #row = null;
-    #receipt = null;
+    #failureReceipt = null;
     #deciding = null; // the decision in flight, so a second press joins it
+    #staging = false; // the synchronous span before that promise exists
     #failed = null;
     #accept = null;
     #reject = null;
@@ -193,9 +196,8 @@ customElements.define(
       this.#margin = registerMarginItem({
         key: `suggestion:${this.id}`,
         // An accepted deletion (or rejected insertion) has no surviving slot and the
-        // suggestion itself leaves layout. Its receipt still describes the containing
-        // passage, so that passage becomes the durable perch instead of making a word
-        // marked data-lf-said disappear with a target that now paints no box.
+        // suggestion itself leaves layout. Undo still belongs to the containing passage,
+        // so that passage becomes its perch while the gesture can be withdrawn.
         target: () =>
           !this.dataset.lfState ||
           shownParts(this).some((part) => part.checkVisibility())
@@ -210,11 +212,9 @@ customElements.define(
         state: () =>
           this.#failed
             ? "failed"
-            : this.#deciding || this.#undoing
+            : this.#staging || this.#deciding || this.#undoing
               ? "busy"
-              : this.dataset.lfState
-                ? "settled"
-                : "idle",
+              : "idle",
         items: () =>
           this.dataset.lfState && !undoableAction(this, this.dataset.lfState)
             ? []
@@ -222,9 +222,9 @@ customElements.define(
                 {
                   id: `suggestion:${this.id}`,
                   // Before settlement this contribution is the Ask, so suppress the shared
-                  // Ask at the same target. Afterwards the item keeps the receipt and Undo
-                  // controls in this cluster without inventing another page-map reading.
-                  kind: this.dataset.lfState ? "action" : "decision",
+                  // Ask at the same target. Afterwards Undo remains in this cluster without
+                  // inventing another page-map reading.
+                  kind: this.dataset.lfState ? "action" : "ask",
                   ...(this.dataset.lfState ? {} : { represents: true }),
                   text: this.dataset.lfState
                     ? `${this.dataset.lfState === "accept" ? "Accepted" : "Rejected"} suggested change`
@@ -258,8 +258,7 @@ customElements.define(
     // WORDS), and the name that has to carry the change as well. The
     // change's own words come in rather than being read here, because settling
     // retires the slot they live in and a name asked for afterwards would answer the
-    // id. Both controls restate together. The persistent outcome belongs to #receipt,
-    // outside the tooltip whose visibility depends on a hover or focus.
+    // id. Both controls restate together.
     #name(btn, state, change) {
       const kind = verb(btn);
       btn.removeAttribute("data-lf-said");
@@ -277,7 +276,8 @@ customElements.define(
 
     #paintAvailability = () => {
       for (const btn of [this.#accept, this.#reject]) {
-        const available = !this.#deciding && actionAvailable(this, verb(btn));
+        const available =
+          !this.#staging && !this.#deciding && actionAvailable(this, verb(btn));
         const disabled = String(!available);
         if (btn.getAttribute("aria-disabled") !== disabled)
           btn.setAttribute("aria-disabled", disabled);
@@ -293,21 +293,19 @@ customElements.define(
         label,
         tone,
         role,
-        state: this.#failed ? "failed" : this.dataset.lfState ? "settled" : "idle",
+        state: this.#failed ? "failed" : "idle",
       });
       button.onclick = press;
       return button;
     }
 
-    #renderControls(change = this.#label()) {
+    #renderControls(
+      change = this.#label(),
+      { pending = Boolean(this.#staging || this.#deciding) } = {},
+    ) {
       if (!this.#row) return;
       const outcome = this.dataset.lfState;
       if (outcome && !this.#failed) {
-        this.#receipt ??= document.createElement("span");
-        this.#receipt.className = "lf-sug-receipt";
-        relabel(this.#receipt, outcome === "accept" ? "Accepted" : "Rejected", {
-          says: true,
-        });
         this.#undo ??= this.#utilityButton({
           key: "undo",
           icon: "undo",
@@ -315,27 +313,25 @@ customElements.define(
           role: "primary",
           press: () => this.#undoOutcome(),
         });
-        marginButtonState(this.#undo, this.#undoing ? "busy" : "settled");
-        this.#undo.setAttribute("aria-disabled", String(this.#undoing));
+        const undoing = Boolean(pending || this.#undoing);
+        marginButtonState(this.#undo, undoing ? "busy" : "idle");
+        this.#undo.setAttribute("aria-disabled", String(undoing));
         this.#undo.setAttribute(
           "aria-label",
           `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change}`,
         );
-        this.#row.dataset.lfOutcome = outcome;
-        this.#row.dataset.lfMarginReceipt = "settled";
+        delete this.#row.dataset.lfMarginReceipt;
         this.#replaceControls(
-          ...(undoableAction(this, outcome) ? [this.#undo] : []),
-          this.#receipt,
+          ...(pending || undoableAction(this, outcome) ? [this.#undo] : []),
         );
         return;
       }
 
-      delete this.#row.dataset.lfOutcome;
       if (this.#failed) {
-        this.#receipt ??= document.createElement("span");
-        this.#receipt.className = "lf-sug-receipt";
+        this.#failureReceipt ??= document.createElement("span");
+        this.#failureReceipt.className = "lf-margin-receipt";
         relabel(
-          this.#receipt,
+          this.#failureReceipt,
           this.#failed.undo
             ? `Undo failed · ${outcome === "accept" ? "Accepted" : "Rejected"}`
             : "Failed",
@@ -358,7 +354,7 @@ customElements.define(
         for (const control of [this.#retry, this.#cancelFailure])
           marginButtonState(control, "failed");
         this.#row.dataset.lfMarginReceipt = "failed";
-        this.#replaceControls(this.#retry, this.#cancelFailure, this.#receipt);
+        this.#replaceControls(this.#retry, this.#cancelFailure, this.#failureReceipt);
         return;
       }
 
@@ -415,7 +411,7 @@ customElements.define(
       );
     }
 
-    // What the change is about, for the button's label and the notice: the
+    // What the change is about, for the button's label and failure receipt: the
     // proposal where there is one, since that is what accepting brings about —
     // a deletion has only the markup it would remove.
     #label() {
@@ -438,22 +434,15 @@ customElements.define(
       return this.#decide("accept");
     }
 
-    // A press asks for the decision; the log makes it, and only then does the page
-    // show it. A suggestion can wait because its decision is terminal — the slot
-    // retires, the controls stop offering, no later gesture computes from any of
-    // it — so nothing is owed the reader during the round trip, and the round trip
-    // is local. What waiting buys is the absence of the other half: a settled
-    // suggestion the server never took had to be un-settled in front of the reader,
-    // a frame of "✓ Accepted" over a fold that started and stopped. The rule that
-    // decides which gestures wait, and what waiting costs, are in CLAUDE.md.
+    // A press makes the reversible decision locally and the outbox carries that exact
+    // projection until the log accounts for it. A definitive refusal removes the local
+    // winner and reconciles the authored state before this continuation paints the repair
+    // controls, so the reader returns to a pending suggestion with Failed, Retry, Cancel.
     #decide(outcome) {
       if (this.dataset.lfState) return Promise.resolve(true);
       if (!actionAvailable(this, outcome)) return Promise.resolve(false);
-      // The decided state used to be this guard on its own, written in the frame of
-      // the press. It now lands when the log takes the decision, and the gap between
-      // press and answer is exactly wide enough for a second press to make a second
-      // decision beside the first — two lines in the log for one act.
-      if (this.#deciding) return this.#deciding;
+      if (this.#staging || this.#deciding)
+        return this.#deciding ?? Promise.resolve(false);
       // Read before deciding: deciding retires a slot, a retired slot leaves the page's
       // reading, and `says` on what has left the reading answers nothing — the notice
       // then named the widget's id instead of the words the user just judged.
@@ -466,42 +455,62 @@ customElements.define(
       const comment = this.getAttribute("resolves");
       const detail = outcome === "accept" && comment ? { resolves: comment } : {};
       this.#failed = null;
-      const sent = sendAction(this, outcome, detail).then((accepted) => {
-        this.#deciding = null;
-        this.removeAttribute("aria-busy");
-        if (!accepted) {
-          // A definitive refusal is a state the reader can act from. Keep it at the
-          // target as Failed, Retry, Cancel; there is no detail disclosure because the
-          // transport returned no useful detail beyond the notice it already showed.
-          this.#failed = { outcome, label };
-          this.#renderControls(label);
-          this.#margin?.update();
-          return false;
-        }
-        // Usually the accepted state has already replayed this decision. Paint is
-        // still owed if another part of that state failed to render, but not if the
-        // same event list also carried a later undo: authored state then stands.
-        if (actionStands(accepted)) this.#settle(outcome);
-        else {
-          this.#renderControls(label);
-          this.#margin?.update();
-        }
-        notice(`${outcome === "accept" ? "Accepted" : "Rejected"} “${label}” — sent`);
-        return true;
-      });
+      // This decision replaces words the reader may still have selected. Clear that
+      // page range before moving its nodes, independent of whether activation came from
+      // pointer, Enter, Space, or an address route; otherwise later reconciliation can
+      // reconstruct the relocated range and raise its Comment field again.
+      getSelection()?.removeAllRanges();
+      // Keep the replacement Undo in the pressed Button's seat while delivery is open.
+      // It is present for focus continuity but unavailable until the log gives the
+      // gesture the durable id Undo must name.
+      this.#staging = true;
+      this.#settle(outcome);
+      const sent = sendAction(this, outcome, detail, { optimistic: true }).then(
+        (accepted) => {
+          this.#deciding = null;
+          this.removeAttribute("aria-busy");
+          if (!accepted) {
+            // A definitive refusal is a state the reader can act from. Keep it at the
+            // target as Failed, Retry, Cancel; there is no detail disclosure because the
+            // transport returned no useful detail beyond the notice it already showed.
+            this.#failed = { outcome, label };
+            this.#renderControls(label);
+            this.#margin?.update();
+            return false;
+          }
+          // Usually the accepted state has already replayed this decision. Paint is
+          // still owed if another part of that state failed to render, but not if the
+          // same event list also carried a later undo: authored state then stands.
+          if (actionStands(accepted)) {
+            if (this.dataset.lfState === outcome) {
+              this.#renderControls(label);
+              this.#margin?.update();
+            } else this.#settle(outcome);
+            announce(
+              `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change: ${label}`,
+            );
+          } else {
+            this.#renderControls(label);
+            this.#margin?.update();
+          }
+          // TODO(2026-09-06): Decide whether accepted work with no active agent pickup
+          // needs a distinct post-send presentation.
+          return true;
+        },
+      );
       this.#inFlight(sent, label);
+      this.#staging = false;
       return sent;
     }
 
-    // One fact said twice, because it is owed to two audiences. The field is what
-    // refuses the second press above. The attribute is the platform's own word for a
-    // surface mid-update — the layer paints it (leaf.js) and a screen reader holds
-    // its announcements until it clears, so the labels are read once, as what they
-    // ended up saying. Said here rather than at the two ends of the send, so the two
-    // cannot come apart; `lf-draft` says the same word for the same reason.
+    // The field refuses a second press while the first is unresolved. A pending result
+    // that has not painted also marks the widget busy; an optimistic result instead puts
+    // that state on its disabled Undo Button so the settled prose stays legible.
     #inFlight(decision, label = this.#label()) {
       this.#deciding = decision;
-      if (decision) this.setAttribute("aria-busy", "true");
+      // Optimistic content already says what the press did. Busy belongs to its disabled
+      // Undo Button, not as a dimming veil over the settled prose.
+      if (decision && !this.dataset.lfState) this.setAttribute("aria-busy", "true");
       else this.removeAttribute("aria-busy");
       this.#renderControls(label);
       this.#margin?.update();
@@ -526,6 +535,10 @@ customElements.define(
     async #undoOutcome() {
       const outcome = this.dataset.lfState;
       if (!outcome || this.#undoing) return;
+      if (this.#staging || this.#deciding) {
+        notice("Wait for the current change to finish before undoing");
+        return;
+      }
       const event = undoableAction(this, outcome);
       if (!event) {
         notice("This outcome is no longer available to undo");
@@ -566,8 +579,8 @@ customElements.define(
       // decision lands; the layer then writes the same mark unconditionally.
       renderRetired(this);
       if (this.#row) {
-        // The durable outcome is ordinary receipt text. The only remaining circle is
-        // Undo, which still acts; no disabled Button-shaped status survives settlement.
+        // The only remaining circle is Undo, which still acts; the fold and surviving
+        // content carry the outcome without leaving another status beside them.
         this.#renderControls(change);
       }
       this.#margin?.update();
@@ -686,7 +699,7 @@ customElements.define(
     }
 
     // Which of the three changes this is, for anything naming it away from the page:
-    // a row on the decisions tray, the label on a comment anchored here. The slots are the
+    // a row on the Asks tray, the label on a comment anchored here. The slots are the
     // whole of the answer — both is a rewrite, lf-new alone inserts, lf-old alone
     // deletes — and it is the reading #voice already speaks on the slots themselves,
     // said once for the element. A settled suggestion keeps the word it had: the

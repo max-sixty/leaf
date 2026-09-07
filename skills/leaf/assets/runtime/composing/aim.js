@@ -7,6 +7,7 @@ import { pointerAt } from "../pointer.js";
 import { elementFromPointAcross, inChrome } from "../passages.js";
 import { aimTargetAt, refreshAim } from "../anchors.js";
 import { commentOnTarget, standDown } from "./surface.js";
+import { isDrawing } from "./drawing.js";
 
 // The aim's paint host (see its rule above). Pointer-inert and carrying only aria-hidden
 // drawing geometry, it says nothing to a screen reader and takes nothing from the press
@@ -26,7 +27,7 @@ let aiming = false;
 // Design is the active input mode, so the chord is unavailable while it stands. Keep
 // that priority in the aim's one public reading as well as its press claim: the promise
 // painted under the pointer and the gesture that follows must have the same owner.
-const aimIsAvailable = () => !designOn;
+const aimIsAvailable = () => !designOn && !isDrawing();
 export const aimIsOn = () => aiming && aimIsAvailable();
 // The aim chord, declared once: the key listeners, the press guard (claimPress) and the
 // reference's row all read this object. It is the register's one row that is not a key —

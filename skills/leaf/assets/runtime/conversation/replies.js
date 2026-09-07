@@ -66,6 +66,7 @@ export function wireReply(t, input, send) {
   input.value = loadDraft(draftCtx) ?? "";
   const sync = wireInput(input, {
     hint: "Reply",
+    accessibleName: "Reply",
     sends: "send",
     sendBtn: send,
     busy: () => replyBusy(t.root.id),
@@ -76,7 +77,7 @@ export function wireReply(t, input, send) {
       saveDraft(draftCtx, v);
       tellDraft(draftCtx, v);
     },
-    send: async (text, raw) => {
+    send: async (text, raw, owns) => {
       // Scrolling away or leaving the window can keep the old editor's focus. Both
       // withdraw this send's continuation, while its draft and delivery still settle.
       const continuation = new AbortController();
@@ -94,7 +95,7 @@ export function wireReply(t, input, send) {
         listening,
       );
       try {
-        const sent = await sendReply(t, text, raw, () => input.value === raw);
+        const sent = await sendReply(t, text, raw, owns);
         if (
           !sent ||
           continuation.signal.aborted ||
@@ -110,10 +111,10 @@ export function wireReply(t, input, send) {
     },
   });
   sync();
-  // A box growing under the reader pushes its own Send and Resolve below the list's
-  // foot: eight lines of reply left the blue button a sliver at the scrollport's edge,
+  // A box growing under the reader pushes its embedded Send below the list's foot:
+  // eight lines of reply left the blue button a sliver at the scrollport's edge,
   // reachable only by the send key the placeholder happened to name. Landing reveals
-  // the composer with its actions (revealConversation); growth is the same claim made
+  // the composer with its controls (revealConversation); growth is the same claim made
   // again. On the reader's own keystrokes and nothing else: a send settling after they
   // scrolled away, or a draft mirrored from another tab, must not pull the list back.
   // Instant, not smooth — a line typed while the last line's glide is still running

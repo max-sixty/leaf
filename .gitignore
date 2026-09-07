@@ -3,4 +3,7 @@ __pycache__/
 .DS_Store
 .tmp/
 .venv/
+node_modules/
+.wrangler/
+docs/example-*.jpg
 .claude/settings.local.json

@@ -13,9 +13,11 @@ A page directory holds:
                          active revision.
     /versions/v1.html…   virtual public addresses. Each `note` event maps a version to
                          its immutable revision, and the server renders that revision
-                         at the stable version URL. No second HTML copy is stored.
-                         A pinned version therefore never moves while later source saves
-                         become live.
+                         at the stable version URL. No second HTML copy is stored in the
+                         durable page record. A static-site build may materialize the
+                         same responses beside a copied record as disposable delivery
+                         output; those files are never an authority. A pinned version
+                         therefore never moves while later source saves become live.
     leaf.js              the browser entry, served at /leaf.js
     theme.css            tokens, element styles, class idioms, element-widget CSS
     registry.json        the widget vocabulary: JSON Schema per lf-* tag, plus the
@@ -44,10 +46,14 @@ A page directory holds:
                          user approved cannot show them different pixels later,
                          and two versions showing the same screenshot share one
                          file rather than carrying a copy each. It is also the
-                         only door an image has into a page: the page's author is
-                         a language model, and a screenshot is a megabyte of
-                         base64 it cannot type — nor should each version carry a
-                         copy that `version check` walks and a browser reloads.
+                         transport an image uses to enter a page. `page media`
+                         admits files chosen by the author; `/api/media` admits a
+                         bounded raster image pasted by the reader into a text box.
+                         Both meet at the same content-addressed write, and the
+                         pasted draft carries only Markdown pointing here.
+                         The page's author is a language model, and a screenshot is
+                         a megabyte of base64 it cannot type — nor should each version
+                         carry a copy that `version check` walks and a browser reloads.
                          So the transport was never an optimisation over
                          inlining; inlining was never available
     events.jsonl         append-only event log; an event's seq is its line number (1-based)
@@ -64,7 +70,9 @@ A page directory holds:
                          carries only the surrounding manifest, and `/api/data` reads
                          one keyed payload from this same revision on demand. No split
                          payload becomes a second authority.
-    status.json          the agent's declared state: {"state": working|waiting|idle, "detail", "ts"};
+    status.json          the agent's declared state: {"state": working|waiting|idle,
+                         "detail", "ts", "after"}; `after` is the exact event-log
+                         floor observed when the declaration was written;
                          detail is the finer grain the banner reads out after the
                          state — what the agent is doing while working, what it
                          needs from the reader while waiting;
@@ -73,7 +81,8 @@ A page directory holds:
                          private records become canonical claim updates, which
                          their local receipts show beside the page-wide banner
                          (`leaf status … --on`). Delivery pickup never writes
-                         this file; it is a page-owned event in events.jsonl
+                         this file; its queued/opened phase, session, and turn are
+                         page-owned evidence in events.jsonl
     waiter.lock          bare-shell `leaf wait` lease, held open and locked for
                          the command's life. A host session holds one lease at
                          sessions/<id>.wait instead, because one wait watches all

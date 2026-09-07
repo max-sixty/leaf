@@ -16,8 +16,17 @@ import { loadDraft } from "../drafts.js";
 
 /* Textual conversation views rendered outside the retained Threads list.
 
-   A page marker uses an already-open panel; with the panel closed, other comments open
-   inline where the layout has room and use the panel at narrower widths. */
+   A Thread Button uses an already-open panel; with the panel closed, its comment opens
+   inline at every width and the card overlays the page where no beside posture fits. An
+   interactive reply embedded in a message explicitly opens the complete panel view. */
+function paintConversationBody(body, message) {
+  const words = message.text ?? "";
+  if (message.suggestion) body.textContent = words;
+  else body.innerHTML = renderMessageMarkdown(words);
+  if (message.drawing)
+    body.append(el("span", "lf-drawing-reference", "Drawing comment"));
+}
+
 function conversationMessageNode(thread, message) {
   let node = thread.querySelector(
     `:scope > .lf-conversation-msg[data-event="${message.id}"]`,
@@ -30,8 +39,7 @@ function conversationMessageNode(thread, message) {
     const body = node.querySelector(":scope > .lf-conversation-body");
     const revision = message.edited?.id ?? "";
     if (node.lfRevision !== revision) {
-      if (message.suggestion) body.textContent = message.text;
-      else body.innerHTML = renderMessageMarkdown(message.text);
+      paintConversationBody(body, message);
       node.lfRevision = revision;
     }
     return node;
@@ -45,8 +53,7 @@ function conversationMessageNode(thread, message) {
   );
   syncEdited(head, message);
   const body = el("div", "lf-conversation-body");
-  if (message.suggestion) body.textContent = message.text;
-  else body.innerHTML = renderMessageMarkdown(message.text);
+  paintConversationBody(body, message);
   node.lfRevision = message.edited?.id ?? "";
   node.append(head, body);
   if (message.markup) {
@@ -90,8 +97,16 @@ function conversationThreadNode(host, t, collapsible = false) {
   // Turns only: a reaction on a message is the panel's strip to show, and the seat is
   // the textual projection of the exchange.
   const messages = turns(t).map((message) => conversationMessageNode(thread, message));
+  const standing = focused();
+  const heldFocus = thread.contains(standing);
   let tail;
+  let resolve;
   if (t.resolved) {
+    thread
+      .querySelector(
+        ":scope > .lf-conversation-msg > .lf-conversation-head > .lf-resolve",
+      )
+      ?.remove();
     tail = thread.querySelector(":scope > .lf-conversation-resolved");
     const settledBy =
       t.resolved.author === "claude"
@@ -103,24 +118,21 @@ function conversationThreadNode(host, t, collapsible = false) {
     }
     if (tail.firstChild.textContent !== settledBy)
       tail.firstChild.textContent = settledBy;
-  } else if (t.root.response?.kind === "version") {
-    // The page seat shows what the reader proposed. Their reply workspace remains
-    // in Threads; the agent's response is the next authored version.
-    tail = thread.querySelector(":scope > .lf-conversation-actions");
-    if (!tail) {
-      tail = offer("div", "lf-conversation-actions");
-      tail.append(settlementControl(t));
-    }
   } else {
-    tail = thread.querySelector(":scope > .lf-say");
-    if (!tail) {
-      tail = offer("div", "lf-say");
-      const input = offer("textarea");
-      const send = offer("button", "lf-btn primary", "Send");
-      const actions = offer("div", "lf-conversation-actions");
-      actions.append(send, settlementControl(t));
-      tail.append(input, actions);
-      wireReply(t, input, send);
+    resolve =
+      thread.querySelector(
+        ":scope > .lf-conversation-msg > .lf-conversation-head > .lf-resolve",
+      ) ?? settlementControl(t);
+    messages[0]?.querySelector(":scope > .lf-conversation-head")?.append(resolve);
+    if (t.root.response?.kind !== "version") {
+      tail = thread.querySelector(":scope > .lf-say");
+      if (!tail) {
+        tail = offer("div", "lf-say");
+        const input = offer("textarea");
+        const send = offer("button", "lf-btn primary", "Send");
+        tail.append(input, send);
+        wireReply(t, input, send);
+      }
     }
   }
   const receipts = [...thread.querySelectorAll(":scope > .lf-receipt")];
@@ -133,8 +145,6 @@ function conversationThreadNode(host, t, collapsible = false) {
     if (receipt) placed.add(receipt);
     return receipt ? [message, receipt] : [message];
   });
-  const standing = focused();
-  const heldFocus = thread.contains(standing);
   setChildren(thread, [
     ...(summary ? [summary] : []),
     ...messageRows,

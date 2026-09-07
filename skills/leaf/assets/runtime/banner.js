@@ -1,6 +1,6 @@
 /* This module owns banner wording, tone, tab-icon paint, and announcing a status kind
  * that has changed. */
-import { ago, clocked, presented } from "./presence.js";
+import { ago, clocked } from "./presence.js";
 import { el, reserve } from "./widget-elements.js";
 import { agentName, runtime } from "./context.js";
 import {
@@ -12,7 +12,7 @@ import {
   unfoldShelf,
 } from "./banner-shelf.js";
 import { latestChip, versionBtn, versionLabels } from "./version.js";
-import { decisionsBtn, othersBtn } from "./trays.js";
+import { asksBtn, othersBtn } from "./trays.js";
 import { COVERING, syncLayout } from "./chrome-layout.js";
 import { needsBtn } from "./conversation/panel.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
@@ -46,6 +46,9 @@ approveBtn.disabled = true;
 // ---------- banner ----------
 const TONE = {
   working: "working",
+  handling: "working",
+  queued: "away",
+  picked_up: "away",
   listening: "listening",
   stalled: "away",
   away: "away",
@@ -57,7 +60,7 @@ export const toneFor = (kind) => TONE[kind];
 // The judgment's third seat. A reader keeps a leaf in a tab for days and looks at
 // six of them; the tab strip is the whole of what the browser shows about a page nobody
 // has open, so the state that decides whether to go there belongs in it. Same judgment
-// (presented), same writer as the dot and the line, and the tone is taken off the dot
+// (`activity`), same writer as the dot and the line, and the tone is taken off the dot
 // itself rather than mapped from kind to token again — one answer to what a tone looks
 // like, so a project overriding --ok overrides the tab with it and the two cannot come
 // apart. It is a read of the theme, not of the rendering: what colour this tone paints
@@ -230,19 +233,31 @@ function renderStatusNow(state) {
     return;
   }
   renderPreview(state);
-  const { status, pending } = state;
-  const { kind, quiet, dropped, detail } = presented(state);
+  if (state.example) {
+    const install = el("a", "lf-example-install", "Install Leaf");
+    install.href = state.example.install_url;
+    showStatus(
+      "unattended",
+      TONE.unattended,
+      `This is an example on the Leaf website. ${state.example.agent} replies here, but cannot edit this page. `,
+      install,
+    );
+    return;
+  }
+  const { activity } = state;
+  const { kind, quiet, dropped, detail } = activity;
+  const obligations = activity.count;
   // What the user's words do meanwhile. The log takes them with nobody on the other
   // end; the only thing attendance changes is when they are read.
-  const saved = pending
-    ? `${pending} update${pending === 1 ? "" : "s"} waiting.`
+  const saved = activity.counts.total
+    ? `${activity.counts.total} update${activity.counts.total === 1 ? " is" : "s are"} saved.`
     : "Your comments are saved.";
   // Dated by whichever fact ended the belief. A dropped claim is dated by the ending
   // and not by its own last word, because "last checked in just now" under an amber
   // dot is the line arguing with the dot beside it.
   const dated = dropped
     ? `${agentName()} left this when its turn ended ${ago(state.turn_closed)}`
-    : `${agentName()} last checked in ${ago(status.ts)}`;
+    : `${agentName()} last checked in ${ago(activity.ts)}`;
   let text = "",
     showAge = false;
   if (kind === "closed") text = "Leaf closed";
@@ -257,22 +272,28 @@ function renderStatusNow(state) {
     // page holds — only that the log is there for whichever does.
     text = `No session holds this page. ${saved} It picks up again when a session does.`;
   else if (kind === "working") {
-    showAge = Boolean(status.ts);
+    showAge = Boolean(activity.ts);
     text = `${agentName()} is working${detail ? " — " + detail : ""}`;
+  } else if (kind === "handling") {
+    text = `${agentName()} is handling ${obligations} update${obligations === 1 ? "" : "s"}`;
+  } else if (kind === "queued") {
+    text = `${obligations} update${obligations === 1 ? " is" : "s are"} queued for ${agentName()}`;
+  } else if (kind === "picked_up") {
+    text = `${agentName()} picked up ${obligations} update${obligations === 1 ? "" : "s"}, but that turn ended. ${saved}`;
   } else if (kind === "listening") {
     // Attendance is half the news; the other half is what the page wants back. The
-    // Decisions count beside it says how many things are unanswered and nothing about what
+    // Asks count beside it says how many things are unanswered and nothing about what
     // any of them is, so the claim's detail says that here in the agent's own words,
     // the way a `working` claim's says what it is doing. With nothing declared it is
     // the standing instruction, which is what a page asking nothing wanted anyway.
     //
-    // "awaits" while the judged kind stays `listening`: they name different things.
-    // The kind and the server field behind it are the evidence — a watcher live on the
-    // other end — and the words are the stance it supports, which is the registry's
-    // own word for a standing decision for the reader (x-awaits). Wording is the seat's,
-    // per `presented`, so a row in the leaves panel leads with the bare word and
-    // carries the same decision behind it.
-    text = `${agentName()} awaits — ${detail || "select text to comment"}`;
+    // With no pending update, "awaits" states the stance a live watcher supports and
+    // uses the registry's word for a standing Ask for the reader (x-awaits). Once a
+    // reader move is pending, the same listening evidence remains primary while the
+    // words lead with what was saved.
+    text = activity.counts.pending
+      ? `${saved} ${agentName()} is listening${detail ? " — " + detail : ""}.`
+      : `${agentName()} awaits — ${detail || "select text to comment"}`;
   } else if (kind === "stalled") {
     // The claim stands, dated, with no remedy attached: a watcher is live, so the
     // reader's next word reaches the agent without anyone touching a terminal. What
@@ -295,7 +316,7 @@ function renderStatusNow(state) {
   if (showAge)
     line.push(
       " ",
-      Object.assign(el("span", "lf-age"), { textContent: `(${ago(status.ts)})` }),
+      Object.assign(el("span", "lf-age"), { textContent: `(${ago(activity.ts)})` }),
     );
   showStatus(kind, TONE[kind], ...line);
 }
@@ -355,10 +376,10 @@ function arrangeBannerControls() {
 // The banner's row, mounted once the version chooser and the trays exist: the invariant
 // middle first, then the edge families around it (arrangeBannerControls).
 export function mountBanner() {
-  for (const control of [decisionsBtn, othersBtn]) showNews(control, false);
+  for (const control of [asksBtn, othersBtn]) showNews(control, false);
   // Seed the invariant middle once; arrangeBannerControls puts the two edge families
   // around it and later preserves any registry-declared controls added among these three.
-  bannerActions.append(latestChip, decisionsBtn, versionBtn);
+  bannerActions.append(latestChip, asksBtn, versionBtn);
 
   arrangeBannerControls();
   banner.append(bannerStatus, bannerActions);
@@ -412,7 +433,7 @@ export function reserveBannerControls() {
   reserve(versionBtn, versionLabels());
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
   reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
-  reserve(decisionsBtn, ["Asks 999/999"]);
+  reserve(asksBtn, ["Asks 999/999"]);
   reserve(othersBtn, ["All leaves (999)"]);
   foldShelf();
   reservedCovering = covering().matches;

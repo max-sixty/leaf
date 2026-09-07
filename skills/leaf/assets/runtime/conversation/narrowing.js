@@ -15,7 +15,8 @@
    Neither takes a card out of the document. An open thread the narrowing hides keeps
    its node, `hidden`: a widget an agent sent in a reply is instantiated once, in that
    card, and the banner's Asks count, the tray's rows and the `a`/`A` walk all find it
-   by id. `openThreads` and the `t`/`T` walk read only the cards that show. */
+   by id. Panel work reads only the cards that show; while the panel is closed, the
+   page-local `t`/`T` walk includes them all. */
 import { anchorLabel } from "./messages.js";
 import { awaitsReader } from "./model.js";
 import { el } from "../widget-elements.js";
@@ -25,9 +26,9 @@ import { renderThreads } from "./thread-list.js";
 import { paintAcknowledgments, threadList } from "./reconcile.js";
 
 // Whose turn a thread is (`awaitsReader`) belongs to the model rather than to this file,
-// because the banner's decision count asks the same question from the other side: a request
+// because the banner's Ask count asks the same question from the other side: a request
 // whose own conversation is with the agent is not the reader's to deal with. The panel
-// saying so while the banner went on counting the decision was one fact told two ways.
+// saying so while the banner went on counting the Ask was one fact told two ways.
 let finding = "";
 let onlyNeedsYou = false;
 export const narrowed = () => Boolean(finding) || onlyNeedsYou;
@@ -38,7 +39,7 @@ export const narrowed = () => Boolean(finding) || onlyNeedsYou;
 // the reader can see and therefore what they would search for.
 const threadWords = (t, group) =>
   [
-    anchorLabel(t.root.anchor, t.root.about),
+    anchorLabel(t.anchor, t.root.about),
     group.label,
     ...t.msgs.map((m) => m.text ?? m.token),
   ]

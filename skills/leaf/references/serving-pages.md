@@ -14,7 +14,7 @@ leaf version export <page> -o <file>
 ```
 
 Hand back the `file://` URL. Do not start a server or wait. An export keeps the
-drawn page, standing decisions, and inline conversation messages. It removes
+drawn page, standing Asks, and inline conversation messages. It removes
 live chrome and handlers; native disclosures still work. Write it where the
 project keeps user-facing artifacts. A live page can also be exported without
 ending its loop.
@@ -105,7 +105,7 @@ leaf page state <page>
 ```
 
 Read `content` for the current document and its construction origins, then the
-active revision, open decisions, current thread state, and `measurement_lag` for
+active revision, open Asks, current thread state, and `measurement_lag` for
 figures whose sources have run again. Before editing, follow
 `authoring-revisions.md`'s "Read before editing" section. Select one thread's
 current markup with `leaf page state <page> --thread <id>`, or its raw exchange

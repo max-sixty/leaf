@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from .acknowledgments import page_action_unsettled
-from .decisions import asking, quoted_in, replayed_attrs
+from .asks import asking, quoted_in, replayed_attrs
 from .events import build_threads, note_settlements
 from .files import latest_revision, revision_path
 from .passages import enclosing_of, page_passages
@@ -121,10 +121,7 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
     registry = None
     html = None
     spk: dict = {}
-    try:
-        widget_revision = latest_revision(page_dir)
-    except SystemExit:
-        widget_revision = None
+    widget_revision = latest_revision(page_dir)
     if widget_revision is not None:
         html = revision_path(page_dir, widget_revision).read_text(encoding="utf-8")
         registry = require_registry(page_dir)

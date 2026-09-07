@@ -5,28 +5,6 @@ the relevant design note or in git history.
 
 ## Now
 
-- **Cover every focus indicator.** Extend
-  `test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` so accent
-  `box-shadow` focus rings take part in its geometry sweep. Recheck `corpus` and
-  `ship-review` at the bottom of the viewport, then fix any clipping the wider sweep
-  reports.
-
-- **Offer structural authoring advice.** Add non-blocking advice to `version check`,
-  starting with pages that have two or more section headings but no `lf-toc`. Keep the
-  rules deterministic and optional; the first case is specified in
-  [the agent-usability notes](notes/agent-usability-evals.md#near-term-usability-todo).
-
-- **Fit more complete cards in the thread panel.** Reduce thread-card padding and
-  spacing while preserving readable grouping, reachable controls, and focus-ring room.
-  Judge the change on a 24-thread page with a before-and-after visual sweep.
-
-## Next
-
-- **Install outside packages by name.** Let `leaf package install SOURCE` place a
-  package in a user-owned store and make `--package NAME` resolve installed and bundled
-  packages through the same directory contract. Leave updates, pinning, and trust to
-  later dogfooding.
-
 - **Establish the first agent-usability baseline.** Build the cold-authoring,
   reading-parity, and resume fixtures described in
   [the evaluation plan](notes/agent-usability-evals.md#first-executable-slice), then use
@@ -53,23 +31,21 @@ the relevant design note or in git history.
   idiom for owner state other owners read: `export let` bindings or reader functions,
   not both.
 
-- **Validate scopes at the first paint.** Stop `keys()` running row callbacks as a
-  module evaluates: validate every scope on its first paint, the way capability-gated
-  scopes already are, and move the ambiguous-row refusal in
-  `test_a_scope_cannot_give_one_live_key_two_meanings` to that boundary. This closes the
-  one evaluation-order path the `leaf/evaluation-order` rule cannot see.
-
-- **Pin the evaluation-order rule with planted faults.** A test that feeds
-  `eslint --stdin` a cycle module with a module-scope read of a cycle binding, a call of
-  a cycle function, an IIFE call, and a bare function reference, and asserts the first
-  three are refused and the fourth allowed.
+- **Give the touch grip room of its own, then fit more thread cards.** At a coarse
+  pointer the panel's resize grip is a 44px square laid over the list, and nothing
+  reserves that space: cards run under it at every scroll position, so whether its
+  focus ring lands on a button is luck. Tightening the cards' spacing moved one Send
+  button up onto it and
+  `test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll` said so,
+  which is why e4cd887f was reverted.
+  Reserving a full-height gutter would contradict the grip's own design — a local
+  handle, not a scroll-blocking wall — so settle what the phone sheet owes it first.
+  Spacing alone does not fit a third card either: the card's own content already
+  exceeds a third of the list's height, which is the reply box and Send/Resolve row
+  every card carries. Collapsing that to a single Reply affordance until the reader
+  enters the card is the change that would.
 
 - **Make the MCP bundle fail loud on an evaluation-order fault.** esbuild hoists
   cross-module `let`/`const` into `var`s, so a fault the browser throws on reads
   `undefined` in the bundle; give `test_render_mcp` a probe that would see it, or build
   the bundle in a form that keeps the dead zone.
-
-- **Fold leaf.js's narrative header into its owners.** The 200-line header still tells
-  the widget layer, actions, threads and versions story; each paragraph belongs on the
-  module that owns it, leaving leaf.js with the boot sequence and a pointer to
-  `skills/leaf/assets/CLAUDE.md`.

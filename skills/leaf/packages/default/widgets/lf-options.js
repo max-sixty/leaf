@@ -37,8 +37,9 @@
  * the page, it can open a separate thread anchored to that option.
  *
  * The keyboard walk stops at options. Tab remains the platform's path through every
- * control and into the add field; Enter submits only from that field. A generated option
- * joins the walk on replay just like an authored one.
+ * control and into the add field. There it follows Leaf's shared text-box contract:
+ * Enter writes a newline and Mod+Enter adds the option. A generated option joins the
+ * walk on replay just like an authored one.
  *
  * In a thread the existing reply box already owns those words, so Enter from a mark
  * continues into that box and a `multiple` group grows a Done press instead: every

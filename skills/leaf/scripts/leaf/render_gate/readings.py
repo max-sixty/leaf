@@ -1,6 +1,7 @@
-"""Browser probe readings for one settled color scheme."""
+"""Browser probe readings for one settled color scheme, and the finding each becomes."""
 
 import json
+from dataclasses import dataclass
 
 from leaf.passages import EMPTY, spoken
 from leaf.projection import (
@@ -12,10 +13,25 @@ from leaf.projection import (
 from leaf.registry.state import retirement_slots
 from leaf.render_checks import evaluate_probe, wait_for_probe
 
-from .models import _SchemeContext, _SchemeReadings
+
+@dataclass(frozen=True, slots=True)
+class _SchemeContext:
+    page: object
+    scheme: str
+    errors: list
+    resize_notices: list
+    registry: dict
+    widgets: dict
+    state: dict
+    markup: str
+    here: int
+    earlier: str | None
+    touched: list
+    replayed: bool
+    unsettled: list
 
 
-def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
+def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     page = context.page
     scheme = context.scheme
     registry = context.registry
@@ -26,6 +42,9 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
     earlier = context.earlier
     touched = context.touched
     replayed = context.replayed
+    errors = context.errors
+    resize_notices = context.resize_notices
+    unsettled = context.unsettled
     failsoft = evaluate_probe(page, "failSoftErrors")
     invalid_paints = evaluate_probe(page, "invalidPaints")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", widgets)
@@ -170,7 +189,7 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
         # nothing, which is the right way round — the next run reads it again.
         on_paper += [
             f"[print] {s['at']} drops {json.dumps(s['text'])}, which it says on screen"
-            for s, p in zip(screen, paper)
+            for s, p in zip(screen, paper, strict=False)
             if s["text"] == p["text"] and s["shown"] and not p["shown"]
         ]
     # Last: these probes render temporary complete states. Compare carried actions
@@ -202,29 +221,90 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
     # that never draws cannot strand page.evaluate on its unresolved Promise.
     requested_frame = evaluate_probe(page, "requestFrame")
     wait_for_probe(page, "framePresented", requested_frame)
-    return _SchemeReadings(
-        failsoft=failsoft,
-        invalid_paints=invalid_paints,
-        missing_upgrades=missing_upgrades,
-        visual_provider_problems=visual_provider_problems,
-        tiny=tiny,
-        unmarkable=unmarkable,
-        overflow=overflow,
-        misplaced=misplaced,
-        withheld=withheld,
-        squeezed=squeezed,
-        clipped=clipped,
-        unreachable=unreachable,
-        covered=covered,
-        unread=unread,
-        undeclared_shadow=undeclared_shadow,
-        conflicts=conflicts,
-        dishonest_verbatim=dishonest_verbatim,
-        silent=silent,
-        missing_conversations=missing_conversations,
-        undeclared_attrs=undeclared_attrs,
-        retired=retired,
-        trapped=trapped,
-        on_paper=on_paper,
-        relative=relative,
-    )
+    found = [f"[{scheme}] console: {e}" for e in errors]
+    found += [f"[{scheme}] a widget failed soft: {t}" for t in failsoft]
+    for paint in invalid_paints:
+        owner = f"<{paint['tag']}" + (f" id={paint['id']!r}>" if paint["id"] else ">")
+        part = f" for data-id={paint['part']!r}" if paint["part"] else ""
+        found.append(
+            f"[{scheme}] {owner} renders {paint['property']}={paint['value']!r} "
+            f"on <{paint['element']}>{part}, but that value does not resolve to valid "
+            f"{paint['property']}"
+        )
+    if missing_upgrades:
+        found.append(
+            f"[{scheme}] upgraded widgets did not define their elements: "
+            + ", ".join(f"<{tag}>" for tag in missing_upgrades)
+        )
+    found += [
+        f"[{scheme}] <{p['tag']} id={p['id']!r}> declares addressable visual "
+        f"parts but its module {'; '.join(p['problems'])}"
+        for p in visual_provider_problems
+    ]
+    if tiny:
+        found.append(
+            f"[{scheme}] widgets rendered with no usable size: {json.dumps(tiny)}"
+        )
+    found += [
+        f"[{scheme}] <{u['tag']} id={u['id']!r}> shows {u['w']}x{u['h']}px of words"
+        " and offers no box to mark: it draws none of its own and no element inside"
+        " it draws one either, so a comment anchored here would outline nothing and"
+        " the Ask walk would travel to the top of the page. Put the words in an"
+        " element that takes a box"
+        for u in unmarkable
+    ]
+    if overflow > 0:
+        found.append(f"[{scheme}] the page scrolls sideways by {overflow}px")
+    found += [f"[{scheme}] {s}" for s in misplaced]
+    found += [f"[{scheme}] {w}" for w in withheld]
+    found += [f"[{scheme}] {s}" for s in squeezed]
+    found += [
+        f"[{scheme}] the control .{c['ctrl'].split()[0]}"
+        + (f" (#{c['id']})" if c["id"] else "")
+        + f" is drawn {c['lost']}px outside the {c['by']} that clips it, where"
+        " nothing can scroll to reach it — the page offers a press it does not show"
+        for c in clipped
+    ]
+    found += [f"[{scheme}] {w}" for w in unreachable]
+    found += [f"[{scheme}] {c}" for c in covered]
+    found += [f"[{scheme}] {u}" for u in unread]
+    if undeclared_shadow:
+        found.append(
+            f"[{scheme}] shadow roots the registry doesn't declare "
+            f"(an undeclared root's words anchor quotes astray; declare "
+            f"x-shadow): {', '.join(undeclared_shadow)}"
+        )
+    found += [f"[{scheme}] {d}" for d in dishonest_verbatim]
+    found += [f"[{scheme}] {s}" for s in silent]
+    for c in missing_conversations:
+        found.append(
+            f"[{scheme}] <{c['tag']} id={c['id']!r}> declares x-conversation but "
+            f"rendered {c['hosts']} matching hosts; its module must place exactly "
+            "one conversationBox"
+        )
+    for u in {(x["tag"], x["attr"]): x for x in undeclared_attrs}.values():
+        found.append(
+            f"[{scheme}] <{u['tag']} id={u['id']!r}> carries {u['attr']!r}, which "
+            "its registry entry does not declare — declare it as a verb's record "
+            "form (x-state) if a version is meant to carry it, or write the state "
+            "on the chrome the module built"
+        )
+    for t in {(x["tag"], x["edge"]): x for x in trapped}.values():
+        box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
+        found.append(
+            f"[{scheme}] {box} draws {t['drawn']:g}px of inset and shows "
+            f"{t['drawn'] + t['margin']:g}px {t['edge']} what it holds "
+            f"(id={t['id']!r}): its {t['edge'] == 'above' and 'first' or 'last'} "
+            f"block is a <{t['child']}> reserving {t['margin']:g}px against a "
+            f"neighbour it hasn't got, and the box is where that margin stops. "
+            f"Declare --lf-frame: 1 in the rule that draws the frame, so the trim "
+            f"in theme.css reaches it"
+        )
+
+    found += [f"[{scheme}] {r}" for r in retired]
+    found += [f"[{scheme}] {u}" for u in unsettled]
+    found += [f"[{scheme}] {c}" for c in conflicts]
+    found += [f"[{scheme}] {r}" for r in relative]
+    found += on_paper
+    notices = [f"[{scheme}] console: {e}" for e in resize_notices]
+    return found, notices

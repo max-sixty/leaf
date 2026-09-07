@@ -50,9 +50,8 @@ _PROBES_LOADED = f"""(call) => {{
   }}
   return loading.probes !== null;
 }}"""
-_INVOKE_PROBE = f"""(call) => {{
-  const probes = globalThis.{_PROBE_CACHE}?.probes;
-  const probe = probes[call.name];
+_PROBE = f"""(call) => {{
+  const probe = globalThis.{_PROBE_CACHE}?.probes?.[call.name];
   if (typeof probe !== "function")
     throw new TypeError(`unknown Leaf browser probe ${{call.name}}`);
   const result = probe(...call.args);
@@ -60,18 +59,6 @@ _INVOKE_PROBE = f"""(call) => {{
     throw new TypeError(
       `Leaf browser probe ${{call.name}} must be synchronous; ` +
       `publish a synchronous reading or readiness fact instead`
-    );
-  return result;
-}}"""
-_POLL_PROBE = f"""(call) => {{
-  const probe = globalThis.{_PROBE_CACHE}?.probes?.[call.name];
-  if (typeof probe !== "function")
-    throw new TypeError(`unknown Leaf browser probe ${{call.name}}`);
-  const result = probe(...call.args);
-  if (result && typeof result.then === "function")
-    throw new TypeError(
-      `Leaf wait probe ${{call.name}} must be synchronous; ` +
-      `publish a synchronous readiness fact instead`
     );
   return result;
 }}"""
@@ -132,7 +119,7 @@ def evaluate_probe(page, name: str, *args):
     """Invoke one named export from the browser probe module."""
     call = _call(page, name, args)
     _load_probes(page, call)
-    return page.evaluate(_INVOKE_PROBE, call)
+    return page.evaluate(_PROBE, call)
 
 
 def wait_for_probe(page, name: str, *args) -> None:
@@ -142,7 +129,7 @@ def wait_for_probe(page, name: str, *args) -> None:
     call = _call(page, name, args)
     _load_probes(page, call)
     try:
-        page.wait_for_function(_POLL_PROBE, arg=call, timeout=call["timeoutMs"])
+        page.wait_for_function(_PROBE, arg=call, timeout=call["timeoutMs"])
     except PlaywrightTimeout as error:
         raise PlaywrightTimeout(
             f"Leaf wait probe {name} did not become true within {call['timeoutMs']}ms"

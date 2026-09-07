@@ -58,7 +58,10 @@ newer events.
 
 Input arriving while the turn is active adds a batch to that same payload and
 creates no queued message. The prompt and Stop hooks carry its pointer into the
-running turn. If another prompt opens the task before the pending queue command
+routing turn. Queue acceptance records **Queued** activity; the prompt hook that
+opens the task records those same events as **Picked up** in that exact turn, so
+the browser reports **handling** without depending on a later status command. If
+another prompt opens the task before the pending queue command
 runs, that hook supplies the pointer and cancels the redundant queue item. Stop
 offers any batches newer than the accepted queue snapshot. A pointer supplied only
 by the prompt hook is offered again at Stop because that hook has no delivery

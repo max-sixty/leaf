@@ -1,0 +1,45 @@
+name = "leaf-website"
+account_id = "ece2539b9b32ab59dd74aa6b6285e5db"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat_do_not_populate_process_env"]
+workers_dev = false
+
+[assets]
+directory = "../.tmp/site"
+binding = "ASSETS"
+run_worker_first = true
+
+[[containers]]
+class_name = "LeafExampleSession"
+image = "../Dockerfile.website"
+max_instances = 10
+instance_type = "lite"
+
+[[durable_objects.bindings]]
+name = "EXAMPLES"
+class_name = "LeafExampleSession"
+
+[[workflows]]
+name = "leaf-example-agent"
+binding = "AGENT_WORKFLOW"
+class_name = "LeafExampleAgentWorkflow"
+
+[[ratelimits]]
+name = "SOURCE_AGENT_RATE_LIMITER"
+namespace_id = "34302"
+
+  [ratelimits.simple]
+  limit = 100
+  period = 60
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["LeafExampleSession"]
+
+[observability]
+enabled = true
+
+[[routes]]
+pattern = "leaf.page"
+custom_domain = true

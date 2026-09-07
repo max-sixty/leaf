@@ -30,7 +30,7 @@ measurement definition.
 ## Interactive and visual evidence
 
 Introduce each interaction in the page's own language: say that a board takes a
-drag, an options group takes a click, or a review task's nested Decision takes a pick.
+drag, an options group takes a click, or a review task's nested Ask takes a pick.
 Do not copy the connective sentence from another page.
 
 Use `lf-diagram` for flows, state machines, sequences, class relationships, ER
@@ -41,9 +41,14 @@ baseline, and copy the whole `fill`/`stroke`/`color` set from the registry entry
 as `fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. Beautiful Mermaid also
 honors `stroke-width`; other properties are ignored. The widget refuses the
 `click`, `accTitle`, and `accDescr` directives, which the renderer would draw as
-nodes; a malformed statement it does not recognise can still render as a node or
-only in part, and `version check --render` reports renderer failures, not that
-partial output, so look at each flowchart once. Use `lf-chart` for
+nodes, and a node label holding the delimiter that closes its own shape, such as
+`A["names: list[str]"]`, which the renderer cuts at that character, quoted or not,
+and then drops the rest of the line; a shape whose closer is doubled carries the
+character whole, so `A[["names: list[str]"]]` and `A(["names: list[str]"])` both
+render, as does a subgraph title, which the renderer reads whole —
+`subgraph S["Stage [1]"]`. A malformed statement the renderer does not recognise can
+still render as a node or only in part, and `version check --render` reports renderer
+failures, not that partial output, so look at each flowchart once. Use `lf-chart` for
 quantities that need Leaf's data-first chart vocabulary: a comparison across a few
 categories, a run over time, a ranking, a composition, or two numbers against each
 other. The diagram renderer is 1.5MB, so `lf-diagram` travels in the `diagram`

@@ -23,9 +23,15 @@ page only to pick up a page this session did not serve; `leaf wait <page>` claim
 it.
 
 Start `leaf wait` as a background task and end the turn. Its completion becomes
-host input. After each batch, start `leaf ack` as the next background task; it
-acknowledges that batch and waits for another. The event reference owns the
-complete-batch and acknowledgement rules.
+host input and records the included moves as opened in that exact turn. After each
+batch, start `leaf ack` as the next background task; it acknowledges that batch
+and waits for another. The event reference owns the complete-batch and
+acknowledgement rules.
+
+If a turn ends without answering an acknowledged move, the next prompt hook
+carries that obligation back into context and records it as opened in the new
+turn. The page therefore resumes **handling** from that exact prompt delivery;
+the agent does not need a status write to repair the top bar.
 
 The initial `leaf wait` revives a dead server under its recorded lifetime and
 reports that on stderr. Its exit 2 means stderr names an ending rather than a

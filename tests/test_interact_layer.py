@@ -38,6 +38,7 @@ from leaf import locations as interact_locations
 from leaf import packages as packages_model
 from leaf import schema as schema_model
 from leaf import vendoring as vendoring_model
+from leaf.registry import reactions as registry_reactions
 
 EXPECTED_PAGE_STATE_FILES = (
     "events.jsonl",
@@ -81,7 +82,7 @@ Commands:
   edit        Edit one of this agent session's messages.
   events      Print the event log as JSON lines.
   mcp         Run Leaf's bundled MCP Apps server.
-  package     Create and check packages.
+  package     Create, check, and install packages.
   page        Create pages and add media.
   receipt     Record the terminal outcome of a reader request.
   reply       Reply to a thread as the agent.
@@ -129,14 +130,15 @@ Commands:
             ["package", "--help"],
             """Usage: leaf package [OPTIONS] COMMAND [ARGS]...
 
-  Create and check packages.
+  Create, check, and install packages.
 
 Options:
   --help  Show this message and exit.
 
 Commands:
-  check  Check a package as one unit.
-  init   Create a package directory.
+  check    Check a package as one unit.
+  init     Create a package directory.
+  install  Install a package for selection by name.
 """,
             id="package",
         ),
@@ -293,6 +295,28 @@ def test_the_python_instructions_name_every_module_they_own():
         )
     ]
     assert not unnamed, f"unnamed in scripts/CLAUDE.md: {unnamed}"
+
+
+def test_the_root_instructions_name_every_directory_ci_gates_on_its_own():
+    """A gate `uv run pytest tests` does not reach must be named where sessions read.
+
+    `ci.yaml` runs one job per gate, and a step that names a `working-directory`
+    is a gate with its own tools and its own command — the website Worker's
+    TypeScript today. Neither the suite nor pre-commit reaches such a tree, and
+    `wt merge` runs only those two, so a session that lands there on the root
+    instructions alone reddens main. The set comes from the workflow rather than
+    a list here, for the reason the reference routing above states: a list is the
+    second copy, and the job added without the paragraph would stay green.
+    """
+    workflow = (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
+    instructions = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    directories = sorted(
+        set(re.findall(r"^\s*working-directory:\s*(\S+)", workflow, re.MULTILINE))
+    )
+
+    assert directories, "no working-directory read — an empty set names itself"
+    unnamed = [d for d in directories if f"`{d}/`" not in instructions]
+    assert not unnamed, f"unnamed in CLAUDE.md: {unnamed}"
 
 
 def test_hidden_hook_remains_callable():
@@ -539,7 +563,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/hooks.json",
         "hooks/scripts/loop-guard.py",
         "skills/leaf/SKILL.md",
-        "skills/leaf/references/authoring-decisions.md",
+        "skills/leaf/references/authoring-asks.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
@@ -556,6 +580,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/packages/default/registry.json",
         "skills/leaf/packages/diagram/registry.json",
         "skills/leaf/packages/diff/registry.json",
+        "skills/leaf/packages/playground/registry.json",
         # The form a leaf process re-launches itself in.
         "skills/leaf/scripts/leaf/__main__.py",
     ]:
@@ -801,7 +826,7 @@ def test_every_vendored_stylesheet_parses(page_dir):
 
 def test_the_chrome_sheet_spells_the_runtime_s_layout_numbers():
     """A media query cannot read a custom property, so chrome.css states the covering
-    widths, the strip-taking tray, the width properties, and the decision stamp as
+    widths, the strip-taking tray, the width properties, and the Ask stamp as
     literals while the runtime lays out and paints by the constants. Held equal here
     rather than trusted to stay so."""
     runtime = schema_model.ASSETS / "runtime"
@@ -830,7 +855,7 @@ def test_the_chrome_sheet_spells_the_runtime_s_layout_numbers():
         strip_rule,
         "var(" + constant(r'^export const PANEL_PROP = "([^"]+)";', layout) + ")",
         "var(" + constant(r'^export const TRAY_PROP = "([^"]+)";', trays) + ")",
-        "[" + constant(r'^  decision: "([^"]+)",', presentation) + "]",
+        "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
     ):
         assert spelling in sheet, f"chrome.css no longer spells {spelling}"
 
@@ -2259,6 +2284,119 @@ def test_package_init_creates_independently_selectable_packages(tmp_path, monkey
     assert (page / "widgets" / "lf-callout.js").is_file()
 
 
+def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch):
+    """An installed package is a bundled one kept somewhere else.
+
+    The store holds the package contract and none of the rest of the author's
+    working directory, and the page reads the store rather than the source, which
+    is gone by the time it is vendored.
+    """
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    source = tmp_path / "src" / "callout"
+    created = runner.invoke(cli_model.cli, ["package", "init", str(source)])
+    assert created.exit_code == 0, created.output
+    add_test_widget(source, "lf-callout", upgrade=True)
+    (source / "README.md").write_text("How to work on this package.\n")
+    (source / "spec").mkdir()
+    (source / "spec" / "case.txt").write_text("the author's own test\n")
+
+    installed = runner.invoke(cli_model.cli, ["package", "install", str(source)])
+
+    stored = host_model.package_store() / "callout"
+    assert installed.exit_code == 0, installed.output
+    assert installed.output == f"installed {stored}\n"
+    assert sorted(path.name for path in stored.iterdir()) == [
+        "guidance",
+        "registry.json",
+        "runtime",
+        "theme.css",
+        "vendor",
+        "widgets",
+    ]
+
+    shutil.rmtree(source)
+    page = tmp_path / "page"
+    vendored = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "callout", str(page)]
+    )
+
+    assert vendored.exit_code == 0, vendored.output
+    registry = json.loads((page / "registry.json").read_text())
+    assert registry["$layer"]["packages"] == ["callout"]
+    assert "lf-callout" in registry
+    assert (page / "widgets" / "lf-callout.js").is_file()
+
+
+def test_package_install_never_changes_which_directory_a_name_means(
+    tmp_path, monkeypatch
+):
+    """A taken name is refused, whichever root already answers to it.
+
+    Installed and bundled are one refusal because they come from the one lookup
+    `--package` resolves through.
+    """
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    store = host_model.package_store()
+    for name in ("callout", "diagram"):
+        created = runner.invoke(cli_model.cli, ["package", "init", f"src/{name}"])
+        assert created.exit_code == 0, created.output
+    first = runner.invoke(cli_model.cli, ["package", "install", "src/callout"])
+    assert first.exit_code == 0, first.output
+    (store / "callout" / "theme.css").write_text("lf-callout { color: teal; }\n")
+    before = {
+        path.relative_to(store): path.read_bytes()
+        for path in store.rglob("*")
+        if path.is_file()
+    }
+
+    standing = runner.invoke(cli_model.cli, ["package", "install", "src/callout"])
+    bundled = runner.invoke(cli_model.cli, ["package", "install", "src/diagram"])
+
+    assert standing.exit_code != 0
+    assert f"'callout' already resolves to {store / 'callout'}" in standing.output
+    assert "remove that directory to replace it" in standing.output
+    assert bundled.exit_code != 0
+    assert (
+        f"'diagram' already resolves to {schema_model.BUNDLED_PACKAGES / 'diagram'}"
+        in bundled.output
+    )
+    assert "rename the source directory" in bundled.output
+    assert {
+        path.relative_to(store): path.read_bytes()
+        for path in store.rglob("*")
+        if path.is_file()
+    } == before
+
+
+def test_package_install_refuses_a_source_it_cannot_check_or_name(
+    tmp_path, monkeypatch
+):
+    """The install door is `package check` plus a name a page can select.
+
+    A package that fails composition, and one whose directory name is not a name
+    `--package` accepts, are both refused before the store exists.
+    """
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    broken = tmp_path / "src" / "broken"
+    unnamable = tmp_path / "src" / "Callout Package"
+    for source in (broken, unnamable):
+        created = runner.invoke(cli_model.cli, ["package", "init", str(source)])
+        assert created.exit_code == 0, created.output
+    (broken / "theme.css").write_text(".bad { color red; }\n")
+
+    failed = runner.invoke(cli_model.cli, ["package", "install", str(broken)])
+    misnamed = runner.invoke(cli_model.cli, ["package", "install", str(unnamable)])
+
+    assert failed.exit_code != 0
+    assert f"{broken / 'theme.css'} syntax error" in failed.output
+    assert misnamed.exit_code != 0
+    assert "'Callout Package' cannot be selected by name" in misnamed.output
+    assert not host_model.package_store().exists()
+
+
 def test_package_init_names_a_wrong_kind_lower_package(tmp_path, monkeypatch):
     project = tmp_path / "project"
     project.mkdir()
@@ -2990,7 +3128,8 @@ def test_page_init_does_not_treat_an_unknown_bare_name_as_a_path(tmp_path, monke
     )
 
     assert result.exit_code == 1
-    assert "unknown bundled package 'solo'" in result.output
+    assert "unknown package 'solo'" in result.output
+    assert "run `leaf package install`" in result.output
     assert "use './solo'" in result.output
     assert not page.exists()
 
@@ -3278,9 +3417,9 @@ def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
             {
                 "$reactions": {
                     "tokens": {
-                        "ok": {"glyph": "👍", "means": "ship it", "settles": True},
-                        "cut": None,
-                        "meh": {"glyph": "~", "means": "neither here nor there"},
+                        "keep": {"glyph": "👍", "means": "ship it", "settles": True},
+                        "shorten": None,
+                        "meh": {"glyph": "~"},
                     }
                 }
             }
@@ -3293,26 +3432,33 @@ def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     tokens = json.loads((page / "registry.json").read_text())["$reactions"]["tokens"]
-    assert list(tokens) == ["ok", "no", "lost", "more", "this", "meh"]
-    assert tokens["ok"] == {"glyph": "👍", "means": "ship it", "settles": True}
-    assert tokens["meh"] == {"glyph": "~", "means": "neither here nor there"}
-    assert "settles" not in tokens["no"]
+    assert list(tokens) == ["keep", "change", "clarify", "support", "prioritize", "meh"]
+    assert tokens["keep"] == {"glyph": "👍", "means": "ship it", "settles": True}
+    assert tokens["meh"] == {"glyph": "~"}
+    assert "settles" not in tokens["change"]
+    assert registry_reactions.described(
+        {"token": "keep"}, {"$reactions": {"tokens": tokens}}
+    ) == {
+        "token": "keep",
+        "means": "ship it",
+    }
+    assert registry_reactions.described(
+        {"token": "meh"}, {"$reactions": {"tokens": tokens}}
+    ) == {"token": "meh"}
 
 
 @pytest.mark.parametrize(
     "entry",
     [
-        {"glyph": "✓"},  # no meaning for `leaf wait` to print
+        {"glyph": "✓", "means": ""},
         {"glyph": "", "means": "x"},
         {"glyph": "✓", "means": "x", "settle": True},  # a flag nothing reads
         {"glyph": "✓", "means": "x", "settles": "yes"},
     ],
 )
 def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch, entry):
-    """Every consumer reads a token's entry directly — the bar paints `glyph`,
-    `leaf wait` prints `means`, the panel reads `settles` — so a member missing or
-    misspelled is a token that paints nothing or a flag that settles nothing, and
-    nothing else would say so."""
+    """Consumers read declared fields directly, so an invalid glyph, explanation, or
+    misspelled behavior must fail at the package boundary instead of disappearing."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     assert runner.invoke(cli_model.cli, ["package", "init", ".leaf"]).exit_code == 0

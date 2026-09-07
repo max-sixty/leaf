@@ -5,9 +5,10 @@
  * generated for the diff, but still page text a reader can select and comment on. A
  * static copy and paper place those same words after the phrase.
  *
- * Hover is only the fastest route. The raised mark is an ordinary Leaf offer, so Tab,
- * Enter, and Space reach it; clicking either the phrase or mark pins the card for touch
- * and careful reading. An auto popover owns the top-layer lifecycle and light dismissal;
+ * Hover is only the fastest route. The phrase is the visible affordance; an ordinary
+ * Leaf offer at the same place gives Tab, Enter, and Space their native route without
+ * adding a second mark to the prose. Clicking the phrase pins the card for touch and
+ * careful reading. An auto popover owns the top-layer lifecycle and light dismissal;
  * CSS anchors keep the card with its phrase. */
 import {
   offer,
@@ -48,7 +49,7 @@ customElements.define(
 
     #build() {
       const phrase = this.textContent.replace(/\s+/g, " ").trim();
-      this.#mark = offer("button", "lf-gloss-mark", "i");
+      this.#mark = offer("button", "lf-gloss-mark");
       this.#mark.setAttribute("aria-label", `Explain “${phrase}”`);
       this.#mark.setAttribute("aria-expanded", "false");
 
@@ -71,7 +72,12 @@ customElements.define(
       // also make it the popover; renderSaid sees the same marker and adds no duplicate.
       this.append(this.#bubble, this.#mark);
       this.#bubble.addEventListener("toggle", (event) => {
-        if (event.newState !== "closed" || !this.#shown) return;
+        if (
+          event.newState !== "closed" ||
+          !this.#shown ||
+          this.#bubble.matches(":popover-open")
+        )
+          return;
         this.#shown = false;
         this.#pinned = false;
         this.#dismissed = true;
@@ -157,7 +163,8 @@ customElements.define(
     #sync() {
       if (!this.#bubble?.isConnected) return;
       const show = !this.#dismissed && (this.#hovered || this.#focused || this.#pinned);
-      if (show === this.#shown) return;
+      const open = this.#bubble.matches(":popover-open");
+      if (show === this.#shown && show === open) return;
       this.#shown = show;
       this.#mark.setAttribute("aria-expanded", String(show));
       paintKeys();

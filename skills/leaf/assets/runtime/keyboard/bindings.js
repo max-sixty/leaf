@@ -283,9 +283,9 @@ function validateActive(active, where, bindingOf) {
   return active;
 }
 
-// Declaration-time validation deliberately ignores the reader's character-shortcut
-// preference. A saved preference must not let an ambiguous register install successfully
-// and then fail halfway through turning the commands back on.
+// A scope's own validation, run when its first paint reads the rows, deliberately ignores
+// the reader's character-shortcut preference. A saved preference must not let an ambiguous
+// register stand and then fail halfway through turning the commands back on.
 export const validateRows = (rows, where = "a scope") =>
   validateActive(rows.filter(live), where, declaredBindings);
 
@@ -385,7 +385,7 @@ export const ariaShortcuts = (rows, current = true, where) =>
 //
 // A letter matches on its lowercase with Shift asked for separately, because caps lock
 // writes an uppercase key out of an unshifted press and reads an unshifted one out of a
-// shifted press. Read off the glyph, `D` would match the shifted decision walk from a
+// shifted press. Read off the glyph, `A` would match the shifted Ask walk from a
 // bare letter under caps lock, and could no longer be reached with the Shift the chip
 // names. Asking
 // for the modifier is what makes the chip true in both directions.

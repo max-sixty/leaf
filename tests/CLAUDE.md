@@ -14,15 +14,16 @@ at.
 
 ## Run the narrowest useful surface
 
-A new cloud container needs the pinned environment and both browsers before the
-suite can run:
+A new development host fetches the pinned catalog images and installs the browser
+binaries and website dependencies with the repository setup alias. `uv run`
+synchronizes the Python environment, including pre-commit:
 
 ```sh
-uv sync --frozen
-uv run playwright install chromium --only-shell
-uv run playwright install chrome
-uv tool install pre-commit
+wt setup
 ```
+
+The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer. Docker is
+additionally needed for the complete website boundary and `scripts/linux-suite.sh`.
 
 A container without IPv6 cannot run the two tests that bind the stated-host
 wildcard `::`; run those from a workstation.
@@ -46,7 +47,11 @@ uv run pytest --lf --lfnf=none -x -n0
 
 Before handing over a browser-facing change, run its complete browser file and
 the everyday suite. `wt merge` runs pre-commit and the everyday suite after
-rebasing. CI adds `--run-nightly` after main moves.
+rebasing. CI runs the everyday suite on a pull request and, after it, the nightly
+cases in the test modules that pull request touches, so a change confined to a
+nightly module is gated before it lands rather than by the run after it. A change
+to the runtime those modules drive is still the nightly run's to catch: CI adds
+`--run-nightly` after main moves.
 
 `scripts/linux-suite.sh` supplies the pinned headless shell, installed Chrome,
 and CI fonts. It accepts pytest arguments and needs a Docker daemon that can run
@@ -122,24 +127,35 @@ control wears the ring is a separate question from which holds focus, and the
 layer answers it four ways (a thread card for anything inside it, a decision for
 the control reached, a joined option group for the one its picks give up, and
 an anchored element with no focus of its own), so the reading sweeps every box
-painting a ring and asks the outline, never `getComputedStyle(activeElement)`
-and never a selector. Each rule names the ring it draws in `--lf-here-ring`, so
-the population the floor divides by is read off the page's composed stylesheets.
+painting a ring and asks the paint, never `getComputedStyle(activeElement)`
+and never a selector. The band has two carriers: `--here-ring`, the outline
+nearly every rule draws, and `--here-shadow`, the same band cast as a shadow by
+the two boxes that cannot spend an outline on it — the anchored response bar and
+the item hint the keyboard is browsing. A shadow ring is the layer's spread with
+no offsets and no blur, and its outset is that spread, where an outline's is its
+width and offset. Each rule names the ring it draws in `--lf-here-ring`, so
+the population the floor divides by is read off the page's composed stylesheets,
+one question per carrier: does the value name the layer's token.
 `test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge`
 plants one outset ring under three clipping parents with a control case that
-must report nothing, and
+must report nothing,
+`test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow` puts the three
+shadows the layer draws that are not the band in front of the reading and then
+stands the band on the window's foot, and
 `test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` fails
 on any rule the corpus never paints and any scope its walk never opens. A ring
-is credited when a box painting the layer's width and style also carries a
-name; a name whose outline a later rule took away is not credited, and a ring
-painted with no name is its own finding. Nothing reads `@media` or `@supports`:
-the reading is taken on screen.
+is credited when a box painting the layer's band also carries a name; a name
+whose ring a later rule took away is not credited — which is what keeps the
+response bar's own controls off `pressable`, the floor rule whose outline the bar
+removes — and a ring painted with no name is its own finding. Nothing reads
+`@media` or `@supports`: the reading is taken on screen.
 
 The walk also asks at every stop whether the reader can see where the keyboard
 is, and four answers count: the platform's own ring (`outline-style: auto`), the
 layer's here ring on the stop or an ancestor drawing for it, the element mark's
-own ink at the indicated weight, and the accent shadow every box the reader
-types into wears. Colours are resolved through a swatch rather than compared as
+own ink at the indicated weight, and the band the anchored response bar casts as
+a shadow — the sweep's own reading of it, so the two halves of the file agree on
+what one is. Colours are resolved through a swatch rather than compared as
 written, since a `color-mix` and a plain token spell one colour two ways. Any
 outline an element wears for a reason other than focus silently costs it the
 ring it would otherwise have had.
@@ -230,10 +246,8 @@ two tabs for a single reader unless they share a browser context:
 `Browser.new_page` creates an independent context; `one_reader` supplies one
 context for the tests whose subject is shared tab state.
 
-The static product-site session is the deliberate exception for semantic page
-state: it has no Python authority, so its illustrative gestures last for the
-current load and reset on reload. Do not make browser storage a durable event
-log for that exhibit.
+The product-site pages are standalone exports. They retain rendered widgets and
+native controls, but have no scripts, runtime chrome, or semantic page state.
 
 For complete, valid browser fixtures, use `leaf_page(title, body, head="")`. It
 supplies the same language, charset, CSP, theme, module, and main-content shell
@@ -248,16 +262,21 @@ names, adds the publishing note and any requested comments, then serves the
 directory with the real HTTP handler and page key at that version's immutable
 URL. Handed an example's path rather than its markup it also lays in the
 external data and event log the example ships, and sets the cursor past the
-log. Markup is one version; an example is every version it ships
-(`example_versions`), stamped oldest first with the seed between the first note
-and any later one, and the URL is the newest. Use `serve(example,
-seed_log=False)` when only the shipped conversation would be noise. Reach the
-page directory through `serve.page_dir` when a test needs to publish v2 or
-inspect the log. `page_dir` in `interact_support.py` owns command-level files
-without starting a browser and clones its ordinary initialized layer the same
-way. Runtime and vendor files are immutable fixture inputs and may be shared;
-state, contracts, theme, and modules remain private. Tests of initialization,
-re-vendoring, or a custom overlay still cross the real `page init` boundary.
+log. It lays in the media that log names too, which a message writes in its
+Markdown rather than in an attribute, where the parsed reading that answers for
+a document cannot see it; the seed is read for content-addressed names, and
+they arrive whether or not the call seeds the log, since `seed_log=False` is
+how a caller appends those same events itself. Markup is one version; an
+example is every version it ships (`example_versions`), stamped oldest first
+with the seed between the first note and any later one, and the URL is the
+newest. Use `serve(example, seed_log=False)` when only the shipped conversation
+would be noise. Reach the page directory through `serve.page_dir` when a test
+needs to publish v2 or inspect the log. `page_dir` in `interact_support.py`
+owns command-level files without starting a browser and clones its ordinary
+initialized layer the same way. Runtime and vendor files are immutable fixture
+inputs and may be shared; state, contracts, theme, and modules remain private.
+Tests of initialization, re-vendoring, or a custom overlay still cross the real
+`page init` boundary.
 
 ## Drive the browser a reader gets
 
@@ -366,6 +385,11 @@ The causal helpers:
 - `sending(page, what)` encloses a gesture whose own event the assertion behind
   it reads: it waits for one further send to enter the wire and then for its
   trip, so the read cannot answer with the event that stood before the gesture.
+- `holding(page, held, count, what)` waits until a route's own list has the
+  requests the handler put there, for a test that holds the wire open — the ones
+  it paused, and the ones it recorded on the way through. The ledger counts a
+  send as the runtime makes it, a beat before the driver is handed the request,
+  so it is the wrong fact to read that list behind.
 - `told(page)` waits until the page has applied the reading the server holds
   now. Use it after the test writes a version, event, status, or lease that the
   browser learns by reading.
@@ -423,13 +447,11 @@ the page.
 
 For layout, animation, and navigation, identify the final fact precisely.
 `panel_settled` waits for the requested panel class and then for the body's
-finite animations to empty. `reservations_taken` waits for the room the panel's
-settlement controls hold, which lands a ResizeObserver delivery and a frame after
-`panel_settled`. `resized` waits for the resize event to reach listeners and then
-for one rendering update behind it; the document's own scrolling area is
-published in the update after the one the event arrived in. An observer or
-protocol record that outlives a motion is read after `moving` says finite motion
-has ended. An element-anchored quote can cause an instant document scroll
+finite animations to empty. `resized` waits for the resize event to reach listeners
+and then for one rendering update behind it; the document's own scrolling area is
+published in the update after the one the event arrived in. An observer or protocol
+record that outlives a motion is read after `moving` says finite motion has ended. An
+element-anchored quote can cause an instant document scroll
 followed by a smooth scroll, so its first `scrollend` is a real edge but not the
 destination; wait for the mark to reach the computed position or for the final
 document scroll to stop.
@@ -466,8 +488,14 @@ pattern nothing ever asks for, so a route a test registers later only adds to a
 list the browser is already consulting; a page made another way is unarmed.
 
 A handler that appends a route to `held` has established only that the browser
-made the request. Before indexing `held`, wait for the corresponding `Traffic`
-edge, a request event, or another fact named by the handler.
+made the request. Before reading that list — indexing it, asserting its length,
+or taking the handler away with `page.unroute`, which leaves a request dispatched
+any later to go out unrecorded — wait through `holding`, which is that
+sanctioned repeat: the ledger shows the send was made, and the driver call it
+repeats is what dispatches the route into this process. Do not wait on the
+corresponding `Traffic` edge instead — the ledger counts the send a beat before
+the request arrives here, and once it is held nothing repaints, so a wait on the
+paint has no second wake-up to catch a route that lands late.
 
 Keep the three route operations distinct:
 
@@ -563,6 +591,14 @@ Do not substitute frame counts or quiet windows for these distinctions. Ask
 whether the claim concerns the settled state, one frame, the order of frames, or
 the exact turn of a write, then choose the smallest observation that can
 preserve it.
+
+Measure a node the layer rebuilds in one page-side call, resolving it by selector
+inside the same evaluation that reads its box. A Playwright locator resolves the
+element in one driver call and measures the handle it got in the next, so a paint
+landing in between hands back a detached node, whose box reads as all zeros rather
+than raising. Drawing marks are the standing case: every paint replaces the whole
+drawing layer, and `mark_box` in `test_render_drawing.py` is the reading that
+cannot be caught between the two.
 
 The movement tests ask both paths that can shift a target: press a control and
 compare the rest of its line, and let news arrive and compare all persistent

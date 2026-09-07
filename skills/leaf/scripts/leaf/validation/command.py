@@ -1,6 +1,7 @@
 """Command boundary for mutable-source validation."""
 
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 
 from leaf.event_log import flocked, read_events
@@ -18,14 +19,11 @@ def cmd_check(
     events_override: list | None = None,
 ) -> int:
     """Check the mutable source without activating or stamping it."""
-    if not transition_held:
-        with flocked(transition_lock(page_dir)):
-            return cmd_check(
-                page_dir,
-                render,
-                transition_held=True,
-                events_override=events_override,
-            )
+    with nullcontext() if transition_held else flocked(transition_lock(page_dir)):
+        return _check(page_dir, render, events_override)
+
+
+def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
     events = read_events(page_dir) if events_override is None else events_override
     result = check_source(page_dir, events)
     if result.errors:

@@ -11,15 +11,15 @@ from pathlib import Path
 from .files import json_bytes, read_json
 from .host import state_home
 from .leases import lock_is_held
-from .schema import ORPHAN_GRACE_SECS, PREVIEW_FILE
+from .schema import ORPHAN_GRACE_SECS, PREVIEW_FILE, SERVER_LOCK, SERVICE_FILE
 from .service import PageTransaction, claim_is_active, page_claim
 
 
 def running_server(page_dir: Path):
     """The desired service, while a process holds its live-server lease."""
-    if not lock_is_held(page_dir / "server.lock"):
+    if not lock_is_held(page_dir / SERVER_LOCK):
         return None
-    service = read_json(page_dir / "service.json")
+    service = read_json(page_dir / SERVICE_FILE)
     if not service or not service["enabled"]:
         return None
     return {
@@ -29,36 +29,9 @@ def running_server(page_dir: Path):
 
 
 def preview_metadata(page_dir: Path) -> dict | None:
-    """Read the safe identity a developer preview may show in browser chrome."""
-    path = page_dir / PREVIEW_FILE
-    preview = read_json(path)
-    if preview is None:
-        return None
-    if not isinstance(preview, dict) or preview.get("kind") != "example":
-        sys.exit(f"{path}: preview metadata must describe an example")
-    for field in ("example", "checkout", "started"):
-        if not isinstance(preview.get(field), str) or not preview[field]:
-            sys.exit(f"{path}: preview {field} must be a non-empty string")
-    interaction = preview.get("interaction")
-    if interaction not in ("reader", "automation"):
-        sys.exit(f"{path}: preview interaction must be reader or automation")
-    commit = preview.get("commit")
-    if commit is not None and not (
-        isinstance(commit, str) and re.fullmatch(r"[0-9a-f]{7,40}", commit)
-    ):
-        sys.exit(f"{path}: preview commit must be a Git object name")
-    dirty = preview.get("dirty")
-    if dirty is not None and not isinstance(dirty, bool):
-        sys.exit(f"{path}: preview dirty must be true or false")
-    return {
-        "kind": "example",
-        "example": preview["example"],
-        "checkout": preview["checkout"],
-        "interaction": interaction,
-        "started": preview["started"],
-        **({"commit": commit} if commit is not None else {}),
-        **({"dirty": dirty} if dirty is not None else {}),
-    }
+    """The identity a developer preview shows in browser chrome, as
+    `scripts/preview.py` wrote it, or None for a page that is not a preview."""
+    return read_json(page_dir / PREVIEW_FILE)
 
 
 def lifetime_note(page_dir: Path) -> str:
@@ -73,7 +46,7 @@ def lifetime_note(page_dir: Path) -> str:
     Read from service.json, the one place a lifetime is written down. The record
     lands before the URL is printed and survives an explicit stop, so a restart
     restores the same lifetime as well as the same URL."""
-    if (read_json(page_dir / "service.json") or {}).get("lifetime") == "standing":
+    if (read_json(page_dir / SERVICE_FILE) or {}).get("lifetime") == "standing":
         return "\n".join(
             (
                 "server   standing",
@@ -98,7 +71,7 @@ def loopback_note(page_dir: Path) -> str | None:
     record is what the server bound: a restart re-serving a loopback record says
     the same thing in an environment that would derive something else. A stated
     host binds the wildcard, which is not loopback, and says nothing."""
-    bind = (read_json(page_dir / "service.json") or {}).get("bind")
+    bind = (read_json(page_dir / SERVICE_FILE) or {}).get("bind")
     try:
         local = ipaddress.ip_address(bind).is_loopback
     except ValueError:
@@ -118,7 +91,7 @@ def stop_when_service_ends(page_dir: Path) -> None:
     """
     orphaned_at = None
     while True:
-        service = read_json(page_dir / "service.json")
+        service = read_json(page_dir / SERVICE_FILE)
         if not service or not service["enabled"]:
             os._exit(0)
         if service["lifetime"] == "standing":
@@ -135,7 +108,7 @@ def stop_when_service_ends(page_dir: Path) -> None:
             # cannot inherit a server already committed to retiring.
             try:
                 with PageTransaction(page_dir) as page:
-                    service = read_json(page_dir / "service.json")
+                    service = read_json(page_dir / SERVICE_FILE)
                     if not service or not service["enabled"]:
                         os._exit(0)
                     if service["lifetime"] == "standing" or page.active_claim:
@@ -175,7 +148,7 @@ def page_access(page_dir: Path, host: str | None = None) -> dict:
     `server run` bare, and a fresh address there would leave the user's open page
     polling a URL that no longer answers — which is why a stated host is recorded
     here rather than passed per run."""
-    access = read_json(page_dir / "service.json")
+    access = read_json(page_dir / SERVICE_FILE)
     if access and host is None:
         return access
     if host:

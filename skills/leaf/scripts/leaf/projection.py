@@ -15,7 +15,7 @@ from leaf.events import (
 from leaf.passages import EMPTY, collapse, enclosing_of, spoken
 from leaf.registry.contract import state_specs
 from leaf.registry.state import retirement_slots
-from leaf.structure import _StructParser, parse_structure
+from leaf.structure import StructParser, parse_structure
 from leaf.thread_context import (
     ThreadStructure,
     thread_roots,
@@ -150,7 +150,7 @@ def enclosing_slot(rec: dict, registry: dict):
     return None
 
 
-def retirement_holders(parser: _StructParser, registry: dict) -> list:
+def retirement_holders(parser: StructParser, registry: dict) -> list:
     """Every widget the page carries that a decision can settle, and what each
     outcome would retire: {"id", "tag", "retires": {outcome → ids},
     "withdrawn_as"}. An id belongs to a slot when the slot stands anywhere
@@ -336,11 +336,6 @@ class FrozenThreadReading(NamedTuple):
             for fragment in self.structure.fragments.values()
             for record in fragment.lf_elements
         ]
-
-
-def state_coordinate(widget: str, unit: str, spec: dict) -> tuple[str, str, str]:
-    """The one identity of a durable fact: its owner, fold unit, and local facet."""
-    return widget, unit, spec["facet"]
 
 
 def state_projection(

@@ -1,7 +1,7 @@
 # Page authoring
 
 Read this before writing or revising any version. It owns the rules every page
-needs; the main skill routes decisions, live revisions, and evidence to separate
+needs; the main skill routes Asks, live revisions, and evidence to separate
 references.
 
 - [Read the registry](#read-the-registry)
@@ -60,7 +60,7 @@ and one external `/leaf.js` module. Every `lf-*` element has an explicit end tag
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>…</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
   <link rel="stylesheet" href="/theme.css">
   <script type="module" src="/leaf.js"></script>
 </head>
@@ -85,7 +85,7 @@ registry is the only widget vocabulary.
 
 The runtime injects the status banner, thread panel, version picker, keyboard
 shortcuts, live-leaves tray, and active-asks tray. Authors declare reader asks
-through the registry's decision widgets and regions, but do not duplicate that
+through the registry's Ask sources and surfaces, but do not duplicate that
 chrome or maintain a second list of it in the page.
 
 Keep content inside the page's column. The theme scrolls a `<pre>` or a table
@@ -103,6 +103,11 @@ page width.
 Give each section, major block, and widget item a stable, meaningful `id` at the
 tightest semantic boundary a reader can distinguish. Where a sole child fills a
 transparent wrapper, let the child carry the pair's one id.
+Put a titled section's public id on the `<section>`, not on its heading just for
+`lf-toc`: the heading supplies the link text, while the section fragment arrives at
+the complete title, including an eyebrow. A heading may still need its own id for an
+internal relationship such as `aria-labelledby`; that id is not the section's public
+address.
 Threads and reading position attach to those ids across versions, and so does a
 reader comparing this version with an earlier one: the id is how the comparison
 finds what the block said before, so a rewritten paragraph keeps the id it had.
@@ -120,13 +125,15 @@ Open words are read; collapsed words are there when the reader wants them. What
 stands open in the column is what the reader has to take from the page. History,
 method, source excerpts, exhaustive support, transcripts, and raw output are
 backing by default and go under `<details>`. Collapsed words stay quotable, and
-the runtime opens the disclosure when a comment or a walk lands inside one. A
-decision and the evidence it turns on never collapse.
+the runtime opens the disclosure when a comment or a walk lands inside one. An
+Ask and the evidence it turns on never collapse.
 
 The title names the page, and the lede under it carries the finding. A section
 that reaches a finding says it in the heading, briefly enough to scan in an
 `lf-toc` margin; supporting qualifications belong in the opening sentence. A
 `<summary>` and an option's `<strong>` do the same for what they cover.
+When lower-level headings name local controls or evidence rather than page destinations,
+set the `lf-toc`'s `max-level` to the deepest navigational level.
 "Why the prefixes matter" and "What we learned" promise a finding and withhold
 it. A name that only says what it holds is right where there is no finding to
 state, over a list, a table, or a board that speaks for itself.

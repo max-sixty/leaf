@@ -3,6 +3,7 @@
 from typing import NamedTuple
 
 from leaf.events import action_rests_on, build_threads, taken_back
+from leaf.schema import MESSAGE_KINDS
 from leaf.structure import parse_structure
 
 
@@ -10,7 +11,7 @@ def thread_roots(events: list) -> dict:
     """Message id → the id of the comment that opened its thread.
 
     Two readings of the panel's own document resolve a reply to its root, and they
-    must answer alike: a decision and a question naming different conversations for one
+    must answer alike: an Ask and a question naming different conversations for one
     message is a disagreement no reader could account for. (`build_threads` walks the
     same relation to a different end — the thread object itself, with its resolution —
     so it keeps its own walk, and answers the same way where the log is torn.)
@@ -82,7 +83,7 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
     validates its target against the active revision's own elements, so one
     can never name a widget an agent sent."""
     kind = event["kind"]
-    if kind in {"comment", "reply"}:
+    if kind in MESSAGE_KINDS:
         named = [roots.get(event["id"])]
     elif kind == "edit":
         named = [roots.get(event["message"])]
@@ -161,6 +162,7 @@ MESSAGE_FIELDS = (
     # message with nothing in it.
     "token",
     "markup",
+    "drawing",
     "suggestion",
     "edited",
 )
@@ -214,7 +216,7 @@ def thread_digest(
     shown = ends_kept(kept, pin)
     return {
         "id": thread["root"]["id"],
-        "anchor": thread["root"].get("anchor"),
+        "anchor": thread["anchor"],
         # Who closed it, or null for a thread still open — a thread an agent
         # closed is one the reader may never have answered.
         "resolved": thread["resolved"] and thread["resolved"]["author"],

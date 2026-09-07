@@ -3,21 +3,29 @@
    into the panel imports the same nodes; the reconciler renders into them and the
    chrome-layout.js places them. */
 import { el } from "../widget-elements.js";
+import { iconElement } from "../icons.js";
 import { setPanel } from "../chrome-layout.js";
 import { designOn } from "../design.js";
-import { labelOf } from "../keyboard/bindings.js";
-import { PANEL_SAY } from "../keyboard/page.js";
-import { loadDraft, mirrorDraft, saveDraft, sendDraft } from "../drafts.js";
+import {
+  loadDraft,
+  loadDraftPayload,
+  mirrorDraft,
+  saveDraft,
+  sendDraft,
+  watchDraft,
+} from "../drafts.js";
 import { runtime } from "../context.js";
 import { post } from "../outbox.js";
 import { landTyping, mayLandTyping } from "../composing/capture.js";
 import { wireInput } from "../composing/input.js";
 import { showThread } from "./landing.js";
+import { paintDrawings, validDrawing } from "../composing/drawing.js";
 
 export const panel = el("dialog", "lf-ui lf-panel");
 const panelHead = el("div", "lf-panel-head");
-export const closeBtn = el("button", "lf-btn", "×");
-closeBtn.title = "Close (Esc)";
+export const closeBtn = el("button", "lf-btn lf-icon-action lf-close-action");
+closeBtn.append(iconElement("cross", "lf-action-icon"));
+closeBtn.title = "Close threads (Esc)";
 closeBtn.setAttribute("aria-label", "Close threads");
 // The head's own line: the panel's name while it shows the whole conversation, and what
 // it is showing instead the moment a narrowing stands. One slot, because they are one
@@ -43,7 +51,7 @@ findInput.setAttribute("aria-label", "Find in threads");
 findInput.title = "Find in threads";
 // What is waiting on the reader: an agent comment, an explicit question in a reply, or a
 // reply whose own x-awaits markup still asks. The last case is derived from the same
-// declaration-driven projection as the decisions tray; settling reactions can acknowledge
+// declaration-driven projection as the Asks tray; settling reactions can acknowledge
 // either kind without closing the thread.
 export const needsBtn = el("button", "lf-btn lf-needs", "Waiting on you");
 needsBtn.setAttribute("aria-pressed", "false");
@@ -54,7 +62,7 @@ export const threadsBox = el("div", "lf-threads");
 threadsBox.tabIndex = -1;
 // And a name, because `g T` lands a reader here and the panel's visible heading alone does
 // not name a focusable container. A page key's arrival has to say where it arrived — the
-// other direct destinations are named by a leaf link, a decision row, or a Page-map marker
+// other direct destinations are named by a leaf link, an Ask row, or a Page-map marker
 // — or the press is silent to exactly the reader who cannot see the ring it painted. The
 // same reason the reference dialog carries a role and a label beside its -1.
 // `group` rather than `list`: the box holds run headings as well as threads, so a list
@@ -78,10 +86,34 @@ closeBtn.onclick = () => setPanel(false);
 // panel row whose key opens it. Two strings would be two chances to rename the mode in
 // one of them.
 export const generalHint = () =>
-  designOn ? "Comment on the layer" : "Comment on the page";
+  designOn && !generalDrawing ? "Comment on the layer" : "Comment on the page";
 
 let sync = () => {};
+const drawingIn = (payload) =>
+  validDrawing(payload?.drawing) ? payload.drawing : null;
+let generalDrawing = drawingIn(loadDraftPayload("general"));
 export const syncGeneral = () => sync();
+export function pageComposerDrawing() {
+  return generalDrawing;
+}
+
+function saveGeneralDraft(text = sync.value()) {
+  return saveDraft(
+    "general",
+    text,
+    generalDrawing ? { drawing: generalDrawing } : undefined,
+  );
+}
+
+export function openPageDrawing(drawing) {
+  generalDrawing = drawing;
+  saveGeneralDraft();
+  setPanel(true);
+  generalInput.focus({ preventScroll: true });
+  sync();
+  paintDrawings();
+}
+
 export function wireGeneralBox() {
   generalInput.value = loadDraft("general") ?? "";
   sync = wireInput(generalInput, {
@@ -89,33 +121,32 @@ export function wireGeneralBox() {
     // send, by the mode standing then — and the hint says which, so the reader typing in
     // design mode knows their remark is about the layer as a whole.
     hint: generalHint,
-    // The box's own address: unfocused, the placeholder reads "Comment on the page · c".
-    // The same c reaches this box from the page or from the panel list. One key rather than
-    // a chord, because “comment” is the intent in both contexts.
-    //
-    // Read off the row that answers the press rather than spelled here, which is the rule
-    // the reference states about itself: a fact about a binding written somewhere the
-    // binding cannot correct it goes on promising a key nobody rebound it with. Named for
-    // that alone — the row is otherwise `PANEL`'s like any other. The forward reference is
-    // only ever resolved at paint.
-    address: () => labelOf(PANEL_SAY),
+    accessibleName: generalHint,
     sends: "send",
     sendBtn: generalSend,
-    save: (v) => saveDraft("general", v),
-    send: async (text, raw) => {
-      const event = { kind: "comment", revision: runtime.currentRevision, text };
-      if (designOn) event.about = "layer";
-      const sent = await sendDraft(
-        "general",
-        () => generalInput.value === raw,
-        (attempt) => post({ ...event, attempt }),
-      );
+    hasContent: (raw) => Boolean(raw.trim() || generalDrawing),
+    save: saveGeneralDraft,
+    send: async (text, raw, owns) => {
+      const sent = await sendDraft("general", owns, (attempt, payload) => {
+        const event = { kind: "comment", revision: runtime.currentRevision, attempt };
+        if (text) event.text = text;
+        const drawing = drawingIn(payload);
+        if (designOn && !drawing) event.about = "layer";
+        if (drawing) event.drawing = drawing;
+        return post(event);
+      });
       if (!sent) return;
       const shouldLand = mayLandTyping(generalInput);
-      showThread(sent.id, { stand: false });
+      showThread(sent.id, { focus: false });
       if (shouldLand) landTyping(generalInput); // both send routes end where typing was
     },
   });
 
+  sync();
   mirrorDraft(generalInput, sync, "general");
+  watchDraft("general", (_value, payload) => {
+    generalDrawing = drawingIn(payload);
+    sync();
+    paintDrawings();
+  });
 }

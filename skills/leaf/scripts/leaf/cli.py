@@ -18,29 +18,22 @@ from leaf.conversation import (
 )
 from leaf.data import cmd_data_capture, cmd_data_clear, cmd_data_set
 from leaf.exporting import cmd_export
-from leaf.hooks import cmd_hook, unanswered_decisions
+from leaf.hooks import cmd_hook
 from leaf.host import host_identity
 from leaf.hosting import cmd_serve, cmd_serve_temporary, cmd_stop, start_server
 from leaf.media import cmd_media
-from leaf.packages import cmd_package_check, cmd_package_init
+from leaf.packages import cmd_package_check, cmd_package_init, cmd_package_install
 from leaf.page import cmd_guidance
-from leaf.passages import active_enclosing
 from leaf.publishing import cmd_stamp
 from leaf.requests import cmd_receipt
 from leaf.schema import (
     ACK_BATCH_INSTRUCTION,
-    ANSWER_DECISION_INSTRUCTION,
     EVENTS_FILE,
     SKILL_ROOT,
     WAIT_BATCH_OUTPUT_INSTRUCTION,
 )
-from leaf.service import (
-    PageTransaction,
-    restore_page_claim,
-    take_page_claim,
-    unacknowledged,
-)
-from leaf.session import check_local_claim, cmd_ack, cmd_status, cmd_wait
+from leaf.service import PageTransaction, restore_page_claim, take_page_claim
+from leaf.session import cmd_ack, cmd_idle, cmd_status, cmd_wait
 from leaf.transcript import cmd_events, cmd_transcript
 from leaf.validation.command import cmd_check
 from leaf.vendoring import cmd_init
@@ -130,7 +123,8 @@ def page() -> None:
     "selected",
     multiple=True,
     metavar="PACKAGE",
-    help="include a bundled name or explicit project-relative/~ path; repeat for more",
+    help="include an installed or bundled name, or an explicit "
+    "project-relative/~ path; repeat for more",
 )
 @click.option(
     "--no-packages",
@@ -156,9 +150,9 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
     cmd_init(resolve_dir(dir, must_exist=False), selections)
 
 
-@cli.group(short_help="Create and check packages.")
+@cli.group(short_help="Create, check, and install packages.")
 def package() -> None:
-    """Create and check packages."""
+    """Create, check, and install packages."""
 
 
 @package.command("init", short_help="Create a package directory.")
@@ -189,6 +183,21 @@ def package_init(package_path: Path, widget: str | None) -> None:
 def package_check(package_path: Path) -> None:
     """Check the package as one composed unit."""
     cmd_package_check(package_path)
+
+
+@package.command("install", short_help="Install a package for selection by name.")
+@click.argument(
+    "package_path",
+    type=click.Path(path_type=Path, file_okay=False),
+    metavar="SOURCE",
+)
+def package_install(package_path: Path) -> None:
+    """Check SOURCE and copy it into this user's package store.
+
+    `page init --package NAME` then selects it by its directory name, on the
+    same terms as a package Leaf ships.
+    """
+    cmd_package_install(package_path)
 
 
 @page.command(short_help="Add images and print their page paths.")
@@ -226,7 +235,7 @@ def guidance(dir: str, audience: str | None) -> None:
 def state(dir: str, thread_id: str | None) -> None:
     """Fold the log onto the active revision and print the result as one JSON
     object: effective content with source and edit addresses, standing state,
-    reports, open decisions, thread content, versions, presence, and bound data.
+    reports, open Asks, thread content, versions, presence, and bound data.
     Content follows the same document projection as the browser."""
     cmd_page_state(resolve_dir(dir), thread_id=thread_id)
 
@@ -518,45 +527,10 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     quiet after about a quarter of an hour — on the banner and each local line.
     """
     page_dir = resolve_dir(dir)
-    # Ahead of the branch below, which reaches `set_status` without passing the
-    # subject: refused here, `idle --on` cannot be reported back as a claim the
-    # page never took.
-    if on is not None:
-        check_local_claim(state, detail)
-    # Idling over an event nobody has answered ends the leaf on a user still
-    # owed one — unread, or read and left. The watcher's whole batch, not the
-    # reader-facing count, so a worker's report cannot be left standing as
-    # provisional state forever either. Here rather than in cmd_status because
-    # the log lock gives the check and the transition one order with an event
-    # arriving or an acknowledgement advancing the cursor.
-    if state != "idle":
+    if state == "idle":
+        cmd_idle(page_dir, detail, on)
+    else:
         cmd_status(page_dir, state, detail, on=on)
-        click.echo(_status_line(state, detail, on))
-        return
-    with PageTransaction(page_dir) as page:
-        events = page.events
-        cursor = page.cursor
-        pending = len(unacknowledged(events, cursor))
-        unanswered = unanswered_decisions(events, cursor, active_enclosing(page_dir))
-        if pending:
-            prefix = (
-                f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
-                "idling ends the leaf over them; "
-            )
-            sys.exit(
-                prefix + "`leaf wait` prints them and returns at once when events are "
-                "already waiting. The wait owner must finish the delivery contract "
-                "before idling. " + ACK_BATCH_INSTRUCTION
-            )
-        if unanswered:
-            ids = ", ".join(t["id"] for t in unanswered)
-            sys.exit(
-                f"{len(unanswered)} acknowledged "
-                f"comment{'s' if len(unanswered) != 1 else ''} with no answer "
-                f"({ids}); idling ends the leaf over them. "
-                + ANSWER_DECISION_INSTRUCTION
-            )
-        page.set_status(state, detail)
     click.echo(_status_line(state, detail, on))
 
 
@@ -612,16 +586,40 @@ def comment(
 @cli.command(short_help="Reply to a thread as the agent.")
 @click.argument("dir", metavar="PAGE")
 @click.option("--to", required=True, metavar="ID", help="comment or reply ID to answer")
+@click.option("--quote", help="new passage text to move this thread onto")
+@click.option("--section", metavar="ID", help="new element ID, or scope for --quote")
+@click.option("--part", metavar="ID", help="new declared visual part within --section")
 @click.option("--text", help="reply text (default: stdin)")
 @click.option("--markup", help="widget markup to render after the text, validated here")
 @click.option("--awaits", is_flag=True, help="mark this reply as waiting on the reader")
 @click.option("--json", "as_json", is_flag=True, help="print the reply event instead")
 def reply(
-    dir: str, to: str, text: str, markup: str, awaits: bool, as_json: bool
+    dir: str,
+    to: str,
+    quote: str,
+    section: str,
+    part: str,
+    text: str,
+    markup: str,
+    awaits: bool,
+    as_json: bool,
 ) -> None:
-    """Post a threaded reply as the agent (--text or stdin)."""
+    """Post a threaded reply as the agent (--text or stdin).
+
+    Supplying --quote, --section, or --part moves the thread's current anchor in
+    the same event. The opening comment keeps its original anchor in the log.
+    """
     page_dir = resolve_dir(dir)
-    accepted = cmd_reply(page_dir, to, text, markup, awaits)
+    accepted = cmd_reply(
+        page_dir,
+        to,
+        text,
+        markup,
+        awaits,
+        quote=quote,
+        section=section,
+        part=part,
+    )
     if as_json:
         print(json.dumps(accepted, ensure_ascii=False))
         return

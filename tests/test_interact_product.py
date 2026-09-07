@@ -1,6 +1,5 @@
 """Version corpus, registry, message, and export tests."""
 
-import importlib.util
 import json
 import os
 import re
@@ -162,8 +161,8 @@ def test_specimen_admits_interactive_widgets(page_dir):
     assert errs == []
 
 
-def test_an_ask_region_frames_exactly_one_request(page_dir):
-    """A broad Decision has one authored title and one source of liveness and state."""
+def test_an_ask_surface_frames_exactly_one_source(page_dir):
+    """A broad Ask has one authored title and one source of liveness and state."""
     registry = registry_storage.load_registry(page_dir)
     first = (
         '<lf-options id="g-one" choose>'
@@ -178,7 +177,7 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
 
     assert (
         fragment_errors(
-            f'<lf-decision id="decision-one"><h2>Choose</h2><p>Context.</p>{first}</lf-decision>',
+            f'<lf-ask id="decision-one"><h2>Choose</h2><p>Context.</p>{first}</lf-ask>',
             registry,
         )
         == []
@@ -191,49 +190,47 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
     )
     assert (
         fragment_errors(
-            f'<lf-decision id="decision-request"><h2>Recover it</h2>{request}</lf-decision>',
+            f'<lf-ask id="decision-request"><h2>Recover it</h2>{request}</lf-ask>',
             registry,
         )
         == []
     )
 
     outside = fragment_errors(first, registry)
-    assert (
-        "this declared decision source must be inside a Decision with a heading"
-        in " ".join(outside)
+    assert "this declared Ask source must be inside an Ask with a heading" in " ".join(
+        outside
     )
     outside_request = fragment_errors(request, registry)
-    assert (
-        "this declared decision source must be inside a Decision with a heading"
-        in " ".join(outside_request)
+    assert "this declared Ask source must be inside an Ask with a heading" in " ".join(
+        outside_request
     )
 
-    # Evidence can quote another request-shaped widget without giving this Decision a
+    # Evidence can quote another request-shaped widget without giving this Ask a
     # second live source. The runtime already excludes x-exhibit descendants from the
-    # Decision list, so the authored boundary must read the same relation.
+    # Ask list, so the authored boundary must read the same relation.
     with_evidence = (
-        '<lf-decision id="decision-with-evidence"><h2>Choose</h2>'
+        '<lf-ask id="decision-with-evidence"><h2>Choose</h2>'
         f'{first}<lf-specimen id="request-example" label="another request">'
-        f"{second}</lf-specimen></lf-decision>"
+        f"{second}</lf-specimen></lf-ask>"
     )
     assert fragment_errors(with_evidence, registry) == []
 
     untitled = fragment_errors(
-        f'<lf-decision id="decision-untitled"><p>Context.</p>{first}</lf-decision>',
+        f'<lf-ask id="decision-untitled"><p>Context.</p>{first}</lf-ask>',
         registry,
     )
-    assert "a Decision must have exactly one direct heading, found none" in " ".join(
+    assert "an Ask must have exactly one direct heading, found none" in " ".join(
         untitled
     )
 
     retitled = fragment_errors(
-        f'<lf-decision id="decision-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-decision>',
+        f'<lf-ask id="decision-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-ask>',
         registry,
     )
-    assert "a Decision must have exactly one direct heading" in " ".join(retitled)
+    assert "an Ask must have exactly one direct heading" in " ".join(retitled)
 
     context_first = fragment_errors(
-        f'<lf-decision id="decision-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-decision>',
+        f'<lf-ask id="decision-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-ask>',
         registry,
     )
     assert "direct heading must be its first content, found <p> first" in " ".join(
@@ -241,7 +238,7 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
     )
 
     control_first = fragment_errors(
-        f'<lf-decision id="decision-control-first">{first}<h2>Choose</h2></lf-decision>',
+        f'<lf-ask id="decision-control-first">{first}<h2>Choose</h2></lf-ask>',
         registry,
     )
     assert (
@@ -250,24 +247,23 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
     )
 
     empty = fragment_errors(
-        '<lf-decision id="decision-empty"><h2>Nothing to answer</h2></lf-decision>',
+        '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
         registry,
     )
-    assert (
-        "a Decision must frame exactly one declared decision source, found none"
-        in " ".join(empty)
+    assert "an Ask must frame exactly one declared Ask source, found none" in " ".join(
+        empty
     )
 
     crowded = fragment_errors(
-        f'<lf-decision id="decision-crowded">{first}{second}</lf-decision>', registry
+        f'<lf-ask id="decision-crowded">{first}{second}</lf-ask>', registry
     )
     message = " ".join(crowded)
-    assert "a Decision must frame exactly one declared decision source" in message
+    assert "an Ask must frame exactly one declared Ask source" in message
     assert "<lf-options#g-one>" in message and "<lf-options#g-two>" in message
 
 
 def test_a_request_holder_offers_at_least_one_command(page_dir):
-    """A ready request seat cannot be a decision the reader has no way to answer."""
+    """A ready request seat cannot be an Ask the reader has no way to answer."""
     registry = registry_storage.load_registry(page_dir)
     empty = (
         '<lf-operations id="host-request" target="goal" worker="worker" '
@@ -325,9 +321,13 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
         )
     )
 
-    group = '<lf-decision id="pick-decision"><h2>Which one?</h2><lf-options id="pick" choose{}>'
+    group = (
+        '<lf-ask id="pick-decision"><h2>Which one?</h2><lf-options id="pick" choose{}>'
+    )
     group += '<lf-option id="opt-a"{}><strong>A</strong></lf-option>'
-    group += '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options></lf-decision>'
+    group += (
+        '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options></lf-ask>'
+    )
     (page_dir / ".fixture-versions" / "v1.html").write_text(
         PAGE.replace("</main>", group.format("", "") + "</main>")
     )
@@ -541,13 +541,27 @@ def test_shipped_widget_purposes_live_in_their_descriptions():
     assert not titled, f"widget purposes are duplicated in title: {', '.join(titled)}"
 
 
+def test_playground_range_requires_its_upper_bound_at_the_markup_boundary():
+    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    markup = (
+        '<lf-ask id="range-ask"><h2>Choose a radius</h2>'
+        '<lf-playground id="range-playground">'
+        '<lf-playground-control name="radius" label="Radius" kind="range" '
+        'value="12"></lf-playground-control>'
+        "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
+        "<lf-playground-output>Use this radius.</lf-playground-output>"
+        "</lf-playground></lf-ask>"
+    )
+
+    errors = fragment_errors(markup, registry)
+
+    assert errors and "'max' is a required property" in " ".join(errors)
+
+
 def test_corpus_is_generated_from_the_examples():
     """examples/corpus.html is derived; a commit that lets it drift fails here."""
-    spec = importlib.util.spec_from_file_location(
-        "corpus", Path(__file__).parent.parent / "scripts" / "corpus.py"
-    )
-    corpus = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(corpus)
+    import corpus
+
     committed = (Path(__file__).parent.parent / "examples" / "corpus.html").read_text()
     assert corpus.build() == committed, "examples changed — rerun scripts/corpus.py"
     assert "<lf-toc" not in committed, (
@@ -572,11 +586,8 @@ def test_corpus_is_generated_from_the_examples():
 
 def test_the_key_reference_is_generated_from_the_registry():
     """The registry reference is written from the same $keys agents query."""
-    spec = importlib.util.spec_from_file_location(
-        "keydocs", Path(__file__).parent.parent / "scripts" / "keydocs.py"
-    )
-    keydocs = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(keydocs)
+    import keydocs
+
     committed = keydocs.DOCS_PAGE.read_text()
 
     def said(html):
@@ -729,19 +740,19 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         )
 
     swapped = reply(
-        '<lf-decision id="commands-decision"><h3>Next</h3>'
+        '<lf-ask id="commands-decision"><h3>Next</h3>'
         '<lf-operations id="commands" target="worker" worker="tree" worktree="goal">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-decision>"
+        "</lf-operations></lf-ask>"
     )
     assert swapped.exit_code != 0
     assert "where role='goal'" in swapped.output
 
     valid = reply(
-        '<lf-decision id="commands-decision"><h3>Next</h3>'
+        '<lf-ask id="commands-decision"><h3>Next</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-decision>"
+        "</lf-operations></lf-ask>"
     )
     assert valid.exit_code == 0, valid.output
 
@@ -811,8 +822,7 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     )
     assert unresolved.exit_code != 0
     assert (
-        "requires a page version that answers its originating Decision"
-        in unresolved.output
+        "requires a page version that answers its originating Ask" in unresolved.output
     )
 
     unrelated = unchosen.replace("</main>", "<p>Unrelated update.</p>\n</main>")
@@ -824,7 +834,7 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     )
     assert still_unresolved.exit_code != 0
     assert (
-        "requires a page version that answers its originating Decision"
+        "requires a page version that answers its originating Ask"
         in still_unresolved.output
     )
 
@@ -842,7 +852,7 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     assert resolved.exit_code == 0, resolved.output
 
 
-def test_an_already_answered_decision_still_requires_its_version_response(page_dir):
+def test_an_already_answered_ask_still_requires_its_version_response(page_dir):
     declare_options_version_response(page_dir)
     chosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
         '<lf-option id="flag-first"', '<lf-option id="flag-first" chosen', 1
@@ -871,8 +881,7 @@ def test_an_already_answered_decision_still_requires_its_version_response(page_d
     )
     assert unrelated.exit_code != 0
     assert (
-        "requires a page version that answers its originating Decision"
-        in unrelated.output
+        "requires a page version that answers its originating Ask" in unrelated.output
     )
 
     answered = chosen.replace(" chosen", "", 1).replace(
@@ -999,8 +1008,7 @@ def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
 
     assert unresolved.exit_code != 0
     assert (
-        "requires a page version that answers its originating Decision"
-        in unresolved.output
+        "requires a page version that answers its originating Ask" in unresolved.output
     )
 
     (page_dir / ".fixture-versions" / "v3.html").write_text(
@@ -1044,7 +1052,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
         )
 
     def question(decision_id, markup):
-        return f'<lf-decision id="{decision_id}"><h2>Pick?</h2>{markup}</lf-decision>'
+        return f'<lf-ask id="{decision_id}"><h2>Pick?</h2>{markup}</lf-ask>'
 
     # `flow` is the page's lf-diagram id (PAGE fixture) — refused.
     clash = reply(
@@ -1134,10 +1142,10 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             "Pick:",
             "--markup",
             (
-                '<lf-decision id="pick-decision"><h2>Pick?</h2>'
+                '<lf-ask id="pick-decision"><h2>Pick?</h2>'
                 '<lf-options id="lf-pick" choose>'
                 '<lf-option id="o1"><strong>A</strong></lf-option>'
-                "</lf-options></lf-decision>"
+                "</lf-options></lf-ask>"
             ),
         ],
     )
@@ -1274,10 +1282,10 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_d
             "Pick one.",
             "--markup",
             (
-                '<lf-decision id="stores-decision"><h2>Which store?</h2>'
+                '<lf-ask id="stores-decision"><h2>Which store?</h2>'
                 '<lf-options id="stores" choose>'
                 '<lf-option id="store-a"><strong>A</strong></lf-option>'
-                "</lf-options></lf-decision>"
+                "</lf-options></lf-ask>"
             ),
             "--awaits",
         ],
@@ -1310,11 +1318,11 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_d
             "Restart it?",
             "--markup",
             (
-                '<lf-decision id="reply-operations-decision"><h2>Restart it?</h2>'
+                '<lf-ask id="reply-operations-decision"><h2>Restart it?</h2>'
                 '<lf-operations id="reply-operations" target="goal" '
                 'worker="worker" worktree="tree">'
                 '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-                "</lf-operations></lf-decision>"
+                "</lf-operations></lf-ask>"
             ),
             "--awaits",
         ],
@@ -1326,7 +1334,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_d
     assert "reply markup already declares" in duplicate.output
     assert aggregate.exit_code == 0, aggregate.output
     assert request_duplicate.exit_code == 1
-    assert "reply markup already declares a local decision" in request_duplicate.output
+    assert "reply markup already declares a local Ask" in request_duplicate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
     assert "awaits" not in replies[0]
     assert replies[1]["awaits"] is True
@@ -1832,12 +1840,11 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
 
 
 def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
-    """`page state` lists every standing reaction explained, beside threads that
+    """`page state` lists every standing reaction, beside threads that
     leave a bare one out — paint on the page is not a conversation — and takes a
     reaction back in once someone answers it, as the panel does. The transcript
-    prints one as the reader's mark rather than a turn, glyph and meaning beside it,
-    since it is read where no bar explains the glyph. The registry owns that
-    vocabulary."""
+    prints one as the reader's mark rather than a turn. Its durable token is enough;
+    packages may add an explanation, but the default layer does not prescribe one."""
     published(page_dir)
     bare = events_model.append_event(
         page_dir,
@@ -1845,12 +1852,13 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "cut",
+            "token": "shorten",
             "anchor": {"section": "plan", "quote": "Ship dark"},
         },
     )
     answered = events_model.append_event(
-        page_dir, {"kind": "comment", "author": "user", "revision": 1, "token": "no"}
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "token": "change"},
     )
     reply = conversation_model.cmd_reply(page_dir, answered["id"], "Which part?", None)
     state = state_json(page_dir)
@@ -1863,13 +1871,14 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
         answered["id"],
         reply["id"],
     ]
-    assert [(r["token"], r["means"], r["thread"]) for r in state["reactions"]] == [
-        ("cut", "does not earn its length — shorten or drop", bare["id"]),
-        ("no", "this is wrong; the passage is the referent", answered["id"]),
+    assert [(r["token"], r["thread"]) for r in state["reactions"]] == [
+        ("shorten", bare["id"]),
+        ("change", answered["id"]),
     ]
+    assert all("means" not in reaction for reaction in state["reactions"])
     assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
 
     result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
-    assert "- **User** reacted: − cut — does not earn its length" in result.output
-    assert "- **User** reacted: × no — this is wrong" in result.output
+    assert "- **User** reacted: ✂️ shorten\n" in result.output
+    assert "- **User** reacted: ❌ change\n" in result.output

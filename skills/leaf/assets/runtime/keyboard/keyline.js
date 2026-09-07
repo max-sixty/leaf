@@ -1,14 +1,16 @@
-/* The key line at the foot of the page, and the More control that leads from it to the
+/* The status line at the foot of the page, and the More control that leads from it to the
    reference.
 
-   The key line is short help, not the keyboard reference. It walks outward from the
-   reader's innermost scope and drops bindings shadowed there. The ordinary shortlist is
-   the first live row, then a promotable Escape or the next row. At rest on the page that
-   is `c` and `r`, the two presses that say something back, beside the More control.
-   Search, item selection and reading-page movement are ordinary rows ranked below them,
-   named by the shelf and the reference: a glance that spends its room on ways of finding
-   something to act on never names the act, and scrolling is the one capability no page
-   has to advertise. Ranking is a row's place in its scope, so moving the row is how the
+   The line leads with transient navigation context when an Ask or Thread walk is active,
+   then gives short help rather than reproducing the keyboard reference. It walks
+   outward from the reader's innermost scope and drops bindings shadowed there. The
+   ordinary shortlist is the first live row, then a promotable Escape or the next row.
+   At rest on the page that
+   is `c` for the page itself and `s` to select a more particular target, beside the More
+   control. Once a target is selected, its Comment and React actions replace selection on
+   the short line. Search and reading-page movement remain ordinary rows named by the shelf
+   and the reference; scrolling is the one capability no page has to advertise. Ranking
+   is a row's place in its scope, so moving the row is how the
    line's order changes. An active chord instead shows every live row in its scope, so
    computed bindings, ranges, and capability filtering are the same ones dispatch and the
    reference use. Each destination row keeps its complete chord: already pressed keys take
@@ -19,9 +21,15 @@
    Hint chips are `aria-hidden` because placeholders and live announcements carry the same
    facts for assistive technology.
 
+   TODO(2026-09-06): Revisit this provisional placement of navigation context. A
+   replacement must remain separate from agent status and durable counts, work at narrow
+   widths and for attached-keyboard walks on coarse-pointer devices, and avoid another
+   floating surface.
+
    The compact line wraps when chord rows need the room. Ordinary hints yield from the end
    on a window too narrow for them, but active chord rows do not; More is the one control
-   that always survives.
+   that always survives. Navigation context survives too. At a narrow width it takes the
+   first row and the surviving hints share the second.
 
    `syncLayout` reserves the line's footprint only in a scroll region whose horizontal
    span meets it. Each reservation is the band from the line's top to that region's own
@@ -31,9 +39,10 @@
    to keep in step. Over a covering thread panel, the line starts at its ordinary bottom
    inset and rises above the panel foot only when their rendered rectangles collide; a
    thread list in another lane keeps its stylesheet inset and reserves nothing for the
-   line. A coarse pointer is drawn no line at all — there is no keyboard to advertise, and
-   every hint would name a key the reader cannot press — so the footprint is zero and
-   nothing reserves room for it. The line and its chips take no pointer events; the More
+   line. A coarse pointer is drawn no hint line at all — there is no keyboard to advertise,
+   and every hint would name a key the reader cannot press. An attached keyboard can still
+   begin a walk, so its navigation context stands alone until that walk ends. The line and
+   its chips take no pointer events; the More
    control does, because it is the only pointer route to the reference and so to the
    character-shortcut preference, which cannot be made to depend on the character key it
    turns off.
@@ -47,9 +56,11 @@
    it directly when character shortcuts are off. */
 import {
   activeRows,
+  ariaShortcuts,
   bindings,
   commandPresentations,
   commandRoutes,
+  spell,
   word,
 } from "./bindings.js";
 import {
@@ -67,25 +78,29 @@ import { announce } from "../notifications.js";
 import { paintHere } from "./scopes.js";
 import { setChord } from "./address.js";
 import { setReact } from "../reactions.js";
+import { walkPosition } from "../walk-position.js";
 
 // The key line — the register's short rendering. Its fact chips are aria-hidden (the spoken
 // copies are placeholders, announcements, and the reference); More is a real button because
 // a visible door to the complete list should be a door every reader can work.
 export const keylineEl = el("div", "lf-ui lf-keyline");
+export const walkPositionEl = el("span", "lf-walk-position");
+walkPositionEl.hidden = true;
+walkPositionEl.setAttribute("aria-hidden", "true");
 export const keylineMore = el("button", "lf-key-more");
 keylineMore.type = "button";
 keylineMore.title = "More keyboard shortcuts";
 keylineMore.setAttribute("aria-label", "? more");
 export const keylineMoreKey = document.createElement("kbd");
-keylineMoreKey.textContent = "?";
 export const keylineMoreText = el("span", "", "more");
 keylineMore.append(keylineMoreKey, keylineMoreText);
+keylineEl.append(walkPositionEl);
 
 // ---------- the key line ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each
 // keeps only bindings no nearer scope has named, so an inner meaning wins while a grouped
-// row's other presses remain visible — for example, a numbered hyperlink address replaces
-// an option's pick mark for the same digit without hiding the option row's other keys.
+// row's other presses remain visible — for example, an Ask's numbered pick replaces the
+// page's ordinary digit meaning without hiding the option row's other keys.
 const sourceRows = new WeakMap();
 const sourceRow = (row) => sourceRows.get(row) ?? row;
 const effectiveRow = (row, declared, active) => {
@@ -134,7 +149,8 @@ function lineRows(scopes) {
 let expanded = false;
 const shortcutAvailable = () => bindings(REFERENCE).length > 0;
 const arrange = (rows) => {
-  const referenceAt = rows.indexOf(REFERENCE);
+  const referenceAt = rows.findIndex((row) => sourceRow(row) === REFERENCE);
+  const reference = referenceAt === -1 ? null : rows[referenceAt];
   const withoutReference =
     referenceAt === -1
       ? rows
@@ -150,7 +166,7 @@ const arrange = (rows) => {
     [first, wayOut ?? candidates.find((row) => row !== first)].filter(Boolean),
   );
   const tail = withoutReference.includes(LESS_SHORTCUTS) ? LESS_SHORTCUTS : null;
-  return { candidates, referenceAt, short, tail };
+  return { candidates, reference, short, tail };
 };
 const completeLine = (scopes, candidates) => {
   const scope = scopes.find((candidate) => candidate.chord);
@@ -193,11 +209,22 @@ export function renderLine() {
   // `?` has its own permanent More control, so its ordinary row remains in the DOM only as
   // the register's hidden projection. In the shelf, the current Escape is drawn after that
   // control so both disclosure choices finish the second row.
-  const { candidates, referenceAt, short, tail } = arrange(rows);
+  const { candidates, reference, short, tail } = arrange(rows);
   const complete = completeLine(scopes, candidates);
   const shown = complete?.rows ?? short;
+  const position = walkPosition();
+  if (position) {
+    walkPositionEl.dataset.kind = position.kind;
+    walkPositionEl.textContent = position.text;
+    walkPositionEl.hidden = false;
+    keylineEl.dataset.lfWalk = position.kind;
+  } else {
+    walkPositionEl.hidden = true;
+    walkPositionEl.removeAttribute("data-kind");
+    keylineEl.removeAttribute("data-lf-walk");
+  }
   keylineEl.dataset.lfExpanded = String(shelf);
-  keylineEl.dataset.lfWrap = String(shelf || Boolean(complete));
+  keylineEl.dataset.lfWrap = String(shelf || Boolean(complete) || Boolean(position));
   // Keep the two contextual hints together at the front of the ordinary line.
   // The shelf and a chord retain registry order because each is a fuller reading of one
   // scene rather than a ranked shortlist.
@@ -206,11 +233,31 @@ export function renderLine() {
       ? candidates
       : [...shown, ...candidates.filter((row) => !shown.has(row))];
   const projectedRows = projected.filter((row) => !shelf || row !== tail);
-  const referenceRows = referenceAt === -1 ? [] : [REFERENCE];
+  const referenceRows = reference ? [reference] : [];
   // The interactive disclosure stays with the contextual shortlist. A wider system
   // font must not push More onto a lower row beside a page or panel control, where two
   // compact targets would no longer have the 24px separation either one owes.
   const ordered = [...projectedRows, ...referenceRows];
+  // More is a permanent pointer and Tab route, but its key face is the same contextual
+  // projection as every other key on the line. In a text box the typing scope claims `?`,
+  // so the row is absent here and the button keeps only its non-keyboard route. Reading
+  // the surviving row also keeps the face, accessible shortcut, label, and dispatch from
+  // becoming four independent claims about the binding.
+  const referenceBinding = reference ? bindings(reference)[0] : null;
+  const referenceDoes = word(REFERENCE.does);
+  const referenceLine = word(REFERENCE.line);
+  keylineMoreKey.hidden = !referenceBinding;
+  if (referenceBinding) keylineMoreKey.textContent = spell(referenceBinding);
+  keylineMoreText.textContent = referenceLine;
+  keylineMore.title = referenceDoes;
+  keylineMore.setAttribute("aria-expanded", String(shelf));
+  keylineMore.setAttribute(
+    "aria-label",
+    referenceBinding ? `${spell(referenceBinding)} ${referenceLine}` : referenceDoes,
+  );
+  if (referenceBinding)
+    keylineMore.setAttribute("aria-keyshortcuts", ariaShortcuts([reference], false));
+  else keylineMore.removeAttribute("aria-keyshortcuts");
   // Read where it is painted, like every other cell. Every destination keeps its complete
   // chord while the reader advances through it: completed keys change face, but no key is
   // added, removed, or moved. A chord control such as Escape is a way out of the mode, not
@@ -224,7 +271,9 @@ export function renderLine() {
   // so the walk is whole at synthetic speed and broken at every human one, which is the
   // way round that hides from a suite. The line is cleared around the same seated node
   // instead, and the chips are drawn around it.
-  for (const node of [...keylineEl.childNodes]) if (node !== keylineMore) node.remove();
+  for (const node of [...keylineEl.childNodes])
+    if (node !== keylineMore && node !== walkPositionEl) node.remove();
+  keylineEl.prepend(walkPositionEl);
   const seated = keylineMore.parentElement === keylineEl;
   const chip = (steps, said, states, afterMore = false, row = null) => {
     const span = el("span", "lf-key");
@@ -246,7 +295,7 @@ export function renderLine() {
     const steps = inChord ? [chord[0], ...completeRowSteps(row)] : rowSteps(row);
     const states = inChord ? progressStates(steps, chord.length) : neutralStates(steps);
     const span = chip(steps, word(row.line), states, false, row);
-    span.hidden = row === REFERENCE || (!shelf && !shown.has(row));
+    span.hidden = sourceRow(row) === REFERENCE || (!shelf && !shown.has(row));
     return { row, span };
   });
   // The door is not useful behind the room it opens. While the reference stands, its
@@ -288,6 +337,16 @@ export function renderLine() {
   // A chord is the complete menu of the mode it names. Its live rows wrap rather than
   // disappearing, even where the ordinary shortlist would yield a lower-ranked hint.
   if (complete) return;
+  // At a narrow width the navigation context takes the first row. Keep the ordinary
+  // line to one more row by yielding its lowest-ranked hints; the position and More are
+  // the two cells that never yield.
+  if (position && rowsUsed() > 1) {
+    const removable = drawn
+      .filter(({ span }) => !span.hidden)
+      .map(({ span }) => span)
+      .toReversed();
+    while (rowsUsed() > 2 && removable.length) removable.shift().hidden = true;
+  }
   // On a window narrower than those two
   // computed sentences, yield the lower-ranked hint and then the first; More is the one
   // control that always survives. At most two layouts are spent, independent of the size

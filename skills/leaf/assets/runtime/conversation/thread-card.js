@@ -48,7 +48,7 @@ export function threadNode(t, grow) {
   div.tabIndex = -1; // t/T focus target; the thread scope's Enter drops into its reply box
   div.dataset.id = t.root.id;
   if (grow) div.classList.add("grow");
-  const label = anchorLabel(t.root.anchor, t.root.about);
+  const label = anchorLabel(t.anchor, t.root.about);
   if (label) {
     const quote = el("blockquote", "lf-quote");
     quote.append(el("span", "lf-quote-label", label));
@@ -87,9 +87,6 @@ export function threadNode(t, grow) {
     const row = el("div", "lf-compose");
     const input = document.createElement("textarea");
     const send = el("button", "lf-btn primary lf-thread-send", "Send");
-    row.append(input);
-    wireReply(t, input, send);
-    const actions = el("div", "lf-thread-actions");
     // Resolving takes this node out of the open list and focus with it — the blind
     // drive fell to body here. Land where t would have gone: the thread that now
     // holds this one's place, else the previous, else the list. Which is read after
@@ -107,8 +104,9 @@ export function threadNode(t, grow) {
         };
       },
     });
-    actions.append(send, resolve);
-    row.append(actions);
+    div.querySelector(":scope > .lf-msg:first-of-type > .lf-msg-head")?.append(resolve);
+    row.append(input, send);
+    wireReply(t, input, send);
     div.append(row);
   } else {
     const actions = el("div", "lf-thread-actions");
@@ -154,7 +152,7 @@ export function paintThreadQuotes() {
     // `§ off-slip` stood where `§ options · If their release comes and goes…` belonged,
     // for the life of the tab.
     const thread = threads.get(div.dataset.id);
-    const said = thread && anchorLabel(thread.root.anchor, thread.root.about);
+    const said = thread && anchorLabel(thread.anchor, thread.root.about);
     const label = quote.querySelector(":scope > .lf-quote-label");
     if (said && label.textContent !== said) label.textContent = said;
     const outdated = placedAt(div.dataset.id)?.status === "outdated";

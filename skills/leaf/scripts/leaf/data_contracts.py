@@ -21,6 +21,30 @@ def valid_snapshot_id(value) -> bool:
     return isinstance(value, str) and re.fullmatch(r"[1-9][0-9]*", value) is not None
 
 
+def data_bindings(lf_elements: list, registry: dict):
+    """Every seat one document binds: its ordinal, element, input, spec, and source.
+
+    The widget schema owns missing and malformed attributes, so a binding exists
+    only once that boundary has accepted a canonical source id; a seat without one
+    yields nothing here rather than an error of its own. Every reader of the
+    element-by-input relation walks it through this one generator.
+    """
+    for ordinal, rec in enumerate(lf_elements):
+        for input_name, spec in registry.get(rec["tag"], {}).get("x-data", {}).items():
+            source = rec["attrs"].get(spec["source"])
+            if isinstance(source, str) and re.fullmatch(DATA_SOURCE_NAME, source):
+                yield ordinal, rec, input_name, spec, source
+
+
+def selected_snapshot(rec: dict, spec: dict) -> str | None:
+    """The immutable data revision one seat selects, if it selects one."""
+    attribute = spec.get("snapshot")
+    if attribute is None:
+        return None
+    snapshot = rec["attrs"].get(attribute)
+    return snapshot if valid_snapshot_id(snapshot) else None
+
+
 def declared_data_bindings(
     lf_elements: list,
     registry: dict,
@@ -30,48 +54,29 @@ def declared_data_bindings(
     bindings = {}
     seats = {}
     errors = []
-    for rec in lf_elements:
-        for input_name, spec in registry.get(rec["tag"], {}).get("x-data", {}).items():
-            source = rec["attrs"].get(spec["source"])
-            if (
-                not isinstance(source, str)
-                or re.fullmatch(DATA_SOURCE_NAME, source) is None
-            ):
-                # The widget schema owns missing and malformed attributes. A binding
-                # exists only after that boundary has accepted a canonical source id.
-                continue
-            contract = spec["contract"]
-            seat = (
-                f"{document} <{rec['tag']}> input `{input_name}` (line {rec['line']})"
+    for _ordinal, rec, input_name, spec, source in data_bindings(lf_elements, registry):
+        contract = spec["contract"]
+        seat = f"{document} <{rec['tag']}> input `{input_name}` (line {rec['line']})"
+        if source in bindings and bindings[source] != contract:
+            errors.append(
+                f"source {source!r} is bound to both contract "
+                f"{bindings[source]!r} at {seats[source]} and contract "
+                f"{contract!r} at {seat}; use a new source id for the new meaning"
             )
-            if source in bindings and bindings[source] != contract:
-                errors.append(
-                    f"source {source!r} is bound to both contract "
-                    f"{bindings[source]!r} at {seats[source]} and contract "
-                    f"{contract!r} at {seat}; use a new source id for the new meaning"
-                )
-                continue
-            bindings[source] = contract
-            seats[source] = seat
+            continue
+        bindings[source] = contract
+        seats[source] = seat
     return bindings, seats, errors
 
 
 def declared_data_snapshot_references(lf_elements: list, registry: dict) -> dict:
     """Read source-scoped immutable snapshot ids selected by one document."""
     references = {}
-    for rec in lf_elements:
-        for spec in registry.get(rec["tag"], {}).get("x-data", {}).values():
-            snapshot_attr = spec.get("snapshot")
-            if snapshot_attr is None:
-                continue
-            source = rec["attrs"].get(spec["source"])
-            snapshot = rec["attrs"].get(snapshot_attr)
-            if (
-                isinstance(source, str)
-                and re.fullmatch(DATA_SOURCE_NAME, source)
-                and valid_snapshot_id(snapshot)
-            ):
-                references.setdefault(source, set()).add(snapshot)
+    for _ordinal, rec, _input_name, spec, source in data_bindings(
+        lf_elements, registry
+    ):
+        if snapshot := selected_snapshot(rec, spec):
+            references.setdefault(source, set()).add(snapshot)
     return references
 
 
@@ -79,21 +84,10 @@ def data_snapshot_selections(documents: list[tuple[list, str]], registry: dict) 
     """Exact immutable selection at each document/widget/input coordinate."""
     selections = {}
     for lf_elements, document in documents:
-        for ordinal, rec in enumerate(lf_elements):
-            for input_name, spec in (
-                registry.get(rec["tag"], {}).get("x-data", {}).items()
-            ):
-                snapshot_attr = spec.get("snapshot")
-                if snapshot_attr is None:
-                    continue
-                source = rec["attrs"].get(spec["source"])
-                snapshot = rec["attrs"].get(snapshot_attr)
-                if not (
-                    isinstance(source, str)
-                    and re.fullmatch(DATA_SOURCE_NAME, source)
-                    and valid_snapshot_id(snapshot)
-                ):
-                    continue
+        for ordinal, rec, input_name, spec, source in data_bindings(
+            lf_elements, registry
+        ):
+            if snapshot := selected_snapshot(rec, spec):
                 coordinate = (
                     document,
                     ordinal,
@@ -226,24 +220,15 @@ def page_data_binding_inventory(
 def data_binding_inventory(lf_elements: list, registry: dict) -> dict:
     """The page's source ids, contracts, and consuming widget inputs."""
     inventory = {}
-    for rec in lf_elements:
-        for input_name, spec in registry.get(rec["tag"], {}).get("x-data", {}).items():
-            source = rec["attrs"].get(spec["source"])
-            if (
-                not isinstance(source, str)
-                or re.fullmatch(DATA_SOURCE_NAME, source) is None
-            ):
-                continue
-            binding = inventory.setdefault(
-                source,
-                {"contract": spec["contract"], "consumers": []},
-            )
-            consumer = {"widget": rec["attrs"].get("id"), "input": input_name}
-            if (snapshot_attr := spec.get("snapshot")) and (
-                selected := rec["attrs"].get(snapshot_attr)
-            ):
-                consumer["snapshot"] = selected
-            binding["consumers"].append(consumer)
+    for _ordinal, rec, input_name, spec, source in data_bindings(lf_elements, registry):
+        binding = inventory.setdefault(
+            source,
+            {"contract": spec["contract"], "consumers": []},
+        )
+        consumer = {"widget": rec["attrs"].get("id"), "input": input_name}
+        if snapshot := selected_snapshot(rec, spec):
+            consumer["snapshot"] = snapshot
+        binding["consumers"].append(consumer)
     return {source: inventory[source] for source in sorted(inventory)}
 
 
@@ -326,33 +311,24 @@ def data_binding_errors(
                 "id for the new meaning"
             )
     for lf_elements, document in documents:
-        for rec in lf_elements:
-            for input_name, spec in (
-                registry.get(rec["tag"], {}).get("x-data", {}).items()
-            ):
-                snapshot_attr = spec.get("snapshot")
-                if snapshot_attr is None:
-                    continue
-                source = rec["attrs"].get(spec["source"])
-                selected = rec["attrs"].get(snapshot_attr)
-                if not (
-                    isinstance(source, str)
-                    and re.fullmatch(DATA_SOURCE_NAME, source)
-                    and valid_snapshot_id(selected)
-                ):
-                    continue
-                source_store = stored["sources"].get(source)
-                snapshots = (
-                    source_store.get("snapshots", {})
-                    if isinstance(source_store, dict)
-                    else {}
+        for _ordinal, rec, input_name, spec, source in data_bindings(
+            lf_elements, registry
+        ):
+            selected = selected_snapshot(rec, spec)
+            if selected is None:
+                continue
+            source_store = stored["sources"].get(source)
+            snapshots = (
+                source_store.get("snapshots", {})
+                if isinstance(source_store, dict)
+                else {}
+            )
+            if selected not in snapshots:
+                errors.append(
+                    f"{document} <{rec['tag']}> input `{input_name}` (line "
+                    f"{rec['line']}) selects snapshot {selected!r} from source "
+                    f"{source!r}, but data.json does not contain it"
                 )
-                if selected not in snapshots:
-                    errors.append(
-                        f"{document} <{rec['tag']}> input `{input_name}` (line "
-                        f"{rec['line']}) selects snapshot {selected!r} from source "
-                        f"{source!r}, but data.json does not contain it"
-                    )
     return list(dict.fromkeys(errors))
 
 

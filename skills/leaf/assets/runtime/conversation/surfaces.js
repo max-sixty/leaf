@@ -104,7 +104,7 @@ export function renderSurfaces(threads, placedAt) {
     try {
       adapter.begin();
       for (const thread of threads) {
-        const anchor = thread.root.anchor;
+        const anchor = thread.anchor;
         const placement = placedAt(thread.root.id);
         if (
           !anchor?.datum ||
@@ -152,7 +152,7 @@ export function renderSurfaces(threads, placedAt) {
 }
 
 export const claimed = (id) => claimedIds.has(id);
-export function focusSurface(id) {
+export function focusSurface(id, { focus = "reply" } = {}) {
   for (const registration of registrations.values()) {
     const root = registration.owner.shadowRoot ?? registration.owner;
     const thread = root.querySelector(
@@ -161,6 +161,7 @@ export function focusSurface(id) {
     if (!thread) continue;
     const summary = thread.querySelector(":scope > summary");
     const target =
+      (focus === "thread" ? thread : null) ??
       (summary && !thread.hasAttribute("open") ? summary : null) ??
       thread.querySelector("textarea:not([disabled])") ??
       summary ??

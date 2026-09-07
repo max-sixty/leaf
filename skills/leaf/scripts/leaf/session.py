@@ -17,6 +17,14 @@ from .registry.contract import RegistryError, handling
 from .registry.reactions import described
 from .registry.storage import load_registry
 from .revisioning import activate_source
+from .schema import (
+    ACK_BATCH_INSTRUCTION,
+    ANSWER_ASK_INSTRUCTION,
+    CURSOR_FILE,
+    SERVICE_FILE,
+    STATUS_FILE,
+)
+from .served_state.page import full_state
 from .server import running_server
 from .service import (
     PageTransaction,
@@ -57,6 +65,51 @@ def cmd_status(
             check_local_claim(state, detail)
             work = work_subject(page_dir, page.events, on)
         page.set_status(state, detail, work=work)
+
+
+def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
+    """Idle, unless the page still owes its reader an answer.
+
+    Idling over an event nobody has answered ends the leaf on a user still
+    owed one — unread, or read and left. The watcher's whole batch, not the
+    reader-facing count, so a worker's report cannot be left standing as
+    provisional state forever either. The check and the transition share the
+    log lock, so an event arriving or an acknowledgement advancing the cursor
+    orders against them."""
+    # Ahead of the transaction, which reaches `set_status` without a subject:
+    # refused here, `idle --on` cannot be reported back as a claim the page
+    # never took.
+    if on is not None:
+        check_local_claim("idle", detail)
+    with PageTransaction(page_dir) as page:
+        events = page.events
+        cursor = page.cursor
+        pending = len(unacknowledged(events, cursor))
+        if pending:
+            sys.exit(
+                f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
+                "idling ends the leaf over them; `leaf wait` prints them and returns "
+                "at once when events are already waiting. The wait owner must finish "
+                "the delivery contract before idling. " + ACK_BATCH_INSTRUCTION
+            )
+        unanswered = [
+            obligation
+            for obligation in full_state(page_dir, events)["activity"]["obligations"]
+            if obligation["seq"] <= cursor
+        ]
+        if unanswered:
+            ids = ", ".join(
+                obligation["target"]["id"]
+                if obligation["target"]["kind"] == "thread"
+                else obligation["event"]
+                for obligation in unanswered
+            )
+            sys.exit(
+                f"{len(unanswered)} acknowledged "
+                f"reader move{'s' if len(unanswered) != 1 else ''} with no answer "
+                f"({ids}); idling ends the leaf over them. " + ANSWER_ASK_INSTRUCTION
+            )
+        page.set_status("idle", detail)
 
 
 class PageTick(NamedTuple):
@@ -126,7 +179,7 @@ class Watch:
             # the harmless observation outside makes the lock boundary itself
             # testable: a claim or SessionEnd can win after page selection,
             # and _read must then decline every stale act.
-            observed = read_json(page_dir / "status.json") or {"state": "idle"}
+            observed = read_json(page_dir / STATUS_FILE)
             try:
                 with PageTransaction(page_dir) as page:
                     reading, revive = self._read(page, observed)
@@ -170,7 +223,7 @@ class Watch:
         batch = (
             unacknowledged(page.events, page.cursor) if watch_state != "lost" else []
         )
-        service = read_json(page_dir / "service.json")
+        service = read_json(page_dir / SERVICE_FILE)
         enabled = bool(service and service["enabled"])
         key, now, revive = str(page_dir), time.time(), False
         # Desired service state owns revival. Status says what the page is doing;
@@ -235,10 +288,9 @@ def batch_data(
     batch: list[dict],
 ) -> dict:
     """Build one complete delivery batch without taking receipt for it."""
-    # The batch explains itself off the page's own vendored vocabulary: a
-    # reaction's word beside it (`means`), and under `handling` what the layer
-    # asks of the agent for each kind present, so the rule reaches the agent at
-    # the moment it applies. A stale registry must not block the batch.
+    # The batch carries the page's own vendored vocabulary: a reaction's token,
+    # optionally its package-supplied `means`, and under `handling` what the layer asks
+    # of the agent for each kind present. A stale registry must not block the batch.
     registry = _batch_registry(page_dir)
     return {
         "page": str(page_dir),
@@ -281,22 +333,42 @@ def batch_jsonl(reading: PageTick) -> str:
     return serialize_batch(reading.page_dir, reading.transaction, reading.batch)
 
 
-def record_pickup(page: PageTransaction, events: list[dict]) -> dict | None:
-    """Durably record which reader moves reached their next consumer.
+def record_pickup(
+    page: PageTransaction,
+    events: list[dict],
+    *,
+    phase: str = "opened",
+    session: str | None = None,
+    turn: str | None = None,
+) -> dict | None:
+    """Durably record one delivery transition for exact reader moves.
 
-    Pickup is transport evidence, not a claim that the agent has started work.
-    Naming event ids makes retries idempotent and lets one receipt follow the
-    exact move the reader made even when a page was already working elsewhere.
+    ``queued`` means Codex's durable same-task queue accepted the batch;
+    ``opened`` means the batch entered an agent turn. Both are transport
+    evidence, not authored work claims. A queued transition may therefore be
+    followed by an opened transition for the same events, while a retry of the
+    same transition appends nothing.
     """
+    if phase not in {"queued", "opened"}:
+        raise ValueError(f"unknown pickup phase {phase!r}")
+    claim = page.claim
+    if session is None and claim:
+        session = claim.get("id")
+    if phase == "opened" and turn is None and claim and claim.get("id") == session:
+        turn = claim.get("turn")
     wanted = [event["id"] for event in events if event.get("author") == "user"]
     picked = {
-        event_id
+        (event_id, event["phase"], event["session"], event["turn"])
         for event in page.events
         if event["kind"] == "pickup"
         for event_id in event["events"]
     }
     fresh = list(
-        dict.fromkeys(event_id for event_id in wanted if event_id not in picked)
+        dict.fromkeys(
+            event_id
+            for event_id in wanted
+            if (event_id, phase, session, turn) not in picked
+        )
     )
     if not fresh:
         return None
@@ -305,19 +377,21 @@ def record_pickup(page: PageTransaction, events: list[dict]) -> dict | None:
             "kind": "pickup",
             "author": "page",
             "events": fresh,
+            "phase": phase,
+            "session": session,
+            "turn": turn,
         }
     )
 
 
 def _deliver_batch(reading: PageTick) -> bool:
-    """Write one page's complete batch and record its direct pickup.
+    """Write one page's complete batch to its direct consumer.
 
     Answers that a turn opened, because under this carrier the handoff is the
     opening: `leaf wait` returns with the batch on stdout and the words are in
     model context before anything else runs.
     """
     print(batch_jsonl(reading), flush=True)
-    record_pickup(reading.transaction, reading.batch)
     return True
 
 
@@ -361,8 +435,19 @@ def read_watch_pass(
             # hook stamps the openings no delivery carries. The Stop hook closed
             # the turn across the session's pages, so an opening here reopens
             # the same set.
-            if deliver(reading) and watch.session_id:
-                open_session_turn(watch.session_id, reading.transaction)
+            if deliver(reading):
+                turn = None
+                if watch.session_id:
+                    turn = reading.transaction.open_turn(watch.session_id)
+                record_pickup(
+                    reading.transaction,
+                    reading.batch,
+                    phase="opened",
+                    session=watch.session_id,
+                    turn=turn,
+                )
+                if watch.session_id:
+                    open_session_turn(watch.session_id, reading.transaction)
             return _WatchPass(readings, live, 0)
         if reading.lost:
             print(
@@ -474,7 +559,7 @@ def acknowledge(page: PageTransaction, seq: int) -> None:
     if target["author"] != "user" and target["kind"] not in ("report", "error"):
         sys.exit(f"event {seq} is not a user event, a report, or a page error")
     if seq > page.cursor:
-        write_json(page.page_dir / "cursor.json", {"seq": seq})
+        write_json(page.page_dir / CURSOR_FILE, {"seq": seq})
 
 
 def cmd_ack(page_dir: Path, seq: int) -> None:

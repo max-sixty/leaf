@@ -10,7 +10,7 @@
     <meta name="lf-review" content="sign-off" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
     />
     <link rel="stylesheet" href="/theme.css" />
     <style>
@@ -359,13 +359,15 @@ flowchart LR
             ></lf-call-diff>
           </lf-tab>
         </lf-tabs>
-        <h3 id="pr-hunk-heading">The default the picker now opens on</h3>
-        <p id="pr-hunk-intro">
-          The one hunk the rest of the change is arranged around: the picker asks for a
-          prepared diff instead of assembling its own <code>git diff</code> arguments.
-        </p>
-        <lf-diff id="pr-key-hunk">
-          <pre>
+        <section id="pr-hunk">
+          <h3>The default the picker now opens on</h3>
+          <p id="pr-hunk-intro">
+            The one hunk the rest of the change is arranged around: the picker asks for
+            a prepared diff instead of assembling its own <code>git diff</code>
+            arguments.
+          </p>
+          <lf-diff id="pr-key-hunk">
+            <pre>
 diff --git a/src/git/diff.rs b/src/git/diff.rs
 --- a/src/git/diff.rs
 +++ b/src/git/diff.rs
@@ -376,30 +378,33 @@ diff --git a/src/git/diff.rs b/src/git/diff.rs
 +        PreparedDiff::for_worktree(self, worktree)?.unified()
      }
 </pre>
-        </lf-diff>
-        <h3 id="pr-invariant-heading">Review invariants</h3>
-        <p id="pr-invariant-intro">
-          The implementation is expected to preserve these three properties.
-        </p>
-        <lf-code id="pr-review-invariants" language="rust" hi="1-3">
-          <pre>
+          </lf-diff>
+        </section>
+        <section id="pr-invariants">
+          <h3>Review invariants</h3>
+          <p id="pr-invariant-intro">
+            The implementation is expected to preserve these three properties.
+          </p>
+          <lf-code id="pr-review-invariants" language="rust" hi="1-3">
+            <pre>
 assert_eq!(repo.read_index_bytes(&amp;worktree)?, index_before_preview, "preview preparation rewrote {worktree:?}");
 assert!(temp_index.is_operation_scoped());
 assert!(offscreen_worktree_preview.is_demand_loaded());
 </pre>
-          <lf-note id="pr-note-real-index" at="1"
-            >A clean status is insufficient: preview preparation must preserve the real
-            index byte for byte.</lf-note
-          >
-          <lf-note id="pr-note-temp-index" at="2"
-            >Random, exclusive temporary files prevent concurrent previews from sharing
-            or replacing one another’s index.</lf-note
-          >
-          <lf-note id="pr-note-demand-load" at="3"
-            >Moving off-screen worktrees out of prewarm protects startup, but leaves
-            selected-row latency as a separate measurement question.</lf-note
-          >
-        </lf-code>
+            <lf-note id="pr-note-real-index" at="1"
+              >A clean status is insufficient: preview preparation must preserve the
+              real index byte for byte.</lf-note
+            >
+            <lf-note id="pr-note-temp-index" at="2"
+              >Random, exclusive temporary files prevent concurrent previews from
+              sharing or replacing one another’s index.</lf-note
+            >
+            <lf-note id="pr-note-demand-load" at="3"
+              >Moving off-screen worktrees out of prewarm protects startup, but leaves
+              selected-row latency as a separate measurement question.</lf-note
+            >
+          </lf-code>
+        </section>
       </section>
 
       <section id="pr-history">
@@ -554,14 +559,14 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
       </section>
 
       <section id="pr-outcome">
-        <lf-decision id="pr-outcome-decision">
+        <lf-ask id="pr-outcome-decision">
           <h2>What would you report on the final revision?</h2>
           <p id="pr-outcome-context">
             Choose the review the agent should enter on the forge. Each option states
             the disposition and the exact work, so the agent can submit it without
             translating a generic label. Digits choose a listed answer;
             <kbd>c</kbd> comments on it. Tab reaches <strong>Another option</strong>,
-            where <kbd>Enter</kbd> submits.
+            where <kbd>Enter</kbd> adds a line and <kbd>Mod+Enter</kbd> adds the answer.
           </p>
           <lf-options id="pr-outcome-choice" choose>
             <lf-option id="pr-outcome-follow-up">
@@ -581,7 +586,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
               worktree.
             </lf-option>
           </lf-options>
-        </lf-decision>
+        </lf-ask>
       </section>
     </main>
   </body>

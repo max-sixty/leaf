@@ -184,14 +184,15 @@ Before automating the slice, choose the agent runner and host, model settings,
 fixture builder, trace format, arm isolation, answer normalization, and
 result-retention policy.
 
-## Near-term usability TODO
+## Structural authoring advice
 
-Design a coherent set of optional authoring defaults that `version check` can
-offer as non-blocking advice rather than adding one-off hints. The first case is
-a page with two or more section headings and no `lf-toc`: recommend a table of
-contents while leaving an author free to omit it when the outline is already
-visible. Keep the advice structural and deterministic rather than attempting to
-judge prose quality.
+`version check` offers optional authoring defaults as non-blocking advice rather
+than one-off hints. The first case is a page with two or more section headings
+and no outline element: it recommends a table of contents and leaves the author
+free to omit one when the outline is already visible. The registry's `x-outline`
+marker names the element, so a layer that ships none draws no advice. Keep any
+further advice structural and deterministic rather than attempting to judge prose
+quality.
 
 ## Evaluate the integrated inspection path
 

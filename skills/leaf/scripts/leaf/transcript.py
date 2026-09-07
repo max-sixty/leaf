@@ -58,10 +58,7 @@ def shown(quote: str) -> str:
 def _revision_title(page_dir: Path) -> tuple[int | None, str]:
     """The active revision and its authored title, if the page has one."""
     title = ""
-    try:
-        revision = latest_revision(page_dir)
-    except SystemExit:
-        revision = None
+    revision = latest_revision(page_dir)
     if revision is not None:
         title = parse_revision(page_dir, revision).title.strip()
     return revision, title
@@ -131,7 +128,7 @@ def _published_reading(
 
 
 def _thread_heading(thread: dict) -> str:
-    anchor = thread["root"].get("anchor") or {}
+    anchor = thread["anchor"] or {}
     if anchor.get("quote"):
         head = f"> “{shown(anchor['quote'])}”"
     elif anchor.get("section"):
@@ -157,9 +154,8 @@ def _thread_heading(thread: dict) -> str:
 def _print_message(message: dict, registry: dict) -> None:
     who = message.get("agent", "Agent") if message["author"] == "claude" else "User"
     if is_reaction(message):
-        # A mark rather than a turn: the token's glyph and word, and the
-        # meaning the layer gave it, since a transcript is read where no
-        # bar is there to explain the glyph.
+        # A mark rather than a turn: the token's glyph and word, plus an explanation
+        # only when the page's package deliberately supplied one.
         entry = reaction_tokens(registry).get(message["token"]) or {}
         said = f"{entry.get('glyph', '')} {message['token']}".strip()
         if entry.get("means"):
@@ -167,7 +163,11 @@ def _print_message(message: dict, registry: dict) -> None:
         print(f"- **{who}** reacted: {said}")
         return
     edited = " *(edited)*" if message.get("edited") else ""
-    body = message["text"] + (f"\n{message['markup']}" if message.get("markup") else "")
+    body = message.get("text", "")
+    if message.get("drawing"):
+        body += "\n_(drawing attached; inspect it on the live page)_"
+    if message.get("markup"):
+        body += f"\n{message['markup']}"
     print(f"- **{who}**{edited}: " + body.replace("\n", "\n  "))
 
 

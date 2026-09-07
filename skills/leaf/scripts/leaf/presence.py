@@ -6,11 +6,17 @@ import threading
 import time
 from pathlib import Path
 
-from .event_log import read_cursor, read_events
-from .files import file_stamp, latest_revision, list_revisions, read_json
+from .activity import transition_due
+from .event_log import now_iso, read_cursor, read_events
+from .files import (
+    active_descriptor,
+    file_stamp,
+    latest_revision,
+    read_json,
+)
 from .host import state_home
 from .leases import wait_is_live
-from .schema import VIEWED_FILE
+from .schema import STATUS_FILE, VIEWED_FILE, WAITER_LOCK
 from .server import running_server
 from .service import (
     claim_is_active,
@@ -45,7 +51,7 @@ def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
         # created or removed.
         lease_stamp = file_stamp(state_home() / "sessions" / f"{claim['id']}.wait")
     else:
-        lease_stamp = file_stamp(page_dir / "waiter.lock")
+        lease_stamp = file_stamp(page_dir / WAITER_LOCK)
     return entries + (("$claim", claim_stamp), ("$wait", lease_stamp))
 
 
@@ -73,8 +79,8 @@ def other_leaves(page_dir: Path) -> list:
     candidates += (Path(claim["page"]) for claim in claim_records())
     others = []
     seen = {page_dir.resolve()}
-    for candidate in candidates:
-        candidate = candidate.resolve()
+    for found in candidates:
+        candidate = found.resolve()
         if candidate in seen or not candidate.is_dir():
             continue
         seen.add(candidate)
@@ -95,20 +101,47 @@ def other_leaves(page_dir: Path) -> list:
             )
             with _presence_cache_lock:
                 held = _neighbor_cache.get(candidate)
-                if held and held[0] == key:
+                observed_at = now_iso()
+                if (
+                    held
+                    and held[0] == key
+                    and (
+                        held[1] is None
+                        or not transition_due(held[1]["activity"], observed_at)
+                    )
+                ):
                     present = held[1]
                 else:
                     present = None
                     try:
                         if info:
                             events = read_events(candidate)
-                            if list_revisions(candidate):
-                                revision = latest_revision(candidate)
+                            revision = latest_revision(candidate)
+                            if revision is not None:
                                 parser = parse_revision(candidate, revision)
+                                # A neighboring row consumes the same canonical
+                                # activity as that page's own banner. Import here
+                                # to keep the base presence gatherer independent
+                                # of served-state assembly.
+                                from .served_state.browser import project_browser_state
+                                from .served_state.page import project_activity
+
+                                raw = presence(candidate, events)
+                                active = active_descriptor(candidate, events)
+                                browser = project_browser_state(
+                                    candidate, events, None, active, raw, observed_at
+                                )
                                 present = {
                                     "title": parser.title.strip() or candidate.name,
                                     "url": info["url"],
-                                    **presence(candidate, events),
+                                    **raw,
+                                    "activity": project_activity(
+                                        candidate,
+                                        events,
+                                        raw,
+                                        observed_at,
+                                        browser,
+                                    ),
                                 }
                     except Exception:  # noqa: BLE001 - cache this page's fault
                         present = None
@@ -139,14 +172,9 @@ def presence(page_dir: Path, events: list) -> dict:
     claim-against-proof judgment reads the same fields whichever page it judges,
     and the tray's account of a neighbour is the account this page gives of
     itself."""
-    # A file that isn't there stands in as its whole record, so every read below
-    # indexes rather than asking twice whether the field arrived.
-    stored_status = read_json(page_dir / "status.json") or {
-        "state": "idle",
-        "detail": "",
-        "ts": None,
-    }
+    stored_status = read_json(page_dir / STATUS_FILE)
     status = {key: value for key, value in stored_status.items() if key != "work"}
+    status.setdefault("after", 0)
     claim = page_claim(page_dir)
     active = claim if claim_is_active(claim) else None
     # What the wait owner has acknowledged after the complete batch reached its
@@ -174,6 +202,10 @@ def presence(page_dir: Path, events: list) -> dict:
         # their posting session too, so a delegate is not declared abandoned merely
         # because the orchestrator's turn ended under it.
         "claim_session": claim.get("id") if claim else None,
+        # Opaque identity of the claiming session's current turn on this page.
+        # An opened delivery names this value; equality, rather than timestamps,
+        # is what says that exact reader move is in the turn running now.
+        "claim_turn": claim.get("turn") if claim else None,
         # When the claiming session's last turn ended, or None while none has.
         # A `working` claim older than this is one that no turn and no delegate
         # renewed across the boundary — the same judgment the runtime's grace

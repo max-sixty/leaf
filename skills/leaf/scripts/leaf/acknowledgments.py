@@ -1,6 +1,6 @@
 """Interaction-scoped acknowledgment lifecycle projection."""
 
-from .events import spoken_turns
+from .events import awaits_agent, seat_root, spoken_turns
 from .projection import NO_RECORD, canonical_updates, folded_facet, markup_facet
 
 
@@ -39,17 +39,18 @@ def canonical_acknowledgments(
     """The unsettled reader moves and the strongest evidence held for each.
 
     Acknowledgment is one interaction-scoped projection over the document and
-    log: append means Sent, a page-owned pickup record means Picked up, and a
-    matching effective work claim means Active. Replies and authored state
+    log: append means Sent, queue acceptance means Queued, entry into an exact
+    agent turn means Picked up, and a matching effective work claim means
+    Active. Replies and authored state
     settle the source move, so the row disappears instead of becoming a second
     outcome surface.
     """
-    pickups = {}
+    deliveries: dict[str, dict[str, dict]] = {}
     for event in events:
         if event["kind"] != "pickup":
             continue
         for event_id in event["events"]:
-            pickups.setdefault(event_id, event)
+            deliveries.setdefault(event_id, {})[event["phase"]] = event
 
     effective_claims = {
         (update["target"]["kind"], update["target"]["id"]): update
@@ -58,16 +59,31 @@ def canonical_acknowledgments(
     }
     used_claims = set()
 
-    def receipt(source: dict, target: dict, coordinate: list[str]) -> dict:
+    def receipt(
+        source: dict,
+        target: dict,
+        coordinate: list[str],
+        *,
+        requires_response: bool,
+    ) -> dict:
         claim = effective_claims.get((target["kind"], target["id"]))
-        pickup = pickups.get(source["id"])
-        if claim and claim["log_floor"] >= source["seq"]:
+        delivery = deliveries.get(source["id"], {})
+        opened = delivery.get("opened")
+        queued = delivery.get("queued")
+        delivery_seq = max(
+            (entry["seq"] for entry in (opened, queued) if entry),
+            default=source["seq"],
+        )
+        if claim and claim["log_floor"] >= delivery_seq:
             phase, evidence = "active", claim
             used_claims.add(claim["id"])
-        elif pickup:
-            phase, evidence = "picked_up", pickup
+        elif opened:
+            phase, evidence = "picked_up", opened
+        elif queued:
+            phase, evidence = "queued", queued
         else:
             phase, evidence = "sent", source
+        fallback = opened or queued
         return {
             "id": source["id"],
             "event": source["id"],
@@ -75,19 +91,38 @@ def canonical_acknowledgments(
             "revision": source.get("revision"),
             "target": target,
             "coordinate": coordinate,
+            "requires_response": requires_response,
             "phase": phase,
-            "ts": evidence["ts"],
-            "fallback_phase": "picked_up" if pickup else "sent",
-            "fallback_ts": pickup["ts"] if pickup else source["ts"],
+            "ts": evidence.get("ts"),
+            "fallback_phase": (
+                "picked_up" if opened else "queued" if queued else "sent"
+            ),
+            "fallback_ts": (fallback.get("ts") if fallback else source.get("ts")),
+            "delivery_seq": fallback["seq"] if fallback else None,
+            "delivery_session": fallback.get("session") if fallback else None,
+            "delivery_turn": fallback.get("turn") if fallback else None,
             "detail": claim["text"] if phase == "active" else None,
             "agent": claim.get("agent") if phase == "active" else None,
             "session": claim.get("session") if phase == "active" else None,
         }
 
     acknowledgments = []
+    clarifications = [
+        (thread["root"]["seq"], seat)
+        for thread in threads.values()
+        if thread["root"]["author"] == "claude"
+        and not thread["resolved"]
+        and not awaits_agent(thread)
+        and (seat := seat_root(thread))
+    ]
     for thread_id, thread in threads.items():
         turns = spoken_turns(thread)
         if thread["resolved"] or not turns or turns[-1]["author"] != "user":
+            continue
+        if (thread["root"].get("response") or {}).get("kind") == "version" and any(
+            seat == seat_root(thread) and root_seq > thread["root"]["seq"]
+            for root_seq, seat in clarifications
+        ):
             continue
         source = turns[-1]
         acknowledgments.append(
@@ -95,6 +130,7 @@ def canonical_acknowledgments(
                 source,
                 {"kind": "thread", "id": thread_id},
                 ["thread", thread_id],
+                requires_response=True,
             )
         )
 
@@ -102,33 +138,47 @@ def canonical_acknowledgments(
     # its standing record. A recordless verb has no markup form to compare, so a
     # later version note in the log is the document's answer to that move.
     moves = []
-    for coordinate, (source, spec) in projection.actions.items():
-        widget, unit, facet = coordinate
-        if not page_action_unsettled(
-            coordinate, source, spec, parser, spk, registry, events
-        ):
-            continue
-        moves.append((source, {"kind": "widget", "id": widget}, [widget, unit, facet]))
+    if projection is not None:
+        for coordinate, (source, spec) in projection.actions.items():
+            widget, unit, facet = coordinate
+            if not page_action_unsettled(
+                coordinate, source, spec, parser, spk, registry, events
+            ):
+                continue
+            moves.append(
+                (
+                    source,
+                    {"kind": "widget", "id": widget},
+                    [widget, unit, facet],
+                    False,
+                )
+            )
 
     # Frozen widget actions are answered by the next agent turn in their
     # conversation. They have no later authored document to absorb them into.
-    for coordinate, (source, _spec) in conversation.projection.actions.items():
-        if source["author"] != "user":
-            continue
-        thread_id = conversation.thread_by_widget.get(source["widget"])
-        thread = threads.get(thread_id)
-        if not thread or thread["resolved"]:
-            continue
-        if any(
-            message["kind"] == "reply"
-            and message["author"] == "claude"
-            and message["seq"] > source["seq"]
-            for message in thread["msgs"]
-        ):
-            continue
-        moves.append(
-            (source, {"kind": "widget", "id": source["widget"]}, list(coordinate))
-        )
+    if conversation is not None:
+        for coordinate, (source, _spec) in conversation.projection.actions.items():
+            if source["author"] != "user":
+                continue
+            thread_id = conversation.thread_by_widget.get(source["widget"])
+            thread = threads.get(thread_id)
+            if not thread or thread["resolved"]:
+                continue
+            if any(
+                message["kind"] == "reply"
+                and message["author"] == "claude"
+                and message["seq"] > source["seq"]
+                for message in thread["msgs"]
+            ):
+                continue
+            moves.append(
+                (
+                    source,
+                    {"kind": "widget", "id": source["widget"]},
+                    list(coordinate),
+                    True,
+                )
+            )
 
     # One receipt per widget and unit, for the reader's newest move on it. A tick and
     # the Done press that followed are two facets of one unit, and each minted a line:
@@ -138,13 +188,20 @@ def canonical_acknowledgments(
     # Button each in the margin. Chosen before a receipt is minted, so a claim is
     # spent on a move that survives rather than on one dropped here.
     newest: dict[tuple[str, str], dict] = {}
-    for source, target, coordinate in moves:
+    for source, target, coordinate, _requires_response in moves:
         key = (target["id"], coordinate[1])
         if key not in newest or source["seq"] > newest[key]["seq"]:
             newest[key] = source
-    for source, target, coordinate in moves:
+    for source, target, coordinate, requires_response in moves:
         if newest[(target["id"], coordinate[1])] is source:
-            acknowledgments.append(receipt(source, target, coordinate))
+            acknowledgments.append(
+                receipt(
+                    source,
+                    target,
+                    coordinate,
+                    requires_response=requires_response,
+                )
+            )
 
     # Keep an explicit claim visible even when there was no preceding reader
     # gesture to grow from. This preserves the useful part of `status --on`
@@ -161,6 +218,7 @@ def canonical_acknowledgments(
                 "revision": claim.get("revision"),
                 "target": target,
                 "coordinate": [target["kind"], target["id"]],
+                "requires_response": False,
                 "phase": "active",
                 "ts": claim["ts"],
                 "detail": claim["text"],

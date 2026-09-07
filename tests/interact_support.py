@@ -43,6 +43,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
+from leaf.registry import storage as registry_storage_model
 from leaf.served_state import page as served_page
 from leaf.validation import instances as validation_model
 
@@ -96,7 +97,9 @@ def append_command(page_dir, command):
     event, including meaning, to event_log.append_event instead.
     """
     with service_model.PageTransaction(page_dir) as page:
-        return page.append_event(command)
+        return page.append_event(
+            command, registry_storage_model.require_registry(page_dir)
+        )
 
 
 def run_async(entry):
@@ -172,7 +175,7 @@ PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>t</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -181,7 +184,7 @@ PAGE = """<!doctype html>
 <section id="plan">
   <h2>Plan</h2>
   <p>The cutoff lives in <a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>.</p>
-  <lf-decision id="plan-choice-decision">
+  <lf-ask id="plan-choice-decision">
     <h3>Which plan should lead?</h3>
     <lf-options>
       <lf-option id="flag-first"><lf-chip>effort: low</lf-chip><lf-chip>risk: med</lf-chip>
@@ -191,7 +194,7 @@ PAGE = """<!doctype html>
         <strong>Backfill first</strong> Verify, then flip. <em>My take: do this first.</em>
       </lf-option>
     </lf-options>
-  </lf-decision>
+  </lf-ask>
   <lf-diagram id="flow"><pre>
 graph LR
   A --> B
@@ -399,6 +402,7 @@ def record_claim(page, **fields):
         "cwd": str(Path.cwd()),
         "ts": "t",
         "released": None,
+        "turn": "turn-1",
         "turn_closed": None,
         **fields,
     }
@@ -414,7 +418,7 @@ def live_versions(d):
 
 
 def fragment_errors(html, registry):
-    parser = structure_model._StructParser()
+    parser = structure_model.StructParser()
     parser.feed(html)
     parser.close()
     return validation_model.fragment_errors(parser, registry)
@@ -563,8 +567,8 @@ SUGGESTION = """<lf-suggestion id="sug-refill">
 
 
 def before_choice(page, markup):
-    """Insert a fixture before the base page's titled choice Decision."""
-    start = '<lf-decision id="plan-choice-decision">'
+    """Insert a fixture before the base page's titled choice Ask."""
+    start = '<lf-ask id="plan-choice-decision">'
     return page.replace(start, markup + start)
 
 
@@ -658,13 +662,13 @@ def _board(todo, done):
 
 X = ("card-x", "", "Guard the delete")
 Y = ("card-y", "", "Wire the importer")
-OPTIONS = """<lf-decision id="g1-decision">
+OPTIONS = """<lf-ask id="g1-decision">
   <h3>Which migration should lead?</h3>
   <lf-options id="g1" choose>
     <lf-option id="o-shim"{a}>{chip}<strong>Shim it</strong> {shim}</lf-option>
     <lf-option id="o-stage"{b}><strong>Migrate in stages</strong> {stage}</lf-option>
   </lf-options>
-</lf-decision>"""
+</lf-ask>"""
 
 
 def state_json(d):
@@ -731,11 +735,11 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     original_append_event = service_model.PageTransaction.append_event
     original_composed_theme = layer_model.composed_theme
 
-    def held_append_event(page, event):
+    def held_append_event(page, event, registry=None):
         if event.get("kind") == kind:
             entering.set()
             assert resume.wait(timeout=10), "re-vendor never observed the writer"
-        return original_append_event(page, event)
+        return original_append_event(page, event, registry)
 
     def held_composed_theme(sources):
         checked_without_writer.set()
@@ -940,18 +944,18 @@ def server(page_dir):
     temporary.close()
 
 
-def fetch(url, data=None, token=TOKEN, layer=None):
+def fetch(url, data=None, token=TOKEN, layer=None, headers=None):
     """A request arriving the way a user's does: the key in the query, and a
     cookie jar to carry it onward. The live root and the runtime's later query-less
     requests are authorized by the cookie that first keyed arrival set. Pass token=None
-    for the reader who never had the link."""
+    for the reader who never had the link; headers carry route-specific metadata."""
     if token:
         url += ("&" if "?" in url else "?") + urllib.parse.urlencode({"t": token})
     opener = urllib.request.build_opener(
         urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
     )
     try:
-        headers = {}
+        request_headers = dict(headers or {})
         if data is not None and (
             token or urllib.parse.parse_qs(urllib.parse.urlsplit(url).query).get("t")
         ):
@@ -961,8 +965,8 @@ def fetch(url, data=None, token=TOKEN, layer=None):
                 )
                 with opener.open(state_url) as state:
                     layer = json.loads(state.read())["layer"]["generation"]
-            headers["Leaf-Layer"] = layer
-        request = urllib.request.Request(url, data=data, headers=headers)
+            request_headers["Leaf-Layer"] = layer
+        request = urllib.request.Request(url, data=data, headers=request_headers)
         with opener.open(request) as res:
             return res.status, res.read()
     except urllib.error.HTTPError as e:
@@ -1046,6 +1050,11 @@ def neighbour_page(directory, title=None, dead=False, published=True):
     )
     (directory / ".fixture-versions" / "v1.html").write_text(html)
     files_model.write_revision(directory, 1, html.encode())
+    # What `page init` writes: a page always has a status record.
+    files_model.write_json(
+        directory / "status.json",
+        {"state": "idle", "detail": "", "ts": None, "after": 0},
+    )
     if published:
         events_model.append_event(
             directory,

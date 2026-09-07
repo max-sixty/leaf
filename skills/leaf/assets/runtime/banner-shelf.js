@@ -153,7 +153,7 @@ export function showNews(control, on) {
   if (on) reserveNewsSlot(control);
   control.classList.toggle("lf-news-shown", on);
   paintPresence(control);
-  // One state application can refresh Decisions, blanket answers, Requests, and live
+  // One state application can refresh Asks, blanket answers, Requests, and live
   // leaves in succession. They all change the same row; fold it once after that write
   // batch, against the final words and presence of every address.
   queueNewsFold();

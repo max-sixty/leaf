@@ -37,8 +37,8 @@ path is `${CLAUDE_SKILL_DIR}/../../bin/leaf`, and Claude Code also puts it on
 incomplete. A checkout keeps it at `bin/leaf`.
 
 1. Run `leaf page init <page>`. Optional shapes need their packages named here:
-   `diagram` for Mermaid, `diff` for a unified diff, and `swipe` for rapid
-   pass-or-keep triage, as in
+   `diagram` for Mermaid, `diff` for a unified diff, `swipe` for rapid
+   pass-or-keep triage, and `playground` for declarative interactive explorers, as in
    `leaf page init --package diagram --package diff <page>`. Re-running `page init`
    with the selection adds it to a page already written.
 2. Read `references/page-authoring.md`, then the authoring reference each part of
@@ -84,7 +84,7 @@ Unless the user specifies the page's form or depth, a Leaf is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
 state, or offers one move, so the reader can grasp it at a glance and continue;
 disclosures keep supporting detail available without putting it in that path. A
-quick-decision page puts its first Ask in the initial viewport, with the short
+quick-answer page puts its first Ask in the initial viewport, with the short
 shared premise and alternatives it needs. A record or system page may expose the
 whole state and put each Ask where that state makes it answerable. The visible
 page follows the subject's shape rather than a report outline;
@@ -97,6 +97,17 @@ the subject changes and stamp meaningful checkpoints. Use status detail for
 progress between revisions. Keep the waiter alive while work continues so
 comments can affect the next step.
 
+## Improve Leaf through use
+
+Leaf's agent interface is still in development, and experience making real
+pages should inform it. When using Leaf exposes concrete friction, ambiguity,
+or a missing capability, raise it with the user and offer to file an issue in
+the Leaf repository. Agent-reported issues are welcome.
+
+Describe the specific case: what you wanted to do and how the interface got in
+the way. Then explain the general improvement and why it would make Leaf better
+beyond that page.
+
 ## Conditional references
 
 Read references directly from this skill directory. Every route is listed here,
@@ -105,7 +116,7 @@ so a phase does not depend on discovering a chain of references.
 ### Author a version
 
 - `references/page-authoring.md`: before writing or revising any version.
-- `references/authoring-decisions.md`: while authoring a new, unanswered ask or
+- `references/authoring-asks.md`: while authoring a new, unanswered ask or
   sign-off.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a reader-owned draft, or revising standing state.

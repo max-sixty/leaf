@@ -9,8 +9,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from .files import json_bytes, read_json, replace_files
-from .host import config_home
+from .files import fsync_parents, json_bytes, read_json, replace_files
+from .host import config_home, package_store
 from .layer import (
     LayerComposition,
     checked_inputs,
@@ -18,6 +18,7 @@ from .layer import (
     compose_layer,
     input_paths,
     layer_inputs,
+    named_package,
 )
 from .locations import (
     located,
@@ -28,13 +29,13 @@ from .locations import (
     paths_same,
 )
 from .schema import (
+    ASSETS,
     BROWSER_DIRS,
     DEFAULT_PACKAGE,
     ELEMENT_ID,
     EVENTS_FILE,
-    KERNEL,
+    HTML_NAME,
     PACKAGE_DIRS,
-    PACKAGE_FILES,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     VENDORED_FILES,
@@ -84,12 +85,7 @@ def create_package_files(package: Path, files: list[tuple[Path, bytes]]) -> list
                 stream.flush()
                 os.fsync(stream.fileno())
             created.append((path, identity.st_dev, identity.st_ino))
-        for parent in {path.parent for path, _contents in files}:
-            descriptor = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-            try:
-                os.fsync(descriptor)
-            finally:
-                os.close(descriptor)
+        fsync_parents(path for path, _contents in files)
         return created
     except BaseException:
         rollback_package_files(created)
@@ -256,7 +252,7 @@ def package_layer_inputs(package: Path) -> list[Path]:
     for index, root in enumerate(inputs):
         if paths_same(package, root):
             return inputs[: index + 1]
-    return [KERNEL, DEFAULT_PACKAGE, package]
+    return [ASSETS, DEFAULT_PACKAGE, package]
 
 
 def check_package(
@@ -272,23 +268,33 @@ def check_package(
     return package, protected, composition
 
 
+def copy_package_contract(package: Path, staged: Path) -> None:
+    """Copy exactly what a layer input reads into an empty directory.
+
+    The rest of the source directory — a README, the author's own tests, `.git` —
+    belongs to the author rather than to the package, so it reaches neither a
+    staged candidate nor the store. Absent package directories are created empty,
+    as `package init` creates them.
+    """
+    for name in VENDORED_FILES:
+        source = package / name
+        if source.is_file():
+            shutil.copy2(source, staged / name)
+    for name in PACKAGE_DIRS:
+        source = package / name
+        target = staged / name
+        if source.is_dir():
+            shutil.copytree(source, target)
+        else:
+            target.mkdir()
+
+
 def validate_starter_candidate(package: Path, files: dict[str, bytes]) -> None:
     """Compose the complete package candidate without changing its destination."""
     with tempfile.TemporaryDirectory(prefix="leaf-package-") as temporary:
         staged = Path(temporary) / "package"
         staged.mkdir()
-        if package.is_dir():
-            for name in PACKAGE_FILES:
-                source = package / name
-                if source.is_file():
-                    shutil.copy2(source, staged / name)
-        for name in PACKAGE_DIRS:
-            source = package / name
-            target = staged / name
-            if source.is_dir():
-                shutil.copytree(source, target)
-            else:
-                target.mkdir()
+        copy_package_contract(package, staged)
         for relative, contents in files.items():
             target = staged / relative
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -332,7 +338,7 @@ def init_starter_widget(
     }
     validate_starter_candidate(package, files)
     refuse_package_overlap(
-        [package, *(package / name for name in (*PACKAGE_FILES, *PACKAGE_DIRS))],
+        [package, *(package / name for name in (*VENDORED_FILES, *PACKAGE_DIRS))],
         protected,
     )
 
@@ -359,7 +365,7 @@ def cmd_package_init(package: Path, widget: str | None = None) -> Path:
             return package
 
         refuse_package_overlap(
-            [package, *(package / name for name in (*PACKAGE_FILES, *PACKAGE_DIRS))],
+            [package, *(package / name for name in (*VENDORED_FILES, *PACKAGE_DIRS))],
             protected,
         )
 
@@ -384,3 +390,42 @@ def cmd_package_check(package: Path) -> Path:
     package, _, _ = check_package(package, require_exists=True)
     print(f"checked {package}")
     return package
+
+
+def cmd_package_install(source: Path) -> Path:
+    """Copy a checked package into the store a bare `--package` name reaches.
+
+    The source directory's own name is the name pages select, so the install
+    refuses one already answered by a bundled or installed package instead of
+    changing which directory that name means.
+    """
+    store = package_store()
+    with package_write_lock(store):
+        package, _, _ = check_package(source, require_exists=True)
+        name = package.name
+        if re.fullmatch(HTML_NAME, name) is None:
+            sys.exit(
+                f"package directory {name!r} cannot be selected by name; rename "
+                f"it to match {HTML_NAME} before installing it"
+            )
+        destination = store / name
+        if standing := named_package(name):
+            remedy = (
+                "remove that directory to replace it"
+                if standing == destination
+                else "rename the source directory to install this one beside it"
+            )
+            sys.exit(f"package name {name!r} already resolves to {standing}; {remedy}")
+        store.mkdir(exist_ok=True)
+        # Stage beside the store rather than in it, so a half-copied package is
+        # never a name `--package` can reach and never a directory the next
+        # install has to recognize as debris.
+        with tempfile.TemporaryDirectory(
+            dir=store.parent, prefix="leaf-install-"
+        ) as temporary:
+            staged = Path(temporary) / name
+            staged.mkdir()
+            copy_package_contract(package, staged)
+            os.rename(staged, destination)
+        print(f"installed {destination}")
+        return destination

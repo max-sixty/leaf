@@ -54,7 +54,7 @@ def merge_layer_entries(merged: dict, entries: dict) -> None:
         merged[name] = {k: v for k, v in combined.items() if v is not None}
 
 
-def _required_layer_declarations(registry: dict, path):
+def required_layer_declarations(registry: dict, path):
     try:
         kinds = registry["$events"]["kinds"]
         names = registry["$languages"]["names"]
@@ -66,11 +66,11 @@ def _required_layer_declarations(registry: dict, path):
         raise RegistryError(
             f"{path}: registry must declare $events.kinds, $languages.names/paths, "
             "$tones.names, $data, and $reactions.tokens"
-        )
+        ) from None
     return kinds, names, paths, tones, data, tokens
 
 
-def _validate_event_handling(events: dict, kinds: dict, path) -> None:
+def validate_event_handling(events: dict, kinds: dict, path) -> None:
     """`$events.handling` is read directly by every batch a wait prints, so a
     layer that restates a kind is held to the shape the consumer assumes: a
     declared kind, one non-empty sentence. Absent is fine (a layer vendored
@@ -88,7 +88,7 @@ def _validate_event_handling(events: dict, kinds: dict, path) -> None:
         )
 
 
-def _validate_event_contracts(kinds: dict, path) -> None:
+def validate_event_contracts(kinds: dict, path) -> None:
     if not isinstance(kinds, dict):
         raise RegistryError(f"{path}: $events.kinds must map names to event contracts")
     envelope = {"id", "ts", "author", "kind", "seq"}
@@ -112,13 +112,14 @@ def _validate_event_contracts(kinds: dict, path) -> None:
                 raise RegistryError(
                     f"{path}: $events kind `{kind}` {writer} is not a valid JSON "
                     f"Schema: {error.message}"
-                )
+                ) from error
         record = contract["record"]
         properties = record.get("properties", {})
         required = record.get("required", [])
         # The record's closed shape, plus the two constraints a kind states over
-        # fields it lists — which of two it must carry (comment and reply carry
-        # `text` or `token`), and what one field rules out. Both are compared
+        # fields it lists — which content it must carry (comments take text,
+        # drawing, or token; replies take text or token), and what one field rules
+        # out. Both are compared
         # kind for kind below, so a layer cannot loosen the installed contract
         # through them, and both may name only declared fields, checked here.
         constrained = {
@@ -181,7 +182,7 @@ def _validate_event_contracts(kinds: dict, path) -> None:
         )
 
 
-def _validate_layer_declarations(
+def validate_layer_declarations(
     registry: dict, path, names, paths, tones, data, tokens
 ) -> None:
     # $keys documents exactly the x- keys the lint admits, one string per key: the
@@ -284,17 +285,16 @@ def _validate_layer_declarations(
             raise RegistryError(
                 f"{path}: $data contract {contract!r} has an invalid JSON Schema: "
                 f"{error.message}"
-            )
+            ) from error
         if reference := unresolved_schema_reference(declaration["schema"]):
             raise RegistryError(
                 f"{path}: $data contract {contract!r} schema reference {reference!r} "
                 "does not resolve within the package; data contracts must be "
                 "self-contained"
             )
-    # Each token whole: every consumer reads the entry directly — the runtime paints
-    # `glyph`, `leaf wait` prints `means`, the panel's narrowing reads `settles` — so
-    # a missing or misspelled member would be a token that paints nothing or a
-    # `settle` that settles nothing, and neither says so anywhere else.
+    # Each token whole: the runtime paints `glyph`, the panel's narrowing reads
+    # `settles`, and off-page readers expose `means` only when a package supplies it.
+    # A missing glyph or misspelled behavior would otherwise fail silently.
     if not isinstance(tokens, dict) or not all(
         isinstance(name, str)
         and re.fullmatch(HTML_NAME, name)
@@ -303,13 +303,15 @@ def _validate_layer_declarations(
         and isinstance(entry.get("glyph"), str)
         and entry["glyph"].strip()
         and len(entry["glyph"]) <= 4
-        and isinstance(entry.get("means"), str)
-        and entry["means"]
+        and (
+            "means" not in entry
+            or (isinstance(entry["means"], str) and bool(entry["means"]))
+        )
         and isinstance(entry.get("settles", False), bool)
         for name, entry in tokens.items()
     ):
         raise RegistryError(
             f"{path}: $reactions.tokens must map lowercase token names to entries "
-            "with a `glyph` of one or two characters, a non-empty `means`, and "
-            "optionally a boolean `settles`"
+            "with a short `glyph` of at most four code points, optionally a non-empty "
+            "`means`, and optionally a boolean `settles`"
         )

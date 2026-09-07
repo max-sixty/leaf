@@ -11,10 +11,13 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import schema as schema_model
+from leaf import service as service_model
+from leaf import session as session_model
 from leaf.registry import storage as registry_storage
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
+    ACCENT_SWATCH,
     ADDRESSED_PAGE,
     BANNER_WATCH,
     BOARD_PAGE,
@@ -25,9 +28,10 @@ from render_support import (
     DIFF_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
+    HERE_SHADOW,
     HOLD_MOTION,
     LONG_PAGE,
-    MANY_DECISIONS_PAGE,
+    MANY_ASKS_PAGE,
     NEIGHBOUR,
     NEIGHBOURHOOD,
     PAGE_FIXTURES,
@@ -53,6 +57,7 @@ from render_support import (
     banner_address,
     displaced,
     held_stale,
+    holding,
     leaf_page,
     live_url,
     live_watcher,
@@ -90,12 +95,12 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-old>Keep the broad sweep.</lf-old>
   <lf-new>Keep one causal case per control archetype.</lf-new>
 </lf-suggestion>
-<lf-decision id="stable-options-decision"><h2>Which control should stay?</h2>
+<lf-ask id="stable-options-decision"><h2>Which control should stay?</h2>
 <lf-options id="stable-options" choose>
   <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
   <lf-option id="stable-choice-b" for="control-target">Keep B</lf-option>
-</lf-options></lf-decision>
-<lf-decision id="stable-swipe-decision"><h2>Which proof should stay?</h2>
+</lf-options></lf-ask>
+<lf-ask id="stable-swipe-decision"><h2>Which proof should stay?</h2>
 <lf-swipe-deck id="stable-swipe">
   <lf-swipe-pile id="stable-swipe-queue" verdict="unseen">
     <lf-swipe-card id="stable-swipe-a"><strong>Keep the first proof</strong></lf-swipe-card>
@@ -103,7 +108,7 @@ CONTROL_STABILITY_PAGE = leaf_page(
   </lf-swipe-pile>
   <lf-swipe-pile id="stable-swipe-pass" verdict="pass"></lf-swipe-pile>
   <lf-swipe-pile id="stable-swipe-keep" verdict="keep"></lf-swipe-pile>
-</lf-swipe-deck></lf-decision>
+</lf-swipe-deck></lf-ask>
 <lf-tabs id="stable-tabs">
   <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
   <lf-tab id="stable-tab-b" label="Second">Second panel.</lf-tab>
@@ -116,6 +121,22 @@ CONTROL_STABILITY_PAGE = leaf_page(
     <strong>Keep every control row still</strong>
   </lf-task>
 </lf-command>
+<lf-ask id="stable-playground-decision"><h2>How should the release card look?</h2>
+<lf-playground id="stable-playground" submit-label="Use these settings">
+  <lf-playground-control name="radius" label="Corner radius" kind="range"
+    value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
+  <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
+    <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
+    <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+  </lf-playground-control>
+  <lf-playground-preview id="stable-playground-preview">
+    <article id="stable-playground-card"><strong>Release card</strong><p>The ceiling doubles per approval.</p></article>
+  </lf-playground-preview>
+  <lf-playground-output id="stable-playground-instruction">Use a
+    <lf-playground-value for="radius"></lf-playground-value> corner radius and a
+    <lf-playground-value for="tone"></lf-playground-value> tone.
+  </lf-playground-output>
+</lf-playground></lf-ask>
 <lf-diff id="stable-diff"><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
@@ -190,6 +211,30 @@ CONTROL_ARCHETYPES = (
         "coverage": ".lf-diff-review",
         "target": "#stable-diff .lf-diff-review",
     },
+    {
+        # The playground's action row: Reset, Copy instruction, and the send beside each
+        # other under the controls. The send is the press with something to prove — it
+        # posts the configuration and comes back disabled, and a control that changes its
+        # own paint on the press is where a neighbour moves. The row is also where the
+        # copy press used to say "Copied" in its own label; that feedback is a notice
+        # now, and this is the reading that keeps it off the row.
+        "name": "playground-actions",
+        "coverage": ".lf-playground-actions > button",
+        "target": "#stable-playground .lf-playground-submit",
+    },
+    {
+        # The gallery's playback row. The runtime injects Play/Pause and Replay beside
+        # the authored demos and rewrites the toggle's own word as a demo runs, so what
+        # the row has to prove is that the word costs the button no width. Replay is the
+        # press for that reason: the toggle is the button that has to hold still, and
+        # pressing Replay is what sends it through every word it has. `example` because
+        # a demo is a scenario the module names rather than markup a page can compose,
+        # so the mechanism stands on the gallery and nowhere a synthetic page reaches.
+        "name": "interaction-playback",
+        "example": FEATURE_GALLERY,
+        "coverage": ".interaction-controls > button",
+        "target": "[data-interaction-replay]",
+    },
 )
 CONTROL_ROW_PRESS = (
     "button, summary, select, "
@@ -245,7 +290,7 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     button.click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the approval in the wire")
+    holding(page, held, 1, "the approval")
     expect(button).to_be_disabled()
     expect(button).to_have_attribute("aria-busy", "true")
     button.dispatch_event("click")
@@ -843,9 +888,7 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
     page.route("**/api/event", lambda route: held.append(route))
     answer_all.focus()
     page.keyboard.press("Enter")
-    _until(
-        page, lambda traffic: traffic.sends == 1, "held the blanket answer in the wire"
-    )
+    holding(page, held, 1, "the blanket answer")
     expect(answer_all).to_have_attribute("aria-disabled", "true")
     expect(answer_all).to_be_focused()
     answer_all.dispatch_event("click")
@@ -1350,7 +1393,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
     )
     try:
         page, errors = open_page(
-            browser, serve(MANY_DECISIONS_PAGE, comments=12), context=context
+            browser, serve(MANY_ASKS_PAGE, comments=12), context=context
         )
         assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
         cdp = context.new_cdp_session(page)
@@ -1436,15 +1479,11 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         # The tray still has range at 320px, and its grip finishes sliding on screen.
         page.get_by_role("button", name="Close threads").click()
         panel_settled(page, open=False)
-        banner_address(page, ".lf-decisions").click()
+        banner_address(page, ".lf-asks").click()
         panel_settled(page, open=False)
-        expect(page.locator(".lf-decisions-panel")).to_have_class(
-            re.compile(r"\bopen\b")
-        )
+        expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
         page_at_rest(page)
-        narrow_decisions = edge_geometry(
-            ".lf-decisions-panel", ".lf-decisions-panel > .lf-edge"
-        )
+        narrow_decisions = edge_geometry(".lf-asks-panel", ".lf-asks-panel > .lf-edge")
         assert not narrow_decisions["edge"]["hidden"]
         assert narrow_decisions["edge"]["left"] >= -0.1, narrow_decisions
         assert (
@@ -1473,12 +1512,12 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
                 48,
             ),
             (
-                "decisions",
+                "asks",
                 900,
-                ".lf-decisions",
-                ".lf-decisions-panel",
-                ".lf-decisions-panel > .lf-edge",
-                ".lf-decisions-panel .lf-tray-list",
+                ".lf-asks",
+                ".lf-asks-panel",
+                ".lf-asks-panel > .lf-edge",
+                ".lf-asks-panel .lf-tray-list",
                 -36,
             ),
         ):
@@ -1586,9 +1625,15 @@ def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, 
 )
 def test_each_control_archetype_holds_its_neighbours_still(browser, serve, archetype):
     """Each row mechanism holds its other controls still across its causal transition."""
+    # The synthetic page composes every mechanism a page can author, and carries the
+    # standing comment the margin Button's row is made of. An archetype naming an example
+    # is one no page can compose, so its proof runs where the mechanism lives.
+    example = archetype.get("example")
     page, errors = open_page(
         browser,
-        serve(
+        serve(example)
+        if example
+        else serve(
             CONTROL_STABILITY_PAGE,
             events=[
                 {
@@ -1756,10 +1801,10 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     url = serve(
         leaf_page(
             "self eligibility",
-            '<h1 id="heading">Choose</h1><lf-decision id="pick-decision"><h2>Which option?</h2>'
+            '<h1 id="heading">Choose</h1><lf-ask id="pick-decision"><h2>Which option?</h2>'
             '<lf-options id="pick" choose>'
             '<lf-option id="pick-a">A</lf-option>'
-            '<lf-option id="pick-b">B</lf-option></lf-options></lf-decision>',
+            '<lf-option id="pick-b">B</lf-option></lf-options></lf-ask>',
         )
     )
     page, errors = open_page(browser, url)
@@ -1794,10 +1839,10 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     url = serve(
         leaf_page(
             "seated eligibility",
-            '<h1 id="heading">Choose</h1><lf-decision id="pick-decision">'
+            '<h1 id="heading">Choose</h1><lf-ask id="pick-decision">'
             "<h2>Cap the retries?</h2>"
             '<lf-verdict id="pick" asks>Three attempts, then stop.</lf-verdict>'
-            "</lf-decision>",
+            "</lf-ask>",
         ),
         layer_registry=SEATED_ASK_LAYER,
         layer_widgets=SEATED_ASK_WIDGETS,
@@ -1814,7 +1859,7 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     )
     page, errors = open_page(browser, url)
     # Off the reader's list, which is the whole reason the two readings differ here.
-    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/1")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
 
     page.get_by_role("button", name="Accept").click()
     round_trip(page)
@@ -2092,7 +2137,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
         ".lf-threads-toggle",
         ".lf-signoff",
         ".lf-answer-all",
-        ".lf-decisions",
+        ".lf-asks",
     ]
     wide = page.evaluate(holds_its_width, named)
     # Narrowed, but not past the covering breakpoint: that row deliberately spends less
@@ -2264,14 +2309,14 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
         return page.locator(".lf-banner-actions > *").evaluate_all(
             """els => els.map(el =>
                  [['others', 'lf-others'], ['latest', 'lf-latest-chip'],
-                  ['decisions', 'lf-decisions'], ['version', 'lf-version'],
+                  ['asks', 'lf-asks'], ['version', 'lf-version'],
                   ['comments', 'lf-threads-toggle'], ['signoff', 'lf-signoff']]
                    .find(([, cls]) => el.classList.contains(cls))?.[0])
                  .filter(Boolean)"""
         )
 
     wide = actions()
-    assert wide == ["others", "latest", "decisions", "version", "signoff", "comments"]
+    assert wide == ["others", "latest", "asks", "version", "signoff", "comments"]
     others_x = page.locator(".lf-others").bounding_box()["x"]
     comments = page.locator(".lf-threads-toggle").bounding_box()
     assert others_x < page.viewport_size["width"] / 2, (
@@ -2387,17 +2432,47 @@ def test_a_panel_row_follows_its_pages_status_live(
             "over the row's whole account"
         )
         # A leaf holding words of the reader's that nobody has read is a reason to go
-        # to it, and no row draws that either: the banner says this number for the page
-        # it stands on, and the tray says it for every page on the machine.
-        events_model.append_event(
+        # to it. The row keeps the live watcher as its primary state and carries the
+        # pending count beside it, rather than letting either fact hide the other.
+        comment = events_model.append_event(
             other_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": "Mine."},
         )
         told(page)
+        expect(row.locator(".lf-others-line")).to_have_text(
+            "Listening — pick a storage engine · 1 update waiting"
+        )
         expect(row).to_have_attribute(
             "title",
-            f"The other leaf\n{tmp_path / 'other-work'}\nAwaits — pick a storage engine"
+            f"The other leaf\n{tmp_path / 'other-work'}\n"
+            "Listening — pick a storage engine · 1 update waiting"
             "\n1 update waiting",
+        )
+        # Pickup advances the same canonical activity row that the thread receipt
+        # reads. A latent page-wide waiting declaration cannot contradict exact
+        # delivery into the current turn.
+        with service_model.PageTransaction(other_dir) as transaction:
+            session_model.record_pickup(transaction, [comment])
+        told(page)
+        expect(row.locator(".lf-others-line")).to_have_text("Handling updates")
+        expect(row).to_have_attribute(
+            "title",
+            f"The other leaf\n{tmp_path / 'other-work'}\nHandling updates"
+            "\n1 update being handled",
+        )
+        events_model.append_event(
+            other_dir,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "parent": comment["id"],
+                "revision": 1,
+                "text": "Use the existing page directory.",
+            },
+        )
+        told(page)
+        expect(row.locator(".lf-others-line")).to_have_text(
+            "Awaits — pick a storage engine"
         )
     # The claim still says waiting; its claimant is gone. The row reports what the
     # directory can prove, exactly as the neighbour's own banner would.
@@ -2632,13 +2707,13 @@ def test_workspaces_replace_each_other_and_name_the_open_one(
     active face. Its peers return to rest as it takes their place, so the tint names
     exactly the workspace the reader can see rather than merely the last one pressed.
     """
-    page, errors = open_page(browser, serve(MANY_DECISIONS_PAGE))
+    page, errors = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, width, 700)
-    decisions = page.locator(".lf-decisions-panel")
+    asks = page.locator(".lf-asks-panel")
     comments = page.locator(".lf-panel")
     controls = {
         "leaves": page.locator(".lf-others"),
-        "decisions": page.locator(".lf-decisions"),
+        "asks": page.locator(".lf-asks"),
         "threads": page.locator(".lf-threads-toggle"),
     }
 
@@ -2669,12 +2744,12 @@ def test_workspaces_replace_each_other_and_name_the_open_one(
             )
             assert face(control) == (active if peer == name else resting[peer])
 
-    page.locator(".lf-decisions").click()
-    expect(decisions).to_have_class(re.compile(r"\bopen\b"))
-    expect_open("decisions")
+    page.locator(".lf-asks").click()
+    expect(asks).to_have_class(re.compile(r"\bopen\b"))
+    expect_open("asks")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(decisions).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(asks).not_to_have_class(re.compile(r"\bopen\b"))
     expect_open("threads")
 
     page.keyboard.press("g")
@@ -2682,11 +2757,11 @@ def test_workspaces_replace_each_other_and_name_the_open_one(
     expect(page.locator(".lf-others-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect_open("leaves")
 
-    page.locator(".lf-decisions").click()
+    page.locator(".lf-asks").click()
     panel_settled(page, open=False)
-    expect(decisions).to_have_class(re.compile(r"\bopen\b"))
+    expect(asks).to_have_class(re.compile(r"\bopen\b"))
     expect(comments).not_to_have_class(re.compile(r"\bopen\b"))
-    expect_open("decisions")
+    expect_open("asks")
     assert errors == []
     page.close()
 
@@ -2734,20 +2809,20 @@ def test_a_walk_down_the_tray_stops_clear_of_the_key_line(browser, serve, live_l
     page.close()
 
 
-def test_a_walk_down_the_decisions_tray_stops_clear_of_the_key_line(browser, serve):
+def test_a_walk_down_the_asks_tray_stops_clear_of_the_key_line(browser, serve):
     """The leaves tray's reading above, made of the tray beside it. The room is one
     fact — the key line stands in the corner both lists reach — and it was written to one
-    list, so the decisions tray's walk parked its last row 47px under the line. Nothing said
-    so, because no example ships enough Decisions to fill a tray and the walk that would have
+    list, so the Asks tray's walk parked its last row 47px under the line. Nothing said
+    so, because no example ships enough Asks to fill a tray and the walk that would have
     shown it had only ever been made down the other one.
 
     So the two lists reserve it together (`trayLists`), and this is the half of that the
     leaves reading could not cover: a fact stated per tray is a fact the second tray
     goes without, and the second tray is the one nobody looks at."""
-    page, errors = open_page(browser, serve(MANY_DECISIONS_PAGE))
+    page, errors = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 900, 420)
-    page.locator(".lf-decisions").click()
-    rows = page.locator("button.lf-decisions-row")
+    page.locator(".lf-asks").click()
+    rows = page.locator("button.lf-asks-row")
     expect(rows).to_have_count(24)
     rows.first.focus()
     page.keyboard.press("ArrowUp")
@@ -2755,9 +2830,9 @@ def test_a_walk_down_the_decisions_tray_stops_clear_of_the_key_line(browser, ser
     for _ in range(24):
         page.keyboard.press("ArrowDown")
     expect(rows.last).to_be_focused()
-    tray = page.locator(".lf-decisions-panel .lf-tray-list")
+    tray = page.locator(".lf-asks-panel .lf-tray-list")
     assert page.evaluate(
-        "() => { const b = document.querySelector('.lf-decisions-panel .lf-tray-list');"
+        "() => { const b = document.querySelector('.lf-asks-panel .lf-tray-list');"
         "        return b.scrollHeight > b.clientHeight; }"
     ), "the tray never overflowed, so the walk had nothing to scroll and proves nothing"
     last = rows.last.bounding_box()
@@ -3016,13 +3091,11 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("Escape")
     expect(page.locator(".lf-help")).to_be_hidden()
 
-    # And the chord's chips, which are painted over the page rather than in it. Narrow to
-    # hyperlinks so every visible chip belongs to the surface under test.
+    # And the chord's generated target hints, painted over the visible page rather than
+    # inserted into it.
     page.keyboard.press("g")
-    page.keyboard.press("h")
-    expect(page.locator(".lf-addresses > .lf-address").first).to_be_visible()
-    sweep("with the chord aimed at the hyperlinks")
-    page.keyboard.press("Escape")
+    expect(page.locator(".lf-goto-targets > .lf-chord-address").first).to_be_visible()
+    sweep("with the visible-target chord armed")
     page.keyboard.press("Escape")
     assert errors == []
     page.close()
@@ -3493,14 +3566,14 @@ customElements.define("lf-quota", class extends HTMLElement {
         '<h1 id="heading">Quota</h1><lf-tasks id="tasks">'
         '<lf-task id="task" status="active"><strong>Task</strong>'
         '<lf-quota id="quota" slots="1"></lf-quota>'
-        '<lf-decision id="quota-intervention-decision"><h2>Proceed?</h2>'
+        '<lf-ask id="quota-intervention-decision"><h2>Proceed?</h2>'
         '<lf-options id="quota-intervention" choose>'
-        '<lf-option id="quota-ready" chosen>Ready</lf-option></lf-options></lf-decision>'
+        '<lf-option id="quota-ready" chosen>Ready</lf-option></lf-options></lf-ask>'
         '<lf-task id="child" status="active"><strong>Child</strong>'
-        '<lf-decision id="quota-child-decision"><h2>Is the child ready?</h2>'
+        '<lf-ask id="quota-child-decision"><h2>Is the child ready?</h2>'
         '<lf-options id="quota-child-review" choose>'
         '<lf-option id="quota-child-ready" chosen>Ready</lf-option>'
-        "</lf-options></lf-decision></lf-task>"
+        "</lf-options></lf-ask></lf-task>"
         "</lf-task>"
         '<lf-task id="destination" status="active">'
         "<strong>Destination</strong></lf-task>"
@@ -3767,6 +3840,104 @@ def test_the_ring_reading_tells_a_ring_from_the_layers_other_outlines(browser, s
     page.close()
 
 
+def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, serve):
+    """The band has two carriers, and a reading that knew one was blind to the other.
+
+    Most of the layer's rules draw the ring as an outline. Two cast it as a shadow: the
+    anchored response bar, whose focused states write `outline: none` so the field and
+    its choices keep one silhouette, and the item hint the keyboard is browsing, a chip
+    in a layer nothing can focus. To a reader those are the same band, and a sweep asking
+    only the outline answered `no ring here` for both — the bar's own controls came back
+    credited to `pressable`, the name of the floor rule whose outline the bar takes away,
+    and neither ring's geometry was measured anywhere.
+
+    Knowing one on sight is the first half, and the layer offers three shadows to mistake
+    for it: the elevation lift every floating surface wears, the inset accent wash a
+    search match and an open draft wear, and the accent band a milestone's active dot
+    wears at a width of its own. Offsets, blur, `inset` and the ring's own width are what
+    separate the four, and nothing else does.
+
+    Measuring it is the second half, and the one the corpus floor rests on. A spread has
+    no offset, so the band's width is the whole of what the box draws past its edge — and
+    a reading that never finds the band measures nought, drops the box without a word,
+    and reports what a clean page reports. So the plant is a box standing on the window's
+    own foot, where the band is the only part of it that can be outside the window, with
+    the same box and the same place as the control once the band is taken off.
+    """
+    example = next(e for e in EXAMPLES if e.stem == "release-notes")
+    url = serve(example, comments=2, seed_log=False)
+    page, errors = open_page(browser, url)
+
+    # On the window's foot, so the only thing that can be outside the window is the band.
+    # Placed from `innerHeight` rather than from `100vh`, which is the viewport a
+    # scrollbar is not taken out of and so is the same number only while there is none.
+    plant = """(how) => {
+      const box = document.querySelector('main p');
+      box.classList.add('probe-target');
+      box.style.cssText = `position: fixed; left: 40px; top: ${innerHeight - 30}px;
+        width: 120px; height: 30px; box-sizing: border-box; margin: 0`;
+      if (how === 'a lift') box.style.boxShadow = '0 2px 8px var(--shade)';
+      if (how === 'an inset wash')
+        box.style.boxShadow = 'inset var(--here-shadow) var(--accent)';
+      if (how === 'a wider band')
+        box.style.boxShadow = '0 0 0 calc(var(--here-ring-w) + 1px) var(--accent)';
+      if (how === 'the band itself')
+        box.style.boxShadow = 'var(--here-shadow) var(--accent)';
+      const cs = getComputedStyle(box);
+      return [cs.boxShadow, cs.outlineStyle, box.getBoundingClientRect().bottom,
+              innerHeight];
+    }"""
+
+    def reading():
+        """What the sweep says about this one box: whether it is a ring, and its cuts.
+
+        Asked of the box and not of the page, because the runtime repaints the panel on
+        its own schedule and two whole-page readings a moment apart differ for reasons
+        that have nothing to do with what was planted here.
+        """
+        return next(
+            (
+                seen
+                for seen in rings_drawn(page)
+                if "probe-target" in seen["who"] and seen["here"]
+            ),
+            None,
+        )
+
+    for how in ("nothing", "a lift", "an inset wash", "a wider band"):
+        shadow, outline, bottom, foot = page.evaluate(plant, how)
+        assert outline == "none" and bottom == foot, (
+            f"{how} left the box wearing {outline} at {bottom} of {foot}, so the reading "
+            "was asked about a box other than the one this is written against"
+        )
+        assert reading() is None, (
+            f"the reading counted {how} ({shadow}) as the here ring: {reading()}"
+        )
+
+    shadow, outline, bottom, foot = page.evaluate(plant, "the band itself")
+    seen = reading()
+    assert seen, (
+        f"a box casting the layer's own band ({shadow}) was not counted, so the four "
+        "cases above prove only that this reading is silent"
+    )
+    # And the band is measured, not merely noticed: the box's own edge is on the window's
+    # foot, so the width reported outside it is the whole of the band and nothing else.
+    width = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.documentElement)"
+        "  .getPropertyValue('--here-ring-w'))"
+    )
+    assert any(
+        f"its bottom edge is {width:g}px outside the window" in cut
+        for cut in seen["cuts"]
+    ), (
+        f"the band stood {width}px past the window's foot and the reading said "
+        f"{seen['cuts']}, so nothing above measured it"
+    )
+
+    assert errors == []
+    page.close()
+
+
 def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve):
     """The half that answers by hit test, held to firing where it can and not where it
 
@@ -3977,8 +4148,34 @@ RING_WALKS = (
         ),
     ),
     ("passage search", ("/",), ("corpus",)),
+    # Item hints, and the anchored bar the reader answers a chosen item on. Both open the
+    # same mode, and both step back and then forward through it, which lands on the last
+    # item the window is showing whatever a page's count is: the browse wraps, so one step
+    # back from a fresh open is the second from the end. That item is the lowest on
+    # screen, which is where the layer has the least room to draw a band around a chip and
+    # the least room to hang a bar under one.
+    #
+    # The Tab in front of both sequences is a stop, not a gesture in the mode: item hints
+    # claim Tab for browsing themselves, so the walk below moves nothing once the mode is
+    # open, and with the document under it the walk would stand on nothing and read no
+    # page at all. Standing on a control first leaves the hint the keyboard is browsing on
+    # screen for the sweep, which is where its band is read — the chips are a layer nothing
+    # can focus, so the reader's place in that mode is not a stop.
+    ("item hints", ("Tab", "s", "Shift+Tab", "Tab"), ("corpus", "ship-review")),
+    # Enter selects the item the keyboard is browsing and leaves the response undecided;
+    # c is the Comment gesture that opens the bar's field and focuses it.
+    (
+        "the response bar",
+        ("Tab", "s", "Shift+Tab", "Tab", "Enter", "c"),
+        ("corpus", "ship-review"),
+    ),
     ("the comments", ("c",), ("ship-review",)),
-    ("the decisions tray", (), ("ship-review",)),
+    # The reaction palette a message's strip opens. Its chips are the last boxes the
+    # layer dresses in the chrome's pill face, and they are behind a press: the strip
+    # shows a token nobody has pressed only while it is open, so a walk of the panel
+    # that never opens one stands on the trigger and nothing under it.
+    ("a reaction palette", (), ("ship-review",)),
+    ("the Asks tray", (), ("ship-review",)),
     ("the leaves tray", ("g", "Shift+l"), ("corpus",)),
     # The menu's own walk after the key that opens it: an open lands on the version being
     # read, which is the last row, and the comparison press beside a row is a Tab forward
@@ -3992,13 +4189,15 @@ RING_WALKS = (
     # press on a Map control the wide posture does not draw at all, so its walk asks for
     # the narrow window the control lives in.
     ("a thread card", (), ("ship-review",)),
+    ("message media", (), ("feature-gallery",)),
     ("the page map sheet", (), ("corpus",)),
 )
 # The corpus is the open-ended page and design-mode anchor. The authored pages now
 # give each interaction family a focused page, so the page walk names those owners:
 # Design contributes settled and joined options, Postmortem a visual target, PR source
-# and code, Release drafts and a shot, Triage a card grip, and Ship the log-hosted
-# widgets and element mark. Chrome with no page-owned contents is walked on the corpus.
+# and code, Release drafts and a shot, Triage a card grip, Ship the log-hosted widgets
+# and element mark, and the developer gallery its message media. Chrome with no
+# page-owned contents is walked on the corpus.
 RING_WALK_EXAMPLES = tuple(
     dict.fromkeys(name for _scope, _keys, corpus in RING_WALKS for name in corpus)
 )
@@ -4029,31 +4228,50 @@ RING_SCOPE_SURFACE = {
     "a thread card": (".lf-margin-preview:popover-open", None),
     "the page map sheet": (".lf-page-map-sheet[open]", None),
     "passage search": (".lf-target-search:not([hidden])", None),
-    "the decisions tray": (".lf-decisions-panel.open", ".lf-decisions"),
+    # The hint the keyboard is browsing, and the field the chosen item's bar opens with.
+    # Each is the mode's own state rather than a box that merely exists: the chips are
+    # rebuilt from nothing on every open, and the bar is in the document from the first
+    # frame and shows only for an anchor.
+    "item hints": (".lf-target-hint.lf-current", None),
+    "the response bar": (".lf-fab-bar .lf-composer[data-lf-open]", None),
+    "the Asks tray": (".lf-asks-panel.open", ".lf-asks"),
     "the leaves tray": (".lf-others-panel.open", ".lf-others"),
     "the versions menu": (".lf-version-menu:popover-open", None),
     "the reference": (".lf-help.open", None),
     "design mode": ("body.lf-design", None),
+    "a reaction palette": (".lf-react-strip.lf-react-open", None),
 }
 RING_SCOPE_CONTROL = {
-    "the decisions tray": (".lf-decisions", ".lf-decisions-row"),
+    "the Asks tray": (".lf-asks", ".lf-asks-row"),
     "a thread card": (
         '.lf-margin-marker[data-lf-kinds~="comment"]',
         ".lf-margin-preview",
     ),
+    "message media": (None, ".lf-message-media"),
     "the page map sheet": (".lf-page-map-toggle", ".lf-page-map-action"),
+    # The trigger presses itself away, so the arrival is read from the open strip
+    # rather than from the palette a shut one still holds.
+    "a reaction palette": (
+        ".lf-react-strip > .lf-react-trigger",
+        ".lf-react-strip.lf-react-open > .lf-react-palette > .lf-react",
+    ),
 }
 # The window a scope's own surface stands in, where that is not the walk's own. Both
 # entries are a floor the layer states rather than a preference: the Map control is drawn
-# under the margin's breakpoint and nowhere else, and a Thread Button builds its card only
-# where the document leaves room beside the source and opens Threads otherwise. That room
-# is the wider of the two floors here, because the card's walk is ship review and ship
-# review stands a contents map: a page with a sidebar waits for 1472px of shell rather
-# than 1208px (theme.css). Every other scope is read at the width the page opened at.
+# under the margin's breakpoint and nowhere else, while the thread-card walk uses the
+# wider room where Ship review can stand its card beside the source instead of overlaying
+# the page. Ship review stands a contents map, so that beside posture waits for 1472px of
+# shell rather than 1208px (theme.css). Every other scope is read at the width the page
+# opened at.
 RING_WALK_VIEWPORT = (1200, 900)
 # The one scope whose surface the standing panel takes the place of.
 RING_SCOPES_WITHOUT_PANEL = {"a thread card"}
 RING_SCOPE_WIDTH = {"a thread card": 1600, "the page map sheet": 760}
+# Message media exists only in the developer gallery's seeded conversation. Its direct
+# control setup is the causal ring specimen; walking all 250+ unrelated gallery stops
+# after reading it adds no evidence and can keep the page's moving margin perpetually
+# outside the settled probe.
+RING_SINGLE_STOPS = {"message media"}
 # Focus put back at the document's start. `document.body.focus()` and not a blur: a blur
 # leaves the sequential focus navigation starting point where the blurred control stood,
 # so the next Tab carries on from the chrome, runs off the end of the order and never
@@ -4113,14 +4331,17 @@ RING_NEW_STOP = f"""async () => {{
 # passing everything: a mark that is merely posted is a hairline, and a hairline is not
 # an answer to where the keyboard is.
 #
-# An accent shadow is the fourth. Every box the reader types into is drawn that way: the
-# chrome's textarea rule takes the outline off and puts the shadow in its place, and a
-# box drawn like that is as found as one drawn with a ring. Read on the stop itself and
-# never on an ancestor, and only in the accent, since a card's decorative drop shadow is
-# no answer to where the keyboard is and accepting any shadow from any ancestor would
-# pass every stop on a page that has one shadowed box anywhere above it.
+# The band cast as a shadow is the fourth. The anchored response bar draws it that way —
+# its focused states take the outline off so the field and its choices keep one
+# silhouette — and to a reader that is the same ring. It is the sweep's own reading
+# (HERE_SHADOW), so the two halves of this file agree on what an accent shadow ring is
+# rather than each keeping a spelling of it: the earlier one here took any shadow
+# carrying the accent, which a wash or a tinted lift would have satisfied. Read on the
+# stop itself and never on an ancestor, since a card's decorative drop shadow is no
+# answer to where the keyboard is and accepting one from any ancestor would pass every
+# stop on a page with one shadowed box above it.
 #
-# Both colours are resolved through a swatch rather than compared as written, and the
+# Every colour is resolved through a swatch rather than compared as written, and the
 # accent is resolved twice: `outline-color` serializes as the browser resolved it, and a
 # `color-mix` resolves into a different space than a plain token does, so the ring's
 # `rgb(...)` and the shadow's `color(srgb ...)` are the same colour written two ways and
@@ -4128,16 +4349,7 @@ RING_NEW_STOP = f"""async () => {{
 SEEN_STOP = f"""() => {{
   const e = ({DEEP_FOCUS})();
   if (!e) return null;
-  const swatch = document.createElement('span');
-  swatch.style.cssText = 'outline: 1px solid var(--accent)';
-  document.head.append(swatch);
-  const accent = getComputedStyle(swatch).outlineColor;
-  swatch.style.outlineColor = 'var(--mark-ink)';
-  const markInk = getComputedStyle(swatch).outlineColor;
-  swatch.style.outlineColor = 'color-mix(in srgb, var(--accent) 100%, transparent)';
-  const mixed = getComputedStyle(swatch).outlineColor
-    .match(/color\\(srgb ([\\d.]+ [\\d.]+ [\\d.]+)/)?.[1];
-  swatch.remove();
+  const {{ accent, mixed, markInk }} = ({ACCENT_SWATCH})();
   const shown = (el) => {{
     const cs = getComputedStyle(el);
     if (cs.outlineStyle === 'auto') return true;
@@ -4159,12 +4371,12 @@ SEEN_STOP = f"""() => {{
        el = el.parentElement ?? el.getRootNode().host ?? null)
     if (shown(el) && (getComputedStyle(el).outlineStyle === 'auto' || named(el)))
       return null;
-  const shadow = getComputedStyle(e).boxShadow;
-  if (mixed && shadow.includes(mixed)) return null;
+  if (({HERE_SHADOW})(getComputedStyle(e), accent, mixed) > 0) return null;
   const cls = typeof e.className === 'string' && e.className.trim()
     ? '.' + e.className.trim().split(/\\s+/).join('.') : '';
   return e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + cls
-    + ' [outline ' + getComputedStyle(e).outlineStyle + ', shadow ' + shadow + ']';
+    + ' [outline ' + getComputedStyle(e).outlineStyle
+    + ', shadow ' + getComputedStyle(e).boxShadow + ']';
 }}"""
 
 
@@ -4239,6 +4451,14 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     a ring nothing named. And the population is asserted before it is divided by, since
     an empty one makes every line above vacuous while reporting what a clean corpus does.
 
+    Both halves read both of the band's carriers. Most of the layer's rules draw it as
+    an outline; two cast it as a shadow, for boxes that cannot spend an outline on it,
+    and the scan asks each carrier the same question — does the value name the layer's
+    token — while the sweep measures a shadow ring's spread the way it measures an
+    outline's width and offset. Read only as an outline, the response bar's own controls
+    credited `pressable`, the name of the floor rule whose outline the bar takes away,
+    and the geometry of both shadow-drawn rings went unmeasured everywhere.
+
     Tab, because that is the walk every page has and it reaches the page's own controls
     and the runtime's chrome in one order. The scopes are what Tab alone cannot reach. A
     settled group is opened for the same reason — its options are behind a disclosure,
@@ -4262,7 +4482,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     unnamed = set()
     opened, walked_in, errors = set(), set(), []
     stops = 0
-    examples = {example.stem: example for example in EXAMPLES}
+    examples = {example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY)}
     assert not (missing := set(RING_WALK_EXAMPLES) - set(examples)), (
         "the ring walk names examples that no longer exist: "
         + ", ".join(sorted(missing))
@@ -4275,10 +4495,40 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         # which is the only way a ring is painted on the page for a focus held in the
         # panel.
         url = serve(example, comments=2)
-        # A version to compare against, published the way a page gets one. Serving v2
-        # rather than letting the open page follow keeps the walk out of an activation.
-        _publish(serve.page_dir, 2, example.read_text(), "Same page, said twice.")
-        page, console = open_page(browser, url.replace("/v1.html", "/v2.html"))
+        # Sent media is a conditional control rather than authored markup. Give one
+        # synthetic thread the screenshot Release notes already ships, so the page walk
+        # reaches the media ring without making the omnibus developer gallery its corpus.
+        if name == "release-notes":
+            root = next(
+                event
+                for event in reversed(events_model.read_events(serve.page_dir))
+                if event["kind"] == "comment" and event["text"].startswith("Comment ")
+            )
+            events_model.append_event(
+                serve.page_dir,
+                {
+                    "kind": "reply",
+                    "author": "claude",
+                    "agent": "Codex",
+                    "parent": root["id"],
+                    "text": "![Pasted image](/media/051bee487bfb5d13.png)",
+                },
+            )
+        # A version to compare against, published the way a page gets one. Serving that
+        # next version rather than letting the open page follow keeps the walk out of an
+        # activation.
+        current_version = int(re.search(r"/v(\d+)\.html", url).group(1))
+        next_version = current_version + 1
+        _publish(
+            serve.page_dir,
+            next_version,
+            example.read_text(),
+            "Same page, said twice.",
+        )
+        page, console = open_page(
+            browser,
+            url.replace(f"/v{current_version}.html", f"/v{next_version}.html"),
+        )
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         # Opened, not pressed for a decision: a settled group's disclosure is this
@@ -4345,7 +4595,8 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 opener, arrival = control
                 # The first, because a page map has one Thread Button per commented
                 # target and the walk wants a card rather than a particular one.
-                page.locator(opener).first.click()
+                if opener:
+                    page.locator(opener).first.click()
                 page.locator(arrival).first.focus()
                 # A press opened the scope and a script placed the reader in it, and
                 # neither is the keyboard: `:focus-visible` answers the input device, so
@@ -4449,6 +4700,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     if fault not in seen_faults:
                         seen_faults.add(fault)
                         faults.append(fault)
+                if scope in RING_SINGLE_STOPS:
+                    came_round = True
+                    break
             # A control the runtime replaces on repaint is a new element at every Tab, so
             # the walk never meets a repeat and runs the cap out: sixteen times the work
             # and no message, which reads as a hang rather than as the fault it is.
@@ -4647,8 +4901,8 @@ def test_every_shadow_the_layer_lifts_a_box_with_is_cast_in_the_scheme_s_own_ink
 # reported were found.
 #
 # The reading takes the element's box together with any absolutely positioned pseudo it
-# hangs, because an aim need not be the thing the reader sees: a mark six pixels wide set
-# in a line of prose cannot grow without opening the line, so it carries a box of its own.
+# hangs, because a control may enlarge its target outside layout rather than make the
+# visible line or row taller.
 #
 # Inline boxes are out, and that is the target-size exception rather than an excuse: a
 # link inside a sentence is sized by the words around it, and nothing can be done about
@@ -4696,7 +4950,6 @@ AIM_SURFACES = (
     ".lf-version-diff",
     ".lf-help-command",
     ".lf-quote",
-    ".lf-gloss-mark",
     ".lf-tab-btn",
     ".lf-grip",
 )
@@ -4742,9 +4995,9 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
 
     Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
     reaction pills stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
-    version's Δ, a command in the reference, a quote and a gloss mark at around twelve by
-    seven. Three controls reached the coarse-pointer block and the rest reached neither
-    floor, so the same presses were small under a finger too.
+    version's Δ, a command in the reference, and a quote at around twelve by seven.
+    Three controls reached the coarse-pointer block and the rest reached neither floor,
+    so the same presses were small under a finger too.
 
     The sweep names no control. What makes a box an aim is that the runtime built it or
     stands in the runtime's own layer, and that the page under the pointer says a press
@@ -4753,7 +5006,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
     floor, because a control comfortable under one and not the other is the fault this is
     about rather than a lesser version of it.
 
-    The surfaces have to be opened for any of it to mean anything: seven of the nine
+    The surfaces have to be opened for any of it to mean anything: seven of the eight
     controls at issue exist only inside a panel, a menu, a resolved disclosure or the
     reference, and a sweep of the page at rest would report a clean layer while every one
     of them was still six pixels tall. AIM_SURFACES is that assertion.

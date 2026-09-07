@@ -25,7 +25,7 @@ from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    DECISIONS_PAGE,
+    ASKS_PAGE,
 )
 from render_harness import (
     CARRIED_PAGE,
@@ -403,14 +403,14 @@ FLOATING_PAGE = LONG_PAGE.replace(
 )
 SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
     "</main>",
-    """<lf-decision id="where-decision"><h2>Which option?</h2>
+    """<lf-ask id="where-decision"><h2>Which option?</h2>
 <lf-options id="where" choose>
   <lf-option id="opt-a"><strong>First</strong>
     <aside class="sidenote" id="boxed-note">Measured over a quarter.</aside>
     <p>An option carrying a note written inside it.</p>
   </lf-option>
   <lf-option id="opt-b"><strong>Second</strong> The other one.</lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 </main>""",
 )
 
@@ -516,10 +516,10 @@ EDGES = [
     ),
     SimpleNamespace(
         name="trays",
-        html=lambda: DECISIONS_PAGE,
+        html=lambda: ASKS_PAGE,
         comments=0,
-        stand=lambda page: page.locator(".lf-decisions").click(),
-        region=".lf-decisions-panel",
+        stand=lambda page: page.locator(".lf-asks").click(),
+        region=".lf-asks-panel",
         side="left",
         store="lf-tray-width",
         wide=300,
@@ -895,10 +895,9 @@ FOCUS_IN_PAGE = """() => {
 # stray tab switch moves the panels' attributes, both of them authored rather than
 # generated, and structure is compared either way.
 # The page as a press leaves it. Where the pointer is resting is not that: the runtime
-# paints .lf-mark-hover on a marked element under the cursor and .lf-margin-target on a
-# target whose thread card a press opened, so a reading taken with the pointer
-# still on an item reports that paint as a change the press made. Neither is authored
-# state and both come off when the pointer leaves.
+# paints .lf-mark-hover on a marked element under the cursor, so a reading taken with
+# the pointer still on an item reports that paint as a change the press made. It is not
+# authored state and comes off when the pointer leaves.
 PAGE_MARKUP = """() => [...document.body.children]
     .filter((n) => !n.classList.contains("lf-chrome"))
     .map((n) => {
@@ -906,7 +905,7 @@ PAGE_MARKUP = """() => [...document.body.children]
         for (const g of c.querySelectorAll("[data-lf-gen]")) g.textContent = "";
         if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
         for (const el of [c, ...c.querySelectorAll("*")])
-            el.classList?.remove("lf-mark-hover", "lf-margin-target");
+            el.classList?.remove("lf-mark-hover");
         return c.outerHTML;
     })
     .join("").replaceAll(' class=""', "")"""
@@ -941,16 +940,16 @@ AIM_PAINT_PAGE = leaf_page(
     "aim paint",
     """
 <h1 id="t">Aim paint</h1>
-<lf-decision id="cards-decision"><h2>Which card?</h2>
+<lf-ask id="cards-decision"><h2>Which card?</h2>
 <lf-options id="cards" choose>
   <lf-option id="card-plain"><strong>Plain</strong> The first card's argument.</lf-option>
   <lf-option id="card-star" ><strong>Starred</strong> A border already the accent.</lf-option>
-</lf-options></lf-decision>
-<lf-decision id="rows-decision"><h2>Should we ship?</h2>
+</lf-options></lf-ask>
+<lf-ask id="rows-decision"><h2>Should we ship?</h2>
 <lf-options id="rows" choose>
   <lf-option id="row-ship">Ship it as is</lf-option>
   <lf-option id="row-hold">Hold for the backfill</lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 """,
 )
 # Two items meeting at a seam the browser puts between two whole pixels, held there by a
@@ -1215,7 +1214,7 @@ SCROLL_STILL = """(hold) => {
 }"""
 # Twenty-four things waiting, which is more than any shipped example asks and the point: the
 # room a list reserves at its foot is invisible until the list is longer than the tray.
-MANY_DECISIONS_PAGE = leaf_page(
+MANY_ASKS_PAGE = leaf_page(
     "many decisions",
     """
 <h1>Many decisions</h1>
@@ -1225,11 +1224,11 @@ MANY_DECISIONS_PAGE = leaf_page(
     + "\n".join(
         f'<lf-task id="t-{i}" status="review" owner="wren">'
         f"<strong>Waiting on you, item {i}</strong>"
-        f'<lf-decision id="t-{i}-decision"><h2>Decision {i}</h2>'
+        f'<lf-ask id="t-{i}-decision"><h2>Decision {i}</h2>'
         f'<lf-options id="t-{i}-choice" choose>'
         f'<lf-option id="t-{i}-yes"><strong>Approve</strong></lf-option>'
         f'<lf-option id="t-{i}-no"><strong>Request changes</strong></lf-option>'
-        f"</lf-options></lf-decision></lf-task>"
+        f"</lf-options></lf-ask></lf-task>"
         for i in range(24)
     )
     + """
@@ -1336,7 +1335,7 @@ SHORT_CHIP_PAGE = leaf_page(
 <p id="p">The bracket order goes in on Friday and there is room in it. Change the
 rack flag from <lf-suggestion id="sug-flag"><lf-old>x</lf-old><lf-new>y</lf-new></lf-suggestion>
 before it ships.</p>
-<lf-decision id="extras-decision"><h2>Which extras should we add?</h2>
+<lf-ask id="extras-decision"><h2>Which extras should we add?</h2>
 <lf-options id="extras" choose multiple>
 <lf-option id="x-tray"><lf-chip>£9</lf-chip>
 <strong>Seed tray</strong> Catches the spill under the south pair.
@@ -1344,7 +1343,7 @@ before it ships.</p>
 <lf-option id="x-dome"><lf-chip tone="ok">£15</lf-chip>
 <strong>Weather dome</strong> Keeps the seed dry through a wet week.
 </lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 """,
 )
 # A page that says one of its words on screen only. The rule is the page's own, which is
@@ -1481,6 +1480,70 @@ DEEP_FOCUS = """() => {
 }"""
 
 
+# The here ring where a box casts it as a shadow rather than drawing it as an outline,
+# and how far past its edge that band reaches. Two rules in the layer draw it that way —
+# the anchored response bar, which writes `outline: none` so its states keep one
+# silhouette, and the item hint the keyboard is browsing, a chip in a layer nothing can
+# focus — and to a reader they are the same band as every other ring (--here-shadow,
+# theme.css).
+#
+# What makes it that band rather than the layer's other shadows: no offsets, no blur, and
+# the ring's own width as its spread. The elevation shadows are the third length away —
+# a lift blurs and a ring does not — and the two inset washes are the `inset` keyword
+# away. Returned as the width, because a spread has no offset of its own, so the outset
+# a caller measures is the whole of the band; nought where the box paints no such thing.
+#
+# The accent arrives resolved twice because the layer spells it twice: a plain
+# `var(--accent)` serializes as `rgb(...)` while a `color-mix()` into srgb serializes as
+# `color(srgb r g b / a)`. The mix is matched on its triple alone, so how much of the
+# accent a rule laid down is not part of the question — the bar carries an accent border
+# as well and wants less of it than a chip standing over the page's own words.
+HERE_SHADOW = r"""(cs, accent, mixed) => {
+  const w = parseFloat(cs.getPropertyValue('--here-ring-w')) || 0;
+  if (!w) return 0;
+  // Split on the commas between layers, not on the ones inside `rgba(...)`.
+  for (const layer of cs.boxShadow.split(/,(?![^(]*\))/)) {
+    const text = layer.trim();
+    if (/(^|\s)inset(\s|$)/.test(text)) continue;
+    const lengths = text.match(/-?(?:\d*\.)?\d+px/g);
+    if (!lengths || lengths.length < 4) continue;
+    const [x, y, blur, spread] = lengths.map(parseFloat);
+    if (x || y || blur || spread !== w) continue;
+    const ink = text.replace(/-?(?:\d*\.)?\d+px/g, '').trim();
+    if (ink === accent || (mixed && ink.includes(mixed))) return w;
+  }
+  return 0;
+}"""
+
+
+# The accent as the browser resolves it, in both of the spellings the layer writes it in.
+# Read back through an outline so a comparison is between values of one kind: read
+# straight off an element, a custom property serializes as it was written while
+# `outline-color` serializes as it resolved, and the two agree for `#2f5480` and for
+# nothing more exotic. `color-mix()` or `light-dark()` in a package's accent left every
+# rule in the layer uncredited and the gate red on a page drawing every ring correctly.
+#
+# `mixed` is the srgb triple a `color-mix()` resolves the accent into, which is a
+# different serialization of the same colour, so a shadow written that way is read on the
+# triple and not on the whole string.
+#
+# In <head>, because this must not put a node in the page's own content while the page is
+# being read. The same span in <body> answers the same.
+ACCENT_SWATCH = r"""() => {
+  const swatch = document.createElement('span');
+  swatch.style.cssText = 'outline: 1px solid var(--accent)';
+  document.head.append(swatch);
+  const accent = getComputedStyle(swatch).outlineColor;
+  swatch.style.outlineColor = 'color-mix(in srgb, var(--accent) 100%, transparent)';
+  const mixed = getComputedStyle(swatch).outlineColor
+    .match(/color\(srgb ([\d.]+ [\d.]+ [\d.]+)/)?.[1] ?? null;
+  swatch.style.outlineColor = 'var(--mark-ink)';
+  const markInk = getComputedStyle(swatch).outlineColor;
+  swatch.remove();
+  return { accent, mixed, markInk };
+}"""
+
+
 # Every rule in the page's composed layer that draws the here ring, under the name that
 # rule gives it (--lf-here-ring, theme.css). This is the population the corpus floor
 # divides by; the sweep below answers for what is painted.
@@ -1492,9 +1555,16 @@ DEEP_FOCUS = """() => {
 #
 # What it cannot see is a rule drawing the ring some other way — as longhands, or as
 # `2px solid var(--accent)` written out. "Draws the here ring" is not decidable from a
-# declaration's text, and this asks the one question that is: does the outline's value
-# name the token. The paint is where the rest is decidable, and the floor reads both, so
-# a ring the layer draws without saying so is caught there rather than excused here.
+# declaration's text, and this asks the one question that is: does the value name the
+# layer's own token. The paint is where the rest is decidable, and the floor reads both,
+# so a ring the layer draws without saying so is caught there rather than excused here.
+#
+# Two tokens, because the band has two carriers. `--here-ring` is the outline the great
+# majority of the rules draw; `--here-shadow` is the same band cast as a shadow, for the
+# boxes that cannot spend an outline on it. Asking for the token and not for the shape
+# is what keeps the status dots out: a milestone's active dot is `0 0 0 3px` of the
+# accent and is not a ring, and no reading of a declaration could tell the two apart by
+# looking at them.
 #
 # Conditions are not read. This reading is taken on screen, in the scheme the walk uses.
 # A ring that painted only in some other medium would be one the corpus never shows,
@@ -1516,7 +1586,9 @@ RING_NAMES = """() => {
         // `&:has(> lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible))`
         // and nothing else, which names no rule anybody can find.
         if (rule.style
-            && rule.style.getPropertyValue('outline').includes('--here-ring)')) {
+            && (rule.style.getPropertyValue('outline').includes('--here-ring)')
+                || rule.style.getPropertyValue('box-shadow')
+                     .includes('--here-shadow)'))) {
           const name = rule.style.getPropertyValue('--lf-here-ring').trim();
           const own = rule.selectorText;
           const up = rule.parentRule?.selectorText;
@@ -1554,6 +1626,10 @@ RING_NAMES = """() => {
 #
 # The focused element is a candidate too, whatever paints its outline, so a ring the
 # platform draws and the layer never named is still measured.
+#
+# Both carriers of the band are read. Most of the layer's rules draw it as an outline;
+# two cast it as a shadow instead, and a reading that knew only the outline reported the
+# response bar and the browsed item hint as boxes with no ring on them at all.
 RINGS_DRAWN = f"""async () => {{
   // shownBand, rather than a fourth reading of what a box clips to. Its own comment
   // carries why: version check --render imports it so the band a handover is refused
@@ -1568,21 +1644,10 @@ RINGS_DRAWN = f"""async () => {{
     for (let n = b; n; n = n.parentNode || n.host) if (n === a) return true;
     return false;
   }};
-  // The accent as the browser resolves it, read back through an outline so that both
-  // sides of the comparison below are the same kind of value. Read straight off an
-  // element, a custom property serializes as it was written while `outline-color`
-  // serializes as it resolved: the two agree for `#2f5480` and for nothing more exotic,
-  // and `color-mix()` or `light-dark()` in a package's accent left every rule in the
-  // layer uncredited and the gate red on a page drawing every ring correctly. Through an
-  // outline they agree for any of them.
-  //
-  // In <head>, because this must not put a node in the page's own content while the
-  // page is being read. The same span in <body> answers the same.
-  const swatch = document.createElement('span');
-  swatch.style.cssText = 'outline: 1px solid var(--accent)';
-  document.head.append(swatch);
-  const accent = getComputedStyle(swatch).outlineColor;
-  swatch.remove();
+  const {{ accent, mixed }} = ({ACCENT_SWATCH})();
+  // The band this box casts as a shadow, where it draws one, in the width it draws it
+  // at. Its own comment carries what makes a shadow that band rather than a lift.
+  const hereShadow = (cs) => ({HERE_SHADOW})(cs, accent, mixed);
   // Whether the outline on this element is the layer's ring: `--here-ring` is
   // `var(--here-ring-w) solid var(--accent)`, so style, width and colour are all what
   // the element computes them to.
@@ -1595,10 +1660,17 @@ RINGS_DRAWN = f"""async () => {{
   // answered, since naming them puts them in a population the keyboard can never light.
   // The control the reader is standing on is measured whatever paints its outline, since
   // a visible ring cut in half is a fault whoever drew it.
+  //
+  // Or the same band cast as a shadow, which is the same ring to the reader and so the
+  // same ring here: the anchored response bar and the browsed item hint draw it that
+  // way. Left out, the bar's own controls came back wearing `pressable` — the name of
+  // the floor rule whose outline this one takes away — and the hint's band went
+  // unmeasured wherever it stood.
   const isHereRing = (cs) =>
-    cs.outlineStyle === 'solid'
-    && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
-    && cs.outlineColor === accent;
+    (cs.outlineStyle === 'solid'
+     && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
+     && cs.outlineColor === accent)
+    || hereShadow(cs) > 0;
   // Which here ring this is, where a rule said. An unset registered property and an
   // unregistered one both answer `none` and neither is a name, so both come back empty.
   const ringName = (cs) => {{
@@ -1606,9 +1678,9 @@ RINGS_DRAWN = f"""async () => {{
     return n === 'none' ? '' : n;
   }};
   // Every box painting the ring, read off the composed page. Whether a ring is there is
-  // what the outline says, so this asks the outline: a ring a rule drew without the
-  // layer's own token is found here exactly as readily, and no reading of the rules can
-  // find one. The name answers the other question — which rule drew it — and is read
+  // what the paint says, so this asks the paint: a ring a rule drew without the layer's
+  // own token is found here exactly as readily, and no reading of the rules can find
+  // one. The name answers the other question — which rule drew it — and is read
   // only to credit, which is why nothing here depends on the declaration being made.
   //
   // The focused element joins them whatever paints its outline, so a ring the platform
@@ -1649,10 +1721,19 @@ RINGS_DRAWN = f"""async () => {{
     // deliberately animates a ring owes this reading a wait on `getAnimations()`; one
     // written here now would wait on nothing, in front of the reading it is meant to
     // protect.
+    //
+    // The band, and how far past the box's own edge it reaches. An outline's is its
+    // width and its offset, which the layer's inset rings write negative; a shadow
+    // ring's is its spread, which has no offset to add. The outline answers first
+    // wherever there is one, so every box this reading already measured is measured the
+    // same way: the two carriers are on different boxes in this layer, and where a box
+    // ever wears both, the outline is the one the layer's own rules put there.
     const cs = getComputedStyle(el);
-    const w = cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth) || 0;
+    const cast = hereShadow(cs);
+    const outlined = cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth) || 0;
+    const w = outlined || cast;
     if (!w) continue;
-    const grow = w + (parseFloat(cs.outlineOffset) || 0);
+    const grow = outlined ? outlined + (parseFloat(cs.outlineOffset) || 0) : cast;
     const b = el.getBoundingClientRect();
     const ring = {{ top: b.top - grow, left: b.left - grow,
                    bottom: b.bottom + grow, right: b.right + grow }};

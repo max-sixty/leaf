@@ -24,11 +24,13 @@ ORPHAN_GRACE_SECS = 1
 # before the receipt is.
 UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
-ANSWER_DECISION_INSTRUCTION = (
+# The kinds a widget owns, admitted against the page's registry before they append.
+WIDGET_KINDS = {"action", "report", "request"}
+ANSWER_ASK_INSTRUCTION = (
     "`leaf page state <page>` lists each thread's current state, and "
     "`leaf events <page> --thread <id>` prints its exact records. A thread with "
     "`response.kind: version` is answered by revising the page and resolving it; open a "
-    "separate `leaf comment --section <decision-id>` on the same Decision if that revision "
+    "separate `leaf comment --section <ask-id>` on the same Ask if that revision "
     "needs an answer first. Reply to other threads with `leaf reply <page> --to "
     "<id> --text ...`; an ordinary reply leaves the thread open for the reader."
 )
@@ -101,7 +103,7 @@ _RECORD_VALUE = {
 
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves Decisions and conversations because they
+# present or absent). One condition shape serves Asks and conversations because they
 # ask the same question of the same authored attributes.
 AWAITING_CONDITION = {
     "type": "object",
@@ -114,7 +116,7 @@ AWAITING_CONDITION = {
     },
 }
 
-# Current action eligibility reuses Leaf's standing-decision projection. `self` is the
+# Current action eligibility reuses Leaf's standing-Ask projection. `self` is the
 # sending widget; `parent` is the holder relation its x-parent already declares.
 ACTION_REQUIREMENT = {
     "type": "object",
@@ -228,9 +230,9 @@ REPORT_SCHEMA = _verbs_schema(
 REQUEST_SCHEMA = {
     "type": "object",
     "properties": {
-        "decision": {"type": "boolean"},
+        "ask": {"type": "boolean"},
         # This request supplies the commands but not its own question title.
-        # A matching holder therefore stands inside an x-decision region, whose direct
+        # A matching holder therefore stands inside an x-ask-surface region, whose direct
         # heading owns the reading and arrival.
         "region": {"const": True},
         "offers": {
@@ -280,7 +282,7 @@ AWAITS_SCHEMA = {
         },
         "rollup": {"const": True},
         # This widget supplies the answer control but not its own question title.
-        # A matching instance therefore stands inside an x-decision region, whose direct
+        # A matching instance therefore stands inside an x-ask-surface region, whose direct
         # heading owns the reading and arrival.
         "region": {"const": True},
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
@@ -389,7 +391,7 @@ CHILDREN_SCHEMA = {
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
-        "x-decision": {"const": True},
+        "x-ask-surface": {"const": True},
         "x-awaits": AWAITS_SCHEMA,
         "x-conversation": {
             "type": "object",
@@ -422,6 +424,9 @@ EXTENSION_SCHEMA = {
         # its lf-code). `version check` refuses one outside the body (line_ref_errors).
         "x-lines": _ATTRIBUTE_LIST,
         "x-measured": MEASURED_SCHEMA,
+        # The element that lists the page's own headings. `version check` advises a
+        # page with two or more headings and no such element (missing_outline).
+        "x-outline": {"const": True},
         # Attributes the theme renders as paint alone — a status marker's tint or an
         # event's kind. The runtime speaks each as a clipped word (renderQuiet), the
         # value or, where a flag carries no value, the attribute's own name.
@@ -482,15 +487,13 @@ ATTRIBUTE_KEYS = ("x-language", "x-lines", "x-paints", "x-refers", "x-says", "x-
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
 PLUGIN_ROOT = SKILL_ROOT.parent.parent
-KERNEL = SKILL_ROOT / "assets"
-ASSETS = KERNEL
+ASSETS = SKILL_ROOT / "assets"
 BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
 # Outside the layer roots: an MCP host reads a resource here from the install over
 # the tool transport, so `page init` never copies one into a page directory.
 MCP_APP = SKILL_ROOT / "mcp-app"
 VENDORED_FILES = ("leaf.js", "theme.css", "registry.json", "icon.svg")
-PACKAGE_FILES = VENDORED_FILES
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
 GUIDANCE_DIR = "guidance"
 PACKAGE_DIRS = (*BROWSER_DIRS, GUIDANCE_DIR)
@@ -518,25 +521,30 @@ VIEWED_FILE = "viewed.json"
 # blind to the port, so every page this machine serves shares a jar — on 127.0.0.1,
 # with every other server the user has running, which is what the prefix is for.
 KEY_COOKIE = "lf_key"
+STATUS_FILE = "status.json"
+CURSOR_FILE = "cursor.json"
+SERVICE_FILE = "service.json"
+SERVER_LOCK = "server.lock"
+WAITER_LOCK = "waiter.lock"
 PAGE_STATE_FILES = (
     EVENTS_FILE,
-    "status.json",
+    STATUS_FILE,
     DATA_FILE,
-    "waiter.lock",
-    "cursor.json",
+    WAITER_LOCK,
+    CURSOR_FILE,
     VIEWED_FILE,
-    "service.json",
-    "server.lock",
+    SERVICE_FILE,
+    SERVER_LOCK,
     PREVIEW_FILE,
 )
-PAGE_OWNED_FILES = ("index.html", *PACKAGE_FILES, *PAGE_STATE_FILES)
+PAGE_OWNED_FILES = ("index.html", *VENDORED_FILES, *PAGE_STATE_FILES)
 PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR)
 # What the server exposes from a page: the browser layer, media, immutable revisions,
 # and event-backed version addresses. Agent-side guidance stays vendored but is read
 # only through the CLI.
 # The dir patterns are keyed by the public directories themselves, so growing
 # that surface without saying what it may serve fails here, at import.
-_DIR_FILES = {
+DIR_FILES = {
     "runtime": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.(?:js|css)",
     "widgets": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.js",
     "vendor": (r"(?:(?!\.{1,2}/)[A-Za-z0-9._-]+/)*" r"(?!\.{1,2}$)[A-Za-z0-9._-]+"),
@@ -546,7 +554,7 @@ SERVED_PATH = re.compile(
     "/(?:"
     + "|".join(
         [re.escape(f) for f in VENDORED_FILES]
-        + [f"{d}/{_DIR_FILES[d]}" for d in (*BROWSER_DIRS, MEDIA_DIR)]
+        + [f"{d}/{DIR_FILES[d]}" for d in (*BROWSER_DIRS, MEDIA_DIR)]
         + [r"versions/v[1-9][0-9]*\.html"]
         + [r"revisions/r[1-9][0-9]*-[a-f0-9]{16}\.html"]
     )

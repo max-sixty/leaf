@@ -35,7 +35,7 @@ PUBLIC_TABS = [
 FEATURE_GALLERY = EXAMPLES_DIR / "developer" / "feature-gallery.html"
 CONTENTS_SIDEBAR = re.compile(
     r'\s*<aside class="sidebar" id="[^"]+">\s*'
-    r'<lf-toc id="[^"]+"></lf-toc>\s*</aside>'
+    r"<lf-toc\b[^>]*></lf-toc>\s*</aside>"
 )
 TABS = [
     *((EXAMPLES_DIR / f"{stem}.html", label) for stem, label in PUBLIC_TABS),
@@ -50,7 +50,7 @@ HEAD = """\
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Leaf example corpus</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>

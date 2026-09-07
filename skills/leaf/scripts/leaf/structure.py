@@ -115,6 +115,10 @@ POINTABLE_TAGS = {"section", "article", "aside", "pre", "table", "figure"}
 # Where an aim that found no tighter id has escaped to: naming one of these is
 # naming most of the page.
 SECTIONING_TAGS = {"section", "article", "main", "body"}
+# The headings an outline of the page lists. h1 names the page, so it heads that
+# outline rather than standing in it. The outline widget selects the same set in the
+# browser (its own HEADING_SELECTOR).
+HEADING_TAGS = {"h2", "h3", "h4", "h5", "h6"}
 # The properties that overflow a column when pinned in pixels. max-width defines the
 # column instead, so it is read there and never counted here.
 OVERFLOW_PROPS = ("width", "min-width")
@@ -127,11 +131,18 @@ LF_META = {"lf-review": frozenset({"sign-off"})}
 # script tag is. The vendoring promise — an approved page can't change under its
 # user, and can't phone home — held by convention until the browser enforced it:
 # a vendored module or an inline handler could fetch any origin. 'self' is the
-# page directory whole; data: admits the images `version export` inlines; the
-# theme arrives inline in a <style> on export, hence 'unsafe-inline' for styles
-# (scripts stay 'self'-only, which is what matters). Verified over the corpus —
-# every widget, diagram renderer and tokenizer included — before it was required.
-PAGE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+# page directory whole; base-uri and form-action need their own directives because
+# default-src governs only fetches. data: admits the images `version export` inlines;
+# the theme arrives inline in a <style> on export, hence 'unsafe-inline' for styles
+# (scripts stay 'self'-only). Verified over the corpus — every widget, diagram
+# renderer and tokenizer included — before it was required.
+PAGE_CSP = (
+    "default-src 'self'; base-uri 'none'; form-action 'none'; "
+    "img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+)
+# A meta policy cannot govern the document's ancestors. The ordinary server adds this
+# separate header policy; the capability-scoped MCP transport is deliberately frameable.
+FRAME_ANCESTORS_CSP = "frame-ancestors 'none'"
 # Non-painting document structure that may stand outside the authored main. Head
 # metadata is allowed only while the parser is actually inside head; the canonical
 # module is also allowed beside main because shipped pages use both placements.
@@ -155,7 +166,7 @@ def implicit_closes(open_tags: list, tag: str) -> int:
     return closed
 
 
-class _StructParser(HTMLParser):
+class StructParser(HTMLParser):
     """Tracks a tag stack to catch unclosed and mismatched tags, and collects what the
     rest of `version check` reads off a version: element ids and the widget each
     stands in, every <script src> tag, stylesheet links, each lf-* element
@@ -569,10 +580,10 @@ class _StructParser(HTMLParser):
             )
 
 
-def parse_structure(markup: str) -> _StructParser:
+def parse_structure(markup: str) -> StructParser:
     """One structural reading of a document or fragment — fed and closed, so
     every reader gets the flushed parse rather than each restating the ritual."""
-    parser = _StructParser()
+    parser = StructParser()
     parser.feed(markup)
     parser.close()
     return parser
@@ -581,7 +592,7 @@ def parse_structure(markup: str) -> _StructParser:
 _revisions = {}  # revision file -> (its stamp, the structural reading of it)
 
 
-def parse_revision(page_dir: Path, revision: int) -> _StructParser:
+def parse_revision(page_dir: Path, revision: int) -> StructParser:
     """One cached structural reading of an immutable working revision."""
     path = revision_path(page_dir, revision)
     stamp = file_stamp(path)

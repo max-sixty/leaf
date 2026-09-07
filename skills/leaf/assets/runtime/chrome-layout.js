@@ -36,7 +36,7 @@
 import { layoutMarginRows } from "./margin-layout.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { setReact, syncReactLayout } from "./reactions.js";
-import { closePreview } from "./living-margin.js";
+import { activeInlineThread, closePreview } from "./living-margin.js";
 import { containsAcross } from "./passages.js";
 import {
   closeBtn,
@@ -55,6 +55,7 @@ import { refreshFab } from "./composing/surface.js";
 import { motion } from "./motion.js";
 import { renderPanel } from "./conversation/reconcile.js";
 import { readerStore } from "./storage.js";
+import { showThread } from "./conversation/landing.js";
 
 // The width the panel stands at for a reader who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
@@ -64,8 +65,9 @@ import { readerStore } from "./storage.js";
 // it knows which this is. So the edge is a thing they take hold of (`drawnEdge`), and
 // this is where it stands until they do.
 //
-// Opening or closing a workspace calls its state setter, updates the persisted intent,
-// and schedules the shared layout and key paint.
+// Opening or closing a workspace calls its state setter and schedules the shared layout
+// and key paint. Reader gestures remember their intent; an ephemeral developer replay
+// uses the same transition without replacing it.
 export const PANEL_W = 420;
 // How narrow they may draw it in. 320 is the narrowest window the panel is held to
 // standing up in (test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next),
@@ -119,7 +121,7 @@ export const inPanel = () => panelOpen && containsAcross(panel, focused());
 // The panel is shown, never shown modally, at either posture. A modal dialog makes the
 // rest of the document inert, and the panel covering the page is the posture in which the
 // page most needs to stay live: the toggle that opened it is out in the banner and is how
-// it closes, the decisions toggle beside it is the other workspace this one replaces
+// it closes, the Asks toggle beside it is the other workspace this one replaces
 // (test_workspaces_replace_each_other_instead_of_stacking), and the strip of page still
 // showing beside a covering sheet is still page a reader can point a hint at
 // (test_selection_hints_do_not_name_page_content_behind_a_covering_panel, which is the
@@ -311,8 +313,8 @@ export function moveShell(change) {
   scheduleShellRepaint();
   return played;
 }
-export function setPanel(open) {
-  if (open && currentTray()) showTray(null);
+export function setPanel(open, { remember = true } = {}) {
+  if (open && currentTray()) showTray(null, { remember });
   // Closing while focus is inside would drop it on body, the user's place
   // lost silently; it lands on the one control that reopens what just closed.
   if (!open && panel.contains(document.activeElement))
@@ -325,7 +327,7 @@ export function setPanel(open) {
   // test_a_coined_class_cannot_reach_the_chromes_rules pins, so the posture is stated on
   // body, where page CSS can see it without naming private chrome.
   panel.classList.toggle("open", open);
-  moveShell(() => document.body.toggleAttribute("data-lf-panel", open));
+  const played = moveShell(() => document.body.toggleAttribute("data-lf-panel", open));
   toggleBtn.setAttribute("aria-expanded", String(open));
   if (open) {
     // The layer before what goes in it. The panel is a dialog, and a dialog nobody has
@@ -340,7 +342,7 @@ export function setPanel(open) {
   } else if (panel.open) panel.close();
   syncLayout();
   panelChanged(open);
-  readerStore.set(PANEL_KEY, open ? "1" : "0");
+  if (remember) readerStore.set(PANEL_KEY, open ? "1" : "0");
   paintHere();
   // The panel is one of the two surfaces the hover reads, so its arriving or going away
   // is the pointer moving even when the pointer has not: closing it with the keyboard,
@@ -348,6 +350,7 @@ export function setPanel(open) {
   // page lit about a comment with no panel to explain it. The open half came free through
   // renderPanel; this is the half that has no render.
   refreshHover();
+  return played;
 }
 // Field sizing and every other chrome-size change feed the one layout pass.
 // The document shell's size also feeds the page repaint door: content landing can move
@@ -415,7 +418,26 @@ const layoutSizes = new ResizeObserver((entries) => {
 // on having happened yet.
 export function mountLayout() {
   commentsEdge.handle(panel, () => closeBtn);
-  toggleBtn.onclick = () => setPanel(!panelOpen);
+  let pressedInlineThread = null;
+  toggleBtn.addEventListener("pointerdown", () => {
+    pressedInlineThread = activeInlineThread()?.dataset.thread ?? null;
+  });
+  toggleBtn.addEventListener("pointercancel", () => {
+    pressedInlineThread = null;
+  });
+  toggleBtn.addEventListener("pointerup", () => {
+    setTimeout(() => (pressedInlineThread = null));
+  });
+  toggleBtn.onclick = () => {
+    if (panelOpen) {
+      setPanel(false);
+      return;
+    }
+    const inlineThread = pressedInlineThread ?? activeInlineThread()?.dataset.thread;
+    pressedInlineThread = null;
+    if (inlineThread) showThread(inlineThread, { focus: "thread" });
+    else setPanel(true);
+  };
   addEventListener("resize", () => {
     closeReactions();
     pageShifted();

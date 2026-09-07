@@ -243,6 +243,148 @@ def test_a_comment_may_name_a_declared_visual_part(page_dir):
     assert "--part needs --section" in unseated.output
 
 
+def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
+    """The reply and replacement anchor are one durable act. The raw opening keeps
+    where the question was asked, while every current-state reading follows the new
+    visual part and releases the old element from version retention."""
+    v1 = PAGE.replace(
+        '<lf-diagram id="flow">',
+        '<p id="old-wording">The retry starts here.</p>'
+        '<lf-diagram id="flow" parts="node:A node:B">',
+    )
+    (page_dir / ".fixture-versions" / "v1.html").write_text(v1)
+    published(page_dir)
+    root = json.loads(
+        comment(
+            page_dir,
+            "--quote",
+            "The retry starts here.",
+            "--text",
+            "Should this move onto the diagram?",
+        ).output
+    )
+    v2 = v1.replace("The retry starts here.", "The prose no longer names the retry.")
+    (page_dir / ".fixture-versions" / "v2.html").write_text(v2)
+    revised = stamp(page_dir, 2, "moved the retry into the diagram")
+    assert revised.exit_code == 0, revised.output
+
+    moved = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            "--json",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--section",
+            "flow",
+            "--part",
+            "node:A",
+            "--text",
+            "I moved the retry into this node and reattached the thread.",
+        ],
+    )
+    assert moved.exit_code == 0, moved.output
+    reply = json.loads(moved.output)
+    current = {"section": "flow", "visual": "node:A"}
+    assert (reply["revision"], reply["anchor"]) == (2, current)
+
+    events = events_model.read_events(page_dir)
+    original = next(event for event in events if event["id"] == root["id"])
+    assert original["anchor"]["section"] == "old-wording"
+    assert original["anchor"]["quote"] == "The retry starts here."
+    assert original["anchor"] != current
+    assert state_json(page_dir)["threads"] == [
+        {"id": root["id"], "anchor": current, "resolved": None}
+    ]
+    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    assert transcript.exit_code == 0, transcript.output
+    assert "> § flow · node:A" in transcript.output
+
+    v3 = v2.replace('<p id="old-wording">The prose no longer names the retry.</p>', "")
+    (page_dir / ".fixture-versions" / "v3.html").write_text(v3)
+    checked = check(page_dir, 3)
+    assert checked.exit_code == 0, checked.output
+
+
+def test_a_reply_refuses_to_move_a_held_command_goal(page_dir):
+    """A hold's exact-section anchor is part of the command request's meaning, not
+    merely the thread's placement, so a later reply cannot silently retarget it."""
+    v1 = PAGE.replace(
+        "</section>",
+        '<lf-tasks id="work"><lf-task id="held-goal" status="active" talk>'
+        "<strong>Held goal</strong></lf-task></lf-tasks></section>",
+    )
+    (page_dir / ".fixture-versions" / "v1.html").write_text(v1)
+    published(page_dir)
+    root = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Pause here.",
+            "anchor": {"section": "held-goal"},
+            "holds": "held-goal",
+        },
+    )
+
+    moved = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--section",
+            "backfill-first",
+            "--text",
+            "Move this hold.",
+        ],
+    )
+
+    assert moved.exit_code != 0
+    assert "holds the command goal" in moved.output
+
+
+def test_a_moving_reply_activates_the_revision_before_validating_markup(page_dir):
+    """Anchor capture activates the edited source. Reply markup must then validate
+    against that same revision, or it can take an id the newly live page already owns
+    and leave the append-only log incompatible with every later version check."""
+    published(page_dir)
+    root = json.loads(
+        comment(page_dir, "--section", "flow", "--text", "Move this when fixed.").output
+    )
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            "</section>", '<p id="answer">The revised answer.</p></section>'
+        )
+    )
+
+    moved = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--section",
+            "answer",
+            "--text",
+            "Moved this to the revised answer.",
+            "--markup",
+            '<lf-diagram id="answer"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+        ],
+    )
+
+    assert moved.exit_code != 0
+    assert "reply widget ids already taken" in moved.output and "answer" in moved.output
+    assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
+    checked = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+    assert checked.exit_code == 0, checked.output
+
+
 def test_a_version_keeps_each_declared_visual_part_addressable(page_dir):
     parted = PAGE.replace(
         '<lf-diagram id="flow">',
@@ -775,23 +917,23 @@ def test_a_closed_thread_stops_asking(page_dir):
             "author": "claude",
             "revision": 1,
             "text": "Which mitigations?",
-            "markup": '<lf-decision id="gm-decision"><h3>Which mitigations?</h3>'
+            "markup": '<lf-ask id="gm-decision"><h3>Which mitigations?</h3>'
             "<p>The retry budget is shared.</p>"
             '<lf-options id="gm" choose>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
-            "</lf-options></lf-decision>",
+            "</lf-options></lf-ask>",
         },
     )
-    assert state_json(page_dir)["decisions"] == [
-        {"id": "gm-decision", "tag": "lf-decision", "thread": root["id"]}
+    assert state_json(page_dir)["asks"] == [
+        {"id": "gm-decision", "tag": "lf-ask", "thread": root["id"]}
     ]
     events_model.append_event(
         page_dir, {"kind": "resolve", "author": "claude", "parent": root["id"]}
     )
-    assert state_json(page_dir)["decisions"] == []
+    assert state_json(page_dir)["asks"] == []
 
 
-def test_thread_decisions_share_one_projection_across_open_fragments(page_dir):
+def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
     """Independent thread widgets fold together while retaining their threads."""
     publish(page_dir)
     roots = []
@@ -805,17 +947,17 @@ def test_thread_decisions_share_one_projection_across_open_fragments(page_dir):
                     "revision": 1,
                     "text": f"Choose {suffix}",
                     "markup": (
-                        f'<lf-decision id="group-{suffix}-decision"><h3>Choose {suffix}</h3>'
+                        f'<lf-ask id="group-{suffix}-decision"><h3>Choose {suffix}</h3>'
                         f'<lf-options id="group-{suffix}" choose>'
                         f'<lf-option id="option-{suffix}"><strong>{suffix}</strong></lf-option>'
-                        "</lf-options></lf-decision>"
+                        "</lf-options></lf-ask>"
                     ),
                 },
             )
         )
-    assert state_json(page_dir)["decisions"] == [
-        {"id": "group-a-decision", "tag": "lf-decision", "thread": roots[0]["id"]},
-        {"id": "group-b-decision", "tag": "lf-decision", "thread": roots[1]["id"]},
+    assert state_json(page_dir)["asks"] == [
+        {"id": "group-a-decision", "tag": "lf-ask", "thread": roots[0]["id"]},
+        {"id": "group-b-decision", "tag": "lf-ask", "thread": roots[1]["id"]},
     ]
 
     append_command(
@@ -829,8 +971,8 @@ def test_thread_decisions_share_one_projection_across_open_fragments(page_dir):
             "detail": {"options": ["option-a"]},
         },
     )
-    assert state_json(page_dir)["decisions"] == [
-        {"id": "group-b-decision", "tag": "lf-decision", "thread": roots[1]["id"]}
+    assert state_json(page_dir)["asks"] == [
+        {"id": "group-b-decision", "tag": "lf-ask", "thread": roots[1]["id"]}
     ]
 
 
@@ -849,8 +991,8 @@ def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir):
     nothing but a widget still posts."""
     published(page_dir)
     widget = (
-        '<lf-decision id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
-        '<lf-option id="d1-a">A</lf-option></lf-options></lf-decision>'
+        '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
+        '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
     )
 
     sheet = comment(
@@ -901,11 +1043,11 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
             "--text",
             "Pick one:",
             "--markup",
-            '<lf-decision id="ps-decision"><h3>Which store?</h3>'
+            '<lf-ask id="ps-decision"><h3>Which store?</h3>'
             '<lf-options id="ps-q" choose>'
             '<lf-option id="ps-redis">Redis</lf-option>'
             '<lf-option id="ps-cookie">A signed cookie</lf-option>'
-            "</lf-options></lf-decision>",
+            "</lf-options></lf-ask>",
         ).exit_code
         == 0
     )
@@ -941,9 +1083,9 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "--text",
             "Pick:",
             "--markup",
-            '<lf-decision id="q1-decision"><h3>Pick one</h3><lf-options id="q1" choose>'
+            '<lf-ask id="q1-decision"><h3>Pick one</h3><lf-options id="q1" choose>'
             '<lf-option id="q1-a"><strong>A</strong>'
-            '<span id="thread-label">Label</span></lf-option></lf-options></lf-decision>',
+            '<span id="thread-label">Label</span></lf-option></lf-options></lf-ask>',
         ).exit_code
         == 0
     )

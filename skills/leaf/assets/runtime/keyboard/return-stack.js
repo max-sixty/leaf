@@ -40,10 +40,8 @@
    The rule holds for a sequence as much as for a surface, where the stack it is about is
    the reader's rather than the dispatcher's. The address chord arms on `g`. A panel
    mnemonic exchanges that window for its destination, so `g T` leaves the Threads panel
-   as one Escape rung. A document-list mnemonic narrows the window instead. Each hint
-   keeps its complete route, such as `g h 1`; `g` starts blue, then `h` turns blue in
-   place when it is pressed. Escape returns to the destination menu before another Escape
-   closes it.
+   as one Escape rung. A multi-letter generated hint narrows the visible target map
+   instead; Escape removes one typed letter before another Escape closes the chord.
 
    The return stack records entry history; `rung()` is only the fallback for state reached
    without a registered entry, such as a pointer-opened panel or focus the reader moved by

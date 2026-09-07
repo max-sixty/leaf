@@ -13,34 +13,18 @@ def render_check(
     source: bytes,
     revision: int,
     *,
-    preview=None,
-    render=None,
     transition_held: bool = False,
 ) -> int:
     """Serve candidate source to the host's browser and run the render
-    invariants on it.
+    invariants on it. A browser is part of this gate: if it cannot launch, the
+    gate fails."""
+    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import sync_playwright
 
-    Playwright is the gate's own extra, not the payload's: declaring it in
-    `pyproject.toml` would put its wheel in every `server run`, `leaf wait`, and
-    `version stamp`, so the import happens here and its absence names the
-    invocation that supplies it. A browser is part of this gate: if it cannot
-    launch, the gate fails."""
-    preview = preview_server if preview is None else preview
-    render = render_version if render is None else render
-    try:
-        from playwright.sync_api import Error as PlaywrightError
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        print(
-            "version check --render needs Playwright; run it as\n"
-            "  leaf version check <page> --render\n"
-            "or, from a checkout,\n"
-            "  bin/leaf version check <page> --render",
-            file=sys.stderr,
-        )
-        return 1
     with (
-        preview(page_dir, source, revision, transition_held=transition_held) as url,
+        preview_server(
+            page_dir, source, revision, transition_held=transition_held
+        ) as url,
         sync_playwright() as p,
     ):
         try:
@@ -53,7 +37,7 @@ def render_check(
             )
             return 1
         try:
-            failures = render(browser, url)
+            failures = render_version(browser, url)
         finally:
             browser.close()
     if failures:

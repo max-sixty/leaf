@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.data import empty_data, read_data_store
+from leaf.data import empty_data, read_data
 from leaf.data_contracts import data_binding_errors, measurement_lag
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry
@@ -19,7 +19,7 @@ from leaf.styles import (
 from leaf.thread_context import thread_structure
 from leaf.validation.instances import (
     addressable_instance_errors,
-    decision_region_errors,
+    ask_surface_errors,
     declared_word_errors,
     language_class_errors,
     line_ref_errors,
@@ -32,6 +32,7 @@ from leaf.validation.instances import (
 from leaf.validation.markup import (
     id_errors,
     media_errors,
+    missing_outline,
     page_boundary_errors,
     structure_errors,
     unpointable_blocks,
@@ -157,7 +158,7 @@ def _registry_errors(
     errors = []
     if registry is None:
         return stored_data, errors
-    stored_data = read_data_store(page_dir)
+    stored_data = read_data(page_dir)
     errors.extend(widget_errors(parser.lf_elements, registry))
     errors.extend(visual_part_errors(parser.lf_elements, registry))
     errors.extend(
@@ -170,7 +171,7 @@ def _registry_errors(
         )
     )
     errors.extend(addressable_instance_errors(parser.lf_elements, registry))
-    errors.extend(decision_region_errors(parser.lf_elements, registry))
+    errors.extend(ask_surface_errors(parser.lf_elements, registry))
     errors.extend(request_offer_errors(parser.lf_elements, registry))
     errors.extend(
         reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
@@ -238,6 +239,7 @@ def _source_advice(
             )
         ),
         *unpointable_blocks(parser),
+        *missing_outline(parser, registry or {}),
     ]
 
 

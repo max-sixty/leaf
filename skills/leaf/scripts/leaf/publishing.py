@@ -162,6 +162,6 @@ def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -
 @contract_writer
 def cmd_stamp(page_dir: Path, text, completes: tuple[str, ...] = ()) -> dict:
     """Map the exact current source to the next public version."""
-    body = read_text_arg(text)
+    body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         return _stamp_locked(page_dir, page, body, completes)

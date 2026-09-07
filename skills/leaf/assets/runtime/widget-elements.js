@@ -324,7 +324,7 @@ export function offer(tag, cls, label) {
 // the lend leaves with the first blur, so a paragraph the address chord landed on is a
 // paragraph again once the reader moves off it, and `tabindex` never becomes a thing the
 // runtime leaves behind on an author's element. An element that already declares a stop
-// keeps its own. Four arrivals want this and none owns the element: a numbered address
+// keeps its own. Four arrivals want this and none owns the element: a go-to hint
 // completing on a fold, a heading or a link's fragment; a document swap handing back the
 // place the reader stood in; the reference handing a reader back to the block they were
 // reading; and the skip link landing on the banner when none of its controls will take
@@ -362,6 +362,12 @@ export function selectableOffer(role, cls, label) {
   if (label !== undefined) node.textContent = label;
   return node;
 }
+
+// What the value above names as a press: the tag for a button, the role for a selectable
+// offer, against the empty string the rest of a widget's chrome takes. The theme states
+// the same reading in CSS for the hand and the here ring; this is it for the passes
+// written in JavaScript.
+export const PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
 
 // A drag that ends on a control is that selection's mouseup, not a press: the
 // user was reaching for the words, and a control whose label is one of the
@@ -463,7 +469,7 @@ export function relabel(node, label, { says } = {}) {
 }
 
 // Room for a word not yet said, taken from the words themselves. A control that will
-// rewrite its own label ("✓ Accept" to "✓ Accepted", a count gaining a digit) must
+// rewrite its own label ("Approve version" to "✓ Version approved", a count gaining a digit) must
 // hold the widest word's room from the start, or the press rewrites the one line a
 // press may not move. Stating that room as a number is a measurement that stops
 // being true silently when the words or the font change, so the control measures the

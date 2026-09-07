@@ -41,11 +41,12 @@ from render_support import (
     TAIL_PAGE,
     THIN_V1,
     THIN_V2,
-    THREAD_DECISIONS,
+    THREAD_ASKS,
     TWICE_PAGE,
     TWO_COPIES_PAGE,
     _publish,
     _traffic,
+    address_code,
     compare_with,
     composer_quote,
     key_line,
@@ -349,7 +350,7 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     """A focused stream may hide the earlier context, never its collaboration state.
 
     The shipped example opens on the narrow work in hand. A comment and a decision in
-    inactive panels still stand in the page's one Threads list and one Decisions tray,
+    inactive panels still stand in the page's one Threads list and one Asks tray,
     and either global surface opens the panel it points into. Switching panels is
     reading the page, so it leaves the event log untouched."""
     example = next(p for p in EXAMPLES if p.stem == "live-progress")
@@ -387,16 +388,14 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     expect(finance).to_have_attribute("aria-selected", "true")
 
     page.get_by_role("button", name="Close threads").click()
-    decisions = page.locator(".lf-decisions")
+    decisions = page.locator(".lf-asks")
     expect(decisions).to_have_text("Asks 0/1")
     decisions.click()
-    # The row names the broader Decision's opening context now, and the arrival stands the
+    # The row names the broader Ask's opening context now, and the arrival stands the
     # reader on it — inside a tab the press had to select first. The options it holds own
     # the choice and follow it in the tab order; where exactly they fall is the arrival's
     # own test to say (test_an_ask_arrival_starts_with_the_context_that_frames_it).
-    hidden_decision = page.locator(
-        '.lf-decisions-row[data-lf-at="lp-finance-decision"]'
-    )
+    hidden_decision = page.locator('.lf-asks-row[data-lf-at="lp-finance-decision"]')
     expect(hidden_decision).to_have_count(1)
     expect(hidden_decision).to_contain_text("Which cases should the fixture cover?")
     hidden_decision.click()
@@ -545,6 +544,40 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     expect(
         page.locator(".lf-composer")
     ).to_be_hidden()  # the press decided, it didn't compose
+    assert page.evaluate("getSelection().isCollapsed")
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("route", ["Enter", "Space", "g"])
+def test_every_suggestion_activation_dismisses_a_standing_selection(
+    browser, serve, route
+):
+    """A decision replaces the selection instead of reopening its Comment field."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    resized(page, 1440, 900)
+    box = page.locator("#replace").bounding_box()
+    select(
+        page,
+        (box["x"] + 4, box["y"] + 6),
+        (box["x"] + box["width"] - 8, box["y"] + box["height"] - 6),
+        steps=16,
+    )
+    expect(page.locator(".lf-composer")).to_be_visible()
+
+    accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
+    if route == "g":
+        page.keyboard.press("g")
+        page.keyboard.type(
+            address_code(page, "Page-map Button", "sug-refill", "accept")
+        )
+    else:
+        accept.focus()
+        page.keyboard.press(route)
+
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    assert page.evaluate("getSelection().isCollapsed")
     assert errors == []
     page.close()
 
@@ -593,83 +626,79 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     page.close()
 
 
+# One rendered key face: the geometry a physical press claims wherever Leaf draws it, and
+# the emphasis it wears there. A standing paint can replace a whole layer between browser
+# round trips, so every face named in one call is read in one task: a handle resolved in an
+# earlier round trip can be detached by the time it is measured, and a detached element has
+# no computed style at all.
+FACE = """el => { const s = getComputedStyle(el); return {
+  key: Object.fromEntries(
+    ["min-width", "height", "padding", "box-sizing", "border-top-width",
+     "border-top-style", "border-radius", "font-family", "font-size", "line-height",
+     "text-align"].map(p => [p, s.getPropertyValue(p)])),
+  emphasis: {border: s.borderTopColor, ground: s.backgroundColor, ink: s.color},
+}; }"""
+
+
+def faces(page, *selectors):
+    return page.evaluate(
+        f"selectors => selectors.map(sel => ({FACE})(document.querySelector(sel)))",
+        list(selectors),
+    )
+
+
 def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     """One physical press keeps its geometry wherever Leaf presents it."""
     url = serve(ADDRESSED_PAGE)
-    for event in THREAD_DECISIONS:
+    for event in THREAD_ASKS:
         events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
 
-    # Focus inside the first panel ask paints that group's digits; g h then aims the
-    # chord at the document's hyperlinks, which paints its own numeric addresses.
-    page.keyboard.press("g")
+    # Focus inside the first panel Ask paints that group's predictable digits, once a
+    # keyboard gesture has asked for a paint — opening the composer is that gesture here.
+    # The chord is a nearer keyboard layer and takes the digits back while it stands, so
+    # each face is read from the one moment its own layer renders it rather than from a
+    # single frame that cannot hold both.
     page.keyboard.press("c")
     page.locator("#tq-one .lf-pick").first.focus()
     picked = page.locator("#tq-one .lf-address").first
     expect(picked).to_be_visible()
+    option = faces(page, "#tq-one .lf-address")[0]
     page.keyboard.press("g")
-    page.keyboard.press("h")
     addressed = page.locator(CHIPS).first.locator("kbd").last
     expect(addressed).to_be_visible()
+    assert addressed.get_attribute("data-lf-key-state") == "neutral"
+    chord, legend = faces(
+        page,
+        f"{CHIPS} kbd:last-child",
+        '.lf-keyline .lf-key[data-lf-commands~="navigation.target"] kbd:last-child',
+    )
 
-    # The option's address and the chord's digit keep one physical key face. Both are
+    # The option's address and the chord's letter keep one physical key face. Both are
     # ordinary available bindings, so geometry and emphasis stay the same.
-    faces = """() => {
-        const read = el => { const s = getComputedStyle(el);
-            return Object.fromEntries(["min-width", "height", "padding", "box-sizing",
-                "border-top-width", "border-top-style", "border-radius", "font-family",
-                "font-size", "line-height", "text-align"]
-                .map(p => [p, s.getPropertyValue(p)])); };
-        return [read(document.querySelector('#tq-one .lf-address')),
-                read(document.querySelector(
-                  '.lf-addresses > .lf-address kbd:last-child'))]; }"""
-    option_key, chord_key = page.evaluate(faces)
-    assert option_key == chord_key, (
+    assert option["key"] == chord["key"], (
         "one physical key has two geometries:\n  "
         + "\n  ".join(
-            f"{k}: {option_key[k]!r} vs {chord_key[k]!r}"
-            for k in option_key
-            if option_key[k] != chord_key[k]
+            f"{k}: {option['key'][k]!r} vs {chord['key'][k]!r}"
+            for k in option["key"]
+            if option["key"][k] != chord["key"][k]
         )
     )
-    assert "mono" in option_key["font-family"]
-    assert addressed.get_attribute("data-lf-key-state") == "neutral"
-    emphasis = page.evaluate(
-        """() => ['#tq-one .lf-address',
-          '.lf-addresses > .lf-address kbd:last-child',
-          '.lf-keyline .lf-key[data-lf-commands~="navigation.link"] kbd:last-child']
-          .map(sel => { const s = getComputedStyle(document.querySelector(sel));
-            return {border: s.borderTopColor, ground: s.backgroundColor, ink: s.color};
-          })"""
-    )
-    option_emphasis, chord_emphasis, legend_emphasis = emphasis
-    assert option_emphasis == chord_emphasis == legend_emphasis
+    assert "mono" in option["key"]["font-family"]
+    assert option["emphasis"] == chord["emphasis"] == legend["emphasis"]
 
     # Item selection uses letters rather than digits, but it names the same physical
     # keys. Closing the address chord and opening selection must not reveal a fourth face.
     page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
     page.keyboard.press("s")
-    target = page.locator(".lf-target-hint").first
-    expect(target).to_be_visible()
+    hint = page.locator(".lf-target-hint").first
+    expect(hint).to_be_visible()
     # The standing paint can replace the hint layer between browser round trips. Read
     # the one rendered face in one task so geometry and emphasis cannot come from two
     # successive hint elements.
-    target_face = page.evaluate(
-        """() => { const s = getComputedStyle(
-          document.querySelector('.lf-target-hint'));
-          return {
-            key: Object.fromEntries(
-              ["min-width", "height", "padding", "box-sizing", "border-top-width",
-               "border-top-style", "border-radius", "font-family", "font-size",
-               "line-height", "text-align"]
-              .map(p => [p, s.getPropertyValue(p)])),
-            emphasis: {
-              border: s.borderTopColor, ground: s.backgroundColor, ink: s.color},
-          }; }"""
-    )
-    assert target_face["key"] == option_key
-    assert target_face["emphasis"] == option_emphasis
+    hint_face = faces(page, ".lf-target-hint")[0]
+    assert hint_face["key"] == option["key"]
+    assert hint_face["emphasis"] == option["emphasis"]
     assert errors == []
     page.close()
 
@@ -985,11 +1014,12 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     # Mouse.click is no user gesture and can only prove that nothing was hit.
     page.locator("#p").scroll_into_view_if_needed()
     page.mouse.click(*mark_point(page, "lf-mark"))
-    panel_settled(page)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
 
     # And the composer's own mark belongs to no thread, so it opens nothing. Its first
     # range runs up to the posted one, so this lands on the draft and nothing else.
-    page.get_by_role("button", name="Close threads").click()
+    page.locator(".lf-margin-preview-close").click()
     page.locator("#p").click(click_count=3)
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
@@ -1006,9 +1036,9 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
 
 
 def test_a_click_on_a_mark_decides_once(browser, serve):
-    """Opening the panel reflows the document, so anything that hit-tests the page after
-    the panel opens is testing geometry that has already moved. When two handlers each
-    asked where the pointer was, the second missed the mark the first had just opened and
+    """Opening a thread surface rewrites page-attached chrome, so anything that hit-tests
+    the page afterward is testing geometry that may already have moved. When two handlers
+    each asked where the pointer was, the second missed the mark the first had just opened and
     raised the response bar on top of it — and the element anchor that left behind reads
     as composition in progress, which is what stops a page following new versions. The
     panel starts shut here because a panel already open is the case with no reflow."""
@@ -1037,7 +1067,8 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     spot = page.evaluate("""() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.click(spot["x"], spot["y"])
-    panel_settled(page)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(
         page.locator(".lf-fab-input"),
         "the click opened the thread and then offered to comment on it as well",
@@ -2196,7 +2227,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
 
     page.mouse.click(seam["x"], seam["y"])
     opened = page.evaluate(
-        "() => document.activeElement?.closest('.lf-thread')?.innerText ?? null"
+        "() => document.activeElement?.closest('.lf-conversation-thread')?.innerText ?? null"
     )
     assert opened and f"About {seam['at']}." in opened, (
         f"the hover promised the thread on {seam['at']}, and the press at the same point "
@@ -2250,7 +2281,7 @@ def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
 
     page.touchscreen.tap(seam["x"], seam["y"])
     opened = page.evaluate(
-        "() => document.activeElement?.closest('.lf-thread')?.innerText ?? null"
+        "() => document.activeElement?.closest('.lf-conversation-thread')?.innerText ?? null"
     )
     assert opened and f"About {seam['at']}." in opened, (
         f"a tap on the quote for {seam['at']} opened: {opened}"
@@ -2323,12 +2354,12 @@ def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
     page.close()
 
 
-def test_an_ambiguous_revised_passage_detaches_instead_of_guessing(browser, serve):
+def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser, serve):
     """Context tells two copies apart; it must not relocate a comment when the page moves
     on. If a later version rewrites the words beside the anchored copy, that copy confirms
     almost nothing while another copy remains. Neither is now identifiable: document
-    order is not evidence, so the comment detaches visibly instead of moving to words it
-    was never made on."""
+    order is not evidence, so the comment first detaches visibly. An anchored agent reply
+    then names the revised passage explicitly, and the complete thread moves there."""
     url = serve(DRIFT_V1)
     page, errors = open_page(browser, live_url(url))
     landed = page.evaluate("""async () => {
@@ -2362,6 +2393,46 @@ def test_an_ambiguous_revised_passage_detaches_instead_of_guessing(browser, serv
     expect(page.locator(".lf-thread .lf-quote")).to_have_attribute(
         "title", re.compile("can't be identified")
     )
+
+    [root] = [
+        event for event in events_model.read_events(d) if event["kind"] == "comment"
+    ]
+    revised_passage = "Cache warmup is gone now. The version stamp never lands."
+    moved = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            "--json",
+            str(d),
+            "--to",
+            root["id"],
+            "--section",
+            "drift",
+            "--quote",
+            revised_passage,
+            "--text",
+            "I revised this passage and moved the thread onto it.",
+        ],
+    )
+    assert moved.exit_code == 0, moved.output
+    reply = json.loads(moved.output)
+    assert reply["revision"] == 2 and reply["anchor"]["quote"] == revised_passage
+    told(page)
+
+    quote = page.locator(".lf-thread .lf-quote")
+    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).to_contain_text(revised_passage)
+    painted = page.evaluate(
+        "() => [...(CSS.highlights.get('lf-mark') ?? [])]"
+        ".map(range => range.toString()).join('')"
+    )
+    assert revised_passage in painted
+    [stored_root, stored_reply] = [
+        event
+        for event in events_model.read_events(d)
+        if event["kind"] in {"comment", "reply"}
+    ]
+    assert stored_root["anchor"] != stored_reply["anchor"]
     assert errors == []
     page.close()
 
@@ -4016,6 +4087,17 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     assert palette["cardPadding"] > 0
     assert palette["row"] == palette["page"]
 
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
+    expect(panel_thread).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(thread).to_be_focused()
+
     note = page.locator("lf-diff .lf-mark-note")
     expect(note).to_have_count(1)
     assert note.evaluate(
@@ -4026,13 +4108,14 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(note).to_be_focused()
     assert note.evaluate("el => el.getBoundingClientRect().width > 1")
     assert note.evaluate("el => getComputedStyle(el).opacity") == "1"
-    page.keyboard.press("Escape")
+    note.press("Enter")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-panel")).to_be_hidden()
 
     # The same draft has two views, across the shadow boundary. Empty Sends keep the
     # paper's neutral ground; typing enables the same primary face in either view.
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
-    panel_thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
     inline_send = thread.get_by_role("button", name="Send", exact=True)
     panel_send = panel_thread.get_by_role("button", name="Send", exact=True)
     button_face = """button => {
@@ -4086,21 +4169,23 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     strip = thread.locator(
         f'.lf-conversation-msg[data-event="{reply["id"]}"] .lf-react-strip'
     )
-    expect(strip.locator(".lf-react-trigger")).to_be_visible()
-    # The trigger wears the register's verb and the disclosure suffix: a bare "…" under a
-    # reply was a control nobody could name without hovering it.
-    expect(strip.locator(".lf-react-trigger")).to_have_text("React…")
+    trigger = strip.locator(".lf-react-trigger")
+    assert trigger.evaluate("b => getComputedStyle(b).opacity") == "0"
+    expect(trigger).to_have_attribute("aria-label", "Add reaction")
+    expect(trigger.locator('svg[data-lf-icon="reaction"]')).to_be_visible()
+    trigger.focus()
+    assert trigger.evaluate("b => getComputedStyle(b).opacity") == "1"
     strip.locator(".lf-react-trigger").click()
     expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
-    expect(strip.locator('.lf-react[data-token="no"]')).to_be_visible()
+    expect(strip.locator('.lf-react[data-token="change"]')).to_be_visible()
     assert errors == []
     with sending(page, "the inline reaction"):
-        strip.locator('.lf-react[data-token="no"]').click()
+        strip.locator('.lf-react[data-token="change"]').click()
     reacted = events_model.read_events(serve.page_dir)[-1]
     assert (reacted["kind"], reacted["parent"], reacted["token"]) == (
         "reply",
         reply["id"],
-        "no",
+        "change",
     )
 
     # A layout change can withdraw the outlet without a pointer press to dismiss
@@ -4122,8 +4207,14 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     file.evaluate("details => { details.open = true; }")
     expect(thread.locator("textarea")).to_be_visible()
 
-    with sending(page, "the inline resolution"):
-        thread.get_by_role("button", name="Resolve", exact=True).click()
+    # Resolve is the thread's own control, and the keyboard reaches it the way it
+    # reaches any other: #347 withdrew the page-level `x`, so the route is the PRESS
+    # row the control declares for itself (runtime/conversation/folding.js).
+    resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
+    resolve.focus()
+    expect(resolve).to_be_focused()
+    with sending(page, "the inline keyboard resolution"):
+        page.keyboard.press("Enter")
     expect(thread).not_to_have_attribute("open", "")
     summary = thread.locator(".lf-conversation-summary")
     expect(summary).to_have_text("Resolved · 2 messages")
@@ -4142,7 +4233,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator(".lf-conversation-msg").first).to_be_hidden()
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
-    page.locator(".lf-details > summary").click()
+    panel_resolved = page.locator(".lf-details")
+    if panel_resolved.get_attribute("open") is None:
+        panel_resolved.locator(":scope > summary").click()
     page.locator(".lf-details .lf-thread .lf-quote").click()
     expect(summary).to_be_focused()
     summary.click()
@@ -4790,7 +4883,7 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "ok",
+            "token": "keep",
             "anchor": {"section": "p7", "quote": "Paragraph 7."},
         },
     )

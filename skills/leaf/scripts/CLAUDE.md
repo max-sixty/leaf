@@ -24,9 +24,12 @@ The main owners are:
 - `events` and `projection`: standing event and durable state folds;
 - `thread_context` and `conversation`: thread identity, frozen markup, bounded
   delivery context, and conversation writes;
-- `acknowledgments` and `work`: growing delivery receipts, transient work
-  claims, and widget work seats;
-- `decisions`: declaration-driven page and thread decision projections;
+- `acknowledgments`: unsettled reader moves and their strongest delivery or
+  subject-work evidence;
+- `activity`: the canonical page-level fold over acknowledgments, status, claim,
+  turn, and watcher evidence;
+- `work`: transient subject claims and widget work seats;
+- `asks`: declaration-driven page and thread Ask projections;
 - `mcp_page`: the capability-scoped canonical page server and private MCP result;
 - `requests`: declared request seats, their canonical lifecycle, and the
   terminal host receipts that close one;
@@ -109,12 +112,11 @@ filesystem changes for the news stream. `service` owns the transport-neutral
 transaction that HTTP and MCP share. Import the owner directly; the package
 initializer is only a marker.
 
-Within `render_gate/`, `models` owns the values passed between phases, `scheme`
-owns one browser/color lifecycle, `readings` owns raw probe results, `reporting`
-owns human findings, `version` owns retry policy, `preview` owns ephemeral
-servers, `browser` owns the launch the two user-path gates share — `exporting` is
-its other caller — and `command` owns the CLI boundary. Import the owner directly; the
-package initializer is only a marker.
+Within `render_gate/`, `scheme` owns one browser/color lifecycle, `readings`
+owns the probe readings and the finding each becomes, `version` owns retry
+policy, `preview` owns ephemeral servers, `browser` owns the launch the two
+user-path gates share — `exporting` is its other caller — and `command` owns the
+CLI boundary. Import the owner directly; the package initializer is only a marker.
 
 Within `validation/`, `markup` owns shared document structure rules, `instances`
 owns registry-declared instance rules, `admission` owns incoming message markup,

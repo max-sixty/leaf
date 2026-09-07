@@ -1,9 +1,28 @@
 """Shared structural and authored-markup validation rules."""
 
+import re
 from pathlib import Path
 
-from leaf.structure import OPTIONAL_END, SECTIONING_TAGS, _StructParser
+from leaf.schema import MEDIA_DIR
+from leaf.structure import (
+    HEADING_TAGS,
+    OPTIONAL_END,
+    SECTIONING_TAGS,
+    StructParser,
+)
 from leaf.styles import inline_presentation_override_errors
+
+# One media reference as a message's Markdown writes it: an inline destination, or the
+# definition a reference-style link resolves through, read where the runtime's own
+# `isCanonicalMediaUrl` reads one — so a path standing in a sentence or a fence keeps
+# being the author's words rather than a file the page owes. Any `/media/…` it names,
+# which is the predicate the markup door's attribute harvest already keeps: the
+# directory holds digest-named files and nothing else, so every other destination is
+# one it cannot answer either.
+MEDIA_REFERENCE = re.compile(
+    rf"(?:\]\(\s*|^ {{0,3}}\[[^\]\n]+\]:\s*)<?(/{MEDIA_DIR}/[^\s)>]+)",
+    re.MULTILINE,
+)
 
 
 def reserved_ids_error(ids: list) -> str:
@@ -57,7 +76,7 @@ def at(rec: dict, named: str = "") -> str:
     return f"<{rec['tag']}{' ' + named if named else ''}> (line {rec['line']})"
 
 
-def unpointable_blocks(parser: _StructParser) -> list:
+def unpointable_blocks(parser: StructParser) -> list:
     """Blocks a user will aim at whole that no anchor can name. Advice, never a
     gate:
     references/page-authoring.md's "Stable anchors" states the id rule, and this
@@ -94,7 +113,40 @@ def unpointable_blocks(parser: _StructParser) -> list:
     return lines
 
 
-def structure_errors(parser: _StructParser) -> list:
+def missing_outline(parser: StructParser, registry: dict) -> list:
+    """A page with several headings and nothing that lists them. Advice, never a
+    gate: the outline widget's own entry states the default — a page with two or
+    more headings carries one — and this is that default's feedback loop, the way
+    unpointable_blocks is the id rule's.
+
+    The registry says which element is the outline (x-outline), so a layer shipping
+    its own navigation gets its own tag back and a layer shipping none stays quiet
+    instead of naming an element the page could not declare. Two headings is a
+    deliberately low bar. An author who reads the line and still leaves the page
+    bare has answered it: on a page short enough to take in whole, a list of its
+    headings says nothing the page has not already said."""
+    outline = sorted(
+        # Widgets only — a $ entry is a layer-wide namespace, not a tag a page can
+        # write, and $keys spells its members in the x- keys' own names.
+        tag
+        for tag, entry in registry.items()
+        if tag.startswith("lf-") and entry.get("x-outline")
+    )
+    if not outline or any(record["tag"] in outline for record in parser.lf_elements):
+        return []
+    headings = [node for node in parser.nodes if node["tag"] in HEADING_TAGS]
+    if len(headings) < 2:
+        return []
+    return [
+        (
+            f"{len(headings)} headings and no <{outline[0]}>: one in an "
+            "aside.sidebar near the opening lists them, unless the page is compact "
+            "enough that its outline is already visible at a glance"
+        )
+    ]
+
+
+def structure_errors(parser: StructParser) -> list:
     """A fed parser's structural complaints, plus the tags it was left holding
     open at the end of its input."""
     errors = list(parser.errors)
@@ -106,7 +158,7 @@ def structure_errors(parser: _StructParser) -> list:
     return errors
 
 
-def page_boundary_errors(parser: _StructParser) -> list:
+def page_boundary_errors(parser: StructParser) -> list:
     """Authored content lies under the page's one main content boundary."""
     errors = []
     direct = [line for line, is_direct in parser.main_elements if is_direct]
@@ -128,7 +180,7 @@ def page_boundary_errors(parser: _StructParser) -> list:
     return errors
 
 
-def fragment_style_errors(parser: _StructParser) -> list:
+def fragment_style_errors(parser: StructParser) -> list:
     """A message may not dress the document it is put into.
 
     A version's <style> is the page's own, and the gates a version answers to read
@@ -160,7 +212,7 @@ def fragment_style_errors(parser: _StructParser) -> list:
     return errors + inline_presentation_override_errors(parser)
 
 
-def media_errors(parser: _StructParser, page_dir: Path) -> list:
+def media_errors(parser: StructParser, page_dir: Path) -> list:
     """A /media/ reference the page directory can't answer, which renders as a broken
     image. The render gate would catch it as a 404, but that runs once a page; this
     runs at every door markup comes through, and a missing file is as deterministic as
@@ -175,8 +227,33 @@ def media_errors(parser: _StructParser, page_dir: Path) -> list:
 
     Asked at each door rather than in the vocabulary contract, for the reason
     `check_markup` gives where that choice is made."""
+    return _unanswered_media(parser.media_refs, page_dir)
+
+
+def text_media_errors(text: str, page_dir: Path) -> list:
+    """The same reference in a message's Markdown, which is the other way one arrives.
+
+    Markup names a picture in an attribute, where the parsed reading above finds it;
+    a message names one as a Markdown destination, which that reading cannot see — so
+    an agent sending a screenshot, the very shape `media_errors` was written for, came
+    through the one door that never asked. `check_markup` runs only when `--markup` is
+    given, and text on its own reached the log unread.
+
+    A reference is a link or image destination, never a scan of the words: the runtime
+    resolves `/media/…` off a token's href and nowhere else, `version check` says the
+    same of authored markup, and `inline_assets` learned it from an export a text scan
+    crashed. So a path quoted in prose is the author writing about leaf, and only a
+    destination is a file the directory has to answer. A destination is written two
+    ways, and `marked` resolves both to the same href: inline after `](`, or as the
+    definition a reference-style `![shot][ref]` points at. The residual is a fence
+    quoting either construct — the one `inline_assets` names and accepts too — and a
+    definition nothing references, which renders nothing but reads as one."""
+    return _unanswered_media(set(MEDIA_REFERENCE.findall(text)), page_dir)
+
+
+def _unanswered_media(refs, page_dir: Path) -> list:
     return [
         f"{ref} isn't in the page directory; `leaf page media` puts it there"
-        for ref in sorted(parser.media_refs)
+        for ref in sorted(refs)
         if not (page_dir / ref.lstrip("/")).is_file()
     ]

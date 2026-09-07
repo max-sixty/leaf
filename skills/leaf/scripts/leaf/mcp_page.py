@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import secrets
 import threading
 from dataclasses import dataclass
@@ -62,6 +63,10 @@ class _RoutedPageHandler(Handler):
     router: ProcessPageServer
     protocol_version = "HTTP/1.1"
     layer = ""
+    # This transport exists to sit in a cross-origin MCP App frame. The host approves
+    # the exact process origin, while the unguessable, process-lived path authorizes
+    # the page; the server cannot name the host-assigned parent origin in a response.
+    frame_ancestors_policy = None
 
     def authorized(self) -> bool:
         # `_select_page` already proved possession of the process-scoped capability.
@@ -111,10 +116,8 @@ class _RoutedPageHandler(Handler):
         except Exception as error:  # noqa: BLE001 - this is the outer route boundary
             if self.command == "POST":
                 self.close_connection = True
-            try:
+            with contextlib.suppress(OSError):
                 self._json({"error": f"{type(error).__name__}: {error}"}, 500)
-            except OSError:
-                pass
             return None
 
     def do_GET(self):

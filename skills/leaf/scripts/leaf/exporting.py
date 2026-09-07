@@ -21,8 +21,10 @@ from leaf.render_gate.browser import (
     launch_browser,
 )
 from leaf.render_gate.preview import preview_server
-from leaf.schema import _DIR_FILES, MEDIA_DIR, MEDIA_TYPES
+from leaf.schema import DIR_FILES, MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import parse_structure
+
+_MEDIA_URL = re.compile(rf"url\((/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]})\)")
 
 
 def _inline_media(text: str, page_dir: Path, refs: set[str]) -> str:
@@ -39,7 +41,7 @@ def _inline_media(text: str, page_dir: Path, refs: set[str]) -> str:
 
 def inline_css_assets(css: str, page_dir: Path) -> str:
     """Make page-local CSS independent of Leaf's media endpoint."""
-    refs = set(re.findall(rf"url\((/{MEDIA_DIR}/{_DIR_FILES[MEDIA_DIR]})\)", css))
+    refs = set(_MEDIA_URL.findall(css))
     return _inline_media(css, page_dir, refs)
 
 
@@ -77,19 +79,17 @@ def inline_assets(html: str, page_dir: Path) -> str:
     # takes (`="…"`, `url(…)`); prose quoting the exact string of a path the page
     # also really uses is the residual, and it is the author quoting live markup.
     parsed = parse_structure(html)
-    css_refs = set(
-        re.findall(rf"url\((/{MEDIA_DIR}/{_DIR_FILES[MEDIA_DIR]})\)", parsed.css)
-    )
+    css_refs = set(_MEDIA_URL.findall(parsed.css))
     return _inline_media(html, page_dir, set(parsed.media_refs) | css_refs)
 
 
 def export_page(browser, url: str, page_dir: Path, name: str) -> str:
     """The served document named by `name`, copied as one self-contained file.
 
-    One implementation has two callers, as `render_version` does: `version export`
-    supplies the host's browser, while the suite drives this over the shipped
-    examples with its Chromium headless shell. That keeps the export behavior in
-    one function without claiming that the two browser launch paths are identical.
+    Callers own the browser lifetime: `version export` launches the host's browser,
+    the site builder reuses one across its product documents, and the suite drives
+    shipped examples with its Chromium headless shell. The rendering and bake remain
+    one implementation without claiming those browser launch paths are identical.
 
     The user's decisions come with it. Replay is what puts them on the page, so
     this waits for the runtime's caught-up stamp exactly as the gate does, and a page
@@ -117,6 +117,15 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
         try:
             wait_for_probe(page, "upgraded")
             wait_for_probe(page, "dataApplied", read_data(page_dir)["revision"])
+            # Both replayed kinds, as the render gate counts them: the caught-up
+            # stamp counts reports beside actions, and a page whose only recorded
+            # state is a worker's report would otherwise copy before it painted.
+            n_replayed = len(
+                [e for e in read_events(page_dir) if e["kind"] in ("action", "report")]
+            )
+            if n_replayed:
+                wait_for_probe(page, "logApplied", n_replayed)
+            wait_for_probe(page, "presented")
             # A live fragmented widget deliberately keeps unopened payloads out of the
             # DOM. A standalone copy has no fragment door after scripts are removed, so
             # let any renderer that owns such payloads materialize them before baking.
@@ -128,14 +137,6 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
                   await Promise.all(pending);
                 }"""
             )
-            # Both replayed kinds, as the render gate counts them: the caught-up
-            # stamp counts reports beside actions, and a page whose only recorded
-            # state is a worker's report would otherwise copy before it painted.
-            n_replayed = len(
-                [e for e in read_events(page_dir) if e["kind"] in ("action", "report")]
-            )
-            if n_replayed:
-                wait_for_probe(page, "logApplied", n_replayed)
             return inline_assets(evaluate_probe(page, "bake"), page_dir)
         except PlaywrightTimeout:
             sys.exit(
@@ -153,7 +154,7 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
         page.close()
 
 
-def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
+def cmd_export(page_dir: Path, out: Path, version) -> int:
     """One stamped version as a standalone HTML file.
 
     The copy is the page as the browser finished drawing it, which is the only way to
@@ -162,17 +163,9 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
     by the vendored tokenizer in the page rather than by anything that can read the
     file. So a browser is not an optimisation here and no `x-` key exempts a widget
     from it; without one there is nothing to copy at all."""
-    preview = preview_server if preview is None else preview
-    try:
-        from playwright.sync_api import Error as PlaywrightError
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        sys.exit(
-            "export needs Playwright; run it as\n"
-            "  leaf version export <page> -o <file>\n"
-            "or, from a checkout,\n"
-            "  bin/leaf version export <page> -o <file>"
-        )
+    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import sync_playwright
+
     events = read_events(page_dir)
     published = published_versions(page_dir, events)
     if not published:
@@ -191,7 +184,7 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
     source = revision_path(page_dir, revision).read_bytes()
 
     with (
-        preview(page_dir, source, revision, version=version) as url,
+        preview_server(page_dir, source, revision, version=version) as url,
         sync_playwright() as p,
     ):
         try:

@@ -141,14 +141,13 @@ def make_mcp_server(
     def leaf_snapshot_refresh(page: str):
         return result_for_page(page)
 
-    server = MCPServer(
+    return MCPServer(
         "leaf",
         title="Leaf",
         description="Present and continue complete Leaf review pages.",
         version="1",
         extensions=[apps],
     )
-    return server
 
 
 def run_mcp_server() -> None:

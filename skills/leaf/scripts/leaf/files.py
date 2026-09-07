@@ -33,7 +33,6 @@ def file_stamp(path: Path):
 
 VERSION_FILE = re.compile(r"v([1-9][0-9]*)\.html")
 REVISION_FILE = re.compile(r"r([1-9][0-9]*)-([a-f0-9]{16})\.html")
-SOURCE_FILE = "index.html"
 
 
 def version_num(name: str) -> int:
@@ -89,11 +88,22 @@ def revision_path(page_dir: Path, revision: int) -> Path:
     return matches[0]
 
 
-def latest_revision(page_dir: Path) -> int:
+def latest_revision(page_dir: Path) -> int | None:
+    """The newest valid revision, or None on a page with none yet."""
     revisions = list_revisions(page_dir)
-    if not revisions:
-        sys.exit(f"no active revision; write {page_dir / 'index.html'} first")
-    return revisions[-1]
+    return revisions[-1] if revisions else None
+
+
+def missing_revision(page_dir: Path) -> str:
+    return f"no active revision; write {page_dir / 'index.html'} first"
+
+
+def require_revision(page_dir: Path) -> int:
+    """The newest valid revision; a command that needs one stops without it."""
+    revision = latest_revision(page_dir)
+    if revision is None:
+        sys.exit(missing_revision(page_dir))
+    return revision
 
 
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
@@ -146,21 +156,14 @@ def version_descriptors(page_dir: Path, events: list) -> list[dict]:
     ]
 
 
-def active_descriptor(page_dir: Path, events: list) -> dict:
-    """The exact immutable document shown at the live root."""
+def active_descriptor(page_dir: Path, events: list) -> dict | None:
+    """The exact immutable document shown at the live root, or None before one."""
     revision = latest_revision(page_dir)
+    if revision is None:
+        return None
     path = revision_path(page_dir, revision)
     version = stamped_version(events, revision)
-    previous = [
-        descriptor["version"]
-        for descriptor in version_descriptors(page_dir, events)
-        if descriptor["revision"] <= revision
-    ]
-    label = (
-        f"v{version}"
-        if version is not None
-        else (f"Draft after v{previous[-1]}" if previous else "Draft")
-    )
+    label = f"v{version}" if version is not None else revision_label(events, revision)
     return {
         "revision": revision,
         "version": version,
@@ -204,6 +207,21 @@ def read_json(path: Path):
         return None
 
 
+def fsync_parents(paths) -> None:
+    """Make these files' directory entries durable, not just their contents.
+
+    A create or a rename is a directory write, and it survives a crash only once
+    the directory itself is synced, so every writer that adds or replaces a page
+    or package member ends with this.
+    """
+    for parent in {path.parent for path in paths}:
+        fd = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+
 def replace_files(files: list) -> None:
     """Durably stage every write before replacing its target."""
     staged = []
@@ -219,7 +237,7 @@ def replace_files(files: list) -> None:
     ):
         sys.exit("two staged files resolve to the same target")
     try:
-        for (path, data, follow_symlink), target in zip(files, targets):
+        for (path, data, follow_symlink), target in zip(files, targets, strict=True):
             for _ in range(100):
                 tmp = target.with_name(f".{secrets.token_hex(8)}.tmp")
                 try:
@@ -248,12 +266,7 @@ def replace_files(files: list) -> None:
                 os.fsync(stream.fileno())
         for tmp, target in staged:
             os.replace(tmp, target)
-        for parent in {target.parent for target in targets}:
-            fd = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-            try:
-                os.fsync(fd)
-            finally:
-                os.close(fd)
+        fsync_parents(targets)
     finally:
         for tmp, _ in staged:
             tmp.unlink(missing_ok=True)

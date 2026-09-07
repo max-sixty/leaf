@@ -10,10 +10,12 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf.served_state import page as served_page
 from playwright.sync_api import expect
 from render_support import (
+    ASK_PAGE,
     BOTH_STAMPS,
-    DECISION_PAGE,
+    CHIPS,
     EXAMPLES,
     FEATURE_GALLERY,
     GENERIC_VISUAL_LAYER,
@@ -22,7 +24,11 @@ from render_support import (
     PANEL_PAGE,
     SUGGESTION_PAGE,
     _publish,
+    _traffic,
+    _until,
+    address_code,
     compare_with,
+    go_to_address,
     leaf_page,
     live_url,
     margins_laid_out,
@@ -42,14 +48,14 @@ from render_support import (
 
 pytestmark = pytest.mark.nightly
 
-COMMENT_ON_DECISION = {
+COMMENT_ON_ASK = {
     "kind": "comment",
     "author": "user",
     "revision": 1,
     "text": "Check whether these jobs can share one visit.",
     "anchor": {"section": "bracket"},
 }
-ACTION_ON_DECISION = {
+ACTION_ON_ASK = {
     "kind": "action",
     "author": "user",
     "revision": 1,
@@ -939,16 +945,16 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, width, 900)
 
-    for target, outcome, receipt in (
-        ("bg-replace", "accept", "Accepted"),
-        ("bg-insert", "reject", "Rejected"),
-        ("bg-delete", "accept", "Accepted"),
+    for target, outcome in (
+        ("bg-replace", "accept"),
+        ("bg-insert", "reject"),
+        ("bg-delete", "accept"),
     ):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         controls = page.locator(f'.lf-sug-actions[data-lf-for="{target}"]')
         item.get_by_role("button", name=re.compile(f"^{outcome.title()} the ")).click()
         round_trip(page)
-        expect(controls.locator(".lf-sug-receipt")).to_have_text(receipt)
+        expect(controls.locator(".lf-margin-receipt")).to_have_count(0)
         controls.get_by_role("button", name=re.compile("^Undo ")).click()
         round_trip(page)
         expect(
@@ -984,11 +990,11 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     reaction = next(
         event
         for event in events_model.read_events(serve.page_dir)
-        if event.get("token") == "this"
+        if event.get("token") == "prioritize"
         and event.get("anchor", {}).get("section") == "bg-crowded"
     )
     take_back = sheet.locator(f'[data-lf-map-button$=":take-back:{reaction["id"]}"]')
-    expect(take_back).to_have_attribute("aria-label", "this — take it back")
+    expect(take_back).to_have_attribute("aria-label", "prioritize — take it back")
     with sending(page, "the withdrawal of the spilled reaction"):
         take_back.click()
     expect(sheet).to_be_hidden()
@@ -996,6 +1002,251 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     last = events_model.read_events(serve.page_dir)[-1]
     assert (last["kind"], last["undoes"]) == ("undo", reaction["id"])
     assert errors == []
+    page.close()
+
+
+def test_the_feature_gallery_displays_the_complete_button_grammar(browser, serve):
+    """The atlas keeps every Button axis and lifecycle witness visible together."""
+    page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    resized(page, 1440, 900)
+
+    atlas = page.locator("#bg-button-atlas-specimens")
+    expect(atlas).to_be_visible()
+    buttons = atlas.locator(".lf-margin-button")
+    expect(buttons).to_have_count(11)
+    records = buttons.evaluate_all(
+        """buttons => buttons.map(button => ({
+          behavior: button.dataset.lfBehavior,
+          tone: button.dataset.lfTone,
+          role: button.dataset.lfRole,
+          state: button.dataset.lfState,
+        }))"""
+    )
+    grammar = page.evaluate(
+        """async () => {
+          const {BUTTON_GRAMMAR} = await import('/runtime/widget-api.js');
+          return BUTTON_GRAMMAR;
+        }"""
+    )
+    for record_axis, grammar_axis in (
+        ("behavior", "behaviors"),
+        ("tone", "tones"),
+        ("role", "roles"),
+        ("state", "states"),
+    ):
+        assert {record[record_axis] for record in records} == set(grammar[grammar_axis])
+    assert set(
+        buttons.evaluate_all("rows => rows.map(row => getComputedStyle(row).cursor)")
+    ) == {"default"}
+
+    def specimen(name):
+        return atlas.locator(f'[data-button-specimen="{name}"] > .lf-margin-button')
+
+    busy = specimen("busy")
+    marks = {
+        name: specimen(name).evaluate(
+            """button => {
+              const style = getComputedStyle(button, '::after');
+              return {
+                content: style.content,
+                width: style.width,
+                radius: style.borderRadius,
+                animation: style.animationName,
+                playState: style.animationPlayState,
+              };
+            }"""
+        )
+        for name in ("idle", "engaged", "busy", "failed")
+    }
+    # Busy is the only state that paints. The others still rank and hold the cluster
+    # open, and say what they are in the words beside them, so a second 6px shape at
+    # this size added a smudge and no fact.
+    assert marks["busy"]["width"] == "8px"
+    assert marks["busy"]["radius"] == "50%"
+    assert "button-busy" in marks["busy"]["animation"]
+    assert marks["busy"]["playState"] == "running"
+    for name in ("idle", "engaged", "failed"):
+        assert marks[name]["content"] == "none", (name, marks[name])
+    expect(busy).to_have_attribute("aria-busy", "true")
+    expect(
+        atlas.locator('[data-button-specimen="sent"] > .lf-margin-button')
+    ).to_have_attribute("role", "status")
+    expect(atlas.locator(".button-atlas-name")).to_have_text(
+        [
+            "Save",
+            "Cancel",
+            "Accept",
+            "Reject",
+            "Thread",
+            "More",
+            "Sent",
+            "Idle",
+            "Engaged",
+            "Busy",
+            "Failed",
+        ]
+    )
+
+    assert errors == []
+    page.close()
+
+
+def test_the_feature_gallery_fragment_lands_after_presented_controls_take_space(
+    browser, serve
+):
+    """The atlas remains at the top edge when reaction controls above it appear."""
+    context = browser.new_context(viewport={"width": 700, "height": 900})
+    page, errors = open_page(
+        browser,
+        f"{live_url(serve(FEATURE_GALLERY))}#bg-button-atlas",
+        context=context,
+    )
+    position = page.locator("#bg-button-atlas").evaluate(
+        """element => ({
+          top: element.getBoundingClientRect().top,
+          clear: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
+        })"""
+    )
+    assert abs(position["top"] - position["clear"]) < 2, position
+    assert errors == []
+    page.close()
+    context.close()
+
+
+def test_the_feature_gallery_carries_a_button_through_its_whole_lifecycle(
+    browser, serve
+):
+    """The Button specimen shows the stable endpoints and exercises each transition.
+
+    Busy and Active depend on a request in flight and an external work claim, so the
+    source names those conditions while this browser journey holds each one long enough
+    to prove that the real Button draws its moving state.
+    """
+    page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    resized(page, 1440, 900)
+
+    expect(page.locator("#bg-button-accepted")).to_have_attribute(
+        "data-lf-state", "accept"
+    )
+    expect(page.locator("#bg-button-accepted lf-new")).to_be_visible()
+    expect(page.locator("#bg-button-accepted lf-old")).to_be_hidden()
+    seeded = page.locator('[data-lf-margin-for="bg-button-accepted"]')
+    expect(seeded.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(
+        seeded.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    ).to_have_count(0)
+
+    draft = page.locator('[data-lf-margin-for="bg-draft"]')
+    draft.locator(".lf-draft-pencil").click()
+    save = draft.get_by_role("button", name="Save", exact=True)
+    cancel_draft = draft.get_by_role("button", name="Cancel", exact=True)
+    expect(save).to_have_attribute("data-lf-state", "engaged")
+    expect(cancel_draft).to_have_attribute("data-lf-state", "engaged")
+    cancel_draft.click()
+    waiting = page.locator('[data-lf-margin-for="bg-history"]').get_by_role(
+        "status", name=re.compile(r"^Waiting for pickup for ")
+    )
+    expect(waiting).to_have_attribute("data-lf-state", "busy")
+
+    workflow = page.locator('[data-lf-margin-for="bg-button-workflow"]')
+    accept = workflow.get_by_role(
+        "button", name=re.compile(r"^Accept the suggested change")
+    )
+    expect(accept).to_have_attribute("data-lf-state", "idle")
+
+    def reject(route):
+        route.fulfill(
+            status=400,
+            json={"ok": False, "error": "gallery transport refusal", "final": True},
+        )
+
+    page.route("**/api/event", reject)
+    accept.click()
+    retry = workflow.get_by_role("button", name="Retry", exact=True)
+    cancel_failure = workflow.get_by_role("button", name="Cancel", exact=True)
+    expect(retry).to_have_attribute("data-lf-state", "failed")
+    expect(cancel_failure).to_have_attribute("data-lf-state", "failed")
+    expect(workflow).to_contain_text("Failed")
+    cancel_failure.click()
+    page.unroute("**/api/event")
+    expect(accept).to_have_attribute("data-lf-state", "idle")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    sends = _traffic(page).sends
+    accept.click()
+    _until(page, lambda traffic: traffic.sends > sends, "held the acceptance")
+    expect(accept).to_have_count(0)
+    pending_undo = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    expect(pending_undo).to_have_attribute("data-lf-state", "busy")
+    expect(pending_undo).to_have_attribute("aria-busy", "true")
+    expect(page.locator("#bg-button-workflow lf-old")).to_be_hidden()
+    expect(page.locator("#bg-button-workflow lf-new")).to_be_visible()
+    assert pending_undo.evaluate(
+        """button => {
+          const style = getComputedStyle(button, '::after');
+          return style.animationName.includes('button-busy') &&
+            style.animationPlayState === 'running';
+        }"""
+    ), "the gallery's busy Button has no running lifecycle animation"
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(page.locator("#bg-button-workflow")).to_have_attribute(
+        "data-lf-state", "accept"
+    )
+    expect(page.locator(".lf-notice")).not_to_have_text(
+        re.compile(r"^(Accepted|Rejected) .+ — sent$")
+    )
+    expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
+    undo_button = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    expect(undo_button).to_have_attribute("data-lf-state", "idle")
+    sent = workflow.get_by_role("status", name=re.compile(r"^Sent for "))
+    expect(sent).to_be_visible()
+    expect(sent).to_have_attribute("data-lf-state", "busy")
+
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "status",
+            str(serve.page_dir),
+            "working",
+            "applying the selected route",
+            "--on",
+            "bg-button-workflow",
+        ],
+    )
+    assert claimed.exit_code == 0, claimed.output
+    told(page)
+    active = workflow.locator(
+        '.lf-margin-button[data-lf-kinds="activity"][data-lf-state="busy"]:visible'
+    )
+    expect(active).to_be_visible()
+    expect(active).to_have_attribute("aria-label", re.compile(r"^Active"))
+    assert active.evaluate(
+        """button => {
+          const style = getComputedStyle(button, '::after');
+          return style.animationName.includes('button-busy') &&
+            style.animationPlayState === 'running';
+        }"""
+    ), "the gallery's Active Button has no running lifecycle animation"
+
+    stamp_page(
+        serve.page_dir,
+        FEATURE_GALLERY.read_text(encoding="utf-8"),
+        "Apply the selected route",
+        completes=("bg-button-workflow",),
+    )
+    wait_for_revision(page, 3)
+    expect(active).to_have_count(0)
+    expect(page.locator("#bg-button-workflow lf-new")).to_be_visible()
+    expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(
+        workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    ).to_have_count(0)
+
+    assert errors and all("400" in error for error in errors)
     page.close()
 
 
@@ -1007,6 +1258,11 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
     resized(page, 1440, 900)
     expect(page.locator("#bg-grammar")).to_have_count(0)
     sections = {
+        "bg-button-atlas": (
+            "Button atlas: every role, tone, and state",
+            "#bg-button-atlas-guide",
+            "#bg-button-atlas-specimens",
+        ),
         "bg-changes": (
             "Suggestions: proposed text changes",
             "#bg-changes-guide",
@@ -1052,8 +1308,24 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
     headings = page.locator("main section :is(h2, h3)").all_text_contents()
     assert [
         " ".join(heading.split()) for heading in headings if "Button" in heading
-    ] == ["Buttons: action, disclosure, and status"]
+    ] == [
+        "Button atlas: every role, tone, and state",
+        "Button workflow: act, fail, settle, and hand off",
+    ]
     expect(page.locator("#bg-buttons-line #bg-crowded")).to_be_visible()
+    expect(page.locator("#bg-button-workflow")).not_to_have_attribute(
+        "data-lf-state", re.compile(".+")
+    )
+    expect(page.locator("#bg-button-accepted")).to_have_attribute(
+        "data-lf-state", "accept"
+    )
+    expect(page.locator("#bg-button-accepted lf-new")).to_be_visible()
+    expect(page.locator("#bg-button-accepted lf-old")).to_be_hidden()
+    seeded = page.locator('[data-lf-margin-for="bg-button-accepted"]')
+    expect(seeded.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(
+        seeded.get_by_role("button", name=re.compile(r"^Undo accepting"))
+    ).to_have_count(0)
 
     feature_headings = page.locator(
         "main section h2:has(> .bg-feature-detail), "
@@ -1099,33 +1371,35 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
         "action": page.locator(f"{button_sample} .lf-sug-accept"),
         "disclosure": page.locator(f"{button_sample} .lf-margin-marker"),
         "more": page.locator(f"{button_sample} > .lf-margin-more"),
-        "settled": page.locator(f"{button_sample} .lf-react-mark").first,
+        "reaction": page.locator(f"{button_sample} .lf-react-mark").first,
     }
     expect(examples["action"]).to_have_attribute("data-lf-behavior", "action")
     for disclosure in (examples["disclosure"], examples["more"]):
         expect(disclosure).to_have_attribute("data-lf-behavior", "disclosure")
     expect(examples["action"]).to_have_attribute("data-lf-tone", "positive")
-    expect(examples["settled"]).to_have_attribute("data-lf-state", "settled")
+    # A standing reaction mark exists only while its reaction stands, so its presence
+    # is the whole of what it says and it carries no lifecycle paint on top.
+    expect(examples["reaction"]).to_have_attribute("data-lf-state", "idle")
     expect(
         page.locator(
             '[data-lf-margin-for="bg-react-lost"] '
-            '.lf-react-mark[data-token="lost"] > .lf-margin-button-glyph'
+            '.lf-react-mark[data-token="clarify"] > .lf-margin-button-glyph'
         )
-    ).to_have_text("??")
+    ).to_have_text("🤔")
     expect(
         page.locator(
             '[data-lf-margin-for="bg-choice-ask"] '
-            '.lf-margin-marker[data-lf-kinds="decision"] '
+            '.lf-margin-marker[data-lf-kinds="ask"] '
             'svg[data-lf-icon="question"]'
         )
     ).to_be_visible()
     assert page.locator("#bg-reactions p strong").all_text_contents() == [
-        "1 · ok · settled.",
-        "2 · no · wrong.",
-        "3 · lost · unclear.",
-        "4 · cut · too long.",
-        "5 · more · needs detail.",
-        "6 · this · look here.",
+        "1 · 👍 · keep.",
+        "2 · ❌ · change.",
+        "3 · 🤔 · clarify.",
+        "4 · ✂️ · shorten.",
+        "5 · 🔎 · support.",
+        "6 · 🎯 · prioritize.",
     ]
     assert errors == []
     page.close()
@@ -1255,24 +1529,19 @@ def test_open_page_map_uses_the_canonical_button_record_and_live_state(browser, 
     page.close()
 
 
-def test_g_m_addresses_the_visible_window_and_g_shift_m_opens_the_complete_page_map(
+def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_page_map(
     browser, serve
 ):
-    """Visible locations start at one while the complete Map keeps every location."""
+    """Visible locations get local hints while the complete Map keeps every location."""
     page, errors = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
     resized(page, 1440, 300)
 
     page.keyboard.press("g")
-    page.keyboard.press("m")
-    route = page.locator(
-        '.lf-keyline [data-lf-commands~="navigation.page-map-item"] .lf-key-sequence'
-    )
-    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
     expect(page.locator(".lf-page-map-sheet")).to_be_hidden()
-    expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
+    locations = page.locator(f'{CHIPS}[data-lf-address-kind="Page-map Button"]')
+    expect(locations).to_have_count(1)
 
-    # When the motion settles, number the newly visible window from one. Location 11 is
-    # outside the document's old one-digit prefix.
+    # When the motion settles, regenerate the map over the newly visible window.
     page.evaluate(
         """() => new Promise(resolve => {
           addEventListener('scrollend', resolve, {once: true});
@@ -1280,9 +1549,8 @@ def test_g_m_addresses_the_visible_window_and_g_shift_m_opens_the_complete_page_
           document.scrollingElement.scrollTo(0, target.offsetTop - 100);
         })"""
     )
-    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
-    expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
-    page.keyboard.press("1")
+    expect(locations).to_have_count(1)
+    page.keyboard.type(address_code(page, "Page-map Button", "map-11"))
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(preview).to_contain_text("Map note 11")
@@ -1317,7 +1585,7 @@ def test_g_m_addresses_the_visible_window_and_g_shift_m_opens_the_complete_page_
     page.close()
 
 
-def test_g_m_numbers_a_late_visible_action_only_location_from_one(browser, serve):
+def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     """A late action-only location is reachable while it is visible."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
@@ -1325,8 +1593,8 @@ def test_g_m_numbers_a_late_visible_action_only_location_from_one(browser, serve
     page.evaluate(
         """() => new Promise(resolve => {
           addEventListener('scrollend', resolve, {once: true});
-          const heading = document.querySelector('#bg-quoted-and-visual-heading');
-          document.scrollingElement.scrollTo(0, heading.offsetTop - 100);
+          const section = document.querySelector('#bg-quoted-and-visual');
+          document.scrollingElement.scrollTo(0, section.offsetTop - 100);
         })"""
     )
     page.locator("body").focus()
@@ -1336,13 +1604,10 @@ def test_g_m_numbers_a_late_visible_action_only_location_from_one(browser, serve
     expect(show_after).to_be_visible()
 
     page.keyboard.press("g")
-    page.keyboard.press("m")
-    route = page.locator(
-        '.lf-keyline [data-lf-commands~="navigation.page-map-item"] .lf-key-sequence'
+    target = show_after.evaluate(
+        "button => button.closest('[data-lf-margin-for]').dataset.lfMarginFor"
     )
-    expect(route.locator(":scope > kbd")).to_have_text(["g", "m", "1"])
-    expect(page.locator(".lf-chord-address")).to_have_text(["gm1"])
-    page.keyboard.press("1")
+    page.keyboard.type(address_code(page, "Page-map Button", target))
     expect(
         page.get_by_role(
             "button",
@@ -1366,9 +1631,7 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
     )
     page.mouse.move(pointer["x"], pointer["y"])
 
-    page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press("1")
+    go_to_address(page, "Page-map Button", "bg-choice-ask")
     page.keyboard.press("Escape")
 
     page.wait_for_function(
@@ -1382,13 +1645,14 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
         }""",
         arg=pointer,
     )
-    target = page.locator("#bg-choice-ask")
-    assert "lf-margin-target" not in (target.get_attribute("class") or "").split(), (
-        "moving the margin under a stationary pointer claimed pointer ownership"
-    )
+    trace = page.locator('.lf-target-trace[data-for="bg-choice-ask"]')
+    expect(
+        trace,
+        "moving the margin under a stationary pointer claimed pointer ownership",
+    ).to_be_hidden()
 
     page.mouse.move(pointer["x"] + 1, pointer["y"])
-    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+    expect(trace).to_be_visible()
     assert errors == []
     page.close()
 
@@ -1407,7 +1671,8 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         "y": int(box["y"] + box["height"] / 2),
     }
     page.mouse.move(pointer["x"], pointer["y"])
-    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+    trace = page.locator('.lf-target-trace[data-for="bg-draft"]')
+    expect(trace).to_be_visible()
 
     draft = target.element_handle()
     old_host = host.element_handle()
@@ -1432,9 +1697,10 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         "old => document.querySelector('[data-lf-margin-for=\"bg-draft\"]') !== old",
         old_host,
     )
-    assert "lf-margin-target" not in (target.get_attribute("class") or "").split(), (
-        "the replacement host inherited pointer ownership from its disconnected peer"
-    )
+    expect(
+        trace,
+        "the replacement host inherited pointer ownership from its disconnected peer",
+    ).to_be_hidden()
 
     replacement = page.locator('[data-lf-margin-for="bg-draft"]')
     replacement_box = replacement.bounding_box()
@@ -1442,13 +1708,13 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         int(replacement_box["x"] + replacement_box["width"] / 2),
         int(replacement_box["y"] + replacement_box["height"] / 2),
     )
-    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
+    expect(trace).to_be_visible()
     assert errors == []
     page.close()
 
 
-def test_g_m_presses_the_first_button_at_each_location(browser, serve):
-    """A location address has the same native press as its first available Button."""
+def test_g_hints_press_each_visible_page_map_button(browser, serve):
+    """Each visible Button gets an exact route rather than an aggregate default."""
     page, errors = open_page(
         browser,
         serve(
@@ -1469,10 +1735,16 @@ def test_g_m_presses_the_first_button_at_each_location(browser, serve):
         "button", name="Accept the suggested change: the second phrase", exact=True
     )
     disclosure = page.get_by_role("button", name="Edit address-disclosure", exact=True)
+    page.keyboard.press("g")
+    suggestion_hints = page.locator(
+        f'{CHIPS}[data-lf-address-kind="Page-map Button"]'
+        '[data-lf-address-for="address-action"]'
+    )
+    expect(suggestion_hints).to_have_count(2)
     with sending(page, "the addressed suggestion's acceptance"):
-        page.keyboard.press("g")
-        page.keyboard.press("m")
-        page.keyboard.press("1")
+        page.keyboard.type(
+            address_code(page, "Page-map Button", "address-action", "accept")
+        )
     expect(page.locator("#address-action lf-old")).to_be_hidden()
     expect(page.locator("#address-action lf-new")).to_be_visible()
 
@@ -1480,6 +1752,15 @@ def test_g_m_presses_the_first_button_at_each_location(browser, serve):
         page.keyboard.press("z")
     expect(action).to_be_visible()
     expect(page.locator("#address-action lf-old")).to_be_visible()
+
+    with sending(page, "the addressed suggestion's rejection"):
+        go_to_address(page, "Page-map Button", "address-action", "reject")
+    expect(page.locator("#address-action lf-old")).to_be_visible()
+    expect(page.locator("#address-action lf-new")).to_be_hidden()
+
+    with sending(page, "the withdrawal of the addressed rejection"):
+        page.keyboard.press("z")
+    expect(action).to_be_visible()
 
     disclosure.evaluate(
         """button => {
@@ -1489,8 +1770,13 @@ def test_g_m_presses_the_first_button_at_each_location(browser, serve):
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press("2")
+    expect(
+        page.locator(
+            f'{CHIPS}[data-lf-address-kind="Page-map Button"]'
+            '[data-lf-address-for="address-disclosure"]'
+        )
+    ).to_have_count(0)
+    page.keyboard.press("Escape")
     expect(page.locator("#address-disclosure textarea")).to_have_count(0)
 
     disclosure.evaluate(
@@ -1500,9 +1786,7 @@ def test_g_m_presses_the_first_button_at_each_location(browser, serve):
           button.tabIndex = 0;
         }"""
     )
-    page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press("2")
+    go_to_address(page, "Page-map Button", "address-disclosure", "edit")
     expect(page.locator("#address-disclosure textarea")).to_be_focused()
     expect(disclosure).to_be_hidden()
 
@@ -1671,8 +1955,8 @@ def test_left_and_right_walk_the_revealed_button_cluster(browser, serve):
     page.close()
 
 
-def test_settling_a_secondary_action_exposes_its_lifecycle(browser, serve):
-    """A settled outcome and its unsettled handoff stay one engaged cluster."""
+def test_settling_a_secondary_action_keeps_its_undo_in_the_cluster(browser, serve):
+    """The settled content and its Undo stay in one engaged cluster."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     resized(page, 1440, 900)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
@@ -1681,7 +1965,7 @@ def test_settling_a_secondary_action_exposes_its_lifecycle(browser, serve):
     options.get_by_role("button", name=re.compile(r"Reject")).click()
     round_trip(page)
 
-    expect(item.locator(".lf-sug-receipt")).to_have_text("Rejected")
+    expect(item.locator(".lf-margin-receipt")).to_have_count(0)
     expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
     expect(options).to_be_visible()
     expect(
@@ -1741,7 +2025,7 @@ def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
     """The page map is a vertical list: its arrows stop at its first and last markers,
     while Home and End remain direct routes to those edges."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     markers = page.locator(".lf-margin-marker:visible")
     assert markers.count() > 1, "the page map has no pair of visible markers to walk"
@@ -1810,7 +2094,7 @@ def test_button_tone_colors_only_the_icon(browser, serve, scheme):
           [mark.color, mark.borderTopColor, mark.backgroundColor],
         shape: mark.content === 'none' ? null :
           [mark.width, mark.height, mark.borderRadius,
-           mark.transform !== 'none', mark.borderRightWidth],
+           mark.transform !== 'none', mark.borderRightWidth, mark.borderTopStyle],
         icon: getComputedStyle(button.querySelector('svg')).color
       };
     }"""
@@ -1820,12 +2104,17 @@ def test_button_tone_colors_only_the_icon(browser, serve, scheme):
         assert readings[0]["mark"] == readings[1]["mark"] == readings[2]["mark"]
         assert len({reading["icon"] for reading in readings}) == 3
 
+    # Busy is the one state that paints, so it is the one state with a shape to read.
+    # This page is emulating `reduce`, where the ring is held still and dotted, so the
+    # transform is a settled `none` rather than a sample of a turning one — which is
+    # what makes it the reading that catches the override losing to the rule it
+    # overrides, a specificity away from turning forever for a reader who asked for
+    # stillness.
     shapes = {
         "idle": None,
-        "engaged": ["6px", "6px", "50%", False, "1px"],
-        "busy": ["8px", "8px", "50%", False, "2px"],
-        "failed": ["6px", "6px", "1px", True, "1px"],
-        "settled": ["6px", "6px", "1px", False, "1px"],
+        "engaged": None,
+        "busy": ["8px", "8px", "50%", False, "2px", "dotted"],
+        "failed": None,
     }
     for state, shape in shapes.items():
         page.evaluate("state => window.setToneState(state)", state)
@@ -1833,7 +2122,7 @@ def test_button_tone_colors_only_the_icon(browser, serve, scheme):
             expect(button).to_have_attribute("data-lf-state", state)
         readings = [button.evaluate(read) for button in buttons]
         assert all(
-            (reading["mark"] is None) == (state == "idle") for reading in readings
+            (reading["mark"] is None) == (state != "busy") for reading in readings
         )
         assert [reading["shape"] for reading in readings] == [shape] * len(buttons)
         assert_icon_only(readings)
@@ -1865,7 +2154,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     resized(page, 1440, 900)
 
     suggestion = page.locator("[data-lf-for='sug-refill'].lf-sug-actions")
-    suggestion_item = suggestion.locator("xpath=..")
+    suggestion_item = page.locator('[data-lf-margin-for="sug-refill"]')
     expect(suggestion_item).to_have_class(re.compile(r"lf-margin-item"))
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_have_count(1)
     expect(suggestion_item.locator(".lf-sug-accept")).to_be_visible()
@@ -1916,7 +2205,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(more).to_be_focused()
 
     draft_controls = page.locator("[data-lf-for='draft-ops'].lf-draft-controls")
-    draft_item = draft_controls.locator("xpath=..")
+    draft_item = page.locator('[data-lf-margin-for="draft-ops"]')
     expect(draft_item).to_have_class(re.compile(r"lf-margin-item"))
     expect(draft_item.locator(":scope > .lf-margin-marker")).to_have_count(1)
     expect(draft_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
@@ -1974,9 +2263,10 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
         control.evaluate("el => getComputedStyle(el).boxShadow")
         for control in (accept, edit, more)
     ]
-    assert shadows[0] != "none" and shadows[1:] == ["none", "none"], (
-        "only an immediate Action should rise off the shared paper surface"
-    )
+    assert shadows[0] != "none" and shadows[1:] == [
+        "none",
+        "none",
+    ], "only an immediate Action should rise off the shared paper surface"
 
     before_hover = edit.bounding_box()
     edit.hover()
@@ -2039,20 +2329,17 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
     )
     page.keyboard.press("r")
-    reactions = options.locator(".lf-margin-reactions")
-    expect(options).to_be_visible()
+    reactions = suggestion_item.locator(".lf-margin-reactions")
     expect(preview).to_be_hidden()
     expect(suggestion_item.locator(".lf-margin-button:visible")).to_have_count(6)
     expect(reactions.locator(".lf-react").first).to_have_class(
         re.compile(r"lf-margin-button")
     )
-    ok = reactions.locator('.lf-react[data-token="ok"]')
-    expect(ok).to_have_attribute("aria-label", "ok — settled — no change asked")
+    ok = reactions.locator('.lf-react[data-token="keep"]')
+    expect(ok).to_have_attribute("aria-label", "keep")
     expect(ok).not_to_have_attribute("title", re.compile(".+"))
     ok.hover()
-    expect(ok.locator(".lf-margin-button-label")).to_have_text(
-        "ok — settled — no change asked"
-    )
+    expect(ok.locator(".lf-margin-button-label")).to_have_text("keep")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
@@ -2090,7 +2377,7 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     expect(suggestion_item.locator(".lf-margin-button:visible")).to_have_count(6)
 
     page.keyboard.press("Escape")
-    more.click()
+    expect(options).to_be_visible()
     thread_button = options.locator(
         '.lf-margin-reading-option[data-lf-kinds="comment"]'
     )
@@ -2134,10 +2421,10 @@ def test_one_target_has_one_primary_button_and_inline_secondary_buttons(browser,
     page.keyboard.press("r")
     expect(suggestion_item.locator(".lf-margin-button:visible")).to_have_count(6)
     expect(suggestion_item).to_have_class(re.compile(r"lf-docked"))
-    reactions.locator('.lf-react[data-token="ok"]').click()
+    reactions.locator('.lf-react[data-token="keep"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
-    assert sent["token"] == "ok" and sent["anchor"] == {"section": "sug-refill"}
+    assert sent["token"] == "keep" and sent["anchor"] == {"section": "sug-refill"}
 
     assert errors == []
     page.close()
@@ -2148,7 +2435,7 @@ def test_a_buttons_walk_position_stays_out_of_its_visible_word(browser, serve):
     Button in the walk. Painted, the same words read as progress toward something, which
     is not what they say, so they belong to the accessible name alone."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1440, 900)
     buttons = page.evaluate(
@@ -2169,7 +2456,7 @@ def test_a_buttons_walk_position_stays_out_of_its_visible_word(browser, serve):
 
 
 def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosure(
-    browser, serve
+    browser, serve, monkeypatch
 ):
     """A fitting keeps the Button family visible without promising a press.
 
@@ -2183,7 +2470,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     seat, so the cluster's identity survives the change of promise. Once the handoff and
     claim are complete, the fitting leaves instead of restating widget state.
     """
-    page, errors = open_page(browser, live_url(serve(DECISION_PAGE)))
+    page, errors = open_page(browser, live_url(serve(ASK_PAGE)))
     page_dir = serve.page_dir
     resized(page, 1440, 900)
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
@@ -2245,7 +2532,6 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expected_rule = resolved_color("--rule")
     expected_label_ink = resolved_color("--paper")
     expected_label_background = resolved_color("--ink")
-    target = page.locator("#jobs")
 
     def words_still():
         """The label's reveal is a 90ms transition behind a 90ms delay, so the frame the
@@ -2264,7 +2550,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             expect(marker).to_have_attribute("data-identity-probe", "kept")
         page.evaluate("() => document.activeElement.blur()")
         page.mouse.move(0, 0)
-        expect(page.locator(".lf-margin-status-trace")).to_be_hidden()
+        expect(page.locator(".lf-target-trace")).to_be_hidden()
         expect(control.locator(":scope > .lf-margin-button-label")).to_be_hidden()
         words_still()
         current = face(control)
@@ -2296,7 +2582,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             key: current[key] for key in ("background", "border", "ink", "opacity")
         }
         control.hover()
-        trace_box = page.locator('.lf-margin-status-trace[data-for="jobs"]')
+        trace_box = page.locator('.lf-target-trace[data-for="jobs"]')
         expect(trace_box).to_be_visible()
         label = control.locator(":scope > .lf-margin-button-label")
         expect(label).to_be_visible()
@@ -2309,25 +2595,36 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         assert hovered["wordOpacity"] == "1"
         assert hovered["wordPosition"] == "absolute"
         assert hovered["wordBackground"] != "rgba(0, 0, 0, 0)"
-        trace = control.evaluate(
-            """node => {
-              const line = getComputedStyle(node.closest('.lf-margin-item'), '::before');
-              const box = getComputedStyle(document.querySelector('.lf-margin-status-trace'));
+        # The trace is the whole of what a hovered status says about its target: the item
+        # draws no leader out to it, so the box alone spends both declared tokens. Width
+        # is read through a probe wearing the same token for the same reason ink is: the
+        # theme states 1.5px and the platform lays a border down in whole device pixels,
+        # so what the box must match is the token as this display resolves it.
+        trace = page.evaluate(
+            """() => {
+              const box = getComputedStyle(document.querySelector('.lf-target-trace'));
+              const probe = document.createElement('span');
+              probe.style.borderTop = 'var(--target-trace-w) solid';
+              document.body.append(probe);
+              const declaredWidth = getComputedStyle(probe).borderTopWidth;
+              probe.remove();
               return {
-                declaredWidth: box.getPropertyValue('--status-trace-w').trim(),
+                declaredToken: box.getPropertyValue('--target-trace-w').trim(),
+                declaredWidth,
                 boxWidth: box.borderTopWidth,
                 boxColor: box.borderTopColor,
-                lineWidth: line.borderTopWidth,
-                lineColor: line.borderTopColor,
+                leader: getComputedStyle(
+                  document.querySelector('.lf-margin-item'), '::before',
+                ).content,
               };
             }"""
         )
+        declared_width = trace.pop("declaredWidth")
         assert trace == {
-            "declaredWidth": "1.5px",
-            "boxWidth": trace["lineWidth"],
-            "boxColor": trace["lineColor"],
-            "lineWidth": trace["boxWidth"],
-            "lineColor": trace["boxColor"],
+            "declaredToken": "1.5px",
+            "boxWidth": declared_width,
+            "boxColor": resolved_color("--target-trace-ink"),
+            "leader": "none",
         }
 
     assert_status("Sent", "just now")
@@ -2347,11 +2644,11 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         "rows => rows.some(row => row.tabIndex === 0)"
     ), "no Button is left for Tab to enter the rail by"
 
-    # The reader listening still reaches the phase by its numbered address.
-    place = int(re.search(r"(\d+) of ", marker.get_attribute("aria-label")).group(1))
-    page.keyboard.press("g")
-    page.keyboard.press("m")
-    page.keyboard.press(str(place))
+    # The reader listening still reaches the phase through its visible generated hint.
+    address_target = marker.evaluate(
+        "row => row.closest('[data-lf-margin-for]').dataset.lfMarginFor"
+    )
+    go_to_address(page, "Page-map Button", address_target)
     expect(marker).to_be_focused()
 
     # Standing there is not the same as being the way in. A repaint under the reader
@@ -2370,8 +2667,18 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         stops
     )
 
-    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(minutes=3))
-    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    # Waiting is a server-folded phase now. Advance the threaded test server's clock,
+    # then let the ordinary state read advance the retained Button in place.
+    sent_at = datetime.fromisoformat(logged_action["ts"])
+    advanced = (sent_at + timedelta(minutes=3)).isoformat()
+
+    def advanced_now():
+        return advanced
+
+    for clock_owner in (served_page, events_model, service_model):
+        monkeypatch.setattr(clock_owner, "now_iso", advanced_now)
+    session_model.cmd_status(page_dir, "idle", "")
+    told(page)
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
     assert_status("Waiting for pickup", "Sent 3m ago")
 
@@ -2407,14 +2714,11 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     page.evaluate("() => document.activeElement.blur()")
     page.mouse.move(0, 0)
-    expect(target).not_to_have_class(re.compile(r"lf-margin-target"))
-    expect(page.locator(".lf-margin-status-trace")).to_be_hidden()
+    expect(page.locator(".lf-target-trace")).to_be_hidden()
     secondary.hover()
-    expect(page.locator('.lf-margin-status-trace[data-for="jobs"]')).to_be_visible()
-    expect(target).not_to_have_class(re.compile(r"\blf-margin-target\b"))
+    expect(page.locator('.lf-target-trace[data-for="jobs"]')).to_be_visible()
     page.locator(".lf-receipt-primary-probe").hover()
-    expect(target).to_have_class(re.compile(r"\blf-margin-target\b"))
-    expect(page.locator(".lf-margin-status-trace")).to_be_hidden()
+    expect(page.locator('.lf-target-trace[data-for="jobs"]')).to_be_visible()
     page.evaluate("() => window.lfReceiptSecondary.unregister()")
     expect(marker).to_be_visible()
 
@@ -2447,7 +2751,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     assert active["border"] != "rgba(0, 0, 0, 0)"
     expect(page.get_by_role("button", name=re.compile(r"^Active,"))).to_have_count(1)
 
-    honored = DECISION_PAGE.replace(
+    honored = ASK_PAGE.replace(
         '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
     )
     stamp_page(page_dir, honored, "Honor the mounts choice", completes=("jobs",))
@@ -2627,9 +2931,7 @@ def test_button_order_budget_and_spilled_actions_are_stable_at_both_widths(
             "data-lf-spill-count", "3"
         )
         item.get_by_role("button", name=f"Save {target}", exact=True).focus()
-        expect(page.locator(f"#{target}")).to_have_class(
-            re.compile(r"lf-margin-target")
-        )
+        expect(page.locator(f'.lf-target-trace[data-for="{target}"]')).to_be_visible()
         item.get_by_role("button", name=f"Save {target}", exact=True).hover()
         label = item.locator('[data-lf-button-key="save"] .lf-margin-button-label')
         expect(label).to_be_visible()
@@ -2657,10 +2959,10 @@ def test_button_order_budget_and_spilled_actions_are_stable_at_both_widths(
     save.focus()
     save.hover()
     second.get_by_role("button", name="Save second", exact=True).focus()
-    expect(page.locator("#second")).to_have_class(re.compile(r"lf-margin-target"))
-    expect(page.locator("#first")).not_to_have_class(re.compile(r"lf-margin-target"))
+    expect(page.locator('.lf-target-trace[data-for="second"]')).to_be_visible()
+    expect(page.locator('.lf-target-trace[data-for="first"]')).to_be_hidden()
     save.hover()
-    expect(page.locator("#first")).to_have_class(re.compile(r"lf-margin-target"))
+    expect(page.locator('.lf-target-trace[data-for="first"]')).to_be_visible()
     ring = save.evaluate("button => getComputedStyle(button).borderTopWidth")
     page.evaluate("() => window.buttonFixtures[0].busy()")
     expect(save).to_have_attribute("aria-busy", "true")
@@ -2833,12 +3135,13 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(thread).to_have_attribute("aria-expanded", "true")
 
     resized(page, 1207, 900)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(thread).to_have_attribute("aria-controls", "lf-margin-preview")
+    expect(thread).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
-    expect(thread).to_have_attribute("aria-controls", "lf-threads")
-    expect(thread).not_to_have_attribute("aria-expanded", re.compile(".+"))
-    page.get_by_role("button", name="Close threads").click()
-    panel_settled(page, open=False)
+    expect(thread).to_be_focused()
 
     resized(page, 1440, 900)
     expect(thread).to_have_attribute("aria-controls", "lf-margin-preview")
@@ -2873,17 +3176,19 @@ def test_reaction_choices_and_their_receipt_share_an_unided_selected_block(
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
     bar.locator(".lf-react-trigger").click()
-    # The choices are the bar's own, raised on the selection where the reader is
-    # pointing: an anchored response opens in place rather than docking a row of
-    # options into the margin. What the margin holds for this block is the receipt.
-    expect(bar).to_have_class(re.compile(r"\blf-react-open\b"))
+    # The choices dock with the selected block's margin target. The standing reaction
+    # that replaces them must keep that same visual coordinate even though the durable
+    # section coordinate belongs to the surrounding id-bearing section.
+    expect(bar).to_be_hidden()
+    reactions = page.locator(".lf-margin-reactions")
+    expect(reactions).to_be_visible()
 
-    bar.locator('.lf-react[data-token="ok"]').click()
+    reactions.locator('.lf-react[data-token="keep"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]
     receipt = page.locator(".lf-margin-item").filter(
-        has=page.get_by_role("button", name=re.compile(r"^ok — take it back$"))
+        has=page.get_by_role("button", name=re.compile(r"^keep — take it back$"))
     )
     expect(receipt).to_have_count(1)
     assert abs(receipt.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
@@ -3048,21 +3353,21 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
 
     status = page.locator('[data-lf-button-key="shape-status"]')
     status.hover()
-    trace = page.locator('.lf-margin-status-trace[data-for="outer"]')
+    trace = page.locator('.lf-target-trace[data-for="outer"]')
     expect(trace).to_be_visible()
     expect(trace).to_have_class(re.compile(r"\blf-shaped\b"))
-    assert trace.locator(".lf-margin-status-trace-shape > g > *").evaluate_all(
+    assert trace.locator(".lf-target-trace-shape > g > *").evaluate_all(
         "nodes => nodes.map(node => node.localName)"
     ) == ["rect"]
     geometry = page.evaluate(
         """() => {
           const surface = document.querySelector('#outer-surface').getBoundingClientRect();
-          const trace = document.querySelector('.lf-margin-status-trace');
+          const trace = document.querySelector('.lf-target-trace');
           const box = trace.getBoundingClientRect();
           const shape = trace.querySelector('rect');
           const style = getComputedStyle(shape);
           const swatch = document.createElement('span');
-          swatch.style.color = 'var(--status-trace-ink)';
+          swatch.style.color = 'var(--target-trace-ink)';
           document.head.append(swatch);
           const traceInk = getComputedStyle(swatch).color;
           swatch.remove();
@@ -3093,10 +3398,10 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
 def test_one_information_button_does_not_raise_a_preview(browser, serve):
     """A single non-thread reading travels directly; cards are reserved for threads."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1600, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="decision"]').first
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="ask"]').first
     expect(marker).not_to_have_attribute("aria-controls", re.compile(".+"))
     expect(marker).not_to_have_attribute("aria-expanded", re.compile(".+"))
     marker.hover()
@@ -3114,7 +3419,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
 ):
     """One location groups its thread and engaged handoff without moving the page."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -3155,7 +3460,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(marker).to_have_attribute("aria-expanded", "true")
     expect(preview).to_be_visible()
     expect(marker.locator(".lf-margin-button-label")).to_be_hidden()
-    expect(page.locator("#bracket")).to_have_class(re.compile(r"lf-margin-target"))
+    expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_visible()
     main_box = page.locator("main").bounding_box()
     preview_box = preview.bounding_box()
     assert preview_box["x"] >= main_box["x"] + main_box["width"]
@@ -3164,6 +3469,43 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).not_to_contain_text("options · choose")
+    close = preview.get_by_role("button", name="Close thread", exact=True)
+    resolve = preview.get_by_role("button", name="Resolve thread", exact=True)
+    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+    expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
+    expect(close).to_have_text("")
+    expect(resolve).to_have_text("")
+    geometry = preview.evaluate(
+        """preview => {
+          const thread = preview.querySelector('.lf-conversation-thread');
+          const textarea = thread.querySelector('textarea');
+          const close = preview.querySelector('.lf-margin-preview-close');
+          const resolve = thread.querySelector('.lf-resolve');
+          const head = thread.querySelector('.lf-conversation-head');
+          const tr = thread.getBoundingClientRect();
+          const ta = textarea.getBoundingClientRect();
+          const hr = head.getBoundingClientRect();
+          const rr = resolve.getBoundingClientRect();
+          return {
+            threadRight: tr.right,
+            textareaRight: ta.right,
+            closeBorder: getComputedStyle(close).borderTopWidth,
+            resolveBorder: getComputedStyle(resolve, '::before').borderTopWidth,
+            head: {top: hr.top, right: hr.right, bottom: hr.bottom},
+            resolve: {top: rr.top, right: rr.right, bottom: rr.bottom},
+          };
+        }"""
+    )
+    assert geometry["textareaRight"] == pytest.approx(geometry["threadRight"], abs=1)
+    assert float(geometry["closeBorder"][:-2]) == 0
+    assert float(geometry["resolveBorder"][:-2]) >= 1
+    assert geometry["resolve"]["top"] == pytest.approx(geometry["head"]["top"], abs=1)
+    assert geometry["resolve"]["right"] == pytest.approx(
+        geometry["head"]["right"], abs=1
+    )
+    assert geometry["resolve"]["bottom"] == pytest.approx(
+        geometry["head"]["bottom"], abs=1
+    )
     page.locator(".lf-margin-preview-close").click()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()
@@ -3198,7 +3540,7 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
 ):
     """Ordinary design paint never promises to rise above the browser's top layer."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -3229,9 +3571,7 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     browser, serve
 ):
     """The anchored thread is a complete conversation beside its source."""
-    page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[COMMENT_ON_DECISION])
-    )
+    page, errors = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     expect(marker.locator(".lf-margin-button-icon")).to_have_attribute(
@@ -3267,9 +3607,7 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     assert first_frame["top"] == pytest.approx(
         float(first_frame["placed"].removesuffix("px")), abs=0.5
     ), first_frame
-    expect(thread.locator(".lf-conversation-body")).to_have_text(
-        COMMENT_ON_DECISION["text"]
-    )
+    expect(thread.locator(".lf-conversation-body")).to_have_text(COMMENT_ON_ASK["text"])
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     expect(thread.locator(".lf-conversation-open")).to_have_count(0)
     geometry = page.evaluate(
@@ -3315,6 +3653,7 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     panel_settled(page)
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(f'.lf-thread[data-id="{root_id}"]')).to_be_focused()
 
     preview.evaluate(
         """card => {
@@ -3335,6 +3674,26 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     page.close()
 
 
+def test_a_thread_button_opens_inline_when_the_panel_is_closed(browser, serve):
+    """The Button's destination follows the open workspace, not available margin."""
+    sidebar_page = ASK_PAGE.replace(
+        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+    )
+    page, errors = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
+    resized(page, 1200, 900)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+
+    marker.click()
+
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-margin-thread textarea")).to_be_focused()
+    expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
+    expect(marker).to_have_attribute("aria-expanded", "true")
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize(
     ("width", "panel_open"), [(760, False), (1000, True), (1440, False), (1440, True)]
 )
@@ -3342,7 +3701,7 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
     browser, serve, width, panel_open
 ):
     """A send continues in the open panel or beside the passage, keeping the page put."""
-    page, errors = open_page(browser, serve(DECISION_PAGE))
+    page, errors = open_page(browser, serve(ASK_PAGE))
     resized(page, width, 900)
     if panel_open:
         page.locator(".lf-threads-toggle").click()
@@ -3453,10 +3812,10 @@ def test_a_narrow_margin_gives_the_inline_thread_the_page_not_a_sliver(browser, 
     claiming that strip for the first time, the card is placed against a marker the claim
     then slides, and what the read catches is that race rather than this floor.
     """
-    sidebar_page = DECISION_PAGE.replace(
+    sidebar_page = ASK_PAGE.replace(
         "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
     )
-    page, errors = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_DECISION]))
+    page, errors = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
     send_anchored_comment(page, "Check the January failure mode.")
 
@@ -3472,9 +3831,7 @@ def test_a_narrow_margin_gives_the_inline_thread_the_page_not_a_sliver(browser, 
     assert errors == []
     page.close()
 
-    page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[COMMENT_ON_DECISION])
-    )
+    page, errors = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     send_anchored_comment(page, "Check the January failure mode.")
 
@@ -3498,7 +3855,7 @@ def test_a_shared_passage_keeps_all_of_its_threads_in_one_quiet_card(browser, se
         "anchor": {"section": "bracket"},
     }
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[COMMENT_ON_DECISION, second_comment])
+        browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK, second_comment])
     )
     resized(page, 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
@@ -3524,11 +3881,11 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     """The shipped exchange fits beside its source and the contents sidebar.
 
     Ship review now stands a contents map, and a sidebar claims the opposite strip: the
-    thread margin waits for 1472px of shell there rather than 1208px (theme.css), so
-    1440 is a window this page opens Threads in rather than the one this case is
-    about."""
+    thread margin waits for 1472px of shell there rather than 1208px (theme.css). Below
+    that floor the same inline card overlays the page rather than opening Threads."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
     page, errors = open_page(browser, serve(example))
+    page.emulate_media(reduced_motion="reduce")
     resized_shell(page, 1536, 900)
     marker = page.get_by_role(
         "group", name=re.compile(r"Page actions for task · iOS reconnect stall")
@@ -3549,6 +3906,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     expect(
         thread.get_by_role("button", name="Open interactive reply in Threads")
     ).to_have_count(1)
+    expect(thread.locator("textarea")).to_be_focused()
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -3556,6 +3914,8 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
           const marker = markerNode.getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           const title = document.querySelector('.lf-margin-preview-title')
+            .getBoundingClientRect();
+          const reply = document.querySelector('.lf-margin-thread .lf-say')
             .getBoundingClientRect();
           const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
           return {bannerBottom: banner.bottom, mainRight: main.right,
@@ -3567,7 +3927,7 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
                   borderLeft: cardStyle.borderLeftWidth,
                   borderRight: cardStyle.borderRightWidth,
                   titleLeft: title.left, titleTop: title.top,
-                  cardScroll: document.querySelector('.lf-margin-preview').scrollTop,
+                  replyTop: reply.top, replyBottom: reply.bottom,
                   panelOpen: document.querySelector('.lf-panel').classList.contains('open')};
         }"""
     )
@@ -3584,7 +3944,8 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert geometry["cardTop"] <= geometry["markerMiddle"] <= geometry["cardBottom"], (
         geometry
     )
-    assert geometry["cardScroll"] == 0, geometry
+    assert geometry["replyTop"] >= geometry["cardTop"], geometry
+    assert geometry["replyBottom"] <= geometry["cardBottom"], geometry
     assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
     assert geometry["titleLeft"] == pytest.approx(geometry["cardLeft"] + 13, abs=0.5)
     assert not geometry["panelOpen"], geometry
@@ -3611,16 +3972,14 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     expect(preview).to_be_hidden()
-    expect(page.locator(".lf-decisions-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
     page.keyboard.press("Escape")
-
-    marker.click()
     expect(preview).to_be_visible()
+    expect(thread.locator(".lf-conversation-thread")).to_be_focused()
 
-    page.keyboard.press("Shift+Tab")
-    expect(
-        thread.get_by_role("button", name="Open interactive reply in Threads")
-    ).to_be_focused()
+    open_full = thread.get_by_role("button", name="Open interactive reply in Threads")
+    open_full.focus()
+    expect(open_full).to_be_focused()
     page.keyboard.press("Enter")
     panel_settled(page)
     expect(preview).to_be_hidden()
@@ -3656,17 +4015,18 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     assert beside["cardWidth"] >= 423, beside
 
     resized(page, 1471, 900)
+    expect(preview).to_be_visible()
+    expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
+    expect(marker).to_have_attribute("aria-expanded", "true")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
-    expect(marker).to_have_attribute("aria-controls", "lf-threads")
-    expect(marker).not_to_have_attribute("aria-expanded", re.compile(".+"))
-    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
-    page.get_by_role("button", name="Close threads").click()
-    panel_settled(page, open=False)
+    expect(marker).to_be_focused()
     marker.hover()
     expect(preview).to_be_hidden()
     marker.click()
-    expect(preview).to_be_hidden()
-    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(preview).to_be_visible()
+    expect(page.locator(".lf-panel")).to_be_hidden()
 
     assert errors == []
     page.close()
@@ -3685,10 +4045,10 @@ def test_an_open_thread_refresh_keeps_the_current_button_target_highlighted(
     suggestion.locator('.lf-margin-reading-option[data-lf-kinds="comment"]').click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.get_by_role("button", name="Edit draft-ops", exact=True).hover()
-    target = page.locator("#draft-ops")
-    expect(target).to_have_class(re.compile(r"lf-margin-target"))
+    trace = page.locator('.lf-target-trace[data-for="draft-ops"]')
+    expect(trace).to_be_visible()
     ticked(page)
-    assert "lf-margin-target" in target.get_attribute("class").split()
+    expect(trace).to_be_visible()
     assert errors == []
     page.close()
 
@@ -3696,7 +4056,7 @@ def test_an_open_thread_refresh_keeps_the_current_button_target_highlighted(
 def test_focusing_a_thread_button_does_not_open_its_card(browser, serve):
     """Walking the Page map never inserts an unrequested thread into the Tab order."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -3709,7 +4069,7 @@ def test_focusing_a_thread_button_does_not_open_its_card(browser, serve):
 
     expect(toggle).to_be_focused()
     expect(preview).to_be_hidden()
-    expect(page.locator("#bracket")).not_to_have_class(re.compile(r"lf-margin-target"))
+    expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -3825,24 +4185,22 @@ def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
 ):
     """A tray or authored sidebar spends room before the contextual thread does."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
 
-    page.locator(".lf-decisions").click()
-    expect(page.locator("body")).to_have_attribute("data-lf-tray", "decisions")
+    page.locator(".lf-asks").click()
+    expect(page.locator("body")).to_have_attribute("data-lf-tray", "asks")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     marker.click()
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
-    page.get_by_role("button", name="Close threads").click()
-    panel_settled(page, open=False)
-    if page.locator("body").get_attribute("data-lf-tray") == "decisions":
-        page.locator(".lf-decisions").click()
-    expect(page.locator("body")).not_to_have_attribute("data-lf-tray", "decisions")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    marker.click()
+    page.locator(".lf-asks").click()
+    expect(page.locator("body")).not_to_have_attribute("data-lf-tray", "asks")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
@@ -3851,20 +4209,20 @@ def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
     assert errors == []
     page.close()
 
-    sidebar_page = DECISION_PAGE.replace(
+    sidebar_page = ASK_PAGE.replace(
         "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
     )
     page, errors = open_page(
         browser,
-        serve(sidebar_page, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION]),
+        serve(sidebar_page, events=[ACTION_ON_ASK, COMMENT_ON_ASK]),
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    marker.click()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
-    page.get_by_role("button", name="Close threads").click()
-    panel_settled(page, open=False)
     resized_shell(page, 1472, 900)
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
@@ -3889,7 +4247,7 @@ def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
 def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, serve):
     """Runtime chrome and authored content share one document-space coordinate."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -3913,7 +4271,7 @@ def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, 
 def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, opener):
     """The rail becomes a touch-sized index when the margin no longer exists."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 390, 760)
     expect(page.locator(".lf-living-margin")).to_be_hidden()
@@ -4000,7 +4358,7 @@ def test_a_folded_compact_map_returns_to_the_banner_overflow(browser, serve):
 def test_crossing_to_the_small_screen_retires_the_desktop_preview(browser, serve):
     """A responsive posture exposes one map surface, never both at once."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -4019,7 +4377,7 @@ def test_crossing_to_the_small_screen_retires_the_desktop_preview(browser, serve
 def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, serve):
     """The Page map is one destination while its compact rail changes posture."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 390, 760)
     page.locator(".lf-page-map-toggle").click()
@@ -4039,7 +4397,7 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
 def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     """The open sheet is a live projection, not a snapshot from its opening press."""
     page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+        browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
     resized(page, 390, 760)
     page.locator(".lf-page-map-toggle").click()
@@ -4078,10 +4436,10 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     page, errors = open_page(
         browser,
         serve(
-            DECISION_PAGE,
+            ASK_PAGE,
             events=[
-                ACTION_ON_DECISION,
-                {**COMMENT_ON_DECISION, "id": "f" * 32},
+                ACTION_ON_ASK,
+                {**COMMENT_ON_ASK, "id": "f" * 32},
             ],
         ),
     )
@@ -4122,9 +4480,7 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
     the page moved and the card stood beside where its marker had been. The reflow here
     is a section growing, which is what every one of those cases is to the margin.
     """
-    page, errors = open_page(
-        browser, serve(DECISION_PAGE, events=[COMMENT_ON_DECISION])
-    )
+    page, errors = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     marker.click()
@@ -4164,7 +4520,7 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
 
 def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, serve):
     """Replacing authored main must not discard focus held by retained map chrome."""
-    version_url = serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+    version_url = serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     page, errors = open_page(browser, live_url(version_url))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -4172,7 +4528,7 @@ def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, se
     expect(marker).to_be_focused()
 
     (serve.page_dir / "index.html").write_text(
-        DECISION_PAGE.replace("Three jobs", "Four jobs")
+        ASK_PAGE.replace("Three jobs", "Four jobs")
     )
     told(page)
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
@@ -4183,8 +4539,8 @@ def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, se
 
 
 def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
-    """A retained preview must outline the new document's matching destination."""
-    version_url = serve(DECISION_PAGE, events=[ACTION_ON_DECISION, COMMENT_ON_DECISION])
+    """A retained preview must trace the new document's matching destination."""
+    version_url = serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     page, errors = open_page(browser, live_url(version_url))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -4192,16 +4548,17 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     close = page.locator(".lf-margin-preview-close")
     close.focus()
     expect(close).to_be_focused()
-    expect(page.locator("#bracket")).to_have_class(re.compile(r"lf-margin-target"))
+    trace = page.locator('.lf-target-trace[data-for="bracket"]')
+    expect(trace).to_be_visible()
 
     (serve.page_dir / "index.html").write_text(
-        DECISION_PAGE.replace("Three jobs", "Four jobs")
+        ASK_PAGE.replace("Three jobs", "Four jobs")
     )
     told(page)
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
     expect(close).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator("#bracket")).to_have_class(re.compile(r"lf-margin-target"))
+    expect(trace).to_be_visible()
 
     assert errors == []
     page.close()
@@ -4209,11 +4566,11 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
 
 def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, serve):
     """Comparison marks are another projection, not DOM scraped by the map."""
-    url = serve(DECISION_PAGE)
+    url = serve(ASK_PAGE)
     _publish(
         serve.page_dir,
         2,
-        DECISION_PAGE.replace("Three jobs", "Four jobs"),
+        ASK_PAGE.replace("Three jobs", "Four jobs"),
         "The heading now names four jobs.",
     )
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))

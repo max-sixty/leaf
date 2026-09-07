@@ -31,6 +31,7 @@ import itertools
 import json
 import math
 import os
+import re
 import shutil
 import time
 from contextlib import contextmanager
@@ -76,6 +77,12 @@ PAGE_FIXTURES = (*EXAMPLES, FEATURE_GALLERY)
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
 # lists every publisher that has to lay this beside the markup, this one among them.
 EXAMPLE_MEDIA = ROOT / "examples" / "media"
+# One media reference as it stands in a message's Markdown, read with the layer's own
+# naming rather than a second spelling of it: the digest is what tells a real reference
+# from the word "/media/" in a sentence.
+MEDIA_REFERENCE = re.compile(
+    rf"/{schema_model.MEDIA_DIR}/{schema_model.DIR_FILES[schema_model.MEDIA_DIR]}"
+)
 
 
 def leaf_page(title: str, body: str, *, head: str = "") -> str:
@@ -161,13 +168,13 @@ INLINE_PAGE = leaf_page(
     "inline",
     """
 <h1 id="t">Inline</h1>
-<lf-decision id="opts-decision"><h2>How should sessions work?</h2>
+<lf-ask id="opts-decision"><h2>How should sessions work?</h2>
 <lf-options id="opts" choose>
   <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
   which costs a replica and buys revocation for free.</lf-option>
   <lf-option id="opt-b"><strong>Signed tokens</strong> No store at all, until revocation
   quietly puts one back.</lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 <p id="p">A paragraph carrying <strong>bold text</strong> and <em>emphasis</em> inside it,
 so that a selection across the middle of it lands in more than one text node.</p>
 <p id="p2">A neighbouring block, so a selection reaching across the boundary between
@@ -197,7 +204,7 @@ SETTLED_PAGE = leaf_page(
     """
 <h1 id="h">Session transport</h1>
 <p id="lede">Decided last week; open the row for the alternatives.</p>
-<lf-decision id="transport-decision"><h2>How should sessions travel?</h2>
+<lf-ask id="transport-decision"><h2>How should sessions travel?</h2>
 <lf-options id="transport" choose settled>
   <lf-option id="opt-lax" chosen><strong>Lax cookie</strong> Host-only, set by the auth
   origin, nothing for a script to read.</lf-option>
@@ -205,7 +212,7 @@ SETTLED_PAGE = leaf_page(
   started from an emailed link arrives logged out.</lf-option>
   <lf-option id="opt-bearer"><strong>Bearer header</strong> Suits the mobile client;
   puts the id where every script can read it.</lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 """,
 )
 
@@ -309,22 +316,22 @@ SPECIMEN_PAGE = leaf_page(
       <lf-new>Refill when the camera shows it half-empty.</lf-new>
     </lf-suggestion></p>
 </lf-specimen>
-<lf-decision id="live-group-decision"><h2>How should the schema migrate?</h2>
+<lf-ask id="live-group-decision"><h2>How should the schema migrate?</h2>
 <lf-options id="live-group" choose>
   <lf-option id="l-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="l-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-decision>
-<lf-decision id="live-rows-decision"><h2>What should happen to the nightly job?</h2>
+</lf-options></lf-ask>
+<lf-ask id="live-rows-decision"><h2>What should happen to the nightly job?</h2>
 <lf-options id="live-rows" choose>
   <lf-option id="l-row-keep">Keep the nightly job</lf-option>
   <lf-option id="l-row-drop">Drop it and poll on demand</lf-option>
-</lf-options></lf-decision>
-<lf-decision id="live-settled-decision"><h2>How should sessions travel?</h2>
+</lf-options></lf-ask>
+<lf-ask id="live-settled-decision"><h2>How should sessions travel?</h2>
 <lf-options id="live-settled" choose settled>
   <lf-option id="l-lax" chosen><strong>Lax cookie</strong> Host-only.</lf-option>
   <lf-option id="l-bearer"><strong>Bearer header</strong> Suits mobile.</lf-option>
   <lf-option id="l-signed" ><strong>Signed token</strong> No store.</lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 <lf-board id="live-board">
   <lf-column id="l-col" label="Doing">
     <lf-card id="l-card"><strong>Wire the importer</strong></lf-card>
@@ -356,11 +363,11 @@ SPECIMEN_TEXT = (
     "Two shapes for the same question — first the one I'd ship, then, for the "
     "record, the framing it replaces:"
 )
-SPECIMEN_MARKUP = """<lf-decision id="rp-live-decision"><h3>How should the schema migrate?</h3>
+SPECIMEN_MARKUP = """<lf-ask id="rp-live-decision"><h3>How should the schema migrate?</h3>
 <lf-options id="rp-live" choose>
   <lf-option id="rp-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="rp-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 <lf-specimen id="rp-spec" label="the April thread">
   <lf-options id="rp-quoted" choose>
     <lf-option id="rp-memory"><strong>App memory</strong> Nothing to build.</lf-option>
@@ -378,11 +385,11 @@ REPLAYED_PAGE = leaf_page(
     "replayed",
     f"""
 <h1 id="t">Rollout</h1>
-<lf-decision id="approach-decision"><h2>How should the schema migrate?</h2>
+<lf-ask id="approach-decision"><h2>How should the schema migrate?</h2>
 <lf-options id="approach" choose>
   <lf-option id="opt-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="opt-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-decision>
+</lf-options></lf-ask>
 <lf-board id="work">
   <lf-column id="col-doing" label="Doing">{IMPORTER_CARD}</lf-column>
   <lf-column id="col-done" label="Done"><lf-card id="card-notes"><strong>Draft the notes</strong></lf-card></lf-column>
@@ -427,6 +434,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
         layer_widgets=None,
         packages=None,
         preview=None,
+        website_example=None,
         seed_log=True,
     ):
         monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
@@ -470,15 +478,30 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
         )
         html = authored[-1]
         (d / "index.html").write_text(html)
+        seed = example.with_suffix(".jsonl") if example else None
+        references = set()
         for markup in authored:
-            parsed = structure_model._StructParser()
+            parsed = structure_model.StructParser()
             parsed.feed(markup)
             parsed.close()
-            for reference in parsed.media_refs:
-                fixture_media = EXAMPLE_MEDIA / reference.removeprefix("/media/")
-                if fixture_media.is_file():
-                    (d / "media").mkdir(exist_ok=True)
-                    shutil.copy2(fixture_media, d / "media" / fixture_media.name)
+            references |= parsed.media_refs
+        # A message names its image in Markdown rather than in an attribute, so the
+        # parsed reading that answers for markup cannot see it and a seeded pasted
+        # screenshot arrived at a page whose media directory had never heard of it.
+        # A reader is handed the uploads their log references, so the fixture lays
+        # those in too. The name is content-addressed, which is what keeps this a
+        # reading rather than a text scan: `/media/` standing in prose matches only
+        # where the author wrote a real digest, and the file guard below answers for
+        # the rest. Laid in whether or not this call seeds the log, as the example's
+        # data is: `seed_log=False` is how a caller appends those same events itself,
+        # and media the page never shows costs it nothing.
+        if seed and seed.exists():
+            references |= set(MEDIA_REFERENCE.findall(seed.read_text(encoding="utf-8")))
+        for reference in references:
+            fixture_media = EXAMPLE_MEDIA / reference.removeprefix("/media/")
+            if fixture_media.is_file():
+                (d / "media").mkdir(exist_ok=True)
+                shutil.copy2(fixture_media, d / "media" / fixture_media.name)
         for name, data in (media or {}).items():
             path = d / name.lstrip("/")
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -504,9 +527,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                         operation["format"],
                     )
         (d / ".fixture-versions").mkdir(exist_ok=True)
-        seeded = (
-            example and seed_log and (seed := example.with_suffix(".jsonl")).exists()
-        )
+        seeded = bool(seed_log and seed and seed.exists())
         for number, markup in enumerate(authored, start=1):
             (d / "index.html").write_text(markup)
             activated = revisioning_model.activate_source(
@@ -570,7 +591,11 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
             )
         if preview is not None:
             files_model.write_json(d / schema_model.PREVIEW_FILE, preview)
-        server = hosting_model.TemporaryPageServer(d, token=TOKEN).start()
+        server = hosting_model.TemporaryPageServer(
+            d,
+            token=TOKEN,
+            handler_options={"example": website_example},
+        ).start()
         servers.append(server)
         go.httpd = server.httpd
         go.servers = servers
@@ -736,6 +761,30 @@ def sending(page, what):
     yield
     _until(page, lambda traffic: traffic.sends > sends, f"sent {what}")
     round_trip(page)
+
+
+# The same arrangement for a test that holds the wire open with `page.route`, and the one
+# place the ledger is the wrong fact to state it over. The runtime counts a send as it
+# makes it, while the driver is handed the request over its own connection a beat later,
+# so `traffic.sends == 1` is already true while the route list is still empty and the
+# `held[0]` behind the wait raises IndexError on a machine loaded enough to lose that
+# beat. The same gap opens on a list of the requests the handler let through: the send is
+# counted before the route the handler would append even exists here. The list the test
+# goes on to read is what the wait belongs over, and `_until` cannot carry it: its only
+# wake-up is the ledger repainting, and a paused request paints nothing further, so a
+# route that lands after the send's paint would wait out the whole deadline. The browser's
+# own record already shows the send was made, so this repeats a driver call — the thing
+# that dispatches the route here — until the list has it.
+def holding(page, held, count, what):
+    """Wait until `held` has collected `count` requests the route put there."""
+    deadline = time.monotonic() + 30
+    while len(held) < count:
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                f"the route never took {what}: {len(held)} of {count} "
+                f"dispatched into this process, on {_traffic(page)}"
+            )
+        page.wait_for_timeout(20)
 
 
 # The other direction of the same trip. Nothing a test writes into the page directory
@@ -1413,38 +1462,6 @@ def panel_settled(page, open=True):
           for (const carry of main.getAnimations()) carry.finish();
           return main.getAnimations().length === 0;
         }"""
-    )
-
-
-def reservations_taken(page):
-    """Wait for the panel's settlement controls to stand at the widths they reserve.
-
-    A control that changes its own word mid-gesture — Resolve to Resolving… to ✓ Resolved
-    — holds room for the widest of them, measured in the face the page is set in rather
-    than stated as a constant. That reading needs a box, and a shut panel is
-    `display: none`, so every control built under one reads zero and holds. Opening the
-    panel is what gives it a box, and the reading comes back a ResizeObserver delivery
-    and a frame later — after the open class is on and after `main` has stopped carrying,
-    which is everything `panel_settled` states. Until it lands, Resolve stands at the
-    width of the word it says now, 28px narrower than the control the reader ends up
-    looking at; a test that measures the actions row on either side of that arrival gets
-    two readings of two different buttons and reports a layout shift the page never made.
-
-    So the geometry tests state the arrival, in the terms the runtime writes it: an
-    inline `min-width` on every settlement control the panel is rendering. Rendering, not
-    `getClientRects()` — the resolved disclosure holds its threads in a subtree Chromium
-    skips, where a boxless control keeps answering with the size it last had, so a Reopen
-    nobody has disclosed reads as drawn while it is still holding for the reading the
-    disclosure will give it. `checkVisibility()` separates the two, and answers for the
-    shut panel as well.
-
-    This is not folded into `panel_settled`, which is a step on the way to a gesture in
-    most of its callers rather than a geometry read: the wait belongs where a test is
-    about to measure a control, not on every path that opens the panel."""
-    page.wait_for_function(
-        """() => [
-          ...document.querySelectorAll('.lf-panel :is(.lf-resolve, .lf-reopen)'),
-        ].every(control => !control.checkVisibility() || control.style.minWidth)"""
     )
 
 

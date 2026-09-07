@@ -45,12 +45,14 @@ import { notice } from "./notifications.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { accountOutbox } from "./outbox.js";
 import { refreshHover } from "./anchors.js";
+import { paintHere } from "./keyboard/scopes.js";
 import { loadMarked } from "./conversation/messages.js";
 
 // What an application writes to the runtime and a refused one gives back, the three
 // current-document facts included, so the chooser re-renders from the restored state.
 const APPLICATION_RUNTIME_FIELDS = Object.freeze([
   "agent",
+  "activity",
   "browser",
   "currentLabel",
   "currentRevision",
@@ -58,6 +60,7 @@ const APPLICATION_RUNTIME_FIELDS = Object.freeze([
   "events",
   "lastEventSeq",
   "reading",
+  "restoringState",
   "state",
   "statePhase",
   "view",
@@ -204,7 +207,11 @@ export async function receiveState(state) {
   let replyNotice = null;
   let restoreClaimState = () => {};
   const apply = async () => {
+    // A revision activation is an arrival: its already-standing state must settle into
+    // the replacement markup without being presented as a new gesture.
+    if (willActivate) runtime.restoringState = true;
     runtime.events = nextEvents;
+    runtime.activity = state.activity;
     runtime.browser = nextBrowser;
     let finishActivation = null;
     runtime.statePhase = "ready";
@@ -223,9 +230,7 @@ export async function receiveState(state) {
     runtime.agent = state.agent || "Claude";
     restoreClaimState = replaceClaimState({
       sources: state.claims || [],
-      presence: state,
-      agentTurnClosed: state.turn_closed || null,
-      claimingSession: state.claim_session || null,
+      held: state.activity.held,
     });
     renderStatus(state);
     renderVersions(state);
@@ -288,6 +293,7 @@ export async function receiveState(state) {
     // applicable on the next poll after they close the editor.
     document.dispatchEvent(new Event("lf-actions"));
     await notifyDataSubscribers();
+    runtime.restoringState = prior.runtime.restoringState;
   };
   try {
     const running = (async () => {
@@ -302,6 +308,9 @@ export async function receiveState(state) {
         } finally {
           document.documentElement.classList.remove("lf-versioning");
           refreshHover();
+          // View-transition chrome covered the page while the application painted.
+          // Re-read viewport-local keyboard maps only after that cover is gone.
+          paintHere();
         }
       } else await apply();
     })();

@@ -4,8 +4,8 @@ import pytest
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_support import (
-    DECISION_PAGE,
-    DECISION_WITH_CONTEXT_PAGE,
+    ASK_PAGE,
+    ASK_WITH_CONTEXT_PAGE,
     open_page,
     round_trip,
     sent_events,
@@ -18,7 +18,7 @@ pytestmark = pytest.mark.nightly
 
 def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_reader):
     """Moving the widget restores draft delivery without duplicating its form."""
-    url = serve(DECISION_PAGE)
+    url = serve(ASK_PAGE)
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(browser, url, context=one_reader)
 
@@ -28,10 +28,10 @@ def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_reader)
         document.querySelector("main").append(group);
     }""")
     text = "A shared answer after the question moves."
-    first.locator("#jobs > .lf-another input").fill(text)
+    first.locator("#jobs > .lf-another textarea").fill(text)
 
     expect(second.locator("#jobs > .lf-another")).to_have_count(1)
-    expect(second.locator("#jobs > .lf-another input")).to_have_value(text)
+    expect(second.locator("#jobs > .lf-another textarea")).to_have_value(text)
     assert first_errors == []
     assert second_errors == []
     first.close()
@@ -42,9 +42,10 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     """The reader writes on the same line and in the same voice as the options.
 
     The trailing action stays out of an empty row, then submits without borrowing the
-    selection mark's circle. It remains a full-sized, aligned pointer target.
+    selection mark's circle. It remains a full-sized pointer target aligned with the
+    last line as the textarea grows.
     """
-    page, errors = open_page(browser, serve(DECISION_PAGE))
+    page, errors = open_page(browser, serve(ASK_PAGE))
     option = page.locator("#job-camera")
     form = page.locator("#jobs > .lf-another")
     field = form.get_by_role("textbox", name="Another option", exact=True)
@@ -70,11 +71,12 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert abs(form.evaluate(inner_height) - option.evaluate(inner_height)) < 0.5
 
     card_words = page.locator("#br-steel > strong")
-    card_field = page.locator("#bracket > .lf-another input")
+    card_field = page.locator("#bracket > .lf-another textarea")
     assert card_field.evaluate(typography) == card_words.evaluate(typography)
     assert abs(card_field.bounding_box()["x"] - card_words.bounding_box()["x"]) < 0.5
 
-    expect(add).to_have_text("Add")
+    expect(add).to_have_text("")
+    expect(add.locator('svg[data-lf-icon="add"]')).to_have_count(1)
     expect(add).to_be_hidden()
     expect(add).to_have_attribute("aria-disabled", "true")
     empty_field_box = field.bounding_box()
@@ -91,32 +93,34 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     add_box = add.bounding_box()
     assert add_box["width"] >= aim_floor
     assert add_box["height"] >= aim_floor
+    assert 0 < form_box["y"] + form_box["height"] - add_box["y"] - add_box["height"] < 8
+    field.fill("First line\nSecond line\nThird line")
+    grown_form_box = form.bounding_box()
+    grown_field_box = field.bounding_box()
+    grown_add_box = add.bounding_box()
+    assert grown_field_box["height"] > field_box["height"]
     assert (
-        abs(
-            field_box["y"]
-            + field_box["height"] / 2
-            - add_box["y"]
-            - add_box["height"] / 2
-        )
-        < 0.5
+        0
+        < grown_form_box["y"]
+        + grown_form_box["height"]
+        - grown_add_box["y"]
+        - grown_add_box["height"]
+        < 8
     )
-    face = """el => { const s = getComputedStyle(el);
-                       return [s.backgroundColor, s.borderTopColor, s.borderTopStyle,
-                               s.borderTopWidth, s.borderRadius, s.color]; }"""
-    add_face = add.evaluate(face)
-    ordinary_face = page.locator("body").evaluate(
-        """body => {
-          const probe = document.createElement("button");
-          probe.className = "lf-btn";
-          body.append(probe);
-          const s = getComputedStyle(probe);
-          const result = [s.backgroundColor, s.borderTopColor, s.borderTopStyle,
-                          s.borderTopWidth, s.borderRadius, s.color];
-          probe.remove();
-          return result;
+    face = add.evaluate(
+        """el => {
+          const button = getComputedStyle(el);
+          const circle = getComputedStyle(el, '::before');
+          return {
+            button: button.backgroundColor,
+            circle: circle.backgroundColor,
+            radius: circle.borderRadius,
+          };
         }"""
     )
-    assert add_face == ordinary_face
+    assert face["button"] == "rgba(0, 0, 0, 0)"
+    assert face["circle"] != face["button"]
+    assert face["radius"] == "50%"
     page.keyboard.press("Tab")
     expect(add).to_be_focused()
 
@@ -134,7 +138,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     browser, serve
 ):
     """The add form stays in Tab order while c opens a clarification thread."""
-    url = serve(DECISION_WITH_CONTEXT_PAGE)
+    url = serve(ASK_WITH_CONTEXT_PAGE)
     events_model.append_event(
         serve.page_dir,
         {
@@ -156,14 +160,14 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     # the add field; the field is an ordinary later stop in the Tab order.
     page.keyboard.press("Enter")
     expect(mark).to_be_focused()
-    expect(page.locator("#storage-options > .lf-another input")).not_to_be_focused()
+    expect(page.locator("#storage-options > .lf-another textarea")).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
     # c keeps its page-wide meaning: it comments on the focused option rather than adding
     # an answer. Its own Escape restores the same mark.
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
-    expect(page.locator("#storage-options > .lf-another input")).not_to_be_focused()
+    expect(page.locator("#storage-options > .lf-another textarea")).not_to_be_focused()
     page.keyboard.press("Escape")
     expect(mark).to_be_focused()
     assert errors == []
@@ -177,7 +181,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     answer, not opened a conversation. The standing action carries every generated
     option so a later ordinary pick and a reload retain the same set of alternatives.
     """
-    url = serve(DECISION_PAGE)
+    url = serve(ASK_PAGE)
     page, errors = open_page(browser, url)
     d = serve.page_dir
 
@@ -249,9 +253,9 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
     The draft remains part of the decision and still becomes a real option. The thread
     stays separate: adding the option sends an action, not a second comment.
     """
-    page, errors = open_page(browser, serve(DECISION_PAGE))
+    page, errors = open_page(browser, serve(ASK_PAGE))
     d = serve.page_dir
-    first = page.locator("#jobs > .lf-another input")
+    first = page.locator("#jobs > .lf-another textarea")
     draft = "Keep this answer even if another thread arrives first."
     first.fill(draft)
 

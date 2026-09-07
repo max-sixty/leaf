@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Leaf example corpus</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
 </head>
@@ -57,7 +57,7 @@ catalog.</p>
 
       <section id="session-backlog">
         <h2>Triage the session-store edges</h2>
-        <lf-decision id="session-backlog-decision">
+        <lf-ask id="session-backlog-decision">
           <h3>Which session-store follow-ups should we keep?</h3>
           <p id="session-backlog-intro">
             These are independent follow-ups to the store choice. Pass removes an item
@@ -107,7 +107,7 @@ catalog.</p>
               </lf-swipe-card>
             </lf-swipe-pile>
           </lf-swipe-deck>
-        </lf-decision>
+        </lf-ask>
       </section>
 
       <section id="settled-transport">
@@ -182,8 +182,8 @@ catalog.</p>
       </section>
 
       <section id="options">
-        <lf-decision id="session-options-decision">
-          <h2 id="session-options-heading">Where should a session live?</h2>
+        <lf-ask id="session-options-decision">
+          <h2>Where should a session live?</h2>
           <lf-options id="session-options" choose>
             <lf-option id="opt-jwt"
               ><lf-chip>effort: low</lf-chip
@@ -250,7 +250,7 @@ catalog.</p>
               </p>
             </lf-option>
           </lf-options>
-        </lf-decision>
+        </lf-ask>
       </section>
 
       <section id="flow">
@@ -373,7 +373,7 @@ chimney with no cap, 120
         </lf-chart>
       </section>
 
-      <lf-decision id="heat-first-decision">
+      <lf-ask id="heat-first-decision">
         <h2>Which measure should be booked first?</h2>
         <p id="heat-first-note">
           The three are independent, and doing all of them this year needs the floor to
@@ -410,7 +410,7 @@ chimney with no cap, 120
             </p>
           </lf-option>
         </lf-options>
-      </lf-decision>
+      </lf-ask>
 
       <section id="heat-weather">
         <h2>Against the weather</h2>
@@ -533,7 +533,7 @@ outside average, before, after
             Ledger now; this page stays blocked until the agent runs them and saves the
             result.
           </p>
-          <lf-decision id="lp-finance-decision">
+          <lf-ask id="lp-finance-decision">
             <h3>Which cases should the fixture cover?</h3>
             <lf-options id="lp-finance-cases" choose multiple>
               <lf-option id="lp-finance-partial" for="lp-ms-finance"
@@ -546,7 +546,7 @@ outside average, before, after
                 >A refund settled in a second currency</lf-option
               >
             </lf-options>
-          </lf-decision>
+          </lf-ask>
         </lf-tab>
 
         <lf-tab id="lp-tab-handoffs" label="Handoffs">
@@ -899,13 +899,15 @@ flowchart LR
             ></lf-call-diff>
           </lf-tab>
         </lf-tabs>
-        <h3 id="pr-hunk-heading">The default the picker now opens on</h3>
-        <p id="pr-hunk-intro">
-          The one hunk the rest of the change is arranged around: the picker asks for a
-          prepared diff instead of assembling its own <code>git diff</code> arguments.
-        </p>
-        <lf-diff id="pr-key-hunk">
-          <pre>
+        <section id="pr-hunk">
+          <h3>The default the picker now opens on</h3>
+          <p id="pr-hunk-intro">
+            The one hunk the rest of the change is arranged around: the picker asks for
+            a prepared diff instead of assembling its own <code>git diff</code>
+            arguments.
+          </p>
+          <lf-diff id="pr-key-hunk">
+            <pre>
 diff --git a/src/git/diff.rs b/src/git/diff.rs
 --- a/src/git/diff.rs
 +++ b/src/git/diff.rs
@@ -916,30 +918,33 @@ diff --git a/src/git/diff.rs b/src/git/diff.rs
 +        PreparedDiff::for_worktree(self, worktree)?.unified()
      }
 </pre>
-        </lf-diff>
-        <h3 id="pr-invariant-heading">Review invariants</h3>
-        <p id="pr-invariant-intro">
-          The implementation is expected to preserve these three properties.
-        </p>
-        <lf-code id="pr-review-invariants" language="rust" hi="1-3">
-          <pre>
+          </lf-diff>
+        </section>
+        <section id="pr-invariants">
+          <h3>Review invariants</h3>
+          <p id="pr-invariant-intro">
+            The implementation is expected to preserve these three properties.
+          </p>
+          <lf-code id="pr-review-invariants" language="rust" hi="1-3">
+            <pre>
 assert_eq!(repo.read_index_bytes(&amp;worktree)?, index_before_preview, "preview preparation rewrote {worktree:?}");
 assert!(temp_index.is_operation_scoped());
 assert!(offscreen_worktree_preview.is_demand_loaded());
 </pre>
-          <lf-note id="pr-note-real-index" at="1"
-            >A clean status is insufficient: preview preparation must preserve the real
-            index byte for byte.</lf-note
-          >
-          <lf-note id="pr-note-temp-index" at="2"
-            >Random, exclusive temporary files prevent concurrent previews from sharing
-            or replacing one another’s index.</lf-note
-          >
-          <lf-note id="pr-note-demand-load" at="3"
-            >Moving off-screen worktrees out of prewarm protects startup, but leaves
-            selected-row latency as a separate measurement question.</lf-note
-          >
-        </lf-code>
+            <lf-note id="pr-note-real-index" at="1"
+              >A clean status is insufficient: preview preparation must preserve the
+              real index byte for byte.</lf-note
+            >
+            <lf-note id="pr-note-temp-index" at="2"
+              >Random, exclusive temporary files prevent concurrent previews from
+              sharing or replacing one another’s index.</lf-note
+            >
+            <lf-note id="pr-note-demand-load" at="3"
+              >Moving off-screen worktrees out of prewarm protects startup, but leaves
+              selected-row latency as a separate measurement question.</lf-note
+            >
+          </lf-code>
+        </section>
       </section>
 
       <section id="pr-history">
@@ -1094,14 +1099,14 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
       </section>
 
       <section id="pr-outcome">
-        <lf-decision id="pr-outcome-decision">
+        <lf-ask id="pr-outcome-decision">
           <h2>What would you report on the final revision?</h2>
           <p id="pr-outcome-context">
             Choose the review the agent should enter on the forge. Each option states
             the disposition and the exact work, so the agent can submit it without
             translating a generic label. Digits choose a listed answer;
             <kbd>c</kbd> comments on it. Tab reaches <strong>Another option</strong>,
-            where <kbd>Enter</kbd> submits.
+            where <kbd>Enter</kbd> adds a line and <kbd>Mod+Enter</kbd> adds the answer.
           </p>
           <lf-options id="pr-outcome-choice" choose>
             <lf-option id="pr-outcome-follow-up">
@@ -1121,7 +1126,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
               worktree.
             </lf-option>
           </lf-options>
-        </lf-decision>
+        </lf-ask>
       </section>
 </lf-tab>
 
@@ -1130,10 +1135,10 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
       <p class="lede" id="rn-lede">
         Four notes cover everything user-visible in 3.2. Every margin Button is a circle
         with a soft border: a heavier ring acts now, a regular ring reveals context.
-        Icon color carries positive or negative intent; a small corner mark carries
-        interaction state. A selected reaction keeps its square mark even under the
+        Icon color carries positive or negative intent; a turning corner mark says a
+        press is still travelling. A selected reaction keeps its fill even under the
         pointer. One peer stays visible, while … unfolds larger sets. Accept or reject a
-        change to try its receipt and Undo, or rewrite a draft and save it. Press
+        change, undo that choice, or rewrite a draft and save it. Press
         <kbd>g</kbd> to reveal the contents labels and navigation shortcuts, or use
         <kbd>j</kbd>/<kbd>k</kbd> to scroll down/up a little while reading.
       </p>
@@ -1352,7 +1357,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
               commit; its branch and evidence remain inspectable.
               <lf-worktree id="tree-w-5" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
-            <lf-decision id="dedupe-operations-decision">
+            <lf-ask id="dedupe-operations-decision">
               <h3>What should the host do with the stalled work?</h3>
               <lf-operations
                 id="dedupe-operations"
@@ -1376,7 +1381,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
                   40 GB for this rewrite.
                 </lf-operation>
               </lf-operations>
-            </lf-decision>
+            </lf-ask>
           </lf-task>
           <lf-task
             id="parser-zero"
@@ -1385,7 +1390,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
           >
             <strong>Choose the zero-row behavior</strong> This policy is consequential
             enough to wait for an explicit choice.
-            <lf-decision id="decision-zero-region">
+            <lf-ask id="decision-zero-region">
               <h3>What should happen when a nightly imports zero rows?</h3>
               <lf-options id="decision-zero" choose>
                 <lf-option id="zero-alert" for="parser-zero">
@@ -1398,7 +1403,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
                   no data.
                 </lf-option>
               </lf-options>
-            </lf-decision>
+            </lf-ask>
           </lf-task>
         </lf-task>
 
@@ -1417,7 +1422,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
               reconciliation evidence.
               <lf-worktree id="tree-w-8" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
-            <lf-decision id="schema-operations-decision">
+            <lf-ask id="schema-operations-decision">
               <h3>What should the host do with the schema branch?</h3>
               <lf-operations
                 id="schema-operations"
@@ -1435,7 +1440,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
                   and take one larger review tomorrow.
                 </lf-operation>
               </lf-operations>
-            </lf-decision>
+            </lf-ask>
           </lf-task>
           <lf-task id="schema-backfill" status="planned" needs="schema-choice">
             <strong>Backfill reconciliation fields</strong>
@@ -1449,7 +1454,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
             <strong>Bring one replica-only ledger fixture</strong> Run the exact
             credentialed command, inspect the full cargo below, trim it, then save the
             draft. The edit receipt tells the orchestrator that w-8 can resume.
-            <lf-decision id="decision-ledger-fixture-region">
+            <lf-ask id="decision-ledger-fixture-region">
               <h3>Which replica-only ledger fixture should the worker use?</h3>
               <pre><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
   where refunded_minor is not null limit 1) to stdout with csv header"</code></pre>
@@ -1458,7 +1463,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
 Paste the complete CSV row here. Remove customer_name and billing_email before saving.
 </pre>
               </lf-draft>
-            </lf-decision>
+            </lf-ask>
           </lf-task>
           <lf-task
             id="ledger-variance"
@@ -1485,7 +1490,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               compatibility tests.
               <lf-worktree id="tree-w-3" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
-            <lf-decision id="api-operations-decision">
+            <lf-ask id="api-operations-decision">
               <h3>What should the host do with atlas/public-api?</h3>
               <lf-operations
                 id="api-operations"
@@ -1506,7 +1511,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                   standing change request and reap its reviser.
                 </lf-operation>
               </lf-operations>
-            </lf-decision>
+            </lf-ask>
           </lf-task>
           <lf-task id="api-errors" status="planned" needs="api-shape">
             <strong>Map structured failures</strong>
@@ -1598,7 +1603,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
             <lf-task id="off-t-workaround" status="review" owner="mobile">
               <strong>Keep the resend workaround in the patch</strong> After 20 seconds
               the client resends the queued batch; 500 forced stalls all recovered.
-              <lf-decision id="off-workaround-decision">
+              <lf-ask id="off-workaround-decision">
                 <h3>Is that enough for the first patch?</h3>
                 <lf-options id="off-workaround-review" choose>
                   <lf-option id="off-workaround-approve" for="off-t-resync">
@@ -1608,7 +1613,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                     Request another pass — hold the patch for a native fix.
                   </lf-option>
                 </lf-options>
-              </lf-decision>
+              </lf-ask>
             </lf-task>
             <lf-task id="off-t-telemetry" status="done" owner="data">
               <strong>Keep reconnect telemetry</strong> The release cohort retains the
@@ -1718,10 +1723,10 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
 </lf-tab>
 
 <lf-tab id="corpus-feature-gallery" label="Features">
-<h1 id="bg-title">Leaf feature gallery</h1>
+<h1 id="bg-title">Leaf product gallery</h1>
       <p class="lede" id="bg-lede">
         Try Leaf’s working features on one synthetic page. Each section names a feature
-        and provides a live example.
+        and provides a live example, including focused replays of its motion.
       </p>
       <p id="bg-start">
         Use the contents spine or Map to find a feature; each eyebrow lists its element
@@ -1732,27 +1737,27 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
 
       <section id="bg-core-surfaces">
         <p class="eyebrow bg-feature-elements">
-          Leaf chrome · lf-toc · lf-decision · lf-options · lf-option
+          Leaf chrome · lf-toc · lf-ask · lf-options · lf-option
         </p>
-        <h2 id="bg-core-surfaces-heading">
+        <h2>
           <strong>Asks</strong
           ><span class="bg-feature-detail">: decisions and answers</span>
         </h2>
         <p id="bg-core-surfaces-guide">
-          An <code>lf-decision</code> is one complete Ask: its heading names the
-          question, and one nested widget owns the answer. This sample uses
+          An <code>lf-ask</code> is one complete Ask: its heading names the question,
+          and one nested widget owns the answer. This sample uses
           <code>lf-options</code>, which records a choice Leaf can replay as page state.
           The banner shows completed/total. Press <kbd>a</kbd> for the next Ask waiting
           on you; open <strong>Asks</strong>, or press <kbd>g</kbd> then
           <kbd>Shift+A</kbd>, to review every active Ask and its current answer.
         </p>
-        <lf-decision id="bg-choice-ask">
-          <h3 id="bg-choice-ask-heading">Which map should the sample team carry?</h3>
+        <lf-ask id="bg-choice-ask">
+          <h3>Which map should the sample team carry?</h3>
           <lf-options id="bg-choice" choose>
             <lf-option id="bg-choice-street">Street map</lf-option>
             <lf-option id="bg-choice-trail">Trail map</lf-option>
           </lf-options>
-        </lf-decision>
+        </lf-ask>
         <p id="bg-core-controls-guide">
           The top bar also shows the status line, <strong>Threads</strong>, the version
           picker, <strong>Map</strong> (<kbd>g</kbd> then <kbd>Shift+M</kbd>),
@@ -1763,7 +1768,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
 
       <section id="bg-changes">
         <p class="eyebrow bg-feature-elements">lf-suggestion · lf-old · lf-new</p>
-        <h2 id="bg-changes-heading">
+        <h2>
           <strong>Suggestions</strong
           ><span class="bg-feature-detail">: proposed text changes</span>
         </h2>
@@ -1791,7 +1796,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
             ></span
           >
         </p>
-        <h3 id="bg-nested-change-heading">Undo a proposal while keeping its choice</h3>
+        <h3>Undo a proposal while keeping its choice</h3>
         <p id="bg-nested-change-guide">
           Pick a route inside the proposal, accept the proposal, then use its Undo
           Button. The proposal becomes undecided again; your route remains chosen.
@@ -1801,20 +1806,20 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           <lf-old><p>Keep the practice walk indoors.</p></lf-old>
           <lf-new>
             <p>Take the practice walk outside.</p>
-            <lf-decision id="bg-route-ask">
-              <h4 id="bg-route-heading">Which route should the walk follow?</h4>
+            <lf-ask id="bg-route-ask">
+              <h4>Which route should the walk follow?</h4>
               <lf-options id="bg-route" choose>
                 <lf-option id="bg-route-garden">Through the garden</lf-option>
                 <lf-option id="bg-route-river">Along the river</lf-option>
               </lf-options>
-            </lf-decision>
+            </lf-ask>
           </lf-new>
         </lf-suggestion>
       </section>
 
       <section id="bg-editing">
         <p class="eyebrow bg-feature-elements">lf-draft</p>
-        <h2 id="bg-editing-heading">
+        <h2>
           <strong>Drafts</strong
           ><span class="bg-feature-detail">: editable passages and history</span>
         </h2>
@@ -1827,7 +1832,9 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
 Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-draft>
         <p id="bg-history-guide">
-          <strong>Picked up</strong> means the saved edit reached the agent.
+          <strong>Picked up</strong> means the saved edit entered an agent turn. The
+          receipt and top bar derive their words from the same delivery, turn, and work
+          evidence.
         </p>
         <lf-draft id="bg-history">
           <pre>The sample workshop is in the blue room.</pre>
@@ -1835,18 +1842,29 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-conversations">
-        <p class="eyebrow bg-feature-elements">Thread Button · Threads panel</p>
-        <h2 id="bg-conversations-heading">
+        <p class="eyebrow bg-feature-elements">
+          Thread Button · inline thread · Threads panel
+        </p>
+        <h2>
           <strong>Threads</strong
           ><span class="bg-feature-detail">: anchored conversations</span>
         </h2>
         <p id="bg-conversations-guide">
-          A Thread Button opens the conversation attached to a passage. Its count shows
-          how many conversations share that passage.
+          With Threads closed, a Thread Button or marked passage opens the conversation
+          inline; t moves to the next inline card and T to the previous one. Open
+          Threads while one is focused, including with g T, and the same thread stays
+          focused in the panel. Its count shows how many conversations share that
+          passage.
         </p>
         <p id="bg-thread-text">
           <strong>An existing conversation.</strong> The sample agenda has room for one
           more topic. Open the speech-bubble Button, reply, then resolve the thread.
+        </p>
+        <p id="bg-thread-media">
+          <strong>Pasted images.</strong> That conversation includes an image supplied
+          by its companion thread log, outside this document. Click the image to inspect
+          it in Leaf’s Image preview. Paste a screenshot into its reply box to see the
+          thumbnail Leaf keeps in the draft without exposing image Markdown.
         </p>
         <p id="bg-resolved-text">
           <strong>A resolved conversation.</strong> The room has a projector. Its
@@ -1862,56 +1880,100 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-reactions">
         <p class="eyebrow bg-feature-elements">Reaction Button · reaction picker</p>
-        <h2 id="bg-reactions-heading">
+        <h2>
           <strong>Reactions</strong
           ><span class="bg-feature-detail">: short verdicts on a passage</span>
         </h2>
         <p id="bg-reactions-guide">
-          Select words and press R to add a reaction. A square Button shows a saved
-          reaction; press it to remove that reaction.
+          Select words and press R, or hover an agent reply and use its corner control.
+          The picker is feedback for the agent, not chat decoration. A saved reaction
+          leaves only its emoji; press that emoji to remove it.
         </p>
         <p id="bg-react-ok">
-          <strong>1 · ok · settled.</strong> The spare key is with reception.
+          <strong>1 · 👍 · keep.</strong> The spare key is with reception.
         </p>
         <p id="bg-react-no">
-          <strong>2 · no · wrong.</strong> This sample claims Tuesday follows Thursday.
+          <strong>2 · ❌ · change.</strong> This sample claims Tuesday follows Thursday.
         </p>
         <p id="bg-react-lost">
-          <strong>3 · lost · unclear.</strong> Bring the thing from the other place.
+          <strong>3 · 🤔 · clarify.</strong> Bring the thing from the other place.
         </p>
         <p id="bg-react-cut">
-          <strong>4 · cut · too long.</strong> At this point in time, we can now begin.
+          <strong>4 · ✂️ · shorten.</strong> At this point in time, we can now begin.
         </p>
         <p id="bg-react-more">
-          <strong>5 · more · needs detail.</strong> The exercise involves a map.
+          <strong>5 · 🔎 · support.</strong> The exercise involves a map.
         </p>
         <p id="bg-react-this">
-          <strong>6 · this · look here.</strong> The side entrance closes early.
+          <strong>6 · 🎯 · prioritize.</strong> The side entrance closes early.
         </p>
       </section>
 
-      <section id="bg-clusters">
+      <section id="bg-button-atlas">
         <p class="eyebrow bg-feature-elements">
-          Action · Disclosure · Button-shaped status · Lifecycle state
+          lf-button-atlas · Action · Disclosure · Button-shaped status · Lifecycle state
+          · lf-suggestion
         </p>
-        <h2 id="bg-clusters-heading">
-          <strong>Buttons</strong
-          ><span class="bg-feature-detail">: action, disclosure, and status</span>
+        <h2>
+          <strong>Button atlas</strong
+          ><span class="bg-feature-detail">: every role, tone, and state</span>
         </h2>
+        <p id="bg-button-atlas-guide">
+          <strong>Everything visible at once.</strong> The first row holds every role
+          and all three behaviors and tones. The second fixes every lifecycle state in
+          place. Only busy paints a mark, because only busy has nothing else on the page
+          saying it; engaged and failed still rank their Button in the cluster and hold
+          it open. These inert specimens use the same constructor and stylesheet as the
+          live Buttons.
+        </p>
+        <lf-button-atlas id="bg-button-atlas-specimens"></lf-button-atlas>
+        <h3>
+          <strong>Button workflow</strong
+          ><span class="bg-feature-detail">: act, fail, settle, and hand off</span>
+        </h3>
+        <p id="bg-button-workflow-guide">
+          <strong>Act, fail, and settle.</strong> Accept or Reject starts as an action.
+          The content changes immediately, and an open ring moves on Undo while the
+          event travels. A refused send restores the suggestion and puts Failed in words
+          beside Retry and Cancel. Success leaves the changed content and an Undo Button
+          alone in the cluster. Sent remains as a status until an agent picks the
+          decision up.
+        </p>
+        <p id="bg-button-workflow-line">
+          The practice route uses
+          <lf-suggestion id="bg-button-workflow"
+            ><lf-old>the open courtyard.</lf-old
+            ><lf-new>the covered terrace.</lf-new></lf-suggestion
+          >
+        </p>
+        <p id="bg-button-accepted-line">
+          <strong>Already settled.</strong> This second specimen arrives with an
+          accepted decision in its history:
+          <lf-suggestion id="bg-button-accepted"
+            ><lf-old>meet outside.</lf-old
+            ><lf-new>meet under the awning.</lf-new></lf-suggestion
+          >
+        </p>
+        <p id="bg-button-status-guide">
+          <strong>Edit and hand off.</strong> Opening the draft above replaces Edit with
+          Save and Cancel Buttons; Save uses the moving ring while it sends. The saved
+          draft arrives with a Waiting for pickup status. When an agent claims that
+          unsettled edit, the same target gains an animated Active disclosure.
+        </p>
         <p id="bg-buttons-line">
-          <strong>One shared target.</strong> Use the
+          <strong>Combine roles.</strong> Use the
           <lf-suggestion id="bg-crowded"
             ><lf-old>courtyard</lf-old><lf-new>covered terrace</lf-new></lf-suggestion
           >
           for the practice session. Accept and Reject act immediately; Thread and ⋯
-          disclose more; reaction marks are settled actions. Delivery statuses below
-          report what already happened without offering another press.
+          disclose more; a reaction mark stands only while its reaction does. Delivery
+          statuses below report what already happened without offering another press.
         </p>
       </section>
 
       <section id="bg-readings">
-        <p class="eyebrow bg-feature-elements">lf-decision · lf-options · lf-option</p>
-        <h2 id="bg-readings-heading">
+        <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
+        <h2>
           <strong>Decisions</strong
           ><span class="bg-feature-detail">: answers in context</span>
         </h2>
@@ -1919,20 +1981,20 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           A recorded answer stays visible in the widget that owns it; the page map adds
           no second status.
         </p>
-        <lf-decision id="bg-outcome-ask">
-          <h3 id="bg-outcome-ask-heading">Where should the sample group meet?</h3>
+        <lf-ask id="bg-outcome-ask">
+          <h3>Where should the sample group meet?</h3>
           <lf-options id="bg-outcome" choose>
             <lf-option id="bg-outcome-door">At the door</lf-option>
             <lf-option id="bg-outcome-desk" chosen>At reception</lf-option>
           </lf-options>
-        </lf-decision>
+        </lf-ask>
       </section>
 
       <section id="bg-reader-workflows">
         <p class="eyebrow bg-feature-elements">
-          Approve version · Design mode · Requests
+          Approve version · Design mode · Draw mode · Requests
         </p>
-        <h2 id="bg-reader-workflows-heading">
+        <h2>
           <strong>Reader workflows</strong
           ><span class="bg-feature-detail"
             >: approval, interface comments, and requests</span
@@ -1941,7 +2003,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
         <section id="bg-signoff">
           <p class="eyebrow bg-feature-elements">Approve version · Undo</p>
-          <h3 id="bg-signoff-heading">
+          <h3>
             <strong>Sign-off</strong
             ><span class="bg-feature-detail">: approve a version</span>
           </h3>
@@ -1953,7 +2015,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
         <section id="bg-design-comments">
           <p class="eyebrow bg-feature-elements">Design mode · interface comment</p>
-          <h3 id="bg-design-comments-heading">
+          <h3>
             <strong>Design mode</strong
             ><span class="bg-feature-detail">: comment on the interface</span>
           </h3>
@@ -1964,19 +2026,33 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           </p>
         </section>
 
+        <section id="bg-drawing-comments">
+          <p class="eyebrow bg-feature-elements">Draw mode · drawing comment</p>
+          <h3>
+            <strong>Draw mode</strong
+            ><span class="bg-feature-detail">: point with a freehand mark</span>
+          </h3>
+          <p id="bg-drawing-comments-guide">
+            Press <kbd>w</kbd> and draw anywhere across the page. Start over this guide
+            or in its margin to anchor the comment here; empty space with no item
+            alongside comments on the page whole. Send the drawing alone or add words
+            first.
+          </p>
+        </section>
+
         <section id="bg-request-lifecycle">
           <p class="eyebrow bg-feature-elements">
             lf-command · lf-task · lf-agent · lf-worktree · lf-operations · lf-operation
           </p>
-          <h3 id="bg-request-lifecycle-heading">
+          <h3>
             <strong>Requests</strong
             ><span class="bg-feature-detail">: send instructions to the host</span>
           </h3>
           <p id="bg-request-guide">
             <code>lf-operations</code> is the answer widget inside an
-            <code>lf-decision</code> when its answer should make the host act. Leaf
-            records one typed, one-shot instruction; the host carries it out and returns
-            a receipt. Failure reopens the Ask, while success closes it. A refused send
+            <code>lf-ask</code> when its answer should make the host act. Leaf records
+            one typed, one-shot instruction; the host carries it out and returns a
+            receipt. Failure reopens the Ask, while success closes it. A refused send
             shows <strong>Retry</strong> and <strong>Cancel</strong>.
           </p>
           <lf-command id="bg-request-command" label="Synthetic request lifecycle">
@@ -1989,10 +2065,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                   source="gallery-worktrees"
                 ></lf-worktree>
               </lf-agent>
-              <lf-decision id="bg-request-live-decision">
-                <h4 id="bg-request-live-decision-heading">
-                  What should the sample host do?
-                </h4>
+              <lf-ask id="bg-request-live-decision">
+                <h4>What should the sample host do?</h4>
                 <lf-operations
                   id="bg-request-live"
                   target="bg-request-live-task"
@@ -2008,7 +2082,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                     branch.
                   </lf-operation>
                 </lf-operations>
-              </lf-decision>
+              </lf-ask>
             </lf-task>
           </lf-command>
         </section>
@@ -2016,7 +2090,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-external-data">
         <p class="eyebrow bg-feature-elements">lf-diff · lf-source · lf-num</p>
-        <h2 id="bg-external-data-heading">
+        <h2>
           <strong>External data</strong
           ><span class="bg-feature-detail"
             >: live values, snapshots, and provenance</span
@@ -2025,7 +2099,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
         <section id="bg-inline-diff-threads">
           <p class="eyebrow bg-feature-elements">lf-diff · inline Thread</p>
-          <h3 id="bg-inline-diff-threads-heading">
+          <h3>
             <strong>Inline diff threads</strong
             ><span class="bg-feature-detail">: line comments in review context</span>
           </h3>
@@ -2039,7 +2113,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
         <section id="bg-source-captures">
           <p class="eyebrow bg-feature-elements">lf-source</p>
-          <h3 id="bg-source-captures-heading">
+          <h3>
             <strong>Source</strong
             ><span class="bg-feature-detail">: live and captured data</span>
           </h3>
@@ -2064,7 +2138,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
         <section id="bg-measurement-lag">
           <p class="eyebrow bg-feature-elements">lf-num</p>
-          <h3 id="bg-measurement-lag-heading">
+          <h3>
             <strong>Num</strong
             ><span class="bg-feature-detail">: provenance and stale data</span>
           </h3>
@@ -2085,9 +2159,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-default-presentation">
         <p class="eyebrow bg-feature-elements">Default package</p>
-        <h2 id="bg-default-presentation-heading">
-          <strong>Default presentation elements</strong
-          ><span class="bg-feature-detail">: widgets for structured evidence</span>
+        <h2>
+          <strong>Evidence widgets</strong
+          ><span class="bg-feature-detail"
+            >: charts, diagrams, and structured views</span
+          >
         </h2>
         <p id="bg-default-guide">
           These shipped widgets use synthetic data so each feature has a focused
@@ -2096,7 +2172,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
         <section id="bg-metrics-and-chart">
           <p class="eyebrow bg-feature-elements">lf-metrics · lf-metric · lf-chart</p>
-          <h3 id="bg-metrics-and-chart-heading">
+          <h3>
             <strong>Metrics</strong> and <strong>Chart</strong
             ><span class="bg-feature-detail">: values and trends</span>
           </h3>
@@ -2124,7 +2200,7 @@ run, baseline, candidate
 
         <section id="bg-diagrams">
           <p class="eyebrow bg-feature-elements">lf-diagram · diagram package</p>
-          <h3 id="bg-diagrams-heading">
+          <h3>
             <strong>Diagram</strong
             ><span class="bg-feature-detail">: structure, shape, and state</span>
           </h3>
@@ -2155,7 +2231,7 @@ flowchart LR
           <p class="eyebrow bg-feature-elements">
             lf-code · lf-gloss · lf-note · lf-tree
           </p>
-          <h3 id="bg-code-and-tree-heading">
+          <h3>
             <strong>Code</strong>, <strong>Gloss</strong>, <strong>Note</strong>, and
             <strong>Tree</strong
             ><span class="bg-feature-detail">: technical evidence</span>
@@ -2192,7 +2268,7 @@ gallery/
 
         <section id="bg-neutral-comparison">
           <p class="eyebrow bg-feature-elements">lf-compare · lf-variant · lf-chip</p>
-          <h3 id="bg-neutral-comparison-heading">
+          <h3>
             <strong>Compare</strong>, <strong>Variants</strong>, and
             <strong>Chips</strong
             ><span class="bg-feature-detail">: parallel alternatives</span>
@@ -2217,7 +2293,7 @@ gallery/
           <p class="eyebrow bg-feature-elements">
             lf-milestones · lf-milestone · lf-timeline · lf-event
           </p>
-          <h3 id="bg-plans-and-history-heading">
+          <h3>
             <strong>Milestones</strong>, <strong>Timeline</strong>, and
             <strong>Events</strong
             ><span class="bg-feature-detail">: state and history</span>
@@ -2257,7 +2333,7 @@ gallery/
 
         <section id="bg-workstream-tabs">
           <p class="eyebrow bg-feature-elements">lf-tabs · lf-tab</p>
-          <h3 id="bg-workstream-tabs-heading">
+          <h3>
             <strong>Tabs</strong
             ><span class="bg-feature-detail">: saved panel selection</span>
           </h3>
@@ -2274,12 +2350,225 @@ gallery/
           </lf-tabs>
         </section>
 
+        <section id="bg-playground">
+          <p class="eyebrow bg-feature-elements">
+            lf-playground · lf-playground-control · lf-playground-choice ·
+            lf-playground-preset · lf-playground-setting · lf-playground-preview ·
+            lf-playground-output · lf-playground-value
+          </p>
+          <h3>
+            <strong>Playground</strong
+            ><span class="bg-feature-detail">: configure, preview, and choose</span>
+          </h3>
+          <p id="bg-playground-guide">
+            Start with one of the agent’s three recommendations, then tune the controls.
+            The card and instruction update at once while the event log stays unchanged;
+            Apply card sends the complete configuration as one decision.
+          </p>
+          <lf-ask id="bg-card-playground-ask">
+            <h4 id="bg-card-playground-question">How should the sample card look?</h4>
+            <lf-playground id="bg-card-playground" submit-label="Apply card">
+              <lf-playground-control
+                name="radius"
+                label="Corner radius"
+                kind="range"
+                value="12"
+                min="0"
+                max="28"
+                step="1"
+                unit="px"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="compact"
+                label="Compact spacing"
+                kind="toggle"
+                value="false"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="tone"
+                label="Tone"
+                kind="choice"
+                value="quiet"
+              >
+                <lf-playground-choice
+                  value="quiet"
+                  label="Quiet"
+                ></lf-playground-choice>
+                <lf-playground-choice
+                  value="tinted"
+                  label="Tinted"
+                ></lf-playground-choice>
+                <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+              </lf-playground-control>
+              <lf-playground-control
+                name="alignment"
+                label="Alignment"
+                kind="choice"
+                value="left"
+              >
+                <lf-playground-choice value="left" label="Left"></lf-playground-choice>
+                <lf-playground-choice
+                  value="center"
+                  label="Center"
+                ></lf-playground-choice>
+              </lf-playground-control>
+              <lf-playground-control
+                name="elevated"
+                label="Lift from page"
+                kind="toggle"
+                value="false"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="accent"
+                label="Accent"
+                kind="color"
+                value="#4f766f"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="title"
+                label="Card title"
+                kind="text"
+                value="Field note"
+                placeholder="Card title"
+              ></lf-playground-control>
+              <lf-playground-preset label="Field note">
+                <lf-playground-setting for="radius" value="12"></lf-playground-setting>
+                <lf-playground-setting
+                  for="compact"
+                  value="false"
+                ></lf-playground-setting>
+                <lf-playground-setting for="tone" value="quiet"></lf-playground-setting>
+                <lf-playground-setting
+                  for="alignment"
+                  value="left"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="elevated"
+                  value="false"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="accent"
+                  value="#4f766f"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="title"
+                  value="Field note"
+                ></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preset label="Trail alert">
+                <lf-playground-setting for="radius" value="4"></lf-playground-setting>
+                <lf-playground-setting
+                  for="compact"
+                  value="true"
+                ></lf-playground-setting>
+                <lf-playground-setting for="tone" value="bold"></lf-playground-setting>
+                <lf-playground-setting
+                  for="alignment"
+                  value="left"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="elevated"
+                  value="true"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="accent"
+                  value="#b6533c"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="title"
+                  value="Trail alert"
+                ></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preset label="Evening invite">
+                <lf-playground-setting for="radius" value="24"></lf-playground-setting>
+                <lf-playground-setting
+                  for="compact"
+                  value="false"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="tone"
+                  value="tinted"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="alignment"
+                  value="center"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="elevated"
+                  value="true"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="accent"
+                  value="#8b4a5f"
+                ></lf-playground-setting>
+                <lf-playground-setting
+                  for="title"
+                  value="Evening walk"
+                ></lf-playground-setting>
+              </lf-playground-preset>
+
+              <lf-playground-preview id="bg-card-preview">
+                <article
+                  id="bg-playground-card"
+                  aria-labelledby="bg-playground-card-title"
+                >
+                  <header class="bg-playground-card-head">
+                    <span>North ridge</span>
+                    <span class="bg-playground-card-distance">4.8 km</span>
+                  </header>
+                  <svg
+                    class="bg-playground-route"
+                    viewBox="0 0 320 96"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path
+                      class="bg-playground-contour"
+                      d="M-8 73 C35 36 76 36 111 58 S179 89 217 54 S282 10 330 32"
+                    ></path>
+                    <path
+                      class="bg-playground-contour"
+                      d="M-12 90 C30 56 74 55 112 75 S182 104 220 72 S284 30 333 48"
+                    ></path>
+                    <path
+                      class="bg-playground-path"
+                      d="M10 75 C54 69 61 28 104 33 S156 78 195 59 S239 19 303 24"
+                    ></path>
+                    <circle class="bg-playground-point" cx="10" cy="75" r="5"></circle>
+                    <circle class="bg-playground-point" cx="303" cy="24" r="5"></circle>
+                  </svg>
+                  <div class="bg-playground-card-copy">
+                    <h5 id="bg-playground-card-title"></h5>
+                    <p>Follow the alder trail to the dusk overlook.</p>
+                  </div>
+                  <footer class="bg-playground-card-foot">
+                    <span>Depart 18:40</span>
+                    <span>11 °C · light rain</span>
+                  </footer>
+                </article>
+              </lf-playground-preview>
+              <lf-playground-output id="bg-card-instruction">
+                Style the card with a corner radius of
+                <lf-playground-value for="radius"></lf-playground-value>, compact
+                spacing set to
+                <lf-playground-value for="compact"></lf-playground-value>, a
+                <lf-playground-value for="tone"></lf-playground-value> tone,
+                <lf-playground-value for="alignment"></lf-playground-value> alignment,
+                elevation set to
+                <lf-playground-value for="elevated"></lf-playground-value>, and
+                <lf-playground-value for="accent"></lf-playground-value> accents. Keep
+                the title “<lf-playground-value for="title"></lf-playground-value>.”
+              </lf-playground-output>
+            </lf-playground>
+          </lf-ask>
+        </section>
+
         <section id="bg-quoted-and-visual">
           <p class="eyebrow bg-feature-elements">
             lf-specimen · lf-shot · lf-options · lf-option · lf-swipe-deck ·
             lf-swipe-pile · lf-swipe-card
           </p>
-          <h3 id="bg-quoted-and-visual-heading">
+          <h3>
             <strong>Specimen</strong> and <strong>Shot</strong
             ><span class="bg-feature-detail">: fiction and before/after images</span>
           </h3>
@@ -2320,9 +2609,166 @@ gallery/
         </section>
       </section>
 
+      <section
+        class="interaction-gallery"
+        id="bg-interactions"
+        aria-labelledby="bg-interactions-title"
+        data-interaction-gallery
+      >
+        <p class="eyebrow bg-feature-elements">
+          Core · lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board ·
+          lf-column · lf-card · Thread Button · Threads panel · Swipe package ·
+          lf-swipe-deck · lf-swipe-pile · lf-swipe-card
+        </p>
+        <h2 id="bg-interactions-title">
+          <strong>Interactions</strong
+          ><span class="bg-feature-detail">: motion and input sequences</span>
+        </h2>
+        <p id="bg-interactions-guide">
+          Selecting a tab starts its focused sequence against Leaf’s production
+          component and transition code. Page-wide controls run inside the preview box,
+          so the gallery around it stays still. Pause while it plays, or replay from the
+          beginning; neither action writes to the page’s event log.
+        </p>
+
+        <lf-tabs id="bg-interaction-tabs">
+          <lf-tab id="bg-interaction-accept" label="Accept a suggestion">
+            <figure class="interaction-demo" data-interaction-demo="accept">
+              <div class="interaction-stage">
+                <p class="eyebrow">proposed release note</p>
+                <p class="interaction-stage-copy" id="bg-motion-accept-copy">
+                  The importer now
+                  <lf-suggestion id="bg-motion-accept"
+                    ><lf-old>usually finishes</lf-old
+                    ><lf-new>finishes</lf-new></lf-suggestion
+                  >
+                  before the next run begins.
+                </p>
+                <span class="interaction-pointer" hidden aria-hidden="true"></span>
+              </div>
+              <figcaption>
+                The pointer presses Accept; Leaf folds away the retired wording and
+                leaves the sentence in its settled state.
+              </figcaption>
+            </figure>
+          </lf-tab>
+
+          <lf-tab id="bg-interaction-move" label="Move a card">
+            <figure class="interaction-demo" data-interaction-demo="move-card">
+              <div class="interaction-stage interaction-board-stage">
+                <lf-board id="bg-motion-board">
+                  <lf-column id="bg-motion-ready" label="Ready">
+                    <lf-card id="bg-motion-card">
+                      <strong>Verify migration</strong>
+                      Run the schema sample.
+                    </lf-card>
+                  </lf-column>
+                  <lf-column id="bg-motion-tried" label="Tried"></lf-column>
+                </lf-board>
+                <span class="interaction-pointer" hidden aria-hidden="true"></span>
+              </div>
+              <figcaption>
+                The pointer finds the card’s grip, then Leaf plays the same placement
+                transition used after a keyboard or drag move.
+              </figcaption>
+            </figure>
+          </lf-tab>
+
+          <lf-tab id="bg-interaction-comment" label="Send a comment">
+            <figure
+              class="interaction-demo"
+              data-interaction-demo="send-comment"
+              data-interaction-thread-id="2be2443f0bb6cc49fc86b52f340e6073"
+            >
+              <div class="interaction-stage interaction-frame-stage">
+                <iframe
+                  class="interaction-frame"
+                  data-interaction-frame
+                  data-interaction-eyebrow="review note"
+                  data-interaction-target="bg-thread-text"
+                  data-interaction-title="Agenda draft"
+                  data-interaction-copy="The sample agenda has room for one more topic."
+                  title="Contained Leaf comment animation"
+                  tabindex="-1"
+                  aria-hidden="true"
+                ></iframe>
+                <kbd class="interaction-keypress" data-interaction-keypress hidden
+                  >⌘/Ctrl + Enter</kbd
+                >
+                <span class="interaction-pointer" hidden aria-hidden="true"></span>
+              </div>
+              <figcaption>
+                Leaf’s real response field submits with ⌘/Ctrl+Enter, then becomes the
+                real inline thread. A seeded comment lets the gallery replay that
+                accepted-send transition without posting another one.
+              </figcaption>
+            </figure>
+          </lf-tab>
+
+          <lf-tab id="bg-interaction-threads" label="Open and close Threads">
+            <figure class="interaction-demo" data-interaction-demo="open-threads">
+              <div class="interaction-stage interaction-frame-stage">
+                <iframe
+                  class="interaction-frame"
+                  data-interaction-frame
+                  data-interaction-eyebrow="review workspace"
+                  data-interaction-title="Release notes"
+                  data-interaction-target="bg-thread-text"
+                  data-interaction-copy="The sample agenda has room for one more topic."
+                  title="Contained Leaf Threads animation"
+                  tabindex="-1"
+                  aria-hidden="true"
+                ></iframe>
+                <span class="interaction-pointer" hidden aria-hidden="true"></span>
+              </div>
+              <figcaption>
+                The pointer presses the real top-bar control inside a compact Leaf page;
+                the production Threads workspace opens and closes without changing this
+                gallery page.
+              </figcaption>
+            </figure>
+          </lf-tab>
+
+          <lf-tab id="bg-interaction-swipe" label="Swipe a card">
+            <figure
+              class="interaction-demo"
+              data-interaction-demo="swipe-card"
+              data-interaction-module="/widgets/lf-swipe-deck.js"
+            >
+              <div class="interaction-stage interaction-swipe-stage">
+                <lf-ask id="bg-motion-swipe-ask">
+                  <h3>Keep this follow-up?</h3>
+                  <lf-swipe-deck id="bg-motion-swipe">
+                    <lf-swipe-pile id="bg-motion-swipe-queue" verdict="unseen">
+                      <lf-swipe-card id="bg-motion-swipe-card">
+                        <strong>Document the keyboard route</strong>
+                        <p>Keep the interaction reachable without a pointer.</p>
+                      </lf-swipe-card>
+                    </lf-swipe-pile>
+                    <lf-swipe-pile
+                      id="bg-motion-swipe-pass"
+                      verdict="pass"
+                    ></lf-swipe-pile>
+                    <lf-swipe-pile
+                      id="bg-motion-swipe-keep"
+                      verdict="keep"
+                    ></lf-swipe-pile>
+                  </lf-swipe-deck>
+                </lf-ask>
+                <span class="interaction-pointer" hidden aria-hidden="true"></span>
+              </div>
+              <figcaption>
+                The pointer presses Keep; the swipe package plays its real exit motion
+                while the projected placement moves the card into Kept.
+              </figcaption>
+            </figure>
+          </lf-tab>
+        </lf-tabs>
+      </section>
+
       <section id="bg-version-changes">
         <p class="eyebrow bg-feature-elements">Version picker · Change Button</p>
-        <h2 id="bg-version-changes-heading">
+        <h2>
           <strong>Version changes</strong
           ><span class="bg-feature-detail">: comparison evidence</span>
         </h2>
@@ -2337,7 +2783,7 @@ gallery/
         <p class="eyebrow bg-feature-elements">
           lf-board · lf-column · lf-card · delivery Buttons
         </p>
-        <h2 id="bg-delivery-heading">
+        <h2>
           <strong>Board</strong> and <strong>delivery state</strong
           ><span class="bg-feature-detail">: work and handoff state</span>
         </h2>

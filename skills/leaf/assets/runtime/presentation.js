@@ -30,10 +30,10 @@
      theme.
    - `renderSettlement` (projection.js) paints the holder's authoritative settlement.
    - `renderRetired` marks slots retired by the declared holder relation.
-   - The decision model (decisions/model.js) reads `x-awaits`, while the decision tray
-     projects a declared `x-decision` region around that source where one exists;
+   - The Ask model (asks/model.js) reads `x-awaits`, while the Ask tray
+     projects a declared `x-ask-surface` region around that source where one exists;
      neither names a tag.
-   - A holder declaring `x-request.decision` joins that same decision projection only
+   - A holder declaring `x-request.ask` joins that same Ask projection only
      while its canonical request lifecycle is `ready`. Pending and completed requests
      are the host's turn; a failed receipt returns the holder to the reader without a
      package-maintained pending flag.
@@ -82,7 +82,7 @@ import { highlightBlocks } from "./syntax.js";
 // replay signature must keep seeing it — its own gate is RETIRED_SLOTS, not the sigs.
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   class: "class",
-  decision: "data-lf-decision",
+  ask: "data-lf-ask",
   done: "data-lf-done",
   restated: "data-lf-restated",
   retired: "data-lf-retired",
@@ -106,6 +106,27 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 export const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 export const pagePresented = () =>
   document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
+
+// The one initial turn in which box-derived page apparatus can read the complete
+// authoritative layout before the browser paints it. Widget upgrade gives components
+// enough geometry to build, while presentation adds replay, restored chrome, and
+// fragment reveal. Components keep observing later real layout changes through their
+// ordinary ResizeObserver or layout signal; this event exists only to replace a
+// provisional startup reading with the first visible one synchronously.
+export const PRESENTATION = "lf-presentation";
+
+// Optional runtime-owned page interface joins the same settlement boundary as the
+// widget modules it composes. Initial startup and an in-place version activation both
+// pass here, so a dynamically imported surface cannot appear after either page is
+// already in front of the reader.
+export const PAGE_INTERFACE = "lf-page-interface";
+export async function settlePageInterface() {
+  const pending = [];
+  document.dispatchEvent(new CustomEvent(PAGE_INTERFACE, { detail: { pending } }));
+  // Each optional owner reports its own failure. One rejected surface must not keep
+  // every generated control on the page hidden behind the presentation boundary.
+  await Promise.allSettled(pending);
+}
 
 // A word for a reader listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed after the element's leading title,
@@ -517,11 +538,11 @@ export function renderSaid(root) {
 //
 // Its two neighbours in that vocabulary stay silent, and the line between them is what
 // the paint is the only copy of. A retraction is one: nothing else on the page says the
-// decision was undone. data-lf-reader-override and data-lf-reported are not — each marks a state
-// whose substance is already in the control and receipt's visual and semantic state (a
-// check, tint, and visible "Accepted") or the status this pass speaks. The outline
-// identifies the state as a reader override or provisional report; work receipts
-// separately state whether the agent has processed it.
+// decision was undone. data-lf-reader-override and data-lf-reported are not — each marks a
+// state whose substance is already in the widget's visible and semantic state (for
+// example, a selected option's check and tint) or the status this pass speaks. The
+// outline identifies the state as a reader override or provisional report; work
+// receipts separately state whether the agent has processed it.
 function quietFacts(el) {
   const words = el.hasAttribute(PAGE_PAINT_ATTRIBUTE.restated)
     ? ["rewritten since your decision"]

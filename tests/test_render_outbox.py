@@ -26,9 +26,11 @@ from render_support import (
     actions,
     author_test_widget,
     composer_quote,
+    holding,
     leaf_page,
     live_url,
     mark_shows_beside_composer,
+    navigate,
     nudge,
     open_page,
     panel_settled,
@@ -110,7 +112,7 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     sent = _traffic(page).sends
     threads.nth(0).locator(".lf-resolve").click()
-    _until(page, lambda traffic: traffic.sends > sent, "held the second resolution")
+    holding(page, held, 1, "the second resolution")
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
     page.keyboard.press("z")
     assert _traffic(page).sends == sent + 1
@@ -237,7 +239,7 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     page.locator("#card-baffle .lf-grip").focus()
     for key in move:
         page.keyboard.press(key)
-    _until(page, lambda t: t.sends >= 2, "sent the move it was asked for")
+    holding(page, held, 1, "the move it was asked for")
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
     page.keyboard.press("z")
     assert _traffic(page).sends == 2, (
@@ -430,7 +432,9 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     # accepted event whose authoritative state is still incomplete.
     first_item = page.locator('[data-lf-margin-for="sug-refill"]')
     first_item.get_by_role("button", name=re.compile(r"^Undo accepting")).click()
-    expect(first_item.locator(".lf-sug-receipt")).to_have_text("Undo failed · Accepted")
+    expect(first_item.locator(".lf-margin-receipt")).to_have_text(
+        "Undo failed · Accepted"
+    )
     assert _traffic(page).sends == sent
     first_item.get_by_role("button", name="Cancel", exact=True).click()
 
@@ -1256,10 +1260,10 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
 def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     browser, serve
 ):
-    """A record-less decision waits for the log instead of painting optimistically.
-    If the first complete read contains both that decision and its undo, replay leaves
-    authored markup standing. The send continuation must not paint the withdrawn
-    decision after that authoritative read has released it."""
+    """An optimistic record-less decision still yields to the first complete read.
+    If that read contains both the decision and its undo, replay leaves authored markup
+    standing. The send continuation must not repaint the withdrawn decision after that
+    authoritative read has released it."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
     errors = watched(page)
@@ -1296,6 +1300,8 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
     assert errors == []
     held[0].fulfill(response=accepted_answer)
+    page.wait_for_timeout(100)
+    expect(page.locator(".lf-live")).not_to_contain_text("Accepted suggested change")
     page.unroute("**/api/event")
     page.close()
 
@@ -1341,6 +1347,8 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
     ]
     assert errors == []
     held[0].fulfill(response=accepted_answer)
+    page.wait_for_timeout(100)
+    expect(page.locator(".lf-live")).not_to_contain_text("Accepted suggested change")
     page.unroute("**/api/event")
     page.close()
 
@@ -1586,7 +1594,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
     expect(draft.locator("textarea")).to_have_value("Local C")
 
     page.keyboard.press("Meta+Enter")
-    _until(page, lambda traffic: traffic.sends > 0, "staged the draft commit")
+    holding(page, held, 1, "the draft commit")
     expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
     assert len(held) == 1
 
@@ -1653,12 +1661,12 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     old = page.locator("#sug-refill lf-old")
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
     expect(old).to_be_visible()
-    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/3")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
 
     accept.click()
     round_trip(page)
     expect(old).to_be_hidden()
-    expect(page.locator(".lf-decisions")).to_have_text("Asks 1/3")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/3")
 
     undo(page)
     # Pending again, in every reading of it: the retired half is back on the page,
@@ -1668,7 +1676,7 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_have_attribute(
         "aria-label", re.compile(r"^Accept the suggested change")
     )
-    expect(page.locator(".lf-decisions")).to_have_text("Asks 0/3")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
     assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
         "undo left more than one control row for the same suggestion"
     )
@@ -1917,7 +1925,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
 
     undo(one)
     expect(two.locator("#sug-refill lf-old")).to_be_visible()
-    expect(two.locator(".lf-decisions")).to_have_text("Asks 0/3")
+    expect(two.locator(".lf-asks")).to_have_text("Asks 0/3")
     # Everything the change had when it was pending, including what the theme paints
     # from ranges the module registers — a rebuild that dropped those would leave a
     # proposal on the page with nothing marking what it changes.
@@ -1977,7 +1985,7 @@ def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
 
     again, errors = open_page(browser, url)
     expect(again.locator("#sug-refill lf-old")).to_be_visible()
-    expect(again.locator(".lf-decisions")).to_have_text("Asks 0/3")
+    expect(again.locator(".lf-asks")).to_have_text("Asks 0/3")
     assert errors == []
     again.close()
 
@@ -2174,13 +2182,16 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
         "v2 rewrote the passage and the page marked it anyway"
     )
 
-    page.goto(url)
-    page.wait_for_selector("#p")
+    # Through the page's own readiness rather than the paragraph's arrival in markup:
+    # the restore of a standing draft is part of presenting the page, and a gesture made
+    # before that is a gesture the reader could not have made.
+    navigate(page, errors, url)
     page.locator("#p").click(click_count=3)
     expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
     expect(page.locator(".lf-fab-input")).to_have_value(
         "half-written when the version turned over"
     )
+    # The words come back; the reader's keyboard does not go with them.
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     quote = composer_quote(page)
     assert quote["text"] == f"“{passage}”", f"the quote says {quote['text']!r}"

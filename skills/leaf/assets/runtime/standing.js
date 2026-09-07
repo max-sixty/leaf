@@ -1,13 +1,13 @@
-/* Where the reader is standing, painted: the ring on the decision they are in, the mark on
+/* Where the reader is standing, painted: the ring on the Ask they are in, the mark on
    the passage of the comment they are in, the focused box's hint, and the line saying what
    the next press does from there. One repaint, because it is one question — every reading
-   is of the focus and the open-decision list, and every signal that moves either (a focus
+   is of the focus and the open-Ask list, and every signal that moves either (a focus
    move, an answer taken, a poll, a widget's own state) moves them all.
 
    The frame that carries this paint is the register's (scopes.js: paintHere), which is
    where every module that declares keys asks for it; leaf.js registers this painting
    into that frame as its first boot step. */
-import { markHere } from "./decisions/view.js";
+import { markHere } from "./asks/view.js";
 import { paintStanding } from "./anchors.js";
 import { renderLine } from "./keyboard/keyline.js";
 import { syncLayout } from "./chrome-layout.js";
@@ -30,7 +30,7 @@ export function paintStandingChrome() {
   // The chips are where the reader can go, beside the ring saying where they are and the
   // line saying what the next press does — one paint, because a chip repainted by its
   // own door alone went stale on the door it did not
-  // have: a poll that retires a decision moves the list under an armed window, and only the
+  // have: a poll that retires an Ask moves the list under an armed window, and only the
   // panel's own render was calling the chip pass.
   paintAddresses();
   paintTargets();

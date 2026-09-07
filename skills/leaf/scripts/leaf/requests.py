@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from .decisions import quoted_in
+from .asks import quoted_in
 from .host import message_identity
 from .leases import contract_writer
 from .registry.contract import schema_error
@@ -207,7 +207,7 @@ def request_lifecycles(events: list) -> list[dict]:
 @contract_writer
 def cmd_receipt(page_dir: Path, request: str, status: str, text) -> None:
     """Append the one terminal host outcome linked to a reader request."""
-    body = read_text_arg(text)
+    body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         event = {
             "kind": "receipt",

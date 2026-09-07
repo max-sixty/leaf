@@ -3,11 +3,11 @@
 import sys
 from pathlib import Path
 
-from leaf.data import read_data_store
+from leaf.data import read_data
 from leaf.data_contracts import data_binding_errors
 from leaf.files import list_revisions
 from leaf.registry.storage import require_registry
-from leaf.structure import _StructParser, parse_revision, parse_structure
+from leaf.structure import StructParser, parse_revision, parse_structure
 from leaf.thread_context import thread_structure
 
 from .instances import reference_errors, thread_markup_contract_errors
@@ -16,14 +16,29 @@ from .markup import (
     media_errors,
     reserved_ids_error,
     reserved_marker_errors,
+    text_media_errors,
 )
 
 
-def read_text_arg(text) -> str:
+def read_text_arg(page_dir: Path, text) -> str:
+    """Every body an agent writes, read at the one place they all come through.
+
+    Prose needs no vocabulary gate — the runtime escapes every tag in it, so it
+    cannot claim a widget — but its Markdown can point at a file, and a picture the
+    directory hasn't got is a broken image in an append-only log for as long as the
+    page exists. `check_markup` asks that of `--markup` and runs only when one is
+    given; this asks it of the link and image destinations beside it, which is where
+    the runtime resolves one — a path quoted in a sentence stays the author's words."""
     body = text if text is not None else sys.stdin.read()
     if not body.strip():
         sys.exit("empty text (pass --text or pipe via stdin)")
-    return body.strip()
+    body = body.strip()
+    if errs := text_media_errors(body, page_dir):
+        sys.exit(
+            "text names media the page directory hasn't got:\n"
+            + "\n".join(f"  - {e}" for e in errs)
+        )
+    return body
 
 
 def version_ids(page_dir: Path) -> set:
@@ -33,12 +48,14 @@ def version_ids(page_dir: Path) -> set:
     return ids
 
 
-def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> _StructParser:
+def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> StructParser:
     """A message's widget markup, validated against the vendored registry at post
     time — the discussion-side `version check`, and the field's one gate: the browser
     door refuses `markup` outright, so nothing reaches the log under that name
-    unvalidated. Text needs no gate at all — the runtime renders it with every tag
-    escaped, so it cannot claim a widget. Exits with what's wrong."""
+    unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
+    escaped, so it cannot claim a widget — but its Markdown can still point at a file,
+    which `read_text_arg` asks about wherever a body arrives. Exits with what's
+    wrong."""
     registry = require_registry(page_dir)
     frag = parse_structure(markup)
     # Two gates beside the vocabulary contract rather than inside it. That contract is
@@ -56,7 +73,7 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> _Struc
         + data_binding_errors(
             page_dir,
             registry,
-            read_data_store(page_dir),
+            read_data(page_dir),
             events,
             incoming=[(frag.lf_elements, f"incoming {kind} markup")],
         )

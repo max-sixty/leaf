@@ -1,6 +1,6 @@
 {
   "lf-swipe-deck": {
-    "description": "One rapid architecture-backlog Ask. Put it inside lf-decision with a heading that states the question. Cards begin in the `unseen` pile; the reader sends each active card to the `pass` or `keep` pile with the labeled buttons, ArrowLeft/ArrowRight, or a horizontal pointer swipe. Intermediate classifications reach the agent as absolute `swipe` actions; the final one is a `finish` action with the same position record, and that verb completes the Ask only when its recorded move leaves `unseen` empty. Children are exactly one lf-swipe-pile for each verdict. Re-emit the authored starting order unchanged on later versions: recorded classifications carry forward by card id. Rewriting an intermediate classified card needs `restated` on that card; invalidating a completed deck needs `restated` on the deck.",
+    "description": "One rapid architecture-backlog Ask. Put it inside lf-ask with a heading that states the question. Cards begin in the `unseen` pile; the reader sends each active card to the `pass` or `keep` pile with the labeled buttons, ArrowLeft/ArrowRight, or a horizontal pointer swipe. Intermediate classifications reach the agent as absolute `swipe` actions; the final one is a `finish` action with the same position record, and that verb completes the Ask only when its recorded move leaves `unseen` empty. Children are exactly one lf-swipe-pile for each verdict. Re-emit the authored starting order unchanged on later versions: recorded classifications carry forward by card id. Rewriting an intermediate classified card needs `restated` on that card; invalidating a completed deck needs `restated` on the deck.",
     "type": "object",
     "properties": {
       "id": {
@@ -110,7 +110,7 @@
         "finish"
       ]
     },
-    "x-example": "<lf-decision id=\"session-triage-decision\">\n  <h2>Which session-store follow-ups should we keep?</h2>\n  <lf-swipe-deck id=\"session-triage\">\n    <lf-swipe-pile id=\"session-queue\" verdict=\"unseen\">\n      <lf-swipe-card id=\"session-expiry\"><strong>Rolling expiry writes</strong><p>Move expiry refreshes off the request hot path.</p></lf-swipe-card>\n    </lf-swipe-pile>\n    <lf-swipe-pile id=\"session-pass\" verdict=\"pass\"></lf-swipe-pile>\n    <lf-swipe-pile id=\"session-keep\" verdict=\"keep\"></lf-swipe-pile>\n  </lf-swipe-deck>\n</lf-decision>"
+    "x-example": "<lf-ask id=\"session-triage-decision\">\n  <h2>Which session-store follow-ups should we keep?</h2>\n  <lf-swipe-deck id=\"session-triage\">\n    <lf-swipe-pile id=\"session-queue\" verdict=\"unseen\">\n      <lf-swipe-card id=\"session-expiry\"><strong>Rolling expiry writes</strong><p>Move expiry refreshes off the request hot path.</p></lf-swipe-card>\n    </lf-swipe-pile>\n    <lf-swipe-pile id=\"session-pass\" verdict=\"pass\"></lf-swipe-pile>\n    <lf-swipe-pile id=\"session-keep\" verdict=\"keep\"></lf-swipe-pile>\n  </lf-swipe-deck>\n</lf-ask>"
   },
   "lf-swipe-pile": {
     "description": "One semantic pile in a swipe deck. Supply exactly one pile for each `verdict`: `unseen` is the ordered queue, `pass` is out of scope, and `keep` is retained for follow-up. Children are lf-swipe-card elements only; cards are reparented here as recorded position state, so the verdict attribute is the classification and no card-level status is needed.",

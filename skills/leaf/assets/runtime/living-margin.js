@@ -5,7 +5,7 @@
    fitting a Button: like a coat button, it is one consistent piece attached to the
    passage, not a synonym for every HTML `<button>` on the page. The cluster is the single
    place for controls the reader can use on the target, communications they can start
-   about it, and standing information such as comment threads, decisions, changes, or
+   about it, and standing information such as comment threads, Asks, changes, or
    agent activity.
 
    At rest a cluster has a two-Button budget: the primary and one peer, or the primary and
@@ -29,6 +29,11 @@
    completion and escape actions take the first fittings, so the density limit cannot hide
    the way to finish or leave the active interaction.
 
+   An explicit owner-focused mode temporarily derives the rail from one contribution
+   alone, while Page map retains the target's complete inventory. This is how a mode with
+   six declared choices uses six direct fittings even when the target already carries a
+   reading or unrelated action; closing it restores the ordinary cluster.
+
    Keyboard arrival unfolds that same cluster immediately: Tab into any of its Buttons
    replaces `…` with the expanded set, and Left/Right wrap through those visible Buttons.
    A pointer press on `…` makes the same replacement and lands on the first revealed
@@ -39,16 +44,17 @@
    expansion state for both keyboard and pointer routes; focus does not create a parallel
    presentation. A category walk that lands on a Button does not unfold its peers: it is
    navigation rather than Tab arrival, so one Escape still lets go of the destination the
-   walk put down. A numbered Page-map address arrives the same way and then presses that
+   walk put down. A generated Page-map hint arrives the same way and then presses that
    Button, so anything unfolded there is the press's own result rather than the arrival's,
    and Escape still lets go of where the press left the reader.
 
    An unsettled reader action reuses that same Button rather than growing a status row
-   inside authored content. Its information face advances from Sent or Waiting for pickup
-   to Picked up, then to Active only when a typed local claim exists; an acknowledgment
-   keeps the same retained target cluster throughout that live handoff. The first three
-   phases report a move already made, so the Button wears the flat `status` behavior
-   below. Active raises it back into a disclosure. Once no receipt or claim is live, the
+   inside authored content. Its server-projected information face advances from Sent or
+   Waiting for pickup to Queued or Picked up, then to Active only when a typed local
+   claim exists; an acknowledgment keeps the same retained target cluster throughout
+   that live handoff. The delivery phases report a move already made, so the Button
+   wears the flat `status` behavior below. Active raises it back into a disclosure.
+   Once no receipt or claim is live, the
    generated Button disappears; the widget and action projection carry the durable state.
    A thread's existing Thread Button remains the page-edge route to the exact receipt in
    the full conversation; an Active claim joins that engaged cluster as an exposed peer. A
@@ -62,14 +68,14 @@
    concise semantic subject used to name that target away from its own paint. Supply it
    only when plain text concatenation loses a relation the widget paints visually, such as
    a rewrite's `old → new`; contributions at the same target must agree. `state` is a
-   value or live reading of `idle`, `engaged`, `busy`, `failed`, or `settled`; active
-   states keep the owner's peers exposed. A contribution item that sets `represents` and
+   value or live reading of `idle`, `engaged`, `busy`, or `failed`; every state but idle
+   keeps the owner's peers exposed. A contribution item that sets `represents` and
    names its `kind` is also the visible reading of that state, so the margin suppresses a
    generated reading of the same kind at that exact target rather than showing the fact
    twice. Every fitting in a contribution is built with `marginButton(control, {key, icon,
    label, context, behavior, tone, role, state, writesRelation, writesSeat})`; an
    authored reaction can supply `glyph` instead of `icon`, never both. That is the one RHS control type: it owns the circle,
-   size, type, focus, state paint, and glyph/word anatomy shared by decisions, editing,
+   size, type, focus, state paint, and glyph/word anatomy shared by Asks, editing,
    communications, and information triggers. Its behavior states what the fitting
    promises. Behavior, tone, and state are independent axes: never use a heavier border to
    mean positive, busy, selected, or complete.
@@ -123,21 +129,24 @@
    reading gets its own peer Button under `…`; pressing one reveals that reading directly
    rather than collecting readings in a card. All threads at one target share one Thread
    Button and one conversation card. That card opens only on a press, never merely on
-   focus or hover; when the document cannot leave it room beside the source, the same
-   press opens the full Threads surface. The thread card is the only generated contextual
-   pane, not a generic container for alternatives.
+   focus or hover. It stands beside the source where the document leaves room and covers
+   the page where it does not; only an already-open Threads panel redirects the press to
+   the complete index. The thread card is the only generated contextual pane, not a
+   generic container for alternatives.
 
    Tone is `neutral`, `positive`, or `negative`, expressed through icon color only; rings,
-   fills, and state marks keep their shared neutral treatment. An interactive Button's
-   state has a separate small corner mark: a dot for engaged, an open moving ring for busy
-   (static under reduced motion), a diamond for failed, and a square for settled. The mark
-   is enough to state that a Button is busy, so the Button itself stays at full opacity
-   and keeps its pointer. Busy also sets `aria-busy="true"`; failed and settled actions
-   need visible words, not color or shape alone. A status's phase is its transient hover
-   or focus label instead of a corner mark. Standing reactions reuse the settled square in
-   their margin palette and seated marks, so they remain distinct from hover without
-   changing the shared ring or fill. Reaction toggles retain their vocabulary labels and
-   `aria-pressed`; withdrawing a token returns its palette Button to idle.
+   fills, and the busy mark keep their shared neutral treatment. `busy` is the one state
+   that paints: a small open moving ring at the corner (static under reduced motion). It
+   paints because it is the only state nothing else on the page states — a busy Button
+   stays at full opacity and keeps its pointer, so with no ring an in-flight press looks
+   idle — and because a moving outline is the one mark this size a reader can still
+   resolve. Busy also sets `aria-busy="true"`. The other states carry the same ordering
+   and fold-open weight while painting nothing, because each already has words beside it:
+   a failure keeps visible words beside the controls that can repair it, and an engaged
+   Button stands next to the open interaction it belongs to. A status's phase is its
+   transient hover or focus label. Reaction toggles retain their vocabulary labels and
+   `aria-pressed`, which is what their palette fill reads; a standing reaction mark exists
+   only while its reaction stands, so its presence is the whole of what it has to say.
    `marginButtonState(control, state)` changes that axis without changing the verb, ring,
    or tone. Built-in faces use the shared monochrome SVG vocabulary with `currentColor`;
    emoji and font-dependent symbols are not structural icons. Reaction glyphs are content
@@ -158,8 +167,9 @@
    engaged. Reversible actions normally act immediately and offer Undo, which withdraws
    the named logged gesture under the same authored-version, replayability, and
    pending-delivery guards as keyboard Undo. Confirmation is for a genuinely irreversible
-   effect, not routine Save or Accept. Settled outcomes are visible receipt text beside an
-   active Undo or context disclosure: never leave an inert Button-shaped status.
+   effect, not routine Save or Accept. The layer-wide submission lifecycle in CLAUDE.md
+   governs feedback; a settled cluster keeps only the actions still available there, such
+   as Undo, and never leaves an inert Button-shaped status.
 
    The Page-map keyboard scope owns the cluster's way back out. When a thread card stands
    over an unfolded `…` group, Escape closes the card first and folds the secondary
@@ -186,14 +196,14 @@
    belongs to the name alone. Painted beside the phase, the same words read as progress
    rather than position.
 
-   Hover or focus on any interactive fitting illuminates its exact target, including a
-   cluster displaced by packing. Hovering a status shows its label and connects it to the
-   target with a softer neutral trace, without lifting the fitting or borrowing the accent
-   ring that promises interaction. A numbered Page-map arrival may still focus it and
-   illuminate the target deliberately. Labels stay inside the viewport without moving the
-   fitting. Dense and narrow-screen tests must exercise that association and activate an
-   excess action through Page map; counting hidden DOM nodes is not evidence of
-   reachability.
+   Hover or focus on any interactive fitting connects it to its exact target with the same
+   quiet neutral trace, including when packing displaced the cluster. The trace is
+   correspondence, not keyboard focus, so it never borrows the accent ring that promises
+   interaction. Hovering a status also shows its label without lifting the fitting. A
+   generated Page-map arrival may still focus a fitting and trace its target deliberately.
+   Labels stay inside the viewport without moving the fitting. Dense and narrow-screen
+   tests must exercise that association and activate an excess action through Page map;
+   counting hidden DOM nodes is not evidence of reachability.
 
    The living margin groups contributions and state readings by exact target identity,
    chooses the primary, and owns the generated disclosure and `…` Buttons plus the
@@ -212,9 +222,9 @@
    where the box is `display: none` is not a measurement.
 
    That ordered target collection is the Page map's complete location count and the source
-   for the `g m` address list. A location's disclosure Button announces its position in
-   the complete collection. The numbered chord exposes up to nine locations in the visible
-   window, starting at one. `g M` and the banner's Map control open the complete sheet,
+   for the generated `g` target list. A location's disclosure Button announces its
+   position in the complete collection. The chord exposes every actionable location in
+   the visible window. `g M` and the banner's Map control open the complete sheet,
    which projects the same currently available contributed controls in owner and role
    order, plus readings that have no direct control. An offered reading that merely
    describes its owner's controls is omitted there rather than becoming a parallel “open
@@ -232,13 +242,11 @@
    without replacing the control under focus or a held pointer.
 
    A thread card names the target without offering a second route to the panel the banner
-   already opens. At wide widths it is the conversation itself, measured eight pixels
-   beside the pressed Thread Button in the same turn it is shown or changes size. While
-   that Button keeps focus, `c` enters the card's one reply box; several roots leave the
-   destination ambiguous and preserve the page's ordinary route to the panel. Replacing an
+   already opens. It is the conversation itself, measured eight pixels beside the pressed
+   Thread Button when the page leaves that room; at narrower postures it covers the page.
+   While that Button keeps focus, `c` enters the card's one reply box; several roots leave
+   the destination ambiguous and preserve the page's ordinary comment route. Replacing an
    open panel waits for the column's workspace motion before choosing the card posture.
-   When the document cannot leave the card room beside its Button, the press opens the
-   full Threads surface instead.
 
    Closing is not the mirror of that. The platform hides the dialog and restores focus at
    once but hands `close` to a task of its own, so a reader who leaves a surface and
@@ -273,16 +281,10 @@ import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { keeps, keepsHidden, offer } from "./widget-elements.js";
 import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { landInConversation, showThread } from "./conversation/landing.js";
-import {
-  ago,
-  clocked,
-  droppedAt,
-  quietSince,
-  waitingForPickupSince,
-} from "./presence.js";
+import { ago, clocked } from "./presence.js";
 import { el } from "./widget-elements.js";
 import { runtime } from "./context.js";
-import { commentsEdge, panelIsOpen, setPanel } from "./chrome-layout.js";
+import { commentsEdge, panelIsOpen } from "./chrome-layout.js";
 import { designOn } from "./design.js";
 import { focused, keys, paintKeys } from "./keyboard/scopes.js";
 import { chromeRoot } from "./chrome.js";
@@ -302,30 +304,25 @@ import {
   itemWord,
   placedAt,
   scrollToElement,
+  scrollToThread,
   traceTarget,
 } from "./anchors.js";
 import { updateSequence, workClaimState } from "./updates.js";
 import { threadList } from "./conversation/reconcile.js";
-import { openDecisions } from "./decisions/model.js";
-import { goToDecision } from "./decisions/view.js";
+import { openAsks } from "./asks/model.js";
+import { goToAsk } from "./asks/view.js";
 import { stateProjection } from "./projection/fold.js";
 import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
-import { claimed } from "./conversation/surfaces.js";
+import { claimed, focusSurface } from "./conversation/surfaces.js";
 import { anchorLabel } from "./conversation/messages.js";
 import { renderMarginThread } from "./conversation/inline.js";
-
-// A status remains flat and inert while its hover trace identifies the target it reports
-// on. Target paint owns its rectangular or shaped geometry; the living margin owns when
-// this instance is shown.
-export const marginTraceBox = el("div", "lf-ui lf-margin-status-trace lf-target-paint");
-marginTraceBox.setAttribute("aria-hidden", "true");
 
 const KINDS = {
   action: { label: "Action", icon: "dot", priority: -1 },
   change: { label: "Change", icon: "change", priority: 0 },
   comment: { label: "Thread", icon: "comment", priority: 1 },
-  decision: { label: "Ask", icon: "question", priority: 2 },
+  ask: { label: "Ask", icon: "question", priority: 2 },
   sent: {
     label: "Sent",
     icon: "sent",
@@ -338,7 +335,7 @@ const KINDS = {
     icon: "pickup",
     priority: 3,
     indication: true,
-    state: "settled",
+    state: "idle",
   },
   waiting: {
     label: "Waiting for pickup",
@@ -356,23 +353,27 @@ const KINDS = {
 // reconnect while a live version replaces the authored document.
 const offeredItems = new Set();
 const offerListeners = new Set();
-const BUTTON_TONES = new Set(["neutral", "positive", "negative"]);
-const BUTTON_BEHAVIORS = new Set(["action", "disclosure", "status"]);
-const BUTTON_STATES = new Set(["idle", "engaged", "busy", "failed", "settled"]);
-const BUTTON_ROLES = new Set([
-  "complete",
-  "escape",
-  "primary",
-  "secondary",
-  "reading",
-  "overflow",
-]);
-const ACTIVE_STATES = new Set(["engaged", "busy", "failed"]);
+export const BUTTON_GRAMMAR = Object.freeze({
+  tones: Object.freeze(["neutral", "positive", "negative"]),
+  behaviors: Object.freeze(["action", "disclosure", "status"]),
+  states: Object.freeze(["idle", "engaged", "busy", "failed"]),
+  roles: Object.freeze([
+    "complete",
+    "escape",
+    "primary",
+    "secondary",
+    "reading",
+    "overflow",
+  ]),
+});
+const BUTTON_TONES = new Set(BUTTON_GRAMMAR.tones);
+const BUTTON_BEHAVIORS = new Set(BUTTON_GRAMMAR.behaviors);
+const BUTTON_STATES = new Set(BUTTON_GRAMMAR.states);
+const BUTTON_ROLES = new Set(BUTTON_GRAMMAR.roles);
 const STATE_PRIORITY = new Map([
   ["failed", 0],
   ["busy", 1],
   ["engaged", 2],
-  ["settled", 3],
   ["idle", 3],
 ]);
 const ROLE_PRIORITY = new Map([
@@ -767,7 +768,7 @@ function comesBefore(left, right) {
     : 1;
 }
 
-const acknowledgments = () => runtime.browser?.acknowledgments ?? [];
+const acknowledgments = () => runtime.activity?.interactions ?? [];
 export const renderMargin = clocked(document.body, renderNow);
 // The Button the reader is standing on, or null off one: the press row's words read it.
 const focusedButtonBehavior = () => focused()?.[BUTTON_RECORD]?.behavior ?? null;
@@ -830,14 +831,37 @@ preview.setAttribute("popover", "auto");
 preview.setAttribute("role", "dialog");
 const previewHead = el("div", "lf-margin-preview-head");
 const previewTitle = el("strong", "lf-margin-preview-title");
-const previewClose = el("button", "lf-btn lf-margin-preview-close", "×");
+const previewClose = el(
+  "button",
+  "lf-btn lf-icon-action lf-close-action lf-margin-preview-close",
+);
+previewClose.append(iconElement("cross", "lf-action-icon"));
 previewClose.type = "button";
 previewClose.setAttribute("aria-label", "Close thread");
+previewClose.title = "Close thread (Esc)";
 previewHead.append(previewTitle, previewClose);
 const previewList = el("div", "lf-margin-preview-list");
 preview.append(previewHead, previewList);
 let threadTransitionEpoch = 0;
 let threadTransitionMotions = [];
+
+// The submitted composer and a developer replay describe the same starting box; the
+// transition owns that geometry contract instead of making either caller duplicate it.
+export function threadTransitionOrigin(element, text) {
+  const box = element.getBoundingClientRect();
+  const style = getComputedStyle(element);
+  return {
+    left: box.left,
+    top: box.top,
+    width: box.width,
+    height: box.height,
+    backgroundColor: style.backgroundColor,
+    borderColor: style.borderColor,
+    borderRadius: style.borderRadius,
+    boxShadow: style.boxShadow,
+    text,
+  };
+}
 
 function clearThreadTransition() {
   threadTransitionEpoch += 1;
@@ -975,23 +999,18 @@ let previewShowing = false;
 let pinnedKey = null;
 let forcedInlineKey = null;
 let expandedOptionsKey = null;
+// An explicit mode can focus one contribution inside the target's existing cluster.
+// The rail then shows that owner's complete control set without spending fittings on
+// standing readings or unrelated actions; Page map still reads the whole entry.
+let expandedOptionsOwner = null;
 let hoveredHost = null;
-let hoveredBehavior = null;
 let settlingOptionsFocus = false;
 let suppressingOptionsArrival = false;
 let highlighted = null;
-let highlightedBehavior = null;
 let rovingFrame = 0;
 let sheetCloseOwnsFocus = false;
 let sheetFrom = null;
 let sheetTarget = null;
-// The cascade owns available room: panels and trays change the body's named
-// container, while an authored sidebar claims the page's left strip. Read the
-// posture it resolved instead of asking the viewport a different question.
-const threadBeside = () =>
-  getComputedStyle(document.querySelector("main"))
-    .getPropertyValue("--lf-thread-beside")
-    .trim() === "1";
 const controlsOf = (offered) => marginControls(offered.controls);
 const offerReadings = (offered) => {
   const items = typeof offered.items === "function" ? offered.items() : offered.items;
@@ -1004,9 +1023,9 @@ const offerState = (offered) => {
   return state;
 };
 // One target has one lifecycle reading. Failure outranks work in flight, which
-// outranks an open interaction; a settled status and the ordinary idle state never
-// force peers open. Generated acknowledgment readings join through the same state
-// axis rather than a second engagement flag.
+// outranks an open interaction; the ordinary idle state never forces peers open.
+// Generated acknowledgment readings join through the same state axis rather than a
+// second engagement flag.
 const entryState = (entry) => {
   const states = [
     ...entry.offers.map(offerState),
@@ -1020,7 +1039,9 @@ const entryState = (entry) => {
     )[0] ?? "idle"
   );
 };
-const entryEngaged = (entry) => ACTIVE_STATES.has(entryState(entry));
+// Every state but idle keeps the cluster open, so the reading is the absence of idle
+// rather than a second list of states beside the grammar's.
+const entryEngaged = (entry) => entryState(entry) !== "idle";
 // A modal or contextual thread surface temporarily owns focus without ending the
 // document interaction beneath it. Preserve that context so its commands remain
 // true and its owning Button can receive focus when the surface closes.
@@ -1231,18 +1252,18 @@ const readingControl = (className) => offer("span", className);
 
 // The one writer over a reading's disclosure relation, settling `aria-controls` and
 // `aria-expanded` together because a control that says it opens something has to say
-// whether it is open. Two shapes reach it. A Thread Button's destination is the panel's
-// posture to decide. Any other reading is asked what it discloses, and a single item
+// whether it is open. Two shapes reach it. A Thread Button opens the local card while the
+// panel is closed and the matching panel card while it is open. Any other reading is
+// asked what it discloses, and a single item
 // that answers has named the node and said which way it stands — the Change reading's
 // earlier words, folded into the block itself. An item answering nothing promises
 // nothing, which is what leaves a Change Button over a block the comparison holds no
 // earlier reading for the plain travel it always was.
 function syncReadingRelation(control, choice) {
   if (choice?.kind === "comment") {
-    const opensBeside =
-      !panelIsOpen() && (threadBeside() || forcedInlineKey === control.lfEntry?.key);
-    keeps(control, "aria-controls", opensBeside ? preview.id : panel.id);
-    if (opensBeside) keeps(control, "aria-expanded", previewButton === control);
+    const opensInline = !panelIsOpen();
+    keeps(control, "aria-controls", opensInline ? preview.id : panel.id);
+    if (opensInline) keeps(control, "aria-expanded", previewButton === control);
     else control.removeAttribute("aria-expanded");
     return;
   }
@@ -1319,8 +1340,7 @@ function groupFor(groups, target) {
   let group = groups.get(target);
   if (!group) {
     const key = targetPath(target);
-    const kindWord = itemWord(target);
-    const word = kindWord === "decision" ? "ask" : kindWord;
+    const word = itemWord(target);
     group = {
       key,
       target,
@@ -1342,43 +1362,31 @@ function add(groups, target, item) {
 }
 
 function visibleAcknowledgments() {
-  const visible = [];
-  for (const projected of acknowledgments()) {
-    if (projected.revision > runtime.currentRevision) continue;
-    if (projected.phase !== "active" || workClaimState().claimsHeld) {
-      visible.push(projected);
-      continue;
-    }
-    if (!projected.event) continue;
-    visible.push({
-      ...projected,
-      phase: projected.fallback_phase,
-      ts: projected.fallback_ts,
-      detail: null,
-    });
-  }
-  return visible;
+  return acknowledgments().filter(
+    (projected) => projected.revision <= runtime.currentRevision,
+  );
 }
 
 function acknowledgmentFace(receipt) {
   const age = ago(receipt.ts);
   if (receipt.phase === "active") {
-    const turnClosed =
-      receipt.session && receipt.session === workClaimState().claimingSession
-        ? workClaimState().agentTurnClosed
-        : null;
-    const quiet = quietSince(receipt.ts) || droppedAt(receipt.ts, turnClosed);
     return {
       kind: "activity",
-      text: ["Active", receipt.detail, quiet ? "quiet" : null]
+      text: ["Active", receipt.detail, receipt.quiet ? "quiet" : null]
         .filter(Boolean)
         .join(" · "),
       context: [age && `Checked in ${age}`, receipt.detail].filter(Boolean).join(" · "),
     };
   }
+  if (receipt.phase === "queued")
+    return { kind: "pickup", text: "Queued", context: age };
   if (receipt.phase === "picked_up")
-    return { kind: "pickup", text: "Picked up", context: age };
-  if (waitingForPickupSince(receipt.ts))
+    return {
+      kind: receipt.dropped ? "waiting" : "pickup",
+      text: receipt.dropped ? "Picked up · turn ended" : "Picked up",
+      context: age,
+    };
+  if (receipt.phase === "waiting")
     return {
       kind: "waiting",
       text: "Waiting for pickup",
@@ -1394,35 +1402,38 @@ function collectEntries() {
     receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
   }
   for (const thread of threadList()) {
-    if (thread.resolved || !thread.root.anchor || claimed(thread.root.id)) continue;
+    if (thread.resolved || !thread.anchor || claimed(thread.root.id)) continue;
     const id = thread.root.id;
     add(groups, placedAt(id)?.element, {
       kind: "comment",
       id: `comment:${id}`,
-      text: trimmed(
-        thread.root.text || anchorLabel(thread.root.anchor, thread.root.about),
-      ),
+      text: trimmed(thread.root.text || anchorLabel(thread.anchor, thread.root.about)),
       thread,
       activate: () => showThread(id),
     });
   }
 
-  const decisions = openDecisions();
-  for (const decision of decisions) {
-    const id = decision.id;
-    add(groups, decision, {
-      kind: "decision",
-      id: `decision:${id}`,
-      text: trimmed(`${itemWord(decision)} · ${itemSays(decision) || id}`),
+  const asks = openAsks();
+  for (const ask of asks) {
+    const id = ask.id;
+    add(groups, ask, {
+      kind: "ask",
+      id: `ask:${id}`,
+      text: trimmed(`${itemWord(ask)} · ${itemSays(ask) || id}`),
       activate: () => {
-        const standing = openDecisions();
+        const standing = openAsks();
         const next = standing.find((candidate) => candidate.id === id);
-        if (next) goToDecision(next, standing);
+        if (next) goToAsk(next, standing);
       },
     });
   }
 
   const projection = stateProjection();
+  const claimActivity = new Map(
+    acknowledgments()
+      .filter((item) => item.phase === "active")
+      .map((item) => [`${item.target.kind}:${item.target.id}`, item]),
+  );
   const activityAlreadyShown = new Set();
   for (const [coordinate, entry] of projection.desired) {
     if (entry.e.kind !== "action") continue;
@@ -1483,11 +1494,8 @@ function collectEntries() {
         update.target.kind === "thread"
           ? placedAt(update.target.id)?.element
           : elementById(update.target.id);
-      const turnClosed =
-        update.session && update.session === workClaimState().claimingSession
-          ? workClaimState().agentTurnClosed
-          : null;
-      const quiet = quietSince(update.ts) || droppedAt(update.ts, turnClosed);
+      const quiet =
+        claimActivity.get(`${update.target.kind}:${update.target.id}`)?.quiet ?? false;
       const account = [
         update.agent || "Agent",
         update.text || humanized(update.action),
@@ -1715,13 +1723,19 @@ function stepClusterButtons(binding) {
   });
 }
 
-function setOptionsOpen(entry, open, { returnFocus = false, focusOption = null } = {}) {
+function setOptionsOpen(
+  entry,
+  open,
+  { returnFocus = false, focusOption = null, owner = null } = {},
+) {
   const previousKey = expandedOptionsKey;
   const previousGroup = previousKey ? optionGroups.get(previousKey) : null;
   const nextKey = open ? (entry?.key ?? null) : null;
-  if (previousKey === nextKey) return;
+  const nextOwner = open ? owner : null;
+  if (previousKey === nextKey && expandedOptionsOwner === nextOwner) return;
   if (previewEntry) closePreview();
   expandedOptionsKey = nextKey;
+  expandedOptionsOwner = nextOwner;
   settlingOptionsFocus = true;
   try {
     renderMargin();
@@ -1762,44 +1776,46 @@ export function presentedControl(control) {
   return proxy?.checkVisibility() ? proxy : control;
 }
 
-export function openButtonOptions(target) {
+export function openButtonOptions(target, { owner = null } = {}) {
   renderMargin();
   const entry = pageMapEntries.find((candidate) => candidate.target === target);
   const more = entry && moreButtons.get(entry.key);
-  if (!entry || !more) return false;
-  if (expandedOptionsKey === entry.key) {
+  const focusedOffer = owner && entry?.offers.find((offered) => offered.key === owner);
+  if (!entry || !more || (owner && !focusedOffer)) return false;
+  if (expandedOptionsKey === entry.key && expandedOptionsOwner === owner) {
     const options = optionGroups.get(entry.key);
     if (options?.isConnected && !options.hidden) return true;
     expandedOptionsKey = null;
+    expandedOptionsOwner = null;
     renderMargin();
   }
-  if (more.hidden) return false;
-  setOptionsOpen(entry, true);
+  if (expandedOptionsKey === entry.key && expandedOptionsOwner !== owner) {
+    setOptionsOpen(entry, true, { owner });
+    return true;
+  }
+  if (!owner && more.hidden) return false;
+  setOptionsOpen(entry, true, { owner });
   return true;
 }
 
-export function pageMapItems() {
-  return pageMapEntries.map((entry) => hosts.get(entry.key)).filter(Boolean);
+export function pageMapButtons() {
+  return pageMapEntries.flatMap((entry) => clusterButtons(hosts.get(entry.key)));
 }
 
-export function openPageMapItem(item) {
+export function openPageMapButton(control) {
+  const item = closestAcross(control, "[data-lf-margin-for]");
   const entry = item?.lfEntry;
-  if (!entry?.target) return;
+  if (!entry?.target || !control) return false;
   scrollToElement(entry.target, undefined, "nearest");
-  const marker = rows.get(entry.key);
-  const control =
-    marker && !marker.hidden
-      ? marker
-      : clusterButtons(item).find((candidate) => candidate !== marker);
-  if (!control) return;
-  // Arrive before activation, then use the control's own press so this abbreviated
-  // Page-map route has the same meaning as its Button in the complete map.
+  // Arrive before activation, then use the exact visible Button's own press. A generated
+  // route never chooses among the cluster's actions on the reader's behalf.
   focusForNavigation(control);
   control.click();
+  return true;
 }
 
-// The direct destination opens the complete map. Its lowercase address list separately
-// numbers the visible locations without claiming the sheet ends there.
+// The direct destination opens the complete map. Its visible Buttons also join the page's
+// transient generated-hint namespace without claiming the sheet ends there.
 export function enterPageMap() {
   openSheet();
 }
@@ -1839,7 +1855,7 @@ function focusMapControl(entry = null) {
 }
 
 // The rail holds one tab stop: the way in from the page, not the reading position,
-// which the walk, the numbered addresses, and the pointer all reach without it. A
+// which the walk, generated go-to hints, and the pointer all reach without it. A
 // status reports a move already made, so the stop passes to the nearest marker that
 // still offers a press.
 function holdTabStop(next) {
@@ -1992,12 +2008,12 @@ function pressMarker(event) {
   openThreadChoice(marker.lfEntry, marker);
 }
 
-function paintMarker(row, entry, primary) {
+function paintMarker(row, entry, primary, { suppressed = false } = {}) {
   const { kinds: markerKinds, face, label, count: markerCount } = markerFace(entry);
   const choice = primaryReading(entry);
   const behavior = readingBehavior(face);
   row.lfEntry = entry;
-  keepsHidden(row, markerKinds.length === 0 || Boolean(primary));
+  keepsHidden(row, suppressed || markerKinds.length === 0 || Boolean(primary));
   keeps(row, "data-lf-kinds", markerKinds.map(({ kind }) => kind).join(" "));
   marginButton(row, {
     key: `reading:${choice?.key ?? "none"}`,
@@ -2130,7 +2146,20 @@ function readingOptionNode(entry, choice) {
   return node;
 }
 
-function optionNodes(entry, primary) {
+function focusedOwnerOffer(entry) {
+  if (expandedOptionsKey !== entry.key || !expandedOptionsOwner) return null;
+  return entry.offers.find((offered) => offered.key === expandedOptionsOwner) ?? null;
+}
+
+function optionNodes(entry, primary, focusedOffer = null) {
+  if (focusedOffer) {
+    const controls = controlsOf(focusedOffer).filter((control) =>
+      entry.shownControls.has(control),
+    );
+    return focusedOffer.side === "after"
+      ? controls
+      : controls.map((control) => optionControlNode(control, entry));
+  }
   return [
     ...secondaryControls(entry, primary).map((control) =>
       optionControlNode(control, entry),
@@ -2148,8 +2177,8 @@ function optionNodes(entry, primary) {
   ];
 }
 
-function syncOptionGroup(group, entry, primary, optionsOpen) {
-  const allNodes = optionNodes(entry, primary);
+function syncOptionGroup(group, entry, primary, optionsOpen, focusedOffer = null) {
+  const allNodes = optionNodes(entry, primary, focusedOffer);
   const unique = [...new Set(allNodes)];
   // Peers may use the whole cluster budget only when no fitting stands outside this
   // group. Reaction mode is the common case: it has neither a primary nor a reading
@@ -2157,7 +2186,8 @@ function syncOptionGroup(group, entry, primary, optionsOpen) {
   // marker visible, and that fitting counts just as a contributed primary would.
   const peerCapacity = Math.max(
     0,
-    EXPANDED_BUTTON_BUDGET - (primary || markerFace(entry).kinds.length ? 1 : 0),
+    EXPANDED_BUTTON_BUDGET -
+      (!focusedOffer && (primary || markerFace(entry).kinds.length) ? 1 : 0),
   );
   const needsSpill = unique.length > peerCapacity;
   // The spill route consumes the last visible fitting; it does not increase the
@@ -2166,7 +2196,11 @@ function syncOptionGroup(group, entry, primary, optionsOpen) {
   const visibleCapacity = needsSpill ? peerCapacity - 1 : peerCapacity;
   const hidden = Math.max(0, unique.length - visibleCapacity);
   const visible = new Set(unique.slice(0, visibleCapacity));
-  const after = afterOffers(entry);
+  const after = focusedOffer
+    ? focusedOffer.side === "after"
+      ? [focusedOffer]
+      : []
+    : afterOffers(entry);
   const afterControls = new Set(after.flatMap(controlsOf));
   const wanted = unique.filter((node) => visible.has(node) && !afterControls.has(node));
   // Keep contributor-owned groups intact: their keyboard scopes and event handlers
@@ -2223,19 +2257,31 @@ function syncControls(host, marker, more, options, entry) {
   const active = document.activeElement;
   const focusedOption = options.contains(active);
   const forwardedControl = active?.lfForwardedControl;
-  const primary = syncControlRoles(entry);
-  const controls = directOffers(entry)
-    .filter((offered) => offered.controls)
-    .map((offered) => offered.controls);
+  const focusedOffer = focusedOwnerOffer(entry);
+  const primary = focusedOffer ? null : syncControlRoles(entry);
+  if (focusedOffer)
+    for (const control of directControls(entry))
+      control.removeAttribute("data-lf-button-primary");
+  const controls = focusedOffer
+    ? []
+    : directOffers(entry)
+        .filter((offered) => offered.controls)
+        .map((offered) => offered.controls);
   const wanted = [...controls, marker, more, options];
   for (const child of [...host.children]) if (!wanted.includes(child)) child.remove();
   wanted.forEach((child, position) => {
     if (host.children[position] !== child)
       host.insertBefore(child, host.children[position] ?? null);
   });
-  const secondaries = secondaryCount(entry, primary);
-  const hasOptions = optionsOffered(entry, primary);
-  if (!hasOptions && expandedOptionsKey === entry.key) expandedOptionsKey = null;
+  const secondaries = focusedOffer
+    ? controlsOf(focusedOffer).filter((control) => entry.shownControls.has(control))
+        .length
+    : secondaryCount(entry, primary);
+  const hasOptions = focusedOffer ? secondaries > 0 : optionsOffered(entry, primary);
+  if (!hasOptions && expandedOptionsKey === entry.key) {
+    expandedOptionsKey = null;
+    expandedOptionsOwner = null;
+  }
   const optionsOpen =
     secondaries > 0 &&
     (!hasOptions || expandedOptionsKey === entry.key || entryEngaged(entry));
@@ -2251,7 +2297,7 @@ function syncControls(host, marker, more, options, entry) {
   const wasSettlingOptionsFocus = settlingOptionsFocus;
   settlingOptionsFocus = true;
   try {
-    syncOptionGroup(options, entry, primary, optionsOpen);
+    syncOptionGroup(options, entry, primary, optionsOpen, focusedOffer);
   } finally {
     settlingOptionsFocus = wasSettlingOptionsFocus;
   }
@@ -2415,6 +2461,7 @@ function unfoldOpenThreadOwner(entry) {
   const previousKey = expandedOptionsKey;
   const previousGroup = previousKey ? optionGroups.get(previousKey) : null;
   expandedOptionsKey = entry.key;
+  expandedOptionsOwner = null;
   renderMargin();
   if (previousGroup?.querySelector(".lf-margin-reactions"))
     document.dispatchEvent(new CustomEvent("lf-button-options-closed"));
@@ -2474,7 +2521,10 @@ function renderNow() {
   );
   for (const key of readingButtons.keys())
     if (!liveReadingKeys.has(key)) readingButtons.delete(key);
-  if (expandedOptionsKey && !live.has(expandedOptionsKey)) expandedOptionsKey = null;
+  if (expandedOptionsKey && !live.has(expandedOptionsKey)) {
+    expandedOptionsKey = null;
+    expandedOptionsOwner = null;
+  }
   for (const [key, marker] of rows)
     if (!live.has(key)) {
       const host = hosts.get(key);
@@ -2541,6 +2591,7 @@ function renderNow() {
         const current = host.lfEntry;
         const primary = current && choosePrimary(current);
         if (!current || !optionsOffered(current, primary)) return;
+        if (expandedOptionsKey === current.key && expandedOptionsOwner) return;
         if (entryEngaged(current)) return;
         setOptionsOpen(current, true, {
           focusOption: control === more ? "last" : null,
@@ -2550,7 +2601,6 @@ function renderNow() {
         // A new keyboard destination outranks a pointer parked on the previous
         // target. Real pointer movement can take ownership back without a press.
         hoveredHost = null;
-        hoveredBehavior = null;
         refreshHighlight();
       });
       host.addEventListener("focusout", () => requestAnimationFrame(refreshHighlight));
@@ -2559,14 +2609,12 @@ function renderNow() {
           .elementFromPoint(event.clientX, event.clientY)
           ?.closest?.(".lf-margin-button");
         hoveredHost = control && host.contains(control) ? host : null;
-        hoveredBehavior = hoveredHost ? control.dataset.lfBehavior : null;
         refreshHighlight();
       };
       host.addEventListener("pointermove", takePointerOwnership);
       host.addEventListener("pointerleave", () => {
         if (hoveredHost === host) {
           hoveredHost = null;
-          hoveredBehavior = null;
         }
         refreshHighlight();
       });
@@ -2619,7 +2667,9 @@ function renderNow() {
         );
       corePosition += 1;
     }
-    paintMarker(marker, entry, primary);
+    paintMarker(marker, entry, primary, {
+      suppressed: Boolean(focusedOwnerOffer(entry)),
+    });
   });
   // Geometry is one read-only batch after every row has reconciled. Reading a target
   // between two marker writes forced one full document layout per Page-map entry —
@@ -2649,11 +2699,7 @@ function renderNow() {
     const fresh = pageMapEntries.find((entry) => entry.key === previewEntry.key);
     if (!fresh || !fresh.items.some((item) => item.kind === "comment"))
       closePreview(preview.contains(document.activeElement));
-    else if (forcedInlineKey !== fresh.key && !threadBeside()) {
-      const threadList = fresh.items.filter((item) => item.kind === "comment");
-      closePreview();
-      openThreads(threadList, fresh);
-    } else {
+    else {
       previewEntry = fresh;
       const owner = threadButton(fresh);
       if (
@@ -2703,8 +2749,8 @@ function buildThreadCard(entry) {
   // heads it: a card headed "aside · The fallback cookie is read-only…" over a comment
   // on the aside's last sentence was a third name for one thread, and the least exact.
   const quoted =
-    threadItems.length === 1 && threadItems[0].thread?.root.anchor
-      ? anchorLabel(threadItems[0].thread.root.anchor, threadItems[0].thread.root.about)
+    threadItems.length === 1 && threadItems[0].thread?.anchor
+      ? anchorLabel(threadItems[0].thread.anchor, threadItems[0].thread.root.about)
       : null;
   const title = trimmed(targetHeading || quoted || entry.title, 72);
   keeps(preview, "data-lf-thread", "");
@@ -2750,13 +2796,10 @@ function previewItemNode(item) {
   return node;
 }
 
-function highlight(target, behavior = null) {
-  if (highlighted === target && highlightedBehavior === behavior) return;
-  highlighted?.classList.remove("lf-margin-target");
+function highlight(target) {
+  if (highlighted === target) return;
   highlighted = target;
-  highlightedBehavior = target ? behavior : null;
-  traceTarget(behavior === "status" ? target : null);
-  if (target && behavior !== "status") target.classList.add("lf-margin-target");
+  traceTarget(target);
 }
 
 function refreshHighlight() {
@@ -2769,10 +2812,17 @@ function refreshHighlight() {
     (preview.contains(active) || preview.matches(":popover-open")
       ? hosts.get(previewEntry?.key)
       : null);
-  highlight(
-    pageMapEntries.find((entry) => entry.key === source?.lfEntry?.key)?.target ?? null,
-    source === pointerHost ? hoveredBehavior : null,
+  const entry = pageMapEntries.find(
+    (candidate) => candidate.key === source?.lfEntry?.key,
   );
+  // A drawing already marks this target on the page. When every item at the location
+  // is a drawing comment, focusing its marker or thread needs no second target box.
+  const drawingOnly =
+    entry?.items.length &&
+    entry.items.every(
+      (item) => item.kind === "comment" && Boolean(item.thread?.root.drawing),
+    );
+  highlight(drawingOnly ? null : (entry?.target ?? null));
 }
 
 function showPreview(entry, button, retry = true) {
@@ -2900,22 +2950,7 @@ function openThreadChoice(entry, button) {
   }
   if (expandedOptionsKey && expandedOptionsKey !== entry.key)
     setOptionsOpen(entry, false);
-  if (!threadBeside()) {
-    setOptionsOpen(entry, false);
-    openThreads(choice.items, entry);
-    return;
-  }
   togglePinned(entry, button);
-}
-
-function openThreads(threadItems, entry) {
-  if (threadItems.length === 1) {
-    activate(threadItems[0], entry);
-    return;
-  }
-  closePreview();
-  focusMapControl(entry);
-  setPanel(true);
 }
 
 export function openInlineThread(id, transition = null) {
@@ -2940,7 +2975,40 @@ export function openInlineThread(id, transition = null) {
   );
   item?.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
   if (transition) scheduleThreadTransition(transition, entry);
-  return item?.querySelector("textarea") ?? null;
+  return item?.querySelector(".lf-conversation-thread") ?? null;
+}
+
+// A route that starts on the page stays on the page while that thread has an inline
+// address. Widget-local surfaces are already rendered, while a living-margin thread is
+// opened on demand. Threads remains the complete fallback for a detached or otherwise
+// unaddressable conversation. Callers choose only the landing within the conversation;
+// this function owns the surface choice so a mark, its accessibility note, and t/T
+// cannot drift into different policies.
+export function openPageThread(id, { focus = "reply" } = {}) {
+  if (!panelIsOpen()) {
+    const local = focusSurface(id, { focus });
+    if (local) {
+      scrollToThread(id);
+      return local;
+    }
+    const thread = openInlineThread(id);
+    if (thread) {
+      const destination =
+        focus === "thread"
+          ? thread
+          : (thread.querySelector("textarea:not([disabled])") ?? thread);
+      if (destination === thread) {
+        thread.focus({ preventScroll: true });
+        thread.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+        scrollToThread(id);
+      } else {
+        landInConversation(destination);
+      }
+      return destination;
+    }
+  }
+  showThread(id, { focus });
+  return null;
 }
 
 function sheetControls(entry) {
@@ -3256,14 +3324,21 @@ export const unfoldedButtons = () =>
   expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null;
 export const foldButtonOptions = () => setOptionsOpen(null, false);
 export const activeInlineThread = () => {
+  const active = focused();
+  const direct = active?.closest?.(".lf-conversation-thread[data-thread]");
+  if (direct && !panelIsOpen()) return direct;
   if (
     !pinnedKey ||
     previewEntry?.key !== pinnedKey ||
-    document.activeElement !== previewButton ||
     !preview.matches(":popover-open") ||
     !preview.hasAttribute("data-lf-thread")
   )
     return null;
+  const held = preview.contains(active)
+    ? active.closest?.(".lf-conversation-thread")
+    : null;
+  if (held) return held;
+  if (active !== previewButton) return null;
   const conversations = previewList.querySelectorAll(
     ".lf-margin-thread .lf-conversation-thread",
   );

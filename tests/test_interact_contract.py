@@ -407,10 +407,10 @@ def test_init_refuses_to_retire_a_logged_host_request_verb(page_dir):
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-decision></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -458,10 +458,10 @@ def test_init_refuses_a_receipt_without_one_prior_unsettled_request(
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-decision></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -513,7 +513,8 @@ def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
     back by. A token the layer keeps re-vendors as before."""
     publish(page_dir)
     events_model.append_event(
-        page_dir, {"kind": "comment", "author": "user", "revision": 1, "token": "cut"}
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "token": "shorten"},
     )
     assert (
         CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)]).exit_code
@@ -522,12 +523,12 @@ def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
     layer = page_dir.parent / ".leaf"
     layer.mkdir()
     (layer / "registry.json").write_text(
-        json.dumps({"$reactions": {"tokens": {"cut": None}}})
+        json.dumps({"$reactions": {"tokens": {"shorten": None}}})
     )
     monkeypatch.chdir(page_dir.parent)
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code != 0
-    assert "no longer speaks" in result.output and "`cut`" in result.output
+    assert "no longer speaks" in result.output and "`shorten`" in result.output
 
 
 def test_init_refuses_a_logged_event_field_the_incoming_layer_no_longer_speaks(
@@ -645,10 +646,10 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
 def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
     registry = json.loads((page_dir / "registry.json").read_text())
     options = (
-        '<lf-decision id="route-decision"><h2>Which route?</h2>'
+        '<lf-ask id="route-decision"><h2>Which route?</h2>'
         '<lf-options id="route" choose>'
         '<lf-option id="route-authored">Authored route</lf-option>'
-        "</lf-options></lf-decision>"
+        "</lf-options></lf-ask>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -704,10 +705,10 @@ def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_di
     """
     registry = json.loads((page_dir / "registry.json").read_text())
     options = (
-        '<lf-decision id="run-status-decision"><h2>Which run status?</h2>'
+        '<lf-ask id="run-status-decision"><h2>Which run status?</h2>'
         '<lf-options id="run-status" choose>'
         '<lf-option id="rs-column">Column</lf-option>'
-        "</lf-options></lf-decision>"
+        "</lf-options></lf-ask>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -836,11 +837,11 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     real_append = service_model.PageTransaction.append_event
     real_flocked = vendoring_model.flocked
 
-    def paused_append(page, event):
+    def paused_append(page, event, registry=None):
         if event["kind"] == "report":
             report_validated.set()
             assert release_report.wait(5)
-        return real_append(page, event)
+        return real_append(page, event, registry)
 
     @contextlib.contextmanager
     def observed_flocked(path):
@@ -1014,10 +1015,10 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
     markup = (
-        '<lf-decision id="thread-choice-decision"><h3>Which option?</h3>'
+        '<lf-ask id="thread-choice-decision"><h3>Which option?</h3>'
         '<lf-options id="thread-choice" choose>'
         '<lf-option id="thread-a">A</lf-option>'
-        "</lf-options></lf-decision>"
+        "</lf-options></lf-ask>"
     )
     conversation_model.cmd_reply(page_dir, "c1", "Pick one:", markup)
 
@@ -1816,9 +1817,7 @@ def test_a_version_response_requires_a_standing_request(page_dir):
     result = check(page_dir)
 
     assert result.exit_code != 0
-    assert (
-        "version response but declares no x-awaits standing decision" in result.output
-    )
+    assert "version response but declares no x-awaits standing Ask" in result.output
 
     del registry["lf-diagram"]["x-conversation"]["response"]
     registry["lf-diagram"]["x-awaits"] = {"rollup": True}
@@ -2010,8 +2009,8 @@ def test_request_detail_schemas_match_the_post_object_contract(page_dir):
         ),
         ("unknown-offered-verb", "names undeclared verbs ['explode']"),
         ("unoffered-verb", "verbs ['restart'] cannot be offered"),
-        ("self-framing-decision", "declares both x-decision and x-request.decision"),
-        ("dual-decision-source", "declares both x-request.decision and x-awaits"),
+        ("self-framing-decision", "declares both x-ask-surface and x-request.ask"),
+        ("dual-decision-source", "declares both x-request.ask and x-awaits"),
     ],
 )
 def test_an_x_request_declaration_closes_its_widget_boundary(
@@ -2060,7 +2059,7 @@ def test_an_x_request_declaration_closes_its_widget_boundary(
     elif mutation == "unoffered-verb":
         registry["lf-operation"]["properties"]["verb"]["enum"].remove("restart")
     elif mutation == "self-framing-decision":
-        operations["x-decision"] = True
+        operations["x-ask-surface"] = True
         operations["x-content"] = "prose"
     elif mutation == "dual-decision-source":
         operations["x-awaits"] = {"rollup": True}
@@ -2689,14 +2688,14 @@ def test_an_aggregate_only_rollup_declaration_is_valid(page_dir):
 @pytest.mark.parametrize(
     ("declaration", "message"),
     [
-        ({}, "local decision declares no answer verbs"),
+        ({}, "local Ask declares no answer verbs"),
         (
             {"rollup": True, "when": {"status": ["review"]}},
-            "rollup also declares local decision fields ['when']",
+            "rollup also declares local Ask fields ['when']",
         ),
     ],
 )
-def test_an_awaits_declaration_has_one_decision_role(page_dir, declaration, message):
+def test_an_awaits_declaration_has_one_ask_role(page_dir, declaration, message):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-task"]["x-awaits"] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -2724,7 +2723,7 @@ def test_a_completion_verb_cannot_require_its_request_closed(page_dir, verb):
 
 
 def test_a_part_scoped_completion_verb_requires_a_completion_condition(page_dir):
-    """A part record does not answer its whole Decision merely by sharing its verb."""
+    """A part record does not answer its whole Ask merely by sharing its verb."""
     registry = json.loads((page_dir / "registry.json").read_text())
     swipe = json.loads(
         (schema_model.BUNDLED_PACKAGES / "swipe" / "registry.json").read_text()
@@ -3440,6 +3439,28 @@ def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, serve
     assert fetch(server + "/events.jsonl")[0] == 404
 
 
+def test_a_media_digest_can_never_change_the_bytes_behind_an_existing_name(
+    page_dir, tmp_path, monkeypatch
+):
+    """The public name's immutable meaning survives even a digest collision."""
+
+    class CollidingDigest:
+        def hexdigest(self):
+            return "a" * 64
+
+    monkeypatch.setattr(media_model.hashlib, "sha256", lambda data: CollidingDigest())
+    first = tmp_path / "first.png"
+    second = tmp_path / "second.png"
+    first.write_bytes(b"first pixels")
+    second.write_bytes(b"different pixels")
+    path = media_model.cmd_media(page_dir, [first])[0][1]
+
+    with pytest.raises(RuntimeError, match="media digest collision"):
+        media_model.cmd_media(page_dir, [second])
+
+    assert (page_dir / path.lstrip("/")).read_bytes() == first.read_bytes()
+
+
 def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):
     """A broken image is silent in the file and obvious on the page. The render gate
     would see the 404, but it runs once; this runs on every version, and whether a
@@ -3475,7 +3496,7 @@ def test_source_reading_preserves_foreign_graphics_as_exact_markup():
         "</svg >"
     )
     html = "<main>\n" + graphic + '<p id="after">After</p></main>'
-    parser = structure_model._StructParser()
+    parser = structure_model.StructParser()
     # The HTML parser also accepts chunked input; source positions refer to the
     # whole document even when an SVG closing tag crosses a feed boundary.
     split = html.index("</svg >") + 4
@@ -3505,7 +3526,7 @@ def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):
         f'<h2>Plan</h2><p><img alt="shot" src="data:image/png;base64,{blob}"></p>',
     )
     (page_dir / ".fixture-versions" / "v1.html").write_text(html)
-    parser = structure_model._StructParser()
+    parser = structure_model.StructParser()
     parser.feed(html)
     parser.close()
     assert parser.css == ""
@@ -3845,6 +3866,84 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
     assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
 
 
+def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir):
+    """A message names its picture in Markdown, where the markup reading cannot see it.
+
+    `check_markup` runs only when `--markup` is given, and the reference it asks about
+    lives in an attribute. An agent sending a screenshot writes it in the words instead,
+    so the shape `media_errors` was written for — here is what it looks like now — came
+    through the one door that never asked, and the log is append-only: a picture the
+    directory hasn't got is broken for as long as the page exists.
+
+    The reading is the link or image destination the runtime resolves rather than a scan
+    of the words, so the same path quoted in a sentence — a page explaining leaf writes
+    one, and `version check` has always let it through — stays the author's prose. Every
+    `/media/…` destination is asked about, the predicate the markup door's attribute
+    harvest already keeps: the directory holds digest-named files and nothing else, so a
+    destination that isn't one renders as a picture no request will ever answer."""
+    publish(page_dir)
+    missing = "/media/deadbeefdeadbeef.png"
+    posted = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--text", f"the panel now:\n\n![shot]({missing})"],
+    )
+    assert posted.exit_code == 1, (
+        f"the comment door froze a picture the page has not got into the log:\n"
+        f"{posted.output}"
+    )
+    assert f"{missing} isn't in the page directory" in posted.output, posted.output
+    assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "comment"]
+
+    mention = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--text", f"write it as `{missing}` in the message"],
+    )
+    assert mention.exit_code == 0, (
+        f"a path named in a sentence is the author's words, the reading the markup "
+        f"door already keeps, not a picture the page owes:\n{mention.output}"
+    )
+
+    linked = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--text", f'[the panel](<{missing}> "shot")'],
+    )
+    assert linked.exit_code == 1, (
+        f"a link destination points at the same file an image does, angle brackets "
+        f"and title included:\n{linked.output}"
+    )
+
+    referenced = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--text", f"![shot][ref]\n\n[ref]: {missing}"],
+    )
+    assert referenced.exit_code == 1, (
+        f"a reference definition is where a reference-style image keeps its "
+        f"destination, and the runtime renders it as the inline form:\n"
+        f"{referenced.output}"
+    )
+
+    unnamed = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--text", "look:\n\n![shot](/media/screenshot.png)"],
+    )
+    assert unnamed.exit_code == 1, (
+        f"the directory holds digest-named files and nothing else, so a destination "
+        f"under /media/ that isn't one is a picture it can never answer — the reading "
+        f"the markup door's attribute harvest already keeps:\n{unnamed.output}"
+    )
+
+    (page_dir / "media").mkdir(exist_ok=True)
+    (page_dir / "media" / "deadbeefdeadbeef.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    answered = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--text", f"the panel now:\n\n![shot]({missing})"],
+    )
+    assert answered.exit_code == 0, (
+        f"a reference the directory answers is the whole point of the door:\n"
+        f"{answered.output}"
+    )
+
+
 def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     server, page_dir
 ):
@@ -3868,12 +3967,12 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
             "unknown reaction token 'shrug'",
         ),
         (
-            {"kind": "comment", "revision": 1, "token": "ok", "text": "and"},
+            {"kind": "comment", "revision": 1, "token": "keep", "text": "and"},
             "valid under each of",
         ),
         ({"kind": "comment", "revision": 1}, "not valid under any"),
         (
-            {"kind": "comment", "revision": 1, "token": "ok", "suggestion": True},
+            {"kind": "comment", "revision": 1, "token": "keep", "suggestion": True},
             "suggestion",
         ),
         (
@@ -3892,7 +3991,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
                 {
                     "kind": "comment",
                     "revision": 1,
-                    "token": "cut",
+                    "token": "shorten",
                     "anchor": {"section": "plan", "quote": "Ship dark"},
                 }
             ).encode(),
@@ -3903,11 +4002,11 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         fetch(
             f"{server}/api/event",
             data=json.dumps(
-                {"kind": "reply", "revision": 1, "parent": root["id"], "token": "ok"}
+                {"kind": "reply", "revision": 1, "parent": root["id"], "token": "keep"}
             ).encode(),
         )[1]
     )["state"]["events"][-1]
-    assert nod["token"] == "ok" and nod["parent"] == root["id"]
+    assert nod["token"] == "keep" and nod["parent"] == root["id"]
 
     # A message with words in it is said rather than unsaid.
     status, body = fetch(
@@ -4018,7 +4117,7 @@ def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
     """Keeping a position record must not reinterpret whether it completed its Ask."""
     from copy import deepcopy
 
-    from leaf.decisions import answered_decision
+    from leaf.asks import answered_ask
     from leaf.files import latest_revision
     from leaf.projection import page_projection
     from leaf.validation.compatibility import vocabulary_gaps
@@ -4060,7 +4159,7 @@ def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
 
     def answered(layer):
         projection, parser, words = page_projection(source, events, layer, revision)
-        return answered_decision(
+        return answered_ask(
             parser.by_id["session-triage"],
             layer["lf-swipe-deck"],
             projection,

@@ -21,9 +21,9 @@ def is_reaction(event: dict) -> bool:
 def spoken_turns(thread: dict) -> list:
     """The thread's messages with words in them. A reaction is a mark on a
     message rather than a turn in the conversation, so readings of who spoke
-    last — including the hook's unanswered decisions — walk this list rather than
+    last — including the hook's unanswered Asks — walk this list rather than
     `msgs`. The panel's "waiting on you" also reads explicit reply questions and
-    structural thread decisions in the browser after finding the last spoken turn."""
+    structural thread Asks in the browser after finding the last spoken turn."""
     return [m for m in thread["msgs"] if not is_reaction(m)]
 
 
@@ -182,7 +182,12 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
         if e["kind"] == "comment":
             message = dict(e)
             messages[e["id"]] = message
-            thread = {"root": message, "msgs": [message], "resolved": None}
+            thread = {
+                "root": message,
+                "anchor": message.get("anchor"),
+                "msgs": [message],
+                "resolved": None,
+            }
             threads[e["id"]] = thread
             thread_for[e["id"]] = thread
             continue
@@ -213,12 +218,19 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             # already been read.
             thread = thread_for.get(e["parent"])
             if thread is None:
-                thread = {"root": e, "msgs": [], "resolved": None}
+                thread = {
+                    "root": e,
+                    "anchor": e.get("anchor"),
+                    "msgs": [],
+                    "resolved": None,
+                }
                 threads[e["parent"]] = thread
                 thread_for[e["parent"]] = thread
             message = dict(e)
             messages[e["id"]] = message
             thread["msgs"].append(message)
+            if "anchor" in e:
+                thread["anchor"] = e["anchor"]
             thread_for[e["id"]] = thread
         # A resolve names a message rather than opening one, so a conversation the log
         # lost whole — no reply of its own survived either — leaves it nothing to close.
@@ -234,7 +246,7 @@ def anchored_ids(events: list, within: dict) -> set:
     answered is a mark and not a thread, so it holds no id: a reaction never
     gates a version, and its anchor re-resolves or detaches like a comment's."""
     return {
-        (t["root"].get("anchor") or {}).get("section")
+        (t["anchor"] or {}).get("section")
         for t in build_threads(events, within).values()
         if not t["resolved"] and not bare_reaction(t)
     } - {None}
@@ -247,7 +259,7 @@ def awaits_agent(thread: dict) -> bool:
     thread and a resolved thread do not. This reading deliberately says nothing about
     whether the reader owes a word: an ordinary agent reply may leave the open thread
     awaiting nobody, while an agent comment, an explicit prose question, or a structured
-    widget decision awaits the reader. The runtime's `awaitsAgent` is the same sentence,
+    widget Ask awaits the reader. The runtime's `awaitsAgent` is the same sentence,
     and it has to be: the panel telling the reader a seated thread is with the agent
     while the banner counts the same question as theirs is one fact told two ways.
 
@@ -273,10 +285,10 @@ def seat_root(thread: dict) -> str | None:
     the widget's words rather than standing in the box it offers, and the reader can
     see the difference — one is a note on a phrase, the other is the cell.
 
-    A reply whose root the log lost is its own root and carries no anchor, so it seats
-    nowhere. No cell on the page shows it either."""
+    A reply whose root the log lost is its own root, so the thread seats where the
+    thread's latest anchor points, and nowhere at all when no message carried one."""
     root = thread["root"]
-    anchor = root.get("anchor")
+    anchor = thread["anchor"]
     if root.get("about") or not anchor or len(anchor) != 1:
         return None
     return anchor.get("section")
@@ -286,7 +298,7 @@ def seats_with_agent(threads: dict) -> set[str]:
     """Widget ids whose own seat holds a conversation now waiting on the agent.
 
     A request whose own conversation is with the agent is not one the reader has to
-    deal with, so a decision projection reading their list subtracts these. It is not an
+    deal with, so an Ask projection reading their list subtracts these. It is not an
     answer — the widget's state is untouched — which is why the reading that asks
     whether a request is answered passes an empty set instead. The runtime builds the
     same set from `awaitsAgent` over `seatRoot`, so the banner's count and `page state`

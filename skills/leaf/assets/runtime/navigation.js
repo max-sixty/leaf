@@ -3,12 +3,15 @@ import { clampedRow } from "./keyboard/bindings.js";
 import { shownRect } from "./geometry.js";
 import { BANNER_CLEAR, commentOnTarget } from "./composing/surface.js";
 import { scrollToElement, scrollToThread } from "./anchors.js";
-import { inPanel, panelCovers, panelIsOpen, setPanel } from "./chrome-layout.js";
+import { inPanel, panelCovers, panelIsOpen } from "./chrome-layout.js";
 import { openThreads } from "./conversation/reconcile.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { threadsBox } from "./conversation/panel.js";
 import { pageScroller } from "./scrolling.js";
 import { inChrome } from "./passages.js";
+import { activeInlineThread, openPageThread } from "./living-margin.js";
+import { announce } from "./notifications.js";
+import { beginWalk, walkPositionLabel } from "./walk-position.js";
 
 // Where a comment about this item is written: the composer, on the item, which is what a
 // click through the ⌥ aim already opens. It reached for the widget's own conversation seat
@@ -58,18 +61,26 @@ export function commentOnItem(item) {
   if (!seen || seen.bottom <= BANNER_CLEAR) scrollToElement(item, "instant");
   commentOnTarget({ anchor: { section: item.id }, element: item });
 }
-// t/T walk the open threads: panel focus and the page highlight move as a pair — they are
-// two views of the same thread. Clamped at the ends, not wrapped; never empty, because the
-// keys are live only while open threads exist, and hasThreads counts what renderThreads
-// wrote here in the same synchronous pass.
+// t/T walk open threads in page order. A closed panel keeps the walk at the thread's
+// inline address: a declared widget outlet first, then the Thread Button's card. A thread
+// with no page address is indexed only by Threads, so that destination opens the panel.
+// Once the panel is open, the walk stays in its list. Both paths are clamped, not wrapped.
 export function stepThread(dir) {
-  if (!panelIsOpen()) setPanel(true);
-  const threads = openThreads();
-  const next = clampedRow(
-    threads,
-    document.activeElement?.closest?.(".lf-thread"),
-    dir,
-  );
+  const threads = openThreads({ visibleOnly: panelIsOpen() });
+  const inline = activeInlineThread();
+  const current = panelIsOpen()
+    ? document.activeElement?.closest?.(".lf-thread")
+    : threads.find((thread) => thread.dataset.id === inline?.dataset.thread);
+  const next = clampedRow(threads, current, dir);
+  if (!next) return;
+  if (!panelIsOpen()) {
+    openPageThread(next.dataset.id, { focus: "thread" });
+    announce(
+      beginWalk("thread", next.dataset.id) ??
+        walkPositionLabel("thread", threads.indexOf(next) + 1, threads.length),
+    );
+    return;
+  }
   // Landing the thread is the list's, off the focus it is about to take. A press at
   // either end of the walk is the exception the list cannot answer: it names the thread
   // the reader already stands on, so no focus moves and nothing fires, while the page
@@ -78,6 +89,10 @@ export function stepThread(dir) {
   next.focus({ preventScroll: true });
   if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
   scrollToThread(next.dataset.id);
+  announce(
+    beginWalk("thread", next.dataset.id) ??
+      walkPositionLabel("thread", threads.indexOf(next) + 1, threads.length),
+  );
 }
 
 // Put the comment the reader is standing on against one edge of its list. This is
@@ -187,4 +202,12 @@ export function glideTo(box, goal) {
     else glide = null;
   };
   glide = { box, goal, wrote: start, raf: requestAnimationFrame(tick) };
+}
+
+// A spatial command takes the page where it is now. Stop only the travel this owner is
+// driving; native paging belongs to the platform and reports its motion through scroll.
+export function stopGlide(box) {
+  if (glide?.box !== box) return;
+  cancelAnimationFrame(glide.raf);
+  glide = null;
 }

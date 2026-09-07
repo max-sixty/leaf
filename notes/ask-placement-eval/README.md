@@ -18,7 +18,7 @@ notes whose decisions are listed after the findings:
 ## Running
 
 Each arm is a directory holding that arm's `SKILL.md` and
-`authoring-decisions.md`; `run.sh` pastes the skill's Page contract, the
+`authoring-asks.md`; `run.sh` pastes the skill's Page contract, the
 reference's opening, and page-authoring.md's Reading cost from the working tree
 into one prompt with the subject, so only the two files under test differ.
 Stage the old arm from git and the new one from the working tree:
@@ -27,8 +27,8 @@ Stage the old arm from git and the new one from the working tree:
 d=$(mktemp -d)
 mkdir "$d/old" "$d/new"
 git show main:skills/leaf/SKILL.md > "$d/old/SKILL.md"
-git show main:skills/leaf/references/authoring-decisions.md > "$d/old/authoring-decisions.md"
-cp skills/leaf/SKILL.md skills/leaf/references/authoring-decisions.md "$d/new/"
+git show main:skills/leaf/references/authoring-asks.md > "$d/old/authoring-asks.md"
+cp skills/leaf/SKILL.md skills/leaf/references/authoring-asks.md "$d/new/"
 for s in list-items sections whole-page; do
   for n in 1 2; do
     notes/ask-placement-eval/run.sh "$d/old" $s $n &
@@ -41,8 +41,8 @@ python3 notes/ask-placement-eval/outline.py .tmp/ask-placement-eval/*.html
 
 The arms of one subject run together so drift over the session lands on both.
 Count a run only when its `is_error` is false. `outline.py` prints each page's
-headings, list items, and decisions in document order; read where each
-`DECISION` falls against the item or section it turns on.
+headings, list items, and Asks in document order; read where each
+`ASK` falls against the item or section it turns on.
 
 ## Baseline
 

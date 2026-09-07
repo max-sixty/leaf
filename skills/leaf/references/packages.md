@@ -18,12 +18,14 @@ when `/leaf` is invoked on a widget to build or a look to change.
 | Leaf's bundled default package | every page |
 
 Presentation used by only one page stays in that version's `<style>`. Everything
-reusable belongs to a package. Leaf creates and validates the whole directory:
+reusable belongs to a package. Leaf creates, checks, and installs the whole
+directory:
 
 ```bash
 leaf package init PACKAGE
 leaf package init PACKAGE --widget lf-callout
 leaf package check PACKAGE
+leaf package install PACKAGE
 ```
 
 `package init` creates `registry.json`, `theme.css`, `guidance/`, `runtime/`,
@@ -45,17 +47,36 @@ An explicit directory keeps a contribution separately owned and selectable. `.le
 is the project package and `~/.config/leaf` is the user package. Inside a repository
 dedicated to one package, use `.` as the package path.
 
+`leaf package install SOURCE` checks that directory and copies it into
+`~/.local/state/leaf/packages/`, where `--package NAME` reaches it by its directory
+name from any project on this machine:
+
+```bash
+leaf package install packages/callout
+leaf page init --package callout PAGE
+```
+
+The copy holds the package contract below and nothing else in the source directory,
+so a README and the author's own tests stay behind. A name that a bundled or already
+installed package answers to is refused rather than replaced; remove the installed
+directory to replace one. A page records the bare name, so re-vendoring it on another
+machine needs the same package installed there.
+
 Leaf also ships optional packages that select by bare name. `diagram` adds `lf-diagram`
 and the Beautiful Mermaid renderer it draws with; `diff` adds `lf-diff`, the
 `unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
-technical backlog deck; `command-hub` adds multi-agent orchestration widgets;
-`pr-review` adds a typed pull-request brief with a safe Markdown description and compact
-checks table, plus a data-backed unified call diff:
+technical backlog deck; `playground` adds declarative controls, presets, CSS-bound
+previews, and one typed configuration action; `command-hub` adds multi-agent
+orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
+description and compact checks table, plus a data-backed unified call diff. `gallery`
+adds the static Button atlas used only by the developer feature gallery, so ordinary
+pages do not select it:
 
 ```bash
 leaf page init --package diagram PAGE
 leaf page init --package diff PAGE
 leaf page init --package swipe PAGE
+leaf page init --package playground PAGE
 leaf page init --package command-hub PAGE
 leaf page init --package diff --package pr-review PAGE
 ```
@@ -111,8 +132,8 @@ order, user package, then project package. Later packages win collisions. `page 
 records package selections under `$layer.packages`; a plain re-init resolves them again
 in the same order. `page init --no-packages PAGE` clears the explicit list.
 
-A bare package name selects an optional bundled package and never means a path; use
-`./name` for a same-shaped project directory. Other package paths are project-relative
+A bare package name selects an installed or bundled package and never means a path;
+use `./name` for a same-shaped project directory. Other package paths are project-relative
 or start with `~`. Absolute paths are refused because the vendored registry is public.
 The always-present `default` package cannot be selected explicitly. A package may
 contain zero, one, or many widgets. Those cardinalities do not change its contract.
@@ -162,7 +183,7 @@ uses the same stamp before it can capture or post a passage coordinate.
 The registry entry is JSON Schema over the element's attributes, plus the `x-` keys that
 say how the layer treats the tag — its content model, whether a module upgrades it, which
 attributes the reader sees as words, its action verbs and their record forms, whether it
-stands as one of the page's decisions. The merged registry's `$keys` entry defines each key,
+stands as one of the page's Asks. The merged registry's `$keys` entry defines each key,
 and the shipped widget entries are the worked examples. Every widget entry carries a
 non-empty `description`. Its first plain sentence identifies the widget's purpose; the
 rest explains its detailed contract. An entry's `x-example` must validate and is the
@@ -174,12 +195,12 @@ required string enum, and the child admits the container through `x-parent`. `ve
 check` then refuses a missing or repeated enum value. This keeps fixed role sets in the
 package contract without adding their tags or vocabulary to Leaf.
 
-When a position action completes a Decision only after its own move empties a queue,
+When a position action completes an Ask only after its own move empties a queue,
 declare `completion: {empty: {within: "CONTAINER-TAG", when: {ATTRIBUTE: [VALUE]}}}`
 on that x-state verb. `within` names an items container inside the answering widget and
 `when` selects exactly one instance by static authored attributes. POST overlays the
 candidate move on the authoritative holder relation before testing emptiness, and the
-Decision projection uses the same condition for standing state. Do not add a second
+Ask projection uses the same condition for standing state. Do not add a second
 completed attribute or trust the browser's optimistic item count. Re-vendoring must
 preserve the completion condition for every recorded action.
 
@@ -190,8 +211,10 @@ query private chrome, or duplicate a runtime helper inside itself. What the modu
 a total, idempotent `renderState(state)`; `sendAction` for recorded user state, with a
 detail matching the declared browser schema; `says()` over `textContent`; `offer()` and
 `relabel()` on anything injected, with its room reserved from inside `measure` and
-`layoutChanged` called after a view swap (each helper's header under `runtime/` says
-why); `keeps(node, name, value)` for any name or state a render on the `lf-actions`
+`layoutChanged` called after a view swap; box-derived apparatus takes its first visible
+reading synchronously from `PRESENTATION` and observes later changes through the normal
+layout signals (each helper's header under `runtime/` says why); `keeps(node, name,
+value)` for any name or state a render on the `lf-actions`
 heartbeat writes, handed the boolean or count raw, since an unconditional
 `setAttribute` restates itself every two seconds on a page nobody has touched and
 `toggleAttribute` already keeps the rule for flags; `once()` in a `connectedCallback` that is safe to run after reconnection, and
@@ -208,10 +231,42 @@ Non-widget facets contain `units`, keyed by unit id, and position facets also co
 `value`, a map from container id to the complete ordered ids it holds. Missing
 recordless units are undecided. Render the final composition and keep independent
 nested widgets mounted; never recreate the owner to restore an initial state.
-Return false only while a live edit prevents rendering. When the edit closes,
-dispatch `lf-projection` on `document` so Leaf retries deferred state after the
-gesture has finished staging its local action. Optional recorded scalar
-attributes have a null initial value and must be removed when that value returns.
+`false` is the only return value state projection interprets: return it while a live
+edit prevents rendering. When the edit closes, dispatch `lf-projection` on `document`
+so Leaf retries deferred state after the gesture has finished staging its local action.
+Projection ignores every other return value. A renderer may return the `Animation` for
+its production transition so an interaction-gallery scenario can join that motion to
+the gallery's playback controls; the same call must still reach its complete state when
+the caller ignores the return. Optional recorded scalar attributes have a null initial
+value and must be removed when that value returns.
+
+### A package-owned interaction replay
+
+The developer Product Gallery can replay a package widget's production motion without
+moving that package into the default layer. Its figure names the widget module with
+`data-interaction-module`; that module exports one optional
+`interactionGalleryScenario` object with `reset(root)` and `play(context)` methods.
+`reset` receives the figure and restores its authored starting state without animation.
+`play` receives a frozen orchestration surface:
+
+- `root` is the same figure.
+- `arrive()` shows the illustrative pointer and waits for its opening beat.
+- `press(target)` moves the pointer to an element and shows the press.
+- `track(animation)` joins a returned `Animation` to pause, resume, and replay.
+- `until(read, message)` waits for an observable result and fails with `message` if it
+  never arrives.
+- `finish()` holds the result, then retires the pointer.
+
+The scenario imports only `/runtime/widget-api.js`, like every other behavior module;
+the gallery supplies this context when it invokes the export. The scenario calls the
+same widget method that handles projected state and does not send a gesture or write an
+event. The Swipe package's deck module is the worked example.
+
+A widget-owned composition box uses `wireInput()` from `/runtime/widget-api.js`.
+It keeps Enter as a newline and registers Mod+Enter for the contextual action, alongside
+the shared draft persistence, busy state, and shortcut projections. A direct editor that
+needs more commands, such as Save and Cancel, registers those rows on its textarea but
+keeps the same Enter and Mod+Enter meanings.
 
 The widget still owns its implementation: supporting modules can sit beside its entry
 module and use relative imports, while third-party or data files can live under
@@ -248,13 +303,14 @@ Register the semantic capability, not every nearby button. Evidence nested insid
 option is not an answer, and a shared-margin Button may sit outside the Ask source. When
 controls or availability change, keep the row fields computed and call `paintKeys()`;
 every command projection then updates together. A package that needs the page-wide open
-Ask set calls `watchDecisions(owner, callback)`. It invokes `callback(openDecisions)`
-immediately, invokes it again after a complete decision projection reconciles, binds the
+Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)`
+immediately, invokes it again after a complete Ask projection reconciles, binds the
 subscription lifetime to `owner`, and returns an explicit cleanup function. Packages do
 not listen to Leaf's internal `lf-actions` invalidation event.
 
 `x-visual` exposes stable Comment targets on a rendered picture. The value `whole` uses
-the widget's authored id. A widget declaring `{parts: ATTR}` calls
+the widget's authored id and the widget itself as the visual surface, so aim and marks
+paint above its rendering. A widget declaring `{parts: ATTR}` calls
 `registerVisualParts(source, read)` once at upgrade. `read` returns the complete current
 inventory as `{id, element, label, surface?}` records. Leaf admits the ids authored in
 ATTR, derives token lookup and deepest-part hit testing from that one inventory, and
@@ -281,7 +337,7 @@ instances use it instead of display prose. If one compact row binds keys with di
 meanings, add `routes` with an `id`, `binding`, and action sentence for each meaning. The
 key line stays compact, while the complete reference lists and runs each route on its own.
 Use `runFromReference: false` only for a parameterized step that cannot be run without a
-choice the reference does not have, such as the member digit of a numbered address. An
+choice the reference does not have, such as a generated hint tied to the live viewport. An
 optional `reach` on a row or scope supplies the short place phrase shown when a command
 is not available (for example, `in an open draft editor`).
 
@@ -296,7 +352,7 @@ tells the host how to execute and recover them.
 Every live request holder must contain at least one matching direct child and may offer
 each verb only once; two differently worded controls that send the same instruction
 cannot produce distinguishable requests. When a later revision has carried out the
-instruction, remove the holder rather than leaving an empty Decision with no possible answer.
+instruction, remove the holder rather than leaving an empty Ask with no possible answer.
 `verbs` gives each operation a closed detail schema. Optional `bind` entries require a
 detail field to equal an authored string attribute on the holder, so a crafted event
 cannot retarget the operation. Every bound detail field and holder attribute is required,
@@ -323,17 +379,17 @@ Leaf validates the generic relation; the package owns the map, roles, and partic
 widget tags. A later package can therefore add another goal or worker widget by merging
 its entry into `$command.widgets`, without changing core.
 
-Set `decision: true` when the ready operation is a question the reader must answer. Leaf then
+Set `ask: true` when the ready operation is a question the reader must answer. Leaf then
 puts that holder in the canonical Asks projection only while its lifecycle is `ready`.
 Acceptance hands the turn to the host, so `pending` and `completed` holders leave the
-reader's list; a failed receipt returns the lifecycle to `ready` and reopens the decision. A
+reader's list; a failed receipt returns the lifecycle to `ready` and reopens the Ask. A
 parent `x-awaits.rollup` reads that same lifecycle, so nested task and header projections
 do not need package-specific request bookkeeping.
 
 ```json
 {
   "x-request": {
-    "decision": true,
+    "ask": true,
     "offers": { "lf-operation": "verb" },
     "verbs": {
       "restart": {
@@ -608,7 +664,10 @@ Core calls `begin`, asks `outletFor` about each exact datum thread owned by that
 then calls `end`. The adapter returns an element inside the widget or `null`. It owns
 only outlet creation, removal, and layout. Core renders the retained messages, replies,
 reactions, settlement controls, and receipts into each outlet. A claimed thread does not
-also appear in the living margin; the Threads panel remains the complete index.
+also appear in the living margin; the Threads panel remains the complete index. With
+Threads closed, `t`/`T` lands on this local surface before trying the living-margin
+fallback. Opening Threads from the focused surface carries the same thread into the
+panel.
 
 The adapter returns `null` for data that is filtered, collapsed, or not yet hydrated.
 That keeps lazy widgets lazy and restores the living-margin fallback. Deliberate thread

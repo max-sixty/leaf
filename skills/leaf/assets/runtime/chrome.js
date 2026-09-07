@@ -3,7 +3,7 @@
    stacks them, and puts the root in the document. */
 import { banner, mountBanner, reserveBannerControls } from "./banner.js";
 import { versionMenu } from "./version.js";
-import { decisionsPanel, othersPanel } from "./trays.js";
+import { asksPanel, othersPanel } from "./trays.js";
 import { panel, wireGeneralBox } from "./conversation/panel.js";
 import { composer, fab, fabBar } from "./composing/selection.js";
 import { helpEl } from "./keyboard/reference.js";
@@ -12,16 +12,18 @@ import { el, focusDestination, offer } from "./widget-elements.js";
 import { overflowMenu } from "./banner-shelf.js";
 import { inspectEl, legendRoot } from "./design.js";
 import { addressLayer } from "./keyboard/address.js";
-import { decisionActionLayer } from "./decisions/view.js";
+import { askActionLayer } from "./asks/view.js";
 import { selectionLayer, selectionSearch } from "./composing/targets.js";
-import { mountTargetPaint, visualMarkLayer } from "./target-paint.js";
-import { marginTraceBox, mountMargin } from "./living-margin.js";
+import { mountTargetPaint, targetTraceBox, visualMarkLayer } from "./target-paint.js";
+import { drawingLayer } from "./composing/drawing.js";
+import { mountMargin } from "./living-margin.js";
 import { aimBox } from "./composing/aim.js";
 import { liveEl } from "./notifications.js";
 import { FOCUSABLE } from "./reach.js";
 import { mountLayout } from "./chrome-layout.js";
 import { declareLeavesKeys } from "./live-leaves.js";
-import { declareFindBoxKeys } from "./keyboard/page.js";
+import { commentBox, commentRows, declareFindBoxKeys } from "./keyboard/page.js";
+import { activeRowLabel } from "./keyboard/dispatch.js";
 import { wireFabInput } from "./composing/surface.js";
 import { mountAnchors } from "./anchors.js";
 import { wireThreadLanding } from "./conversation/landing.js";
@@ -30,6 +32,14 @@ import { mountThreadList } from "./conversation/thread-list.js";
 import { wireNarrowing } from "./conversation/narrowing.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
 import { wireThreadCards } from "./conversation/thread-card.js";
+import { mediaViewer } from "./media.js";
+import { configureInput } from "./composing/input.js";
+import { uploadMedia } from "./layer-client.js";
+
+const commentAddress = () => ({
+  box: commentBox(),
+  label: activeRowLabel(commentRows()),
+});
 
 // The one scope root for the chrome's private rules: they match nothing outside this
 // container. A div, not a lf-* element — the render gate reads a lf-* ancestor as
@@ -69,6 +79,7 @@ skipToChrome.onclick = () => {
 
 // Every part in the layer's stacking order, named, and the root put in the document.
 export function mountChrome() {
+  configureInput({ upload: uploadMedia, address: commentAddress });
   mountBanner();
   // The runtime's parts, named: a design comment can point at one, and an anchor names an
   // element by id, so each part that is a thing to point at carries a stable one under the
@@ -79,10 +90,11 @@ export function mountChrome() {
     [banner, "lf-banner"],
     [versionMenu, "lf-versions"],
     [othersPanel, "lf-leaves"],
-    [decisionsPanel, "lf-decisions"],
+    [asksPanel, "lf-asks"],
     [panel, "lf-threads"],
     [fab, "lf-comment-button"],
     [composer, "lf-composer"],
+    [mediaViewer, "lf-media-viewer"],
     [helpEl, "lf-help"],
     [keylineEl, "lf-keyline"],
   ])
@@ -93,18 +105,20 @@ export function mountChrome() {
     overflowMenu,
     versionMenu,
     othersPanel,
-    decisionsPanel,
+    asksPanel,
     panel,
     legendRoot,
     addressLayer,
-    decisionActionLayer,
+    askActionLayer,
     selectionLayer,
     selectionSearch,
     visualMarkLayer,
-    marginTraceBox,
+    drawingLayer,
+    targetTraceBox,
     aimBox,
     fabBar,
     liveEl,
+    mediaViewer,
     helpEl,
     keylineEl,
     inspectEl,

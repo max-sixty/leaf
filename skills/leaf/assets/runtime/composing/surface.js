@@ -2,19 +2,20 @@
 
    Normal reading mode leaves a plain click on unadorned authored content to the
    browser. Visible native and Leaf controls keep their click actions; text selection
-   targets words. Alt-click, `s`, and a visual's “Respond to…” proxy are explicit
-   Comment gestures. They pass the target from `aimTargetAt` or the visual provider to
-   `commentOnTarget`, which opens the compact field and focuses its cursor in the same
-   transaction. A whole item or picture names its authored id, while a visual part adds
-   its declared token. Tab exchanges that field for choices in the same bar and focuses
-   Comment first. Tab, Shift-Tab, and the arrow keys then wrap through every choice.
-   Comment and Escape restore the field; Escape from the field hides the draft. The
-   same anchor resolves both states against the target's geometry.
+   targets words. `s` chooses an item before the reader chooses a response, while
+   Alt-click and a visual's “Respond to…” proxy are explicit Comment gestures. They all
+   pass a stable target from `aimTargetAt` or the visual provider into this surface. A
+   whole item or picture names its authored id, while a visual part adds its declared
+   token. Comment opens the compact field; Tab or its ellipsis raises each reaction as
+   a Button in the target's margin. Tab, Shift-Tab, and the arrow keys then wrap through
+   the visible Buttons. Escape restores the field; Escape from the field hides the
+   draft. The same anchor resolves both states against the target's geometry.
 
    The bar a selection or keyboard-selected item raises is `.lf-fab-bar`: the durable,
-   compact `.lf-fab-input` followed by one response ellipsis. An explicit item target
-   opens and focuses that field immediately. Selecting a passage opens the field
-   without taking focus or collapsing the browser selection; the reader can still copy
+   compact `.lf-fab-input` followed by one response ellipsis. Choosing an item with `s`
+   raises only that response surface's actions; an explicit Comment gesture opens and
+   focuses the field. Selecting a passage leaves the field open but unfocused
+   without collapsing the browser selection; the reader can still copy
    the selection or use its native context menu, then enter the field with Comment. The
    field grows in place and never transfers text into a second composer card. A
    one-line note is a pill. A longer one widens up to a readable 80ch and then wraps,
@@ -29,16 +30,17 @@
    without discarding its draft. If the disappearing bar held focus, the visible
    Threads list takes it; an unrelated focused control keeps it. A partially exposed
    page remains interactive whenever the bar fits its actual remaining room. Enter
-   inserts a newline; `Mod+Enter` sends. Tab changes the same bar into Comment, Suggest
-   when the anchor is a quote, and the layer's reaction tokens.
+   inserts a newline; `Mod+Enter` sends. Tab raises the layer's reaction tokens in the
+   target's margin. A layer with no reaction vocabulary keeps the bar's Comment and
+   Suggest fallback.
 
    `showFab` places the bar; `openComposer` (composing/selection.js) binds its field to
-   the durable draft and takes the focus decision. Every explicit item and visual route
-   passes its resolved anchor to `commentOnTarget`, which focuses the same field and
-   carries an unsent draft to the new target. Automatic passage selection opens that
-   passage's own durable draft without moving focus. Submitted words still in flight
-   remain owned by their original anchor, while a later target starts clean and keeps
-   focus.
+   the durable draft and takes the focus decision. Item selection passes its resolved
+   anchor to `selectTarget`; explicit Comment routes use `commentOnTarget`, which focuses
+   the field and carries an unsent draft to the new target. Automatic passage selection
+   opens that passage's own durable draft without moving focus. Submitted words still in
+   flight remain owned by their original anchor, while a later target starts clean and
+   keeps focus.
 
    `placeClear` fits the response bar into a free band bounded by the viewport, its
    target, and controls carrying `data-lf-offer`. A quoted passage keeps its whole
@@ -55,10 +57,11 @@ import {
   visualActionAnchor,
   visualAt,
 } from "../anchors.js";
-import { documentPoint, shownParts, shownRect } from "../geometry.js";
+import { documentPoint, shownBox, shownParts, shownRect } from "../geometry.js";
 import { targetElement, targetParts, targetSegments } from "../resolved-target.js";
 import {
   composerOpen,
+  detachComposer,
   fab,
   fabBar,
   fabInput,
@@ -85,8 +88,9 @@ import { letGo, takesLetters } from "../keyboard/page.js";
 import { closeVersionMenu, versionMenuIsOpen } from "../version.js";
 import { pointerAt } from "../pointer.js";
 import { anchorLabel } from "../conversation/messages.js";
-import { showThread } from "../conversation/landing.js";
+import { openPageThread } from "../living-margin.js";
 import { reactionsOn } from "../conversation/model.js";
+import { isDrawing } from "./drawing.js";
 
 const hideReference = () => showReference(false, false);
 const hasOtherResponses = (anchor) =>
@@ -253,13 +257,16 @@ function placeFab(target = anchorBox(fabAnchor)) {
   if (room <= 0) return false;
   const block = fabAnchor.quote && fabTargetAt();
   const clips = new Map();
+  const parts = block ? shownParts(block) : [];
   const keepClear =
-    (block &&
-      union(
-        shownParts(block)
-          .map((part) => shownRect(part, clips))
-          .filter(Boolean),
-      )) ||
+    union(parts.map((part) => shownRect(part, clips)).filter(Boolean)) ||
+    // Scrolled clear of the viewport, the block keeps its column and loses its shown
+    // rect, so the clipped reading has nothing left to say about where the field may
+    // stand. Its unclipped bounds answer the question the clipped one was asked. The
+    // fall through to the passage did the one thing the rule above forbids: beside a
+    // short selection the field took the words after it, left the free margin, and
+    // came to rest on the sentences the reader had scrolled to.
+    union(parts.map((part) => shownBox(part))) ||
     target;
   fabBar.style.setProperty("--lf-float-w", `${room}px`);
   if (composerOpen) {
@@ -314,12 +321,13 @@ export function showFab(
   fabAnchor = anchor;
   fabFloating = !fabAnchor || place;
   fabOrigin = fabAnchor && origin?.isConnected ? origin : null;
+  fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
   fabBar.style.display = fabAnchor ? "inline-flex" : "none";
   fabInput.style.display = fabAnchor && composerOpen ? "block" : "none";
   const responses = fabBar.querySelector(":scope > .lf-react-trigger");
   if (responses) responses.hidden = !fabAnchor || !hasOtherResponses(fabAnchor);
-  // Comment returns from the bar's choice state to this same field. At rest the input
-  // itself is the comment affordance.
+  // Comment returns from the bar's choice state to this same field. With only a target
+  // chosen, the button is the affordance; once Comment is open, the input replaces it.
   fab.style.display = fabAnchor ? "" : "none";
   if (fabAnchor) {
     const label = anchorLabel(fabAnchor).replace(/^§\s*/, "");
@@ -335,6 +343,7 @@ export function showFab(
     if (place && !placeFab(target ?? anchorBox(fabAnchor))) {
       fabAnchor = null;
       fabOrigin = null;
+      fabBar.removeAttribute("data-lf-target-only");
       if (composerOpen) hideComposer();
       fabBar.style.display = "none";
       fabInput.style.display = "none";
@@ -392,21 +401,31 @@ export const fabReturnTo = () =>
       : visualActionAnchor(fabAnchor)
     : null;
 // Every explicit target gesture ends here. The gesture has already resolved its stable
-// authored anchor; this command owns the one transition from that target into Comment.
-// Focusing the field drops any older browser selection, and an unsent draft follows the
-// deliberate move. A visual proxy supplies its origin so Escape can return to it.
-export function commentOnTarget({ anchor }, { origin = null } = {}) {
+// authored anchor; this owns the one transition into the response surface. Choosing a
+// target leaves the response undecided, while an explicit Comment gesture focuses its
+// field and carries an unsent draft. A visual proxy supplies its origin so Escape can
+// return to it.
+function raiseTarget({ anchor }, { origin = null, focus = false, carry = false } = {}) {
   clearTimeout(selectionUpdate);
   selectionUpdate = null;
   targetActivation = true;
   const selection = getSelection();
   if (selection?.rangeCount) selection.removeAllRanges();
-  openComment(anchor, "", { carry: true });
-  if (origin) showFab(anchor, null, { origin });
+  if (focus) {
+    openComment(anchor, "", { focus, carry });
+    if (origin) showFab(anchor, null, { origin });
+  } else {
+    detachComposer();
+    showFab(anchor, null, { origin });
+  }
   setTimeout(() => {
     targetActivation = false;
   });
 }
+export const commentOnTarget = (target, { origin = null } = {}) =>
+  raiseTarget(target, { origin, focus: true, carry: true });
+export const selectTarget = (target, { origin = null } = {}) =>
+  raiseTarget(target, { origin });
 // Focusing text entry collapses a native page selection. Hold that browser-authored
 // selectionchange out of updateFab: the durable anchor is already captured, and letting
 // the collapse re-read it as no selection dismisses the field the reader just entered.
@@ -429,6 +448,11 @@ export function showFabOptions() {
 // quote through behind a rendered three-character selection — a quote short enough to match
 // almost anywhere.
 const MIN_QUOTE = 3;
+export const hasPageSelectionTarget = () => {
+  const selection = pageSelection();
+  const anchor = selection ? selectionAnchor(selection) : null;
+  return Boolean(anchor?.quote?.length >= MIN_QUOTE);
+};
 
 export function updateFab() {
   if (!anchoringIsReady()) {
@@ -515,7 +539,11 @@ function openComment(anchor, text, options = {}) {
   return openComposer(anchor, text, options);
 }
 function fabHoldsCapturedPassage() {
-  return fabInputTakingFocus || fabBar.contains(document.activeElement);
+  return (
+    fabInputTakingFocus ||
+    fabBar.contains(document.activeElement) ||
+    reactionContextContains(document.activeElement)
+  );
 }
 // Wired once the chrome is mounted (chrome.js): the box is selection.js's, an owner that
 // imports this module back.
@@ -549,6 +577,7 @@ const rememberPointerSelection = () => {
 document.addEventListener(
   "pointerdown",
   (ev) => {
+    if (isDrawing()) return;
     primaryPointerPressed = ev.isPrimary && ev.button === 0;
     if (primaryPointerPressed) pressesBegun++;
     pointerSelecting = primaryPointerPressed && pageWords(ev.target);
@@ -567,6 +596,7 @@ document.addEventListener(
   true,
 );
 document.addEventListener("pointermove", (ev) => {
+  if (isDrawing()) return;
   if (!pointerSelecting || !selectionPressPoint) return;
   if (ev.defaultPrevented) {
     selectionGestureClaimed = true;
@@ -577,6 +607,7 @@ document.addEventListener("pointermove", (ev) => {
     3;
 });
 const finishPointerSelection = (ev) => {
+  if (isDrawing()) return;
   // A mouse pointer is followed by the compatibility mouseup below, which performs the
   // sentence snap before opening the field. Opening from pointerup first would focus the
   // textarea and collapse the still-unsnapped Selection before mouseup can finish it.
@@ -622,6 +653,7 @@ document.addEventListener("selectionchange", () => {
   scheduleSelectionUpdate();
 });
 document.addEventListener("mouseup", (ev) => {
+  if (isDrawing()) return;
   primaryPointerPressed = false;
   pointerSelecting = false;
   const gestureClaimed = selectionGestureClaimed;
@@ -697,7 +729,9 @@ export function standDown(target) {
 // Document listeners see a shadow-tree press retargeted to its host. Read the
 // composed origin so core controls seated in a widget surface remain inside their
 // own composer/reaction layer instead of being dismissed before `click` can fire.
-document.addEventListener("mousedown", (ev) => standDown(ev.composedPath()[0]));
+document.addEventListener("mousedown", (ev) => {
+  if (!isDrawing()) standDown(ev.composedPath()[0]);
+});
 
 // What a plain click on the page means, decided once. Design mode explicitly changes the
 // grammar, and a visible mark opens its thread. Unadorned authored content keeps the
@@ -712,6 +746,7 @@ document.addEventListener("mousedown", (ev) => standDown(ev.composedPath()[0]));
 // file already carries covers it: a guard that reads state another function wrote is a sign
 // the two are one function.
 document.addEventListener("click", (ev) => {
+  if (isDrawing()) return;
   if (!pageWords(ev.target)) return;
   // A press design mode did not take at the press is a press on prose: a drag that
   // selected words has the 💬 (updateFab, on the mouseup) and is not a click on the
@@ -734,7 +769,7 @@ document.addEventListener("click", (ev) => {
   // for wherever the pointer is parked, so that one keeps reading the event.
   const point = ev.detail ? pointerAt() : { x: ev.clientX, y: ev.clientY };
   const threadId = markAt(point.x, point.y);
-  if (threadId) return showThread(threadId);
+  if (threadId) return openPageThread(threadId);
 });
 
 export const fabAnchorAt = () => fabAnchor;

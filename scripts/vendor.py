@@ -57,7 +57,7 @@ PINS = {
     "entities": "7.0.1",
     "sortablejs": "1.15.7",
     "@observablehq/plot": "0.6.17",
-    "@pierre/diffs": "1.3.6",
+    "@pierre/diffs": "1.4.1",
     "@modelcontextprotocol/ext-apps": "1.7.5",
     "shiki": "4.4.3",
     "esbuild": "0.28.2",
@@ -527,43 +527,38 @@ def build_mcp_app(work: Path) -> list[Path]:
         spec("esbuild"),
         cwd=work,
     )
-    outputs = []
-    for name in ("page",):
-        entry = work / f"{name}-entry.js"
-        bundle = work / f"{name}-bundle.js"
-        out = MCP_APP / f"{name}-app.html"
-        shutil.copyfile(source / f"{name}-app.js", entry)
-        esbuild(
-            entry.name,
-            "--bundle",
-            "--format=iife",
-            "--platform=browser",
-            "--target=chrome105",
-            "--minify",
-            "--legal-comments=inline",
-            f"--banner:js=/*! @modelcontextprotocol/ext-apps {PINS['@modelcontextprotocol/ext-apps']}"
-            " — MIT — https://github.com/modelcontextprotocol/ext-apps */",
-            f"--outfile={bundle}",
-            cwd=work,
-        )
-        html = (source / f"{name}-app.html").read_text(encoding="utf-8")
-        html = html.replace(
-            "/* LEAF_MCP_STYLE */",
-            (source / f"{name}-app.css").read_text(encoding="utf-8").strip(),
-        )
-        html = html.replace(
-            "/* LEAF_MCP_SCRIPT */",
-            bundle.read_text(encoding="utf-8")
-            .strip()
-            .replace("</script", "<\\/script"),
-        )
-        html = html.replace(
-            "<!-- LEAF_MCP_ICON -->",
-            (ASSETS / "icon.svg").read_text(encoding="utf-8").strip(),
-        )
-        out.write_text(html, encoding="utf-8")
-        outputs.append(out)
-    return outputs
+    entry = work / "page-entry.js"
+    bundle = work / "page-bundle.js"
+    out = MCP_APP / "page-app.html"
+    shutil.copyfile(source / "page-app.js", entry)
+    esbuild(
+        entry.name,
+        "--bundle",
+        "--format=iife",
+        "--platform=browser",
+        "--target=chrome105",
+        "--minify",
+        "--legal-comments=inline",
+        f"--banner:js=/*! @modelcontextprotocol/ext-apps {PINS['@modelcontextprotocol/ext-apps']}"
+        " — MIT — https://github.com/modelcontextprotocol/ext-apps */",
+        f"--outfile={bundle}",
+        cwd=work,
+    )
+    html = (source / "page-app.html").read_text(encoding="utf-8")
+    html = html.replace(
+        "/* LEAF_MCP_STYLE */",
+        (source / "page-app.css").read_text(encoding="utf-8").strip(),
+    )
+    html = html.replace(
+        "/* LEAF_MCP_SCRIPT */",
+        bundle.read_text(encoding="utf-8").strip().replace("</script", "<\\/script"),
+    )
+    html = html.replace(
+        "<!-- LEAF_MCP_ICON -->",
+        (ASSETS / "icon.svg").read_text(encoding="utf-8").strip(),
+    )
+    out.write_text(html, encoding="utf-8")
+    return [out]
 
 
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
@@ -586,7 +581,7 @@ def vendor(name: str) -> list[Path]:
 
 
 # Which bundle a moved pin obliges you to rebuild. A copy answers for its own
-# package; a build reaches for several, and esbuild is the tool all three share.
+# package; a build reaches for several, and esbuild is the tool the builds share.
 REBUILDS = {
     **{copy.package: (name,) for name, copy in COPIES.items()},
     "highlight.js": ("highlight",),
@@ -601,14 +596,59 @@ REBUILDS = {
 }
 
 
-def report_pins() -> None:
-    """Every pin against upstream's latest, with the bundle to rebuild if it moved."""
-    for package, pinned in PINS.items():
-        latest = run(
-            "npm", "view", f"{package}@latest", "version", cwd=ROOT, capture=True
+# Two pins are not Leaf's own choice of version. beautiful-mermaid imports elkjs and
+# entities, and they are pinned here only because the bundle is self-contained: esbuild
+# resolves those bare imports itself, so the versions have to be named. A release
+# outside the range beautiful-mermaid declares is therefore not a pin to take. npm
+# would install the declared version nested under it, esbuild would bundle that one,
+# and the table would say one thing while the bundle carried another. Their rows read
+# against the dependant's range, so what the report calls movement is movement that can
+# actually be taken.
+HELD_BY = {"elkjs": "beautiful-mermaid", "entities": "beautiful-mermaid"}
+
+
+def newest(package: str, within: str = "latest") -> str:
+    """Upstream's newest release of a package, bounded by a range where one is given.
+
+    A range answers with every match, and npm prints them in packument order rather
+    than semver order, so the last one is the range's most recently published release.
+    That is its newest while a range's releases go out in order; a patch backported
+    inside the range after a higher one would be read in its place.
+    """
+    found = json.loads(
+        run(
+            "npm",
+            "view",
+            f"{package}@{within}",
+            "version",
+            "--json",
+            cwd=ROOT,
+            capture=True,
         )
+    )
+    return found[-1] if isinstance(found, list) else found
+
+
+def report_pins() -> None:
+    """Every pin against the newest release it could take, and the bundle to rebuild."""
+    for package, pinned in PINS.items():
+        holder = HELD_BY.get(package)
+        allowed = (
+            run(
+                "npm",
+                "view",
+                spec(holder),
+                f"dependencies.{package}",
+                cwd=ROOT,
+                capture=True,
+            )
+            if holder
+            else "latest"
+        )
+        latest = newest(package, allowed)
         rebuild = " ".join(REBUILDS[package])
-        moved = "" if latest == pinned else f"latest {latest}"
+        held = f" (held to {holder}'s {allowed})" if holder else ""
+        moved = "" if latest == pinned else f"latest {latest}{held}"
         print(f"{package:22} {pinned:10} {rebuild:24} {moved}".rstrip())
 
 
@@ -619,7 +659,10 @@ def main() -> None:
     parser.add_argument(
         "--pins",
         action="store_true",
-        help="read every pin against upstream's latest, and name what to rebuild",
+        help=(
+            "read every pin against the newest release it could take, "
+            "and name what to rebuild"
+        ),
     )
     args = parser.parse_args()
 

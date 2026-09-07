@@ -9,7 +9,7 @@
     <title>Where the heat goes: a winter of gas readings</title>
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
     />
     <link rel="stylesheet" href="/theme.css" />
     <script type="module" src="/leaf.js"></script>
@@ -113,7 +113,7 @@ chimney with no cap, 120
         </lf-chart>
       </section>
 
-      <lf-decision id="heat-first-decision">
+      <lf-ask id="heat-first-decision">
         <h2>Which measure should be booked first?</h2>
         <p id="heat-first-note">
           The three are independent, and doing all of them this year needs the floor to
@@ -150,7 +150,7 @@ chimney with no cap, 120
             </p>
           </lf-option>
         </lf-options>
-      </lf-decision>
+      </lf-ask>
 
       <section id="heat-weather">
         <h2>Against the weather</h2>

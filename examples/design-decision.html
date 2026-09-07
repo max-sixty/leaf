@@ -9,7 +9,7 @@
     <title>Decision: where sessions live</title>
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
     />
     <link rel="stylesheet" href="/theme.css" />
     <script type="module" src="/leaf.js"></script>
@@ -24,7 +24,7 @@
         models, with Redis and a short signed-cookie fallback recommended.
       </p>
       <aside class="sidebar" id="decision-sidebar">
-        <lf-toc id="decision-contents"></lf-toc>
+        <lf-toc id="decision-contents" max-level="2"></lf-toc>
       </aside>
 
       <section id="constraints">
@@ -56,7 +56,7 @@
 
       <section id="session-backlog">
         <h2>Triage the session-store edges</h2>
-        <lf-decision id="session-backlog-decision">
+        <lf-ask id="session-backlog-decision">
           <h3>Which session-store follow-ups should we keep?</h3>
           <p id="session-backlog-intro">
             These are independent follow-ups to the store choice. Pass removes an item
@@ -106,7 +106,7 @@
               </lf-swipe-card>
             </lf-swipe-pile>
           </lf-swipe-deck>
-        </lf-decision>
+        </lf-ask>
       </section>
 
       <section id="settled-transport">
@@ -181,8 +181,8 @@
       </section>
 
       <section id="options">
-        <lf-decision id="session-options-decision">
-          <h2 id="session-options-heading">Where should a session live?</h2>
+        <lf-ask id="session-options-decision">
+          <h2>Where should a session live?</h2>
           <lf-options id="session-options" choose>
             <lf-option id="opt-jwt"
               ><lf-chip>effort: low</lf-chip
@@ -249,7 +249,7 @@
               </p>
             </lf-option>
           </lf-options>
-        </lf-decision>
+        </lf-ask>
       </section>
 
       <section id="flow">

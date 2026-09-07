@@ -3,20 +3,18 @@
 import json
 from pathlib import Path
 
+from .asks import thread_asks
 from .construction import constructed_content
 from .data import read_data
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
-from .decisions import thread_decisions
 from .document_reading import DocumentReading, read_document
 from .events import bare_reaction, build_threads, is_reaction
 from .files import (
     active_descriptor,
-    latest_revision,
     revision_path,
     version_descriptors,
 )
 from .passages import enclosing_of, page_passages
-from .presence import presence
 from .projection import (
     FrozenThreadReading,
     canonical_updates,
@@ -29,6 +27,7 @@ from .registry.storage import layer_metadata, require_registry
 from .requests import request_lifecycles, request_lifecycles_for, request_phases
 from .revisioning import activate_source
 from .schema import DATA_FILE
+from .served_state.page import full_state
 from .server import running_server
 from .service import PageTransaction, unacknowledged
 
@@ -63,15 +62,12 @@ def cmd_page_state(page_dir: Path, *, thread_id: str | None = None) -> None:
 def _active_revision(page_dir: Path, events: list) -> tuple[int | None, dict | None]:
     # Every markup-derived reading is of the latest valid revision, because that
     # is the page the live root shows and the user acts on.
-    try:
-        revision = latest_revision(page_dir)
-        active = active_descriptor(page_dir, events)
-        active["file"] = (
-            revision_path(page_dir, revision).relative_to(page_dir).as_posix()
-        )
-        return revision, active
-    except SystemExit:
+    active = active_descriptor(page_dir, events)
+    if active is None:
         return None, None
+    revision = active["revision"]
+    active["file"] = revision_path(page_dir, revision).relative_to(page_dir).as_posix()
+    return revision, active
 
 
 def _read_active_document(
@@ -125,7 +121,7 @@ def _base_state(
         "data": {"file": DATA_FILE, "revision": stored_data["revision"]},
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "measurement_lag": [],
-        "decisions": [],
+        "asks": [],
         # Current semantic facts only. Exact raw history belongs to
         # `events --thread`; keeping its sequence list here would make this
         # default snapshot grow with every conversation turn. A reaction nobody
@@ -134,14 +130,14 @@ def _base_state(
         "threads": [
             {
                 "id": root,
-                "anchor": thread["root"].get("anchor"),
+                "anchor": thread["anchor"],
                 "resolved": thread["resolved"] and thread["resolved"]["author"],
             }
             for root, thread in threads.items()
             if not bare_reaction(thread)
         ],
         # Every reaction still standing — the agent-side reading of the marks
-        # the page paints, each explained (`means`) off this page's vocabulary.
+        # the page paints. A package may attach `means` to its own vocabulary.
         # On the page (`anchor`, or none for the page whole) while its thread is
         # unresolved; in a thread (`parent`) while that thread is open.
         "reactions": [
@@ -191,7 +187,7 @@ def _apply_document_state(
         standing_entry(coordinate, event)
         for coordinate, (event, _) in projection.actions.items()
     ]
-    state["decisions"] = document.decisions["reader"]
+    state["asks"] = document.asks["reader"]
     page_dir = Path(state["page"])
     state["content_source"] = {
         "file": str(page_dir / state["active"]["file"]),
@@ -221,7 +217,7 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
     # answering one is answering the page. The projection above is of the published
     # version's elements alone, so a press on an AskUserQuestion resolved no
     # declaration and stood nowhere — a session picking the page up read the reader's
-    # answer to its own question as an answer nobody had given, with `decisions` reporting
+    # answer to its own question as an answer nobody had given, with `asks` reporting
     # the same question answered.
     #
     # `thread` is the one key that separates them, present on every entry so a reader
@@ -266,7 +262,7 @@ def _write_page_state(
     projection of the user's standing state and the reports standing on the agent
     channel, the effective construction and its mutation owners, authored
     measurements whose live source has run again (`measurement_lag_entries`), the
-    open decisions on the page and in threads (the banner's own count), each comment
+    open Asks on the page and in threads (the banner's own count), each comment
     thread's current state,
     and presence beside what answers for it. Computed on demand from the log,
     revision, registry, and source store — no derived reading is stored, so there
@@ -278,8 +274,29 @@ def _write_page_state(
     registry = require_registry(page_dir)
     versions = version_descriptors(page_dir, events)
     revision, active = _active_revision(page_dir, events)
-    presence_reading = presence(page_dir, events)
-    claims = presence_reading.pop("claims")
+    served = full_state(page_dir, events)
+    activity = served["activity"]
+    claims = served["claims"]
+    # Agent state and browser state are two views of one snapshot. Select the
+    # presence portion from the already-projected server reading instead of
+    # gathering mutable claim and lease evidence a second time.
+    presence_reading = {
+        key: served[key]
+        for key in (
+            "status",
+            "listening",
+            "cursor",
+            "pending",
+            "agent",
+            "host",
+            "session_alive",
+            "claim_session",
+            "claim_turn",
+            "turn_closed",
+            "viewed",
+            "session_cwd",
+        )
+    }
     document = _read_active_document(page_dir, events, registry, revision)
     spoken = document.spoken if document is not None else {}
     threads = build_threads(events, enclosing_of(spoken))
@@ -298,6 +315,7 @@ def _write_page_state(
         registry,
         requests,
     )
+    state["activity"] = activity
     if document is not None:
         _apply_document_state(
             state, document, events, revision, threads, stored_data, registry
@@ -308,7 +326,7 @@ def _write_page_state(
         registry,
         {"kind": "thread"},
     )
-    state["decisions"] += thread_decisions(
+    state["asks"] += thread_asks(
         events,
         registry,
         {root for root, thread in threads.items() if thread["resolved"]},
@@ -336,11 +354,14 @@ def _write_page_state(
         fragment = thread_reading.structure.fragments.get(event["id"])
         message = {
             "message": event["id"],
-            "text": event.get("text", ""),
             "source": {"kind": "message", "event": event["id"], "seq": event["seq"]},
             "edit": {"kind": "conversation", "thread": thread_id},
             "content": [],
         }
+        if "text" in event:
+            message["text"] = event["text"]
+        if "drawing" in event:
+            message["drawing"] = event["drawing"]
         state["content"].append(message)
         if fragment is None:
             continue

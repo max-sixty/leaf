@@ -1,9 +1,12 @@
 /* lf-toc: navigation derived from the headings the page already says.
  *
  * The generated labels are link apparatus rather than a second copy of the page's
- * words, so the nav wears .lf-ui. An authored heading keeps its own attributes. When one
- * has no id, a generated sibling supplies a native fragment target instead; that target
- * remains useful after export removes this module.
+ * words, so the nav wears .lf-ui. An authored heading keeps its own attributes. When a
+ * heading titles an identified section, that section is the destination: an eyebrow and
+ * heading arrive as one title, and the public fragment names the section rather than its
+ * label. Otherwise the heading's id is the destination, or a generated sibling supplies
+ * a native fragment target. That target remains useful after export removes this module.
+ * max-level bounds the authored outline before the module creates either links or targets.
  *
  * In the roomy margin the outline becomes a reading map. Each row receives the length
  * of the section it leads as its flex share, so the quiet spine describes the document
@@ -21,6 +24,7 @@
  * honor a generated target that did not exist during HTML parsing. */
 import {
   LAYOUT,
+  PRESENTATION,
   inChrome,
   once,
   relabel,
@@ -53,6 +57,7 @@ customElements.define(
     #onToggle = () => this.#scheduleMeasure();
     #onLoad = () => this.#scheduleMeasure();
     #onLayout = () => this.#scheduleMeasure();
+    #onPresentation = () => this.#measure();
 
     connectedCallback() {
       if (once(this)) this.#build();
@@ -67,6 +72,7 @@ customElements.define(
       this.#main?.removeEventListener("toggle", this.#onToggle, true);
       this.#main?.removeEventListener("load", this.#onLoad, true);
       this.#main?.removeEventListener(LAYOUT, this.#onLayout);
+      document.removeEventListener(PRESENTATION, this.#onPresentation);
       window.removeEventListener("resize", this.#onResize);
       cancelAnimationFrame(this.#measureFrame);
       cancelAnimationFrame(this.#paintFrame);
@@ -78,8 +84,10 @@ customElements.define(
       this.#main = this.closest("main");
       if (!this.#main) return;
 
+      const maxLevel = Number(this.getAttribute("max-level") ?? 6);
       const headings = [...this.#main.querySelectorAll(HEADING_SELECTOR)]
         .filter((heading) => !inChrome(heading) && !heading.closest("lf-toc"))
+        .filter((heading) => Number(heading.localName.slice(1)) <= maxLevel)
         .map((heading) => ({ heading, label: wrote(heading).trim() }))
         .filter(({ label }) => label);
       if (!headings.length) return;
@@ -106,10 +114,11 @@ customElements.define(
       start.className = "lf-toc-start";
       start.dataset.lfDepth = "0";
       const startLink = document.createElement("a");
-      const startTarget = pageTitle
-        ? pageTitle.id || this.#targetFor(pageTitle, 0)
-        : this.#main.id || this.#targetFor(this.#main, 0);
-      startLink.href = `#${startTarget}`;
+      const startSource = pageTitle ?? this.#main;
+      const startDestination = startSource.id
+        ? startSource
+        : this.#targetFor(startSource, 0);
+      startLink.href = `#${startDestination.id}`;
       // The row's word is its text, as every other row's is. It was an attribute the rail
       // form drew with `content: attr()`, which meant the link had no text at all: every
       // reading that asks a link what it says — the accessible name it falls back to, a
@@ -128,21 +137,21 @@ customElements.define(
         ...headings.map(({ heading: item }) => Number(item.localName.slice(1))),
       );
       const items = headings.map(({ heading: item, label }, index) => {
-        const target = item.id || this.#targetFor(item, index + 1);
+        const destination = this.#destinationFor(item, index + 1);
         const row = document.createElement("li");
         row.dataset.lfDepth = String(
           Math.min(Number(item.localName.slice(1)) - floor, 4),
         );
         const link = document.createElement("a");
-        link.href = `#${target}`;
+        link.href = `#${destination.id}`;
         link.textContent = label;
         row.append(link);
         list.append(row);
-        return { heading: item, row, link };
+        return { destination, row, link };
       });
 
       this.#sections = [
-        { heading: pageTitle ?? this.#main, row: start, link: startLink },
+        { destination: startDestination, row: start, link: startLink },
         ...items,
       ];
       this.#rows.append(lens, start, list);
@@ -162,12 +171,13 @@ customElements.define(
         this.#scroller === document.scrollingElement ? document : this.#scroller;
       this.#watching = new ResizeObserver(() => this.#scheduleMeasure());
       this.#watching.observe(this.#main);
-      for (const { heading } of this.#sections)
-        if (heading !== this.#main) this.#watching.observe(heading);
+      for (const { destination } of this.#sections)
+        if (destination !== this.#main) this.#watching.observe(destination);
       this.#scrollSource.addEventListener("scroll", this.#onScroll, { passive: true });
       this.#main.addEventListener("toggle", this.#onToggle, true);
       this.#main.addEventListener("load", this.#onLoad, true);
       this.#main.addEventListener(LAYOUT, this.#onLayout);
+      document.addEventListener(PRESENTATION, this.#onPresentation);
       window.addEventListener("resize", this.#onResize);
       this.#scheduleMeasure();
     }
@@ -183,13 +193,14 @@ customElements.define(
     #measure() {
       if (!this.#main || !this.#scroller || !this.#rows) return;
       const mainTop = this.#documentTop(this.#main);
-      let previous = this.#documentTop(this.#sections[0].heading);
+      let previous = this.#documentTop(this.#sections[0].destination);
       this.#shown = this.#sections.map(
-        ({ heading }) => heading === this.#main || heading.checkVisibility(),
+        ({ destination }) =>
+          destination === this.#main || destination.checkVisibility(),
       );
-      this.#positions = this.#sections.map(({ heading }, index) => {
+      this.#positions = this.#sections.map(({ destination }, index) => {
         const position = this.#shown[index]
-          ? Math.max(previous, this.#documentTop(heading))
+          ? Math.max(previous, this.#documentTop(destination))
           : previous;
         previous = position;
         return position;
@@ -218,6 +229,8 @@ customElements.define(
 
       if (getComputedStyle(this.#rows).display !== "flex") return;
       const track = this.#rows.getBoundingClientRect();
+      const lineHeight = parseFloat(getComputedStyle(this.#nav).lineHeight);
+      const labelGap = Number.isFinite(lineHeight) ? lineHeight * 0.5 : 0;
       let prefix = 0;
       const labels = this.#sections.map(({ row, link }) => {
         const label = {
@@ -226,10 +239,12 @@ customElements.define(
           height: link.getBoundingClientRect().height,
           prefix,
         };
-        prefix += label.height;
+        prefix += label.height + labelGap;
         return label;
       });
-      const labelHeight = prefix;
+      // Labels that merely fit still read as one block. Keep half a line between them;
+      // the dense map retains every destination when the expanded outline cannot.
+      const labelHeight = prefix - labelGap;
       if (labelHeight > track.height + 1) {
         this.setAttribute("data-lf-dense", "");
         return;
@@ -327,6 +342,13 @@ customElements.define(
       this.#currentLink = link;
     }
 
+    #destinationFor(heading, position) {
+      const section = heading.closest("section[id]");
+      if (section?.querySelector(HEADING_SELECTOR) === heading) return section;
+      if (heading.id) return heading;
+      return this.#targetFor(heading, position);
+    }
+
     #targetFor(heading, position) {
       const stem = `lf-${this.id}-section-${position}`;
       let id = stem;
@@ -339,7 +361,7 @@ customElements.define(
       target.dataset.lfGen = "1";
       target.setAttribute("aria-hidden", "true");
       heading.before(target);
-      return id;
+      return target;
     }
   },
 );

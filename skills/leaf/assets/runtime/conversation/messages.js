@@ -56,8 +56,9 @@ export const loadMarked = () =>
 // re-upgrading it over a prose correction would turn the edit into a second transition.
 const msgBodies = new Map();
 function paintMsgText(text, m) {
-  if (m.suggestion) text.textContent = m.text;
-  else text.innerHTML = renderMarkdown(m.text);
+  const words = m.text ?? "";
+  if (m.suggestion) text.textContent = words;
+  else text.innerHTML = renderMarkdown(words);
 }
 
 function buildMsgBody(m) {
@@ -66,14 +67,15 @@ function buildMsgBody(m) {
   body.append(text);
   if (isReaction(m)) {
     // A thread whose root is a mark: the glyph and its word, in the chrome's own
-    // face, where a comment's words would be. What it meant is the entry's `means`,
-    // said on hover the way the bar says it.
+    // face, where a comment's words would be. A layer may add its own explanation on
+    // hover; the token itself remains sufficient.
     const said = el(
       "span",
       "lf-react-said",
       `${tokenEntry(m.token)?.glyph ?? ""} ${m.token}`.trim(),
     );
-    said.title = tokenEntry(m.token)?.means ?? "";
+    const meaning = tokenEntry(m.token)?.means;
+    if (meaning) said.title = meaning;
     text.append(said);
   } else if (m.suggestion) {
     // Verbatim: a suggestion's characters are bound for the page as typed, and a
@@ -82,6 +84,7 @@ function buildMsgBody(m) {
     paintMsgText(text, m);
   } else {
     paintMsgText(text, m);
+    if (m.drawing) body.append(el("span", "lf-drawing-reference", "Drawing comment"));
     // The widget markup beside the text, injected as the CLI gate validated it. A
     // template is deliberately inert: an already-defined custom element's constructor
     // runs even in a detached ordinary div. Capture parentage in the literal markup,
@@ -139,7 +142,7 @@ export function syncEdited(head, m) {
   }
   if (!edited) {
     edited = el("span", "lf-edited", "edited");
-    head.append(edited);
+    head.insertBefore(edited, head.querySelector(":scope > .lf-resolve"));
   }
   edited.title = `Edited ${ago(m.edited.ts)}`;
 }

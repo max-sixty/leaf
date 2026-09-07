@@ -1,6 +1,7 @@
 """HTTP transport and routes for one served page."""
 
 import base64
+import contextlib
 import hashlib
 import html
 import json
@@ -21,6 +22,7 @@ from .event_log import read_events
 from .files import (
     latest_revision,
     list_revisions,
+    missing_revision,
     published_versions,
     revision_num,
     revision_path,
@@ -30,6 +32,7 @@ from .files import (
     write_json,
 )
 from .locations import path_is_within
+from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
 from .revisioning import activate_source
@@ -45,7 +48,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .structure import PAGE_CSP, parse_structure
+from .structure import FRAME_ANCESTORS_CSP, PAGE_CSP, parse_structure
 
 # How often an open news stream re-reads the page, and how long it may go without a
 # word before saying it is still there. The look is a re-stat rather than an in-process
@@ -63,6 +66,23 @@ ALIVE_S = 5.0
 # servers. Each is cheap to read once and dear to read twenty times a second, and two
 # seconds is the staleness the poll gave every fact, so it is the staleness these keep.
 PRESENCE_S = presence_model.PRESENCE_CACHE_S
+
+
+def reject_json_constant(value: str) -> None:
+    """Reject Python's non-standard NaN and infinity JSON extensions."""
+    raise ValueError(f"invalid JSON constant {value}")
+
+
+def _query_int(raw, name: str, minimum: int) -> int:
+    """One integer a request named, refused in the caller's own words."""
+    bound = "positive" if minimum == 1 else "non-negative"
+    try:
+        value = int(raw)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{name} must be a {bound} integer") from error
+    if value < minimum:
+        raise ValueError(f"{name} must be a {bound} integer")
+    return value
 
 
 _ROOTED_PAGE_ROUTE = re.compile(
@@ -174,8 +194,8 @@ def scope_page_urls(value, page_root: str):
     return scoped
 
 
-def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
-    """Inject immutable document identity, including non-HTTP delivery surfaces."""
+def canonical_script_offset(source: str) -> int:
+    """Locate the one authored module script that enters Leaf's runtime."""
     parsed = parse_structure(source)
     scripts = [
         script
@@ -185,7 +205,12 @@ def runtime_document(source: str, revision: int, version: int | None = None) -> 
     if len(scripts) != 1:
         raise ValueError("document has no canonical script")
     line, column = scripts[0]["position"]
-    offset = sum(len(part) + 1 for part in source.split("\n")[: line - 1]) + column
+    return sum(len(part) + 1 for part in source.split("\n")[: line - 1]) + column
+
+
+def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
+    """Inject immutable document identity, including non-HTTP delivery surfaces."""
+    offset = canonical_script_offset(source)
     markers = f'<meta name="lf-revision" data-lf-runtime content="{revision}">' + (
         f'<meta name="lf-version" data-lf-runtime content="{version}">'
         if version is not None
@@ -205,8 +230,9 @@ def supervised_document(
 ) -> bytes:
     """Supervise HTTP startup before the module graph or stylesheet can load.
 
-    The authored source keeps its canonical script and CSP. Only the served
-    document gains the exact bootstrap hash and the server incarnation probe.
+    The authored source keeps its canonical script. The served document receives
+    the current layer CSP, the exact bootstrap hash, and the server incarnation
+    probe, so historical sources inherit the current delivery boundary.
     """
     source = runtime_document(source, revision, version).decode()
     parsed = parse_structure(source)
@@ -246,6 +272,11 @@ class Handler(BaseHTTPRequestHandler):
     # Empty on the ordinary one-page server. The MCP delivery server sets this to
     # an unguessable `/p/<capability>` prefix and rewrites only Leaf-owned routes.
     page_root = ""
+    # Website examples use the complete server contract without a Leaf work claim.
+    # Their banner reads this explicit presentation fact instead of mistaking the
+    # deliberately unattended page for an abandoned ordinary Leaf.
+    example = None
+    frame_ancestors_policy = FRAME_ANCESTORS_CSP
 
     def _state_service(self) -> PageStateService:
         return PageStateService(
@@ -253,6 +284,7 @@ class Handler(BaseHTTPRequestHandler):
             preview_source=self.preview_source,
             layer_identity=self.layer_identity,
             preview=self.preview,
+            example=self.example,
         )
 
     def page_state(self, view_revision: int | None = None) -> dict:
@@ -287,36 +319,20 @@ class Handler(BaseHTTPRequestHandler):
         )
         if raw in (None, ""):
             return None
-        try:
-            revision = int(raw)
-        except (TypeError, ValueError) as error:
-            raise ValueError("view revision must be a positive integer") from error
-        if revision < 1:
-            raise ValueError("view revision must be a positive integer")
-        return revision
+        return _query_int(raw, "view revision", 1)
 
     def requested_view_sequence(self) -> int:
         raw = parse_qs(urlsplit(self.path).query).get("through_seq", [None])[-1]
         if raw in (None, ""):
             raise ValueError("view sequence is required")
-        try:
-            sequence = int(raw)
-        except (TypeError, ValueError) as error:
-            raise ValueError("view sequence must be a non-negative integer") from error
-        if sequence < 0:
-            raise ValueError("view sequence must be a non-negative integer")
-        return sequence
+        return _query_int(raw, "view sequence", 0)
 
     def data_fragment(self) -> dict:
         """One contract-declared payload from the data revision the tab holds."""
         query = parse_qs(urlsplit(self.path).query)
-        raw_revision = query.get("data_revision", [None])[-1]
-        try:
-            data_revision = int(raw_revision)
-        except (TypeError, ValueError) as error:
-            raise ValueError("data_revision must be a non-negative integer") from error
-        if data_revision < 0:
-            raise ValueError("data_revision must be a non-negative integer")
+        data_revision = _query_int(
+            query.get("data_revision", [None])[-1], "data_revision", 0
+        )
         source = query.get("source", [None])[-1]
         key = query.get("key", [None])[-1]
         snapshot = query.get("snapshot", [None])[-1]
@@ -420,10 +436,8 @@ class Handler(BaseHTTPRequestHandler):
         passes through here, so this is where it ends. `ConnectionError` is the
         whole of that case: its other subclass, a refused connection, cannot
         reach a socket the server already accepted."""
-        try:
+        with contextlib.suppress(ConnectionError):
             super().handle()
-        except ConnectionError:
-            pass
 
     def authorized(self) -> bool:
         """The key, from the handover URL or from the cookie an earlier request
@@ -462,7 +476,8 @@ class Handler(BaseHTTPRequestHandler):
         super().end_headers()
 
     def _send(self, status: int, ctype: str, body: bytes) -> None:
-        if ctype.startswith("text/html"):
+        is_html = ctype.startswith("text/html")
+        if is_html:
             body = scope_document_routes(body, self.page_root)
         elif ctype.startswith(
             ("text/css", "text/javascript", "application/javascript")
@@ -472,6 +487,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if is_html and self.frame_ancestors_policy:
+            self.send_header("Content-Security-Policy", self.frame_ancestors_policy)
         if self.close_connection:
             self.send_header("Connection", "close")
         self.end_headers()
@@ -498,23 +515,48 @@ class Handler(BaseHTTPRequestHandler):
         self._answer(self._post, prepare=self._read_posted)
 
     def _read_posted(self) -> tuple:
-        """The POSTed body as a dict, or the refusal it has already earned.
+        """The route's POSTed body, or the refusal it has already earned.
 
-        Reading and parsing can fail in different ways, all before an append is
-        possible. Naming those failures as final lets the outbox put the gesture back;
-        an unexpected exception remains inside `_answer` and is therefore retryable.
+        Reading and parsing can fail in different ways, all before a write is possible.
+        Each earns a deterministic refusal; an unexpected exception remains inside
+        `_answer`, where the event outbox treats it as retryable.
         """
+        if urlsplit(self.path).path == "/api/media":
+            return self._read_uploaded_media()
         try:
             body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         except (TypeError, ValueError, MemoryError):
             return {}, "invalid Content-Length"
         try:
-            posted = json.loads(body)
+            posted = json.loads(body, parse_constant=reject_json_constant)
         except (ValueError, RecursionError):
             return {}, "invalid JSON"
         if not isinstance(posted, dict):
             return {}, "event must be a JSON object"
         return posted, None
+
+    def _read_uploaded_media(self) -> tuple[bytes, str | None]:
+        """Read one bounded image body without allocating from an untrusted length."""
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+        except (TypeError, ValueError):
+            self.close_connection = True
+            return b"", "invalid Content-Length"
+        if length < 1:
+            self.close_connection = True
+            return b"", "image body is empty"
+        if length > MAX_MEDIA_UPLOAD_BYTES:
+            self.close_connection = True
+            return b"", "image exceeds the 10 MiB limit"
+        try:
+            body = self.rfile.read(length)
+        except (MemoryError, OSError):
+            self.close_connection = True
+            return b"", "could not read image body"
+        if len(body) != length:
+            self.close_connection = True
+            return b"", "incomplete image body"
+        return body, None
 
     def _refuse(self, error: str, status: int = 400) -> None:
         """Answer a refusal in the shape spoken by the route that produced it."""
@@ -567,10 +609,9 @@ class Handler(BaseHTTPRequestHandler):
             with PageTransaction(self.page_dir) as page:
                 activate_source(self.page_dir, page.events)
                 events = page.events
-            try:
-                revision = latest_revision(self.page_dir)
-            except SystemExit:
-                self._json({"error": "no active revision; write index.html first"}, 404)
+            revision = latest_revision(self.page_dir)
+            if revision is None:
+                self._json({"error": missing_revision(self.page_dir)}, 404)
                 return
             source = revision_path(self.page_dir, revision).read_text(encoding="utf-8")
             version = stamped_version(events, revision)
@@ -593,10 +634,7 @@ class Handler(BaseHTTPRequestHandler):
             version = version_num(Path(path).name)
             events = read_events(self.page_dir)
             mapping = version_revisions(events)
-            if (
-                version not in published_versions(self.page_dir, events)
-                or version not in mapping
-            ):
+            if version not in published_versions(self.page_dir, events):
                 self._json(
                     {"error": "not stamped yet; run `leaf version stamp` first"},
                     404,
@@ -700,11 +738,12 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"error": "not found"}, 404)
 
     def _post(self):
-        if urlsplit(self.path).path != "/api/event":
+        path = urlsplit(self.path).path
+        if path not in {"/api/event", "/api/media"}:
             self._json({"error": "not found"}, 404)
             return
-        # Preview requests have passed authentication and body preparation, so
-        # their refusal can name the attempt without writing to the real log.
+        # Preview requests have passed authentication and body preparation. An event
+        # refusal can therefore name its attempt; media uses the route's generic shape.
         if self.preview_source is not None:
             self._refuse("the preview server is read-only", 403)
             return
@@ -716,6 +755,18 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.posted_error:
             self._refuse(self.posted_error)
+            return
+        if path == "/api/media":
+            try:
+                media_path = store_uploaded_media(
+                    self.page_dir,
+                    self.posted,
+                    self.headers.get("Content-Type", ""),
+                )
+            except MediaUploadError as error:
+                self._refuse(str(error))
+                return
+            self._json({"path": media_path})
             return
         try:
             view_revision = self.requested_view_revision(header=True)
@@ -738,6 +789,7 @@ def handler_for(
     token: str,
     preview_source=None,
     protocol_version="HTTP/1.0",
+    example=None,
 ):
     """A request handler bound to one page, publication view, and key. The key has no
     default: every server over a page directory is reachable by whatever reached the
@@ -759,5 +811,6 @@ def handler_for(
             "layer": identity["generation"],
             "layer_identity": identity,
             "preview": preview_metadata(page_dir),
+            "example": example,
         },
     )

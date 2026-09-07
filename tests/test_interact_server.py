@@ -12,6 +12,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta
 from http.server import HTTPServer
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
+    ROOT,
     TOKEN,
     append_command,
     check,
@@ -42,6 +44,7 @@ from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import leases as leases_model
+from leaf import media as media_model
 from leaf import presence as presence_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
@@ -71,6 +74,74 @@ def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page
     assert status == 200
     assert json.loads(body) == {"layer": current}
     assert event_model.read_events(page_dir) == before
+
+
+def test_a_browser_image_becomes_content_addressed_page_media(server, page_dir):
+    """A paste sends bytes once, while drafts and events carry only the stable path.
+
+    Retrying the raw upload is safe before the Markdown reference exists: identical
+    pixels return the same name and leave one file, and that exact file is what the
+    page serves back.
+    """
+    pixels = (ROOT / "examples" / "media" / "051bee487bfb5d13.png").read_bytes()
+    headers = {"Content-Type": "image/png"}
+
+    first = fetch(f"{server}/api/media", data=pixels, headers=headers)
+    second = fetch(f"{server}/api/media", data=pixels, headers=headers)
+
+    assert first == second
+    status, body = first
+    path = json.loads(body)["path"]
+    assert (status, path) == (200, "/media/051bee487bfb5d13.png")
+    assert (page_dir / path.lstrip("/")).read_bytes() == pixels
+    assert len(list((page_dir / "media").iterdir())) == 1
+    assert fetch(server + path) == (200, pixels)
+
+
+def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, page_dir):
+    """The browser door derives the file type and bounds allocation before reading.
+
+    SVG retains its author-side file door but cannot enter from a reader, a MIME label
+    cannot disguise another raster format, and an oversized declared body is rejected
+    without waiting for those bytes to arrive.
+    """
+    png = b"\x89PNG\r\n\x1a\n" + b"browser pixels"
+    refusals = [
+        (
+            {"Content-Type": "image/jpeg"},
+            png,
+            "image bytes do not match image/jpeg",
+        ),
+        (
+            {"Content-Type": "image/svg+xml"},
+            b"<svg></svg>",
+            "image type must be one of:",
+        ),
+    ]
+    for headers, body, message in refusals:
+        status, answer = fetch(f"{server}/api/media", data=body, headers=headers)
+        assert status == 400
+        assert message in json.loads(answer)["error"]
+
+    _, state = fetch(f"{server}/api/state")
+    layer = json.loads(state)["layer"]["generation"]
+    door = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc, timeout=2)
+    try:
+        door.putrequest("POST", f"/api/media?t={TOKEN}")
+        door.putheader("Leaf-Layer", layer)
+        door.putheader("Content-Length", str(media_model.MAX_MEDIA_UPLOAD_BYTES + 1))
+        door.putheader("Content-Type", "image/png")
+        door.endheaders()
+        answer = door.getresponse()
+        refusal = json.loads(answer.read())
+    finally:
+        door.close()
+    assert (answer.status, refusal) == (
+        400,
+        {"error": "image exceeds the 10 MiB limit"},
+    )
+    assert answer.getheader("Connection") == "close"
+    assert not any((page_dir / "media").iterdir())
 
 
 def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
@@ -574,6 +645,7 @@ def test_server_round_trip(server, page_dir):
     arrived = peer.getresponse()
     body = arrived.read()
     assert arrived.status == 200 and arrived.getheader("Location") is None
+    assert arrived.getheader("Content-Security-Policy") == "frame-ancestors 'none'"
     peer.close()
     status = arrived.status
     assert status == 200 and b"lf-options" in body
@@ -582,13 +654,26 @@ def test_server_round_trip(server, page_dir):
         b'<meta name="lf-version" data-lf-runtime content="1">'
     )
     assert marker in body
+    assert b"base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;" in body
     assert (
         body.index(b"</style>")
         < body.index(marker)
         < body.index(b'<script type="module" src="/leaf.js"></script>')
     )
-    pinned_status, pinned = fetch(f"{server}/versions/v1.html")
-    assert pinned_status == 200 and b"lf-board" in pinned and marker in pinned
+    # A historical revision may predate the current canonical policy. The HTTP
+    # projection applies today's boundary instead of preserving the stale meta tag.
+    revision = files_model.revision_path(page_dir, 2)
+    legacy = revision.read_bytes().replace(
+        b"base-uri 'none'; form-action 'none'; ", b""
+    )
+    revision = revision.rename(revision.with_name(files_model.revision_name(2, legacy)))
+    revision.write_bytes(legacy)
+    with urllib.request.urlopen(f"{server}/versions/v1.html?t={TOKEN}") as response:
+        pinned = response.read()
+        assert response.status == 200
+        assert response.headers["Content-Security-Policy"] == "frame-ancestors 'none'"
+    assert b"lf-board" in pinned and marker in pinned
+    assert b"base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;" in pinned
     assert not (page_dir / "versions").exists()
     # Vendored files serve; the log and directory paths don't.
     for path in [
@@ -687,6 +772,36 @@ def test_server_round_trip(server, page_dir):
     assert design["about"] == "layer" and design["anchor"]["part"] == "Threads"
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert "> § lf-banner · Threads  — about the layer" in transcript.output
+    drawing = {
+        "format": "leaf-drawing/1",
+        "points": [[-20, 74], [50, 10], [120, 74]],
+    }
+    status, _ = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "comment",
+                "revision": 2,
+                "anchor": {"section": "feeder-board"},
+                "drawing": drawing,
+            }
+        ).encode(),
+    )
+    assert status == 200
+    drawn = event_model.read_events(page_dir)[-1]
+    assert drawn["drawing"] == drawing
+    assert "text" not in drawn
+    status, _ = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {"kind": "comment", "revision": 2, "drawing": drawing}
+        ).encode(),
+    )
+    assert status == 200
+    page_drawing = event_model.read_events(page_dir)[-1]
+    assert "anchor" not in page_drawing and page_drawing["drawing"] == drawing
+    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    assert "_(drawing attached; inspect it on the live page)_" in transcript.output
     for bad in [
         {"kind": []},
         {"kind": "action", "action": "move"},  # no widget
@@ -727,7 +842,14 @@ def test_server_round_trip(server, page_dir):
             "detail": {},
             "revision": 3,
         },
-        {"kind": "comment", "revision": 2},  # no text: a blank thread nobody can read
+        {"kind": "comment", "revision": 2},  # no text, token, or drawing
+        {
+            "kind": "comment",
+            "revision": 2,
+            "token": "keep",
+            "anchor": {"section": "feeder-board"},
+            "drawing": drawing,
+        },
         {"kind": "comment", "revision": 2, "text": "x", "anchor": "intro"},
         {"kind": "comment", "revision": 2, "text": "x", "anchor": {"quote": 7}},
         {"kind": "comment", "revision": 2, "text": "x", "anchor": {}},
@@ -745,6 +867,64 @@ def test_server_round_trip(server, page_dir):
         },
         {"kind": "comment", "revision": 2, "text": "x", "suggestion": "yes"},
         {"kind": "comment", "revision": 2, "text": "x", "attempt": "short"},
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board"},
+            "drawing": {
+                "format": "leaf-drawing/1",
+                "points": [[10, 60]],
+            },
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board"},
+            "drawing": {
+                "format": "leaf-drawing/1",
+                "points": [[10], [50, 20]],
+            },
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board"},
+            "drawing": {
+                "format": "leaf-drawing/1",
+                "points": [[10, 60], [33554433, 20]],
+            },
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"quote": "this passage"},
+            "drawing": drawing,
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board", "part": "Move"},
+            "drawing": drawing,
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board"},
+            "drawing": {**drawing, "points": [[0.1, 0.2]] * 257},
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board"},
+            "drawing": {**drawing, "points": [[float("nan"), 0.2], [0.5, 0.2]]},
+        },
         # A design comment is about the layer, and that is the one word the field
         # takes: a browser inventing a second subject is refused at the door.
         {"kind": "comment", "revision": 2, "text": "x", "about": "page"},
@@ -755,6 +935,13 @@ def test_server_round_trip(server, page_dir):
             "revision": 2,
             "text": "hi",
             "suggestion": True,
+        },
+        {
+            "kind": "reply",
+            "parent": posted["id"],
+            "revision": 2,
+            "text": "hi",
+            "anchor": {"section": "plan"},
         },
         {"kind": "reply", "parent": "nope", "revision": 2, "text": "hi"},
         {"kind": "resolve", "parent": "nope"},
@@ -1026,10 +1213,10 @@ def test_action_door_owns_generated_child_snapshots(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-decision id="delivery-decision"><h3>When should this ship?</h3>'
+            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
             '<lf-options id="delivery" choose>'
             '<lf-option id="delivery-now">Now</lf-option>'
-            "</lf-options></lf-decision></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
     publish(page_dir)
@@ -1074,11 +1261,11 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-decision id="delivery-decision"><h3>When should this ship?</h3>'
+            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
             '<lf-options id="delivery" choose>'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></lf-decision></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
     publish(page_dir)
@@ -1118,11 +1305,11 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-decision id="delivery-decision"><h3>When should this ship?</h3>'
+            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
             '<lf-options id="delivery" choose>'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></lf-decision></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
     publish(page_dir)
@@ -1161,9 +1348,9 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
     old_page = PAGE.replace("<lf-options>", '<lf-options id="picks">')
     old_page = old_page.replace(
         "</section>",
-        '<lf-decision id="other-decision"><h3>Another choice</h3>'
+        '<lf-ask id="other-decision"><h3>Another choice</h3>'
         '<lf-options id="other-picks"><lf-option id="other-option">'
-        "Another option</lf-option></lf-options></lf-decision></section>",
+        "Another option</lf-option></lf-options></lf-ask></section>",
     )
     new_page = (
         old_page.replace('id="flag-first"', 'id="moved-option"')
@@ -1176,7 +1363,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
     publish(page_dir, 1)
     reaction = event_model.append_event(
         page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "token": "ok"},
+        {"kind": "comment", "author": "user", "revision": 1, "token": "keep"},
     )
     event_model.append_event(
         page_dir,
@@ -1215,7 +1402,14 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
 
     def reading(active_revision):
         return served_browser.browser_state(
-            documents, events, registry, active_revision, [], {}, {1, 2}
+            documents,
+            events,
+            registry,
+            active_revision,
+            presence_model.presence(page_dir, events),
+            {},
+            {1, 2},
+            event_model.now_iso(),
         )
 
     # The same log really does admit the reaction if read against the old page.
@@ -1248,12 +1442,12 @@ def test_undo_candidates_keep_only_standing_reader_gestures():
             "author": "user",
             "parent": "c1",
         },
-        {"id": "rx1", "kind": "comment", "author": "user", "token": "ok"},
+        {"id": "rx1", "kind": "comment", "author": "user", "token": "keep"},
         {
             "id": "rx2",
             "kind": "comment",
             "author": "user",
-            "token": "ok",
+            "token": "keep",
         },
         {
             "id": "reply",
@@ -1266,7 +1460,7 @@ def test_undo_candidates_keep_only_standing_reader_gestures():
     empty = projection_model.StateProjection({}, {}, {}, {}, {})
     undo_reading = event_folds_model.UndoReading(events, within={})
 
-    candidates = served_document._browser_undo_candidates(
+    candidates = served_document.browser_undo_candidates(
         events, empty, empty, undo_reading=undo_reading
     )
 
@@ -1338,11 +1532,11 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-decision id="delivery-decision"><h3>When should this ship?</h3>'
+            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
             '<lf-options id="delivery" choose>'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></lf-decision></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
     publish(page_dir)
@@ -1636,10 +1830,10 @@ def test_server_admits_only_a_widget_declared_host_request(server, page_dir):
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-decision></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -1714,10 +1908,10 @@ def test_server_refuses_a_host_verb_the_widget_instance_did_not_offer(server, pa
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-decision></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -1759,11 +1953,11 @@ def test_server_refuses_a_second_request_while_the_first_is_pending(server, page
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
-        "</lf-operations></lf-decision></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -1827,11 +2021,11 @@ def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
-        "</lf-operations></lf-decision></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -2090,10 +2284,10 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
             "Pick one:",
             "--markup",
             (
-                '<lf-decision id="thread-pick-decision"><h3>Which option?</h3>'
+                '<lf-ask id="thread-pick-decision"><h3>Which option?</h3>'
                 '<lf-options id="thread-pick" choose>'
                 '<lf-option id="thread-a"><strong>A</strong></lf-option>'
-                "</lf-options></lf-decision>"
+                "</lf-options></lf-ask>"
                 '<lf-specimen id="sample">'
                 '<lf-options id="exhibited-pick" choose>'
                 '<lf-option id="exhibited-a"><strong>A</strong></lf-option>'
@@ -2161,11 +2355,11 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-decision id="eligibility-decision"><h3>Which option?</h3>'
+            '<lf-ask id="eligibility-decision"><h3>Which option?</h3>'
             '<lf-options id="eligibility-options" choose>'
             '<lf-option id="eligibility-a">A</lf-option>'
             '<lf-option id="eligibility-b">B</lf-option>'
-            "</lf-options></lf-decision></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
 
@@ -2195,11 +2389,11 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
                 "Here it is:",
                 "--markup",
                 (
-                    '<lf-decision id="thread-options-decision"><h3>Which option?</h3>'
+                    '<lf-ask id="thread-options-decision"><h3>Which option?</h3>'
                     '<lf-options id="thread-options" choose>'
                     '<lf-option id="thread-a">A</lf-option>'
                     '<lf-option id="thread-b">B</lf-option>'
-                    "</lf-options></lf-decision>"
+                    "</lf-options></lf-ask>"
                 ),
             ],
         )
@@ -2254,11 +2448,11 @@ def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, pa
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-decision id="seated-decision"><h3>Which option?</h3>'
+            '<lf-ask id="seated-decision"><h3>Which option?</h3>'
             '<lf-options id="seated-options" choose>'
             '<lf-option id="seated-a">A</lf-option>'
             '<lf-option id="seated-b">B</lf-option>'
-            "</lf-options></lf-decision></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
     publish(page_dir)
@@ -2367,20 +2561,20 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
             '<strong>Worker</strong><lf-worktree id="quota-tree" '
             'source="project-worktrees"></lf-worktree></lf-agent>'
             '<lf-quota id="quota" slots="1"></lf-quota>'
-            '<lf-decision id="quota-intervention-decision"><h3>Proceed?</h3>'
+            '<lf-ask id="quota-intervention-decision"><h3>Proceed?</h3>'
             '<lf-options id="quota-intervention" choose>'
             '<lf-option id="quota-ready" chosen>Ready</lf-option>'
-            "</lf-options></lf-decision>"
-            '<lf-decision id="quota-operations-decision"><h3>Restart?</h3>'
+            "</lf-options></lf-ask>"
+            '<lf-ask id="quota-operations-decision"><h3>Restart?</h3>'
             '<lf-operations id="quota-operations" target="quota-task" '
             'worker="quota-worker" worktree="quota-tree">'
             '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-            "</lf-operations></lf-decision>"
+            "</lf-operations></lf-ask>"
             '<lf-task id="quota-child" status="active"><strong>Child</strong>'
-            '<lf-decision id="quota-child-decision"><h3>Is the child ready?</h3>'
+            '<lf-ask id="quota-child-decision"><h3>Is the child ready?</h3>'
             '<lf-options id="quota-child-review" choose>'
             '<lf-option id="quota-child-ready">Ready</lf-option>'
-            "</lf-options></lf-decision></lf-task>"
+            "</lf-options></lf-ask></lf-task>"
             "</lf-task>"
             '<lf-task id="quota-destination" status="active">'
             "<strong>Destination</strong></lf-task>"
@@ -2783,34 +2977,112 @@ def test_unchanged_neighbor_logs_are_read_once_until_their_stamp_moves(
     assert reads == 3
 
 
-def test_server_shutdown_wakes_a_long_poll_without_waiting_for_timeout(
+def test_neighbor_activity_cache_expires_at_the_projected_transition(
     page_dir, monkeypatch
 ):
-    """A selector waiting for a long timeout wakes as soon as shutdown is requested."""
+    """A file-stable neighbor still advances from Sent to Waiting for pickup.
+
+    The browser asks when the canonical deadline arrives; the neighbor cache must
+    then project a fresh server answer rather than returning the pre-deadline one.
+    """
+    neighbour = host_model.state_home() / "pages" / "neighbor-deadline"
+    neighbour_page(neighbour, title="Timed neighbor")
+    record_claim(neighbour, id="timed")
+    files_model.write_json(
+        neighbour / "status.json",
+        {"state": "waiting", "detail": "", "ts": event_model.now_iso(), "after": 0},
+    )
+    status_at = datetime.fromisoformat(
+        files_model.read_json(neighbour / "status.json")["ts"]
+    )
+    comment = event_model.append_event(
+        neighbour, {"kind": "comment", "author": "user", "text": "hello"}
+    )
+    sent_at = datetime.fromisoformat(comment["ts"])
+    monkeypatch.setattr(
+        presence_model,
+        "now_iso",
+        lambda: (sent_at + timedelta(minutes=1)).isoformat(),
+    )
+
+    [before] = presence_model.other_leaves(page_dir)
+    assert before["activity"]["interactions"][0]["phase"] == "sent"
+    assert before["activity"]["next_transition_at"]
+
+    monkeypatch.setattr(
+        presence_model,
+        "now_iso",
+        lambda: (sent_at + timedelta(minutes=2)).isoformat(),
+    )
+    [after] = presence_model.other_leaves(page_dir)
+    assert after["activity"]["interactions"][0]["phase"] == "waiting"
+    assert (
+        after["activity"]["next_transition_at"]
+        == (status_at + timedelta(minutes=15)).isoformat()
+    )
+
+
+def test_neighbor_activity_cache_expires_when_status_loses_its_last_proof(
+    page_dir, monkeypatch
+):
+    """A waiting declaration with no owner becomes unheld on its own deadline."""
+    neighbour = host_model.state_home() / "pages" / "neighbor-status-deadline"
+    neighbour_page(neighbour, title="Timed status neighbor")
+    started = datetime.now().astimezone()
+    files_model.write_json(
+        neighbour / "status.json",
+        {
+            "state": "waiting",
+            "detail": "",
+            "ts": started.isoformat(),
+            "after": 0,
+        },
+    )
+    monkeypatch.setattr(
+        presence_model,
+        "now_iso",
+        lambda: (started + timedelta(minutes=14)).isoformat(),
+    )
+
+    [before] = presence_model.other_leaves(page_dir)
+    assert (before["activity"]["kind"], before["activity"]["held"]) == (
+        "away",
+        True,
+    )
+    assert (
+        before["activity"]["next_transition_at"]
+        == (started + timedelta(minutes=15)).isoformat()
+    )
+
+    monkeypatch.setattr(
+        presence_model,
+        "now_iso",
+        lambda: (started + timedelta(minutes=15)).isoformat(),
+    )
+    [after] = presence_model.other_leaves(page_dir)
+    assert (after["activity"]["kind"], after["activity"]["held"]) == (
+        "unheld",
+        False,
+    )
+    assert after["activity"]["next_transition_at"] is None
+
+
+def test_server_shutdown_stops_an_idle_serving_loop(page_dir):
+    """An idle server stops on request rather than outliving the call."""
     httpd = hosting_model.LeafHTTPServer(
         ("127.0.0.1", 0), http_model.handler_for(page_dir, TOKEN)
     )
-    waiting = threading.Event()
-    real_select = hosting_model.selectors.DefaultSelector.select
-
-    def watched_select(selector, timeout=None):
-        waiting.set()
-        return real_select(selector, timeout)
-
-    monkeypatch.setattr(
-        hosting_model.selectors.DefaultSelector, "select", watched_select
-    )
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     try:
-        thread = threading.Thread(target=httpd.serve_forever, args=(10.0,), daemon=True)
         thread.start()
-        assert waiting.wait(timeout=1)
         httpd.shutdown()
-        thread.join(timeout=1)
+        thread.join(timeout=5)
         assert not thread.is_alive()
+        assert httpd.stopping
     finally:
         if thread.is_alive():
             httpd.shutdown()
-            thread.join(timeout=1)
+            thread.join(timeout=5)
         httpd.server_close()
 
 
@@ -2818,24 +3090,24 @@ def test_temporary_server_close_waits_for_delayed_start(page_dir, monkeypatch):
     """Closing after start must join a serving loop that has not been scheduled yet."""
     server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN)
     release = threading.Event()
-    completed_before_start = []
+    entered = threading.Event()
     errors = []
     serve_forever = server.httpd.serve_forever
-    wait = server.httpd._serve_done.wait
+    shutdown = server.httpd.shutdown
 
     def delayed_serve():
+        # The thread is alive but has not reached the loop, which is the window
+        # close() has to survive.
         release.wait()
+        entered.set()
         serve_forever()
 
-    def release_at_shutdown(timeout=None):
-        # Hold startup until shutdown asks for completion. A completed event here
-        # lets shutdown return before the serving loop can observe its stop request.
-        completed_before_start.append(server.httpd._serve_done.is_set())
+    def release_at_shutdown():
         release.set()
-        return wait(timeout)
+        shutdown()
 
     monkeypatch.setattr(server.httpd, "serve_forever", delayed_serve)
-    monkeypatch.setattr(server.httpd._serve_done, "wait", release_at_shutdown)
+    monkeypatch.setattr(server.httpd, "shutdown", release_at_shutdown)
     monkeypatch.setattr(threading, "excepthook", lambda error: errors.append(error))
     try:
         server.start()
@@ -2843,7 +3115,9 @@ def test_temporary_server_close_waits_for_delayed_start(page_dir, monkeypatch):
     finally:
         release.set()
         server.close()
-    assert completed_before_start == [False]
+    # Reached the loop, and close() returned only once that loop had finished.
+    assert entered.is_set()
+    assert not server._thread.is_alive()
     assert errors == []
     assert not server.running
     assert server.httpd.fileno() == -1
@@ -3680,7 +3954,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # A directory holding no claims at all is still a complete answer: every
     # presence field arrives, as its absent-file default.
     unclaimed = {
-        "status": {"state": "idle", "detail": "", "ts": None},
+        "status": {"state": "idle", "detail": "", "ts": None, "after": 0},
         "claims": [],
         "listening": False,
         "cursor": 0,
@@ -3689,9 +3963,30 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "host": None,
         "session_alive": None,
         "claim_session": None,
+        "claim_turn": None,
         "turn_closed": None,
         "viewed": None,
         "session_cwd": None,
+        "activity": {
+            "kind": "closed",
+            "held": True,
+            "quiet": False,
+            "dropped": False,
+            "detail": "",
+            "count": 0,
+            "counts": {
+                "active": 0,
+                "handling": 0,
+                "queued": 0,
+                "picked_up": 0,
+                "pending": 0,
+                "total": 0,
+            },
+            "ts": None,
+            "next_transition_at": None,
+            "interactions": [],
+            "obligations": [],
+        },
     }
     assert state["others"] == [
         {
@@ -3712,7 +4007,9 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "host": "claude-code",
             "session_alive": False,
             "claim_session": "s1",
+            "claim_turn": "turn-1",
             "session_cwd": str(Path.cwd()),
+            "activity": {**unclaimed["activity"], "held": False},
         },
         {
             "title": "The other page",
@@ -3722,12 +4019,34 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
                 "state": "working",
                 "detail": "measuring",
                 "ts": "2026-01-01T00:00:00-08:00",
+                "after": 0,
             },
             "agent": "Codex",
             "host": "claude-code",
             "session_alive": True,
             "claim_session": "s9",
+            "claim_turn": "turn-1",
             "session_cwd": "/work/api",
+            "activity": {
+                "kind": "away",
+                "held": True,
+                "quiet": True,
+                "dropped": False,
+                "detail": "measuring",
+                "count": 0,
+                "counts": {
+                    "active": 0,
+                    "handling": 0,
+                    "queued": 0,
+                    "picked_up": 0,
+                    "pending": 0,
+                    "total": 0,
+                },
+                "ts": "2026-01-01T00:00:00-08:00",
+                "next_transition_at": None,
+                "interactions": [],
+                "obligations": [],
+            },
         },
     ]
 
@@ -4028,10 +4347,10 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
             "revision": 1,
             "text": "the answer that survived it",
             "markup": (
-                '<lf-decision id="orphan-decision"><h3>Which repair?</h3>'
+                '<lf-ask id="orphan-decision"><h3>Which repair?</h3>'
                 '<lf-options id="orphan-choice" choose>'
                 '<lf-option id="orphan-retry">Retry it</lf-option>'
-                "</lf-options></lf-decision>"
+                "</lf-options></lf-ask>"
             ),
         },
     )
@@ -4059,10 +4378,10 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     open_state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert open_state.exit_code == 0, open_state.output
     open_reading = json.loads(open_state.output)
-    assert open_reading["decisions"] == [
+    assert open_reading["asks"] == [
         {
             "id": "orphan-decision",
-            "tag": "lf-decision",
+            "tag": "lf-ask",
             "thread": "c-lost",
         }
     ]
@@ -4087,7 +4406,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     closed_reading = json.loads(state.output)
     [thread] = closed_reading["threads"]
     assert thread == {"id": "c-lost", "anchor": None, "resolved": "user"}
-    assert closed_reading["decisions"] == []
+    assert closed_reading["asks"] == []
     assert [
         element["id"]
         for element in closed_reading["elements"]

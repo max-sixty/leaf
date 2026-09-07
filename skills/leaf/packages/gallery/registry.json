@@ -1,0 +1,20 @@
+{
+  "lf-button-atlas": {
+    "description": "The developer gallery's complete static exhibit of Leaf Button roles, behaviors, tones, and lifecycle states. It always renders the canonical Button anatomy through the runtime factory, but its specimens are disabled and record no gestures. Use it only in the feature gallery; ordinary pages demonstrate Buttons through the live widgets that own their actions.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "additionalProperties": false,
+    "x-content": "none",
+    "x-exhibit": true,
+    "x-upgrade": true,
+    "x-example": "<lf-button-atlas id=\"button-atlas\"></lf-button-atlas>"
+  }
+}

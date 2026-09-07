@@ -5,17 +5,19 @@ import sys
 from pathlib import Path
 
 from leaf.anchor_capture import capture_anchor
-from leaf.decisions import local_decision_entry, page_awaiting_values
+from leaf.asks import local_ask_entry, page_awaiting_values
 from leaf.event_contracts import report_contract_error
 from leaf.event_log import read_events
+from leaf.events import build_threads, spoken_turns
 from leaf.files import (
     latest_published,
-    latest_revision,
+    require_revision,
     revision_path,
     version_revisions,
 )
 from leaf.host import message_identity
 from leaf.leases import contract_writer
+from leaf.passages import active_enclosing
 from leaf.projection import (
     generated_children,
     markup_facet,
@@ -32,14 +34,21 @@ from leaf.thread_context import thread_roots
 from leaf.validation.admission import check_markup, read_text_arg
 
 
-def _thread_root(events: list, to: str) -> tuple[str, dict | None]:
-    messages = {
-        event["id"]: event for event in events if event["kind"] in MESSAGE_KINDS
-    }
+def _messages(events: list) -> dict[str, dict]:
+    return {event["id"]: event for event in events if event["kind"] in MESSAGE_KINDS}
+
+
+def _message(events: list, to: str) -> dict:
+    messages = _messages(events)
     if to not in messages:
         sys.exit(f"unknown comment id {to!r}; known: {sorted(messages)}")
+    return messages[to]
+
+
+def _thread_root(events: list, to: str) -> tuple[str, dict | None]:
+    _message(events, to)
     root_id = thread_roots(events)[to]
-    return root_id, messages.get(root_id)
+    return root_id, _messages(events).get(root_id)
 
 
 def thread_of(page_dir: Path, message_id: str) -> str:
@@ -101,6 +110,39 @@ def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bo
     return current_answer == original_answer
 
 
+def _current_anchor(
+    page_dir: Path,
+    events: list,
+    quote: str,
+    section: str,
+    part: str,
+) -> tuple[int, dict | None]:
+    """Capture one optional target against the page's active reading."""
+    activate_source(page_dir, events)
+    revision = require_revision(page_dir)
+    if not (quote or section or part):
+        return revision, None
+    html = revision_path(page_dir, revision).read_text(encoding="utf-8")
+    registry = require_registry(page_dir)
+    projection, parser, _ = page_projection(html, events, registry, revision)
+    decided = retirement_outcomes(projection.actions, registry)
+    edited = rewritten_bodies(projection.actions)
+    try:
+        anchor = capture_anchor(
+            html,
+            registry,
+            quote,
+            section,
+            decided,
+            edited,
+            part,
+            additions=generated_children(projection.desired, parser.ids),
+        )
+    except ValueError as err:
+        sys.exit(f"can't anchor in revision r{revision}: {err}")
+    return revision, anchor
+
+
 @contract_writer
 def cmd_comment(
     page_dir: Path, quote: str, section: str, part: str, text, markup: str
@@ -113,31 +155,10 @@ def cmd_comment(
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there."""
     # Reading a body may wait on stdin; do that before taking the page lease.
-    body = read_text_arg(text)
+    body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         events = page.events
-        activate_source(page_dir, events)
-        revision = latest_revision(page_dir)
-        anchor = None
-        if quote or section or part:
-            html = revision_path(page_dir, revision).read_text(encoding="utf-8")
-            registry = require_registry(page_dir)
-            projection, parser, _ = page_projection(html, events, registry, revision)
-            decided = retirement_outcomes(projection.actions, registry)
-            edited = rewritten_bodies(projection.actions)
-            try:
-                anchor = capture_anchor(
-                    html,
-                    registry,
-                    quote,
-                    section,
-                    decided,
-                    edited,
-                    part,
-                    additions=generated_children(projection.desired, parser.ids),
-                )
-            except ValueError as err:
-                sys.exit(f"can't anchor in revision r{revision}: {err}")
+        revision, anchor = _current_anchor(page_dir, events, quote, section, part)
         if markup:
             check_markup(page_dir, "comment", markup, events)
         event = {
@@ -156,19 +177,72 @@ def cmd_comment(
 
 
 @contract_writer
-def cmd_reply(page_dir: Path, to: str, text, markup: str, awaits: bool = False) -> dict:
-    """Post one complete threaded reply."""
-    body = read_text_arg(text)
+def cmd_reply(
+    page_dir: Path,
+    to: str,
+    text,
+    markup: str,
+    awaits: bool = False,
+    *,
+    quote: str = "",
+    section: str = "",
+    part: str = "",
+    attempt: str | None = None,
+    only_if_pending: bool = False,
+) -> dict | None:
+    """Post one complete threaded reply, optionally moving its anchor.
+
+    A durable host may supply an attempt and require the target to remain the
+    newest pending reader turn; ordinary interactive replies use neither.
+    """
+    body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         events = page.events
         root_id, root = _thread_root(events, to)
+        if attempt is not None:
+            existing = next(
+                (event for event in events if event.get("attempt") == attempt), None
+            )
+            if existing:
+                if existing["kind"] != "reply" or existing["parent"] != to:
+                    sys.exit(f"attempt {attempt!r} already belongs to another event")
+                return existing
+        if only_if_pending:
+            thread = build_threads(events, active_enclosing(page_dir)).get(root_id)
+            turns = spoken_turns(thread) if thread else []
+            if (
+                not thread
+                or thread["resolved"]
+                or not turns
+                or turns[-1]["author"] != "user"
+                or turns[-1]["id"] != to
+            ):
+                return None
         if root and (root.get("response") or {}).get("kind") == "version":
+            if only_if_pending:
+                return None
             sys.exit(
                 f"thread {root_id!r} requires a page version and cannot take a reply; "
                 "incorporate its request in the next version, or open a separate "
-                "thread on the same Decision with `leaf comment --section <decision-id>` if "
+                "thread on the same Ask with `leaf comment --section <ask-id>` if "
                 "you need an answer first"
             )
+        moving = bool(quote or section or part)
+        if moving and root is None:
+            sys.exit(
+                f"thread {root_id!r} has no surviving opening comment, so its "
+                "anchor cannot be moved"
+            )
+        if moving and root.get("holds"):
+            sys.exit(
+                f"thread {root_id!r} holds the command goal named by its opening "
+                "comment, so its anchor cannot be moved"
+            )
+        revision, anchor = (
+            _current_anchor(page_dir, events, quote, section, part)
+            if moving
+            else (None, None)
+        )
         fragment = check_markup(page_dir, "reply", markup, events) if markup else None
         if awaits and fragment:
             registry = require_registry(page_dir)
@@ -176,13 +250,13 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str, awaits: bool = False) 
                 {
                     rec["tag"]
                     for rec in fragment.lf_elements
-                    if local_decision_entry(registry.get(rec["tag"]) or {})
+                    if local_ask_entry(registry.get(rec["tag"]) or {})
                 }
             )
             if structural:
                 sys.exit(
                     "--awaits is for a prose question; reply markup already declares "
-                    "a local decision "
+                    "a local Ask "
                     f"({', '.join(f'<{tag}>' for tag in structural)})"
                 )
         event = {
@@ -196,6 +270,11 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str, awaits: bool = False) 
             event["awaits"] = True
         if markup:
             event["markup"] = markup
+        if attempt is not None:
+            event["attempt"] = attempt
+        if moving:
+            event["revision"] = revision
+            event["anchor"] = anchor
         return page.append_event(event)
 
 
@@ -207,23 +286,11 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
     every wording while thread folds project the latest one. Markup stays frozen with
     the original message because reader actions may already rest on widgets it sent.
     """
-    body = read_text_arg(text)
+    body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
         events = page.events
-        target = next(
-            (
-                event
-                for event in events
-                if event["kind"] in {"comment", "reply"} and event["id"] == to
-            ),
-            None,
-        )
-        if target is None:
-            known = sorted(
-                event["id"] for event in events if event["kind"] in {"comment", "reply"}
-            )
-            sys.exit(f"unknown comment id {to!r}; known: {known}")
+        target = _message(events, to)
         if target["author"] != "claude":
             sys.exit(f"message {to!r} is not agent-authored")
         identity = message_identity()
@@ -258,7 +325,7 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
         ):
             sys.exit(
                 f"thread {root_id!r} requires a page version that answers its "
-                "originating Decision, or changes its declared answer if it was already "
+                "originating Ask, or changes its declared answer if it was already "
                 "answered, before the agent can resolve it"
             )
         event = {
@@ -290,7 +357,7 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
     with PageTransaction(page_dir) as page:
         events = page.events
         activate_source(page_dir, events)
-        revision = latest_revision(page_dir)
+        revision = require_revision(page_dir)
         registry = require_registry(page_dir)
         event = {
             "kind": "report",
@@ -305,5 +372,5 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
             event, parse_revision(page_dir, revision).by_id, registry
         ):
             sys.exit(error)
-        accepted = page.append_event(event)
+        accepted = page.append_event(event, registry)
     print(json.dumps(accepted, ensure_ascii=False))

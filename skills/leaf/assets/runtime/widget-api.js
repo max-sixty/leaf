@@ -4,20 +4,17 @@ export { ARRANGEMENTS } from "./arrangements.js";
 export { itemWord, navigateToDatum } from "./anchors.js";
 export { shownBand, shownBox, shownParts } from "./geometry.js";
 export { inUi, uiInside } from "./shadow.js";
-export {
-  answeredContext,
-  decisionSource,
-  openDecisions,
-  watchDecisions,
-} from "./decisions/model.js";
+export { answeredContext, askSource, openAsks, watchAsks } from "./asks/model.js";
 export { registerVisualParts } from "./visual-parts.js";
 export { conversationBox } from "./conversation/box.js";
 export { registerThreadSurface } from "./conversation/surfaces.js";
 export { conversationInput, landInConversation } from "./conversation/landing.js";
+export { wireInput } from "./composing/input.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 export { focused, keys as commands, paintKeys, saying } from "./keyboard/scopes.js";
 export {
+  BUTTON_GRAMMAR,
   marginButton,
   marginButtonState,
   registerMarginItem,
@@ -50,7 +47,7 @@ export {
   reducedMotion,
   scrollBehavior,
 } from "./motion.js";
-export { quietWord } from "./presentation.js";
+export { PRESENTATION, quietWord } from "./presentation.js";
 export { projectData } from "./projection/data.js";
 export { tabStore } from "./storage.js";
 export {

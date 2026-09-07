@@ -13,8 +13,8 @@ from leaf import session as session_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
+    ASK_PAGE,
     BOTH_STAMPS,
-    DECISION_PAGE,
     DRAFT_EDITED,
     DRAFT_TEXT,
     JOURNEY_V1,
@@ -37,6 +37,7 @@ from render_support import (
     composer_quote,
     held_stale,
     hold_selection,
+    holding,
     in_threads_scrollport,
     live_url,
     open_page,
@@ -55,6 +56,33 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def select_words(page, passage):
+    """Triple-click a passage's words, which is not the same point as its box.
+
+    Playwright aims at the element's centre, and a short paragraph in a wide column is
+    mostly empty there. The response bar the reader already opened on a neighbouring
+    passage stands in that empty half — it is placed to keep its own target clear, not
+    the page — so a gesture aimed at the centre lands on the field instead of on the
+    words and never reaches the passage. The words are where a reader aims, so the
+    click goes to the start of the first line the passage draws."""
+    locator = page.locator(passage)
+    locator.scroll_into_view_if_needed()
+    x, y = locator.evaluate(
+        """element => {
+          const range = element.ownerDocument.createRange();
+          range.selectNodeContents(element);
+          const [line] = range.getClientRects();
+          const box = element.getBoundingClientRect();
+          if (!line) return [box.width / 2, box.height / 2];
+          return [
+            line.left + Math.min(24, line.width / 2) - box.left,
+            line.top + line.height / 2 - box.top,
+          ];
+        }"""
+    )
+    locator.click(click_count=3, position={"x": x, "y": y})
 
 
 def draft_controls(page, draft_id="draft-ops"):
@@ -223,7 +251,7 @@ def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve, sect
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "ok",
+            "token": "keep",
             "anchor": {
                 **({"section": section} if section else {}),
                 "quote": "Run the migration before deploying.",
@@ -541,6 +569,63 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     page.close()
 
 
+def test_a_draft_wait_only_paints_after_the_shared_busy_delay(browser, serve):
+    """The layer leaves a short send unpainted, then makes a long wait visible."""
+    page, errors = open_page(browser, serve(JOURNEY_V1))
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    draft = page.locator("#draft-ops")
+    draft.locator(".lf-draft-body").dblclick()
+    draft.locator("textarea").fill("A send held long enough to need progress paint.")
+
+    # Sample on the CSS animation's own clock rather than racing wall time across a
+    # Playwright round trip. The host is the non-Button surface that owns aria-busy.
+    frames = page.evaluate(
+        """async () => {
+          const el = document.getElementById('draft-ops');
+          const out = [];
+          let stop = false;
+          const tick = () => {
+            const painted = Number(getComputedStyle(el).opacity);
+            const busy = el.getAnimations().find(
+              animation => animation.animationName === 'lf-runtime-4f3c2a8d-working'
+            );
+            out.push([
+              busy ? Number(busy.currentTime) : null,
+              busy ? busy.playState : null,
+              painted,
+            ]);
+            if (!stop) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+          document.querySelector(
+            '[data-lf-for="draft-ops"] [aria-label="Save"]'
+          ).click();
+          await new Promise(resolve => setTimeout(resolve, 700));
+          stop = true;
+          return out;
+        }"""
+    )
+    holding(page, held, 1, "the draft edit")
+
+    early = [
+        opacity
+        for elapsed, _state, opacity in frames
+        if elapsed is None or elapsed < 150
+    ]
+    late = [opacity for _elapsed, state, opacity in frames if state == "finished"]
+    assert early and set(early) == {1}, f"a short draft wait painted busy: {early}"
+    assert late and set(late) == {0.5}, f"a long draft wait stayed unpainted: {late}"
+    expect(draft).to_have_attribute("aria-busy", "true")
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(draft).not_to_have_attribute("aria-busy", "true")
+    assert errors == []
+    page.close()
+
+
 def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
     browser, serve
 ):
@@ -666,7 +751,7 @@ def test_one_shared_draft_edit_appends_one_action_across_tabs(
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     draft_controls(first).get_by_role("button", name="Save").click()
-    _until(first, lambda traffic: traffic.sends == 1, "held the first draft edit")
+    holding(first, held, 1, "the first draft edit")
     draft_controls(second).get_by_role("button", name="Save").click()
     round_trip(second)
 
@@ -696,7 +781,7 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     submit the one shared add-option generation, so deriving its absolute choice from
     each tab's DOM would reuse one attempt for two conflicting payloads.
     """
-    url = serve(DECISION_PAGE)
+    url = serve(ASK_PAGE)
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(browser, url, context=one_reader)
 
@@ -704,15 +789,15 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     # is born here, so this selection is the state the generation records.
     first.locator("#job-mounts").evaluate("el => el.setAttribute('chosen', '')")
     text = "Use a heated camera sleeve"
-    first.locator("#jobs > .lf-another input").fill(text)
-    expect(second.locator("#jobs > .lf-another input")).to_have_value(text)
+    first.locator("#jobs > .lf-another textarea").fill(text)
+    expect(second.locator("#jobs > .lf-another textarea")).to_have_value(text)
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     first.locator("#jobs > .lf-another").get_by_role(
         "button", name="Add option", exact=True
     ).click()
-    _until(first, lambda traffic: traffic.sends == 1, "held the first added option")
+    holding(first, held, 1, "the first added option")
 
     second.locator("#jobs > .lf-another").get_by_role(
         "button", name="Add option", exact=True
@@ -807,7 +892,7 @@ def test_a_general_comment_appends_one_event_across_tabs(browser, serve, one_rea
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     first.locator(".lf-general button").click()
-    _until(first, lambda traffic: traffic.sends == 1, "held the first general send")
+    holding(first, held, 1, "the first general send")
     second.locator(".lf-general button").click()
     round_trip(second)
 
@@ -836,7 +921,7 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator(".lf-general button").click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the older general send")
+    holding(page, held, 1, "the older general send")
     box.fill(newer)
 
     held[0].continue_()
@@ -876,7 +961,7 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
     page.locator(f'.lf-thread[data-id="{first_id}"]').get_by_role(
         "button", name="Send", exact=True
     ).click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the first reply send")
+    holding(page, held, 1, "the first reply send")
 
     later.click()
     newer = "The later reply keeps the reader here.\n" * (14 if same_thread else 1)
@@ -921,7 +1006,7 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_
     reply = thread.locator("textarea")
     reply.fill("Send this while I return to reading.")
     thread.get_by_role("button", name="Send", exact=True).click()
-    _until(page, lambda traffic: traffic.sends == 1, "held the reply send")
+    holding(page, held, 1, "the reply send")
 
     toggle.click()
     expect(page.locator(".lf-panel")).not_to_be_visible()
@@ -965,7 +1050,7 @@ def test_a_held_reply_send_preserves_a_later_scroll(held_events, serve):
     reply = first.locator("textarea")
     reply.fill("A reply whose delivery is slow.")
     page.keyboard.press("ControlOrMeta+Enter")
-    _until(page, lambda traffic: traffic.sends == 1, "held the reply send")
+    holding(page, held, 1, "the reply send")
 
     bounds = page.locator(".lf-threads").bounding_box()
     page.mouse.move(
@@ -996,7 +1081,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     """Opening a reply while a new comment is in flight is a later gesture. The
     comment still appears, but its arrival must not move focus into its new thread."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
-    page.locator("#p3").click(click_count=3)
+    select_words(page, "#p3")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("The earlier comment in flight.")
@@ -1004,7 +1089,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("ControlOrMeta+Enter")
-    _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
+    holding(page, held, 1, "the comment send")
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -1036,7 +1121,7 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
     page.locator(".lf-find-box").fill("Comment 0")
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
 
-    page.locator("#p1").click(click_count=3)
+    select_words(page, "#p1")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill(
@@ -1045,9 +1130,9 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("ControlOrMeta+Enter")
-    _until(page, lambda traffic: traffic.sends == 1, "held the filtered comment send")
+    holding(page, held, 1, "the filtered comment send")
     if later_selection:
-        page.locator("#p2").click(click_count=3)
+        select_words(page, "#p2")
         expect(page.locator(".lf-fab-input")).to_be_visible()
         assert pending_text(page) == "A short second passage."
 
@@ -1080,7 +1165,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     """Focus handed to a new reply is not itself a draft; an edit to empty is."""
     page, errors = open_page(browser, live_url(serve(NOTED_PAGE)))
     resized(page, 1440, 900)
-    page.locator("#p1").click(click_count=3)
+    select_words(page, "#p1")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Follow this discussion.")
@@ -1135,16 +1220,16 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     as a 💬 that never came up for the passage picked out after a send."""
     browser, held = held_events
     page, errors = open_page(browser, serve(NOTED_PAGE))
-    page.locator("#p1").click(click_count=3)
+    select_words(page, "#p1")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("The first remark.")
 
     page.keyboard.press("ControlOrMeta+Enter")
-    _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
+    holding(page, held, 1, "the comment send")
 
     # The reader picks out their next passage while the first send is still in the wire.
-    page.locator("#p2").click(click_count=3)
+    select_words(page, "#p2")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_have_value("")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
@@ -1169,6 +1254,55 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     page.close()
 
 
+def test_a_held_comment_send_leaves_a_later_keyboard_target_selected(
+    held_events, serve
+):
+    """The target chosen with `s` is later than a comment already in flight."""
+    browser, held = held_events
+    page, errors = open_page(browser, serve(NOTED_PAGE))
+    compose(page, "#p1", "The first remark.")
+
+    page.keyboard.press("ControlOrMeta+Enter")
+    holding(page, held, 1, "the comment send")
+
+    # Leave the sending field, then use the target-first keyboard path to choose p2.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).not_to_have_count(0)
+    target_code = page.evaluate(
+        """() => {
+          const top = document.querySelector('#p2').getBoundingClientRect().top;
+          return [...document.querySelectorAll('.lf-target-hint')]
+            .sort((a, b) => Math.abs(a.getBoundingClientRect().top - top)
+                          - Math.abs(b.getBoundingClientRect().top - top))[0]
+            .dataset.lfTarget;
+        }"""
+    )
+    page.keyboard.type(target_code)
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+    expect(page.locator("#p2")).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "aria-label", re.compile(r"^Respond to paragraph")
+    )
+
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+
+    expect(page.locator(".lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+    expect(page.locator("#p2")).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "aria-label", re.compile(r"^Respond to paragraph")
+    )
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    assert composer_quote(page)["text"].endswith("A short second passage.")
+    assert errors == []
+    page.close()
+
+
 def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     browser, serve
 ):
@@ -1180,12 +1314,12 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     field = page.locator(".lf-fab-input")
     original = "These words belong to the first passage."
 
-    page.locator("#p1").click(click_count=3)
+    select_words(page, "#p1")
     expect(field).to_be_visible()
     expect(field).not_to_be_focused()
     field.fill(original)
 
-    page.locator("#p2").click(click_count=3)
+    select_words(page, "#p2")
     expect(field).to_have_value("")
     expect(field).not_to_be_focused()
     assert (
@@ -1196,7 +1330,7 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
         == 1
     )
 
-    page.locator("#p1").click(click_count=3)
+    select_words(page, "#p1")
     expect(field).to_have_value(original)
     expect(field).not_to_be_focused()
     assert errors == []
@@ -1307,7 +1441,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     first_say.get_by_role("button", name="Send", exact=True).click()
-    _until(first, lambda t: t.sends == 1, "put the first answer in the wire")
+    holding(first, held, 1, "the first answer")
 
     held[0].continue_()
     first.unroute("**/api/event")
@@ -1360,7 +1494,7 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_read
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     first_thread.get_by_role("button", name="Send", exact=True).click()
-    _until(first, lambda t: t.sends == 1, "put the first reply in the wire")
+    holding(first, held, 1, "the first reply")
     second_thread.get_by_role("button", name="Send", exact=True).click()
     round_trip(second)
 
@@ -1413,7 +1547,7 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     panel.get_by_role("button", name="Send", exact=True).click()
-    _until(first, lambda t: t.sends == 1, "put the older reply in the wire")
+    holding(first, held, 1, "the older reply")
     second_inline.fill(newer_raw)
     expect(inline).to_have_value(newer_raw)
     expect(panel.locator("textarea")).to_have_value(newer_raw)
@@ -1451,7 +1585,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     first_say.get_by_role("button", name="Send", exact=True).click()
-    _until(first, lambda t: t.sends == 1, "put the failing answer in the wire")
+    holding(first, held, 1, "the failing answer")
     second_say.get_by_role("button", name="Send", exact=True).click()
     round_trip(second)
 
@@ -1632,7 +1766,7 @@ def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generatio
     held = []
     older.route("**/api/event", lambda route: held.append(route))
     older_say.get_by_role("button", name="Send", exact=True).click()
-    _until(older, lambda traffic: traffic.sends == 1, "held the nondurable send")
+    holding(older, held, 1, "the nondurable send")
     newer_say.locator("textarea").fill(newer)
     assert newer_tab.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
     newer_tab.close()
@@ -1935,7 +2069,7 @@ def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, ser
     compose(page, "#p3", old)
     box = page.locator(".lf-composer textarea")
     page.keyboard.press("ControlOrMeta+Enter")
-    _until(page, lambda traffic: traffic.sends == 1, "held the selection comment")
+    holding(page, held, 1, "the selection comment")
     box.fill(newer)
 
     held.pop(0).continue_()
@@ -2344,10 +2478,38 @@ def test_registered_control_keys_activate_once(browser, serve):
     expect(pencil).to_have_attribute("type", "button")
     pencil.focus()
     page.keyboard.press("Enter")
-    expect(page.locator("#draft-ops textarea")).to_be_focused()
-    assert page.locator("#draft-ops").evaluate(
-        "el => getComputedStyle(el).outlineStyle !== 'none'"
-    ), "the draft editor received focus without a visible focus indicator"
+    editor = page.locator("#draft-ops textarea")
+    expect(editor).to_be_focused()
+    focus_paint = page.locator("#draft-ops").evaluate(
+        """host => {
+          const editor = host.querySelector('textarea');
+          const hs = getComputedStyle(host), es = getComputedStyle(editor);
+          return {
+            host: {outline: hs.outlineStyle, width: parseFloat(hs.outlineWidth)},
+            editor: {outline: es.outlineStyle, shadow: es.boxShadow,
+                     ring: es.getPropertyValue('--lf-here-ring').trim()},
+          };
+        }"""
+    )
+    assert focus_paint["host"]["outline"] != "none"
+    assert focus_paint["host"]["width"] >= 2
+    assert focus_paint["editor"] == {
+        "outline": "none",
+        "shadow": "none",
+        "ring": "none",
+    }, "the draft's one editing surface acquired a second focus box"
+    page.emulate_media(forced_colors="active")
+    forced = page.locator("#draft-ops").evaluate(
+        """host => {
+          const editor = host.querySelector('textarea');
+          return {
+            host: getComputedStyle(host).outlineStyle,
+            editor: getComputedStyle(editor).outlineStyle,
+          };
+        }"""
+    )
+    assert forced == {"host": "solid", "editor": "none"}
+    page.emulate_media(forced_colors="none")
     page.keyboard.press("Escape")
 
     mark = page.locator("#opts .lf-pick").first

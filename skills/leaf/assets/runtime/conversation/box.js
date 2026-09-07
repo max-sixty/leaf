@@ -29,20 +29,17 @@ export const conversationBox = (el, hint) => {
   ta.value = loadDraft(ctx) ?? "";
   ta.setAttribute("aria-label", hint);
   row.append(ta, send, ...(hold ? [hold] : []));
-  const sendComment = (text, raw, holds = false) =>
-    sendDraft(
-      ctx,
-      () => ta.value === raw,
-      (attempt) =>
-        post({
-          kind: "comment",
-          revision: runtime.currentRevision,
-          anchor: { section: el.id },
-          text,
-          attempt,
-          ...(declaration.response && { response: declaration.response }),
-          ...(holds && { holds: el.id }),
-        }),
+  const sendComment = (text, raw, owns, holds = false) =>
+    sendDraft(ctx, owns, (attempt) =>
+      post({
+        kind: "comment",
+        revision: runtime.currentRevision,
+        anchor: { section: el.id },
+        text,
+        attempt,
+        ...(declaration.response && { response: declaration.response }),
+        ...(holds && { holds: el.id }),
+      }),
     );
   const sync = wireInput(ta, {
     hint,
@@ -50,13 +47,13 @@ export const conversationBox = (el, hint) => {
     sendBtn: send,
     altBtn: hold,
     save: (value) => saveDraft(ctx, value),
-    send: async (text, raw) => {
-      if (!(await sendComment(text, raw))) return;
+    send: async (text, raw, owns) => {
+      if (!(await sendComment(text, raw, owns))) return;
       notice("Message sent");
     },
     altSend: hold
-      ? async (text, raw) => {
-          if (!(await sendComment(text, raw, true))) return;
+      ? async (text, raw, owns) => {
+          if (!(await sendComment(text, raw, owns, true))) return;
           notice("Message sent — goal paused");
         }
       : null,
@@ -66,7 +63,7 @@ export const conversationBox = (el, hint) => {
   const off = watchDraft(ctx, (value) => {
     if (!box.isConnected) return off();
     const text = value ?? "";
-    if (ta.value !== text) ta.value = text;
+    if (sync.value() !== text) ta.value = text;
     sync();
     renderPanel();
   });

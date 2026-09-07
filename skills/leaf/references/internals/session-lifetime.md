@@ -1,48 +1,55 @@
 # Session lifetime, pickup, and work claims
 
-`status.json` is a claim, and a claim never expires on its own: an agent that
-stopped watching renders exactly like one that is watching and has nothing to
-say. The page therefore also carries what it can prove, and `/api/state` ships
-those facts beside the claim so the banner can say when the claim has outlived
-its evidence.
+`status.json` is a declaration, not current agent state. The current state is
+`activity`, one server projection over that declaration and the page's stronger
+evidence: claim and turn identity, watcher lifetime, exact pickup transitions,
+and unsettled reader moves. `/api/state`, neighboring-page entries, and
+agent-facing page state all carry this same projection. Browser code paints it
+and requests another reading at its next deadline; it does not run a second fold.
 
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
-| work claim: state, detail, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
-| turn open or closed | the page's claim record | the Stop hook stamps `turn_closed`; the prompt hook and a direct wait's handoff clear it | the next stamp |
+| work declaration: state, detail, event floor, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
+| turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` or `leaf ack` process, held open for its life | process exit |
 | acknowledgement cursor | `cursor.json` | `leaf ack`, after the complete batch reached its durable consumer | never; it is monotonic |
-| pickup | a `pickup` event in `events.jsonl` | the carrier, after a direct wait flushed the batch or Codex's queue accepted it | never; it is a record, and retries name nothing new |
+| pickup transition | a `pickup` event in `events.jsonl` | the carrier records `queued` when Codex accepts a batch, then `opened` with session and turn identity when it enters model context; direct delivery records `opened` | never; each event/phase/session/turn transition is idempotent |
 | page claim | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on (the pid, or the background job's directory) is gone |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
 | Codex delivery epoch | the host state home's session records | the detached adapter | closed and every batch receipted, then moved under `history/` |
 
-Delivery acceptance is a different fact from work. Pickup never rewrites
-`status.json` and cannot claim the agent has begun work or replace an existing
-claim. The browser projects one acknowledgment per subject and unit, for the newest
-unsettled reader move on it (a tick and the Done press that followed are one),
-on the subject's existing Target Button or a compact local row: append is
-**Sent**, then **Waiting for pickup** after the short grace; a `pickup` naming
-the move is **Picked up**; a later `status … --on` claim on the same subject is
-**Active**. A reply, resolution, or authored state that honors the move settles
-the acknowledgment; a later version note settles a page action whose verb has no
-authored record form, and a note already standing when the move arrives cannot
-answer it.
+Delivery acceptance is a different fact from authored work, but it is exact agent
+activity. Pickup never rewrites `status.json`. The server projects one interaction
+per subject and unit, for the newest unsettled reader move on it (a tick and the Done
+press that followed are one), on the subject's existing Target Button or a compact
+local row: append is **Sent**, then **Waiting for pickup** after the short grace;
+Codex acceptance is **Queued**; entry into a named open turn is **Picked up**; a
+later `status … --on` claim on the same subject is **Active**. That same evidence
+makes page activity **queued**, **handling**, or **picked up; turn ended**. A reply,
+resolution, or authored state that honors the move settles the interaction; a later
+version note settles a page action whose verb has no authored record form, and a note
+already standing when the move arrives cannot answer it.
 
-A claim has to be renewed, and `leaf status` renews it. `--on` names the thread
+The activity fold defines precedence once. An unsettled opened interaction outranks
+a `waiting` declaration, so a receipt cannot say **Picked up** while the banner says
+the agent awaits the reader. A fresh `working` declaration is considered only when
+its recorded event floor reaches the obligations it could describe. Turn identity,
+not elapsed time, decides whether opened delivery belongs to the turn now running.
+
+A work declaration has to be renewed, and `leaf status` renews it. `--on` names the thread
 or widget the work is about, so one check-in moves the banner, the Target
 Button, and the local receipt under the reader's words; those stand until the
 agent's next word in that thread. Nothing in a session touches `status.json`
 while its turn is over, so work handed to a delegate is renewed from the
 delegate's own hands or not at all.
 
-The banner stops believing a claim older than the `turn_closed` stamp after a
-short grace, reached by evidence rather than by a clock. Both stamps are the
-session's rather than the page's: the Stop hook closes the turn on every page
-the session holds, and an opening reopens that same set, each page under its own
-transaction. Where nothing answers for the claim, the banner reports the page
-unheld rather than repeating the claim. Unheld is not a fault: a standing page
-spends most of its life unheld and picks up again when a session takes it.
+Canonical activity stops believing a work declaration older than the
+`turn_closed` stamp after a short grace. Both turn id and closing stamp are the
+session's rather than the page's: the Stop hook closes the turn on every page the
+session holds, and an opening advances that same set, each page under its own
+transaction. Where nothing answers for the declaration, activity reports the page
+unheld rather than repeating it. Unheld is not a fault: a standing page spends most
+of its life unheld and picks up again when a session takes it.
 
 ## The hook
 
@@ -50,6 +57,12 @@ The `hook` command, registered on Stop, UserPromptSubmit, and SessionEnd,
 refuses to let a turn end with one of this session's pages unwatched, stamps
 that turn's ending and the next one's opening, surfaces unacknowledged user
 events at the next prompt, and releases the session's page claims when it exits.
+Its unanswered-work guard reads `activity.obligations`, the same settled
+interaction projection the browser reads; it does not reconstruct threads itself.
+When the prompt hook carries an acknowledged, unanswered move back into model
+context, it records a new `opened` transition for the new turn as well as naming
+the move in the hook context. The reminder and the browser's handling state are
+therefore one delivery fact.
 Session death is not completion or an explicit stop: work status and desired
 service stay as they were, while a session server retires once no live successor
 has claimed it. Absent the host identity the environment carries, nothing is

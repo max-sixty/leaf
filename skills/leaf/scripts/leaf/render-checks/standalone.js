@@ -129,6 +129,9 @@ export function bake() {
   }
   document.adoptedStyleSheets = [];
   document.documentElement.removeAttribute("data-lf-traffic");
+  // The reading identifies one live server response. It is neither stable across
+  // exports nor meaningful once the scripts and server are gone.
+  document.body.removeAttribute("data-lf-reading");
   // A live report is runtime chrome even where its seat is in the page rather than
   // under .lf-chrome, so it is answered here, in the document and in every open shadow
   // root, before those roots are serialized below.
@@ -192,6 +195,9 @@ export function bake() {
   if (icon) {
     icon.href = icon.dataset.lfRest;
     icon.removeAttribute("data-lf-rest");
+    document
+      .querySelectorAll('link[rel="icon"]')
+      .forEach((other) => other !== icon && other.remove());
   }
   // hidden="until-found" is the page saying "collapsed, but the reader can still
   // get here" — a tab's inactive panel, a settled group's cards. In a copy the
@@ -281,26 +287,27 @@ export function bake() {
   // to carry. A wrapper around a non-offered native control is the exception: the browser
   // still owns that complete interaction in the copy.
   //
-  // A *valued* marker, because `offer` writes the empty one on the boxes a widget builds
-  // to hold its controls — a suggestion's ✓/✗ row among them — and those are not presses
-  // to take away. Matched on the bare attribute this loop removed the box outright, with
-  // whatever the copy keeps still inside it: the "Accepted" status a decided change
-  // speaks through went out with the row it stood in, and the rail the copy holds open for that
-  // record had nothing left to show. What empties a box is the walk below, which is the
-  // reading that was already right.
+  // A valued marker is a press. An empty marker is usually the box a widget builds to
+  // hold controls — a suggestion's ✓/✗ row among them — and matched on the bare
+  // attribute this loop removed the box outright with any static words the copy keeps
+  // inside it, such as a failed-delivery receipt. The exception is leaf chrome with no
+  // element inside it: a mutable status word is not a box and has no meaning once the
+  // runtime leaves. Remove that leaf with the presses, then let the walk below take any
+  // wrapper the two kinds empty together. Native controls keep working without Leaf and
+  // stay, whether or not a widget built their surrounding box.
   const browserControl =
     "input:not([data-lf-offer]), select:not([data-lf-offer]), textarea:not([data-lf-offer]), " +
     "a[href]:not([data-lf-offer]), button:not([data-lf-offer]), summary:not([data-lf-offer])";
-  for (const control of all(
-    "[data-lf-offer]:not([data-lf-offer='']):not([data-lf-said])",
-  ).reverse()) {
-    if (
-      control.querySelector(browserControl) ||
-      [...control.querySelectorAll("label")].some(
-        (label) => label.control && !label.control.matches("[data-lf-offer]"),
-      )
-    )
-      continue;
+  const scriptedOffer =
+    "[data-lf-offer]:not([data-lf-said]):is(" +
+    ":not([data-lf-offer='']), :not(:has(*)):not(input, select, textarea, a[href], summary))";
+  const keepsBrowserControl = (container) =>
+    container.querySelector(browserControl) ||
+    [...container.querySelectorAll("label")].some(
+      (label) => label.control && !label.control.matches("[data-lf-offer]"),
+    );
+  for (const control of all(scriptedOffer).reverse()) {
+    if (keepsBrowserControl(control)) continue;
     let dead = control,
       box = dead.parentElement?.closest("[data-lf-offer]");
     dead.remove();
@@ -309,6 +316,16 @@ export function bake() {
       box = dead.parentElement?.closest("[data-lf-offer]");
       dead.remove();
     }
+  }
+  // A generated container may retain authored static children after its scripted
+  // controls leave. Keep those words, but remove the interactive grouping contract
+  // when no native control remains to satisfy it.
+  for (const container of all("[data-lf-offer=''][role]")) {
+    if (keepsBrowserControl(container)) continue;
+    container.removeAttribute("role");
+    for (const attr of [...container.attributes])
+      if (attr.name.startsWith("aria-") && attr.name !== "aria-hidden")
+        container.removeAttribute(attr.name);
   }
   all("[data-lf-offer][data-lf-said]").forEach((offered) => {
     let el = offered;
@@ -438,5 +455,5 @@ export function bake() {
         ` ${a.name}="${a.value.replaceAll("&", "&amp;").replaceAll('"', "&quot;")}"`,
     )
     .join("");
-  return `<html${attrs}>${root.getHTML({ serializableShadowRoots: true })}</html>`;
+  return `<!doctype html><html${attrs}>${root.getHTML({ serializableShadowRoots: true })}</html>`;
 }

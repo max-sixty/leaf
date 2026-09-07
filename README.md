@@ -21,9 +21,10 @@ Claude Code and Codex so far.
 ![leaf demo](docs/demo.gif)
 
 <https://leaf.page/> is the tour, the mechanism, the example pages, and the guide to
-themes and project widgets. Each product page is itself a leaf using the theme and
-widgets it describes. From a checkout, `uv run scripts/site.py --serve` assembles and
-serves the complete site from the sources in [`docs/`](docs/).
+themes and project widgets. Each product page is a standalone Leaf export rendered
+with the theme and widgets it describes; the examples are live private sessions. From
+a checkout, `uv run scripts/site.py --serve` assembles and serves the complete site
+from the sources in [`docs/`](docs/).
 
 ## Install
 
@@ -88,6 +89,28 @@ as Leaf's next immutable revision inside that page directory; it does not edit t
 source, append an event, or write outside Leaf's revision store. Only a snapshot
 comment append requests write approval.
 
+## Development
+
+Install [Worktrunk](https://worktrunk.dev), `uv`, `jq` 1.6 or newer, and Node 22 or
+newer. Then install the browser binaries and website dependencies:
+
+```sh
+wt setup
+```
+
+The everyday gate is `uv run pytest tests`. Docker is additionally required for the
+complete website preview and the Linux CI mirror. The catalog stills are fetched at the
+external revision pinned by this checkout. Regenerate and publish them from the live
+example routes on macOS with:
+
+```sh
+wt refresh-previews
+```
+
+That command captures every worked example with the Playwright version pinned in
+`uv.lock`, pushes the images to `max-sixty/leaf-assets`, updates the pin and catalog
+links in this checkout, and rebuilds `.tmp/site`.
+
 ## Packages
 
 A package carries a reusable theme, widget, browser module, data contract, or role
@@ -100,12 +123,20 @@ contract.
 
 [`examples/`](examples/) holds a complete page for each kind of work, including a
 dashboard meant to change as work finishes. They are live in the visual index at
-<https://leaf.page/examples/>; every example opens as its own complete page.
-From a checkout, `uv run scripts/site.py --serve` previews that catalog and all its routes;
+<https://leaf.page/examples/>; every example opens as its own complete, private,
+temporary Leaf session. It has the canonical event log and projection but no agent
+behind it.
+After `wt setup`, run the same Worker/container boundary used in production:
+
+```sh
+uv run scripts/site.py --serve
+```
+
+Docker must be running. For a lighter single-example development loop,
 `scripts/preview.py triage-board` watches one page and its runtime with the real agent
 loop behind it, preserving reader feedback across edits. Add `--background` to keep
 watching between commands, or `--stop` to stop that preview.
 Synthetic feature specimens live together in
 [`examples/developer/feature-gallery.html`](examples/developer/feature-gallery.html);
-`scripts/preview.py feature-gallery` serves that developer playground without adding
-it to the public catalog.
+the website links that developer reference outside the visual catalog, and
+`scripts/preview.py feature-gallery` serves it from a checkout.

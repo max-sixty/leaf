@@ -62,6 +62,11 @@ def draft_controls(page, draft_id="draft-ops"):
     return page.locator(f".lf-draft-controls[data-lf-for='{draft_id}']")
 
 
+def select_paragraph(page, selector):
+    """Triple-click the passage's words, not the center of its full-width box."""
+    page.locator(selector).click(click_count=3, position={"x": 4, "y": 4})
+
+
 def cancel_draft(page, draft_id="draft-ops"):
     """Cancel stands beside Save throughout an engaged draft edit."""
     controls = draft_controls(page, draft_id)
@@ -1054,7 +1059,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     """Opening a reply while a new comment is in flight is a later gesture. The
     comment still appears, but its arrival must not move focus into its new thread."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
-    page.locator("#p3").click(click_count=3)
+    select_paragraph(page, "#p3")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("The earlier comment in flight.")
@@ -1094,7 +1099,7 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
     page.locator(".lf-find-box").fill("Comment 0")
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
 
-    page.locator("#p1").click(click_count=3)
+    select_paragraph(page, "#p1")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill(
@@ -1105,7 +1110,7 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the filtered comment send")
     if later_selection:
-        page.locator("#p2").click(click_count=3)
+        select_paragraph(page, "#p2")
         expect(page.locator(".lf-fab-input")).to_be_visible()
         assert pending_text(page) == "A short second passage."
 
@@ -1138,7 +1143,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     """Focus handed to a new reply is not itself a draft; an edit to empty is."""
     page, errors = open_page(browser, live_url(serve(NOTED_PAGE)))
     resized(page, 1440, 900)
-    page.locator("#p1").click(click_count=3)
+    select_paragraph(page, "#p1")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Follow this discussion.")
@@ -1193,7 +1198,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     as a 💬 that never came up for the passage picked out after a send."""
     browser, held = held_events
     page, errors = open_page(browser, serve(NOTED_PAGE))
-    page.locator("#p1").click(click_count=3)
+    select_paragraph(page, "#p1")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("The first remark.")
@@ -1202,7 +1207,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     holding(page, held, 1, "the comment send")
 
     # The reader picks out their next passage while the first send is still in the wire.
-    page.locator("#p2").click(click_count=3)
+    select_paragraph(page, "#p2")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_have_value("")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
@@ -1287,12 +1292,12 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     field = page.locator(".lf-fab-input")
     original = "These words belong to the first passage."
 
-    page.locator("#p1").click(click_count=3)
+    select_paragraph(page, "#p1")
     expect(field).to_be_visible()
     expect(field).not_to_be_focused()
     field.fill(original)
 
-    page.locator("#p2").click(click_count=3)
+    select_paragraph(page, "#p2")
     expect(field).to_have_value("")
     expect(field).not_to_be_focused()
     assert (
@@ -1303,7 +1308,7 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
         == 1
     )
 
-    page.locator("#p1").click(click_count=3)
+    select_paragraph(page, "#p1")
     expect(field).to_have_value(original)
     expect(field).not_to_be_focused()
     assert errors == []

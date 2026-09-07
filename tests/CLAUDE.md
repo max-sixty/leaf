@@ -122,13 +122,18 @@ A focus ring is drawn only for a press: `element.focus()` sets `:focus` and not
 `:focus-visible`, so a control focused from script wears no ring, and every
 reading of one comes back the same empty as a control whose ring is fine. Reach
 it with a real `Tab`, or focus it and press `Tab` then `Shift+Tab` back, and
-assert the ring is there before asserting anything about its shape. Which
-control wears the ring is a separate question from which holds focus, and the
-layer answers it four ways (a thread card for anything inside it, a decision for
-the control reached, a joined option group for the one its picks give up, and
-an anchored element with no focus of its own), so the reading sweeps every box
-painting a ring and asks the paint, never `getComputedStyle(activeElement)`
-and never a selector. The band has two carriers: `--here-ring`, the outline
+assert the ring is there before asserting anything about its shape. Which box
+wears the ring is a separate question from which holds focus: a decision may
+wrap the control reached, a joined option group may stand for the pick that gave
+up focus, and an anchored element may have no focus of its own. The reading
+therefore sweeps every box painting a ring and asks the paint, never
+`getComputedStyle(activeElement)` and never a selector. A thread is the distinct
+large-composite case: the current panel card repaints its existing border and surface,
+while an unbordered inline card reserves symmetric resting room around its content and
+draws the same quiet edge inside that room. Their tests compare that paint with a
+resting state while checking the card's visible placement and unchanged focused
+geometry, including a later sibling that must not carry an old divider inside its edge.
+The band has two carriers: `--here-ring`, the outline
 nearly every rule draws, and `--here-shadow`, the same band cast as a shadow by
 the two boxes that cannot spend an outline on it — the anchored response bar and
 the item hint the keyboard is browsing. A shadow ring is the layer's spread with

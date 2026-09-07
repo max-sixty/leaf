@@ -1616,13 +1616,12 @@ RING_NAMES = """() => {
 # Every here ring the page is showing right now, and what is wrong with each.
 #
 # Asked of every box painting one, rather than of the focused one.
-# The two are not the same set: four rules draw
-# the ring on something other than the control holding focus — a thread card wears it
-# for anything focused inside it, a decision wears it for whichever of its controls the
-# reader reached, a joined option group wears the one its picks give up, and an element
+# The two are not the same set: three rules draw the ring on something other than the
+# control holding focus — a decision wears it for whichever of its controls the reader
+# reached, a joined option group wears the one its picks give up, and an element
 # a focused thread is anchored to wears it with no focus of its own — and a reading that
 # asks only `getComputedStyle(activeElement)` returns `no ring here` for every one. A 2px
-# cut planted on `.lf-thread:focus-within` passed the entire example corpus.
+# cut planted on one of those carriers passed the entire example corpus.
 #
 # The focused element is a candidate too, whatever paints its outline, so a ring the
 # platform draws and the layer never named is still measured.

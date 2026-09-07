@@ -22,6 +22,7 @@ from render_support import (
     GENERIC_VISUAL_PAGE,
     GENERIC_VISUAL_WIDGETS,
     PANEL_PAGE,
+    REPORT_PAGE,
     SUGGESTION_PAGE,
     _publish,
     _traffic,
@@ -2481,6 +2482,48 @@ def test_a_buttons_walk_position_stays_out_of_its_visible_word(browser, serve):
     page.close()
 
 
+def test_page_map_only_origins_do_not_count_as_margin_buttons(browser, serve):
+    """Page map includes durable provenance even when the margin has no Button for it.
+
+    A reader listening to the margin walk hears only the Buttons they can visit. The
+    Page-map count remains the count of every mapped target, including provenance-only
+    locations.
+    """
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Check the squirrel baffle fit.",
+        "anchor": {"section": "t-parser"},
+    }
+    url = serve(REPORT_PAGE, events=[comment])
+    sent = CliRunner().invoke(
+        cli_model.cli,
+        ["report", str(serve.page_dir), "t-mounts", "status", "status=active"],
+    )
+    assert sent.exit_code == 0, sent.output
+
+    page, errors = open_page(browser, url)
+    resized(page, 1440, 900)
+    marker = page.locator('[data-lf-margin-for="t-parser"] > .lf-margin-marker')
+    expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, 1 of 1,"))
+    expect(page.locator('[data-lf-margin-for="t-mounts"]')).to_have_count(0)
+    expect(page.get_by_role("navigation", name="Page map, 2 locations")).to_be_visible()
+    page.evaluate(
+        "async () => (await import('/runtime/living-margin.js')).enterPageMap()"
+    )
+    origin = page.get_by_role(
+        "button", name=re.compile(r"^Open reported update: Reported update")
+    )
+    origin.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator("#t-mounts")).to_be_focused()
+    expect(marker).not_to_be_focused()
+
+    assert errors == []
+    page.close()
+
+
 def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosure(
     browser, serve, monkeypatch
 ):
@@ -3505,17 +3548,27 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
         """preview => {
           const thread = preview.querySelector('.lf-conversation-thread');
           const textarea = thread.querySelector('textarea');
+          const send = thread.querySelector('.lf-compose-submit');
           const close = preview.querySelector('.lf-margin-preview-close');
           const resolve = thread.querySelector('.lf-resolve');
           const head = thread.querySelector('.lf-conversation-head');
           const tr = thread.getBoundingClientRect();
           const ta = textarea.getBoundingClientRect();
+          const sr = send.getBoundingClientRect();
           const hr = head.getBoundingClientRect();
           const rr = resolve.getBoundingClientRect();
+          const ts = getComputedStyle(thread);
           return {
-            threadRight: tr.right,
-            threadPad: parseFloat(getComputedStyle(thread).paddingRight),
-            textareaRight: ta.right,
+            thread: {
+              top: tr.top,
+              right: tr.right - parseFloat(ts.borderRightWidth)
+                - parseFloat(ts.paddingRight),
+              bottom: tr.bottom,
+              left: tr.left + parseFloat(ts.borderLeftWidth)
+                + parseFloat(ts.paddingLeft),
+            },
+            textarea: {top: ta.top, right: ta.right, bottom: ta.bottom, left: ta.left},
+            send: {top: sr.top, right: sr.right, bottom: sr.bottom, left: sr.left},
             closeBorder: getComputedStyle(close).borderTopWidth,
             resolveBorder: getComputedStyle(resolve, '::before').borderTopWidth,
             head: {top: hr.top, right: hr.right, bottom: hr.bottom},
@@ -3523,12 +3576,18 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
           };
         }"""
     )
-    # The card reserves symmetric resting room around its content and draws its
-    # focus edge inside that room, so what the composer spans is the content box:
-    # measured against the border box it reads as inset by exactly that padding.
-    assert geometry["textareaRight"] == pytest.approx(
-        geometry["threadRight"] - geometry["threadPad"], abs=1
+    # Send belongs inside the field instead of taking width beside it. The field
+    # fills the thread's content box, inside any padding the thread reserves.
+    assert geometry["textarea"]["left"] == pytest.approx(
+        geometry["thread"]["left"], abs=1
     )
+    assert geometry["textarea"]["right"] == pytest.approx(
+        geometry["thread"]["right"], abs=1
+    )
+    assert geometry["send"]["left"] >= geometry["textarea"]["left"]
+    assert geometry["send"]["right"] <= geometry["textarea"]["right"]
+    assert geometry["send"]["top"] >= geometry["textarea"]["top"]
+    assert geometry["send"]["bottom"] <= geometry["textarea"]["bottom"]
     assert float(geometry["closeBorder"][:-2]) == 0
     assert float(geometry["resolveBorder"][:-2]) >= 1
     assert geometry["resolve"]["top"] == pytest.approx(geometry["head"]["top"], abs=1)
@@ -4482,7 +4541,10 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
     expect(page.locator(".lf-living-margin")).to_be_visible()
     expect(page.locator(".lf-page-map-toggle")).to_be_hidden()
     expect(sheet).to_be_visible()
-    expect(sheet.locator(".lf-page-map-action")).to_have_count(4)
+    expect(sheet.locator(".lf-page-map-action")).to_have_count(5)
+    expect(
+        sheet.get_by_role("button", name=re.compile(r"^Open your change: Your change"))
+    ).to_be_visible()
 
     assert errors == []
     page.close()
@@ -4497,7 +4559,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     page.locator(".lf-page-map-toggle").click()
     sheet = page.locator(".lf-page-map-sheet")
     actions = sheet.locator(".lf-page-map-action")
-    expect(actions).to_have_count(4)
+    expect(actions).to_have_count(5)
     page.keyboard.press("Tab")
     expect(actions.first).to_be_focused()
 
@@ -4518,7 +4580,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
             ".lf-margin-count"
         )
     ).to_have_text("2")
-    expect(actions).to_have_count(5)
+    expect(actions).to_have_count(6)
     expect(actions.first).to_be_focused()
 
     assert errors == []

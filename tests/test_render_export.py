@@ -28,6 +28,7 @@ from playwright.sync_api import expect
 from render_support import (
     LONG_PAGE,
     PAGE_FIXTURES,
+    REPLAYED_PAGE,
     REPORT_PAGE,
     leaf_page,
     open_page,
@@ -1271,6 +1272,40 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     page.close()
 
 
+def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
+    browser, serve, tmp_path
+):
+    """A standalone copy keeps the decision's origin after removing live chrome.
+
+    Structural state such as a card move still differs from the authored version after
+    export, so the retained origin attribute needs a local spoken word when Page map is
+    no longer present.
+    """
+    url = serve(REPLAYED_PAGE)
+    live, live_errors = open_page(browser, url)
+    live.get_by_role("button", name="Move: Wire the importer — Doing").focus()
+    live.keyboard.press("Enter")
+    live.keyboard.press("ArrowRight")
+    live.keyboard.press("Enter")
+    expect(live.locator("#card-importer")).to_have_attribute(
+        "data-lf-reader-override", "1"
+    )
+    assert live_errors == []
+    live.close()
+
+    out = tmp_path / "standalone.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    page = browser.new_page()
+    errors = watched(page)
+    page.goto(out.as_uri(), wait_until="load")
+    card = page.locator("#card-importer")
+    expect(card).to_have_attribute("data-lf-reader-override", "1")
+    expect(card.locator(":scope > .lf-quiet")).to_have_text("your change")
+    expect(page.locator(".lf-chrome")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
 def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
     source = leaf_page(
         "Export CSP",
@@ -1542,6 +1577,7 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
     page.goto(out.as_uri(), wait_until="load")
     expect(page.locator("#t-parser")).to_have_attribute("status", "done")
     expect(page.locator("#t-feeders > .lf-chips")).to_contain_text("2/2 done")
+    expect(page.locator("#t-parser > .lf-quiet")).to_contain_text("reported update")
     page.close()
 
 

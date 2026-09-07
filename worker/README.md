@@ -68,4 +68,7 @@ the account and the `leaf.page` zone, and add **Workers Containers: Edit** at th
 account level. The stock template does not necessarily include the separate Containers
 permission. After Wrangler returns, the deploy workflow verifies the edge shell and
 waits until its layer matches the public `/api/state` responses, because a Containers
-rollout can finish after the Worker itself becomes active.
+rollout can finish after the Worker itself becomes active. Each attempt asks as a new
+reader: the session cookie picks the container, and one Cloudflare has already started
+keeps its image until the idle timer above retires it, so a single session reports the
+rollout it began on rather than the one a reader arriving now would get.

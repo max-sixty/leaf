@@ -250,11 +250,9 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
         )
     }
     # The write-on-change guards keep the corpus at 8 layouts and 57–58 style
-    # recalculations over five refreshes. The process counters include the corpus's
-    # contained frames, while `geometry_reads` below is the exact product reading; these
-    # bounds leave room for that browser bookkeeping while refusing the 33 / 127–128
-    # regression from unconditional writes.
-    assert work["LayoutCount"] <= refreshes * 5, work
+    # recalculations over five refreshes. These bounds leave room for browser
+    # bookkeeping while refusing the 33 / 127–128 regression from unconditional writes.
+    assert work["LayoutCount"] <= refreshes * 4, work
     assert work["RecalcStyleCount"] <= refreshes * 18, work
     assert geometry_reads == refreshes, geometry_reads
     assert errors == []
@@ -3516,6 +3514,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
           const rr = resolve.getBoundingClientRect();
           return {
             threadRight: tr.right,
+            threadPaddingRight: parseFloat(getComputedStyle(thread).paddingRight),
             textareaRight: ta.right,
             closeBorder: getComputedStyle(close).borderTopWidth,
             resolveBorder: getComputedStyle(resolve, '::before').borderTopWidth,
@@ -3524,7 +3523,9 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
           };
         }"""
     )
-    assert geometry["textareaRight"] == pytest.approx(geometry["threadRight"], abs=1)
+    assert geometry["textareaRight"] == pytest.approx(
+        geometry["threadRight"] - geometry["threadPaddingRight"], abs=1
+    )
     assert float(geometry["closeBorder"][:-2]) == 0
     assert float(geometry["resolveBorder"][:-2]) >= 1
     assert geometry["resolve"]["top"] == pytest.approx(geometry["head"]["top"], abs=1)
@@ -4311,34 +4312,21 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     assert toggle.evaluate(
         "button => button.parentElement.matches('.lf-banner-actions')"
     ), "the small-screen map was folded behind the banner's door"
-    button_ink = page.locator(".lf-banner-actions > .lf-btn:visible").evaluate_all(
+    text_insets = page.locator(".lf-banner-actions > .lf-btn:visible").evaluate_all(
         """buttons => buttons.map(button => {
           const box = button.getBoundingClientRect();
           const range = document.createRange();
           range.selectNodeContents(button);
           const text = range.getBoundingClientRect();
-          const chord = button.dataset.lfChord ?? null;
-          const after = getComputedStyle(button, '::after');
-          const chordBottom = chord ? box.height - parseFloat(after.bottom) : null;
-          return {label: button.textContent.trim(), chord, content: after.content,
-                  height: box.height, above: text.top - box.top,
-                  labelBottom: text.bottom - box.top,
-                  below: box.bottom - text.bottom,
-                  chordTop: chordBottom === null
-                    ? null : chordBottom - parseFloat(after.lineHeight),
-                  chordBottom};
+          return {label: button.textContent.trim(),
+                  above: text.top - box.top, below: box.bottom - text.bottom};
         })"""
     )
-    assert button_ink
-    for ink in button_ink:
-        if ink["chord"] is None:
-            assert ink["above"] == pytest.approx(ink["below"], abs=1.5), (
-                f"{ink['label']} is not vertically centred in the compact banner: {ink}"
-            )
-            continue
-        assert ink["content"] == f'"{ink["chord"]}" / ""', ink
-        assert 0 < ink["above"] < ink["labelBottom"] < ink["chordTop"], ink
-        assert ink["chordTop"] < ink["chordBottom"] < ink["height"], ink
+    assert text_insets
+    for inset in text_insets:
+        assert inset["above"] == pytest.approx(inset["below"], abs=1.5), (
+            f"{inset['label']} is not vertically centred in the compact banner: {inset}"
+        )
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     if opener == "keyboard":

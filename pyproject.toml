@@ -66,12 +66,10 @@ dev = [
 # The site module is one load group because its module-scoped build and host are the
 # shared setup; everything else stays individually balanced. Chromium launches once
 # per worker for the run.
-# Use every available CPU up to the four-worker point measured by the everyday
-# suite. A two-CPU host stays at two; larger hosts do not multiply the
-# browser pool past the load the suite has exercised.
+# Two workers cap the browser load when suites overlap.
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
-addopts = "-n auto --maxprocesses 4 --dist loadgroup"
+addopts = "-n 2 --dist loadgroup"
 # `scripts/` is not a package; the suite imports its example-data module directly.
 # The `leaf` package needs no entry here: the project installs itself editable.
 pythonpath = ["scripts"]

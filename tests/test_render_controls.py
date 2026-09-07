@@ -1087,8 +1087,7 @@ def test_a_phone_banner_folds_its_addresses_into_one_menu(browser, serve, other_
         }))"""
     )
     assert chord_readings and all(
-        reading["content"] == f'"{reading["chord"]}" / ""'
-        for reading in chord_readings
+        reading["content"] == f'"{reading["chord"]}" / ""' for reading in chord_readings
     ), f"a folded destination lost its visible chord: {chord_readings}"
     # The row keeps the reading loop and the door; everything else is behind it.
     expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()

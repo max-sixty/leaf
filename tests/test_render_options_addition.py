@@ -41,9 +41,9 @@ def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_reader)
 def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     """The reader writes on the same line and in the same voice as the options.
 
-    The trailing action stays out of an empty row, then submits without borrowing the
-    selection mark's circle. It remains a full-sized pointer target aligned with the
-    last line as the textarea grows.
+    The trailing action stays out of an empty row, then submits on the shared Button
+    corner rather than borrowing the selection mark's circle. It remains a full-sized
+    pointer target aligned with the last line as the textarea grows.
     """
     page, errors = open_page(browser, serve(ASK_PAGE))
     option = page.locator("#job-camera")
@@ -110,17 +110,21 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     face = add.evaluate(
         """el => {
           const button = getComputedStyle(el);
-          const circle = getComputedStyle(el, '::before');
+          const fill = getComputedStyle(el, '::before');
           return {
             button: button.backgroundColor,
-            circle: circle.backgroundColor,
-            radius: circle.borderRadius,
+            fill: fill.backgroundColor,
+            radius: fill.borderRadius,
           };
         }"""
     )
+    mark_radius = option.evaluate(
+        "el => getComputedStyle(el.querySelector('.lf-pick'), '::before').borderRadius"
+    )
     assert face["button"] == "rgba(0, 0, 0, 0)"
-    assert face["circle"] != face["button"]
-    assert face["radius"] == "50%"
+    assert face["fill"] != face["button"]
+    assert face["radius"] == "6px"
+    assert face["radius"] != mark_radius
     page.keyboard.press("Tab")
     expect(add).to_be_focused()
 

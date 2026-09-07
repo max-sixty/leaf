@@ -9,7 +9,7 @@
 
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { runtime } from "./context.js";
-import { offer, reserve } from "./widget-elements.js";
+import { focusDestination, offer, reserve } from "./widget-elements.js";
 
 class StaleDemo extends Error {}
 
@@ -167,8 +167,7 @@ function keepsReaderStanding(api, frame) {
         return call(...args);
       } finally {
         if (document.activeElement === frame) {
-          if (stood?.isConnected && stood !== frame)
-            stood.focus({ preventScroll: true });
+          if (stood?.isConnected && stood !== frame) focusDestination(stood);
           // Nobody was standing anywhere in particular, so the page itself is where the
           // reader is: give it back rather than leaving the picture holding the keys.
           else frame.blur();

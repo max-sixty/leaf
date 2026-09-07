@@ -771,6 +771,35 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         status = gallery.locator("[data-interaction-status]")
         expect(status).to_have_text("Open and close Threads · Complete", timeout=20_000)
         assert threads_tab.evaluate("tab => document.activeElement === tab")
+
+        # A tab is a tab stop of its own, so putting the reader back on one asks nothing
+        # of the handback. The places a reader actually addresses mostly are not: a `g`
+        # hint, a version swap and the skip link all land on a heading or a fold that
+        # `focusDestination` lent a stop to, and the frame taking focus is the blur that
+        # takes the lend away again. So the second run stands the reader where the go-to
+        # chord stands them — in the same synchronous step that starts the replay, before
+        # any framed call can run — and the panel opens against a destination that is no
+        # longer focusable by the time the handback comes.
+        assert (
+            page.evaluate(
+                """async () => {
+                const {focusDestination} = await import('/runtime/widget-elements.js');
+                document.querySelector('[data-interaction-replay]').click();
+                focusDestination(document.querySelector('#bg-interactions-title'));
+                return document.activeElement?.id;
+            }"""
+            )
+            == "bg-interactions-title"
+        )
+        expect(threads_frame.locator(".lf-panel")).to_be_visible()
+        assert page.evaluate("() => document.activeElement?.id") == (
+            "bg-interactions-title"
+        )
+        expect(status).to_have_text("Open and close Threads · Complete", timeout=20_000)
+        assert page.evaluate("() => document.activeElement?.id") == (
+            "bg-interactions-title"
+        )
+
         page.keyboard.press("w")
         expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
         assert not errors, errors[:3]

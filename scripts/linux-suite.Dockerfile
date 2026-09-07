@@ -11,14 +11,28 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 ENV UV_PROJECT_ENVIRONMENT=/venv
 
+# Chrome is the half of this image that pins it to amd64, so it is also what a native
+# build gives up (`CHROME=0`, linux-suite.sh's `LEAF_SUITE_NATIVE`). Everything the
+# platforms actually disagree about is in the other half — the fonts — which both builds
+# install, and the bulk suite drives Playwright's own shell rather than this launcher.
+ARG CHROME=1
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl gnupg \
- && curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
-      | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
- && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" \
-      > /etc/apt/sources.list.d/google-chrome.list \
- && apt-get update && apt-get install -y --no-install-recommends \
-      google-chrome-stable fonts-liberation fonts-dejavu-core fonts-noto-color-emoji \
+ && if [ "$CHROME" = 1 ]; then \
+      curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+        | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
+      && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" \
+        > /etc/apt/sources.list.d/google-chrome.list \
+      && apt-get update && apt-get install -y --no-install-recommends google-chrome-stable; \
+    else \
+      apt-get install -y --no-install-recommends \
+        libnss3 libnspr4 libdbus-1-3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 \
+        libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
+        libpango-1.0-0 libcairo2 libasound2t64 libatspi2.0-0t64; \
+    fi \
+ && apt-get install -y --no-install-recommends \
+      fonts-liberation fonts-dejavu-core fonts-noto-color-emoji \
  && rm -rf /var/lib/apt/lists/*
 
 # The checkout is mounted rather than copied, and linux-suite.sh installs the locked

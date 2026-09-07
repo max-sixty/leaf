@@ -173,48 +173,55 @@ describe("product-site delivery", () => {
     expect(await response.json()).toEqual({ reading: "state-1" });
   });
 
-  it("pins a mismatched edge layer to the container shell", async () => {
-    const sessionId = "09".repeat(16);
-    const containerFetch = vi.fn(async () =>
-      Response.json(
-        { reading: "old-container" },
-        { headers: { "Leaf-Layer": "container-layer" } },
-      ),
-    );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
-    const env = environment();
+  it.each([
+    ["product", "/api/state", "/"],
+    ["example", "/examples/design-decision/api/state", "/examples/design-decision/"],
+  ])(
+    "pins a mismatched %s edge layer to the container shell",
+    async (_kind, statePath, documentPath) => {
+      const sessionId = "09".repeat(16);
+      const containerFetch = vi.fn(async () =>
+        Response.json(
+          { reading: "old-container" },
+          { headers: { "Leaf-Layer": "container-layer" } },
+        ),
+      );
+      vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+      const env = environment();
 
-    const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/api/state", {
-        headers: {
-          Cookie: `__Host-leaf-page=${sessionId}`,
-          "Leaf-Layer": "edge-layer",
-        },
-      }),
-      env,
-    );
+      const response = await worker.fetch(
+        new Request(`https://leaf.page${statePath}`, {
+          headers: {
+            Cookie: `__Host-leaf-page=${sessionId}`,
+            "Leaf-Layer": "edge-layer",
+          },
+        }),
+        env,
+      );
 
-    expect(response.headers.get("Set-Cookie")).toBe(
-      "__Host-leaf-container=1; Path=/; Secure; HttpOnly; SameSite=Lax",
-    );
+      expect(response.headers.get("Set-Cookie")).toBe(
+        "__Host-leaf-container=1; Path=/; Secure; HttpOnly; SameSite=Lax",
+      );
 
-    const documentResponse = new Response("<!doctype html><title>Container</title>", {
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
-    containerFetch.mockResolvedValue(documentResponse);
-    const document = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/", {
-        headers: {
-          Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-container=1`,
-        },
-      }),
-      env,
-    );
+      const documentResponse = new Response(
+        "<!doctype html><title>Container</title>",
+        { headers: { "Content-Type": "text/html; charset=utf-8" } },
+      );
+      containerFetch.mockResolvedValue(documentResponse);
+      const document = await worker.fetch(
+        new Request(`https://leaf.page${documentPath}`, {
+          headers: {
+            Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-container=1`,
+          },
+        }),
+        env,
+      );
 
-    expect(document).toBe(documentResponse);
-    expect(env.ASSETS.fetch).not.toHaveBeenCalled();
-    expect(containerFetch).toHaveBeenCalledTimes(2);
-  });
+      expect(document).toBe(documentResponse);
+      expect(env.ASSETS.fetch).not.toHaveBeenCalled();
+      expect(containerFetch).toHaveBeenCalledTimes(2);
+    },
+  );
 
   it("returns a caught-up reader to the edge", async () => {
     const sessionId = "0a".repeat(16);

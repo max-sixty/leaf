@@ -248,8 +248,10 @@ two tabs for a single reader unless they share a browser context:
 `Browser.new_page` creates an independent context; `one_reader` supplies one
 context for the tests whose subject is shared tab state.
 
-The product-site pages are standalone exports. They retain rendered widgets and
-native controls, but have no scripts, runtime chrome, or semantic page state.
+The product-site pages and examples are complete page directories served through the
+website's canonical Leaf adapter. Tests that exercise the public routes wait for both
+runtime stamps and assert the publication state; a rendered custom element alone does
+not prove that the interaction layer is present.
 
 For complete, valid browser fixtures, use `leaf_page(title, body, head="")`. It
 supplies the same language, charset, CSP, theme, module, and main-content shell

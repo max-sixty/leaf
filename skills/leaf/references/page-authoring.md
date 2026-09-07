@@ -103,6 +103,11 @@ page width.
 Give each section, major block, and widget item a stable, meaningful `id` at the
 tightest semantic boundary a reader can distinguish. Where a sole child fills a
 transparent wrapper, let the child carry the pair's one id.
+Put a titled section's public id on the `<section>`, not on its heading just for
+`lf-toc`: the heading supplies the link text, while the section fragment arrives at
+the complete title, including an eyebrow. A heading may still need its own id for an
+internal relationship such as `aria-labelledby`; that id is not the section's public
+address.
 Threads and reading position attach to those ids across versions, and so does a
 reader comparing this version with an earlier one: the id is how the comparison
 finds what the block said before, so a rewritten paragraph keeps the id it had.

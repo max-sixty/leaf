@@ -267,7 +267,9 @@ customElements.define(
         const saveWidth = Math.ceil(this.#save.getBoundingClientRect().width);
         this.#buttonReserve = saveWidth * 2 + 4;
         this.#row.style.minWidth = `${saveWidth}px`;
-        this.#row.replaceChildren(this.#pencil);
+        // A recovered edit can open while this detached measurement is pending. Its
+        // engaged Save + Cancel row is newer state than the resting row measured here.
+        if (!this.#ta) this.#row.replaceChildren(this.#pencil);
         this.#row.style.opacity = "";
         this.#margin?.update();
         paintKeys();

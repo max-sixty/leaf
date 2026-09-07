@@ -73,20 +73,29 @@ jobs:
 
       # A Containers deploy activates the Worker before its image rollout necessarily
       # finishes. Prove the public route has crossed both boundaries before calling the
-      # deployment successful; --retry-all-errors also covers the first-deploy 404/5xx
-      # window while Cloudflare provisions the application and custom domain.
+      # deployment successful. One cold start can exceed ten seconds, and writing the
+      # response before testing it preserves Cloudflare's final error when retries fail.
       - name: Verify public Leaf pages
         run: |
           COOKIE="__Host-leaf-page=$(openssl rand -hex 16)"
-          curl --fail --silent --show-error \
-            --cookie "$COOKIE" \
-            --retry 30 --retry-all-errors --retry-delay 10 --max-time 10 \
+          verify_state() {
+            local url="$1"
+            local predicate="$2"
+            local response
+            response=$(mktemp)
+            if ! curl --fail-with-body --silent --show-error \
+              --output "$response" \
+              --cookie "$COOKIE" \
+              --retry 20 --retry-all-errors --retry-delay 5 --max-time 25 \
+              "$url"; then
+              cat "$response" >&2
+              return 1
+            fi
+            jq --exit-status "$predicate" "$response"
+          }
+          verify_state \
             https://leaf.page/api/state \
-            | jq --exit-status \
-              '.publication.kind == "product" and .claims == []'
-          curl --fail --silent --show-error \
-            --cookie "$COOKIE" \
-            --retry 30 --retry-all-errors --retry-delay 10 --max-time 10 \
+            '.publication.kind == "product" and .claims == []'
+          verify_state \
             https://leaf.page/examples/design-decision/api/state \
-            | jq --exit-status \
-              '.publication.kind == "example" and .claims == []'
+            '.publication.kind == "example" and .claims == []'

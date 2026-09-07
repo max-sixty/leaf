@@ -56,8 +56,8 @@
 
 /* Ordinary action controls use `.lf-btn`, whose shared theme rules also enter declared
    shadow trees. Packages may set placement and density, but keep its shape, border,
-   hover, and disabled treatment. Margin Buttons, reaction chips, and status labels retain
-   their own forms.
+   hover, and disabled treatment. Icon-only actions keep the same corner on a square
+   face. Margin Buttons, reaction chips, and status labels retain their own forms.
 
    Typography is presentation, not passage permission. A chip or code annotation may look
    like apparatus and still be a page word the reader can quote.
@@ -1369,7 +1369,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           inset-block-start: -3px; inset-inline-end: -2px;
           box-sizing: border-box; inline-size: 26px; block-size: 26px; padding: 0;
           display: inline-flex; align-items: center; justify-content: center;
-          border: 1px solid transparent; border-radius: 50%; background: var(--card);
+          border: 1px solid transparent; border-radius: var(--r); background: var(--card);
           opacity: 0; cursor: pointer; }
 /* Stand the trigger off the resolve control's ring, not off its box. The trigger is
    painted above the head and turns opaque while the message is focus-within, which is
@@ -1859,19 +1859,19 @@ html.lf-versioning::view-transition-new(root) {
           box-sizing: border-box; width: var(--lf-icon-action-hit);
           height: var(--lf-icon-action-hit); min-width: var(--lf-icon-action-hit);
           min-height: var(--lf-icon-action-hit); padding: 0; display: grid;
-          place-items: center; }
+          place-items: center; border-radius: var(--r); }
 .lf-action-icon { position: relative; z-index: 1; inline-size: 16px; block-size: 16px;
           overflow: visible; pointer-events: none; fill: none; stroke: currentColor; stroke-width: 1.6;
           stroke-linecap: round; stroke-linejoin: round; }
 /* Closing changes the view; resolving changes durable thread state. */
-.lf-close-action { border: 0; border-radius: 50%; background: transparent;
+.lf-close-action { border: 0; background: transparent;
           color: var(--muted); }
 .lf-close-action:hover { background: var(--chip); color: var(--ink); }
 .lf-compose-submit { position: absolute; z-index: 1; inset-inline-end: 6px;
-          inset-block-end: 6px; border: 0; border-radius: 50%;
+          inset-block-end: 6px; border: 0;
           background: transparent; color: var(--paper); filter: none; }
 .lf-compose-submit::before { content: ""; position: absolute; box-sizing: border-box;
-          width: 28px; height: 28px; border-radius: 50%; background: var(--accent); }
+          width: 28px; height: 28px; border-radius: var(--r); background: var(--accent); }
 .lf-compose-submit:hover { background: transparent; filter: none; }
 .lf-compose-submit:not(:disabled, [aria-disabled="true"]):hover::before { filter: brightness(.92); }
 .lf-compose-submit:is(:disabled, [aria-disabled="true"]) { opacity: 1;
@@ -1879,11 +1879,11 @@ html.lf-versioning::view-transition-new(root) {
 .lf-compose-submit:is(:disabled, [aria-disabled="true"])::before {
           border: 1px solid var(--border-2); background: var(--paper); }
 .lf-resolve.lf-icon-action { position: relative; flex: none; margin-inline-start: auto;
-          border: 0; border-radius: 50%; background: transparent; color: var(--ink);
+          border: 0; background: transparent; color: var(--ink);
           box-shadow: none; }
 .lf-resolve.lf-icon-action::before { content: ""; position: absolute;
           box-sizing: border-box; inline-size: 28px; block-size: 28px;
-          border: 1px solid var(--border-2); border-radius: 50%; background: var(--paper); }
+          border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper); }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover {
           background: transparent; color: var(--ok-ink); box-shadow: none; }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {

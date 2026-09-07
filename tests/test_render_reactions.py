@@ -44,12 +44,6 @@ PAINTED = """() => ({
     .map(el => el.id || el.dataset.id),
 })"""
 
-MARGIN_STATE_WITNESS = """button => {
-  const mark = getComputedStyle(button, '::after');
-  return mark.content === '\"\"' && parseFloat(mark.width) > 0
-    && parseFloat(mark.height) > 0 && mark.backgroundColor !== 'rgba(0, 0, 0, 0)';
-}"""
-
 
 def select_paragraph(page, selector):
     """Drag across most of one paragraph, the way the anchor tests do."""
@@ -318,7 +312,7 @@ def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme):
-    """A standing reaction keeps neutral furniture and a witness distinct from hover."""
+    """A standing reaction keeps neutral furniture distinct from hover."""
     page, errors = open_page(
         browser,
         serve(
@@ -348,17 +342,15 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
             press()
         told(page)
 
-    def assert_selected_face(reaction, reopen, witness):
+    def assert_selected_face(reaction, reopen):
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "false")
         page.mouse.move(0, 0)
         resting = reaction.evaluate(read)
-        assert reaction.evaluate(witness) is False
         reaction.hover()
         neutral_hover = reaction.evaluate(read)
         assert neutral_hover["ink"] == resting["ink"]
         assert neutral_hover["ring"] == resting["ring"]
-        assert reaction.evaluate(witness) is False
         stands(reaction.click)
         reopen()
         expect(reaction).to_be_visible()
@@ -366,17 +358,14 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         page.mouse.move(0, 0)
         selected = {**resting, "fill": neutral_hover["fill"]}
         assert reaction.evaluate(read) == selected
-        assert reaction.evaluate(witness) is True
         reaction.hover()
         assert reaction.evaluate(read) == selected
-        assert reaction.evaluate(witness) is True
         stands(reaction.click)
         reopen()
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "false")
         page.mouse.move(0, 0)
         assert reaction.evaluate(read) == resting
-        assert reaction.evaluate(witness) is False
 
     item = page.locator('.lf-margin-item[data-lf-margin-for="draft"]')
 
@@ -389,7 +378,6 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     assert_selected_face(
         item.locator('.lf-react[data-token="keep"]'),
         open_margin_reactions,
-        MARGIN_STATE_WITNESS,
     )
     assert errors == []
     page.close()
@@ -712,8 +700,7 @@ def test_response_choices_use_the_margin_on_a_narrow_screen(browser, serve, open
     page.close()
 
 
-# The field's box, with its corner as the platform draws it: the specified radius clamped
-# to the box's own half-sides, so a "pill" 999px reads as half the height here. `over` is
+# The field's box, with its corner as the platform draws it. `over` is
 # how far that corner's arc reaches over the first line's opening: at the line's top edge
 # the arc is `r - sqrt(r² - (r - y)²)` in from the side, and the first glyph starts at the
 # border plus the padding, so a positive number says the arc is over the letter.
@@ -736,31 +723,30 @@ FLOAT_ROOM = """() => {
 }"""
 
 
-def test_the_response_field_grows_as_a_rounded_rectangle_and_leaves_the_ellipsis_room(
+def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     browser, serve
 ):
-    """A one-line note is a pill. A longer one widens before it wraps, grows down as far
-    as the room the placement states — a note of a dozen lines shows them all, and only
-    one taller than the band below the banner scrolls, standing inside that band — and
-    the corner it keeps through all of that is the pill's own, half the resting height,
-    rather than half of whatever the box has become: at five lines a proportional corner
-    was a 48px arc over the first line's opening and the last line's close. On a narrow
-    screen the same room caps the bar and the field is what gives, so the ellipsis beside
-    it keeps its room."""
+    """A one-line note uses the shared action corner. A longer one widens before it
+    wraps, grows down as far as the room the placement states — a note of a dozen lines
+    shows them all, and only one taller than the band below the banner scrolls, standing
+    inside that band — and the corner stays fixed through all of that. On a narrow screen
+    the same room caps the bar and the field is what gives, so the ellipsis beside it
+    keeps its room."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
     field = bar.locator(".lf-fab-input")
     expect(field).to_be_visible()
+    expect(bar.locator(".lf-react-trigger")).to_have_css("border-radius", "6px")
     field.click()
     rest = field.evaluate(FIELD_BOX)
-    assert rest["r"] == rest["h"] / 2 and rest["over"] < 0, rest  # a pill, glyph clear
+    assert rest["r"] == 6 and rest["over"] < 0, rest
 
     field.fill("one\ntwo\nthree\nfour\nfive")
     tall = field.evaluate(FIELD_BOX)
     assert tall["h"] > rest["h"] and tall["w"] == rest["w"], (rest, tall)
     assert tall["over"] < 0, (rest, tall)  # the corner is not over the first line
-    assert tall["r"] == rest["r"], (rest, tall)  # it stayed the pill's, not the box's
+    assert tall["r"] == rest["r"], (rest, tall)
 
     field.fill("\n".join(f"line {n}" for n in range(1, 15)))
     shown = field.evaluate(FIELD_BOX)
@@ -2008,15 +1994,12 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
     }, copy
     # The other half of the same promise, and the half no gate can see: the copy's
     # `offering` reads the cursor and nothing else, so paint that arrives with the
-    # pointer rather than standing on the page is invisible to it. A receipt in a file
-    # that lifts under the pointer says a press is there to take.
+    # pointer rather than standing on the page is invisible to it.
     mark = page.locator(
         '.lf-margin-item[data-lf-margin-for="how-store"] .lf-react-mark'
     )
     resting = mark.evaluate("el => getComputedStyle(el).backgroundColor")
-    assert mark.evaluate(MARGIN_STATE_WITNESS) is True
     mark.hover()
     assert mark.evaluate("el => getComputedStyle(el).backgroundColor") == resting
-    assert mark.evaluate(MARGIN_STATE_WITNESS) is True
     assert errors == []
     page.close()

@@ -524,7 +524,7 @@ textarea.lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(-
   object-fit: cover; }
 .lf-composer-media-remove { position: absolute; top: -5px; right: -5px;
   width: 20px; height: 20px; padding: 0; border: 1px solid var(--border-2);
-  border-radius: 50%; background: var(--card); color: var(--ink); font: inherit;
+  border-radius: var(--r); background: var(--card); color: var(--ink); font: inherit;
   line-height: 17px; cursor: pointer; box-shadow: 0 1px 4px var(--shade); }
 .lf-composer-media-remove:is(:hover, :focus-visible) { border-color: var(--accent); }
 /* Sent media can live in chrome-owned threads or page-owned widget conversations.
@@ -1450,10 +1450,9 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      press is a .lf-btn and looks like one; beside page content it is the shared
      .lf-margin-button.
 
-     The shadow is the one thing this control adds, and it earns it: this is the only
-     pill that floats over the page's own content rather than standing in the empty
-     rail, so it says so rather than relying on a hairline to separate it from
-     whatever it happens to be over. */
+     The shadow is the one thing this control adds, and it earns it: this response
+     control floats over the page's own content rather than standing in the empty rail,
+     so it cannot rely on a hairline to separate it from whatever it happens to cover. */
   :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 32px; }
   .lf-fab-bar { position: absolute; display: none; width: max-content; align-items: center;
     gap: 4px; white-space: nowrap; max-width: var(--lf-float-w, calc(100vw - 16px)); }
@@ -1461,16 +1460,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* The field and the no-reactions fallback choices are two states of one anchored
      response control. This primitive owns their height, vertical padding, type, border,
      corners, and elevation. With a reaction vocabulary, Tab raises the target's margin
-     Buttons instead.
-     The corner is half the resting height, written as that length rather than as
-     999px: both draw the same one-line pill, and only the length survives growth. The
-     field below grows with its words, and a corner kept in proportion to the box was
-     a 48px arc at five lines, over the first line's opening and the last line's
-     close. The shared UI supplies the thread's 14px face; this control tightens only
-     its line height so that face keeps the 32px resting box. */
+     Buttons instead. The field can grow with its words without changing its corner.
+     The shared UI supplies the thread's 14px face; this control tightens only its line
+     height so that face keeps the 32px resting box. */
   .lf-response-control { box-sizing: border-box; min-height: var(--lf-response-height);
     border: 1px solid var(--border-2); background: var(--card);
-    border-radius: calc(var(--lf-response-height) / 2);
+    border-radius: var(--r);
     color: var(--ink-2); font-weight: 400; line-height: 1.3;
     padding-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
     box-shadow: 0 2px 8px var(--shade); }
@@ -1485,7 +1480,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
     box-shadow: var(--here-shadow) color-mix(in srgb, var(--accent) 25%, transparent),
       0 2px 8px var(--shade); }
-  /* The field takes the size its words want. A short note is the one-line pill; a
+  /* The field takes the size its words want. A short note is one line; a
      longer one widens to a readable measure before it wraps, then grows down as far as
      the room the placement states (--lf-float-h), and only past that does
      it scroll. placeFab re-places the bar on every input, so a grown bar stands where the
@@ -1557,7 +1552,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     inset-block-start: -3px; inset-inline-end: -2px;
     box-sizing: border-box; inline-size: 26px; block-size: 26px; padding: 0;
     display: inline-flex; align-items: center; justify-content: center;
-    border: 1px solid transparent; border-radius: 50%; background: var(--card);
+    border: 1px solid transparent; border-radius: var(--r); background: var(--card);
     opacity: 0; cursor: pointer;
   }
   /* Stand the trigger off the resolve control's ring, not off its box. The trigger is

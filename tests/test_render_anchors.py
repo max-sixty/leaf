@@ -4120,15 +4120,18 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     panel_send = panel_thread.get_by_role("button", name="Send", exact=True)
     button_face = """button => {
       const style = getComputedStyle(button);
-      return Object.fromEntries([
+      const face = Object.fromEntries([
         'backgroundColor', 'color', 'borderTopColor', 'borderRadius', 'padding',
         'opacity', 'cursor', 'filter',
       ].map(property => [property, style[property]]));
+      face.fillBorderRadius = getComputedStyle(button, '::before').borderRadius;
+      return face;
     }"""
     expect(inline_send).to_be_disabled()
     expect(panel_send).to_be_disabled()
     quiet = inline_send.evaluate(button_face)
     assert quiet == panel_send.evaluate(button_face)
+    assert quiet["borderRadius"] == quiet["fillBorderRadius"] == "6px"
     assert quiet["backgroundColor"] == palette["page"]
     assert quiet["opacity"] == "1"
     assert quiet["filter"] == "none"

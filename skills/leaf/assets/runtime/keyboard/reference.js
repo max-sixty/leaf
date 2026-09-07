@@ -396,8 +396,7 @@ function showHelp(open, restoreFocus = true) {
       // whether they currently have a keyboard route.
       const rows = scope.rows.filter(
         (row) =>
-          row.does &&
-          (!inIt || (row.referenceWhen ? row.referenceWhen() : live(row))),
+          row.does && (!inIt || (row.referenceWhen ? row.referenceWhen() : live(row))),
       );
       if (!rows.length) continue;
       const title = scope.title ?? "On this page";

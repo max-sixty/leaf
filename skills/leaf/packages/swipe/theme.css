@@ -138,7 +138,8 @@ lf-swipe-card > strong:first-child {
   letter-spacing: -.008em;
 }
 
-lf-swipe-card > strong:first-child:not(:last-child) {
+/* Generated quiet words can sit after the title without becoming card content. */
+lf-swipe-card > strong:first-child:has(~ :not(.lf-ui, [data-lf-gen])) {
   margin-bottom: var(--sp-2);
 }
 
@@ -272,10 +273,10 @@ lf-swipe-pile[verdict="keep"] > lf-swipe-card > strong:first-child {
 
 lf-swipe-pile[verdict="pass"]
   > lf-swipe-card
-  > strong:first-child:not(:last-child),
+  > strong:first-child:has(~ :not(.lf-ui, [data-lf-gen])),
 lf-swipe-pile[verdict="keep"]
   > lf-swipe-card
-  > strong:first-child:not(:last-child) {
+  > strong:first-child:has(~ :not(.lf-ui, [data-lf-gen])) {
   margin-bottom: var(--sp-1);
 }
 

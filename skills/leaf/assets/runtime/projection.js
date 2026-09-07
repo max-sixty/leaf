@@ -26,7 +26,12 @@ import {
   stateCoordinate,
   unitOf,
 } from "./projection/authored.js";
-import { foldedFacet, stateProjection, widgetStates } from "./projection/fold.js";
+import {
+  foldedFacet,
+  stateOrigins,
+  stateProjection,
+  widgetStates,
+} from "./projection/fold.js";
 import { stateSpecs } from "./registry.js";
 import { runtime } from "./context.js";
 import {
@@ -145,12 +150,13 @@ import { pageShifted } from "./anchors.js";
    complete facet's winning action paints the outcome, and its null baseline clears it. A
    module may render the same marks as part of its animation choreography.
 
-   `paintStateOrigins` compares each desired record with its authored facet. It paints
+   `stateOrigins` compares each desired record with its authored facet. It paints
    `data-lf-reader-override` for reader actions and `data-lf-reported` for reports only
    while the log differs from this version's authored state. Recordless decisions retain
-   the reader-origin mark while their holder remains in the document. These marks
-   describe origin, not unfinished work; receipts own processing and completion. They are
-   renderings of the projection, never inputs to it.
+   the reader-origin reading while their holder remains in the document. Page map
+   presents all three origin channels as explicit target information; receipts own
+   processing and completion. The corresponding data attributes are renderings of the
+   projection, never inputs to it.
 
    `shallowSigs` excludes exactly those attributes and reads only id-bearing elements
    accepted by the bounded `authored` predicate. Generated elements are absent; generated
@@ -586,8 +592,8 @@ export function reconcileState() {
           .map((animation) => animation.finished),
       ).then(() => pageShifted());
     }
-    renderQuiet(document.body);
-    paintStateOrigins(projection);
+    const originTargets = paintStateOrigins(projection);
+    renderQuiet(document.body, originTargets);
     document.body.setAttribute(
       PAGE_PAINT_ATTRIBUTE.applied,
       String(projectionCoverage(projection)),
@@ -612,8 +618,9 @@ export function reconcileKnownState() {
 }
 
 // Mark effective state supplied by the log instead of authored markup. These
-// outlines describe its origin; processing and completion belong to work
-// receipts. A decided suggestion remains reader-owned while its wrapper stands.
+// attributes carry origin into Page map, quiet target words, and standalone copies;
+// processing and completion belong to work receipts. A decided suggestion remains
+// reader-owned while its wrapper stands.
 function paintStateOrigins(projection) {
   const marks = new Map(
     [PAGE_PAINT_ATTRIBUTE.readerOverride, PAGE_PAINT_ATTRIBUTE.reported].map((attr) => [
@@ -621,24 +628,26 @@ function paintStateOrigins(projection) {
       new Set(),
     ]),
   );
-  for (const [coordinate, { unit, e, spec, value }] of projection.desired) {
+  for (const { origin, unit } of stateOrigins(projection)) {
+    if (origin === "restated") continue;
     const el = elementById(unit);
     if (!el || inChrome(el)) continue;
-    const overridesSource = spec.record ? value !== authoredFacet(coordinate) : true;
-    if (!overridesSource) continue;
-    // The channels keep separate marks so provisional worker news never wears
-    // the reader's color. The desired projection chooses which channel owns a
-    // coordinate; independent facets can still leave both marks on one unit.
     const attr =
-      e.kind === "action"
+      origin === "reader"
         ? PAGE_PAINT_ATTRIBUTE.readerOverride
         : PAGE_PAINT_ATTRIBUTE.reported;
     marks.get(attr).add(el);
   }
+  const touched = new Set();
   for (const [attr, wanted] of marks) {
-    for (const el of pageQueryAll(`[${attr}]`))
+    for (const el of pageQueryAll(`[${attr}]`)) {
+      touched.add(el);
       if (!wanted.has(el)) el.removeAttribute(attr);
-    for (const el of wanted)
+    }
+    for (const el of wanted) {
+      touched.add(el);
       if (el.getAttribute(attr) !== "1") el.setAttribute(attr, "1");
+    }
   }
+  return touched;
 }

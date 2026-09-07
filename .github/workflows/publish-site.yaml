@@ -95,14 +95,20 @@ jobs:
             local cookie
             local shell_layer
             local response_layer
+            local fallback_layer
             local attempt=0
             local shell
+            local fallback_shell
             local response
             local headers
             shell=$(mktemp)
+            fallback_shell=$(mktemp)
             response=$(mktemp)
             headers=$(mktemp)
             while true; do
+              if (( SECONDS >= deadline )); then
+                (( ++attempt ))
+              fi
               cookie="__Host-leaf-page=$(openssl rand -hex 16)"
               response_layer=
               : > "$response"
@@ -120,14 +126,30 @@ jobs:
                 --output "$response" \
                 --dump-header "$headers" \
                 --cookie "$cookie" \
+                --header "Leaf-Layer: $shell_layer" \
                 --max-time 25 \
                 "$state_url"; then
                 response_layer=$(awk 'tolower($1) == "leaf-layer:" {gsub("\\r", "", $2); print $2}' "$headers" | tail -1)
-                if test "$response_layer" = "$shell_layer" && jq --exit-status "$predicate" "$response"; then
-                  return 0
+                if jq --exit-status "$predicate" "$response"; then
+                  if test "$response_layer" = "$shell_layer"; then
+                    return 0
+                  fi
+                  if (( attempt >= 5 )) \
+                    && grep --quiet --ignore-case '^set-cookie: __Host-leaf-container=1;' "$headers" \
+                    && curl --fail-with-body --silent --show-error \
+                      --output "$fallback_shell" \
+                      --cookie "$cookie; __Host-leaf-container=1" \
+                      --max-time 25 \
+                      "$page_url"; then
+                    fallback_layer=$(grep --only-matching 'data-lf-layer="[^"]*"' "$fallback_shell" | head -1 | cut -d'"' -f2)
+                    if test "$fallback_layer" = "$response_layer" \
+                      && ! grep --quiet --fixed-strings 'data-lf-server="published"' "$fallback_shell"; then
+                      return 0
+                    fi
+                  fi
                 fi
               fi
-              (( SECONDS < deadline || ++attempt < 5 )) || break
+              (( SECONDS < deadline || attempt < 5 )) || break
               sleep 10
             done
             echo "$page_url served layer ${shell_layer:-none}; $state_url served layer ${response_layer:-none}" >&2

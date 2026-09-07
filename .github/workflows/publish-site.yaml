@@ -81,8 +81,10 @@ jobs:
       # stays up for its ten-minute idle timer, so re-asking one session keeps reporting
       # the image that session started on rather than the image the fleet now hands a
       # new reader — which is the property this step exists to prove. One deadline
-      # covers the whole rollout: the second page rides out the first page's wait, and
-      # the job's own timeout is the outer bound.
+      # covers the whole rollout, so the second page rides out the first page's wait
+      # rather than spending a count of its own. Each page keeps five attempts past
+      # that deadline: the two pages seat different containers, so a rollout that runs
+      # the first page to the deadline must not leave the second a single probe.
       - name: Verify public Leaf pages
         run: |
           deadline=$(( SECONDS + 900 ))
@@ -93,6 +95,7 @@ jobs:
             local cookie
             local shell_layer
             local response_layer
+            local attempt=0
             local shell
             local response
             local headers
@@ -101,6 +104,8 @@ jobs:
             headers=$(mktemp)
             while true; do
               cookie="__Host-leaf-page=$(openssl rand -hex 16)"
+              response_layer=
+              : > "$response"
               if curl --fail-with-body --silent --show-error \
                 --output "$shell" \
                 --cookie "$cookie" \
@@ -122,7 +127,7 @@ jobs:
                   return 0
                 fi
               fi
-              (( SECONDS < deadline )) || break
+              (( SECONDS < deadline || ++attempt < 5 )) || break
               sleep 10
             done
             echo "$page_url served layer ${shell_layer:-none}; $state_url served layer ${response_layer:-none}" >&2

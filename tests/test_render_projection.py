@@ -3304,7 +3304,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     expect(
         page.get_by_role(
             "button",
-            name="Move: Wire the importer — Done — your move",
+            name="Move: Wire the importer — Done",
             exact=True,
         )
     ).to_be_visible()
@@ -3319,7 +3319,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     expect(
         second.get_by_role(
             "button",
-            name="Move: Wire the importer — Done — your move",
+            name="Move: Wire the importer — Done",
             exact=True,
         )
     ).to_be_visible()

@@ -1602,7 +1602,8 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
     generated content, so the name reaching the tree once (as the list's) rather
     than twice depends on its alt text. Then a card moves, and the assertion is
     the second snapshot — a name set where the move happens goes stale on
-    whichever path forgets to restate its location or durable pending state."""
+    whichever path forgets to restate its location. The runtime's one quiet origin word
+    remains on the card rather than being repeated in the Move control's name."""
     page, errors = open_page(browser, serve(BOARD_PAGE))
     board = page.locator("#sprint")
 
@@ -1626,7 +1627,7 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
     expect(
         board.get_by_role(
             "button",
-            name="Move: Squirrel baffle — Done — your move",
+            name="Move: Squirrel baffle — Done",
             exact=True,
         )
     ).to_be_visible()
@@ -1639,7 +1640,8 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         '- list "Done":\n'
         "  - listitem:\n"
         "    - strong: Squirrel baffle\n"
-        "    - 'button \"Move: Squirrel baffle — Done — your move\"': ⠿"
+        "    - text: your change\n"
+        "    - 'button \"Move: Squirrel baffle — Done\"': ⠿"
     )
     assert errors == []
     page.close()

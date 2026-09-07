@@ -138,16 +138,13 @@ customElements.define(
 
     // Every grip's name, in the idiom the live region already announces moves in
     // ("card — column"): the user who lands on a grip by Tab hears where the
-    // card is without having read the list it sits in, and whether the placement comes
-    // from their move after its transient announcement has faded.
+    // card is without having read the list it sits in. State provenance is the runtime's
+    // one shared reading on the card rather than another suffix in this control's name.
     #names() {
       for (const col of this.querySelectorAll(":scope > lf-column")) {
         const where = col.getAttribute("label");
         for (const card of this.#cards(col)) {
-          const origin = card.hasAttribute("data-lf-reader-override")
-            ? " — your move"
-            : "";
-          const name = `Move: ${this.#title(card)} — ${where}${origin}`;
+          const name = `Move: ${this.#title(card)} — ${where}`;
           const grip = card.querySelector(":scope > .lf-grip");
           if (grip && grip.getAttribute("aria-label") !== name)
             grip.setAttribute("aria-label", name);
@@ -202,14 +199,8 @@ customElements.define(
       )
         return;
       this.#namesObserver = new MutationObserver(() => this.#names());
-      for (const col of this.querySelectorAll(":scope > lf-column")) {
+      for (const col of this.querySelectorAll(":scope > lf-column"))
         this.#namesObserver.observe(col, { childList: true });
-        for (const card of this.#cards(col))
-          this.#namesObserver.observe(card, {
-            attributes: true,
-            attributeFilter: ["data-lf-reader-override"],
-          });
-      }
     }
 
     #title(card) {

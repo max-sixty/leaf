@@ -9,7 +9,11 @@ import {
   shownBox,
   shownRect,
 } from "./geometry.js";
-import { marginButton, openPageThread, registerMarginItem } from "./living-margin.js";
+import {
+  marginElement,
+  openPageThread,
+  registerMarginContribution,
+} from "./living-margin.js";
 import { scheduleMarginLayout } from "./margin-layout.js";
 import {
   resolvedElement,
@@ -180,8 +184,8 @@ export function setAnchoringReady(ready) {
    `paintAnchors` resolves its anchor like any comment's and records it in `reacted`
    rather than `marked`: a wash through the `lf-react` highlight on a passage,
    `lf-react-el` on an element's shown parts, and a glyph reconciled by `seatReactions`.
-   Its `.lf-reacts` span is an unpositioned contribution to the target's Button
-   cluster; the Button inside is the reaction's own eraser, posting the ordinary `undo`
+   Its `.lf-reacts` span is an unpositioned contribution to the target's margin element
+   cluster; the margin element inside is the reaction's own eraser, posting the ordinary `undo`
    through `withdraw`. It wears `lf-ui` and `data-lf-gen`, so no reading takes it for
    the page's words. `markAt` does not see it: a reaction takes no press to a card and
    has no hover. Export keeps the glyph with its press taken off and writes the wash
@@ -495,7 +499,7 @@ function prepareVisualActions() {
     // other on every state/layout update. Moving a focused retained holder still needs
     // the same continuity guarantee as moving a margin host.
     let after = seat;
-    while (after.nextSibling?.matches?.(".lf-margin-item[data-lf-external]"))
+    while (after.nextSibling?.matches?.(".lf-margin-cluster[data-lf-external]"))
       after = after.nextSibling;
     if (after.nextSibling !== holder) {
       const held = holder.contains(document.activeElement)
@@ -1223,15 +1227,15 @@ export function paintAnchors(threads = buildThreads()) {
   }
 }
 
-// The margin glyphs: one contribution per target, holding a Button per reaction whose
+// The margin glyphs: one contribution per target, holding a margin element per reaction whose
 // passage starts there, in log order. The living margin seats that contribution beside
 // the same target's decisions and available actions, so adding a committed reaction
 // cannot grow a second RHS row. Two reactions on one target share the contribution
-// rather than stacking on one point. The Button is the reaction's own eraser — its press
+// rather than stacking on one point. The margin element is the reaction's own eraser — its press
 // is the ordinary undo naming the event — and wears the token's glyph, the token being
 // the runtime's word for what it means.
 //
-// Reconciled rather than rebuilt, so a Button whose press is in flight is the node the
+// Reconciled rather than rebuilt, so a margin element whose press is in flight is the node the
 // reader pressed; stale seats are swept the way note lines are. The seat wears lf-ui
 // and data-lf-gen: an account of the passage, not words of the page, so selection,
 // quote capture and the diff readings skip it. Keep the target-to-contribution record
@@ -1268,7 +1272,7 @@ function seatReactions(seats) {
       let mark = seat.querySelector(`:scope > [data-event="${root.id}"]`);
       if (!mark) {
         const entry = registry.$reactions.tokens[root.token];
-        mark = marginButton(offer("button", "lf-react-mark"), {
+        mark = marginElement(offer("button", "lf-react-mark"), {
           key: `take-back:${root.id}`,
           glyph: entry?.glyph ?? root.token,
           label: root.token,
@@ -1286,7 +1290,7 @@ function seatReactions(seats) {
       if (seat.children[i] !== mark) seat.insertBefore(mark, seat.children[i] ?? null);
     });
     if (!record.margin)
-      record.margin = registerMarginItem({
+      record.margin = registerMarginContribution({
         key: "standing-reactions",
         target: at,
         controls: seat,

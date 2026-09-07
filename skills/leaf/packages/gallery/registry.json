@@ -1,6 +1,6 @@
 {
-  "lf-button-atlas": {
-    "description": "The developer gallery's complete static exhibit of Leaf Button roles, behaviors, tones, and lifecycle states. It always renders the canonical Button anatomy through the runtime factory, but its specimens are disabled and record no gestures. Use it only in the feature gallery; ordinary pages demonstrate Buttons through the live widgets that own their actions.",
+  "lf-margin-element-gallery": {
+    "description": "The developer gallery's complete static exhibit of page-edge action controls, disclosure controls, and status indicators across every role, tone, and lifecycle state. It renders the canonical anatomy through the runtime's `marginElement` helper, but its specimens are disabled and record no gestures. Use it only in the feature gallery; ordinary pages demonstrate these roles through the live widgets that own them.",
     "type": "object",
     "properties": {
       "id": {
@@ -15,6 +15,6 @@
     "x-content": "none",
     "x-exhibit": true,
     "x-upgrade": true,
-    "x-example": "<lf-button-atlas id=\"button-atlas\"></lf-button-atlas>"
+    "x-example": "<lf-margin-element-gallery id=\"margin-element-gallery\"></lf-margin-element-gallery>"
   }
 }

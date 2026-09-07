@@ -14,7 +14,7 @@
 import { readerStore, tabStore } from "./storage.js";
 import { commentsEdge, PANEL_KEY, setPanel } from "./chrome-layout.js";
 import { restoreTrays, TRAY_KEY, trayNames, traysEdge } from "./trays.js";
-import { CHARACTER_SHORTCUTS_KEY } from "./keyboard/bindings.js";
+import { CHARACTER_KEY_SHORTCUTS_KEY } from "./keyboard/bindings.js";
 import { DESIGN_KEY, setDesign } from "./design.js";
 
 let publishedArrangements = [];
@@ -37,8 +37,8 @@ export const ARRANGEMENTS = [
     value: tray,
   })),
   {
-    name: "character shortcuts off",
-    ...readerStore.where(CHARACTER_SHORTCUTS_KEY),
+    name: "character key shortcuts off",
+    ...readerStore.where(CHARACTER_KEY_SHORTCUTS_KEY),
     value: "0",
   },
   { name: "design mode on", ...tabStore.where(DESIGN_KEY), value: "1" },

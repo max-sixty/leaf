@@ -1133,12 +1133,13 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
 <lf-tab id="corpus-release-notes" label="Notes">
 <h1>Release notes, drafted</h1>
       <p class="lede" id="rn-lede">
-        Four notes cover everything user-visible in 3.2. Every margin Button is a circle
-        with a soft border: a heavier ring acts now, a regular ring reveals context.
-        Icon color carries positive or negative intent; a turning corner mark says a
-        press is still travelling. A selected reaction keeps its fill even under the
-        pointer. One peer stays visible, while … unfolds larger sets. Accept or reject a
-        change, undo that choice, or rewrite a draft and save it. Press
+        Four notes cover everything user-visible in 3.2. Every page-edge action control,
+        disclosure control, and status indicator is circular. A heavier ring acts now; a
+        regular ring reveals context. Icon color carries positive or negative intent; a
+        turning corner mark says a press is still travelling. A selected reaction keeps
+        its fill even under the pointer. One peer stays visible, while … unfolds larger
+        sets. Accept or reject a change, undo that choice, or rewrite a draft and save
+        it. Press
         <kbd>g</kbd> to reveal the contents labels and navigation shortcuts, or use
         <kbd>j</kbd>/<kbd>k</kbd> to scroll down/up a little while reading.
       </p>
@@ -1730,9 +1731,9 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
       </p>
       <p id="bg-start">
         Use the contents spine or Map to find a feature; each eyebrow lists its element
-        names. Press <kbd>a</kbd> to move through Asks. Hover over a margin Button for
-        its label, or Tab into a group and use ← / → and Enter. Changes persist on
-        reload.
+        names. Leaf puts circular controls and status indicators at page edges. Hover
+        over one for its label, or Tab into a group and use ← / → and Enter. Press
+        <kbd>a</kbd> to move through Asks. Changes persist on reload.
       </p>
 
       <section id="bg-core-surfaces">
@@ -1799,7 +1800,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
         <h3>Undo a proposal while keeping its choice</h3>
         <p id="bg-nested-change-guide">
           Pick a route inside the proposal, accept the proposal, then use its Undo
-          Button. The proposal becomes undecided again; your route remains chosen.
+          control. The proposal becomes undecided again; your route remains chosen.
           Reload to check that both decisions survive.
         </p>
         <lf-suggestion id="bg-nested-change">
@@ -1843,14 +1844,14 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-conversations">
         <p class="eyebrow bg-feature-elements">
-          Thread Button · inline thread · Threads panel
+          Thread control · inline thread · Threads panel
         </p>
         <h2>
           <strong>Threads</strong
           ><span class="bg-feature-detail">: anchored conversations</span>
         </h2>
         <p id="bg-conversations-guide">
-          With Threads closed, a Thread Button or marked passage opens the conversation
+          With Threads closed, a Thread control or marked passage opens the conversation
           inline; t moves to the next inline card and T to the previous one. Open
           Threads while one is focused, including with g T, and the same thread stays
           focused in the panel. Its count shows how many conversations share that
@@ -1858,7 +1859,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
         <p id="bg-thread-text">
           <strong>An existing conversation.</strong> The sample agenda has room for one
-          more topic. Open the speech-bubble Button, reply, then resolve the thread.
+          more topic. Open the speech-bubble control, reply, then resolve the thread.
         </p>
         <p id="bg-thread-media">
           <strong>Pasted images.</strong> That conversation includes an image supplied
@@ -1869,13 +1870,13 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p id="bg-resolved-text">
           <strong>A resolved conversation.</strong> The room has a projector. Its
           earlier question is resolved. Open Threads in the top bar, expand Resolved,
-          and try Reopen to bring its Button back to the page.
+          and try Reopen to bring its Thread control back to the page.
         </p>
         <p id="bg-new-thread">
           <strong>A clean passage.</strong> Select some of these words, or Alt-click
           this paragraph, to start a comment. Type into the floating field and send it.
           The thread opens with your words already in it, before the server has
-          answered, and becomes another thread Button at this passage. A send slow
+          answered, and becomes another Thread control at this passage. A send slow
           enough to notice goes quiet until the log takes it. One the server refuses
           leaves the words on this passage, where opening the composer again finds them;
           the general box in Threads gets them back in place.
@@ -1883,7 +1884,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-reactions">
-        <p class="eyebrow bg-feature-elements">Reaction Button · reaction picker</p>
+        <p class="eyebrow bg-feature-elements">Reaction controls · reaction picker</p>
         <h2>
           <strong>Reactions</strong
           ><span class="bg-feature-detail">: short verdicts on a passage</span>
@@ -1913,39 +1914,41 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
       </section>
 
-      <section id="bg-button-atlas">
+      <section id="bg-margin-controls">
         <p class="eyebrow bg-feature-elements">
-          lf-button-atlas · Action · Disclosure · Button-shaped status · Lifecycle state
-          · lf-suggestion
+          lf-margin-element-gallery · Action control · Disclosure control · Status
+          indicator · Lifecycle state · lf-suggestion
         </p>
         <h2>
-          <strong>Button atlas</strong
+          <strong>Margin controls and status indicators</strong
           ><span class="bg-feature-detail">: every role, tone, and state</span>
         </h2>
-        <p id="bg-button-atlas-guide">
+        <p id="bg-margin-controls-guide">
           <strong>Everything visible at once.</strong> The first row holds every role
           and all three behaviors and tones. The second fixes every lifecycle state in
           place. Only busy paints a mark, because only busy has nothing else on the page
-          saying it; engaged and failed still rank their Button in the cluster and hold
-          it open. These inert specimens use the same constructor and stylesheet as the
-          live Buttons.
+          saying it; engaged and failed still rank within the cluster and hold it open.
+          These inert specimens use the same constructor and stylesheet as the live
+          controls and status indicators.
         </p>
-        <lf-button-atlas id="bg-button-atlas-specimens"></lf-button-atlas>
+        <lf-margin-element-gallery
+          id="bg-margin-controls-specimens"
+        ></lf-margin-element-gallery>
         <h3>
-          <strong>Button workflow</strong
+          <strong>Margin control lifecycle</strong
           ><span class="bg-feature-detail">: act, fail, settle, and hand off</span>
         </h3>
-        <p id="bg-button-workflow-guide">
+        <p id="bg-margin-control-workflow-guide">
           <strong>Act, fail, and settle.</strong> Accept or Reject starts as an action.
           The content changes immediately, and an open ring moves on Undo while the
           event travels. A refused send restores the suggestion and puts Failed in words
-          beside Retry and Cancel. Success leaves the changed content and an Undo Button
-          alone in the cluster. Sent remains as a status until an agent picks the
-          decision up.
+          beside Retry and Cancel. Success leaves the changed content and an Undo
+          control alone in the cluster. Sent remains as a status until an agent picks
+          the decision up.
         </p>
-        <p id="bg-button-workflow-line">
+        <p id="bg-margin-control-workflow-line">
           The practice route uses
-          <lf-suggestion id="bg-button-workflow"
+          <lf-suggestion id="bg-margin-control-workflow"
             ><lf-old>the open courtyard.</lf-old
             ><lf-new>the covered terrace.</lf-new></lf-suggestion
           >
@@ -1960,7 +1963,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
         <p id="bg-button-status-guide">
           <strong>Edit and hand off.</strong> Opening the draft above replaces Edit with
-          Save and Cancel Buttons; Save uses the moving ring while it sends. The saved
+          Save and Cancel controls; Save uses the moving ring while it sends. The saved
           draft arrives with a Waiting for pickup status. When an agent claims that
           unsettled edit, the same target gains an animated Active disclosure.
         </p>
@@ -2058,7 +2061,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             notice names the address that returns to them. Scroll somewhere else, then
             press <kbd>g</kbd> and <kbd>Shift+D</kbd> — the page travels back to this
             passage and reopens the box on the sentence. That destination stands in the
-            chord only while a kept draft does, so pressing <kbd>g</kbd> with nothing
+            sequence only while a kept draft does, so pressing <kbd>g</kbd> with nothing
             written offers no such place to go.
           </p>
         </section>
@@ -2620,7 +2623,7 @@ gallery/
             </lf-swipe-deck>
           </lf-specimen>
           <p id="bg-shot-guide">
-            Specimen labels invented content. Press the Shot Button or image to switch
+            Specimen labels invented content. Press the Shot control or image to switch
             between before and after.
           </p>
           <lf-shot
@@ -2640,7 +2643,7 @@ gallery/
       >
         <p class="eyebrow bg-feature-elements">
           Core · lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board ·
-          lf-column · lf-card · Thread Button · Threads panel · Swipe package ·
+          lf-column · lf-card · Thread control · Threads panel · Swipe package ·
           lf-swipe-deck · lf-swipe-pile · lf-swipe-card
         </p>
         <h2 id="bg-interactions-title">
@@ -2792,13 +2795,13 @@ gallery/
       </section>
 
       <section id="bg-version-changes">
-        <p class="eyebrow bg-feature-elements">Version picker · Change Button</p>
+        <p class="eyebrow bg-feature-elements">Version picker · Change control</p>
         <h2>
           <strong>Version changes</strong
           ><span class="bg-feature-detail">: comparison evidence</span>
         </h2>
         <p id="bg-version-guide">
-          Open the version picker and press Δ beside v1. The Change Button appears by
+          Open the version picker and press Δ beside v1. The Change control appears by
           the edited passage and opens its comparison.
         </p>
         <p id="bg-change">The sample walk follows the river to the footbridge.</p>
@@ -2806,7 +2809,7 @@ gallery/
 
       <section id="bg-delivery">
         <p class="eyebrow bg-feature-elements">
-          lf-board · lf-column · lf-card · delivery Buttons · cut mark
+          lf-board · lf-column · lf-card · delivery indicators · cut mark
         </p>
         <h2>
           <strong>Board</strong> and <strong>delivery state</strong
@@ -2829,7 +2832,7 @@ gallery/
           <lf-column id="bg-work-ready" label="Ready">
             <lf-card id="bg-work"
               ><strong>Check the sample route</strong>
-              An agent’s live work claim can put an Active Button here.
+              An agent’s live work claim can put an Active control here.
             </lf-card>
           </lf-column>
           <lf-column id="bg-work-tried" label="Tried"></lf-column>

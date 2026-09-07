@@ -6,7 +6,7 @@
    placement pass keeps every generated route visible. Unlike an ordinal address, an
    opaque hint has no meaning once its face is hidden, so collisions are spread rather
    than removed. Geometry belongs to each caller and is passed in so this policy module
-   introduces no ownership cycle through the key line. */
+   introduces no ownership cycle through the shortcut bar. */
 
 export const HINT_KEYS = [..."asdfghjklqwertyuiopzxcvbnm"];
 
@@ -66,7 +66,7 @@ export function spreadHints(
   // own rectangle does not report. Any chip can become the browsed one as the reader
   // types, so the pass seats every face as though it were, keeping the one layout. A
   // window edge takes the whole band, because a band drawn past it is clipped away. A
-  // barrier — another face, or the key line — takes the wider of the gap and the band,
+  // barrier — another face, or the shortcut bar — takes the wider of the gap and the band,
   // because a band may stand in the gap it keeps but not past it; only the browsed chip
   // paints one, so it has that space to itself. Seated to the gap alone both cleared by
   // coincidence, the gap and the band both being 2px.

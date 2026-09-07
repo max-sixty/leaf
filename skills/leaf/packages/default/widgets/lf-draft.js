@@ -34,7 +34,7 @@
  * door is what a reader finds without being told — the ✎ sits in the margin, 45px from
  * the words it edits, and the gesture that used to open the box in place was a
  * double-click nothing advertised. The draft
- * contributes that disclosure to its target's shared Button cluster. Save and Cancel
+ * contributes that disclosure to its target's shared margin element cluster. Save and Cancel
  * replace it for the length of an edit, with their width reserved before presentation,
  * so opening the editor changes what the one RHS item offers without moving the
  * document. Unsent
@@ -87,7 +87,7 @@ import {
   paintKeys,
   quoted,
   revisionLabel,
-  registerMarginItem,
+  registerMarginContribution,
   sendAction,
   sendDraft,
   notice,
@@ -96,8 +96,8 @@ import {
   saveDraft,
   loadDraft,
   measure,
-  marginButton,
-  marginButtonState,
+  marginElement,
+  marginElementState,
   clearDraft,
   watchDraft,
   alignText,
@@ -187,7 +187,7 @@ customElements.define(
       this.append(this.#body);
 
       // A quoted draft is an exhibit: the same dedented text, none of the doors —
-      // no pencil, no press on the box, no edit keys in the "?" overlay. Quoting
+      // no pencil, no press on the box, no edit keys in the shortcut reference dialog. Quoting
       // gates the action channel, not presentation.
       if (quoted(this)) return;
 
@@ -213,7 +213,7 @@ customElements.define(
         { answer: () => this.#body?.textContent?.trim() || "Empty" },
       );
 
-      this.#pencil = this.#marginButton(
+      this.#pencil = this.#marginElement(
         "edit",
         "edit",
         "Edit",
@@ -228,7 +228,7 @@ customElements.define(
       this.#pencil.setAttribute("aria-label", `Edit ${this.id}`);
       this.#row = offer("div", "lf-draft-controls");
       this.#row.dataset.lfFor = this.id;
-      this.#cancel = this.#marginButton(
+      this.#cancel = this.#marginElement(
         "cancel",
         "cross",
         "Cancel",
@@ -238,7 +238,7 @@ customElements.define(
         "escape",
         "engaged",
       );
-      this.#save = this.#marginButton(
+      this.#save = this.#marginElement(
         "save",
         "check",
         "Save",
@@ -261,9 +261,9 @@ customElements.define(
       // a projection none of them changed.
       this.#paintButtons();
       measure(this.#row, () => {
-        // The engaged cluster is Save + Cancel; reserve that complete fitting while
+        // The engaged cluster is Save + Cancel; reserve that complete margin element while
         // the detached measurement row contains its direct controls, before resting
-        // Edit replaces them. Both Buttons share one fitting, plus one gap.
+        // Edit replaces them. Both margin elements share one margin element, plus one gap.
         const saveWidth = Math.ceil(this.#save.getBoundingClientRect().width);
         this.#buttonReserve = saveWidth * 2 + 4;
         this.#row.style.minWidth = `${saveWidth}px`;
@@ -340,7 +340,7 @@ customElements.define(
 
     #offer() {
       if (!this.#row || this.#margin) return;
-      this.#margin = registerMarginItem({
+      this.#margin = registerMarginContribution({
         key: `draft:${this.id}`,
         target: () => this,
         controls: this.#row,
@@ -371,7 +371,7 @@ customElements.define(
       return b;
     }
 
-    #marginButton(
+    #marginElement(
       key,
       icon,
       label,
@@ -381,7 +381,7 @@ customElements.define(
       role = "primary",
       state = "idle",
     ) {
-      const button = marginButton(offer("button", ""), {
+      const button = marginElement(offer("button", ""), {
         key,
         icon,
         label,
@@ -395,7 +395,7 @@ customElements.define(
     }
 
     #paintButtons({ notify = true } = {}) {
-      marginButton(this.#save, {
+      marginElement(this.#save, {
         key: this.#failed ? "retry" : "save",
         icon: this.#failed ? "retry" : "check",
         label: this.#failed ? "Retry" : "Save",
@@ -404,8 +404,8 @@ customElements.define(
         state: this.#failed ? "failed" : "engaged",
       });
       keeps(this.#save, "aria-label", this.#failed ? "Retry" : "Save");
-      marginButtonState(this.#cancel, this.#failed ? "failed" : "engaged");
-      marginButtonState(this.#pencil, this.#sending ? "busy" : "idle");
+      marginElementState(this.#cancel, this.#failed ? "failed" : "engaged");
+      marginElementState(this.#pencil, this.#sending ? "busy" : "idle");
       const available = actionAvailable(this, "edit");
       // The action sequence this paint follows arrives on every heartbeat, so each of
       // these states is written on a page nobody has touched. State only what changed.

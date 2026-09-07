@@ -54,7 +54,7 @@
  * reading landmark and the reader's standing. That standing is written down by id before
  * the swap — the nearest element carrying one, and the control within it by kind and
  * position — and handed back after it: the same control where the revision kept it, its
- * owner where the revision kept only that, and nothing where it kept neither. A chord
+ * owner where the revision kept only that, and nothing where it kept neither. A sequence
  * armed before the swap is the runtime's and holds through it; its chips are read off
  * the document standing afterwards. The gestures `midComposition` names — item hints, a
  * reaction list, page search, a drag or grab — defer the activation instead. The chrome,
@@ -949,7 +949,7 @@ function earlierNode(target) {
 // What the press reports. The move, not the words: revealTarget reports through the
 // banner's status line, which holds a moment's news, and a paragraph there is clipped
 // and a hover away. The words go where a reader can read them at their own pace and a
-// screen reader can reach them from the Button's own `aria-controls` — into the block,
+// screen reader can reach them from the margin element's own `aria-controls` — into the block,
 // which is the whole of what this surface does.
 function earlierSaid(target) {
   return diffEarlier.get(target) === null
@@ -977,7 +977,7 @@ function fold(node, opening) {
 function openEarlier(target) {
   // A reader who presses twice inside the fold's own length finds the last reading
   // still folding out. It goes now rather than on its own promise: the two carry one
-  // id, and the Button's `aria-controls` may not name the one that is leaving.
+  // id, and the margin element's `aria-controls` may not name the one that is leaving.
   target.querySelector(":scope > .lf-earlier")?.remove();
   const node = earlierNode(target);
   target.append(node);
@@ -1005,11 +1005,11 @@ function closeEarlier(target) {
 }
 
 // What the comparison holds at a marked block, for the margin's reading of it: the
-// node it discloses, whether that node stands open, and the promise the Button makes
+// node it discloses, whether that node stands open, and the promise the margin element makes
 // — named here, where every other version word is. The promise is the shut one alone
-// because the layer hides a Button's label while it is expanded, what it opened being
+// because the layer hides a margin element's label while it is expanded, what it opened being
 // on screen by then. Null where the comparison holds nothing, which is what leaves a
-// Change Button over an unidentifiable block the plain travel it always was, promising
+// Change margin element over an unidentifiable block the plain travel it always was, promising
 // nothing it cannot do.
 export const comparisonEarlier = (target) =>
   diffOn && diffEarlier.has(target)
@@ -1022,7 +1022,7 @@ export const comparisonEarlier = (target) =>
 
 // The press, and the sentence to say about it — composed here, where the versions are
 // named. The event is the comparison's, because what changed is its standing
-// rendering: the same pass that reads the marks reads the Button's relation back.
+// rendering: the same pass that reads the marks reads the margin element's relation back.
 export function toggleEarlier(target) {
   if (!comparisonEarlier(target)) return null;
   const said = earlierOpen.has(target) ? closeEarlier(target) : openEarlier(target);
@@ -1064,7 +1064,7 @@ function paintDiff() {
       : `${currentLabel}: open versions`,
   );
   // paintCoreControls adds the complete route. Keeping the base title here lets the
-  // keyboard register project a chord without this owner reconstructing one.
+  // keyboard register project a sequence without this owner reconstructing one.
   versionBtn.title = versionBtn.dataset.lfKeyTitle;
   const baseRevision = stamped(diffBase)?.revision;
   for (const row of versionMenu.querySelectorAll(".lf-version-row")) {

@@ -6,8 +6,8 @@ import { versionMenu } from "./version.js";
 import { asksPanel, othersPanel } from "./trays.js";
 import { panel, wireGeneralBox } from "./conversation/panel.js";
 import { composer, fab, fabBar } from "./composing/selection.js";
-import { helpEl } from "./keyboard/reference.js";
-import { keylineEl } from "./keyboard/keyline.js";
+import { shortcutReferenceDialog } from "./keyboard/reference.js";
+import { shortcutBarEl } from "./keyboard/shortcut-bar.js";
 import { el, focusDestination, offer } from "./widget-elements.js";
 import { overflowMenu } from "./banner-shelf.js";
 import { inspectEl, legendRoot } from "./design.js";
@@ -100,8 +100,8 @@ export function mountChrome() {
     [fab, "lf-comment-button"],
     [composer, "lf-composer"],
     [mediaViewer, "lf-media-viewer"],
-    [helpEl, "lf-help"],
-    [keylineEl, "lf-keyline"],
+    [shortcutReferenceDialog, "lf-shortcut-reference"],
+    [shortcutBarEl, "lf-shortcut-bar"],
   ])
     part.id = id;
 
@@ -124,8 +124,8 @@ export function mountChrome() {
     fabBar,
     liveEl,
     mediaViewer,
-    helpEl,
-    keylineEl,
+    shortcutReferenceDialog,
+    shortcutBarEl,
     inspectEl,
   );
   document.body.prepend(skipToChrome);
@@ -146,7 +146,7 @@ export function mountChrome() {
   // A disclosure opening or closing changes what the next press does, and no writer in this
   // file reports it: the word on a summary's row is read off `open`, and the reader standing
   // there has moved nothing else. Left unpainted, the line said "close" for the three seconds
-  // until a poll happened past — a key line stale about the press under the reader's finger,
+  // until a poll happened past — a shortcut bar stale about the press under the reader's finger,
   // where every gate reads it as eventually right.
   //
   // Watched as state rather than heard as an event, because the event only covers one of the

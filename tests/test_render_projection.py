@@ -73,7 +73,6 @@ from render_support import (
     drifting_widget,
     go_to_address,
     holding,
-    key_line,
     leaf_page,
     live_url,
     open_page,
@@ -86,6 +85,7 @@ from render_support import (
     resized,
     round_trip,
     sending,
+    shortcut_bar_text,
     stale_report,
     stamp_page,
     stamp_version_file,
@@ -1043,7 +1043,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
 ):
     """A revision arriving under a reader mid-press keeps their next press live.
 
-    Two kinds of pending input meet an activation. A chord is the runtime's: bare `g`
+    Two kinds of pending input meet an activation. A sequence is the runtime's: bare `g`
     names the visible targets, and the chips are read off whichever document is standing,
     so the window holds through the swap and a fresh hint lands in the new page — minus
     the hint for a link the revision took away, which is the honest reading. The reader's
@@ -1056,8 +1056,8 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     reader by the same door."""
     version_url = serve(LIVE_KEYS_V1)
     page, errors = open_page(browser, live_url(version_url))
-    chips = page.locator(".lf-chord-address")
-    link_chips = page.locator('.lf-chord-address[data-lf-address-kind="Link"]')
+    chips = page.locator(".lf-sequence-address")
+    link_chips = page.locator('.lf-sequence-address[data-lf-address-kind="Link"]')
 
     page.keyboard.press("g")
     expect(link_chips).to_have_count(3)
@@ -1065,8 +1065,8 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     told(page)
     expect(page).to_have_title("Live keys second")
     expect(link_chips).to_have_count(2)
-    assert "visible target" in key_line(page), (
-        "the chord did not follow the new document"
+    assert "visible target" in shortcut_bar_text(page), (
+        "the sequence did not follow the new document"
     )
     page.keyboard.type(address_code(page, "Link", "lk-link-three"))
     expect(page.locator("#lk-para")).to_be_focused()
@@ -1075,7 +1075,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     mark = page.locator("#lk-one .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()
-    assert "1–2\nOne / Two" in key_line(page)
+    assert "1–2\nOne / Two" in shortcut_bar_text(page)
     # A stamped version this time, which is the other way a page moves under a reader;
     # the notice names it in the banner and no toast stands in the corner.
     stamp_page(serve.page_dir, LIVE_KEYS_V3, "third")
@@ -1085,7 +1085,9 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     assert page.locator(".lf-toast").count() == 0
     # The fresh mark: main was replaced whole, so the one the reader pressed on is gone.
     expect(page.locator("#lk-one .lf-pick")).to_be_focused()
-    assert "1–2\nOne / Two" in key_line(page), "the swap took the reader's keys down"
+    assert "1–2\nOne / Two" in shortcut_bar_text(page), (
+        "the swap took the reader's keys down"
+    )
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
     expect(page.locator(".lf-banner-status .lf-notice")).to_have_text(
@@ -1435,8 +1437,8 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     ], f"the row the reader is on is not ringed in the page's own band: {row_ring}"
 
     # A suggestion hangs its ✓ Accept out in the page margin, so a reader working one has
-    # two marks for one fact — the ring on the change, the focus band on the Button deciding
-    # it — and they had better be one band. The Button's comes from the runtime's own
+    # two marks for one fact — the ring on the change, the focus band on the margin element deciding
+    # it — and they had better be one band. The margin element's comes from the runtime's own
     # shared rule, which every press in that margin wears: the suggestion family spelled
     # its own once, which is a family stating a fact about a shape the runtime owns.
     #
@@ -1547,25 +1549,25 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     page, errors = open_page(browser, url)
     page.keyboard.press("a")
     expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
-    expect(page.locator(".lf-keyline")).to_contain_text("let go")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("let go")
     # And the reference says the same press in its own words. It said "Back out one
     # layer" for every rung, which was true while every rung took a layer of chrome off
     # the page: standing on a decision is the reader holding something, with no layer over
     # the page at all, so the two surfaces named one press two ways.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_contain_text(
+    expect(page.locator(".lf-shortcut-reference")).to_contain_text(
         "Let go of what you are standing on"
     )
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
-    expect(page.locator(".lf-help")).not_to_have_class(re.compile("open"))
+    expect(page.locator(".lf-shortcut-reference")).not_to_have_class(re.compile("open"))
     expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
 
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(page.locator("[data-lf-ask]")).to_have_count(0)
     assert page.evaluate("() => document.activeElement === document.body")
-    expect(page.locator(".lf-keyline")).not_to_contain_text("let go")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("let go")
 
     # The worklist keeps its place through that.
     page.keyboard.press("a")
@@ -1596,11 +1598,13 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     )
 
     # A generated Page-map hint arrives the way the walk does and then presses the exact
-    # Accept Button it names. What unfolds there is that press's own result rather than
+    # Accept margin element it names. What unfolds there is that press's own result rather than
     # the arrival's, and the ladder still owes one Escape to let go of where the press
     # left the reader.
     with sending(page, "the addressed suggestion's acceptance"):
-        go_to_address(page, "Page-map Button", "sug-refill", "accept")
+        go_to_address(
+            page, "Margin control or status indicator", "sug-refill", "accept"
+        )
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     assert page.evaluate(
@@ -3878,7 +3882,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve):
     # The other half of a link: opened in its own tab it is an arrival, which the
     # browser answers before any widget has upgraded — so the runtime is what aims it
     # (landArrival). Nothing of this tab travels with it; the new one starts empty.
-    # Which chord opens that tab is the platform's answer rather than one this suite
+    # Which sequence opens that tab is the platform's answer rather than one this suite
     # holds — ⌘ where it was written, ⌃ where CI runs it — so the press names the
     # gesture and lets Playwright spell it. Named outright, the Linux press opened
     # nothing at all and the wait for the tab ran its full 30s before saying so.
@@ -4363,7 +4367,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
     expect(page.locator("#tq-set-decision > h3")).to_have_text("Which extras apply?")
 
-    # The chord's promise holds from a mark: g T leaves the option's digit scope and
+    # The sequence's promise holds from a mark: g T leaves the option's digit scope and
     # reaches Threads. A stray digit there neither travels nor picks; t then Enter makes
     # the repeatable category walk and the thread-local landing explicit.
     page.locator("#tq-one .lf-pick").first.focus()
@@ -4378,7 +4382,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     sent = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
-    assert sent[-1]["action"] == "answer", "the chord's digit must not pick"
+    assert sent[-1]["action"] == "answer", "the sequence's digit must not pick"
     assert errors == []
     page.close()
 
@@ -4659,7 +4663,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     and the row is the only thing here either one can be wrong about: the repaint that
     turns them over together is the document's disclosure watch, held up by
     `test_a_widgets_native_control_names_the_press_the_platform_makes`, and not anything
-    this widget does. Read once and never retried, for the reason `key_line` is: the
+    this widget does. Read once and never retried, for the reason `shortcut_bar_text` is: the
     heartbeat repaints scopes too, and an assertion that retries goes green on whichever
     tick lands inside its budget.
 
@@ -4685,12 +4689,12 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
 
     expect(head).to_have_attribute("aria-expanded", "false")
     assert head.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
-    said = key_line(page)
+    said = shortcut_bar_text(page)
     assert re.search(r"⏎ / space / →\s*open", said), said
 
     page.keyboard.press("ArrowRight")
     expect(head).to_have_attribute("aria-expanded", "true")
-    said = key_line(page)
+    said = shortcut_bar_text(page)
     assert re.search(r"⏎ / space / ←\s*close", said), said
     assert head.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
 
@@ -4965,7 +4969,7 @@ def test_a_ready_request_contributes_its_operation_as_an_ask_action(browser, ser
 
     page.keyboard.press("a")
     expect(page.locator("#command-decision")).to_be_focused()
-    assert "1\nRestart" in key_line(page)
+    assert "1\nRestart" in shortcut_bar_text(page)
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")

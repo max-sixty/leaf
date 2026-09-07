@@ -973,7 +973,7 @@ CHROME_ROOM = """() => {
     return { head: box.top + scroller.scrollTop,
              foot: scroller.scrollHeight - (box.bottom + scroller.scrollTop),
              banner: document.querySelector('.lf-banner').offsetHeight,
-             line: document.querySelector('.lf-keyline').offsetHeight };
+             line: document.querySelector('.lf-shortcut-bar').offsetHeight };
 }"""
 # The same reading taken at the stamp, which is the one moment nothing out here can
 # reach: a MutationObserver's callback is a microtask off the stamp's own write, and
@@ -1198,14 +1198,14 @@ NOTE_BAND = 1400
 
 
 def _painted_line(page):
-    """Every row in the gesture's next key-line paint, including rows behind More.
+    """Every row in the gesture's next shortcut-bar paint, including rows behind More.
 
     Consume the coalesced frame once: polling could pass on an unrelated later paint.
     Read rows rather than visible text because hidden rows still state liveness.
     """
     page.evaluate(RENDERED)
     return page.eval_on_selector_all(
-        ".lf-keyline .lf-key",
+        ".lf-shortcut-bar .lf-key",
         "els => els.map(e => [...e.children].map(c => c.textContent).join(' '))",
     )
 

@@ -2153,23 +2153,29 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     )
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_be_visible()
-    expect(page.locator(".lf-help h3", has_text="On a draft")).to_have_count(1)
+    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
     expect(
-        page.locator(".lf-help", has_text="a project widget using the same heading")
+        page.locator(".lf-shortcut-reference h3", has_text="On a draft")
+    ).to_have_count(1)
+    expect(
+        page.locator(
+            ".lf-shortcut-reference", has_text="a project widget using the same heading"
+        )
     ).to_be_visible()
-    expect(page.locator(".lf-help", has_text="Edit the text in place")).to_be_visible()
+    expect(
+        page.locator(".lf-shortcut-reference", has_text="Edit the text in place")
+    ).to_be_visible()
     # Help is a scope: the table stands down behind it, so c must not work the
     # panel under the sheet.
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_hidden()
-    expect(page.locator(".lf-help")).to_be_visible()
+    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-help")).to_be_hidden()
+    expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_be_visible()
+    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
     page.mouse.click(300, 600)
-    expect(page.locator(".lf-help")).to_be_hidden()
+    expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -3172,7 +3178,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     page.keyboard.press("Escape")
     # A retired thread lands on the surface the reader's own gesture reaches. With the
     # widget still on the page its passages keep a page-local address, so the margin's
-    # Thread Button and each passage's comment count open the fallback card and Threads
+    # Thread margin element and each passage's comment count open the fallback card and Threads
     # stays shut; a disconnected widget leaves no such address and the panel answers.
     if failure == "disconnect":
         expect(markers).to_have_count(0)

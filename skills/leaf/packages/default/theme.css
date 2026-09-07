@@ -1235,7 +1235,7 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
 /* lf-shot: both frames share one grid cell sized by the taller image, so a flip
  * moves nothing below it. The rail keeps before and after at fixed ends while a short
  * accent rule names the visible state. The transparent native checkbox covers only
- * the frame; the shared margin Button supplies the second control. CSS owns image
+ * the frame; the shared margin element supplies the second control. CSS owns image
  * visibility, keeping image clicks and Space live in script-free exports. Print stacks
  * both. */
 lf-shot { display: block; margin: 16px 0; }
@@ -1292,7 +1292,7 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) { outline
  * leads, flex lays those shares down the full available height, and the darker lens on
  * the spine shows the band currently in view. The markers therefore describe the page
  * while every repeated heading is quiet. Pointer entry, keyboard entry, or the go-to
- * chord fades the labels in without changing any row's box. The transparent first layer
+ * sequence fades the labels in without changing any row's box. The transparent first layer
  * receives the revealing gesture, then the links become pointer targets when that fade
  * is complete; an unseen label cannot navigate on the gesture that discovers it.
  *
@@ -1361,11 +1361,11 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                  calc((100cqi - min(var(--col), var(--lf-room))) / 2
                    + var(--lf-shift) - 2 * var(--sp-4)),
                  320px);
-               /* TODO: the key line covers this map's last entry — 21 of its 36 pixels,
+               /* TODO: the shortcut bar covers this map's last entry — 21 of its 36 pixels,
                 * on every page with a spine, at every width, with nothing to scroll it
                 * clear. The map is the fourth region standing in the line's band and the
                 * only one out of flow, so neither the document's room nor a list's
-                * padding reaches it, and syncLayout's `--lf-keyline-clear` would end it
+                * padding reaches it, and syncLayout's `--lf-shortcut-bar-clear` would end it
                 * above the line in one term.
                 *
                 * That is deliberately not done. The line is either something that hovers
@@ -1435,7 +1435,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
         animation: lf-toc-enable-links 0s .24s forwards;
       }
-      /* A pointer waits for the labels it revealed to finish appearing. The go-to chord
+      /* A pointer waits for the labels it revealed to finish appearing. The go-to sequence
        * already made an explicit keyboard gesture, and its candidate reading needs these
        * visible page routes to participate immediately. */
       body[data-lf-goto] lf-toc:not([data-lf-dense]) .lf-toc-nav a {
@@ -1839,7 +1839,7 @@ lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6p
   }
 }
 .lf-draft-controls { justify-content: flex-end; gap: 4px; margin-top: 6px; }
-.lf-margin-item > .lf-draft-controls {
+.lf-margin-cluster > .lf-draft-controls {
   align-items: center; justify-content: flex-start; margin-top: 0;
 }
 .lf-draft-history { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rule);

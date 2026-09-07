@@ -1386,7 +1386,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
                 return width;
             };
             const left = length('--strip-l'), right = length('--strip-r');
-            const residents = 'aside.sidebar, aside.sidenote, .lf-margin-item';
+            const residents = 'aside.sidebar, aside.sidenote, .lf-margin-cluster';
             const held = (lo, hi) => hi - lo > 1
                 && ![...document.querySelectorAll(residents)]
                 .some(el => { const r = el.getBoundingClientRect();

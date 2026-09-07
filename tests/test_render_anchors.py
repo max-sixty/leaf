@@ -51,7 +51,6 @@ from render_support import (
     compare_with,
     composer_quote,
     hold_selection,
-    key_line,
     leaf_page,
     live_url,
     mark_point,
@@ -65,6 +64,7 @@ from render_support import (
     select,
     sending,
     sent_events,
+    shortcut_bar_text,
     stamp_version_file,
     ticked,
     told,
@@ -480,7 +480,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
 
 
 def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serve):
-    """A drag around a target offers Comment without deadening its Buttons.
+    """A drag around a target offers Comment without deadening its margin elements.
 
     The browser's native selection remains available while an exposed pointer action
     and a direct keyboard action both work."""
@@ -539,7 +539,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     # subject here: the skip link rests transparent and inert under the banner and only
     # becomes a control at all when the keyboard reaches it.
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
-        .filter(c => (!c.closest(".lf-chrome") || c.closest(".lf-margin-item"))
+        .filter(c => (!c.closest(".lf-chrome") || c.closest(".lf-margin-cluster"))
                      && c.checkVisibility()
                      && getComputedStyle(c).pointerEvents !== "none")
         .filter(c => { const b = c.getBoundingClientRect();
@@ -581,7 +581,9 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
     if route == "g":
         page.keyboard.press("g")
         page.keyboard.type(
-            address_code(page, "Page-map Button", "sug-refill", "accept")
+            address_code(
+                page, "Margin control or status indicator", "sug-refill", "accept"
+            )
         )
     else:
         accept.focus()
@@ -668,7 +670,7 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
 
     # Focus inside the first panel Ask paints that group's predictable digits, once a
     # keyboard gesture has asked for a paint — opening the composer is that gesture here.
-    # The chord is a nearer keyboard layer and takes the digits back while it stands, so
+    # The sequence is a nearer keyboard layer and takes the digits back while it stands, so
     # each face is read from the one moment its own layer renders it rather than from a
     # single frame that cannot hold both.
     page.keyboard.press("c")
@@ -680,27 +682,27 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     addressed = page.locator(CHIPS).first.locator("kbd").last
     expect(addressed).to_be_visible()
     assert addressed.get_attribute("data-lf-key-state") == "neutral"
-    chord, legend = faces(
+    sequence, legend = faces(
         page,
         f"{CHIPS} kbd:last-child",
-        '.lf-keyline .lf-key[data-lf-commands~="navigation.target"] kbd:last-child',
+        '.lf-shortcut-bar .lf-key[data-lf-commands~="navigation.target"] kbd:last-child',
     )
 
-    # The option's address and the chord's letter keep one physical key face. Both are
+    # The option's address and the sequence's letter keep one physical key face. Both are
     # ordinary available bindings, so geometry and emphasis stay the same.
-    assert option["key"] == chord["key"], (
+    assert option["key"] == sequence["key"], (
         "one physical key has two geometries:\n  "
         + "\n  ".join(
-            f"{k}: {option['key'][k]!r} vs {chord['key'][k]!r}"
+            f"{k}: {option['key'][k]!r} vs {sequence['key'][k]!r}"
             for k in option["key"]
-            if option["key"][k] != chord["key"][k]
+            if option["key"][k] != sequence["key"][k]
         )
     )
     assert "mono" in option["key"]["font-family"]
-    assert option["emphasis"] == chord["emphasis"] == legend["emphasis"]
+    assert option["emphasis"] == sequence["emphasis"] == legend["emphasis"]
 
     # Item selection uses letters rather than digits, but it names the same physical
-    # keys. Closing the address chord and opening selection must not reveal a fourth face.
+    # keys. Closing the address sequence and opening selection must not reveal a fourth face.
     page.keyboard.press("Escape")
     page.keyboard.press("s")
     hint = page.locator(".lf-target-hint").first
@@ -2179,7 +2181,7 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
     )
     page, errors = open_page(browser, url)
-    line = page.locator(".lf-keyline")
+    line = page.locator(".lf-shortcut-bar")
 
     box = page.locator("lf-shot input[type=checkbox]")
     box.scroll_into_view_if_needed()
@@ -2226,7 +2228,7 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     # A toggle from a staged root is not composed, so no document listener hears it: this
     # is the watch `shadowStage` hands each root, and without it the line sat on "show
     # this file" until the next poll two seconds later.
-    said = key_line(page)
+    said = shortcut_bar_text(page)
     assert "⏎ / space / ←" in said, said
     assert "hide this file" in said, said
     assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
@@ -2851,12 +2853,12 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
         "main .lf-ins-block", "els => els.map(e => e.id).sort()"
     )
     assert marked == ["ret-cost-body", "ret-cost-keep", "ret-steps-carve"], marked
-    # A Change Button's press says what it reached, in the notice slot: its target is
+    # A Change margin element's press says what it reached, in the notice slot: its target is
     # usually on screen already, so the scroll moves nothing and a press that only spoke
     # to the live region was, to a sighted reader, a press that did nothing. What the
     # press also discloses is the next test's; this one holds it to naming its target.
     page.locator(
-        '.lf-margin-button:has(svg[data-lf-icon="change"]):visible'
+        '.lf-margin-element:has(svg[data-lf-icon="change"]):visible'
     ).first.click()
     expect(page.locator(".lf-notice")).to_have_text(
         re.compile(r"^[a-z ]+ changed since v1\b")
@@ -2894,7 +2896,7 @@ def test_a_changed_block_shows_what_it_said_in_the_base_version(browser, serve):
     """The other half of a comparison: not only that a block changed, but from what.
 
     The marks are one reading and this is the second, and the reader asks for it a
-    block at a time — the Change Button is a disclosure whose press folds the base
+    block at a time — the Change margin element is a disclosure whose press folds the base
     version's own paragraph open inside the block, so learning what changed costs no
     travel to v1 and back. The example is the corpus's one authored pair, so what the
     disclosure holds is what a revision does: a paragraph rewritten around a comment
@@ -2920,8 +2922,8 @@ def test_a_changed_block_shows_what_it_said_in_the_base_version(browser, serve):
     )
     expect(rewritten).to_have_attribute("aria-expanded", "false")
     # A disclosure says what it holds. "Change" alone reports a fact and promises no
-    # press, which is what the Button said before it had one to make.
-    expect(rewritten.locator(".lf-margin-button-context")).to_have_text(
+    # press, which is what the margin element said before it had one to make.
+    expect(rewritten.locator(".lf-margin-element-context")).to_have_text(
         "Show what v1 said"
     )
     rewritten.click()
@@ -3051,7 +3053,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
     )
     _publish(serve.page_dir, 2, second, "New route and map")
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
-    assert page.locator("main .lf-margin-button-icon").count() >= 2
+    assert page.locator("main .lf-margin-element-icon").count() >= 2
     expect(page.locator("#decoration-icon[data-lf-gen]")).to_have_count(1)
 
     compare_with(page, 1)
@@ -3126,7 +3128,7 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     url = serve(INLINE_PAGE)
     page, errors = open_page(browser, live_url(url))
     menu = page.locator(".lf-version-menu")
-    line = page.locator(".lf-keyline")
+    line = page.locator(".lf-shortcut-bar")
 
     # One version: the menu opens, holds its one row, and Escape ends it.
     page.keyboard.press("g")
@@ -3157,11 +3159,11 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     # print, so the menu advertised no way out at all.
     page.locator(".lf-version").click()
     expect(menu).to_be_visible()
-    expect(page.locator(".lf-keyline")).to_contain_text("close")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close")
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
     open_versions(page)
-    expect(page.locator(".lf-keyline")).not_to_contain_text("close")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("close")
     page.keyboard.press("Escape")
 
     # The line is the menu's while the reader is in it: its own way out is named, the
@@ -3259,11 +3261,13 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # a second version is the first that has a list to walk.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_contain_text("In the versions menu")
-    expect(page.locator(".lf-help")).to_contain_text("Previous version")
-    expect(page.locator(".lf-help")).to_contain_text("Next version")
+    expect(page.locator(".lf-shortcut-reference")).to_contain_text(
+        "In the versions menu"
+    )
+    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Previous version")
+    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Next version")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-help")).not_to_have_class(re.compile("open"))
+    expect(page.locator(".lf-shortcut-reference")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_visible()
 
     page.locator('.lf-version-row[data-lf-version="2"]').focus()
@@ -3355,11 +3359,11 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
 
 
 def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
-    """A mode standing over the page takes the page's keys. The chord and the reference
+    """A mode standing over the page takes the page's keys. The sequence and the reference
     always did and this menu did not, so mid-walk `d` scrolled a page the reader had
     stopped looking at and `c` opened the composer under the list. None of it failed
     loudly: each press did exactly what it promises, somewhere the reader was not — and
-    the key line went on offering all of them, which is what made the offer the bug rather
+    the shortcut bar went on offering all of them, which is what made the offer the bug rather
     than the press.
 
     A claim is not the blanket it replaced, so the exemption is asserted beside it: the
@@ -3383,7 +3387,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
     menu = page.locator(".lf-version-menu")
     panel = page.locator(".lf-panel")
-    line = page.locator(".lf-keyline")
+    line = page.locator(".lf-shortcut-bar")
     # Keep the page below the contextual-thread breakpoint so the premise remains about
     # the page scope rather than the right-margin conversation it now opens at 1208px.
     resized(page, 1207, 900)
@@ -3413,10 +3417,12 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     expect(line).to_contain_text("more")
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_be_visible()
-    expect(page.locator(".lf-help")).to_contain_text("In the versions menu")
+    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
+    expect(page.locator(".lf-shortcut-reference")).to_contain_text(
+        "In the versions menu"
+    )
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-help")).not_to_have_class(re.compile("open"))
+    expect(page.locator(".lf-shortcut-reference")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_visible()
     expect(row).to_be_focused()
     expect(line).to_contain_text("walk — marking changes")
@@ -3464,11 +3470,13 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     comparison = compared.locator('.lf-version-diff[data-lf-version="1"]')
     expect(comparison).to_be_focused()
     expect(compared.locator(".lf-version-menu")).to_be_visible()
-    expect(compared.locator(".lf-keyline")).not_to_contain_text("leave forward")
-    expect(compared.locator(".lf-keyline")).not_to_contain_text("leave backward")
+    expect(compared.locator(".lf-shortcut-bar")).not_to_contain_text("leave forward")
+    expect(compared.locator(".lf-shortcut-bar")).not_to_contain_text("leave backward")
     compared.keyboard.press("?")
     compared.keyboard.press("?")
-    expect(compared.locator(".lf-help")).not_to_contain_text("Leave the versions menu")
+    expect(compared.locator(".lf-shortcut-reference")).not_to_contain_text(
+        "Leave the versions menu"
+    )
     compared.keyboard.press("Escape")
     expect(comparison).to_be_focused()
 
@@ -3505,11 +3513,11 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     open_versions(page)
     expect(page.locator(".lf-version-menu")).to_be_visible()
     # Both keys on both surfaces, off the one declaration.
-    expect(page.locator(".lf-keyline")).to_contain_text("⏎ / space")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("⏎ / space")
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_contain_text("⏎ / space")
-    expect(page.locator(".lf-help")).to_contain_text("Open that version")
+    expect(page.locator(".lf-shortcut-reference")).to_contain_text("⏎ / space")
+    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Open that version")
     page.keyboard.press("Escape")
 
     # And the key the row had been leaving unnamed does what the row now says it does.
@@ -3645,7 +3653,7 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
     _publish(serve.page_dir, 3, INLINE_PAGE, "three")
     page, errors = open_page(browser, url, pin=True)
     menu = page.locator(".lf-version-menu")
-    help_el = page.locator(".lf-help")
+    help_el = page.locator(".lf-shortcut-reference")
     expect(page.locator(".lf-latest-chip")).to_be_visible()
 
     # The menu's keys are one declaration, so the reference names this one beside the
@@ -4284,18 +4292,18 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     # A layout change can withdraw the outlet without a pointer press to dismiss
     # its reaction picker. Removing the view must release that keyboard mode too.
     strip.locator(".lf-react-trigger").click()
-    assert "1–6" in key_line(page)
+    assert "1–6" in shortcut_bar_text(page)
     file = page.locator("lf-diff .lf-diff-file > details")
     file.evaluate("details => { details.open = false; }")
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
-    assert "1–6" not in key_line(page)
+    assert "1–6" not in shortcut_bar_text(page)
     count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")
-    key_line(page)
+    shortcut_bar_text(page)
     round_trip(page)
     assert len(events_model.read_events(serve.page_dir)) == count
     page.keyboard.press("g")
-    assert "versions" in key_line(page)
+    assert "versions" in shortcut_bar_text(page)
     page.keyboard.press("Escape")
     file.evaluate("details => { details.open = true; }")
     expect(thread.locator("textarea")).to_be_visible()

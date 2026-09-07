@@ -513,7 +513,7 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     expect(field).to_have_value("")
     shelf = page.locator(".lf-fab-bar .lf-composer-media")
     expect(shelf.locator("img")).to_have_count(4)
-    expect(page.locator(".lf-keyline")).to_contain_text("close — draft kept")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close — draft kept")
     layout = shelf.evaluate(
         """element => ({
           display: getComputedStyle(element).display,
@@ -1201,7 +1201,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     # made from the diff would open the composer on the diff rather than reach the panel
     # at all. Uncommented, too: a click on a mark opens the thread it carries.
     page.locator("#how-store").click()
-    expect(page.locator(".lf-keyline")).not_to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on you")
     page.keyboard.press("w")
     expect(page.locator(".lf-panel")).not_to_be_visible()
 
@@ -1213,17 +1213,17 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
     expect(page.locator(".lf-needs")).to_have_attribute("title", re.compile(r"\(w\)$"))
-    expect(page.locator(".lf-keyline")).to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on you")
     # `c` from that list enters the general box, and there `w` is a character like any other —
     # the typing scope claims what types one, so the row stands down and the line drops
     # it. Escape backs out onto the list and it is live again. Both directions, because
     # a key that were live in the box would type nothing and read as a dead keyboard.
     page.keyboard.press("c")
     expect(page.locator(".lf-general textarea")).to_be_focused()
-    expect(page.locator(".lf-keyline")).not_to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on you")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
-    expect(page.locator(".lf-keyline")).to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on you")
     page.keyboard.press("w")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{theirs}"]')).to_have_count(1)
@@ -1242,7 +1242,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     # neither advertise nor mutate a filter the reader cannot see.
     page.get_by_role("button", name="Close threads", exact=True).click()
     panel_settled(page, False)
-    expect(page.locator(".lf-keyline")).not_to_contain_text("show all")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("show all")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
     expect(page.locator(".lf-panel")).to_be_hidden()
@@ -1269,7 +1269,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
 
     # Escape unwinds the narrowing before it closes the panel, from wherever the reader
     # is standing: a list that is not the whole conversation is a layer they put on.
-    expect(page.locator(".lf-keyline")).to_contain_text("show all")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("show all")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
     expect(page.locator(f'.lf-thread[data-id="{mine}"]')).to_have_count(1)
@@ -2357,7 +2357,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
             c => !global_.has(c) && documentGlobal.has(c)));
         const probe = document.createElement("div"), plain = document.createElement("div");
         // Minus the shared vocabulary: a word document level dresses on purpose
-        // (lf-address, worn by the chord's own layer and by an option's corner alike)
+        // (lf-address, worn by the sequence's own layer and by an option's corner alike)
         // is named by the scoped rule that says when to paint it, and it would answer
         // this question with the reach it was given rather than with a leak.
         probe.className = [...scoped]
@@ -2462,18 +2462,17 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react",
         # Target actions are contributed outside the chrome scope and share one complete
         # item. These names are the deliberate document-level half of that seam.
-        "lf-margin-item",
-        "lf-margin-options",
         "lf-margin-contribution",
-        "lf-margin-button",
-        "lf-margin-button-glyph",
-        "lf-margin-button-icon",
-        "lf-margin-button-space",
-        "lf-margin-button-label",
+        "lf-margin-options",
+        "lf-margin-element",
+        "lf-margin-element-glyph",
+        "lf-margin-element-icon",
+        "lf-margin-element-space",
+        "lf-margin-element-label",
         # The label's two lines: the role's own word, and the context under it that says
         # which item the role is on. Both are inside the label the seam already names.
-        "lf-margin-button-label-word",
-        "lf-margin-button-context",
+        "lf-margin-element-label-word",
+        "lf-margin-element-context",
         "lf-margin-receipt",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.
@@ -2713,13 +2712,13 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
     """A part that stands over both documents is in neither, and nothing travels to it.
 
     Design mode lets a reader comment on the layer's own parts, and several of them are
-    `position: fixed` — the key line, the banner, the composer. Such a part is on screen
+    `position: fixed` — the shortcut bar, the banner, the composer. Such a part is on screen
     already, and it is in no scroller's flow, so its rect answers to the viewport rather
     than to either region's scroll. `scrollerFor` says which of the two regions an
     element belongs to, which is the right question for a widget in a message and no
     question at all for one of these. Spent on it, the arithmetic reads a fixed rect as
     though it were a place in a scroller and moves that scroller by a number meaning
-    nothing in it: measured, pressing a thread about the key line took the document
+    nothing in it: measured, pressing a thread about the shortcut bar took the document
     370px away from where the reader had it, at every starting position.
 
     The control is a thread about the page, which must still travel."""
@@ -2746,8 +2745,8 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
             "author": "user",
             "revision": 1,
             "about": "layer",
-            "text": "The key line reads dim against the wash.",
-            "anchor": {"section": "lf-keyline"},
+            "text": "The shortcut bar reads dim against the wash.",
+            "anchor": {"section": "lf-shortcut-bar"},
         },
     )
     events_model.append_event(
@@ -2769,10 +2768,10 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
     page, errors = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    # The key line only draws while it has something to say, which is what a held key
+    # The shortcut bar only draws while it has something to say, which is what a held key
     # gives it. Held down, so the part is on screen for the press below.
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-keyline")).to_be_visible()
+    expect(page.locator(".lf-shortcut-bar")).to_be_visible()
 
     page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
     # Where the reader is standing when they press: the thread on screen, which is
@@ -2956,13 +2955,13 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
 def test_a_control_in_a_reply_holds_its_room_and_leaves_the_page_s_rail_alone(
     browser, serve
 ):
-    """A change sent in a reply keeps the canonical Button fitting and states nothing
+    """A change sent in a reply keeps the canonical circular control and states nothing
     about the page's margin.
 
     A suggestion's controls and the document rail used to be measured together at
     upgrade. A reply is upgraded inside a closed comment panel, where its box is zero:
     that made its controls collapse and let a row outside the page's margin state the
-    page's rail. The fixed circular fitting no longer depends on that measurement, and
+    page's rail. The fixed circular control no longer depends on that measurement, and
     only an on-page contribution may claim rail space.
 
     The page's own change is the geometry reference and the author of that rail."""
@@ -3410,7 +3409,9 @@ def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
         context.close()
 
 
-def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser, serve):
+def test_the_address_sequence_places_a_focused_comment_at_either_list_edge(
+    browser, serve
+):
     """A focused thread is one addressable place with two useful placements. `g k`
     and `g j` move that card inside the panel without moving focus or the document,
     and the list's own scroll padding keeps the landing clear of its pinned heading
@@ -3438,7 +3439,7 @@ def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser,
         page.keyboard.press("g")
         expect(
             page.locator(
-                ".lf-keyline .lf-key:not([hidden])",
+                ".lf-shortcut-bar .lf-key:not([hidden])",
                 has_text="thread top / bottom",
             )
         ).to_have_count(1)
@@ -4014,7 +4015,7 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
 
-    shown = page.locator(".lf-keyline .lf-key:not([hidden])")
+    shown = page.locator(".lf-shortcut-bar .lf-key:not([hidden])")
     expect(shown).to_have_count(2)
     # The entry's exact inverse leads, then the list's first local key.
     expect(shown.nth(0)).to_contain_text("back")

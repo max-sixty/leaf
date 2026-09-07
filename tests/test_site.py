@@ -796,7 +796,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         # Arrival is the easy half. The Threads replay opens a <dialog> in the frame, and
         # a shown dialog runs the browser's own focusing steps whatever the page around
         # it wants — the frame's inert body is what those steps land against. They are
-        # standing on the tab they just pressed, and the chord they press next has to
+        # standing on the tab they just pressed, and the sequence they press next has to
         # still reach the page they are reading.
         threads_tab = gallery.get_by_role("tab", name="Open and close Threads")
         threads_tab.click()
@@ -814,7 +814,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         # a `g` hint, a version swap and the skip link all land on a heading or a fold
         # that `focusDestination` lent a stop to behind a one-shot blur listener, so a
         # frame that took focus even for a moment would spend the lend and leave nowhere
-        # to put the reader back. The second run stands them where the go-to chord stands
+        # to put the reader back. The second run stands them where the go-to sequence stands
         # them — in the same synchronous step that starts the replay, before any framed
         # call can run — and the destination has to still be theirs when it completes.
         assert (

@@ -227,9 +227,9 @@ def mark_shows_beside_composer(page):
     }""")
 
 
-# Every kind of destination the g chord offers, on one page: the tests add comments, this
+# Every kind of destination the g sequence offers, on one page: the tests add comments, this
 # fixture supplies a decision, and the authored document supplies links and a disclosure.
-# They stand together so one chord must distinguish direct panels from numbered lists.
+# They stand together so one sequence must distinguish direct panels from numbered lists.
 ADDRESSED_PAGE = leaf_page(
     "addressed",
     """
@@ -260,8 +260,8 @@ session.</p></details>
     )
 )
 # Generated go-to hints, painted in their own transient layer. The code is metadata on the
-# chip because its visible text also carries the ellipsis marking a chord in progress.
-CHIPS = ".lf-goto-targets > .lf-chord-address"
+# chip because its visible text also carries the ellipsis marking a sequence in progress.
+CHIPS = ".lf-goto-targets > .lf-sequence-address"
 
 
 def address_codes(page):
@@ -271,10 +271,10 @@ def address_codes(page):
     )
 
 
-def address_code(page, kind, target, button=None):
+def address_code(page, kind, target, margin_element=None):
     selector = f'{CHIPS}[data-lf-address-kind="{kind}"][data-lf-address-for="{target}"]'
-    if button:
-        selector += f'[data-lf-address-button="{button}"]'
+    if margin_element:
+        selector += f'[data-lf-address-margin-element="{margin_element}"]'
     chip = page.locator(selector)
     expect(chip).to_have_count(1)
     code = chip.get_attribute("data-lf-address")
@@ -282,9 +282,9 @@ def address_code(page, kind, target, button=None):
     return code
 
 
-def go_to_address(page, kind, target, button=None):
+def go_to_address(page, kind, target, margin_element=None):
     page.keyboard.press("g")
-    code = address_code(page, kind, target, button)
+    code = address_code(page, kind, target, margin_element)
     page.keyboard.type(code)
     return code
 
@@ -390,7 +390,7 @@ id="fn3" href="#s3">3</a> and are checked below.</p>
 <p id="s1">One.</p><p id="s2">Two.</p><p id="s3">Three.</p></details>
 """,
 )
-# Links all the way down, so one of them starts in the corner the key line stands in.
+# Links all the way down, so one of them starts in the corner the shortcut bar stands in.
 FOOTED_PAGE = leaf_page(
     "footed",
     """

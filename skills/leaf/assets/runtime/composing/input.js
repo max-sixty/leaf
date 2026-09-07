@@ -133,7 +133,7 @@ export function wireInput(
     return word.charAt(0).toUpperCase() + word.slice(1);
   };
   const paint = (addressed = inputAddress()) => {
-    // Read the shared logical focus so this hint agrees with the key line and rings.
+    // Read the shared logical focus so this hint agrees with the shortcut bar and rings.
     const standing = focused() === ta;
     const suffix = standing ? sendKeys : addressed?.box === ta ? addressed.label : "";
     const placeholder = suffix ? `${label()} · ${suffix}` : label();
@@ -245,10 +245,10 @@ export function wireInput(
       if (ta.isConnected) ta.focus();
     }
   });
-  // The box's own scope: one row, so the key line's word, the "?" overlay's sentence and
+  // The box's own scope: one row, so the shortcut bar's word, the shortcut reference dialog's sentence and
   // the press are the same object. Every box the runtime wires gets it — the general box,
   // each thread's reply, the selection composer, a widget conversation — where the reference
-  // used to carry one row saying "in the focused composer" for a chord that fires in all
+  // used to carry one row saying "in the focused composer" for a sequence that fires in all
   // of them, including widget-owned text boxes.
   // The sentence is the same in every box, so the reference names the binding once however
   // many boxes the page holds; the word is this box's, because what the press does here is

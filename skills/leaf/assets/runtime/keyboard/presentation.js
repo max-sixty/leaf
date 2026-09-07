@@ -1,21 +1,21 @@
-/* This module owns how a binding is drawn: the steps a row's chord or label breaks
+/* This module owns how a binding is drawn: the steps a row's sequence or label breaks
  * into, their pressed states, and the key-sequence element every surface renders them
  * as. */
 import { labelOf, spell, word } from "./bindings.js";
 
 const STATES = new Set(["neutral", "pressed"]);
 
-// A chord row may name several presses, while an ordinary row still carries one compact
+// A sequence row may name several presses, while an ordinary row still carries one compact
 // label. Keep that distinction structured until the DOM is built: spaces in a label are
 // words inside one step, never guessed back into a sequence.
 export const rowSteps = (row, route = null) => {
   if (route) return [spell(route.binding)];
-  return word(row.chordSteps) ?? [labelOf(row)];
+  return word(row.sequenceSteps) ?? [labelOf(row)];
 };
 
 export const completeRowSteps = (row, route = null) => {
   if (route) return rowSteps(row, route);
-  return word(row.completeChordSteps) ?? rowSteps(row);
+  return word(row.completeSequenceSteps) ?? rowSteps(row);
 };
 
 export const neutralStates = (steps) => steps.map(() => "neutral");

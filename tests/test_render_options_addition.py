@@ -43,7 +43,7 @@ def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_reader)
 def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     """The reader writes on the same line and in the same voice as the options.
 
-    The trailing action stays out of an empty row, then submits on the shared Button
+    The trailing action stays out of an empty row, then submits on the shared margin element
     corner rather than borrowing the selection mark's circle. It remains a full-sized
     pointer target aligned with the last line as the textarea grows.
     """

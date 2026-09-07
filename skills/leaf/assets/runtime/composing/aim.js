@@ -1,4 +1,4 @@
-/* This module owns modifier aim and captured presses: the Alt chord's state, the target
+/* This module owns modifier aim and captured presses: the Alt key's state, the target
  * it promises under the pointer, and the click it claims. */
 import { el } from "../widget-elements.js";
 import { designOn, designPress, designTarget, openOnDesign } from "../design.js";
@@ -16,23 +16,23 @@ import { isDrawing } from "./drawing.js";
 export const aimBox = el("div", "lf-ui lf-aim lf-target-paint");
 
 // While ⌥ is held the page shows what a click would take — the item under
-// the pointer wears the aim's box (refreshAim), so the chord
+// the pointer wears the aim's box (refreshAim), so the sequence
 // answers "which" before the click rather than asking the user to press and find out.
 // `aiming` is the state and the class is a rendering of it; nothing reads the class back.
 //
-// It comes off on blur as well as on keyup, because the chord that switches windows takes
+// It comes off on blur as well as on keyup, because the sequence that switches windows takes
 // the keyup with it, and a page left armed under nobody's hand is a claim the user
 // cannot dismiss.
 let aiming = false;
-// Design is the active input mode, so the chord is unavailable while it stands. Keep
+// Design is the active input mode, so the sequence is unavailable while it stands. Keep
 // that priority in the aim's one public reading as well as its press claim: the promise
 // painted under the pointer and the gesture that follows must have the same owner.
 const aimIsAvailable = () => !designOn && !isDrawing();
 export const aimIsOn = () => aiming && aimIsAvailable();
-// The aim chord, declared once: the key listeners, the press guard (claimPress) and the
+// Modifier aim, declared once: the key listeners, the press guard (claimPress) and the
 // reference's row all read this object. It is the register's one row that is not a key —
 // a modifier held while the pointer clicks — so it binds nothing and carries no press, and
-// the rule that keeps it off the key line is the same one that keeps F7 off it. The label
+// the rule that keeps it off the shortcut bar is the same one that keeps F7 off it. The label
 // is spelled from the modifier through the register's own table rather than written out
 // twice in two platforms' glyphs.
 export const AIM = {

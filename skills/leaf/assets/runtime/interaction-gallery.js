@@ -137,7 +137,7 @@ async function loadFrameDocument(frame) {
   // A picture is not a place to stand, and this is the platform's word for that. A
   // document tree has one focus, so focus landing in here is focus taken off the page
   // the reader is actually on: their open margin cluster folds, their selection hints
-  // drop, and the next chord they press goes somewhere they cannot see. The framed
+  // drop, and the next sequence they press goes somewhere they cannot see. The framed
   // chrome still runs — the replays drive it through the adapter rather than by
   // pointing at it — but its focusing steps reach nothing, including a shown dialog's,
   // which return at once against an inert subject.
@@ -237,7 +237,7 @@ class Demo {
     this.loadState = "ready";
   }
 
-  // The chord the replay is pressing, shown only while it is being pressed. The word
+  // The sequence the replay is pressing, shown only while it is being pressed. The word
   // travels as an attribute and lives in the caption for as long as the caption stands,
   // because a copy exported between replays has no script left to reveal it and words a
   // file holds without ever showing are words the copy has lost.

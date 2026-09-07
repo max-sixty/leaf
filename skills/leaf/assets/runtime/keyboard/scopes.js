@@ -10,9 +10,9 @@
 
    Core registers scopes through internal `keys(el, title, rows)`; package widgets receive
    the same register as `commands(el, title, rows)` in `connectedCallback`. A module
-   loaded on a page with no instance must contribute no scope or help section. Runtime
+   loaded on a page with no instance must contribute no scope or reference section. Runtime
    scopes live in `SCOPES`; `merge` is the only function that gathers scope sections.
-   Preserve the order of that list because the dispatcher and key line walk inward to
+   Preserve the order of that list because the dispatcher and shortcut bar walk inward to
    outward while the full reference groups the same scopes for reading. */
 import {
   MODIFIER_KEYS,
@@ -64,7 +64,7 @@ export function paintHere() {
 }
 
 // The scopes declared against an element — a WeakMap, so a scope leaves with the element
-// that owns it — and, for the overlay, their rows gathered under each title. A section is
+// that owns it — and, for the shortcut reference dialog, their rows gathered under each title. A section is
 // its sentences: the tenth grip on a page says what the first one says, so it is one
 // section, while a widget whose keys are declared in two places (a draft's way in, and the
 // editor it opens) contributes to one section from both.
@@ -112,7 +112,7 @@ export function merge(sections, { title, when, at, liveInReference, rows }) {
   // is what a layer's way out has to hold wherever the layer does.
   //
   // Asked here rather than at the reader, because the section is built once per open —
-  // declaredStack has one caller, showHelp — where a `when` may be the whole event log
+  // declaredStack has one caller, showShortcutReference — where a `when` may be the whole event log
   // folded and the line's own walk avoids it for exactly that reason.
   if (when && !when()) return;
   const seen = sections.get(title);
@@ -134,7 +134,7 @@ export function merge(sections, { title, when, at, liveInReference, rows }) {
 
 /** Declare a scope's keys where the code implementing them is.
  *
- * `where` is the element focus must be inside, `title` names the scope in the "?" overlay
+ * `where` is the element focus must be inside, `title` names the scope in the shortcut reference dialog
  * (null for one the reference has no room to name), `rows` are its bindings, and the
  * optional configuration carries `when` (whether the page has this scope at all) and
  * `answer` (the concise current answer when this scope belongs to an Ask). A function in
@@ -154,7 +154,8 @@ export function merge(sections, { title, when, at, liveInReference, rows }) {
  * Enter on an already-focused grip, so no focus event would repaint the line.
  *
  * Registering at upgrade rather than at module load is what keeps the reference honest:
- * every x-upgrade module loads on every page, so a scope declared at the top level is help
+ * every x-upgrade module loads on every page, so a scope declared at the top level is
+ * reference content
  * for a widget the page hasn't got. The dispatch scope leaves through the weak map; the
  * enumerable reference prunes its element when it disconnects. A connected control that
  * stops answering a key says so in the row's `when`, where every surface can read it.
@@ -207,7 +208,7 @@ export function keys(where, title, rows, options) {
 // Commands whose scope stands in one widget, in declaration order. Preserve the
 // declaring scope beside each row: a control presentation may be hoisted elsewhere,
 // while Decision ownership still belongs to the source that declared the command.
-// This is the shared capability reading: the dispatcher, key line and reference use
+// This is the shared capability reading: the dispatcher, shortcut bar and reference use
 // the same rows directly, while projections such as Asks select the role they need.
 // A scope may sit on a nested control rather than the widget itself, so containment
 // follows the runtime's cross-shadow parent walk instead of a light-DOM selector.
@@ -294,7 +295,7 @@ export const saying = (rows) =>
 // the bindings where it has none — which is what keeps a listener hearing "Escape" rather
 // than the line's "esc". Asking whether the label was written as a string made the same fact
 // announce two ways by accident: an option group's digits are spelled "1–3" because its label
-// happens to be a string, while the chord's were read out as "1 or 2 or 3" because its label
+// happens to be a string, while the sequence's were read out as "1 or 2 or 3" because its label
 // counts what the page holds and so has to be a function.
 const spoken = (row) => {
   const active = bindings(row);
@@ -413,9 +414,9 @@ export function scopesFor(node) {
 }
 // Whether the focused control has claimed Escape for itself. Asked of the control's own
 // scopes and not of the stack, because both callers mean "this press already has an owner
-// where the reader is standing": the chord refuses to arm there, and focus entering one
+// where the reader is standing": the sequence refuses to arm there, and focus entering one
 // disarms it. Every panel and mode in the runtime carries a rung of some kind, so a
-// question asked of the whole stack would answer yes almost everywhere and the chord would
+// question asked of the whole stack would answer yes almost everywhere and the sequence would
 // never arm at all.
 export const claimsEsc = (node) =>
   scopesFor(node).some((scope) =>

@@ -153,7 +153,7 @@ import { announce } from "../notifications.js";
 import { availableCommands } from "../keyboard/dispatch.js";
 
 // Contextual actions for the Ask the reader is standing in. These share the address face
-// but not the g chord's lifecycle: the ask view paints them whenever its semantic
+// but not the g sequence's lifecycle: the ask view paints them whenever its semantic
 // focus and the dispatch stack leave the contributed action row reachable.
 export const askActionLayer = el("div", "lf-ui lf-addresses lf-ask-addresses");
 askActionLayer.setAttribute("aria-hidden", "true");
@@ -605,7 +605,7 @@ const availableActions = () => {
   });
 };
 // A binding with a different result is a different command. Keep each action as a
-// route under one compact row, so the dispatcher, reference, key line, and the
+// route under one compact row, so the dispatcher, reference, shortcut bar, and the
 // control-facing projections all consume the same binding-to-control identity.
 const actionRoutes = () =>
   availableActions().map(
@@ -650,10 +650,10 @@ const reachableActionRoutes = () => {
 // The chips are an eye's projection of the same row, and aria-keyshortcuts is its
 // listener-facing projection on each exact action control. A widget that already owns
 // an address face lends that face and its exact placement; other actions get chrome at
-// the visible Button's corner. Off-screen actions keep their working address and name
-// on the key line but wear no chip. A nearer keyboard layer suppresses the row and both
-// projections through the exact available command routes, so a digit never stays
-// promised after a chord, text box, or modal has taken it.
+// the visible margin element's corner. Off-screen actions keep their working address and name
+// on the shortcut bar but wear no chip. A nearer keyboard layer suppresses the row and both
+// projections through the exact available commands, so a digit never stays
+// promised after a sequence, text box, or modal has taken it.
 const wornAddresses = new Map();
 const wornShortcuts = new Map();
 function restoreAddress(address, { display, priority, text }) {
@@ -686,7 +686,7 @@ function paintActionProjections() {
 
   // Reuse a widget's page-local address where it has one. Besides preserving the
   // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
-  // the fixed key line above it. Hide a face that has no clear visible box, just as the
+  // the fixed shortcut bar above it. Hide a face that has no clear visible box, just as the
   // general address pass drops a route chip where the screen cannot say it safely.
   for (const { binding, control, address } of routes) {
     const previousShortcut = control.getAttribute("aria-keyshortcuts");

@@ -943,7 +943,7 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
 # run its budget out on a press that is perfectly live.
 def undo(page):
     """Take the last gesture back, from the moment the line offers to."""
-    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
     with sending(page, "the withdrawal"):
         page.keyboard.press("z")
 
@@ -1181,8 +1181,8 @@ def navigate(page, errors, url, *, wait_until="load", ready=BOTH_STAMPS):
         errors.append(render_gate_model.recurring_resize_observer_error("navigation"))
 
 
-def key_line(page):
-    """What the key line says, once the runtime has had its frame to say it.
+def shortcut_bar_text(page):
+    """What the shortcut bar says, once the runtime has had its frame to say it.
 
     `paintHere` coalesces to a `requestAnimationFrame`, so a read taken in the same
     round-trip as the press that caused it is a read of the frame before. Two frames,
@@ -1195,7 +1195,7 @@ def key_line(page):
     reading a stale line as an eventually right one.
     """
     page.evaluate(RENDERED)
-    return page.locator(".lf-keyline").inner_text()
+    return page.locator(".lf-shortcut-bar").inner_text()
 
 
 def open_versions(page):
@@ -1287,7 +1287,7 @@ def opened_tab(page, press, tries=3, each=10_000):
     A driver that loses the handle is not a page state a route can arrange, and there is
     no second channel to reach an unreported tab through, so the press is made again
     rather than waited on longer. This is instrument repair, not tolerance for a flaky
-    subject: the press itself is deterministic — the loss reaches every chord, though not
+    subject: the press itself is deterministic — the loss reaches every sequence, though not
     at one rate: 3, 10 and 1 of 60 presses lost for ⌃-click, ⌃⇧-click and ⇧-click on a
     loaded machine — so a runtime that stopped leaving a real href for the platform to act
     on opens no tab for any of the tries, and the last one says which wait went unanswered.

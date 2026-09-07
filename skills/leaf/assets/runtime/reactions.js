@@ -2,22 +2,22 @@
 
    An open anchored composer owns its general response disclosure: reactions only
    contribute declared actions to it, and `r` opens that local group focused on its
-   first reaction. With no composer open, `r` contributes the reaction Buttons to the
+   first reaction. With no composer open, `r` contributes the reaction margin elements to the
    selected item's existing margin cluster. While that explicit mode stands, its
-   contribution owns all six fittings; standing readings and unrelated actions remain
-   in Page map and return when the mode closes. Those temporary Buttons dock with the
+   contribution owns all six margin elements; standing readings and unrelated actions remain
+   in Page map and return when the mode closes. Those temporary margin elements dock with the
    cluster when necessary and claim no permanent rail width. A thread-local `r` opens
    the conversation-owned row on the latest agent message. `REACT` claims the keyboard
    only for those margin and message lists; the composer's response scope owns its
-   local list. Arrow keys wrap through the visible Buttons in the active list.
+   local list. Arrow keys wrap through the visible margin elements in the active list.
    Tab and Shift-Tab follow that same order. The Page-map dialog remains part of the
    response's target context but owns its native keyboard walk and Escape while open.
-   Closing it restores its exact opener; selecting overflow presses the original Button
+   Closing it restores its exact opener; selecting overflow presses the original margin element
    before its temporary target is released. Enter or Space presses the focused choice,
    digits remain optional reaction accelerators in declaration order, and a stray key
    closes the list before keeping its ordinary meaning.
 
-   The margin form shows the declared reaction Buttons together within the six-fitting
+   The margin form shows the declared reaction margin elements together within the six-item
    budget. Comment retains its separate `c` route. The digit register and visible
    choices therefore name the same complete set. The choices do not widen the rail or
    open a separate palette below the target. The compact response bar's More controller
@@ -27,13 +27,13 @@
    the temporary item resolves selected text to the first rendered block, matching the
    target where replay later seats its standing reaction. */
 import {
-  buttonChoices,
-  buttonContextContains,
-  foldButtonOptions,
-  marginButton,
-  openButtonOptions,
-  registerMarginItem,
-  unfoldedButtons,
+  marginElementChoices,
+  marginElementContextContains,
+  foldMarginElementOptions,
+  marginElement,
+  openMarginElementOptions,
+  registerMarginContribution,
+  unfoldedMarginElements,
 } from "./living-margin.js";
 import { runtime } from "./context.js";
 import { CONTROL_WORD_CAP, designOn } from "./design.js";
@@ -100,7 +100,7 @@ function reactionChip(
   chip.dataset.token = name;
   if (margin) {
     chip.setAttribute("aria-label", meaning);
-    marginButton(chip, {
+    marginElement(chip, {
       key: `reaction:${String(ordinal).padStart(4, "0")}:${name}`,
       glyph: entry.glyph,
       label: meaning,
@@ -256,7 +256,7 @@ function raiseMarginSurface() {
   // `r` is an explicit reaction mode. Comment remains on `c`, so this temporary
   // contribution contains reactions alone.
   fabBar.dataset.lfMarginRaised = "1";
-  const standing = unfoldedButtons()?.lfTarget === target;
+  const standing = unfoldedMarginElements()?.lfTarget === target;
   // Register the response surface in the state it is about to show. Registering its
   // collapsed face first makes the projection treat the six choices as hidden owner
   // content; a fast `r` can then arm their digit shortcuts while only the old floating
@@ -268,7 +268,7 @@ function raiseMarginSurface() {
       .map((chip) => chip.lfReaction)
       .filter(Boolean),
   );
-  marginOffer = registerMarginItem({
+  marginOffer = registerMarginContribution({
     key: "responses",
     target,
     controls: marginSurface,
@@ -279,7 +279,7 @@ function raiseMarginSurface() {
     claim: false,
   });
   marginTarget = target;
-  if (openButtonOptions(target, { owner: "responses" })) {
+  if (openMarginElementOptions(target, { owner: "responses" })) {
     marginUnfolded = !standing;
     return true;
   }
@@ -295,13 +295,13 @@ function lowerMarginSurface() {
   marginOffer = null;
   marginTarget = null;
   delete fabBar.dataset.lfMarginRaised;
-  // A raise that unfolded the target's Buttons to stand these choices in puts that fold
+  // A raise that unfolded the target's margin elements to stand these choices in puts that fold
   // back, so cancelling leaves the cluster as the press found it rather than an empty
   // fold the reader has to close themselves. Only that raise: this runs on every
   // disarm, including one whose surface was a reply strip and which never raised the
   // margin at all, and including one over a fold the reader had already opened for
   // themselves — folding either takes away a layer the gesture never put on.
-  if (marginUnfolded) foldButtonOptions();
+  if (marginUnfolded) foldMarginElementOptions();
   marginUnfolded = false;
 }
 
@@ -310,7 +310,7 @@ function closeSurface(surface) {
   pickerFor(surface)?.trigger.setAttribute("aria-expanded", "false");
 }
 
-// A page picker lives in the target's shared Button options and therefore owns its
+// A page picker lives in the target's shared margin element options and therefore owns its
 // geometry. Returning true keeps the floating Comment bar from trying to re-place the
 // same gesture while the margin has it; message-local reaction strips need no claim.
 export function syncReactLayout() {
@@ -424,7 +424,7 @@ export function setReact(on, { surface = null } = {}) {
   paintHere();
 }
 
-document.addEventListener("lf-button-options-closed", () => {
+document.addEventListener("lf-margin-element-options-closed", () => {
   if (reactArmed && reactSurface === marginSurface) setReact(false);
 });
 document.addEventListener("lf-actions", () => {
@@ -444,7 +444,7 @@ document.addEventListener("lf-thread-hidden", (event) => {
 
 function responseChoices(surface) {
   if (!surface) return [];
-  if (surface === marginSurface) return buttonChoices(fabTargetAt());
+  if (surface === marginSurface) return marginElementChoices(fabTargetAt());
   return [...surface.querySelectorAll(".lf-react-palette > .lf-react")].filter(
     (choice) => choice.checkVisibility(),
   );
@@ -550,4 +550,4 @@ export const isReactArmed = () => reactArmed;
 export const reactionContextContains = (node) =>
   reactArmed &&
   reactSurface === marginSurface &&
-  buttonContextContains(fabTargetAt(), node);
+  marginElementContextContains(fabTargetAt(), node);

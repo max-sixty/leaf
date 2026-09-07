@@ -64,7 +64,6 @@ from render_support import (
     banner_address,
     compare_with,
     holding,
-    key_line,
     leaf_page,
     live_url,
     open_page,
@@ -76,6 +75,7 @@ from render_support import (
     select,
     sending,
     sent_events,
+    shortcut_bar_text,
     stamp_page,
     stamp_version_file,
     told,
@@ -899,7 +899,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     reveal without moving the map or changing the item under the pointer. The same
     links remain an ordinary open outline where the margin posture is unavailable.
 
-    The map runs to the window's foot, so the key line stands over the last section it
+    The map runs to the window's foot, so the shortcut bar stands over the last section it
     names — always the last, the map being sized to the viewport rather than scrolled.
     The line is a hover here and the map is not one of the regions that ends above it;
     `lf-toc`'s own rule in the default theme carries that decision and its TODO. This
@@ -969,15 +969,15 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     assert 23 <= nav_box["x"] <= 25
     assert 64 <= nav_box["y"] <= 68
     assert nav_box["height"] >= 740, f"the reading map used only {nav_box['height']}px"
-    # The map is sized to the window, so it runs past the key line and the line stands
+    # The map is sized to the window, so it runs past the shortcut bar and the line stands
     # over its last entry. That is the accepted state, not an oversight: the line is a
     # hover, and `lf-toc`'s own rule carries the TODO for choosing between that and a
     # line the whole layer ends above. This holds the map to the window so the cutoff
     # cannot be closed by accident, one region at a time, without that being settled.
-    line_box = page.locator(".lf-keyline").bounding_box()
-    assert line_box is not None, "the fixture drew no key line"
+    line_box = page.locator(".lf-shortcut-bar").bounding_box()
+    assert line_box is not None, "the fixture drew no shortcut bar"
     assert line_box["y"] < nav_box["y"] + nav_box["height"], (
-        f"the map now ends above the key line: the layer has started giving the line a "
+        f"the map now ends above the shortcut bar: the layer has started giving the line a "
         f"foot's reservation region by region — settle the TODO on `lf-toc`'s rule "
         f"instead: map {nav_box}, line {line_box}"
     )
@@ -2086,13 +2086,15 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     # the Decision action name is not a keycap override.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    pass_reference = page.locator('.lf-help tr[data-lf-command="swipe.pass"]')
+    pass_reference = page.locator(
+        '.lf-shortcut-reference tr[data-lf-command="swipe.pass"]'
+    )
     expect(pass_reference.locator("kbd")).to_have_text("←")
     expect(pass_reference.locator(".lf-key-sequence")).to_have_attribute(
         "aria-label", "ArrowLeft"
     )
     expect(
-        page.locator('.lf-help tr[data-lf-command="swipe.undo-last"]')
+        page.locator('.lf-shortcut-reference tr[data-lf-command="swipe.undo-last"]')
     ).to_have_count(0)
     page.keyboard.press("Escape")
 
@@ -2100,25 +2102,27 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     expect(decision).to_be_focused()
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text(["←", "→"])
-    assert "← / →\nPass / Keep" in key_line(page)
+    assert "← / →\nPass / Keep" in shortcut_bar_text(page)
 
     page.keyboard.press("Tab")
-    assert "←\npass the active card" in key_line(page)
-    assert "Pass\npass the active card" not in key_line(page)
+    assert "←\npass the active card" in shortcut_bar_text(page)
+    assert "Pass\npass the active card" not in shortcut_bar_text(page)
     page.keyboard.press("a")
     expect(decision).to_be_focused()
 
     # The reference exposes the same exact routes as their inline bindings.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator('.lf-help-command[data-lf-command="swipe.pass"]')).to_have_text(
-        "Activate the “Pass” action"
-    )
-    expect(page.locator('.lf-help-command[data-lf-command="swipe.keep"]')).to_have_text(
-        "Activate the “Keep” action"
-    )
     expect(
-        page.locator('.lf-help-command[data-lf-command="ask.activate-nth"]')
+        page.locator('.lf-shortcut-reference-command[data-lf-command="swipe.pass"]')
+    ).to_have_text("Activate the “Pass” action")
+    expect(
+        page.locator('.lf-shortcut-reference-command[data-lf-command="swipe.keep"]')
+    ).to_have_text("Activate the “Keep” action")
+    expect(
+        page.locator(
+            '.lf-shortcut-reference-command[data-lf-command="ask.activate-nth"]'
+        )
     ).to_have_count(0)
     page.keyboard.press("Escape")
 
@@ -2127,7 +2131,7 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
     expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_count(0)
-    assert "Undo last swipe" not in key_line(page)
+    assert "Undo last swipe" not in shortcut_bar_text(page)
     assert [event["action"] for event in actions(serve.page_dir)] == [
         "swipe",
         "swipe",
@@ -2145,7 +2149,7 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     expect(row).to_be_focused()
     expect(row.locator(".lf-asks-answer")).to_have_text("3 kept · 3 passed")
     page.keyboard.press("Enter")
-    assert "Undo last swipe" not in key_line(page)
+    assert "Undo last swipe" not in shortcut_bar_text(page)
 
     page.keyboard.press("1")
     expect(page.locator("#session-pass > #swipe-d")).to_have_count(1)
@@ -2161,12 +2165,12 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     page.close()
 
 
-def test_character_shortcuts_off_removes_a_contextual_ask_digit(browser, serve):
-    """A live arrow cannot keep filtered contextual actions on the key line."""
+def test_character_key_shortcuts_off_removes_a_contextual_ask_digit(browser, serve):
+    """A live arrow cannot keep filtered contextual actions on the shortcut bar."""
     page, errors = open_page(
         browser,
         serve(SHORT_SUGGESTION),
-        init_script="localStorage.setItem('lf-character-shortcuts', '0')",
+        init_script="localStorage.setItem('lf-character-key-shortcuts', '0')",
     )
     page.evaluate(
         """async () => {
@@ -2191,8 +2195,8 @@ def test_character_shortcuts_off_removes_a_contextual_ask_digit(browser, serve):
     page.locator(".lf-asks").click()
     page.locator("button.lf-asks-row").click()
     expect(page.locator("#sug")).to_be_focused()
-    assert "←\nInspect" in key_line(page)
-    assert "Accept / Reject" not in key_line(page)
+    assert "←\nInspect" in shortcut_bar_text(page)
+    assert "Accept / Reject" not in shortcut_bar_text(page)
     expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text("←")
 
     before = len(actions(serve.page_dir))
@@ -2889,7 +2893,7 @@ def test_a_copy_says_a_change_is_only_proposed(browser, serve, tmp_path):
     assert copy.locator(".lf-sug-actions").count() == 0, (
         "the copy is only interesting because it has no controls left"
     )
-    assert copy.locator(".lf-margin-item").count() == 0, (
+    assert copy.locator(".lf-margin-cluster").count() == 0, (
         "stripping pending controls left their generated target item claiming a rail"
     )
     for medium in ("screen", "print"):
@@ -3130,8 +3134,8 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     # move is one control against the other.
     box = "el => [el.offsetLeft, el.offsetTop, el.offsetWidth, el.offsetHeight]"
     before = accept.evaluate(box)
-    # The verb is discovery chrome; at rest the Button is the canonical circle.
-    expect(accept.locator(".lf-margin-button-icon")).to_have_attribute(
+    # The verb is discovery chrome; at rest the margin element is the canonical circle.
+    expect(accept.locator(".lf-margin-element-icon")).to_have_attribute(
         "data-lf-icon", "check"
     )
 
@@ -3146,7 +3150,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(accept).to_have_count(0)
     undo_button = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(undo_button.locator(".lf-margin-button-icon")).to_have_attribute(
+    expect(undo_button.locator(".lf-margin-element-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
     expect(row.locator(".lf-margin-receipt")).to_have_count(0)
@@ -3191,7 +3195,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
 
 
 def test_a_pointer_decision_announces_without_needing_button_focus(browser, serve):
-    """The live result is independent of browsers focusing a clicked Button."""
+    """The live result is independent of browsers focusing a clicked margin element."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     assert page.evaluate("document.activeElement === document.body")
 
@@ -3218,7 +3222,7 @@ def test_a_settled_deletion_keeps_undo_on_the_containing_passage(browser, serve)
     undo = page.get_by_role("button", name=re.compile(r"^Undo accepting"))
     expect(undo).to_be_visible()
     expect(
-        undo.locator("xpath=ancestor::*[contains(@class, 'lf-margin-item')]")
+        undo.locator("xpath=ancestor::*[contains(@class, 'lf-margin-cluster')]")
     ).not_to_have_class(re.compile(r"\blf-waiting\b"))
     expect(page.locator(".lf-margin-receipt")).to_have_count(0)
     assert errors == []
@@ -3234,7 +3238,7 @@ def test_rejecting_a_suggestion_promotes_the_surviving_button(browser, serve):
 
     expect(reject).to_have_count(0)
     undo_button = row.get_by_role("button", name=re.compile(r"^Undo rejecting"))
-    expect(undo_button).to_have_attribute("data-lf-button-primary", "")
+    expect(undo_button).to_have_attribute("data-lf-margin-element-primary", "")
     expect(row.locator(".lf-sug-accept")).to_be_hidden()
     expect(row.locator(".lf-margin-receipt")).to_have_count(0)
     expect(row).not_to_contain_text("Rejected")
@@ -3301,7 +3305,7 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
 
 
 # `folded` is the layer's own division of the pair rather than a convenience: accept
-# rests in the rail as the target's primary Button, and reject is one press behind `…`.
+# rests in the rail as the target's primary margin element, and reject is one press behind `…`.
 @pytest.mark.parametrize(
     "outcome,verb,folded",
     [("accept", "Accepted", False), ("reject", "Rejected", True)],
@@ -3700,7 +3704,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # action without adding a second status beside the settled content.
     row = second.locator("[data-lf-for='sug-refill']")
     accepted = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(accepted.locator(".lf-margin-button-icon")).to_have_attribute(
+    expect(accepted.locator(".lf-margin-element-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
     expect(row.locator(".lf-margin-receipt")).to_have_count(0)
@@ -3838,12 +3842,12 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         == []
     ), "a lent tab stop was left on a decision the reader has walked off"
 
-    # The overlay and the key line offer it because there is something to reach.
+    # The overlay and the shortcut bar offer it because there is something to reach.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_contain_text("waiting on you for")
+    expect(page.locator(".lf-shortcut-reference")).to_contain_text("waiting on you for")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-keyline")).to_contain_text("asks")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("asks")
 
     # Leaving the ask takes the place off the count the way it takes the ring off the
     # page: a click into the prose is the reader standing nowhere in the list.
@@ -3967,7 +3971,7 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
     """a lands semantic focus on the Ask; digits work its exact action list there.
 
     The list is contributed by the decision widget rather than inferred from generated
-    descendants: options own controls inside the Ask, while a suggestion's Buttons are
+    descendants: options own controls inside the Ask, while a suggestion's margin elements are
     hoisted into the shared margin. Core gives either list the same stable numeric
     projection, and pressing a digit activates the native control without first moving
     focus into the widget.
@@ -3977,7 +3981,7 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
 
     page.keyboard.press("a")
     expect(page.locator("#live-question-decision")).to_be_focused()
-    assert "1–2\nKeep the store / Signed tokens" in key_line(page)
+    assert "1–2\nKeep the store / Signed tokens" in shortcut_bar_text(page)
     expect(
         page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_text(["1", "2"])
@@ -3989,7 +3993,7 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
 
     page.keyboard.press("a")
     expect(page.locator("#sug-refill")).to_be_focused()
-    assert "1–2\nAccept / Reject" in key_line(page)
+    assert "1–2\nAccept / Reject" in shortcut_bar_text(page)
     expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_have_attribute(
         "aria-keyshortcuts", "1"
     )
@@ -4034,7 +4038,9 @@ def test_ask_contextual_addresses_skip_explicit_numeric_bindings(browser, serve)
     # reader enters the Ask, that projection presents the binding it actually resolves.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    inspect_reference = page.locator('.lf-help tr[data-lf-command="test.inspect"]')
+    inspect_reference = page.locator(
+        '.lf-shortcut-reference tr[data-lf-command="test.inspect"]'
+    )
     expect(inspect_reference.locator("kbd")).to_have_text("I")
     expect(inspect_reference.locator(".lf-key-sequence")).to_have_attribute(
         "aria-label", "I"
@@ -4043,11 +4049,11 @@ def test_ask_contextual_addresses_skip_explicit_numeric_bindings(browser, serve)
 
     inspect = page.get_by_role("button", name="Inspect")
     inspect.focus()
-    assert "I\nInspect" in key_line(page)
+    assert "I\nInspect" in shortcut_bar_text(page)
 
     page.keyboard.press("a")
     expect(page.locator("#sug")).to_be_focused()
-    assert "2 / 3 / 1\nAccept / Reject / Inspect" in key_line(page)
+    assert "2 / 3 / 1\nAccept / Reject / Inspect" in shortcut_bar_text(page)
     expect(inspect).to_have_attribute("aria-keyshortcuts", "1")
 
     page.keyboard.press("1")
@@ -4192,13 +4198,13 @@ def test_ask_option_addresses_stay_one_projection_when_focus_enters_a_card(
     page.close()
 
 
-def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
-    """A row address that reaches the key line yields to the legend naming its digit."""
+def test_ask_addresses_do_not_cover_their_shortcut_bar_text(browser, serve):
+    """A row address that reaches the shortcut bar yields to the legend naming its digit."""
     page, errors = open_page(browser, serve(ADDRESS_PAGE))
     resized(page, 900, 520)
 
     # The first Ask uses titled cards, whose trailing addresses cannot meet the leading
-    # key line. Step to the compact row Ask, where both occupy the leading edge.
+    # shortcut bar. Step to the compact row Ask, where both occupy the leading edge.
     page.keyboard.press("a")
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     page.keyboard.press("a")
@@ -4206,7 +4212,7 @@ def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
     expect(
         page.locator("#rows > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_text(["1", "2"])
-    # Put the second row's address one pixel into the key line's band. The first stays a
+    # Put the second row's address one pixel into the shortcut bar's band. The first stays a
     # row above it, so a placement pass that reserves the legend keeps one and removes
     # the other. Calculate the scroll from their current boxes rather than pinning the
     # fixture to today's spacing.
@@ -4216,7 +4222,7 @@ def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
             '#rows > lf-option > .lf-address[data-lf-ask-address]'
           );
           const last = addresses[addresses.length - 1].getBoundingClientRect();
-          const line = document.querySelector('.lf-keyline').getBoundingClientRect();
+          const line = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
           scrollTo(0, scrollY + last.top - line.top - 1);
         }"""
     )
@@ -4231,7 +4237,7 @@ def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
             return {left: box.left, right: box.right, top: box.top, bottom: box.bottom};
           };
           return {
-            line: read(document.querySelector('.lf-keyline')),
+            line: read(document.querySelector('.lf-shortcut-bar')),
             chips: [...document.querySelectorAll(
               '.lf-ask-addresses > .lf-ask-address, [data-lf-ask-address]'
             )].map(read),
@@ -4265,7 +4271,7 @@ def test_a_needed_draft_contributes_its_current_ask_action(browser, serve):
 
     page.keyboard.press("a")
     expect(page.locator("#copy-ask")).to_be_focused()
-    assert "1\nEdit" in key_line(page)
+    assert "1\nEdit" in shortcut_bar_text(page)
     page.keyboard.press("1")
     expect(page.get_by_role("textbox", name="Edit copy")).to_be_focused()
 
@@ -5132,7 +5138,10 @@ def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(
 
     page.keyboard.press("Enter")
     expect(page.locator("#storage-decision")).to_be_focused()
-    assert "1–2\nDrop the oldest documents / Pause offline editing" in key_line(page)
+    assert (
+        "1–2\nDrop the oldest documents / Pause offline editing"
+        in shortcut_bar_text(page)
+    )
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#storage-evict")).to_have_attribute("chosen", "")
@@ -5200,9 +5209,11 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     expect(row.locator(".lf-asks-answer")).to_have_text("Accepted")
     row.click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
-    undo = page.locator('[data-lf-for="sug-delete"] [data-lf-button-key="undo"]')
+    undo = page.locator(
+        '[data-lf-for="sug-delete"] [data-lf-margin-element-key="undo"]'
+    )
     expect(undo).to_be_focused()
-    assert "1\nUndo" in key_line(page)
+    assert "1\nUndo" in shortcut_bar_text(page)
 
     page.keyboard.press("1")
     round_trip(page)

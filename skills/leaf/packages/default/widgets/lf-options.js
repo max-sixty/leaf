@@ -70,7 +70,7 @@
  * or not a key is in it, which is the theme's half of this. The rows are
  * declared per mark, on the mark rather than on the group — the group holds the option's
  * own argument too, and a scope over the whole subtree would promise to work an option with
- * focus on a link inside one. An armed `g` chord keeps its own digits without this module
+ * focus on a link inside one. An armed `g` sequence keeps its own digits without this module
  * asking: its scopes suspend every scope inside them, where each widget used to have to
  * remember the question.
  *

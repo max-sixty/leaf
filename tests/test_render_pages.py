@@ -231,7 +231,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
                 expect(
                     item.locator(
                         '.lf-margin-marker[data-lf-kinds~="comment"], '
-                        '[data-lf-button-key="reading:threads"]'
+                        '[data-lf-margin-element-key="reading:threads"]'
                     )
                 ).to_have_count(0)
         for reaction in reacted:
@@ -243,11 +243,11 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
                 "data-lf-for", reaction["anchor"]["section"]
             )
             # A crowded target may expose this exact reaction through overflow. Follow
-            # its visible route rather than requiring every fitting to stand at rest.
+            # its visible route rather than requiring every margin element to stand at rest.
             item = glyph.locator("xpath=ancestor::*[@data-lf-margin-for][1]")
             visible = item.locator(
-                f'[data-lf-button-key="take-back:{reaction["id"]}"]:visible, '
-                f'[data-lf-button-key="take-back:{reaction["id"]}:proxy"]:visible'
+                f'[data-lf-margin-element-key="take-back:{reaction["id"]}"]:visible, '
+                f'[data-lf-margin-element-key="take-back:{reaction["id"]}:proxy"]:visible'
             )
             more = item.locator(":scope > .lf-margin-more")
             if not visible.count() and more.is_visible():
@@ -260,8 +260,8 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
                 sheet = page.get_by_role("dialog", name="Page map", exact=True)
                 expect(
                     sheet.locator(
-                        f'[data-lf-map-button$=":take-back:{reaction["id"]}"], '
-                        f'[data-lf-map-button$=":take-back:{reaction["id"]}:proxy"]'
+                        f'[data-lf-map-margin-element$=":take-back:{reaction["id"]}"], '
+                        f'[data-lf-map-margin-element$=":take-back:{reaction["id"]}:proxy"]'
                     )
                 ).to_be_visible()
                 page.keyboard.press("Escape")
@@ -1509,11 +1509,11 @@ def test_paper_keeps_the_column(browser, serve):
 
 
 def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
-    """The banner stands over the head of the document and the key line over its foot, so
+    """The banner stands over the head of the document and the shortcut bar over its foot, so
     the document leaves each of them room. Neither bar is on a sheet — the runtime's whole
     layer is withheld from print — and the room went to paper anyway: written as body's
     own padding it printed as a blank strip at each end, the banner's height over the
-    first line and the key line's under the last.
+    first line and the shortcut bar's under the last.
 
     The reservations now belong to the document box whose chrome they make room for,
     rather than to the scroll container. The same CSS disappears with the chrome in
@@ -1535,7 +1535,7 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
     )
     assert room["foot"] >= room["line"], (
         f"the document ends {room['foot']:.0f}px short of its own end, under a "
-        f"{room['line']:.0f}px key line"
+        f"{room['line']:.0f}px shortcut bar"
     )
 
     # The covering shelf is taller than the desktop row. A reader can cross that
@@ -1706,7 +1706,7 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     at_stamp = page.evaluate("() => window.__handover")
     initial_rail = float(at_stamp["rail"].removesuffix("px"))
     assert 0 < initial_rail < 160, (
-        "the page must start with only its reserved Button rail, not the widget's "
+        "the page must start with only its reserved margin element rail, not the widget's "
         f"later claim, or the post-handover case is never reached: {at_stamp['rail']}"
     )
     # Container queries answer the new shell width in the same layout pass. Wait on the
@@ -2469,7 +2469,7 @@ def test_a_note_shares_the_page_axis_with_the_widest_right_margin(browser, serve
     """The right-side claims share one strip, whose widest claim sets the page's axis.
 
     Below the conversation-margin floor, the note's whole 384px strip wins over the
-    Button rail. Above it, the live page reserves 520px for conversations before the
+    margin element rail. Above it, the live page reserves 520px for conversations before the
     first comment, so the note adds no second strip. Both cases retain readable prose
     and the complete note on the page. Neither an always-384px expectation nor two
     roomy readings would exercise both sides of this shared reservation.
@@ -2527,10 +2527,10 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
       const ms = getComputedStyle(main), ss = getComputedStyle(sidebar);
       const mb = main.getBoundingClientRect(), sb = sidebar.getBoundingClientRect();
       const eb = exhibit.getBoundingClientRect();
-      const marginItems = [...document.querySelectorAll('.lf-margin-item')]
+      const marginClusters = [...document.querySelectorAll('.lf-margin-cluster')]
         .filter(node => node.checkVisibility());
       const marginRight = Math.max(0,
-        ...marginItems.map(node => node.getBoundingClientRect().right));
+        ...marginClusters.map(node => node.getBoundingClientRect().right));
       const measure = (value) => {
         const probe = document.createElement('i');
         probe.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden;height:0;padding:0;border:0;width:'
@@ -2549,7 +2549,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
           left: mb.left + parseFloat(ms.paddingLeft),
           right: mb.right - parseFloat(ms.paddingRight),
         },
-        marginCount: marginItems.length, marginRight,
+        marginCount: marginClusters.length, marginRight,
         viewportWidth: document.documentElement.clientWidth,
         exhibit: {left: eb.left, right: eb.right},
       };
@@ -2595,7 +2595,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
           const tray = document.querySelector('.lf-asks-panel').getBoundingClientRect();
           const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
           const toc = document.querySelector('lf-toc').getBoundingClientRect();
-          const line = document.querySelector('.lf-keyline').getBoundingClientRect();
+          const line = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
           return {trayRight: tray.right, sidebarLeft: sidebar.left, tocLeft: toc.left,
                   tocTop: toc.top, tocBottom: toc.bottom, lineTop: line.top,
                   sidebarPosition: getComputedStyle(document.querySelector('aside.sidebar')).position,
@@ -2607,7 +2607,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert workspace["sidebarLeft"] >= workspace["trayRight"] - 1
     assert abs(workspace["tocLeft"] - workspace["trayRight"] - 24) <= 1
     assert 64 <= workspace["tocTop"] <= 68
-    # The map is sized to the window rather than to the room left under the key line, so
+    # The map is sized to the window rather than to the room left under the shortcut bar, so
     # its foot is the window's less the banner and the inset. The line stands over its
     # last entry and this asserts that it does: the line is a hover here, and the map is
     # not one of the regions that ends above it (`lf-toc`'s rule carries the TODO).
@@ -2615,7 +2615,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         f"the map is no longer sized to the window: {workspace}"
     )
     assert workspace["lineTop"] < workspace["tocBottom"], (
-        f"the key line no longer stands over the map's foot, so the cutoff this page "
+        f"the shortcut bar no longer stands over the map's foot, so the cutoff this page "
         f"accepts has been closed somewhere without the TODO being settled: {workspace}"
     )
     page.locator(".lf-asks").click()

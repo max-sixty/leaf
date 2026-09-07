@@ -41,7 +41,6 @@ from render_support import (
     hold_selection,
     holding,
     in_threads_scrollport,
-    key_line,
     live_url,
     open_page,
     painted,
@@ -52,6 +51,7 @@ from render_support import (
     round_trip,
     sending,
     sent_events,
+    shortcut_bar_text,
     stamp_version_file,
     ticked,
     told,
@@ -582,7 +582,7 @@ def test_a_draft_wait_only_paints_after_the_shared_busy_delay(browser, serve):
     draft.locator("textarea").fill("A send held long enough to need progress paint.")
 
     # Sample on the CSS animation's own clock rather than racing wall time across a
-    # Playwright round trip. The host is the non-Button surface that owns aria-busy.
+    # Playwright round trip. The host is the surface without a margin element that owns aria-busy.
     frames = page.evaluate(
         """async () => {
           const el = document.getElementById('draft-ops');
@@ -2400,10 +2400,10 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     page, errors = open_page(browser, serve(LONG_PAGE))
     kept = "Half a sentence, and then the banner."
 
-    # Nothing written, nothing to return to: the chord does not offer the destination.
+    # Nothing written, nothing to return to: the sequence does not offer the destination.
     page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).to_contain_text("Threads panel")
-    assert "your draft" not in key_line(page)
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("Threads panel")
+    assert "your draft" not in shortcut_bar_text(page)
     page.keyboard.press("Escape")
 
     compose(page, "#p3", kept)
@@ -2418,7 +2418,7 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     assert notice.inner_text() == "Draft kept — g D returns to it"
 
     page.keyboard.press("g")
-    assert "your draft" in key_line(page)
+    assert "your draft" in shortcut_bar_text(page)
     page.keyboard.press("Shift+d")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_focused()
@@ -2468,7 +2468,7 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     notice = page.locator(".lf-notice")
     assert notice.inner_text() == "Draft kept — g D returns to it"
     page.keyboard.press("g")
-    assert "your draft" in key_line(page)
+    assert "your draft" in shortcut_bar_text(page)
     page.keyboard.press("Shift+d")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_have_value("")
@@ -2688,9 +2688,9 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     # state they can already see.
     history = draft.locator(".lf-draft-history > summary")
     history.focus()
-    expect(page.locator(".lf-keyline")).to_contain_text("show the history")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("show the history")
     history.click()
-    expect(page.locator(".lf-keyline")).to_contain_text("hide the history")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("hide the history")
 
     current_deleted = "".join(draft.locator(".lf-draft-current del").all_inner_texts())
     current_inserted = "".join(draft.locator(".lf-draft-current ins").all_inner_texts())
@@ -2992,7 +2992,7 @@ def test_registered_control_keys_activate_once(browser, serve):
 
 
 def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, serve):
-    """The document-level dispatcher owns a few single-character shortcuts, not the
+    """The document-level dispatcher owns a few character key shortcuts, not the
     keyboard. Space, arrows, Home/End, and PageUp/PageDown must still reach the browser
     when focus is in the authored page
     rather than a widget control.
@@ -3347,7 +3347,7 @@ def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
     list are the same at both presses; only where the focus stands changes. So the first
     press is the control that says the layout is beside — the reader stands on the page,
     outside the panel, and the document is theirs to step — and the second is the subject.
-    The address chord then supplies the neighboring
+    The address sequence then supplies the neighboring
     contrast: focus changes which region d/u page through, but `g g` still names the
     document's edge while both regions have somewhere observable to move."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
@@ -3448,7 +3448,7 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
     see that they had. So the door is the menu, where every base says which one it is.
 
     Pressed rather than read off the table, on both sides: a key bound to nothing looks
-    exactly like one that works in the ? overlay, which is how the removal would go
+    exactly like one that works in the shortcut reference dialog, which is how the removal would go
     unnoticed here and the marks would go unnoticed on the page."""
     url = serve(LONG_PAGE)
     _publish(
@@ -3458,9 +3458,9 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
         "reworded a paragraph",
     )
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
-    line = page.locator(".lf-keyline")
+    line = page.locator(".lf-shortcut-bar")
     # The door is a go-to destination rather than a bare letter, so the line names it
-    # once the chord is armed. The word that must not be anywhere is read behind that
+    # once the sequence is armed. The word that must not be anywhere is read behind that
     # arrival, so the absence is taken off a line the press has already repainted.
     page.keyboard.press("g")
     expect(line).to_contain_text("versions")

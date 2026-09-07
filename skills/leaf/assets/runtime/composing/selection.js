@@ -347,7 +347,7 @@ export function stepResponseOptions(binding) {
 
 // More has the same contract as a target's margin disclosure: replace the ellipsis
 // with the remaining local actions and keep the group's primary control in place.
-// The composer supplies a field instead of a primary Button, so it owns this layout
+// The composer supplies a field instead of a primary margin element, so it owns this layout
 // adapter rather than borrowing the margin's target aggregation and spill machinery.
 export function setResponseOptions(
   open,
@@ -601,7 +601,7 @@ export function openDraft(record = pendingComposer()) {
 // and unreachable, which is the same as lost for a reader who does not know where the
 // words went. A destination rather than a page letter: the page's alphabet is small, and
 // what this press does is travel to a passage and open the box standing on it, which is
-// what every other uppercase mnemonic in the chord does with its own workspace.
+// what every other uppercase mnemonic in the sequence does with its own workspace.
 //
 // Dead while the composer is up, because then the draft is already in front of the
 // reader and `c` is the press that enters it. Live off the stored record rather than

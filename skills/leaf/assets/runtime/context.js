@@ -14,6 +14,11 @@ export const runtime = {
   data: { revision: -1, sources: {} },
   events: [],
   lastEventSeq: -1,
+  // A chrome placement is moving a box the reader may be standing in, so the focus it
+  // takes off and hands straight back is the layer's own, not the reader going
+  // anywhere. Standing here rather than beside the one placer, because what has to know
+  // is every reader of where the reader stands.
+  placingChrome: false,
   reading: null,
   state: null,
   restoringState: false,

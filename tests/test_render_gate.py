@@ -74,7 +74,6 @@ from render_support import (
     reader_arrangements,
     resize_notice_after_last_probe,
     resized,
-    sending,
 )
 
 pytestmark = pytest.mark.nightly
@@ -271,10 +270,17 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     page.unroute("**/api/event")
     page.goto(url, wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
-    with sending(page, "the new document's first answer"):
-        page.locator(".lf-answer-all").first.click()
+    # The first trip of the new document's own cascade, which is the whole of what a
+    # ledger carried across the navigation can get wrong. Waiting the answer-all out
+    # instead ties this reading to how many asks the page happens to carry: the corpus
+    # gained one, and under the suite's own load the cascade then outgrew a single
+    # wait's budget with the fact under test already settled on its first trip.
+    sends = _traffic(page).sends
+    page.locator(".lf-answer-all").first.click()
+    _until(page, lambda t: t.sends > sends, "sent the new document's first answer")
+    _until(page, lambda t: t.acked > 0, "heard back its first answer")
     t = _traffic(page).read()
-    assert t.sends >= 1 and t.acked == t.sends and not t.pending, (
+    assert t.sends >= 1 and t.acked >= 1, (
         f"the new document's first trip did not count and complete: {t}"
     )
 

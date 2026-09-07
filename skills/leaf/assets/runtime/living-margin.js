@@ -805,7 +805,7 @@ function measureMargin(
   };
 }
 
-const mapButton = el("button", "lf-btn lf-page-map-toggle", "Map");
+export const mapButton = el("button", "lf-btn lf-page-map-toggle", "Map");
 mapButton.type = "button";
 mapButton.hidden = true;
 mapButton.title = "Open the page map";

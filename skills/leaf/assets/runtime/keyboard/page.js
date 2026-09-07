@@ -1390,9 +1390,10 @@ export function paintCoreControls() {
         if (!("lfKeyTitle" in control.dataset))
           control.dataset.lfKeyTitle = control.title;
         const active = live(row) && bindings(row).length > 0;
-        control.title =
-          control.dataset.lfKeyTitle +
-          (active ? ` (${controlShortcut(scope, row)})` : "");
+        const shortcut = controlShortcut(scope, row);
+        control.title = control.dataset.lfKeyTitle + (active ? ` (${shortcut})` : "");
+        if (active && scope.chord) control.dataset.lfChord = shortcut;
+        else delete control.dataset.lfChord;
         // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
         // alternatives. The complete chord remains in the visible hint and accessible
         // keyboard reference instead of claiming its final press works alone.

@@ -233,7 +233,10 @@ function sayAsks(completed, total) {
   const title = total
     ? `${completed} of ${total} asks answered — show or hide the list`
     : "Show or hide this page's asks";
-  if (asksBtn.title !== title) asksBtn.title = title;
+  if (asksBtn.dataset.lfKeyTitle !== title) {
+    asksBtn.dataset.lfKeyTitle = title;
+    asksBtn.title = title;
+  }
 }
 // The banner's reading of that one list. Refreshed from every signal that can change
 // it: a widget saying it has just taken an answer (lf-answered, which is also when the

@@ -30,8 +30,8 @@
    distinct overlapping actions remain distinct.
 
    Arming paints `data-lf-goto` on the body and one compact route over every candidate.
-   Its leading ellipsis says the chord is already in progress without repeating `g` at
-   every target; the key line and reference retain the complete route.
+   The route shows only the generated suffix; the key line and reference retain the
+   complete chord and therefore own its context.
    Generated hints are opaque routes, so none may be dropped for a collision; the shared
    hint placement pass spreads them around the key line and one another. Escape removes
    one typed letter, then a filter, then closes the mode. A letter from the hint alphabet is consumed
@@ -60,7 +60,7 @@ import { addressPlacement } from "./address-placement.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "./hints.js";
 import { keylineEl } from "./keyline.js";
 import { keySequence, progressStates } from "./presentation.js";
-import { banner } from "../banner.js";
+import { banner, toggleBtn } from "../banner.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { targetElement } from "../resolved-target.js";
 import { focusDestination, PRESSABLE } from "../widget-elements.js";
@@ -89,6 +89,8 @@ import {
   askRows,
   asksOffered,
   asksPanel,
+  asksBtn,
+  othersBtn,
   othersPanel,
   showTray,
 } from "../trays.js";
@@ -100,6 +102,7 @@ import {
   openPageMapButton,
   pageMapIsActive,
   pageMapButtons,
+  mapButton,
 } from "../living-margin.js";
 import { showThread } from "../conversation/landing.js";
 
@@ -213,6 +216,7 @@ const BUILTIN_DIRECT_DESTINATIONS = [
     key: "Shift+t",
     does: "Go to the Threads panel",
     line: "Threads panel",
+    control: () => toggleBtn,
     when: () => true,
     go: () => {
       const inline = activeInlineThread();
@@ -229,6 +233,7 @@ const BUILTIN_DIRECT_DESTINATIONS = [
     key: "Shift+a",
     does: "Go to the Asks panel",
     line: "Asks panel",
+    control: () => asksBtn,
     when: (...args) => asksOffered(...args),
     go: () => {
       showTray("asks");
@@ -241,6 +246,7 @@ const BUILTIN_DIRECT_DESTINATIONS = [
     key: "Shift+l",
     does: "Go to the All leaves panel",
     line: "All leaves panel",
+    control: () => othersBtn,
     when: (...args) => leavesOffered(...args),
     go: () => {
       showTray("leaves");
@@ -253,6 +259,7 @@ const BUILTIN_DIRECT_DESTINATIONS = [
     key: "Shift+m",
     does: "Go to the Page map",
     line: "Page map",
+    control: () => mapButton,
     when: () => true,
     go: (...args) => enterPageMap(...args),
     active: (...args) => pageMapIsActive(...args),
@@ -397,7 +404,6 @@ const addressChip = (candidate) => {
     candidate.member.dataset.lfMarginFor ||
     candidate.member.getAttribute("aria-controls");
   if (targetId) chip.dataset.lfAddressFor = targetId;
-  chip.append(el("span", "lf-chord-prefix", "…"));
   chip.append(keySequence(steps, progressStates(steps, prefix.length)));
   return chip;
 };
@@ -739,6 +745,7 @@ export const GO = {
         label: spell(destination.key),
         does: destination.does,
         line: destination.line,
+        control: destination.control,
         when: () => atTargetMenu() && destination.when(),
         returnFrame: () => {
           const workspace = workspaceState();

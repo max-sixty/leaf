@@ -127,11 +127,24 @@ class Demo {
 
   async load() {
     if (this.frameElement) {
+      // Loading a same-origin srcdoc can make its iframe the parent document's active
+      // element even though the illustrative frame is hidden from keyboard navigation.
+      // Keep the reader where they were; otherwise a page update during the demo load
+      // sends the next page-level shortcut into an inert specimen.
+      const focusBeforeLoad = document.activeElement;
+      const restoreParentFocus = () => {
+        if (
+          document.activeElement === this.frameElement &&
+          focusBeforeLoad?.isConnected
+        )
+          focusBeforeLoad.focus({ preventScroll: true });
+      };
       const loaded = new Promise((resolve) =>
         this.frameElement.addEventListener("load", resolve, { once: true }),
       );
       this.frameElement.srcdoc = frameSource(this.frameElement);
       await loaded;
+      restoreParentFocus();
       this.frameApi = await boundedRead(
         () => this.frameElement.contentWindow?.leafInteractionGalleryFrame,
         "the contained Leaf page did not expose its gallery adapter",
@@ -141,6 +154,7 @@ class Demo {
         "the contained Leaf page did not finish presenting",
       );
       await this.frameApi.ready;
+      restoreParentFocus();
       this.frameElement.dataset.interactionReady = "";
     }
     const modulePath = this.figure.dataset.interactionModule;

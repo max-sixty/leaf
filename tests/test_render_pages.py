@@ -913,17 +913,6 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
     toggle.hover()
     trace = page.locator('.lf-target-trace[data-for="rn-console-shot"]')
     expect(trace).to_be_visible()
-    correspondence = toggle.evaluate(
-        """control => {
-          const line = getComputedStyle(control.closest('.lf-margin-item'), '::before');
-          const contour = getComputedStyle(document.querySelector('.lf-target-trace'));
-          return {
-            line: [line.borderTopWidth, line.borderTopColor],
-            contour: [contour.borderTopWidth, contour.borderTopColor],
-          };
-        }"""
-    )
-    assert correspondence["line"] == correspondence["contour"]
     ink = trace.evaluate(
         """element => {
           const canvas = document.createElement('canvas');

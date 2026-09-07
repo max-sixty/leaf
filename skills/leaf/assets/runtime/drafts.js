@@ -60,7 +60,7 @@
    The comment over the store below says where it came from and why one record carries
    an edit's provenance. */
 
-import { runtime } from "./context.js";
+import { PENDING, runtime } from "./context.js";
 import { PAGE_SCOPE, draftStore } from "./storage.js";
 
 // ---------- draft persistence ----------
@@ -188,9 +188,18 @@ const refreshDraftRecord = (ctx) => {
   if (changed) projectDraftRecord(ctx, shared);
   return shared;
 };
+// A generation this document has sent as a message and not heard back on. Its words are
+// standing in the conversation, so the box they were written in reads empty — while the
+// record itself stands, unsettled, until the log accepts it. The two are different
+// facts: what a composer shows is about this document, and settlement is a claim over
+// every tab. That is what lets a second tab still show and send the same generation, and
+// what brings the words back here on a refusal with nothing to restore them from.
+const standingMessages = new Map(); // ctx -> attempt
+
 const activeDraftRecord = (ctx) => {
   const record = rawDraftRecord(ctx);
-  return record && !record.settled && !attemptAccepted(record.attempt) ? record : null;
+  if (!record || record.settled || attemptAccepted(record.attempt)) return null;
+  return standingMessages.get(ctx) === record.attempt ? null : record;
 };
 // Every tombstone is an ownership claim, whether it follows Send, Cancel, a widget
 // action, or a poll that observed the attempt in the log. Re-read shared storage before
@@ -280,8 +289,9 @@ export function settleAcceptedDrafts() {
 //
 // Attempt and exact untrimmed text are rechecked immediately before POST. A successful
 // older send settles only that generation; any later edit has a fresh attempt and remains
-// standing.
-export async function sendDraft(ctx, owns, send) {
+// standing. This is the claim both senders below make, and the only thing they share: a
+// send that no longer owns its generation appends nothing, whichever lifecycle it is in.
+function claimDraft(ctx, owns) {
   const before = activeDraftRecord(ctx);
   const refreshed = refreshDraftRecord(ctx);
   const current =
@@ -296,9 +306,48 @@ export async function sendDraft(ctx, owns, send) {
     !owns()
   )
     return null;
+  return current;
+}
+
+// A gesture whose result only the log can supply: a widget edit, an added option. The
+// draft stands until the answer accepts it, so a refusal leaves the reader's text exactly
+// where it was, and the caller waits on the answer with `aria-busy` on its own control.
+export async function sendDraft(ctx, owns, send) {
+  const current = claimDraft(ctx, owns);
+  if (!current) return null;
   const sent = await send(current.attempt, current.payload);
   if (sent && settleDraft(ctx, current.attempt)) tellDraft(ctx, null);
   return sent;
+}
+
+// A message, whose result is the words themselves. `post` stages and paints it before it
+// returns, so the caller continues against a thread the reader can already see and the
+// round trip happens behind them. The generation settles on acceptance, exactly as
+// above; what happens in the gesture is that this document stops showing words it is now
+// showing in the thread. A refusal lifts that and the box has them again.
+//
+// The returned handle names the message the send drew. It is what a caller opens or
+// focuses, and the log's answer renames that same node rather than replacing it.
+export function sendMessage(ctx, owns, send) {
+  const current = claimDraft(ctx, owns);
+  if (!current) return null;
+  const flight = send(current.attempt, current.payload);
+  standingMessages.set(ctx, current.attempt);
+  tellDraft(ctx, null);
+  void Promise.resolve(flight).then((sent) => {
+    standingMessages.delete(ctx);
+    if (sent) {
+      if (settleDraft(ctx, current.attempt)) tellDraft(ctx, null);
+      return;
+    }
+    // Refused, so the words are the reader's again — written back to the store rather
+    // than only told to the boxes, since the one they were typed in may have gone down
+    // with the send and a reload must still find them. A later edit of their own has a
+    // fresh attempt and is not this generation, and keeps the box.
+    if (rawDraftRecord(ctx)?.attempt !== current.attempt) return;
+    tellDraft(ctx, current.text);
+  });
+  return { attempt: current.attempt, id: `${PENDING}${current.attempt}` };
 }
 
 // A draft written in another view, routed to whatever is showing it here. The document is

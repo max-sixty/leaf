@@ -8,60 +8,40 @@
    The send focuses the reply box only when no later selection, edit, or typing gesture
    stands. */
 import { heldConversation, revealConversation } from "./landing.js";
-import { loadDraft, mirrorDraft, saveDraft, sendDraft, tellDraft } from "../drafts.js";
+import {
+  loadDraft,
+  mirrorDraft,
+  saveDraft,
+  sendMessage,
+  tellDraft,
+} from "../drafts.js";
 import { post } from "../outbox.js";
+import { threadKey } from "./model.js";
 import { runtime } from "../context.js";
 import { wireInput } from "../composing/input.js";
 import { focused } from "../keyboard/scopes.js";
 import { landTyping, mayLandTyping } from "../composing/capture.js";
 
-// A thread has one send in flight even though its reply draft may have several views.
-// wireInput's private hold is still the right scope for every other composer, which has
-// one control; a reply adds this thread-scoped hold and announces it on the document bus
-// so every Send control renders the same fact. The promise is the post itself, because a queue would
-// serialize the duplicate rather than refuse it.
-const REPLY_FLIGHT_NEWS = "lf-reply-flight";
 const REPLY_DRAFT_CONTEXT = Symbol("reply draft context");
-const replyFlights = new Map(); // thread id -> post in flight
-const replyBusy = (id) => replyFlights.has(id);
-const tellReplyFlight = (id) =>
-  document.dispatchEvent(new CustomEvent(REPLY_FLIGHT_NEWS, { detail: { id } }));
 
-function mirrorReplyFlight(ta, sync, id) {
-  const update = (ev) => {
-    if (ev.detail.id !== id) return;
-    if (!ta.isConnected) return document.removeEventListener(REPLY_FLIGHT_NEWS, update);
-    sync();
-  };
-  document.addEventListener(REPLY_FLIGHT_NEWS, update);
-}
-
-async function sendReply(t, text, raw, owns) {
-  const id = t.root.id;
-  if (replyBusy(id)) return null;
-  const draftCtx = "reply:" + id;
-  const flight = sendDraft(draftCtx, owns, (attempt) =>
+// A thread's reply draft has several views, and sending settles that draft in the
+// gesture that sends it. A second view pressing Send afterwards reads the generation as
+// spent and refuses on its own — in this tab and in any other showing the page, which is
+// further than a hold kept in this document's memory reached.
+const sendReply = (t, liveId, text, raw, owns) =>
+  sendMessage("reply:" + threadKey(t), owns, (attempt) =>
     post({
       kind: "reply",
-      parent: id,
+      parent: liveId(),
       revision: runtime.currentRevision,
       text,
       attempt,
     }),
   );
-  replyFlights.set(id, flight);
-  tellReplyFlight(id);
-  try {
-    return await flight;
-  } finally {
-    replyFlights.delete(id);
-    tellReplyFlight(id);
-  }
-}
 
 // One reply draft, send, and typing continuation across every view of a thread.
-export function wireReply(t, input, send) {
-  const draftCtx = "reply:" + t.root.id;
+export function wireReply(t, input, send, liveId = () => t.root.id) {
+  const draftCtx = "reply:" + threadKey(t);
   input[REPLY_DRAFT_CONTEXT] = draftCtx;
   input.value = loadDraft(draftCtx) ?? "";
   const sync = wireInput(input, {
@@ -69,7 +49,6 @@ export function wireReply(t, input, send) {
     accessibleName: "Reply",
     sends: "send",
     sendBtn: send,
-    busy: () => replyBusy(t.root.id),
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
     // reply boxes are views of one draft here, so they take the same bus directly.
     // Other draft kinds still have one view per document.
@@ -95,7 +74,7 @@ export function wireReply(t, input, send) {
         listening,
       );
       try {
-        const sent = await sendReply(t, text, raw, owns);
+        const sent = await sendReply(t, liveId, text, raw, owns);
         if (
           !sent ||
           continuation.signal.aborted ||
@@ -125,7 +104,6 @@ export function wireReply(t, input, send) {
     if (held) revealConversation(held, input, "instant");
   });
   mirrorDraft(input, sync, draftCtx);
-  mirrorReplyFlight(input, sync, t.root.id);
   return sync;
 }
 

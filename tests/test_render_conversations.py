@@ -1289,11 +1289,10 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
         browser,
         url,
         init_script="""(() => {
-          const counts = window.__replyListeners = {drafts: 0, flights: 0};
+          const counts = window.__replyListeners = {drafts: 0};
           const add = Document.prototype.addEventListener;
           Document.prototype.addEventListener = function(type, ...args) {
             if (this === document && type === "lf-drafts") counts.drafts += 1;
-            if (this === document && type === "lf-reply-flight") counts.flights += 1;
             return add.call(this, type, ...args);
           };
           const define = customElements.define.bind(customElements);

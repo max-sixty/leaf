@@ -302,6 +302,7 @@ import {
 } from "./anchors.js";
 import { updateSequence, workClaimState } from "./updates.js";
 import { threadList } from "./conversation/reconcile.js";
+import { threadKey } from "./conversation/model.js";
 import { openAsks } from "./asks/model.js";
 import { goToAsk } from "./asks/view.js";
 import { stateProjection } from "./projection/fold.js";
@@ -717,7 +718,7 @@ function targetPath(target) {
   const prefix = root instanceof ShadowRoot ? `${targetPath(root.host)}/shadow/` : "";
   if (target.id) return `${prefix}id:${target.id}`;
   const steps = [];
-  for (let node = target; node;) {
+  for (let node = target; node; ) {
     const parent =
       node.parentElement ??
       (node.parentNode instanceof ShadowRoot ? node.parentNode : null);
@@ -745,7 +746,7 @@ function comesBefore(left, right) {
   // tree from a later target inside one of its nested shadow hosts.
   const ancestry = (target) => {
     const chain = [];
-    for (let node = target; node;) {
+    for (let node = target; node; ) {
       chain.push(node);
       node =
         node.assignedSlot ?? node.parentElement ?? node.getRootNode()?.host ?? null;
@@ -1374,6 +1375,8 @@ function acknowledgmentFace(receipt) {
   return { kind: "sent", text: "Sent", context: age };
 }
 
+const marginThreadItem = (thread) => (thread ? `comment:${threadKey(thread)}` : null);
+
 function collectEntries() {
   const groups = new Map();
   const receiptByCoordinate = new Map();
@@ -1385,7 +1388,11 @@ function collectEntries() {
     const id = thread.root.id;
     add(groups, placedAt(id)?.element, {
       kind: "comment",
-      id: `comment:${id}`,
+      // One row for one conversation, across the log answering for it. A thread the
+      // reader just opened is known by its attempt until the log names it, and a row
+      // whose identity changed there would be rebuilt — taking with it the reply box
+      // the send had just put them in.
+      id: marginThreadItem(thread),
       text: trimmed(thread.root.text || anchorLabel(thread.anchor, thread.root.about)),
       thread,
       activate: () => showThread(id),
@@ -2893,7 +2900,7 @@ function openThreadChoice(entry, button) {
 }
 
 export function openInlineThread(id, transition = null) {
-  const itemId = `comment:${id}`;
+  const itemId = marginThreadItem(threadList().find((t) => t.root.id === id));
   const entry = pageMapEntries.find((candidate) =>
     candidate.items.some((item) => item.id === itemId),
   );

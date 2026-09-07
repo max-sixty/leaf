@@ -910,6 +910,209 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     page.close()
 
 
+def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serve):
+    """The words move from the box into the conversation in the gesture that sends them.
+
+    Held rather than raced: the window is one request's flight, and what these
+    assertions describe lasts exactly that long. The marked node is what the release is
+    read by. A card drawn again under the server's id would look the same and pass every
+    assertion about words on a screen, so the mark is the only thing that can tell an
+    adopted card from an identical replacement — and the difference is a reader's place
+    in the one they were already standing in.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    box = page.locator(".lf-general textarea")
+    words = "The comment the reader can already see."
+    box.fill(words)
+    before = page.locator(".lf-threads > .lf-thread").count()
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.locator(".lf-general button").click()
+    holding(page, held, 1, "the general send")
+
+    pending = page.locator('.lf-thread[data-id^="pending:"]')
+    expect(pending).to_have_count(1)
+    expect(pending.locator(".lf-msg")).to_contain_text(words)
+    expect(pending.locator(".lf-msg")).to_have_attribute("aria-busy", "true")
+    expect(box).to_have_value("")
+    assert not [
+        event for event in sent_events(serve.page_dir) if event.get("text") == words
+    ]
+    page.evaluate(
+        """() => {
+          const card = document.querySelector('.lf-thread[data-id^="pending:"]');
+          card.dataset.probe = "kept";
+        }"""
+    )
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(before + 1)
+    expect(pending).to_have_count(0)
+    kept = page.locator('.lf-thread[data-probe="kept"]')
+    expect(kept).to_have_count(1)
+    expect(kept.locator(".lf-msg")).not_to_have_attribute("aria-busy", "true")
+    roots = [
+        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+    ]
+    assert [event["text"] for event in roots] == [words]
+    assert errors == []
+    page.close()
+
+
+def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
+    held_events, serve
+):
+    """The composer goes down with the send, so a refusal has to put the words back in
+    the store rather than in whatever box was on screen — the one they were typed in has
+    gone with the thread they went to."""
+    browser, held = held_events
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    words = "The selection comment the server will refuse."
+    compose(page, "#p3", words)
+    page.keyboard.press("ControlOrMeta+Enter")
+    holding(page, held, 1, "the selection comment")
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
+
+    # Their passage still holds their draft, so opening it again finds the words.
+    compose(page, "#p3")
+    expect(page.locator(".lf-composer textarea")).to_have_value(words)
+    assert not [
+        event for event in sent_events(serve.page_dir) if event.get("text") == words
+    ]
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
+    held_events, serve
+):
+    """A gesture against a message the log refused has nothing left to be about. It
+    never reaches the wire under a name only this page used, and its own words go back
+    to the box they were written in."""
+    browser, held = held_events
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-general textarea").fill("The parent the server will refuse.")
+    page.locator(".lf-general button").click()
+    holding(page, held, 1, "the parent send")
+
+    card = page.locator('.lf-thread[data-id^="pending:"]')
+    expect(card).to_have_count(1)
+    words = "A reply behind a parent that never lands."
+    card.locator("textarea").first.fill(words)
+    card.get_by_role("button", name="Send", exact=True).click()
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    round_trip(page)
+    expect(card).to_have_count(0)
+    assert not [
+        route for route in held if "pending:" in (route.request.post_data or "")
+    ], "a gesture reached the wire naming a thread the log never took"
+    # The reply's draft keys by its thread's stable name, which is the parent's attempt.
+    assert page.evaluate(STORED_DRAFT_TEXT, f"reply:{attempt}") == words
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(held_events, serve):
+    """A reply joins the conversation it answers without waiting for the round trip."""
+    browser, held = held_events
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread_id = page.locator(".lf-threads > .lf-thread").first.get_attribute("data-id")
+    thread = page.locator(f'.lf-thread[data-id="{thread_id}"]')
+    words = "The reply the reader can already see."
+    thread.locator("textarea").fill(words)
+    before = thread.locator(".lf-msg").count()
+
+    thread.get_by_role("button", name="Send", exact=True).click()
+    holding(page, held, 1, "the reply send")
+
+    expect(thread.locator(".lf-msg")).to_have_count(before + 1)
+    expect(thread.locator(".lf-msg").last).to_contain_text(words)
+    expect(thread.locator(".lf-msg").last).to_have_attribute("aria-busy", "true")
+    expect(thread.locator("textarea")).to_have_value("")
+
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(thread.locator(".lf-msg")).to_have_count(before + 1)
+    expect(thread.locator(".lf-msg").last).not_to_have_attribute("aria-busy", "true")
+    replies = [
+        event for event in sent_events(serve.page_dir) if event["kind"] == "reply"
+    ]
+    assert [event["text"] for event in replies] == [words]
+    assert errors == []
+    page.close()
+
+
+def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
+    held_events, serve
+):
+    """A refusal leaves nothing standing and the words back where they were written."""
+    browser, held = held_events
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    box = page.locator(".lf-general textarea")
+    words = "The comment the server will refuse."
+    box.fill(words)
+    before = page.locator(".lf-threads > .lf-thread").count()
+    page.locator(".lf-general button").click()
+    holding(page, held, 1, "the general send")
+    expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_count(1)
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_count(0)
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(before)
+    expect(box).to_have_value(words)
+    expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
+    assert page.evaluate(STORED_DRAFT_TEXT, "general") == words
+    assert not [
+        event for event in sent_events(serve.page_dir) if event.get("text") == words
+    ]
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
 @pytest.mark.parametrize("same_thread", [False, True])
 def test_a_held_reply_send_leaves_a_later_reply_box_focused(
     held_events, serve, same_thread
@@ -1066,7 +1269,11 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    later_id = page.locator(".lf-threads > .lf-thread").first.get_attribute("data-id")
+    # Another thread than the one in flight: that one's card is in this list too now,
+    # standing for the comment while the log answers for it.
+    later_id = page.locator(
+        '.lf-threads > .lf-thread:not([data-id^="pending:"])'
+    ).first.get_attribute("data-id")
     later = page.locator(f'.lf-thread[data-id="{later_id}"] textarea')
     later.fill("The later reply keeps the reader here.")
     later.evaluate("ta => ta.setSelectionRange(9, 9)")
@@ -1165,7 +1372,9 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
 
     reply.fill("A thought I changed my mind about.")
     reply.fill("")
-    assert page.evaluate(STORED_DRAFT_TEXT, f"reply:{sent['id']}") == ""
+    # A thread's reply draft is keyed by the name the log's answer does not change —
+    # the attempt the reader's own comment opened it with (conversation/model.js).
+    assert page.evaluate(STORED_DRAFT_TEXT, f"reply:{sent['attempt']}") == ""
     v3 = v2.replace(
         "A revised short second passage.", "A twice-revised short second passage."
     )
@@ -1531,6 +1740,8 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
     expect(inline).to_have_value(newer_raw)
     expect(panel.locator("textarea")).to_have_value(newer_raw)
     expect(second_inline).to_have_value(newer_raw)
+    # This root was appended by the agent, so it carries no attempt and its reply draft
+    # keys by the id, which for such a thread never changes either.
     assert first.evaluate(STORED_DRAFT_TEXT, f"reply:{root['id']}") == newer_raw
     replies = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "reply"
@@ -1565,7 +1776,9 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     refuse(held[0])
     first.unroute("**/api/event")
     round_trip(first)
-    expect(first.locator(".lf-notice")).to_contain_text("Message sent")
+    # The words standing in the seat's own conversation are what says the send landed;
+    # a notice saying so beside them would be the same acknowledgement twice.
+    expect(first.locator("#jobs > .lf-conversation")).to_contain_text(raw.strip())
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
@@ -2034,17 +2247,22 @@ def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_re
 
 
 def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, serve):
-    """A selection send owns one serialized composer generation, not its box."""
+    """A selection send owns one composer generation, not the passage.
+
+    The send takes its own words with it — they stand in the thread it drew before the
+    log has answered — and the composer opened again on that passage holds a generation
+    of its own, which the older answer must not settle."""
     browser, held = held_events
     page, errors = open_page(browser, serve(LONG_PAGE))
     old = "The selected passage needs this first comment."
     newer = "  A newer selection comment remains in the composer.  "
     compose(page, "#p3", old)
-    box = page.locator(".lf-composer textarea")
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the selection comment")
-    box.fill(newer)
+    expect(page.locator("[data-attempt]").first).to_contain_text(old)
 
+    compose(page, "#p3", newer)
+    box = page.locator(".lf-composer textarea")
     held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)

@@ -190,9 +190,10 @@ conversion from viewport boxes to document-positioned chrome;
 `runtime/navigation.js` owns reader travel and scroller selection;
 `runtime/anchors.js` owns anchor resolution, paint, anchor-specific travel, and
 cross-widget projected-datum travel;
-`runtime/conversation/model.js` adapts server-projected threads to browser callers;
+`runtime/conversation/model.js` adapts server-projected threads to browser callers,
+and folds the reader's unread messages into them from the outbox;
 `runtime/conversation/messages.js` owns message rendering;
-`runtime/conversation/replies.js` owns reply drafts, mirrored send state, and delivery;
+`runtime/conversation/replies.js` owns reply drafts and delivery;
 `runtime/conversation/inline.js` owns conversation seats rendered into the page;
 `runtime/conversation/box.js` owns page-seated first-message boxes;
 `runtime/conversation/folding.js` owns shared Resolve/Reopen controls and resolution-fold
@@ -238,6 +239,7 @@ Each mutable fact has one writer:
 | the reading the page has applied | the server's `/api/state` answer | `receiveState` writes `runtime.reading` and paints `data-lf-reading` |
 | unresolved browser work | the ordered `outbox` | `post` adds, `accountOutbox` and `releaseProjectedOutbox` remove |
 | rendered semantic state | authored state, log projection, then outbox overlay | `reconcileState` |
+| rendered conversation | the server's thread projection, then the outbox's unread messages | `buildThreads` |
 | proof of what the DOM currently represents | `committedProjection` | `stageOutboxAction` and `reconcileState` |
 | anchor paint | thread and composer anchor records | `paintAnchors` |
 | where each thread's passage lands | this version's resolution of its anchor | `paintAnchors` writes a rich `placed` record with its element, exact datum, and exact/fallback/outdated status |
@@ -502,16 +504,18 @@ control. When a control's meaning genuinely changes, `reserve` measures all enum
 labels in its current font and sets a minimum width. Re-measure after changing type
 tokens; avoid numeric reservations where the possible words are available.
 
-Submission feedback uses the shared lifecycle: busy paint while delivery is
-unresolved, the resulting content or control state as durable confirmation, and
-`notice` for a transient acknowledgment. Persistent status text is for a state the
-reader must return to or act on, such as failure.
+Submission feedback uses the shared lifecycle: the result of the gesture as durable
+confirmation, and `notice` for a transient acknowledgment. Persistent status text is for
+a state the reader must return to or act on, such as failure.
 
-A suggestion decision is the exception: it paints its projected result in the gesture
-that queues it, and the outbox keeps that result ahead of the log and restores
-authoritative state on refusal. The resulting content and Undo control are that durable
-visual confirmation, so this path needs no success notice; announce the same decision
-for a reader listening to the page.
+Where the page can produce that result itself, it produces it in the gesture. A
+suggestion decision paints its projected outcome; a comment or reply paints the message
+and opens its thread. The outbox keeps the result ahead of the log and restores
+authoritative state on refusal. The content and its Undo control are the confirmation,
+so neither path needs a success notice; announce the same outcome for a reader listening
+to the page. A gesture whose result only the log can supply waits instead, with
+`aria-busy` on the surface, which `chrome.css` paints on a delay so a fast answer shows
+nothing at all.
 
 ## Keyboard, focus, and navigation
 

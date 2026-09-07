@@ -15,7 +15,7 @@
    reveal authored disclosures and tabs. `paintAnchors` marks a link detached when this
    version no longer has the id and refuses its press. A thread outlives its version,
    but a fragment target may not. */
-import { loadMarkdown, renderMarkdown } from "../markdown.js";
+import { loadMarkdown, markdownReady, renderMarkdown } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
 import { el } from "../widget-elements.js";
 import { isReaction, tokenEntry } from "./model.js";
@@ -115,16 +115,37 @@ function buildMsgBody(m) {
     // waits. Each block already fails soft to its own plain source.
     highlightBlocks(body);
   }
-  return { body, revision: m.edited?.id ?? "", text };
+  return { body, revision: bodyRevision(m), text };
 }
 
+// The reader's own message is rendered once, under the attempt both its pending record
+// and the server's event carry, so the body drawn in the gesture is the body still
+// standing when the log answers — the same words, not a second rendering of them. Every
+// other message keys by its server-minted id.
+const bodyKey = (m) => m.attempt ?? m.id;
+
+// What a cached body was painted from: the prose revision, and whether the renderer had
+// arrived. A message the reader sends paints in their gesture, and the lazy Markdown
+// import it needs may still be in the wire — so the first painting can be escaped
+// source, which is the right thing to show and the wrong thing to keep. Reading the
+// renderer's state into the key gives those words their Markdown on the next render.
+const bodyRevision = (m) => `${m.edited?.id ?? ""}:${markdownReady() ? "md" : "raw"}`;
+
+// The node already standing for this message, found by its id or, while the log is still
+// answering, by that same attempt.
+export const msgNodeIn = (parent, m) =>
+  parent.querySelector(`:scope > .lf-msg[data-mid="${m.id}"]`) ??
+  (m.attempt
+    ? parent.querySelector(`:scope > .lf-msg[data-attempt="${m.attempt}"]`)
+    : null);
+
 function msgBody(m) {
-  let rendered = msgBodies.get(m.id);
+  let rendered = msgBodies.get(bodyKey(m));
   if (!rendered) {
     rendered = buildMsgBody(m);
-    msgBodies.set(m.id, rendered); // the id is server-minted, on every message event
+    msgBodies.set(bodyKey(m), rendered);
   }
-  const revision = m.edited?.id ?? "";
+  const revision = bodyRevision(m);
   if (rendered.revision !== revision) {
     paintMsgText(rendered.text, m);
     if (!m.suggestion) highlightBlocks(rendered.text);
@@ -147,6 +168,13 @@ export function syncEdited(head, m) {
 }
 
 export function syncMsgNode(div, m) {
+  // The log answering for a pending message renames this node rather than replacing it,
+  // so the reader's words keep their place, and anything standing in them keeps it too.
+  // `aria-busy` is the whole difference the reader can see, and the delayed rule in
+  // chrome.css means a send the log takes at once never shows it at all.
+  if (div.dataset.mid !== m.id) div.dataset.mid = m.id;
+  if (m.pending) div.setAttribute("aria-busy", "true");
+  else div.removeAttribute("aria-busy");
   const head = div.querySelector(":scope > .lf-msg-head");
   const when = head.querySelector(":scope > time");
   const said = ago(m.ts);
@@ -161,6 +189,9 @@ export function msgNode(m) {
   const div = el("div", `lf-msg ${m.author}`);
   div.tabIndex = -1;
   div.dataset.mid = m.id; // the reconcile's key and direct-navigation address
+  // The reader's own gesture, named so the log's answer can find this node again.
+  if (m.attempt) div.dataset.attempt = m.attempt;
+  if (m.pending) div.setAttribute("aria-busy", "true");
   const head = el("div", "lf-msg-head");
   // "3 hours ago" is not a datetime, so the machine-readable one goes in the attribute
   // the element has for it — which is also what `saidAt` reads back when a widget the

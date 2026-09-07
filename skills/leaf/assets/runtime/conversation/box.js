@@ -1,7 +1,7 @@
 /* This module owns page-seated first-message boxes: the conversation a widget declares
  * through `x-conversation`, built by `conversationBox`. */
 import { runtime } from "../context.js";
-import { loadDraft, saveDraft, sendDraft, watchDraft } from "../drafts.js";
+import { loadDraft, saveDraft, sendMessage, watchDraft } from "../drafts.js";
 import { inChrome } from "../passages.js";
 import { matchesWhen, registry } from "../registry.js";
 import { offer, quoted } from "../widget-elements.js";
@@ -30,7 +30,7 @@ export const conversationBox = (el, hint) => {
   ta.setAttribute("aria-label", hint);
   row.append(ta, send, ...(hold ? [hold] : []));
   const sendComment = (text, raw, owns, holds = false) =>
-    sendDraft(ctx, owns, (attempt) =>
+    sendMessage(ctx, owns, (attempt) =>
       post({
         kind: "comment",
         revision: runtime.currentRevision,
@@ -47,14 +47,15 @@ export const conversationBox = (el, hint) => {
     sendBtn: send,
     altBtn: hold,
     save: (value) => saveDraft(ctx, value),
-    send: async (text, raw, owns) => {
-      if (!(await sendComment(text, raw, owns))) return;
-      notice("Message sent");
+    // The message stands in the seat's own conversation the moment it is sent, and that
+    // is the acknowledgement; a notice saying the same thing would be a second one. The
+    // hold button still says what its press did beyond sending.
+    send: (text, raw, owns) => {
+      sendComment(text, raw, owns);
     },
     altSend: hold
-      ? async (text, raw, owns) => {
-          if (!(await sendComment(text, raw, owns, true))) return;
-          notice("Message sent — goal paused");
+      ? (text, raw, owns) => {
+          if (sendComment(text, raw, owns, true)) notice("Goal paused");
         }
       : null,
   });

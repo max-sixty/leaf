@@ -227,36 +227,80 @@ export function startFeed(present, initialRead = beginRead()) {
   // dropped stream is a prompt to ask, not a verdict. Coming back after a silence, the
   // page asks if its last read failed, since whatever it is showing about the server
   // is from before the silence.
+  // A visible tab is the reader lease for its server-side page. The stream itself is
+  // that lease: while any tab for a browser session is visible, at least one incoming
+  // request keeps its shared container active. Hidden tabs close their streams, so the
+  // container's ordinary idle timeout begins after the last visible tab leaves without
+  // trusting an unload signal the browser may never deliver.
+  //
+  // Visibility, rather than `window.focus`, is the boundary. A page remains useful in
+  // split-screen or while its developer tools have focus, and the platform aggregates
+  // multiple tabs naturally: each tab owns only its own stream.
+  const pageIsVisible = () => document.visibilityState !== "hidden";
+  let feedStarted = false;
+  let news = null;
+  let quiet = null;
+  let reopen = null;
+  const stopListening = () => {
+    clearTimeout(quiet);
+    clearTimeout(reopen);
+    quiet = null;
+    reopen = null;
+    const openNews = news;
+    news = null;
+    openNews?.close();
+  };
   const listen = () => {
-    const news = new EventSource("/api/news");
-    let quiet;
+    if (!feedStarted || !pageIsVisible() || news) return;
+    const opened = new EventSource("/api/news");
+    news = opened;
     const alive = () => {
+      if (news !== opened || !pageIsVisible()) return;
       clearTimeout(quiet);
       quiet = setTimeout(() => {
-        news.close();
+        if (news !== opened || !pageIsVisible()) return;
+        stopListening();
         listen();
       }, SILENCE_MS);
     };
-    news.addEventListener("open", () => {
+    opened.addEventListener("open", () => {
       alive();
       if (!readAnswered) void ask();
     });
-    news.addEventListener("message", (event) => {
+    opened.addEventListener("message", (event) => {
       alive();
       if (event.data !== runtime.reading) void ask();
     });
-    news.addEventListener("error", () => {
+    opened.addEventListener("error", () => {
+      if (news !== opened) return;
       clearTimeout(quiet);
-      if (news.readyState === EventSource.CLOSED) setTimeout(listen, RETRY_MS);
+      quiet = null;
+      if (!pageIsVisible()) {
+        stopListening();
+        return;
+      }
+      if (opened.readyState === EventSource.CLOSED) {
+        news = null;
+        reopen = setTimeout(() => {
+          reopen = null;
+          listen();
+        }, RETRY_MS);
+      }
       void ask();
     });
   };
+  document.addEventListener("visibilitychange", () => {
+    if (pageIsVisible()) listen();
+    else stopListening();
+  });
   // Presentation waits on the first read, and the ear opens after it: the page then
   // holds a reading for the stream's first word to be compared with, so an unchanged
   // page is not asked for twice.
   readAndPresent().finally(() => {
+    feedStarted = true;
     // One shared clock serves temporal paint, deferred work, and failed reads.
     setInterval(() => {
+      if (!pageIsVisible()) return;
       if (readAnswered && activityTransitionDue(runtime.state)) void ask();
       else if (readAnswered) void heartbeat();
       else void ask();

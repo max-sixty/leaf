@@ -3315,6 +3315,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     expect(second.locator("#card-importer")).to_have_attribute(
         "data-lf-reader-override", "1"
     )
+    expect(second.locator("#card-importer > .lf-quiet")).to_have_text("your change")
     expect(
         second.get_by_role(
             "button",
@@ -3365,6 +3366,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     expect(third.locator("#card-importer")).not_to_have_attribute(
         "data-lf-reader-override", "1"
     )
+    expect(third.locator("#card-importer > .lf-quiet")).to_have_count(0)
     expect(
         third.get_by_role("button", name="Move: Wire the importer — Done", exact=True)
     ).to_be_visible()

@@ -2737,10 +2737,12 @@ function renderNow() {
         )
       : null,
   );
-  pageMapEntries.forEach((entry, index) => {
+  const walked = pageMapEntries
+    .map((entry, index) => ({ entry, position: positions[index] }))
+    .filter(({ entry }) => entryHasMarginHost(entry));
+  walked.forEach(({ entry, position }, index) => {
     const marker = rows.get(entry.key);
-    if (!marker) return;
-    const name = markerName(entry, index, pageMapEntries.length, positions[index]);
+    const name = markerName(entry, index, walked.length, position);
     keeps(marker, "aria-label", name);
   });
   const mapSays = `Map (${pageMapEntries.length})`;

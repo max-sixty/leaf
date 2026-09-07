@@ -592,8 +592,8 @@ export function reconcileState() {
           .map((animation) => animation.finished),
       ).then(() => pageShifted());
     }
-    renderQuiet(document.body);
-    paintStateOrigins(projection);
+    const originTargets = paintStateOrigins(projection);
+    renderQuiet(document.body, originTargets);
     document.body.setAttribute(
       PAGE_PAINT_ATTRIBUTE.applied,
       String(projectionCoverage(projection)),
@@ -618,8 +618,9 @@ export function reconcileKnownState() {
 }
 
 // Mark effective state supplied by the log instead of authored markup. These
-// outlines describe its origin; processing and completion belong to work
-// receipts. A decided suggestion remains reader-owned while its wrapper stands.
+// attributes carry origin into Page map, quiet target words, and standalone copies;
+// processing and completion belong to work receipts. A decided suggestion remains
+// reader-owned while its wrapper stands.
 function paintStateOrigins(projection) {
   const marks = new Map(
     [PAGE_PAINT_ATTRIBUTE.readerOverride, PAGE_PAINT_ATTRIBUTE.reported].map((attr) => [
@@ -637,10 +638,16 @@ function paintStateOrigins(projection) {
         : PAGE_PAINT_ATTRIBUTE.reported;
     marks.get(attr).add(el);
   }
+  const touched = new Set();
   for (const [attr, wanted] of marks) {
-    for (const el of pageQueryAll(`[${attr}]`))
+    for (const el of pageQueryAll(`[${attr}]`)) {
+      touched.add(el);
       if (!wanted.has(el)) el.removeAttribute(attr);
-    for (const el of wanted)
+    }
+    for (const el of wanted) {
+      touched.add(el);
       if (el.getAttribute(attr) !== "1") el.setAttribute(attr, "1");
+    }
   }
+  return touched;
 }

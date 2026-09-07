@@ -22,6 +22,7 @@ from render_support import (
     GENERIC_VISUAL_PAGE,
     GENERIC_VISUAL_WIDGETS,
     PANEL_PAGE,
+    REPORT_PAGE,
     SUGGESTION_PAGE,
     _publish,
     _traffic,
@@ -2476,6 +2477,38 @@ def test_a_buttons_walk_position_stays_out_of_its_visible_word(browser, serve):
         assert "percent down" in button["name"], button
     for button in buttons:
         assert not re.search(r"\d+ of \d+|percent down", button["word"]), button
+
+    assert errors == []
+    page.close()
+
+
+def test_page_map_only_origins_do_not_count_as_margin_buttons(browser, serve):
+    """Page map includes durable provenance even when the margin has no Button for it.
+
+    A reader listening to the margin walk hears only the Buttons they can visit. The
+    Page-map count remains the count of every mapped target, including provenance-only
+    locations.
+    """
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Check the squirrel baffle fit.",
+        "anchor": {"section": "t-parser"},
+    }
+    url = serve(REPORT_PAGE, events=[comment])
+    sent = CliRunner().invoke(
+        cli_model.cli,
+        ["report", str(serve.page_dir), "t-mounts", "status", "status=active"],
+    )
+    assert sent.exit_code == 0, sent.output
+
+    page, errors = open_page(browser, url)
+    resized(page, 1440, 900)
+    marker = page.locator('[data-lf-margin-for="t-parser"] > .lf-margin-marker')
+    expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, 1 of 1,"))
+    expect(page.locator('[data-lf-margin-for="t-mounts"]')).to_have_count(0)
+    expect(page.get_by_role("navigation", name="Page map, 2 locations")).to_be_visible()
 
     assert errors == []
     page.close()

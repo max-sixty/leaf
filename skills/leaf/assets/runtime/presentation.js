@@ -25,7 +25,7 @@
    behavior, the layer implements it once. Current examples are:
 
    - `renderSaid` turns `x-says` values into real selectable text.
-   - `renderQuiet` gives `x-paints` facts a clipped spoken reading.
+   - `renderQuiet` gives `x-paints` facts and state provenance a clipped spoken reading.
    - `markDeclared` exposes the declared width model, inline run, and quoting to the
      theme.
    - `renderSettlement` (projection.js) paints the holder's authoritative settlement.
@@ -59,10 +59,10 @@
    the whole element, and stepping past it renders the element's own opening words
    underneath a summary of them.
 
-   `renderQuiet` handles facts conveyed only by paint, such as an attribute-driven
-   status. These words are clipped, unselectable, excluded from clipboard and anchor
-   readings, but available to assistive technology. `quietFacts` derives them from
-   `x-paints`. The paint and its quiet reading must agree.
+   `renderQuiet` handles facts with no local words, such as an attribute-driven status
+   or the provenance of projected widget state. These words are clipped, unselectable,
+   excluded from clipboard and anchor readings, but available to assistive technology.
+   `quietFacts` derives them from `x-paints` and the runtime's provenance attributes.
 
    The runtime may inject its own words inside a widget. Comment-note buttons, for
    example, can be placed on a text block owned by that widget. A module reading its slot
@@ -519,7 +519,7 @@ export function renderSaid(root) {
   }
 }
 
-// What a widget paints and never words. A task's status marker, a milestone's dot, an
+// What a widget states without local words. A task's status marker, a milestone's dot, an
 // event's kind band: each is a fact the eye reads off paint alone, so a reader listening
 // is handed every word around it and nothing of the fact itself — done sounded exactly
 // like blocked. Same reasoning as renderSaid, one rung quieter: the registry names the
@@ -529,33 +529,30 @@ export function renderSaid(root) {
 // The value is the word, or the attribute's own name where the value is empty: an enum
 // means what it says (`blocked`), and a flag attribute means what it is called.
 //
-// The runtime's own restatement state is said here too — the same failure under a
-// different owner, and the one the code that paints it already calls a debt: a decision
-// undone looks exactly like one never made. The living margin gives that fact a compact
-// visible Page-map reading; this local quiet word keeps it attached to the target for assistive
-// technology. It composes into the element's one quiet span rather than taking a
-// second, so the two cannot fight over the place, and every quiet word on the page is
-// written by one call whichever facts it is carrying.
-//
-// Its two neighbours in that vocabulary stay locally silent. data-lf-reader-override and
-// data-lf-reported each mark a
-// state whose substance is already in the widget's visible and semantic state (for
-// example, a selected option's check and tint) or the status this pass speaks. The
-// Page-map reading identifies the state as a reader override or provisional
-// report; work receipts separately state whether the agent has processed it.
+// The runtime's three provenance states are said here too. Page map makes them visible
+// and navigable in a live page, while this quiet word keeps each one attached to its
+// target for assistive technology and for a standalone copy whose chrome was removed.
+// They compose into the element's one quiet span, so independent facets can name reader,
+// report, and restatement origins without three writers fighting over the same seat.
 function quietFacts(el) {
   const words = el.hasAttribute(PAGE_PAINT_ATTRIBUTE.restated)
     ? ["rewritten since your decision"]
     : [];
+  if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.readerOverride)) words.push("your change");
+  if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.reported)) words.push("reported update");
   for (const attr of registry[el.localName]?.["x-paints"] ?? [])
     if (el.hasAttribute(attr)) words.push(el.getAttribute(attr) || attr);
   return words.join(", ");
 }
 
-export function renderQuiet(root) {
+export function renderQuiet(root, also = []) {
   const painting = [
     ...tagsDeclaring((entry) => entry["x-paints"]),
     `[${PAGE_PAINT_ATTRIBUTE.restated}]`,
+    `[${PAGE_PAINT_ATTRIBUTE.readerOverride}]`,
+    `[${PAGE_PAINT_ATTRIBUTE.reported}]`,
   ].join(", ");
-  for (const el of elementsIn(root, painting)) quietWord(el, quietFacts(el));
+  const targets = new Set(elementsIn(root, painting));
+  for (const el of also) if (el === root || root.contains(el)) targets.add(el);
+  for (const el of targets) quietWord(el, quietFacts(el));
 }

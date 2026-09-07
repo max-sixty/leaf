@@ -118,13 +118,14 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
           };
         }"""
     )
-    mark_radius = option.evaluate(
-        "el => getComputedStyle(el.querySelector('.lf-pick'), '::before').borderRadius"
+    circle_radius = page.locator("#br-steel .lf-pick").evaluate(
+        "el => getComputedStyle(el, '::before').borderRadius"
     )
+    assert circle_radius == "50%"
     assert face["button"] == "rgba(0, 0, 0, 0)"
     assert face["fill"] != face["button"]
     assert face["radius"] == "6px"
-    assert face["radius"] != mark_radius
+    assert face["radius"] != circle_radius
     page.keyboard.press("Tab")
     expect(add).to_be_focused()
 

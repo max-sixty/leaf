@@ -49,7 +49,7 @@ Before handing over a browser-facing change, run its complete browser file and
 the everyday suite. `wt merge` runs pre-commit and the everyday suite after
 rebasing. Every pull request runs the everyday suite. A product or shared test
 harness change also runs the complete suite; a change confined to test modules
-runs those modules' nightly cases; documentation and other workflow changes stop
+runs those modules' nightly cases; Markdown prose and other workflow changes stop
 at the everyday suite. The extended cases use four isolated CI jobs, while the
 two-worker pytest default still caps the browser load inside each job.
 

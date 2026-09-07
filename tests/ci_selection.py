@@ -1,6 +1,6 @@
 """Choose the pull-request test surface from changed repository paths.
 
-Product and shared test-harness changes run the complete suite. Documentation
+Product and shared test-harness changes run the complete suite. Markdown prose
 and unrelated workflow changes need only the everyday suite, while a change to
 an individual test module adds that module's nightly cases. The CI workflow and
 its timing data run the complete path they configure. Unknown paths take that
@@ -14,7 +14,7 @@ import sys
 from collections.abc import Iterable
 from pathlib import Path
 
-FAST_PREFIXES = (".github/", "docs/")
+FAST_PREFIXES = (".github/",)
 FAST_SUFFIXES = (".md",)
 FULL_FILES = frozenset({".github/workflows/ci.yaml", ".test_durations"})
 

@@ -347,6 +347,10 @@ def test_ci_change_selection_defaults_product_and_shared_harness_paths_to_full()
         "full": True,
         "test_modules": [],
     }
+    assert select_ci_tests(["docs/package/theme.css"]) == {
+        "full": True,
+        "test_modules": [],
+    }
     assert select_ci_tests(
         ["tests/test_render_margin.py", "skills/leaf/assets/theme.css"]
     ) == {"full": True, "test_modules": ["tests/test_render_margin.py"]}
@@ -354,7 +358,7 @@ def test_ci_change_selection_defaults_product_and_shared_harness_paths_to_full()
 
 def test_ci_change_selection_keeps_small_changes_on_their_own_surface():
     assert select_ci_tests(
-        ["docs/how-it-works.html", ".github/workflows/tend-nightly.yaml", "README.md"]
+        ["docs/operations.md", ".github/workflows/tend-nightly.yaml", "README.md"]
     ) == {"full": False, "test_modules": []}
     assert select_ci_tests(
         [

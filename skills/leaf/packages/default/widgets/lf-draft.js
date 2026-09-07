@@ -267,9 +267,7 @@ customElements.define(
         const saveWidth = Math.ceil(this.#save.getBoundingClientRect().width);
         this.#buttonReserve = saveWidth * 2 + 4;
         this.#row.style.minWidth = `${saveWidth}px`;
-        // A recovered edit can open while this detached measurement is pending. Its
-        // engaged Save + Cancel row is newer state than the resting row measured here.
-        if (!this.#ta) this.#row.replaceChildren(this.#pencil);
+        this.#paintRow();
         this.#row.style.opacity = "";
         this.#margin?.update();
         paintKeys();
@@ -576,6 +574,19 @@ customElements.define(
       if (ok) notice(`Restored ${label.toLowerCase()} — sent`);
     }
 
+    // States the whole row rather than moving two buttons in and out of it, so read
+    // mode and edit mode are each one call from anywhere. What it reads is the editor
+    // itself, not the gesture that changed it: the reserve measurement lands whenever
+    // the row is first drawn, which is after presentation rather than at connection,
+    // and a recovered draft has already opened the editor by then. Asked the other way
+    // the measurement put the resting pencil back over an open editor and took Save
+    // with it, leaving the reader words they could no longer send.
+    #paintRow() {
+      this.#row.replaceChildren(
+        ...(this.#ta ? [this.#save, this.#cancel] : [this.#pencil]),
+      );
+    }
+
     #open(seed, at) {
       if (this.#ta) return;
       if (this.#sending) {
@@ -628,8 +639,8 @@ customElements.define(
           run: () => this.#close(false),
         },
       ]);
-      this.#row.replaceChildren(this.#save, this.#cancel);
       this.#ta = ta;
+      this.#paintRow();
       this.#body.after(ta);
       this.#paintButtons();
       ta.focus();
@@ -653,9 +664,7 @@ customElements.define(
       this.#ta.remove();
       this.#ta = null;
       this.#failed = false;
-      // States the whole row rather than removing two buttons from it, so read mode
-      // is one call from anywhere.
-      this.#row.replaceChildren(this.#pencil);
+      this.#paintRow();
       this.#paintButtons();
       if (stood) this.#pencil.focus();
       // Replay may have been held by this editor. Its close is the generic projection

@@ -170,8 +170,7 @@ lf-playground-output {
   border-left: 3px solid var(--accent);
   background: var(--field);
   color: var(--ink-2);
-  font: var(--code-size)/var(--code-line) var(--mono);
-  font-variant-ligatures: none;
+  font: var(--t-6)/1.5 var(--sans);
 }
 
 lf-playground-value {
@@ -186,6 +185,12 @@ lf-playground-value {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--sp-2);
+}
+
+.lf-playground-copy.is-copied {
+  border-color: var(--ok);
+  background: var(--ok-tint);
+  color: var(--ok-ink);
 }
 
 lf-playground.lf-playground-quoted .lf-playground-controls,

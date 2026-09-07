@@ -2055,7 +2055,8 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     """Mnemonics reach global surfaces; generated hints reach the visible scene.
 
     Threads, Asks, Page map, and page edges keep stable named routes. Page-map Buttons,
-    tabs, links, and folds instead share one viewport-local letter namespace."""
+    tabs, links, folds, and the presses a widget built instead share one viewport-local
+    letter namespace."""
     url = serve(ADDRESSED_PAGE)
     d = serve.page_dir
 
@@ -2454,6 +2455,34 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(page.locator("#dsc")).to_have_attribute("open", "")
     said = key_line(page)
     assert re.search(opened + r"\s*close", said), said
+
+    # A press a widget built joins the same namespace, declared by the constructor that
+    # made it rather than by an entry here. A pick spends no page letter of its own — the
+    # register holds capabilities, and a control is a route to one — so before this the
+    # only keyboard way to it was Tab. The arrival is the press, so the option is chosen.
+    page.evaluate(
+        """() => document.scrollingElement.scrollTo(
+             0, document.getElementById('opts-decision').offsetTop - 80)"""
+    )
+    page.keyboard.press("g")
+    controls = page.locator(f'{CHIPS}[data-lf-address-kind="Control"]')
+    expect(controls).not_to_have_count(0)
+    pick_code = page.evaluate(
+        """() => {
+             const mark = document.querySelector('#opt-a .lf-pick').getBoundingClientRect();
+             const chip = [...document.querySelectorAll(
+               '.lf-goto-targets > .lf-chord-address[data-lf-address-kind="Control"]')]
+               .find(c => {
+                 const r = c.getBoundingClientRect();
+                 return Math.abs(r.left + r.width / 2 - mark.left) < 2
+                     && Math.abs(r.top + r.height / 2 - mark.top) < 2;
+               });
+             return chip ? chip.dataset.lfAddress : null;
+           }"""
+    )
+    assert pick_code, "the pick mark the widget built got no address"
+    page.keyboard.type(pick_code)
+    expect(page.locator("#opt-a")).to_have_attribute("chosen", "")
 
     # The two completions that take no digit: an edge of the page is one place, so the
     # second key completes the route — G glides to the bottom, g to the top.

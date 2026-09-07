@@ -1069,10 +1069,35 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
  * All presentation is CSS; the lf-board upgrade only wires dragging (grips,
  * dropzones) and reports each drop as a `move` action. Unupgraded it reads as a
  * static board. */
-lf-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(10rem, 1fr);
+/* The floor a column stops narrowing at, and the reason it is arithmetic rather than a
+ * round number. A board lays its columns into whatever width it is given and scrolls
+ * once they are at their narrowest, which is the right order — but the floor was stated
+ * as the column's own box (10rem), and a column is mostly not its card's words: 18px of
+ * the column's border and inset, then the card's border, its two insets and the column
+ * the grip hangs in. Measured at 160px, 70 of them were furniture and the card's prose
+ * got 90 — twelve characters, in which `documented` (92px of Charter at the page's own
+ * 17) cannot be set at all, so the shipped board broke ordinary words across lines the
+ * moment the thread strip took its margin. A board is meant to scroll before it squeezes,
+ * and a floor that does not count what the board spends does not know when to.
+ *
+ * So the measure is the number chosen and the furniture is derived from the rules that
+ * spend it, each inset named where it is set below rather than added up here a second
+ * time. 136px is about seventeen characters of the page's serif — one ordinary word to
+ * the line with room for the space after it. Long unbreakable runs (a path, a sha) still
+ * break where they must; that is the page-wide bargain and no width buys it back.
+ *
+ * The grip's column is in the floor for the same reason it is in the card's padding: it
+ * is room only where a grip hangs, so paper, copies and quoted boards floor a column at
+ * the measure and its insets alone. */
+lf-board { display: grid; grid-auto-flow: column;
+           --lf-card-measure: 136px; --lf-column-inset: 8px; --lf-card-inset: 10px;
+           grid-auto-columns: minmax(calc(var(--lf-card-measure)
+             + 2 * var(--lf-column-inset) + 2 * var(--lf-card-inset)
+             + var(--lf-grip-room, 0px) + 4px), 1fr); /* 4px: the two 1px borders */
            gap: var(--sp-2); margin: 14px 0; align-items: stretch; overflow-x: auto; }
 lf-column { display: block; background: var(--field); border: 1px solid var(--rule);
-            border-radius: var(--r); padding: 8px; min-height: 64px; --lf-frame: 1; }
+            border-radius: var(--r); padding: var(--lf-column-inset); min-height: 64px;
+            --lf-frame: 1; }
 /* The heading is written by lf-board.js rather than by the x-says pass, because
    it is the list's accessible name as well as its visible words and the pass
    knows nothing about names. Where the upgrade ran, the column carries those
@@ -1087,7 +1112,7 @@ lf-column::before { content: attr(label); }
 lf-column:has(> [data-lf-said="label"])::before { content: none; }
 lf-card { display: block; position: relative; background: var(--card);
           border: 1px solid var(--rule); border-radius: var(--r);
-          padding: 8px 10px; margin: 0 0 var(--sp-2); --lf-frame: 1; }
+          padding: 8px var(--lf-card-inset); margin: 0 0 var(--sp-2); --lf-frame: 1; }
 /* The column the grip hangs in, spent only where a grip hangs: the module measures its
    own grip's box and states the room (--lf-grip-room, lf-board.js), the same answer the
    pick column already is, so the ladder moving or a platform substituting a different
@@ -1098,7 +1123,7 @@ lf-card { display: block; position: relative; background: var(--card);
    the rule asks the medium too. */
 @media screen {
  :where(html:not(.lf-copy)) {
-  lf-card { padding-right: calc(10px + var(--lf-grip-room, 0px)); }
+  lf-card { padding-right: calc(var(--lf-card-inset) + var(--lf-grip-room, 0px)); }
  }
 }
 lf-card:last-child { margin-bottom: 0; }
@@ -1311,122 +1336,151 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
 /* The core sidebar states its actual posture after viewport and panel-room decisions.
  * Only a fine-pointer margin form fixes itself into a viewport map; generic sidebars keep
  * their sticky behavior and an in-flow ToC stays open. The shell inset moves the fixed map
- * beside a standing left workspace. */
+ * beside a standing left workspace.
+ *
+ * The two questions are asked of two boxes, for the reason the core theme states beside
+ * the declarations. The page answers the posture, because a page is always there to
+ * answer; the wrapper answers only which slot it is, which is a fact that never changes
+ * while the page is open, so the answer is the same one whether or not the box has been
+ * away. Asking the wrapper for the posture instead cost the map: an author who hides the
+ * sidebar on a narrow shell — the feature gallery does — got a ToC that never came back,
+ * because the wrapper was still repeating the posture it left with. Keeping the slot in
+ * the question is also what leaves an lf-toc written into ordinary prose alone; the
+ * posture reaches every box on the page, and only the sidebar's map wants it. */
 @media screen and (hover: hover) and (pointer: fine) {
-  @container style(--lf-sidebar-posture: margin) {
-    lf-toc { position: fixed;
-             left: calc(var(--lf-shell-inset-left, 0px) + var(--sp-4));
-             top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
-             /* The generic sidebar guarantees a 240px map and its gutter. Once the
-              * reading column can stay centred with room left over, spend that empty
-              * margin on shorter labels until the map reaches 320px. */
-             width: clamp(
-               calc(var(--sidebar) - var(--sp-4)),
-               calc((100cqi - min(var(--col), var(--lf-room))) / 2
-                 + var(--lf-shift) - 2 * var(--sp-4)),
-               320px);
-             height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
-             margin: 0; }
-    body[data-lf-upgraded="1"] lf-toc { transition: left .18s ease; }
-    body[data-lf-sizing] lf-toc { transition: none; }
-    lf-toc .lf-toc-nav { height: 100%; border: 0; padding: 0;
-                         --lf-toc-label-opacity: 0;
-                         pointer-events: none; }
-    lf-toc .lf-toc-nav::before { content: ""; position: absolute; inset: 0;
-                                 z-index: 0; pointer-events: auto; }
-    lf-toc .lf-toc-heading { display: none; }
-    lf-toc .lf-toc-rows { position: relative; display: flex; height: 100%;
-                          flex-direction: column; }
-    lf-toc .lf-toc-rows::before { content: ""; position: absolute;
-                                  z-index: 0; top: 0; bottom: 0; left: 0; width: 1px;
-                                  background: var(--border-2); }
-    lf-toc .lf-toc-window { display: block; position: absolute; z-index: 1;
-                            top: var(--lf-toc-window-start, 0%);
-                            left: 0; width: 1px;
-                            height: var(--lf-toc-window-size, 12%);
-                            min-height: 14px; border-radius: 2px;
-                            background: var(--ink-2); }
-    lf-toc .lf-toc-start, lf-toc li { --lf-toc-indent: 0px;
-                                      position: relative; z-index: 2; display: block;
-                                      flex: var(--lf-toc-span, 1) 1 0px;
-                                      min-height: 0; margin: 0; }
-    lf-toc ol { display: contents; }
-    lf-toc .lf-toc-start::before, lf-toc li::before {
-      content: ""; position: absolute; z-index: 2;
-      top: 7px; left: -1px; width: 3px; height: 3px; border-radius: 50%;
-      background: var(--muted);
-    }
-    lf-toc :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
-      background: var(--ink-2);
-    }
-    lf-toc li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
-    lf-toc li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
-    lf-toc li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
-    lf-toc li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
-    lf-toc .lf-toc-start a, lf-toc li a {
-      position: absolute; z-index: 3; display: -webkit-box;
-      top: var(--lf-toc-label-shift, 0px); left: 0; width: 100%;
-      overflow: hidden; max-height: 2.6em;
-      padding: 0 2px 2px calc(14px + var(--lf-toc-indent));
-      line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-      opacity: var(--lf-toc-label-opacity); pointer-events: none;
-      transition: color .12s ease-out, opacity .24s ease-out;
-    }
-    lf-toc .lf-toc-start a { color: var(--ink-2); font-weight: 650;
-                             line-height: 1.2; max-height: 2.4em; }
-    lf-toc li a[aria-current="location"] { color: var(--ink-2); }
-    lf-toc a:focus-visible { outline: var(--here-ring); --lf-here-ring: toc-link;
-                             outline-offset: calc(-1 * var(--here-ring-w)); }
-    lf-toc .lf-toc-nav:is(:hover, :focus-within),
-    body[data-lf-goto] lf-toc .lf-toc-nav {
-      --lf-toc-label-opacity: 1;
-    }
-    lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
-      animation: lf-toc-enable-links 0s .24s forwards;
-    }
-    /* A pointer waits for the labels it revealed to finish appearing. The go-to chord
-     * already made an explicit keyboard gesture, and its candidate reading needs these
-     * visible page routes to participate immediately. */
-    body[data-lf-goto] lf-toc:not([data-lf-dense]) .lf-toc-nav a {
-      pointer-events: auto;
-    }
-    /* When all labels cannot fit beside the track, the destination under the pointer or
-     * keyboard focus reveals on its own. Turning the rail into a second scrollable outline
-     * would put the markers and viewport lens in a different coordinate system. */
-    lf-toc[data-lf-dense] .lf-toc-rows { overflow: hidden; }
-    lf-toc[data-lf-dense] :is(.lf-toc-start, li) {
-      min-height: 0; pointer-events: auto;
-    }
-    lf-toc[data-lf-dense] :is(.lf-toc-start, li) a {
-      top: 0;
-      max-height: 1.25em; font-size: var(--t-6); line-height: 1.25;
-      -webkit-line-clamp: 1;
-    }
-    lf-toc[data-lf-dense] li:last-child a { top: auto; bottom: 0; }
-    lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
-      opacity: 0; animation: none; pointer-events: none;
-    }
-    lf-toc[data-lf-dense] .lf-toc-nav:hover
-      :is(.lf-toc-start, li):hover a,
-    lf-toc[data-lf-dense] .lf-toc-nav:focus-within a:focus {
-      opacity: 1;
-      animation: lf-toc-enable-links 0s .24s forwards;
+  @container lf-page style(--lf-sidebar-posture: margin) {
+    @container style(--lf-sidebar-slot: margin) {
+      lf-toc { position: fixed;
+               left: calc(var(--lf-shell-inset-left, 0px) + var(--sp-4));
+               top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
+               /* The generic sidebar guarantees a 240px map and its gutter. Once the
+                * reading column can stay centred with room left over, spend that empty
+                * margin on shorter labels until the map reaches 320px. */
+               width: clamp(
+                 calc(var(--sidebar) - var(--sp-4)),
+                 calc((100cqi - min(var(--col), var(--lf-room))) / 2
+                   + var(--lf-shift) - 2 * var(--sp-4)),
+                 320px);
+               /* TODO: the key line covers this map's last entry — 21 of its 36 pixels,
+                * on every page with a spine, at every width, with nothing to scroll it
+                * clear. The map is the fourth region standing in the line's band and the
+                * only one out of flow, so neither the document's room nor a list's
+                * padding reaches it, and syncLayout's `--lf-keyline-clear` would end it
+                * above the line in one term.
+                *
+                * That is deliberately not done. The line is either something that hovers
+                * over the page or something attached to its foot, and it should not be
+                * both: it already takes room from the document, the trays and the thread
+                * list, and giving it the map as well settles the question by accretion
+                * rather than by deciding it. Left hovering, cutoff accepted, until the
+                * line's own character is chosen — at which point either every region
+                * ends above it, this one included, or none does and the other three give
+                * their reservations back. */
+               height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
+               margin: 0; }
+      body[data-lf-upgraded="1"] lf-toc { transition: left .18s ease; }
+      body[data-lf-sizing] lf-toc { transition: none; }
+      lf-toc .lf-toc-nav { height: 100%; border: 0; padding: 0;
+                           --lf-toc-label-opacity: 0;
+                           pointer-events: none; }
+      lf-toc .lf-toc-nav::before { content: ""; position: absolute; inset: 0;
+                                   z-index: 0; pointer-events: auto; }
+      lf-toc .lf-toc-heading { display: none; }
+      lf-toc .lf-toc-rows { position: relative; display: flex; height: 100%;
+                            flex-direction: column; }
+      lf-toc .lf-toc-rows::before { content: ""; position: absolute;
+                                    z-index: 0; top: 0; bottom: 0; left: 0; width: 1px;
+                                    background: var(--border-2); }
+      lf-toc .lf-toc-window { display: block; position: absolute; z-index: 1;
+                              top: var(--lf-toc-window-start, 0%);
+                              left: 0; width: 1px;
+                              height: var(--lf-toc-window-size, 12%);
+                              min-height: 14px; border-radius: 2px;
+                              background: var(--ink-2); }
+      lf-toc .lf-toc-start, lf-toc li { --lf-toc-indent: 0px;
+                                        position: relative; z-index: 2; display: block;
+                                        flex: var(--lf-toc-span, 1) 1 0px;
+                                        min-height: 0; margin: 0; }
+      lf-toc ol { display: contents; }
+      lf-toc .lf-toc-start::before, lf-toc li::before {
+        content: ""; position: absolute; z-index: 2;
+        top: 7px; left: -1px; width: 3px; height: 3px; border-radius: 50%;
+        background: var(--muted);
+      }
+      lf-toc :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
+        background: var(--ink-2);
+      }
+      lf-toc li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
+      lf-toc li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
+      lf-toc li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
+      lf-toc li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
+      lf-toc .lf-toc-start a, lf-toc li a {
+        position: absolute; z-index: 3; display: -webkit-box;
+        top: var(--lf-toc-label-shift, 0px); left: 0; width: 100%;
+        overflow: hidden; max-height: 2.6em;
+        padding: 0 2px 2px calc(14px + var(--lf-toc-indent));
+        line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+        opacity: var(--lf-toc-label-opacity); pointer-events: none;
+        transition: color .12s ease-out, opacity .24s ease-out;
+      }
+      lf-toc .lf-toc-start a { color: var(--ink-2); font-weight: 650;
+                               line-height: 1.2; max-height: 2.4em; }
+      lf-toc li a[aria-current="location"] { color: var(--ink-2); }
+      lf-toc a:focus-visible { outline: var(--here-ring); --lf-here-ring: toc-link;
+                               outline-offset: calc(-1 * var(--here-ring-w)); }
+      lf-toc .lf-toc-nav:is(:hover, :focus-within),
+      body[data-lf-goto] lf-toc .lf-toc-nav {
+        --lf-toc-label-opacity: 1;
+      }
+      lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
+        animation: lf-toc-enable-links 0s .24s forwards;
+      }
+      /* A pointer waits for the labels it revealed to finish appearing. The go-to chord
+       * already made an explicit keyboard gesture, and its candidate reading needs these
+       * visible page routes to participate immediately. */
+      body[data-lf-goto] lf-toc:not([data-lf-dense]) .lf-toc-nav a {
+        pointer-events: auto;
+      }
+      /* When all labels cannot fit beside the track, the destination under the pointer or
+       * keyboard focus reveals on its own. Turning the rail into a second scrollable outline
+       * would put the markers and viewport lens in a different coordinate system. */
+      lf-toc[data-lf-dense] .lf-toc-rows { overflow: hidden; }
+      lf-toc[data-lf-dense] :is(.lf-toc-start, li) {
+        min-height: 0; pointer-events: auto;
+      }
+      lf-toc[data-lf-dense] :is(.lf-toc-start, li) a {
+        top: 0;
+        max-height: 1.25em; font-size: var(--t-6); line-height: 1.25;
+        -webkit-line-clamp: 1;
+      }
+      lf-toc[data-lf-dense] li:last-child a { top: auto; bottom: 0; }
+      lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
+        opacity: 0; animation: none; pointer-events: none;
+      }
+      lf-toc[data-lf-dense] .lf-toc-nav:hover
+        :is(.lf-toc-start, li):hover a,
+      lf-toc[data-lf-dense] .lf-toc-nav:focus-within a:focus {
+        opacity: 1;
+        animation: lf-toc-enable-links 0s .24s forwards;
+      }
     }
   }
 }
 @media (prefers-reduced-motion: reduce) {
   lf-toc a { transition: none; }
-  @container style(--lf-sidebar-posture: margin) {
-    lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
-      animation: none; pointer-events: auto;
-    }
-    lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
-      opacity: 0; pointer-events: none;
-    }
-    lf-toc[data-lf-dense] .lf-toc-nav:hover
-      :is(.lf-toc-start, li):hover a,
-    lf-toc[data-lf-dense] .lf-toc-nav:focus-within a:focus {
-      opacity: 1; pointer-events: auto;
+  @container lf-page style(--lf-sidebar-posture: margin) {
+    @container style(--lf-sidebar-slot: margin) {
+      lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
+        animation: none; pointer-events: auto;
+      }
+      lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
+        opacity: 0; pointer-events: none;
+      }
+      lf-toc[data-lf-dense] .lf-toc-nav:hover
+        :is(.lf-toc-start, li):hover a,
+      lf-toc[data-lf-dense] .lf-toc-nav:focus-within a:focus {
+        opacity: 1; pointer-events: auto;
+      }
     }
   }
 }

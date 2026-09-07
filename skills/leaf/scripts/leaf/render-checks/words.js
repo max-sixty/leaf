@@ -107,6 +107,51 @@ export function paperWords() {
 // group that has been opened and closed, which is where the test pins it.
 export { coveredWords } from "./standalone.js";
 
+// Room on paper that prints nothing. `visibility: hidden` is how a live page holds a box
+// open for something that has not arrived yet — the card behind the one being swiped, a
+// value nobody has picked — and paper has nothing coming: the room is a hole in the
+// sheet. It is also the shape a losing print rule takes, which is how this reading came
+// to exist. The swipe pile hid every card behind the first at one class more weight than
+// its own `@media print` reset carried, so a printed decision came out as one card, 308
+// pixels of nothing, and a label still reading "Queue · 3" over it. Nothing said so: the
+// words were in the markup, the boxes were laid out, and both media agreed the run was
+// "shown" — `checkVisibility` answers for display and content-visibility, not for this.
+//
+// Print alone, because on screen a held box is the page keeping still for news it expects
+// ("Reserve space before a generated control appears"). The medium nobody looks at is
+// where a reset silently fails to win, so it is where the reading belongs.
+//
+// The outermost hidden box only: visibility inherits, so its runs would each report the
+// same hole, and the hole is one rule. Words rather than boxes, because a spacer with
+// nothing to say is a spacer — this reports a page withholding something it wrote down.
+// `textContent`, not `innerText`, which is rendered text and comes back empty from
+// exactly the elements this is about. Offers are held out the way `paperWords` holds
+// them out: paper has nothing to press.
+export function paperVoids() {
+  const out = [];
+  const hidden = (el) => {
+    const shown = getComputedStyle(el).visibility;
+    return shown === "hidden" || shown === "collapse";
+  };
+  for (const el of document.body.querySelectorAll("*")) {
+    if (el.closest(".lf-chrome, [data-lf-offer]") || !hidden(el)) continue;
+    if (el.parentElement && hidden(el.parentElement)) continue;
+    const box = el.getBoundingClientRect();
+    if (box.height < 1 || box.width < 1) continue;
+    const words = el.textContent.replace(/\s+/g, " ").trim();
+    if (!words) continue;
+    const named = el.closest("[id]");
+    const at = named
+      ? `<${named.tagName.toLowerCase()} id=${named.id}>`
+      : `<${el.tagName.toLowerCase()}>`;
+    out.push(
+      `${at} keeps ${Math.round(box.height)}px of the sheet and prints nothing of ` +
+        JSON.stringify(words.slice(0, 40)),
+    );
+  }
+  return out;
+}
+
 // Code that came out the colour of the code around it. Colouring takes two halves that
 // meet nowhere a static lint can reach: the runtime writes data-lf-syn in the browser,
 // and the theme answers it with a var() the browser resolves. Either half can stop

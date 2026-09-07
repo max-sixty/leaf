@@ -83,7 +83,12 @@ import { panel, threadsBox } from "../conversation/panel.js";
 import { banner } from "../banner.js";
 import { keylineEl, less } from "../keyboard/keyline.js";
 import { blockAt, inChrome, pageRange, pageText, pageWords } from "../passages.js";
-import { pageSelection, selectionAnchor, snapSelection } from "./capture.js";
+import {
+  leftThePage,
+  pageSelection,
+  selectionAnchor,
+  snapSelection,
+} from "./capture.js";
 import { paintHere } from "../keyboard/scopes.js";
 import { letGo, takesLetters } from "../keyboard/page.js";
 import { closeVersionMenu, versionMenuIsOpen } from "../version.js";
@@ -228,10 +233,29 @@ const union = (rects) => {
   const bottom = Math.max(...rects.map((rect) => rect.bottom));
   return { left, top, right, bottom, width: right - left, height: bottom - top };
 };
+// Whether a resolution is one this document can still put a box beside, which is not the
+// same question as whether it is on screen. Quoted words that resolve to segments stand
+// wherever they are; a quote whose words the next version rewrote away does not, with one
+// exception — replacing source data must not close a draft about its prior revision, so an
+// outdated finding falls back to its section. Everything else stands on its element.
+//
+// One rule, because two callers ask it: placement, below, and the route back to a kept
+// draft, which must not offer a passage this version no longer holds.
+const standsIn = (anchor, found) => {
+  if (!found) return false;
+  if (anchor.quote) {
+    if (targetSegments(found).length) return true;
+    if (found.status !== "outdated") return false;
+  }
+  return Boolean(targetElement(found));
+};
+// Asked of a stored anchor from outside a live response transaction, where the composer
+// is down and there is no native selection to read the passage off.
+export const anchorStands = (anchor) =>
+  Boolean(anchor) && standsIn(anchor, resolveAnchor(anchor, pageText()));
 // A visual's durable anchor is also the geometry authority. Resolve it again after a
 // reflow instead of remembering where inside the target the pointer happened to land.
 function anchorBox(anchor) {
-  let found;
   if (anchor?.quote) {
     const selection = pageSelection();
     const current = selection ? selectionAnchor(selection) : null;
@@ -246,19 +270,16 @@ function anchorBox(anchor) {
     // captured passage still belongs to the response transaction; native selection is
     // no longer available once the textarea took focus.
     if (!composerOpen && !fabHoldsCapturedPassage()) return null;
-    found = resolveAnchor(anchor, pageText());
-    const segments = targetSegments(found);
-    if (segments.length) {
-      const range = document.createRange();
-      range.setStart(segments[0].node, segments[0].start);
-      range.setEnd(segments.at(-1).node, segments.at(-1).end);
-      return range.getBoundingClientRect();
-    }
-    // Replacing source data must not close a draft about its prior revision. The
-    // contextual placement keeps the field reachable beside its original section.
-    if (found?.status !== "outdated") return null;
-  } else found = anchor ? resolveAnchor(anchor, pageText()) : null;
-  if (!targetElement(found)) return null;
+  }
+  const found = anchor ? resolveAnchor(anchor, pageText()) : null;
+  if (!anchor || !standsIn(anchor, found)) return null;
+  const segments = anchor.quote ? targetSegments(found) : [];
+  if (segments.length) {
+    const range = document.createRange();
+    range.setStart(segments[0].node, segments[0].start);
+    range.setEnd(segments.at(-1).node, segments.at(-1).end);
+    return range.getBoundingClientRect();
+  }
   const clips = new Map();
   return union(
     targetParts(found)
@@ -423,16 +444,21 @@ export function refreshFab() {
 // different for selected words inside a paragraph without an ID: the event names its
 // enclosing section, but both the temporary picker and the standing receipt sit at
 // the paragraph. Match seatReactions' shadow-boundary rule so live and replay agree.
-export const fabTargetAt = () => {
-  if (!fabAnchor) return null;
-  const found = resolveAnchor(fabAnchor, pageText());
+//
+// Asked of any anchor rather than only of the standing one: a draft the composer put
+// away carries its own anchor and nothing else in the runtime can say which block that
+// draft is about, which is what the route back to it has to travel to.
+export const anchorTargetAt = (anchor) => {
+  if (!anchor) return null;
+  const found = resolveAnchor(anchor, pageText());
   if (!found) return null;
-  if (!fabAnchor.quote) return targetElement(found);
+  if (!anchor.quote) return targetElement(found);
   const block = blockAt(targetSegments(found)[0]?.node);
   if (!block) return targetElement(found);
   const root = block.getRootNode();
   return root instanceof ShadowRoot ? root.host : block;
 };
+export const fabTargetAt = () => anchorTargetAt(fabAnchor);
 export const fabReturnTo = () =>
   fabAnchor && !fabAnchor.quote
     ? fabOrigin?.isConnected
@@ -596,9 +622,15 @@ let primaryPointerPressed = false;
 // stands says the same word, and repainting the chrome on every move of a drag would
 // put a whole `paintHere` inside every frame of one.
 let selectionStood = false;
+// What this drag has had inside the document, kept against a release that ends holding
+// something else. Only while both ends are still in it: `pageSelection` answers for the
+// end the press began at, which stays in the page for the whole of a drag that leaves it,
+// so without the far end this remembered the runaway range itself and had nothing to put
+// back.
 const rememberPointerSelection = () => {
   const selection = pageSelection();
-  const anchor = selection ? selectionAnchor(selection) : null;
+  if (!selection || leftThePage(selection)) return;
+  const anchor = selectionAnchor(selection);
   if (anchor?.quote?.length >= MIN_QUOTE)
     selectionRangeDuringPress = pageRange(selection).cloneRange();
 };
@@ -695,8 +727,19 @@ document.addEventListener("mouseup", (ev) => {
   if (!pageWords(ev.target) && !pageSelection()) return;
   const selection = pageSelection();
   const selected = selection ? selectionAnchor(selection) : null;
+  // A drag whose far end left the document is the same release as one that ended holding
+  // nothing: what the reader meant is what the drag had before the pointer crossed out,
+  // and the range this press remembered is that. Without it, a hand five words along a
+  // paragraph overshooting the layer by 40px captured 14,387 characters, marked 22,140,
+  // and named the whole document in the field — because past the page's last words the
+  // browser extends through everything between (leftThePage, composing/capture.js).
+  //
+  // Asked here and nowhere shared, because the gesture is what tells this from ⌘A: select
+  // all means the document and lands its far end past the page by definition, and it
+  // arrives through the keyboard's route, which never comes past this line.
+  const escaped = selectionDragged && leftThePage();
   const completed =
-    selectionDragged && !(selected?.quote?.length >= MIN_QUOTE)
+    selectionDragged && (escaped || !(selected?.quote?.length >= MIN_QUOTE))
       ? selectionRangeDuringPress
       : null;
   deferSelectionUpdate(() => {
@@ -704,6 +747,12 @@ document.addEventListener("mouseup", (ev) => {
       const restored = getSelection();
       restored.removeAllRanges();
       restored.addRange(completed);
+    } else if (escaped) {
+      // A drag that crossed out before it covered anything has no passage to offer and
+      // no words to put back. The browser's own selection stays where it is — the reader
+      // can still copy it — and the response surface says nothing about it.
+      showFab(null);
+      return;
     }
     if (ev.button === 0) snapSelection();
     updateFab();

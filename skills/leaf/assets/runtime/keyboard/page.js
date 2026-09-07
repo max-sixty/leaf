@@ -23,11 +23,11 @@ import {
 } from "../conversation/panel.js";
 import { inPanel, panelIsOpen, setPanel } from "../chrome-layout.js";
 import {
+  composerHolds,
   composerOpen,
   fabInput,
   fabOptions,
   focusedResponseOption,
-  pendingDrawing,
   responseOptionsAreOpen,
   responseReactionButtons,
   setResponseOptions,
@@ -723,11 +723,10 @@ const COMPOSER = {
       id: "composer.close",
       keys: ["Escape"],
       does: () =>
-        draftOf(fabInput).trim() || pendingDrawing
+        composerHolds()
           ? "Close the composer, keeping the draft"
           : "Close the composer",
-      line: () =>
-        draftOf(fabInput).trim() || pendingDrawing ? "close — draft kept" : "close",
+      line: () => (composerHolds() ? "close — draft kept" : "close"),
       promoteEscape: false,
       when: () => !responseOptionsAreOpen(),
       run: () => dismissFab(),

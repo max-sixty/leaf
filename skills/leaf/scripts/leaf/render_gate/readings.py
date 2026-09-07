@@ -54,6 +54,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     overflow = evaluate_probe(page, "rootOverflow")
     misplaced = evaluate_probe(page, "misplacedBoxes")
     withheld = evaluate_probe(page, "withheldRoom")
+    silent_cuts = evaluate_probe(page, "silentCuts")
     squeezed = evaluate_probe(page, "squeezedTables")
     clipped = evaluate_probe(page, "clippedControls")
     unreachable = evaluate_probe(page, "unreachableWords")
@@ -180,8 +181,10 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         page.emulate_media(media="print")
         paper = evaluate_probe(page, "paperWords")
         # Paper is laid out by rules no other medium runs, and it is the medium
-        # nobody looks at, so the overlap reading is taken here too while it holds.
+        # nobody looks at, so the readings that only paper can fail are taken here
+        # while it holds: words drawn over each other, and room that prints nothing.
         on_paper = [f"[print] {c}" for c in evaluate_probe(page, "coveredWords")]
+        on_paper += [f"[print] {v}" for v in evaluate_probe(page, "paperVoids")]
         page.emulate_media(media="screen")
         # Paired on the words as well as the position: the page is live, and a state
         # landing between the two readings would otherwise shift one against the
@@ -257,6 +260,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         found.append(f"[{scheme}] the page scrolls sideways by {overflow}px")
     found += [f"[{scheme}] {s}" for s in misplaced]
     found += [f"[{scheme}] {w}" for w in withheld]
+    found += [f"[{scheme}] {c}" for c in silent_cuts]
     found += [f"[{scheme}] {s}" for s in squeezed]
     found += [
         f"[{scheme}] the control .{c['ctrl'].split()[0]}"

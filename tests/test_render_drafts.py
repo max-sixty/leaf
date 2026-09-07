@@ -1,5 +1,6 @@
 """End-to-end journey and durable draft tests."""
 
+import base64
 import itertools
 import json
 import re
@@ -17,6 +18,7 @@ from render_support import (
     BOTH_STAMPS,
     DRAFT_EDITED,
     DRAFT_TEXT,
+    EXAMPLE_MEDIA,
     JOURNEY_V1,
     JOURNEY_V2,
     KEYS_PAGE,
@@ -39,6 +41,7 @@ from render_support import (
     hold_selection,
     holding,
     in_threads_scrollport,
+    key_line,
     live_url,
     open_page,
     painted,
@@ -2058,6 +2061,122 @@ def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_re
     again, again_errors = open_page(browser, url, context=one_reader)
     expect(again.locator(".lf-general textarea")).to_have_value(typed)
     assert again_errors == []
+
+
+def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, serve):
+    """A press on the banner takes the composer off screen and keeps the words, and for
+    a long time that was the whole of it: the bar went, the mark went, no notice and no
+    dialog said anything, and the only way back was returning to that version and
+    reselecting that exact passage. Words a reader cannot find again are words they have
+    lost, whatever localStorage still holds.
+
+    So the moment says what became of them and names the address that answers — and the
+    address is offered only while there is a draft standing to go to, which is the half
+    that keeps the sentence honest."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    kept = "Half a sentence, and then the banner."
+
+    # Nothing written, nothing to return to: the chord does not offer the destination.
+    page.keyboard.press("g")
+    expect(page.locator(".lf-keyline")).to_contain_text("Threads panel")
+    assert "your draft" not in key_line(page)
+    page.keyboard.press("Escape")
+
+    compose(page, "#p3", kept)
+    assert pending_text(page), "the open box left its own passage unmarked"
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    assert pending_text(page) == "", "a box off screen left its passage marked"
+    notice = page.locator(".lf-notice")
+    expect(notice).to_have_class(re.compile(r"\bshow\b"))
+    assert notice.inner_text() == "Draft kept — g D returns to it"
+
+    page.keyboard.press("g")
+    assert "your draft" in key_line(page)
+    page.keyboard.press("Shift+d")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_have_value(kept)
+    assert pending_text(page), "the box came back on nothing"
+    assert errors == []
+    page.close()
+
+
+def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
+    browser, serve
+):
+    """An image and no words is a draft, and the textarea is the one place it does not
+    show: the box keeps the Markdown and the shelf shows the thumbnail. So a reading
+    that asks the textarea whether anything is in here answers "empty" about a box the
+    reader can see holds a picture, and the two directions fail in opposite ways — the
+    kept notice never appears for a picture put away, and it appears for a picture that
+    has just been sent, over a box with nothing left in it.
+
+    Both directions here, and the box the reader opens next, because a shelf that
+    outlived its send is an image that rides into the next passage's draft."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    image_markdown = "![Pasted image](/media/051bee487bfb5d13.png)"
+    compose(page, "#p3")
+    pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.locator(".lf-fab-input").evaluate(
+            """(textarea, encoded) => {
+              const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+              const transfer = new DataTransfer();
+              transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+              textarea.dispatchEvent(new ClipboardEvent('paste', {
+                bubbles: true,
+                cancelable: true,
+                clipboardData: transfer,
+              }));
+            }""",
+            base64.b64encode(pixels).decode(),
+        )
+    shelf = page.locator(".lf-composer .lf-composer-media")
+    expect(shelf.locator("img")).to_be_visible()
+
+    # Put away: the picture is words enough to keep, and to be told about.
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    notice = page.locator(".lf-notice")
+    assert notice.inner_text() == "Draft kept — g D returns to it"
+    page.keyboard.press("g")
+    assert "your draft" in key_line(page)
+    page.keyboard.press("Shift+d")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_have_value("")
+    expect(shelf.locator("img")).to_be_visible()
+
+    # Sent: the box is empty because the send emptied it, and says nothing about drafts.
+    # Every word the status line says through the send, not the one left standing at the
+    # end of it: a wrong sentence four seconds long is one the reader reads.
+    page.evaluate("""() => {
+      const el = document.querySelector('.lf-notice');
+      window.__said = [];
+      new MutationObserver(() => window.__said.push(el.textContent)).observe(el, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+    }""")
+    with sending(page, "the image-only comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    assert events_model.read_events(serve.page_dir)[-1]["text"] == image_markdown
+    assert page.evaluate("window.__said") == []
+
+    # And the next passage's box opens on nothing, shelf included.
+    typed = "A second comment, and no image with it."
+    compose(page, "#p5", typed)
+    expect(shelf).to_be_hidden()
+    with sending(page, "the second comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    assert events_model.read_events(serve.page_dir)[-1]["text"] == typed
+    assert errors == []
+    page.close()
 
 
 def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, serve):

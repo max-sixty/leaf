@@ -396,7 +396,7 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
     )
 
 
-def test_page_fixtures_pass_check(tmp_path, monkeypatch, clone_initialized_page):
+def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
     """Every public example and developer feature fixture passes the real check."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     root = Path(__file__).parent.parent / "examples"
@@ -413,7 +413,7 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, clone_initialized_page)
 
     for example in examples:
         d = tmp_path / example.stem
-        clone_initialized_page("examples", d, initialize)
+        initialized_page("examples", d, initialize)
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
         # The data door validates a source against the page's markup, and the current
         # version is the one that has to bind it; the loop below then walks every

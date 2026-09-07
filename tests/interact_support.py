@@ -233,7 +233,7 @@ def list_fixture_versions(page_dir):
 
 
 @pytest.fixture
-def page_dir(tmp_path, monkeypatch, clone_initialized_page):
+def page_dir(tmp_path, monkeypatch, initialized_page):
     """A page with the default, Command Hub, diagram and diff vocabularies and a v1."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     d = tmp_path / "page"
@@ -254,7 +254,7 @@ def page_dir(tmp_path, monkeypatch, clone_initialized_page):
         assert activated.error is None and activated.revision == 1
         fixture_version_path(template, 1).write_text(PAGE)
 
-    clone_initialized_page("-".join(PAGE_PACKAGES), d, initialize)
+    initialized_page("-".join(PAGE_PACKAGES), d, initialize)
     return d
 
 

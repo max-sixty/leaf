@@ -60,6 +60,7 @@ const APPLICATION_RUNTIME_FIELDS = Object.freeze([
   "events",
   "lastEventSeq",
   "reading",
+  "restoringState",
   "state",
   "statePhase",
   "view",
@@ -206,6 +207,9 @@ export async function receiveState(state) {
   let replyNotice = null;
   let restoreClaimState = () => {};
   const apply = async () => {
+    // A revision activation is an arrival: its already-standing state must settle into
+    // the replacement markup without being presented as a new gesture.
+    if (willActivate) runtime.restoringState = true;
     runtime.events = nextEvents;
     runtime.activity = state.activity;
     runtime.browser = nextBrowser;
@@ -289,6 +293,7 @@ export async function receiveState(state) {
     // applicable on the next poll after they close the editor.
     document.dispatchEvent(new Event("lf-actions"));
     await notifyDataSubscribers();
+    runtime.restoringState = prior.runtime.restoringState;
   };
   try {
     const running = (async () => {

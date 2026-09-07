@@ -1,5 +1,6 @@
 """Comment marks, addresses, and keyboard navigation tests."""
 
+import json
 import re
 
 import pytest
@@ -192,10 +193,10 @@ def test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone(browser,
     page.close()
 
 
-def test_the_feature_gallery_headings_are_stable_preview_destinations(browser, serve):
+def test_the_feature_gallery_sections_are_stable_preview_destinations(browser, serve):
     """A preview can name its subject directly instead of asking the reader to find it."""
     root = live_url(serve(FEATURE_GALLERY))
-    destination = "#bg-quoted-and-visual-heading"
+    destination = "#bg-quoted-and-visual"
     page, errors = open_page(browser, root + destination)
 
     links = page.get_by_role("navigation", name="On this page").get_by_role("link")
@@ -207,10 +208,9 @@ def test_the_feature_gallery_headings_are_stable_preview_destinations(browser, s
                   generated: target?.dataset.lfGen === '1'};
         })"""
     )
-    assert targets and all(
-        target["tag"] in {"h1", "h2", "h3", "h4", "h5", "h6"}
-        and not target["generated"]
-        for target in targets
+    assert targets[0] == {"href": "#bg-title", "tag": "h1", "generated": False}
+    assert all(
+        target["tag"] == "section" and not target["generated"] for target in targets[1:]
     ), targets
     assert len({target["href"] for target in targets}) == len(targets), targets
 
@@ -5452,9 +5452,18 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     page.close()
 
 
-def test_other_responses_can_turn_the_compact_field_into_a_suggestion(browser, serve):
-    """A selected passage offers Suggest without reopening the retired composer card."""
-    page, errors = open_page(browser, serve(INLINE_PAGE))
+def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggestion(
+    browser, serve
+):
+    """A reactionless layer keeps Suggest in the compact response fallback."""
+    registry = json.loads(
+        (ROOT / "skills/leaf/packages/default/registry.json").read_text()
+    )
+    tokens = {name: None for name in registry["$reactions"]["tokens"]}
+    page, errors = open_page(
+        browser,
+        serve(INLINE_PAGE, layer_registry={"$reactions": {"tokens": tokens}}),
+    )
     page.locator("#p").click(click_count=3)
     box = page.locator(".lf-fab-input")
     expect(page.locator(".lf-fab-bar")).to_be_visible()

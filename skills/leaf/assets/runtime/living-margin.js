@@ -68,8 +68,8 @@
    concise semantic subject used to name that target away from its own paint. Supply it
    only when plain text concatenation loses a relation the widget paints visually, such as
    a rewrite's `old → new`; contributions at the same target must agree. `state` is a
-   value or live reading of `idle`, `engaged`, `busy`, `failed`, or `settled`; active
-   states keep the owner's peers exposed. A contribution item that sets `represents` and
+   value or live reading of `idle`, `engaged`, `busy`, or `failed`; every state but idle
+   keeps the owner's peers exposed. A contribution item that sets `represents` and
    names its `kind` is also the visible reading of that state, so the margin suppresses a
    generated reading of the same kind at that exact target rather than showing the fact
    twice. Every fitting in a contribution is built with `marginButton(control, {key, icon,
@@ -135,16 +135,18 @@
    generic container for alternatives.
 
    Tone is `neutral`, `positive`, or `negative`, expressed through icon color only; rings,
-   fills, and state marks keep their shared neutral treatment. An interactive Button's
-   state has a separate small corner mark: a dot for engaged, an open moving ring for busy
-   (static under reduced motion), a diamond for failed, and a square for settled. The mark
-   is enough to state that a Button is busy, so the Button itself stays at full opacity
-   and keeps its pointer. Busy also sets `aria-busy="true"`; a failure keeps visible words
-   beside the controls that can repair it. A status's phase is its transient hover or focus
-   label instead of a corner mark. Standing reactions reuse the settled square in
-   their margin palette and seated marks, so they remain distinct from hover without
-   changing the shared ring or fill. Reaction toggles retain their vocabulary labels and
-   `aria-pressed`; withdrawing a token returns its palette Button to idle.
+   fills, and the busy mark keep their shared neutral treatment. `busy` is the one state
+   that paints: a small open moving ring at the corner (static under reduced motion). It
+   paints because it is the only state nothing else on the page states — a busy Button
+   stays at full opacity and keeps its pointer, so with no ring an in-flight press looks
+   idle — and because a moving outline is the one mark this size a reader can still
+   resolve. Busy also sets `aria-busy="true"`. The other states carry the same ordering
+   and fold-open weight while painting nothing, because each already has words beside it:
+   a failure keeps visible words beside the controls that can repair it, and an engaged
+   Button stands next to the open interaction it belongs to. A status's phase is its
+   transient hover or focus label. Reaction toggles retain their vocabulary labels and
+   `aria-pressed`, which is what their palette fill reads; a standing reaction mark exists
+   only while its reaction stands, so its presence is the whole of what it has to say.
    `marginButtonState(control, state)` changes that axis without changing the verb, ring,
    or tone. Built-in faces use the shared monochrome SVG vocabulary with `currentColor`;
    emoji and font-dependent symbols are not structural icons. Reaction glyphs are content
@@ -333,7 +335,7 @@ const KINDS = {
     icon: "pickup",
     priority: 3,
     indication: true,
-    state: "settled",
+    state: "idle",
   },
   waiting: {
     label: "Waiting for pickup",
@@ -354,7 +356,7 @@ const offerListeners = new Set();
 export const BUTTON_GRAMMAR = Object.freeze({
   tones: Object.freeze(["neutral", "positive", "negative"]),
   behaviors: Object.freeze(["action", "disclosure", "status"]),
-  states: Object.freeze(["idle", "engaged", "busy", "failed", "settled"]),
+  states: Object.freeze(["idle", "engaged", "busy", "failed"]),
   roles: Object.freeze([
     "complete",
     "escape",
@@ -368,12 +370,10 @@ const BUTTON_TONES = new Set(BUTTON_GRAMMAR.tones);
 const BUTTON_BEHAVIORS = new Set(BUTTON_GRAMMAR.behaviors);
 const BUTTON_STATES = new Set(BUTTON_GRAMMAR.states);
 const BUTTON_ROLES = new Set(BUTTON_GRAMMAR.roles);
-const ACTIVE_STATES = new Set(["engaged", "busy", "failed"]);
 const STATE_PRIORITY = new Map([
   ["failed", 0],
   ["busy", 1],
   ["engaged", 2],
-  ["settled", 3],
   ["idle", 3],
 ]);
 const ROLE_PRIORITY = new Map([
@@ -845,6 +845,24 @@ preview.append(previewHead, previewList);
 let threadTransitionEpoch = 0;
 let threadTransitionMotions = [];
 
+// The submitted composer and a developer replay describe the same starting box; the
+// transition owns that geometry contract instead of making either caller duplicate it.
+export function threadTransitionOrigin(element, text) {
+  const box = element.getBoundingClientRect();
+  const style = getComputedStyle(element);
+  return {
+    left: box.left,
+    top: box.top,
+    width: box.width,
+    height: box.height,
+    backgroundColor: style.backgroundColor,
+    borderColor: style.borderColor,
+    borderRadius: style.borderRadius,
+    boxShadow: style.boxShadow,
+    text,
+  };
+}
+
 function clearThreadTransition() {
   threadTransitionEpoch += 1;
   for (const played of threadTransitionMotions) played.cancel();
@@ -1005,9 +1023,9 @@ const offerState = (offered) => {
   return state;
 };
 // One target has one lifecycle reading. Failure outranks work in flight, which
-// outranks an open interaction; a settled status and the ordinary idle state never
-// force peers open. Generated acknowledgment readings join through the same state
-// axis rather than a second engagement flag.
+// outranks an open interaction; the ordinary idle state never forces peers open.
+// Generated acknowledgment readings join through the same state axis rather than a
+// second engagement flag.
 const entryState = (entry) => {
   const states = [
     ...entry.offers.map(offerState),
@@ -1021,7 +1039,9 @@ const entryState = (entry) => {
     )[0] ?? "idle"
   );
 };
-const entryEngaged = (entry) => ACTIVE_STATES.has(entryState(entry));
+// Every state but idle keeps the cluster open, so the reading is the absence of idle
+// rather than a second list of states beside the grammar's.
+const entryEngaged = (entry) => entryState(entry) !== "idle";
 // A modal or contextual thread surface temporarily owns focus without ending the
 // document interaction beneath it. Preserve that context so its commands remain
 // true and its owning Button can receive focus when the surface closes.

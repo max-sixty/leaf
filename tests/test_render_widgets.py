@@ -75,6 +75,7 @@ from render_support import (
     select,
     sending,
     sent_events,
+    stamp_page,
     stamp_version_file,
     told,
     undo,
@@ -729,25 +730,29 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
     """An eyebrow is the heading's label, so its small bottom margin is the room inside
     the title while the heading level's larger top margin remains outside the pair.
 
-    The contents widget inserts a zero-height fragment target before an id-less heading.
-    That generated node must not split the same authored pair into a different layout."""
+    An identified section owns the contents destination while its heading supplies the
+    label. The clean section fragment brings the whole title into view and needs no
+    generated node between the eyebrow and heading."""
     source = leaf_page(
         "eyebrow title rhythm",
         """
 <h1>Two labeled sections</h1>
 <lf-toc id="contents"></lf-toc>
+<div style="height: 110vh"></div>
 <p id="before-two">First section follows.</p>
-<section id="section-two">
+<section id="section-two" aria-labelledby="title-two">
   <p class="eyebrow">release shape</p>
   <h2 id="title-two">Prepare the readers</h2>
   <p>Take a snapshot.</p>
 </section>
+<div style="height: 110vh"></div>
 <p id="before-three">A subsection follows.</p>
 <section id="section-three">
   <p class="eyebrow">first cohort</p>
   <h3>Move the readers</h3>
   <p>Shift one cohort at a time.</p>
 </section>
+<div style="height: 110vh"></div>
 """,
     )
     page, errors = open_page(browser, serve(source))
@@ -774,12 +779,36 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
     )
     assert rhythm == {
         "h2": {"outer": 48, "inner": 10, "between": []},
-        "h3": {
-            "outer": 32,
-            "inner": 10,
-            "between": ["lf-toc-target lf-ui"],
-        },
+        "h3": {"outer": 32, "inner": 10, "between": []},
     }
+
+    toc = page.get_by_role("navigation", name="On this page")
+    assert toc.get_by_role("link").evaluate_all(
+        "links => links.map(link => link.getAttribute('href'))"
+    ) == ["#section-two", "#section-three"]
+    expect(page.locator("#section-two")).to_have_attribute(
+        "aria-labelledby", "title-two"
+    )
+    expect(page.locator("#section-two > h2")).to_have_attribute("id", "title-two")
+    toc.get_by_role("link", name="Move the readers").click()
+    expect(page.locator(":target")).to_have_attribute("id", "section-three")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    arrival = page.locator("#section-three").evaluate(
+        """section => {
+          const root = document.scrollingElement;
+          const eyebrow = section.querySelector(':scope > .eyebrow');
+          const heading = section.querySelector(':scope > h3');
+          return {
+            clear: parseFloat(getComputedStyle(root).scrollPaddingTop),
+            section: section.getBoundingClientRect().top,
+            eyebrow: eyebrow.getBoundingClientRect().top,
+            heading: heading.getBoundingClientRect().top,
+          };
+        }"""
+    )
+    assert arrival["section"] == pytest.approx(arrival["clear"], abs=1)
+    assert arrival["eyebrow"] == pytest.approx(arrival["clear"], abs=1)
+    assert arrival["heading"] > arrival["eyebrow"]
     assert errors == []
     page.close()
 
@@ -2331,6 +2360,71 @@ def test_swipe_deck_exit_echo_starts_at_the_dragged_card_box(browser, serve):
     page.evaluate("window.__lfHeld[0].finish()")
     expect(echo).to_have_count(0)
     round_trip(page)
+    assert errors == []
+    page.close()
+
+
+def test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe(browser, serve):
+    """A remote action carries its production projection through the exit motion.
+
+    A reload reads the same standing unit but arrives before presentation, so it restores
+    the final placement without replaying old news as a new transition.
+    """
+    url = serve(SWIPE_PAGE)
+    page, errors = open_page(browser, url, init_script=HOLD_MOTION)
+
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "session-triage",
+            "action": "swipe",
+            "detail": {"card": "swipe-a", "to": "session-keep", "index": 1},
+        },
+    )
+    told(page)
+
+    expect(page.locator(".lf-swipe-exit")).to_have_count(1)
+    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
+    page.evaluate("window.__lfHeld[0].finish()")
+    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
+
+    page.reload()
+    page.wait_for_function(BOTH_STAMPS)
+    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
+    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_swipe_deck_activation_restores_a_standing_swipe_without_motion(browser, serve):
+    """A new revision carries an old classification at rest, as an arrival."""
+    url = serve(SWIPE_PAGE)
+    page, errors = open_page(browser, live_url(url), init_script=HOLD_MOTION)
+
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "session-triage",
+            "action": "swipe",
+            "detail": {"card": "swipe-a", "to": "session-keep", "index": 1},
+        },
+    )
+    told(page)
+    expect(page.locator(".lf-swipe-exit")).to_have_count(1)
+    page.evaluate("window.__lfHeld[0].finish()")
+    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
+
+    stamp_page(serve.page_dir, SWIPE_PAGE, "second")
+    wait_for_revision(page, 2)
+
+    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
+    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
     assert errors == []
     page.close()
 

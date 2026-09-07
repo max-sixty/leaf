@@ -4170,9 +4170,10 @@ RING_WALKS = (
         ("corpus", "ship-review"),
     ),
     ("the comments", ("c",), ("ship-review",)),
-    # Message reactions are behind their local disclosure. The old worded trigger wore
-    # the pill face itself, so the page walk happened to cover that ring; the icon
-    # trigger is now an ordinary press and the choices are the pill-shaped controls.
+    # The reaction palette a message's strip opens. Its chips are the last boxes the
+    # layer dresses in the chrome's pill face, and they are behind a press: the strip
+    # shows a token nobody has pressed only while it is open, so a walk of the panel
+    # that never opens one stands on the trigger and nothing under it.
     ("a reaction palette", (), ("ship-review",)),
     ("the Asks tray", (), ("ship-review",)),
     ("the leaves tray", ("g", "Shift+l"), ("corpus",)),
@@ -4225,7 +4226,6 @@ def offered(page, selector):
 # reads, while page `c` enters its comment box and is exercised separately.
 RING_SCOPE_SURFACE = {
     "a thread card": (".lf-margin-preview:popover-open", None),
-    "a reaction palette": (".lf-react-strip.lf-react-open", None),
     "the page map sheet": (".lf-page-map-sheet[open]", None),
     "passage search": (".lf-target-search:not([hidden])", None),
     # The hint the keyboard is browsing, and the field the chosen item's bar opens with.
@@ -4239,19 +4239,22 @@ RING_SCOPE_SURFACE = {
     "the versions menu": (".lf-version-menu:popover-open", None),
     "the reference": (".lf-help.open", None),
     "design mode": ("body.lf-design", None),
+    "a reaction palette": (".lf-react-strip.lf-react-open", None),
 }
 RING_SCOPE_CONTROL = {
     "the Asks tray": (".lf-asks", ".lf-asks-row"),
-    "a reaction palette": (
-        ".lf-msg.claude .lf-react-trigger",
-        ".lf-react-palette .lf-react",
-    ),
     "a thread card": (
         '.lf-margin-marker[data-lf-kinds~="comment"]',
         ".lf-margin-preview",
     ),
     "message media": (None, ".lf-message-media"),
     "the page map sheet": (".lf-page-map-toggle", ".lf-page-map-action"),
+    # The trigger presses itself away, so the arrival is read from the open strip
+    # rather than from the palette a shut one still holds.
+    "a reaction palette": (
+        ".lf-react-strip > .lf-react-trigger",
+        ".lf-react-strip.lf-react-open > .lf-react-palette > .lf-react",
+    ),
 }
 # The window a scope's own surface stands in, where that is not the walk's own. Both
 # entries are a floor the layer states rather than a preference: the Map control is drawn

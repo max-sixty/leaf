@@ -155,7 +155,11 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
         browser,
         serve(
             leaf_page("Website example", "<h1>Website example</h1>"),
-            website_example={"agent": "Leaf guide", "install_url": "/#install"},
+            website_publication={
+                "kind": "example",
+                "agent": "Leaf guide",
+                "install_url": "/#install",
+            },
         ),
     )
     try:

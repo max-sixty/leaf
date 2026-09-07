@@ -53,36 +53,54 @@ async function boundedRead(
   throw new Error(message);
 }
 
-function frameSource(frame) {
+function loadFrameModule(frame, source, message) {
+  return new Promise((resolve, reject) => {
+    const script = frame.contentDocument.createElement("script");
+    script.type = "module";
+    script.src = source;
+    script.addEventListener("load", resolve, { once: true });
+    script.addEventListener("error", () => reject(new Error(message)), { once: true });
+    frame.contentDocument.body.append(script);
+  });
+}
+
+async function loadFrameDocument(frame) {
+  const source = document.implementation.createHTMLDocument();
+  const root = source.documentElement;
+  const head = source.head;
+  const body = source.body;
   const theme = new URL("../theme.css", import.meta.url).href;
-  const leafEntry = new URL("../leaf.js", import.meta.url).href;
-  const adapter = new URL("./interaction-gallery-frame.js", import.meta.url).href;
-  const content = document.createElement("div");
-  const eyebrow = document.createElement("p");
+  const content = source.createDocumentFragment();
+  const eyebrow = source.createElement("p");
   eyebrow.className = "eyebrow";
   eyebrow.textContent = frame.dataset.interactionEyebrow;
   content.append(eyebrow);
   if (frame.dataset.interactionTitle) {
-    const heading = document.createElement("h1");
+    const heading = source.createElement("h1");
     heading.textContent = frame.dataset.interactionTitle;
     content.append(heading);
   }
-  const copy = document.createElement("p");
+  const copy = source.createElement("p");
   copy.append(frame.dataset.interactionCopy);
   if (frame.dataset.interactionTarget) {
     copy.id = frame.dataset.interactionTarget;
     copy.className = "interaction-frame-target";
   }
   content.append(copy);
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="lf-revision" data-lf-runtime content="${runtime.currentRevision}">
-    <meta name="lf-version" data-lf-runtime content="${runtime.currentStamp}">
-    <link rel="stylesheet" href="${theme}">
-    <style>
+  const meta = (name, value) => {
+    const element = source.createElement("meta");
+    element.name = name;
+    element.content = value;
+    element.dataset.lfRuntime = "";
+    return element;
+  };
+  const charset = source.createElement("meta");
+  charset.charset = "utf-8";
+  const viewport = source.createElement("meta");
+  viewport.name = "viewport";
+  viewport.content = "width=device-width, initial-scale=1";
+  const style = source.createElement("style");
+  style.textContent = `
       body { overflow: hidden; }
       main {
         box-sizing: border-box;
@@ -94,14 +112,43 @@ function frameSource(frame) {
         font-size: var(--t-3);
         line-height: 1.7;
       }
-    </style>
-  </head>
-  <body data-lf-contained>
-    <main>${content.innerHTML}</main>
-    <script type="module" src="${leafEntry}"></script>
-    <script type="module" src="${adapter}"></script>
-  </body>
-</html>`;
+    `;
+  const stylesheet = source.createElement("link");
+  stylesheet.rel = "stylesheet";
+  stylesheet.href = theme;
+  const main = source.createElement("main");
+  main.append(content);
+  root.lang = "en";
+  head.replaceChildren(
+    charset,
+    viewport,
+    meta("lf-location", "about:srcdoc"),
+    meta("lf-revision", String(runtime.currentRevision)),
+    meta("lf-version", String(runtime.currentStamp)),
+    stylesheet,
+    style,
+  );
+  // The document in the frame is the runtime's, and it is a whole second Leaf page.
+  // The mark says so on both sides of the boundary — the frame element out in the
+  // gallery carries it too — so the contained page knows to leave the reader's
+  // arrangements alone and a standalone copy knows this is a document it has no
+  // server to open.
+  body.toggleAttribute("data-lf-contained", true);
+  body.replaceChildren(main);
+  const doc = frame.contentDocument;
+  doc.open();
+  doc.write(`<!doctype html>${root.outerHTML}`);
+  doc.close();
+  const loadedStylesheet = doc.querySelector('link[rel="stylesheet"]');
+  if (!loadedStylesheet.sheet)
+    await new Promise((resolve, reject) => {
+      loadedStylesheet.addEventListener("load", resolve, { once: true });
+      loadedStylesheet.addEventListener(
+        "error",
+        () => reject(new Error("the contained Leaf page did not load its theme")),
+        { once: true },
+      );
+    });
 }
 
 // A document tree has one focus, so focus that lands inside a frame is focus taken off
@@ -159,27 +206,25 @@ class Demo {
 
   async load() {
     if (this.frameElement) {
-      const loaded = new Promise((resolve) =>
-        this.frameElement.addEventListener("load", resolve, { once: true }),
-      );
-      // The element is the author's; the document in it is the runtime's, and it is a
-      // whole second Leaf page. The mark says so on both sides of the boundary — the
-      // frame's own body carries it too — so the contained page knows to leave the
-      // reader's arrangements alone and a standalone copy knows this is a document it
-      // has no server to open.
+      // The element is the author's; the document about to be written into it is the
+      // runtime's, and both sides of the boundary carry the mark.
       this.frameElement.toggleAttribute("data-lf-contained", true);
-      this.frameElement.srcdoc = frameSource(this.frameElement);
-      await loaded;
-      this.frameApi = keepsReaderStanding(
-        await boundedRead(
-          () => this.frameElement.contentWindow?.leafInteractionGalleryFrame,
-          "the contained Leaf page did not expose its gallery adapter",
-        ),
+      await loadFrameDocument(this.frameElement);
+      const adapter = new URL("./interaction-gallery-frame.js", import.meta.url).href;
+      const leafEntry = new URL("../leaf.js", import.meta.url).href;
+      await loadFrameModule(
         this.frameElement,
+        adapter,
+        "the contained Leaf page did not load its gallery adapter",
       );
-      await boundedRead(
-        () => this.frameElement.contentDocument?.body.hasAttribute("data-lf-presented"),
-        "the contained Leaf page did not finish presenting",
+      const frameApi = this.frameElement.contentWindow?.leafInteractionGalleryFrame;
+      if (!frameApi)
+        throw new Error("the contained Leaf page did not expose its gallery adapter");
+      this.frameApi = keepsReaderStanding(frameApi, this.frameElement);
+      await loadFrameModule(
+        this.frameElement,
+        leafEntry,
+        "the contained Leaf page did not load Leaf",
       );
       await this.frameApi.ready;
       this.frameElement.dataset.interactionReady = "";

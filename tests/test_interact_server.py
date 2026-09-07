@@ -3123,6 +3123,89 @@ def test_temporary_server_close_waits_for_delayed_start(page_dir, monkeypatch):
     assert server.httpd.fileno() == -1
 
 
+def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
+    """A page cannot be reused until every request against it has finished."""
+    server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN)
+    entered = threading.Event()
+    release = threading.Event()
+    closed = threading.Event()
+    responses = []
+    original_get = server.httpd.RequestHandlerClass._get
+
+    def delayed_get(handler):
+        entered.set()
+        release.wait()
+        files_model.write_json(page_dir / "request-finished.json", {"done": True})
+        original_get(handler)
+
+    def request():
+        responses.append(fetch(f"{server.origin}/api/state"))
+
+    def close():
+        server.close()
+        closed.set()
+
+    monkeypatch.setattr(server.httpd.RequestHandlerClass, "_get", delayed_get)
+    requester = threading.Thread(target=request, daemon=True)
+    closer = threading.Thread(target=close, daemon=True)
+    try:
+        server.start()
+        requester.start()
+        assert entered.wait(timeout=5), "the server did not accept the request"
+        closer.start()
+        assert not closed.wait(timeout=0.1), (
+            "close returned with a request still active"
+        )
+        release.set()
+        closer.join(timeout=5)
+        requester.join(timeout=5)
+    finally:
+        release.set()
+        server.close()
+    assert not closer.is_alive()
+    assert not requester.is_alive()
+    assert len(responses) == 1 and responses[0][0] == 200
+    assert files_model.read_json(page_dir / "request-finished.json") == {"done": True}
+
+
+def test_temporary_server_close_is_bounded_by_an_idle_connection(page_dir, monkeypatch):
+    """An accepted client that says nothing cannot park a threaded server close."""
+    server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN)
+    entered = threading.Event()
+    closed = threading.Event()
+    original_handle = server.httpd.RequestHandlerClass.handle_one_request
+
+    def observed_handle(handler):
+        entered.set()
+        original_handle(handler)
+
+    def close():
+        server.close()
+        closed.set()
+
+    monkeypatch.setattr(
+        server.httpd.RequestHandlerClass, "handle_one_request", observed_handle
+    )
+    closer = threading.Thread(target=close, daemon=True)
+    client = None
+    closer_started = False
+    try:
+        server.start()
+        client = socket.create_connection(("127.0.0.1", server.port))
+        assert entered.wait(timeout=5), "the server did not accept the connection"
+        closer.start()
+        closer_started = True
+        assert closed.wait(timeout=5), "an idle connection prevented server close"
+    finally:
+        if client is not None:
+            client.close()
+        if closer_started:
+            closer.join(timeout=5)
+        else:
+            server.close()
+    assert not closer.is_alive()
+
+
 def test_server_can_restart_after_prompt_shutdown(page_dir):
     """The wakeup is reusable, so a normal server restart keeps serving requests."""
     httpd = hosting_model.LeafHTTPServer(

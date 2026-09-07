@@ -311,7 +311,7 @@ import { updateSequence, workClaimState } from "./updates.js";
 import { threadList } from "./conversation/reconcile.js";
 import { threadKey } from "./conversation/model.js";
 import { openAsks } from "./asks/model.js";
-import { goToAsk } from "./asks/view.js";
+import { goToAsk, standsWith } from "./asks/view.js";
 import { stateProjection } from "./projection/fold.js";
 import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
@@ -2101,6 +2101,8 @@ function optionControlNode(control, entry) {
   });
   syncForwardedButtonState(node, control);
   node.lfForwardedControl = control;
+  // The proxy carries the control's press, so it carries where that control stands.
+  standsWith(node, control);
   keeps(node, "data-lf-button-owner", record.owner);
   node.onclick = () => {
     control.click();

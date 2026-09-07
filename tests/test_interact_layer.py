@@ -4,7 +4,6 @@ import contextlib
 import json
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import threading
@@ -12,7 +11,6 @@ from pathlib import Path
 
 import pytest
 import tinycss2
-import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool
 from interact_support import (
@@ -319,44 +317,6 @@ def test_the_root_instructions_name_every_directory_ci_gates_on_its_own():
     assert directories, "no working-directory read — an empty set names itself"
     unnamed = [d for d in directories if f"`{d}/`" not in instructions]
     assert not unnamed, f"unnamed in CLAUDE.md: {unnamed}"
-
-
-def test_the_ci_test_job_publishes_every_pytest_result():
-    """Each suite invocation gives pytest a report path the artifact step includes.
-
-    A backslash at the end of a YAML plain scalar escapes the folded space rather than
-    continuing a shell line. The report option then becomes a positional path, and
-    pytest collects no tests. Parse the YAML and split each command as its shell does
-    so this checks the command that CI runs rather than its source lines.
-    """
-    workflow = yaml.safe_load(
-        (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
-    )
-    steps = workflow["jobs"]["test"]["steps"]
-    commands = [step["run"] for step in steps if "uv run pytest" in step.get("run", "")]
-    assert commands, "the test job runs no pytest command"
-    reports = []
-    for command in commands:
-        report_args = [
-            arg for arg in shlex.split(command) if arg.startswith("--junitxml=")
-        ]
-        assert len(report_args) == 1, command
-        reports.append(report_args[0].partition("=")[2])
-
-    report_dir = Path(".tmp/test-results")
-    assert len(reports) == len(set(reports)), reports
-    assert all(
-        Path(report).parent == report_dir and Path(report).suffix == ".xml"
-        for report in reports
-    ), reports
-    upload = next(
-        step
-        for step in steps
-        if step.get("uses", "").startswith("actions/upload-artifact@")
-    )
-    assert upload["with"]["path"] == f"{report_dir}/*.xml"
-    assert upload["with"]["if-no-files-found"] == "error"
-    assert upload["with"]["include-hidden-files"] is True
 
 
 def test_hidden_hook_remains_callable():

@@ -396,11 +396,11 @@ addEventListener("storage", (ev) => {
   tellDraft(ctx, active ? incoming.text : null, active ? incoming.payload : undefined);
 });
 
-// One box's view of one draft: sync.value() reads the complete durable value, including
-// a pasted-media projection that is not exposed in the textarea. Write .value only when
-// that complete value differs, because writing it on a focused box moves the caret to
-// the end. The box grows to fit either way, sizing being the stylesheet's (wireInput),
-// and sync() makes its visible words, media shelf, and Send button agree.
+// One box's view of one draft: sync.load() takes the complete durable value, splits the
+// pasted-media projection that is not exposed in the textarea back out of it, and makes
+// the visible words, the media shelf, and the Send button agree. It leaves a value the
+// box already holds alone, because writing .value on a focused box moves the caret to
+// the end. The box grows to fit either way, sizing being the stylesheet's (wireInput).
 //
 // A box out of the document drops its view at the next word it would have shown, rather
 // than at the moment it leaves — the one box that ever leaves is a reply box going with
@@ -411,10 +411,7 @@ addEventListener("storage", (ev) => {
 export function mirrorDraft(ta, sync, ctx) {
   const off = watchDraft(ctx, (value) => {
     if (!ta.isConnected) return off();
-    const text = value ?? "";
-    if (sync.value() === text) return;
-    ta.value = text;
-    sync();
+    sync.load(value ?? "");
   });
 }
 // Reply drafts are never pruned. A thread resolving is not a discard: another

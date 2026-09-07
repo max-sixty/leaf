@@ -100,6 +100,7 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   exhibit: "data-lf-exhibit",
   yield: "data-lf-yield",
   holds: "data-lf-holds",
+  cut: "data-lf-cut",
   goto: "data-lf-goto",
   traffic: "data-lf-traffic",
 });

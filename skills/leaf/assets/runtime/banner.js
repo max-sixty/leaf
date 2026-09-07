@@ -176,14 +176,26 @@ export function sayLine(text) {
   showStatus(saidKind, "", text);
   announce(text);
 }
+// The developer preview's identity: which checkout is serving this page, and a press to
+// copy the whole diagnostic. It is an address on the row rather than a chip inside the
+// status, because the status's room is the sentence's floor and a chip standing in it
+// spends that floor first — 240 pixels of it, which left the line twelve characters and
+// two of the four lines it had to say. On the row it keeps its words and folds whole,
+// ahead of every address, which is the right order for the one control here a reader
+// never needs.
 let previewButton = null;
+// A checkout goes dirty and clean again while a developer works, so the chip holds the
+// wider of its two spellings for the page's life rather than growing a character under
+// the reader's pointer. Renewed with the row's other reservations at a breakpoint.
+let previewLabels = [];
 let previewDiagnostics = "";
 function renderPreview(state) {
   const preview = state.preview;
   if (!preview) return;
-  const commit = preview.commit ? `@${preview.commit}${preview.dirty ? "+" : ""}` : "";
   const kind = preview.interaction === "automation" ? "Automation" : "Preview";
-  const label = `${kind} · ${preview.checkout}${commit}`;
+  const stem = `${kind} · ${preview.checkout}${preview.commit ? `@${preview.commit}` : ""}`;
+  previewLabels = preview.commit ? [stem, `${stem}+`] : [stem];
+  const label = preview.commit && preview.dirty ? `${stem}+` : stem;
   const safeUrl = new URL(location.href);
   safeUrl.searchParams.delete("t");
   previewDiagnostics = [
@@ -214,43 +226,133 @@ function renderPreview(state) {
         notice("Couldn't copy preview diagnostics");
       }
     });
-    statusText.before(previewButton);
+    // Seated by the same writer that seats every other address, so the row reads in one
+    // order and the fold knows about it; then measured with the whole run standing, then
+    // folded against what it measured. The unfold is the measurement's precondition, not
+    // tidiness: `arrangeBannerControls` ends in a fold, this chip is seated first so it
+    // is the first thing folded, and inside a shut popover every word measures zero — so
+    // reserving here without it sets a floor of 0px and the chip grows by a glyph, on the
+    // row, the first time the checkout goes dirty. `reserveBannerControls` opens with the
+    // same call for the same reason.
+    arrangeBannerControls();
+    unfoldShelf();
+    reserve(previewButton, previewLabels);
+    foldShelf();
   }
   previewButton.textContent = label;
   previewButton.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
 }
+// The two lines the page cannot reach through its own state, said here because the
+// reservation below has to know them as well as the reading does.
+const OFFLINE_LINE =
+  "Server offline — reconnecting. Keep this page open so pending changes can send.";
+const BROKEN_LINE = "Page couldn't apply current state — reload";
+// A published page's own line, in the two parts it is written in: the sentence, and the
+// link that ends it. Said once, so what the row measures is what the row says. The two
+// subjects are the two kinds of published page, and the longer of them is what the room
+// is measured against, since which one this page is arrives with its first state.
+const publicationWords = (published) => [
+  `${
+    published.kind === "example"
+      ? "This is an example on the Leaf website."
+      : "This website is a Leaf page."
+  } ${published.agent} replies here, but cannot edit this page. `,
+  "Install Leaf",
+];
+
+// The words one reading is written in, from the facts that decide them. They are a
+// writer of their own rather than a chain inside the reading because the reservation
+// below asks this same writer for every line this page could say: what the row keeps
+// room for and what the row says are then one set of words rather than two lists to
+// keep in step.
+function statusWords({
+  agent,
+  dated,
+  detail,
+  kind,
+  obligations,
+  pending,
+  quiet,
+  saved,
+}) {
+  if (kind === "closed") return "Leaf closed";
+  // No agent named and no pickup promised, which is the whole difference from
+  // `unheld` below: there is nobody to name and nothing coming. What the reader can
+  // still do is everything — the page works, it just works alone — so the line says
+  // where their gestures go rather than that they are saved for someone.
+  if (kind === "unattended")
+    return "Nobody is behind this page. What you do here stays in this browser.";
+  // No agent is named, because which one picks the page up next is not a fact this
+  // page holds — only that the log is there for whichever does.
+  if (kind === "unheld")
+    return `No session holds this page. ${saved} It picks up again when a session does.`;
+  if (kind === "working") return `${agent} is working${detail ? " — " + detail : ""}`;
+  if (kind === "handling")
+    return `${agent} is handling ${obligations} update${obligations === 1 ? "" : "s"}`;
+  if (kind === "queued")
+    return `${obligations} update${obligations === 1 ? " is" : "s are"} queued for ${agent}`;
+  if (kind === "picked_up")
+    return `${agent} picked up ${obligations} update${obligations === 1 ? "" : "s"}, but that turn ended. ${saved}`;
+  // Attendance is half the news; the other half is what the page wants back. The
+  // Asks count beside it says how many things are unanswered and nothing about what
+  // any of them is, so the claim's detail says that here in the agent's own words,
+  // the way a `working` claim's says what it is doing. With nothing declared it is
+  // the standing instruction, which is what a page asking nothing wanted anyway.
+  //
+  // With no pending update, "awaits" states the stance a live watcher supports and
+  // uses the registry's word for a standing Ask for the reader (x-awaits). Once a
+  // reader move is pending, the same listening evidence remains primary while the
+  // words lead with what was saved.
+  if (kind === "listening")
+    return pending
+      ? `${saved} ${agent} is listening${detail ? " — " + detail : ""}.`
+      : `${agent} awaits — ${detail || "select text to comment"}`;
+  // The claim stands, dated, with no remedy attached: a watcher is live, so the
+  // reader's next word reaches the agent without anyone touching a terminal. What
+  // they are owed is the age, which is the one thing they cannot see for themselves
+  // and the whole of what separates a delegate mid-answer from a dropped thread. It
+  // is spoken in the same words the branch below uses for the same silence, rather
+  // than in the muted parenthesis a live `working` claim wears: there the age is a
+  // footnote to news, and here it is the news.
+  if (kind === "stalled") return `${dated}${detail ? ": " + detail : ""}. ${saved}`;
+  // Somebody is behind the page and isn't attending: say which and what to do. A
+  // long silence means Claude lost the thread; a recent check-in means it is
+  // mid-turn and the next one collects.
+  const [why, how] = quiet
+    ? [`${dated}.`, "Nudge it in the terminal."]
+    : [`${agent} isn't watching right now.`, "It picks them up next turn."];
+  return `${why} ${saved} ${how}`;
+}
+
+// Whether this page is published, once it has said so, because the line a published
+// page writes is longer than any a reader's own page can reach and the room it needs
+// is measured with the rest.
+let publication = null;
+
 function renderStatusNow(state) {
   if (state instanceof Error) {
-    showStatus("broken", "offline", "Page couldn't apply current state — reload");
+    showStatus("broken", "offline", BROKEN_LINE);
     return;
   }
   if (state === null) {
-    showStatus(
-      "unreachable",
-      "offline",
-      "Server offline — reconnecting. Keep this page open so pending changes can send.",
-    );
+    showStatus("unreachable", "offline", OFFLINE_LINE);
     return;
   }
   renderPreview(state);
-  if (state.publication) {
-    const install = el("a", "lf-publication-install", "Install Leaf");
-    install.href = state.publication.install_url;
-    const subject =
-      state.publication.kind === "example"
-        ? "This is an example on the Leaf website."
-        : "This website is a Leaf page.";
-    showStatus(
-      "unattended",
-      TONE.unattended,
-      `${subject} ${state.publication.agent} replies here, but cannot edit this page. `,
-      install,
-    );
+  publication = state.publication ?? null;
+  // Before the words, because the row folds against the room they will need: a page
+  // learning its agent's name, or that it is published, is a page whose longest line has
+  // just changed, and the addresses beside it are what pay for the difference.
+  if (reserveStatusRoom()) foldShelf();
+  if (publication) {
+    const [said, installs] = publicationWords(publication);
+    const install = el("a", "lf-publication-install", installs);
+    install.href = publication.install_url;
+    showStatus("unattended", TONE.unattended, said, install);
     return;
   }
   const { activity } = state;
   const { kind, quiet, dropped, detail } = activity;
-  const obligations = activity.count;
   // What the user's words do meanwhile. The log takes them with nobody on the other
   // end; the only thing attendance changes is when they are read.
   const saved = activity.counts.total
@@ -262,60 +364,17 @@ function renderStatusNow(state) {
   const dated = dropped
     ? `${agentName()} left this when its turn ended ${ago(state.turn_closed)}`
     : `${agentName()} last checked in ${ago(activity.ts)}`;
-  let text = "",
-    showAge = false;
-  if (kind === "closed") text = "Leaf closed";
-  else if (kind === "unattended")
-    // No agent named and no pickup promised, which is the whole difference from
-    // `unheld` below: there is nobody to name and nothing coming. What the reader can
-    // still do is everything — the page works, it just works alone — so the line says
-    // where their gestures go rather than that they are saved for someone.
-    text = "Nobody is behind this page. What you do here stays in this browser.";
-  else if (kind === "unheld")
-    // No agent is named, because which one picks the page up next is not a fact this
-    // page holds — only that the log is there for whichever does.
-    text = `No session holds this page. ${saved} It picks up again when a session does.`;
-  else if (kind === "working") {
-    showAge = Boolean(activity.ts);
-    text = `${agentName()} is working${detail ? " — " + detail : ""}`;
-  } else if (kind === "handling") {
-    text = `${agentName()} is handling ${obligations} update${obligations === 1 ? "" : "s"}`;
-  } else if (kind === "queued") {
-    text = `${obligations} update${obligations === 1 ? " is" : "s are"} queued for ${agentName()}`;
-  } else if (kind === "picked_up") {
-    text = `${agentName()} picked up ${obligations} update${obligations === 1 ? "" : "s"}, but that turn ended. ${saved}`;
-  } else if (kind === "listening") {
-    // Attendance is half the news; the other half is what the page wants back. The
-    // Asks count beside it says how many things are unanswered and nothing about what
-    // any of them is, so the claim's detail says that here in the agent's own words,
-    // the way a `working` claim's says what it is doing. With nothing declared it is
-    // the standing instruction, which is what a page asking nothing wanted anyway.
-    //
-    // With no pending update, "awaits" states the stance a live watcher supports and
-    // uses the registry's word for a standing Ask for the reader (x-awaits). Once a
-    // reader move is pending, the same listening evidence remains primary while the
-    // words lead with what was saved.
-    text = activity.counts.pending
-      ? `${saved} ${agentName()} is listening${detail ? " — " + detail : ""}.`
-      : `${agentName()} awaits — ${detail || "select text to comment"}`;
-  } else if (kind === "stalled") {
-    // The claim stands, dated, with no remedy attached: a watcher is live, so the
-    // reader's next word reaches the agent without anyone touching a terminal. What
-    // they are owed is the age, which is the one thing they cannot see for themselves
-    // and the whole of what separates a delegate mid-answer from a dropped thread. It
-    // is spoken in the same words the branch below uses for the same silence, rather
-    // than in the muted parenthesis a live `working` claim wears: there the age is a
-    // footnote to news, and here it is the news.
-    text = `${dated}${detail ? ": " + detail : ""}. ${saved}`;
-  } else {
-    // Somebody is behind the page and isn't attending: say which and what to do. A
-    // long silence means Claude lost the thread; a recent check-in means it is
-    // mid-turn and the next one collects.
-    const [why, how] = quiet
-      ? [`${dated}.`, "Nudge it in the terminal."]
-      : [`${agentName()} isn't watching right now.`, "It picks them up next turn."];
-    text = `${why} ${saved} ${how}`;
-  }
+  const text = statusWords({
+    agent: agentName(),
+    dated,
+    detail,
+    kind,
+    obligations: activity.count,
+    pending: activity.counts.pending,
+    quiet,
+    saved,
+  });
+  const showAge = kind === "working" && Boolean(activity.ts);
   const line = [text];
   if (showAge)
     line.push(
@@ -326,6 +385,130 @@ function renderStatusNow(state) {
 }
 
 export const renderStatus = clocked(document.body, renderStatusNow);
+
+// ---------- the room the sentence keeps ----------
+// Every line this page can write about its own state. The writer chooses its words from
+// seven facts, so every one of them is a list here and the lines are the whole cross of
+// them, rather than one value per fact that somebody judged the widest. Judging them one
+// at a time is how the last line went missing: `saved` was pinned at its counted
+// spelling, and the spelling for a page with no count — "Your comments are saved." — is
+// wider, so a page nobody had commented on wrapped to three lines and lost the remedy off
+// the end of the clamp. Which fact makes a line widest is not a thing to reason about
+// per fact; the cross is what measures it.
+//
+// Most of these repeat. A kind that names no count writes the same line for all three
+// savings, and the two thousand readings collapse to a couple of dozen distinct lines.
+// What the cross buys is that nothing is left out by a fact nobody thought to vary, and
+// a fact that gains a spelling gains it here beside the writer's own branch.
+//
+// `detail` is the one fact with a single value, and that is not a judgment: those are the
+// agent's own words, they arrive long after any reservation could be taken, and the clamp
+// and the title are what carry them (see the stylesheet, beside the clamp).
+function pageLines() {
+  const agent = agentName();
+  // The widest word each shape of `ago` writes (presence.js), which is the largest count
+  // each of them reaches — the same convention the row's counters are reserved at.
+  const ages = ["just now", "59m ago", "23h ago", "999d ago"];
+  const facts = {
+    agent: [agent],
+    dated: ages.flatMap((age) => [
+      `${agent} left this when its turn ended ${age}`,
+      `${agent} last checked in ${age}`,
+    ]),
+    detail: [""],
+    kind: Object.keys(TONE),
+    obligations: [1, 999],
+    pending: [0, 1],
+    quiet: [false, true],
+    saved: ["Your comments are saved.", "1 update is saved.", "999 updates are saved."],
+  };
+  const names = Object.keys(facts);
+  const lines = [OFFLINE_LINE, BROKEN_LINE];
+  const cross = (depth, chosen) => {
+    if (depth === names.length) {
+      lines.push(statusWords(chosen));
+      return;
+    }
+    for (const value of facts[names[depth]])
+      cross(depth + 1, { ...chosen, [names[depth]]: value });
+  };
+  cross(0, {});
+  if (publication) lines.push(publicationWords(publication).join(""));
+  return [...new Set(lines)];
+}
+
+// The narrowest box those lines all fit the clamp in — the floor the stylesheet's cap
+// hands the addresses as the room they may not have.
+//
+// Measured, because what it has to cover is the width a wrapped line of these words
+// takes in the face the row is set in, and no count of characters tracks that: a `ch`
+// is the advance of a zero, and how many of them a sentence takes is a property of the
+// face rather than of its size. Two lines of the longest of these take 37.5 characters
+// where `system-ui` is SF — this desk — and 40.4 where it is DejaVu, which is what the
+// image CI runs on resolves it to. Stated as thirty-four it was under both, and a number
+// over the second reserves on the first room the row can only find by folding an address.
+// This is the question `reserve` asks of a control's words, asked of the sentence's.
+//
+// A copy of the sentence, seated where the sentence sits, so it is measured in the face,
+// size and leading the row is actually using. The clamp is read rather than restated:
+// the stylesheet gives the sentence one line on a phone and two on a desk, and the floor
+// is whatever that is worth here.
+function measureStatusRoom(lines) {
+  const rig = statusText.cloneNode(false);
+  rig.style.cssText =
+    "position:absolute;left:-9999px;top:0;visibility:hidden;display:block;" +
+    "-webkit-line-clamp:none";
+  bannerStatus.append(rig);
+  const step = parseFloat(getComputedStyle(rig).lineHeight);
+  const allowed =
+    Number.parseInt(getComputedStyle(statusText).webkitLineClamp, 10) || 2;
+  const wrapsTo = (text, width) => {
+    rig.textContent = text;
+    rig.style.width = width + "px";
+    return Math.round(rig.scrollHeight / step);
+  };
+  const unwrapped = (text) => {
+    rig.textContent = text;
+    rig.style.width = "max-content";
+    return rig.getBoundingClientRect().width;
+  };
+  // Widest first, so the one line that decides the floor is the one searched for and
+  // every other line is a single reading: a line that already fits what the floor
+  // stands at asks nothing more of it.
+  const across = new Map(lines.map((text) => [text, unwrapped(text)]));
+  let floor = 0;
+  for (const text of [...across.keys()].sort((a, b) => across.get(b) - across.get(a))) {
+    if (floor && wrapsTo(text, floor) <= allowed) continue;
+    let short = floor;
+    let long = across.get(text);
+    while (long - short > 0.05) {
+      const between = (short + long) / 2;
+      if (wrapsTo(text, between) <= allowed) long = between;
+      else short = between;
+    }
+    floor = Math.ceil(long);
+  }
+  rig.remove();
+  return floor;
+}
+
+// The words the standing floor was measured against, so the row is measured again when
+// they change and not on every poll. Renewed outright at a breakpoint, where the row's
+// type and padding move under the same words (reserveBannerControls).
+let reservedWords = null;
+function reserveStatusRoom() {
+  if (!banner.isConnected) return false;
+  // What the page supplies to those words: the name of the agent behind it, and the line
+  // a published page writes. Everything else the cross varies is the writer's own and
+  // cannot change under a reader, so this is the whole of what a later reading could say
+  // differently — and asking it costs two string reads on a poll that would otherwise
+  // build two thousand lines to find out nothing had.
+  const words = `${agentName()}\n${publication ? publicationWords(publication).join("") : ""}`;
+  if (words === reservedWords) return false;
+  reservedWords = words;
+  banner.style.setProperty("--lf-status-floor", `${measureStatusRoom(pageLines())}px`);
+  return true;
+}
 
 // Sign-off is the page's decision, not standing chrome: the approve button exists only
 // when the version declares <meta name="lf-review" content="sign-off"> — a plan or
@@ -351,20 +534,31 @@ export const isSignoffDeclared = () => signoffDeclared;
 // narrow window changes now is how many of these addresses stand on the row at once; the
 // rest fold into the row's own menu, in this same order (`foldShelf`).
 //
+// A developer preview's identity chip stands ahead of the addresses rather than among
+// them, which is the same statement read for folding: the fold takes the row's first
+// control first, and what a crowded row should give up before any address is which
+// checkout is serving the page. It is absent on a reader's page (renderPreview).
+//
 // This is DOM order rather than CSS `order`, so the tab route says the same thing the row
 // draws. Reordering existing nodes can briefly drop native focus; put it back without
 // moving the page, and hand it to the menu's door where the fold has taken the address
 // the reader was standing on.
 function arrangeBannerControls() {
   const focused = document.activeElement;
-  const edges = new Set([toggleBtn, approveBtn, othersBtn]);
+  const edges = new Set([toggleBtn, approveBtn, othersBtn, previewButton]);
   // Registry-declared blanket answers can join the middle of this row after boot, and a
   // folded address is still on it. Preserve every such control in its standing relative
   // order while moving only the edge-owned addresses.
   const middle = [...overflowMenu.children, ...bannerActions.children].filter(
     (control) => control !== overflowBtn && !edges.has(control),
   );
-  const controls = [othersBtn, ...middle, ...(signoff ? [approveBtn] : []), toggleBtn];
+  const controls = [
+    ...(previewButton ? [previewButton] : []),
+    othersBtn,
+    ...middle,
+    ...(signoff ? [approveBtn] : []),
+    toggleBtn,
+  ];
   bannerActions.append(...controls);
   foldShelf();
   if (
@@ -428,6 +622,7 @@ let reservedCovering = null;
 export function reserveBannerControls() {
   unfoldShelf();
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
+  if (previewButton) reserve(previewButton, previewLabels);
   // News keeps one readable address while it changes words. The row folds rather than
   // clips, so no control has to collapse into an illegible pressure release.
   reserve(latestChip, [
@@ -439,6 +634,11 @@ export function reserveBannerControls() {
   reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
   reserve(asksBtn, ["Asks 999/999"]);
   reserve(othersBtn, ["All leaves (999)"]);
+  // The sentence's own room, taken in the same face and on the same occasions as the
+  // addresses' — the words have not changed, but what they set has, which is the whole
+  // reason none of these is a number.
+  reservedWords = null;
+  reserveStatusRoom();
   foldShelf();
   reservedCovering = covering().matches;
 }

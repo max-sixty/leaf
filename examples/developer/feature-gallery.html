@@ -630,7 +630,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-reader-workflows">
         <p class="eyebrow bg-feature-elements">
-          Approve version · Design mode · Draw mode · Requests
+          Approve version · Design mode · Draw mode · Kept draft · Requests
         </p>
         <h2>
           <strong>Reader workflows</strong
@@ -675,6 +675,25 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             or in its margin to anchor the comment here; empty space with no item
             alongside comments on the page whole. Send the drawing alone or add words
             first.
+          </p>
+        </section>
+
+        <section id="bg-kept-draft">
+          <p class="eyebrow bg-feature-elements">Kept draft · go-to destination</p>
+          <h3>
+            <strong>Kept draft</strong
+            ><span class="bg-feature-detail"
+              >: come back to words the box put away</span
+            >
+          </h3>
+          <p id="bg-kept-draft-guide">
+            Select a few words here, press <kbd>c</kbd>, and type a sentence without
+            sending it. Press <kbd>Escape</kbd>: the box goes, the words stay, and a
+            notice names the address that returns to them. Scroll somewhere else, then
+            press <kbd>g</kbd> and <kbd>Shift+D</kbd> — the page travels back to this
+            passage and reopens the box on the sentence. That destination stands in the
+            chord only while a kept draft does, so pressing <kbd>g</kbd> with nothing
+            written offers no such place to go.
           </p>
         </section>
 
@@ -1421,7 +1440,7 @@ gallery/
 
       <section id="bg-delivery">
         <p class="eyebrow bg-feature-elements">
-          lf-board · lf-column · lf-card · delivery Buttons
+          lf-board · lf-column · lf-card · delivery Buttons · cut mark
         </p>
         <h2>
           <strong>Board</strong> and <strong>delivery state</strong
@@ -1432,6 +1451,14 @@ gallery/
           Picked up, and Active report agent handoff. A refused send offers Retry and
           Cancel.
         </p>
+        <p id="bg-cut-guide">
+          This board carries more columns than the page has room for, so it scrolls
+          sideways and wears the cut mark: <code>data-lf-cut</code>, drawn as the soft
+          shade inside its right edge, says the box is showing less than it holds
+          across. The layer writes it on any box in that state, because the platform’s
+          own scrollbar draws nothing until something scrolls it. Boxes holding
+          everything they have — the code block and the diagram above — wear none.
+        </p>
         <lf-board id="bg-work-board">
           <lf-column id="bg-work-ready" label="Ready">
             <lf-card id="bg-work"
@@ -1440,6 +1467,16 @@ gallery/
             </lf-card>
           </lf-column>
           <lf-column id="bg-work-tried" label="Tried"></lf-column>
+          <lf-column id="bg-work-reviewing" label="Reviewing"></lf-column>
+          <lf-column id="bg-work-waiting" label="Waiting on a person"></lf-column>
+          <lf-column id="bg-work-handed" label="Handed back">
+            <lf-card id="bg-work-handed-card"
+              ><strong>Redraw the sample legend</strong>
+              One of the cards the shade stands for: scroll the board across to reach
+              it.
+            </lf-card>
+          </lf-column>
+          <lf-column id="bg-work-done" label="Done"></lf-column>
         </lf-board>
         <p id="bg-feedback">
           To ask for a refinement, comment on the sample that shows it and say what

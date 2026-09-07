@@ -138,9 +138,9 @@ export function setAnchoringReady(ready) {
 
    The panel paints the same fact on the card, through `.lf-thread:focus-within` — the
    same predicate, so the two halves cannot disagree about which comment the reader is
-   in. `:focus-visible` instead answers which input modality should draw the browser's
-   focus indicator. While typing, the reply box carries the strong focus ring and the
-   enclosing thread keeps a subdued outline.
+   in. The card repaints its existing edge and ground; `:focus-visible` instead answers
+   which input modality should draw a strong focus indicator. While typing, the reply
+   box carries that ring and the enclosing thread keeps a subdued edge and surface.
 
    `lf-mark-hover` answers a different question — which thread the pointer is
    indicating — and reads both surfaces in one frame. A card is the thread's view in

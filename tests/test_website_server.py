@@ -169,9 +169,14 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         thread.join(timeout=2)
 
 
-def test_a_product_route_uses_the_same_real_page_server(page_dir, tmp_path):
+@pytest.mark.parametrize(
+    ("page_root", "name"), [("", "index"), ("/examples", "examples")]
+)
+def test_a_product_route_uses_the_same_real_page_server(
+    page_dir, tmp_path, page_root, name
+):
     site = tmp_path / "site"
-    published = site / "_leaf" / "pages" / "index"
+    published = site / "_leaf" / "pages" / name
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
     (site / "sitenote.js").write_text("export {};")
@@ -181,15 +186,36 @@ def test_a_product_route_uses_the_same_real_page_server(page_dir, tmp_path):
     thread.start()
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     try:
-        document, _ = get(f"{root}/")
+        document, _ = get(f"{root}{page_root}/")
         assert b"data-lf-site" not in document
-        assert b'data-lf-entry="/leaf.js"' in document
-        state = json.loads(get(f"{root}/api/state")[0])
+        assert f'data-lf-entry="{page_root}/leaf.js"'.encode() in document
+        state = json.loads(get(f"{root}{page_root}/api/state")[0])
         assert state["publication"] == {
             "kind": "product",
             "agent": "Leaf guide",
             "install_url": "/#install",
         }
+        posted = {
+            "kind": "comment",
+            "revision": state["active"]["revision"],
+            "text": "Can the product-page agent read this?",
+            "anchor": {"section": "plan"},
+            "attempt": f"website-product-{name}",
+        }
+        answer, _ = post(
+            f"{root}{page_root}/api/event",
+            posted,
+            {"Leaf-Layer": state["layer"]["generation"]},
+        )
+        comment = next(
+            event
+            for event in answer["state"]["events"]
+            if event.get("attempt") == posted["attempt"]
+        )
+        ready, _ = post(f"{root}{page_root}/_leaf/agent/turn", {"event": comment["id"]})
+        assert ready["status"] == "ready"
+        assert ready["turn"]["reply_to"] == comment["id"]
+        assert ready["turn"]["conversation"]["messages"][-1]["text"] == posted["text"]
     finally:
         httpd.shutdown()
         httpd.server_close()

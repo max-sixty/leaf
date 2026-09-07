@@ -42,7 +42,7 @@ INTERNAL_EXAMPLES = {"corpus"}
 FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
 OUT = (
     ROOT / ".tmp" / "site"
-)  # gitignored; both the Worker asset binding and its container image consume it
+)  # gitignored; the container consumes it and .assetsignore bounds the asset binding
 WRANGLER = ROOT / "worker" / "node_modules" / ".bin" / "wrangler"
 
 PRODUCT_ROUTES = {
@@ -251,6 +251,9 @@ def publish_pages(out: Path, env: dict, catalog_previews: Path | None = None) ->
         # directories as well.
         shutil.copytree(product_page / "media", out / "media")
         shutil.copy2(DOCS / "sitenote.js", out / "sitenote.js")
+        (out / ".assetsignore").write_text(
+            "*\n!media/\n!media/**\n!sitenote.js\n", encoding="utf-8"
+        )
 
         for source in published_page_sources():
             published = out / "examples" / source.stem

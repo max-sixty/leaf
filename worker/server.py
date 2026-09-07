@@ -182,8 +182,9 @@ def _agent_event(posted: dict, *, with_text: bool) -> tuple[str, str | None]:
 
 def published_page(site_root: Path, path: str) -> tuple[Path, str, str, str] | None:
     """Resolve a public URL to its independent page directory and inside route."""
-    if path in {"/", ""}:
-        return site_root / "_leaf" / "pages" / "index", "", "/", "product"
+    if path in {"/", ""} or path.startswith("/_leaf/agent/"):
+        inside = "/" if path in {"/", ""} else path
+        return site_root / "_leaf" / "pages" / "index", "", inside, "product"
 
     for route, name in PRODUCT_ROUTES.items():
         if route in {"/", "/examples"}:
@@ -207,7 +208,9 @@ def published_page(site_root: Path, path: str) -> tuple[Path, str, str, str] | N
         )
     if path.startswith("/examples/"):
         inside_catalog = path[len("/examples") :]
-        if PAGE_RESOURCE.match(inside_catalog):
+        if PAGE_RESOURCE.match(inside_catalog) or inside_catalog.startswith(
+            "/_leaf/agent/"
+        ):
             return (
                 site_root / "_leaf" / "pages" / "examples",
                 "/examples",

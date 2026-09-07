@@ -209,6 +209,9 @@ def test_product_pages_are_published_as_complete_page_records(site):
 
 def test_page_layers_stay_inside_their_page_directories(site):
     """Shared social media and the example note are the only root-level assets."""
+    assert (site / ".assetsignore").read_text() == (
+        "*\n!media/\n!media/**\n!sitenote.js\n"
+    )
     assert (site / "sitenote.js").read_bytes() == (DOCS / "sitenote.js").read_bytes()
     product_media = {
         Path(media_url(source)).name: source

@@ -55,9 +55,7 @@ describe("product-site delivery", () => {
       const env = environment();
 
       const response = await worker.fetch(
-        new Request(`https://leaf.page${pathname}`, {
-          headers: { Cookie: `__Host-leaf-page=${"01".repeat(16)}` },
-        }),
+        new Request(`https://leaf.page${pathname}`),
         env,
       );
 
@@ -65,6 +63,9 @@ describe("product-site delivery", () => {
       expect(env.ASSETS.fetch).not.toHaveBeenCalled();
       expect(response.headers.get("Content-Security-Policy")).toBe(
         "frame-ancestors 'none'",
+      );
+      expect(response.headers.get("Set-Cookie")).toMatch(
+        /^__Host-leaf-page=[0-9a-f]{32}; Path=\/; Secure; HttpOnly; SameSite=Lax$/,
       );
       expect(await response.text()).toBe("<!doctype html><title>Leaf</title>");
     },

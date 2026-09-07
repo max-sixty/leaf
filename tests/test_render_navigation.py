@@ -2974,6 +2974,16 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     help_el = page.locator(".lf-help")
     close = page.get_by_role("button", name="Back to more shortcuts")
     expect(close).to_be_visible()
+    for command in [
+        "response.reaction.choose",
+        "response.tab",
+        "response.move",
+        "response.activate",
+        "response.close",
+    ]:
+        expect(
+            help_el.locator(f'.lf-help-command[data-lf-command="{command}"]')
+        ).to_have_count(1)
 
     seen = set()
     for _ in range(6):

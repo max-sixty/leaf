@@ -751,7 +751,7 @@ const RESPONSE_REACTION = {
       .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
       .join(", ")}`,
   line: "react",
-  when: () => responseReactionButtons().length > 0,
+  when: () => !takesLetters(focused()) && responseReactionButtons().length > 0,
   run: (binding) => responseReactionButtons()[+binding - 1]?.click(),
 };
 const RESPONSE_TAB = {
@@ -792,7 +792,13 @@ const RESPONSE_OPTIONS = {
   at: () => responseOptionsAreOpen() && focused() === fabInput,
   // These two keys move into and out of the disclosure itself, including while the
   // field's return frame stands nearer than ordinary containing surfaces.
-  rows: [RESPONSE_TAB, RESPONSE_CLOSE],
+  rows: [
+    RESPONSE_REACTION,
+    RESPONSE_TAB,
+    RESPONSE_MOVE,
+    RESPONSE_ACTIVATE,
+    RESPONSE_CLOSE,
+  ],
 };
 export function declareResponseOptionKeys() {
   // Choice commands apply only while focus is inside the choices. They no longer stand

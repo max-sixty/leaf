@@ -77,6 +77,7 @@ from render_support import (
     rings_drawn,
     round_trip,
     select,
+    sending,
     serious_axe_violations,
     stamp_version_file,
     standing_ring,
@@ -359,8 +360,8 @@ def test_an_approval_can_be_taken_back_like_any_other_reader_gesture(browser, se
 
     # And the press is available again, which is what makes this a correction rather than
     # a page the reader has spent.
-    button.click()
-    round_trip(page)
+    with sending(page, "the second approval"):
+        button.click()
     expect(button).to_have_text("✓ Version approved")
     assert [e["kind"] for e in events_model.read_events(serve.page_dir)][-1] == "done"
     assert errors == []
@@ -2156,8 +2157,8 @@ def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, 
     cut.restore()
     told(page)
     page.wait_for_function(BOTH_STAMPS)
-    page.locator("#opt-stage").click()
-    round_trip(page)
+    with sending(page, "the pick the restored server takes"):
+        page.locator("#opt-stage").click()
     actions = [
         event
         for event in events_model.read_events(serve.page_dir)

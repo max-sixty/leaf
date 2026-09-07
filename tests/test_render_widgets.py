@@ -75,6 +75,7 @@ from render_support import (
     select,
     sending,
     sent_events,
+    stamp_page,
     stamp_version_file,
     told,
     undo,
@@ -2352,6 +2353,36 @@ def test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe(browser, serv
 
     page.reload()
     page.wait_for_function(BOTH_STAMPS)
+    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
+    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_swipe_deck_activation_restores_a_standing_swipe_without_motion(browser, serve):
+    """A new revision carries an old classification at rest, as an arrival."""
+    url = serve(SWIPE_PAGE)
+    page, errors = open_page(browser, live_url(url), init_script=HOLD_MOTION)
+
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "session-triage",
+            "action": "swipe",
+            "detail": {"card": "swipe-a", "to": "session-keep", "index": 1},
+        },
+    )
+    told(page)
+    expect(page.locator(".lf-swipe-exit")).to_have_count(1)
+    page.evaluate("window.__lfHeld[0].finish()")
+    expect(page.locator(".lf-swipe-exit")).to_have_count(0)
+
+    stamp_page(serve.page_dir, SWIPE_PAGE, "second")
+    wait_for_revision(page, 2)
+
     expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
     expect(page.locator(".lf-swipe-exit")).to_have_count(0)
     assert errors == []

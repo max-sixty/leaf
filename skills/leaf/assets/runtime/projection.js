@@ -523,9 +523,9 @@ export function reconcileState() {
   projectionDragObserver?.disconnect();
   projectionDragObserver = null;
   const projection = stateProjection();
-  const priorProjectionMode = runtime.projectingState;
+  const priorRestoringState = runtime.restoringState;
   if (outbox.some((entry) => entry.rejected && entry.projection))
-    runtime.projectingState = true;
+    runtime.restoringState = true;
   let painted = false;
   const started = new Set(document.getAnimations());
   try {
@@ -593,7 +593,7 @@ export function reconcileState() {
       String(projectionCoverage(projection)),
     );
   } finally {
-    runtime.projectingState = priorProjectionMode;
+    runtime.restoringState = priorRestoringState;
   }
 }
 

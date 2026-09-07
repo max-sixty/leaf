@@ -21,6 +21,7 @@ import re
 import shutil
 import threading
 import time
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -209,27 +210,8 @@ def test_product_pages_are_published_as_complete_page_records(site):
 
 
 def test_page_layers_stay_inside_their_page_directories(site):
-    """Shared social media and the example note are the only root-level assets."""
-    assert (site / ".assetsignore").read_text() == (
-        "*\n!media/\n!media/**\n!sitenote.js\n"
-    )
+    """The container image keeps complete pages rather than a public layer beside them."""
     assert (site / "sitenote.js").read_bytes() == (DOCS / "sitenote.js").read_bytes()
-    product_media = {
-        Path(media_url(source)).name: source
-        for source in (
-            path for pattern in ("*.gif", "*.png") for path in DOCS.glob(pattern)
-        )
-    }
-    product_media.update(
-        {
-            Path(media_url(source)).name: source
-            for source in site_build.example_previews().glob("example-*.jpg")
-        }
-    )
-    assert {path.name for path in (site / "media").iterdir()} == set(product_media)
-    for name, source in product_media.items():
-        target = site / "media" / name
-        assert target.read_bytes() == source.read_bytes(), source.name
     for name in (
         "leaf.js",
         "session.js",
@@ -243,6 +225,61 @@ def test_page_layers_stay_inside_their_page_directories(site):
         assert not (site / name).exists(), f"unscoped runtime asset: {name}"
     for name in ("runtime", "widgets", "vendor"):
         assert not (site / name).exists(), f"unscoped runtime directory: {name}"
+
+
+def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
+    """The edge gets served Leaf documents and browser assets, never session state."""
+    assets = site_build.asset_site(site)
+    product_media = {
+        Path(media_url(source)).name: source
+        for source in (
+            path for pattern in ("*.gif", "*.png") for path in DOCS.glob(pattern)
+        )
+    }
+    product_media.update(
+        {
+            Path(media_url(source)).name: source
+            for source in site_build.example_previews().glob("example-*.jpg")
+        }
+    )
+    assert {path.name for path in (assets / "media").iterdir()} == set(product_media)
+    for name, source in product_media.items():
+        assert (assets / "media" / name).read_bytes() == source.read_bytes()
+
+    example_root = assets / "examples" / "design-decision"
+    document = (example_root / "index.html").read_text(encoding="utf-8")
+    assert 'data-lf-server="published"' in document
+    assert 'src="/examples/design-decision/leaf.js"' in document
+    assert 'src="/examples/design-decision/sitenote.js"' in document
+    assert (example_root / "runtime" / "state-feed.js").is_file()
+    assert (example_root / "registry.json").is_file()
+    assert list((example_root / "versions").glob("v*.html"))
+    assert list((example_root / "revisions").glob("r*.html"))
+    for private in ("data.json", "events.jsonl", "status.json", "cursor.json"):
+        assert not (example_root / private).exists()
+
+
+def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
+    site, hosted
+):
+    """Materialization reuses Leaf's delivery transforms rather than approximating them."""
+    assets = site_build.asset_site(site)
+    for route, relative in (
+        ("/", "index.html"),
+        ("/examples/design-decision/", "examples/design-decision/index.html"),
+        (
+            "/examples/design-decision/runtime/state-feed.js",
+            "examples/design-decision/runtime/state-feed.js",
+        ),
+    ):
+        with urllib.request.urlopen(f"{hosted}{route}") as response:
+            served = response.read()
+        materialized = (assets / relative).read_bytes()
+        if relative.endswith(".html"):
+            served = re.sub(
+                rb'data-lf-server="[^"]+"', b'data-lf-server="published"', served
+            )
+        assert materialized == served, route
 
 
 def test_every_published_page_keeps_its_canonical_page_record(site):

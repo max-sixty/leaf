@@ -9,9 +9,9 @@ come from the external revision pinned in `example-previews.json`.
 The worked examples and developer feature gallery become complete Leaf page directories
 under examples/<name>/. The same preparation path that serves a local fixture vendors
 each page's selected layer, stamps its authored versions, applies its companion event
-log and data, and closes the finished page without claiming it for an agent. The Worker
-gives each browser a private copy of those directories and the canonical server projects
-their virtual routes.
+log and data, and closes the finished page without claiming it for an agent. A second,
+derived tree contains the immutable live shell Cloudflare serves before the canonical
+server answers its API requests.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
@@ -32,9 +32,13 @@ from urllib.parse import unquote, urljoin, urlsplit
 
 from example_assets import example_previews
 from leaf.http import scope_document_routes
+from leaf.live_shell import write_live_shell
 from preview import prepare
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from worker.server import with_sitenote
+
 LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
@@ -42,7 +46,7 @@ INTERNAL_EXAMPLES = {"corpus"}
 FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
 OUT = (
     ROOT / ".tmp" / "site"
-)  # gitignored; the container consumes it and .assetsignore bounds the asset binding
+)  # gitignored; the container consumes the complete private page directories
 WRANGLER = ROOT / "worker" / "node_modules" / ".bin" / "wrangler"
 
 PRODUCT_ROUTES = {
@@ -199,6 +203,11 @@ def product_page(out: Path, source_name: str) -> Path:
     return out / "_leaf" / "pages" / Path(source_name).stem
 
 
+def asset_site(out: Path) -> Path:
+    """The sibling tree exposed through Cloudflare's static asset binding."""
+    return out.with_name(f"{out.name}-assets")
+
+
 def checked_product_sources(page: Path, env: dict) -> list[tuple[Path, bytes]]:
     """Validate every product document before publishing any of them."""
     checked = []
@@ -246,14 +255,7 @@ def publish_pages(out: Path, env: dict, catalog_previews: Path | None = None) ->
         )
         products = checked_product_sources(product_page, env)
         publish_product_pages(product_page, out, products, env)
-        # Social crawlers fetch the absolute https://leaf.page/media/… URL without a
-        # page session, so keep that small public asset set outside the private page
-        # directories as well.
-        shutil.copytree(product_page / "media", out / "media")
         shutil.copy2(DOCS / "sitenote.js", out / "sitenote.js")
-        (out / ".assetsignore").write_text(
-            "*\n!media/\n!media/**\n!sitenote.js\n", encoding="utf-8"
-        )
 
         for source in published_page_sources():
             published = out / "examples" / source.stem
@@ -267,6 +269,27 @@ def publish_pages(out: Path, env: dict, catalog_previews: Path | None = None) ->
                 current_note="As published",
             )
             print(f"  {source.stem}")
+
+
+def publish_live_shells(out: Path) -> Path:
+    """Materialize the public bytes of every private page directory."""
+    assets = asset_site(out)
+    shutil.rmtree(assets, ignore_errors=True)
+    assets.mkdir(parents=True)
+    for page_dir, page_root in published_pages(out):
+        destination = assets / page_root.lstrip("/")
+        write_live_shell(page_dir, destination, page_root=page_root)
+        if page_root.startswith("/examples/"):
+            documents = [
+                destination / "index.html",
+                *sorted((destination / "versions").glob("*.html")),
+                *sorted((destination / "revisions").glob("*.html")),
+            ]
+            for document in documents:
+                document.write_bytes(with_sitenote(document.read_bytes(), page_root))
+            shutil.copy2(out / "sitenote.js", destination / "sitenote.js")
+    shutil.copy2(out / "sitenote.js", assets / "sitenote.js")
+    return assets
 
 
 def build(
@@ -294,6 +317,7 @@ def build(
     with tempfile.TemporaryDirectory() as config_home:
         env["XDG_CONFIG_HOME"] = config_home
         publish_pages(out, env, catalog_previews)
+    publish_live_shells(out)
 
     if verify_links:
         check_links(out)
@@ -303,7 +327,7 @@ def main() -> None:
     if sys.argv[1:] not in ([], ["--serve"]):
         sys.exit("usage: uv run scripts/site.py [--serve]")
     build(OUT)
-    print(f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT}")
+    print(f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT} and {asset_site(OUT)}")
     if sys.argv[1:] == ["--serve"]:
         if not WRANGLER.is_file():
             sys.exit("website dependencies are missing; run `npm ci --prefix worker`")

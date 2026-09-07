@@ -3575,8 +3575,13 @@ def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_
 
     note = hosting_model.startup_note(page_dir)
 
-    assert "runtime  unknown payload (unknown source)" in note
-    assert str(schema_model.PLUGIN_ROOT) not in note
+    # The runtime line is the only one that claims a source, and reading the
+    # whole note for the calling payload's path reads the wrong lines too: the
+    # page and stop lines name the page directory, which may legitimately sit
+    # under the checkout — as it does whenever a run is given a `--basetemp`
+    # there. Equality on that one line says what the absence was reaching for.
+    runtime = next(l for l in note.splitlines() if l.startswith("runtime"))
+    assert runtime == "runtime  unknown payload (unknown source)"
 
 
 def test_a_stated_host_binds_every_interface_without_recording_before_serve(

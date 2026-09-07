@@ -26,7 +26,7 @@ import {
   draftContexts,
   loadDraft,
   saveDraft,
-  sendDraft,
+  sendMessage,
   watchDraft,
 } from "../drafts.js";
 import { wireInput } from "./input.js";
@@ -198,7 +198,6 @@ export function pendingComposer(accepts = () => true) {
 // The kept draft an address can offer: startup reopens whatever it finds and lets
 // placement decide, while a press promising a destination has to know there is one.
 export const keptDraft = () => pendingComposer((record) => anchorStands(record.anchor));
-let inFlight = null;
 let composerEpoch = 0;
 // What the box holds that a reader would miss, asked once. The complete draft, because a
 // pasted image is in it and not in the textarea, plus a drawing, which stands beside the
@@ -231,36 +230,30 @@ syncComposer = wireInput(composerInput, {
     // looking at so the inline card can carry that box into its new surface after the
     // draft settlement has removed the composer from the page.
     const transition = threadTransitionOrigin(composerInput, visible);
-    const flight = { ctx, raw, epoch: composerEpoch };
-    inFlight = flight;
-    let sent;
-    try {
-      sent = await sendDraft(
-        ctx,
-        () => composerCtx(pendingAnchor) === ctx && owns(),
-        (attempt) => {
-          const event = {
-            kind: "comment",
-            revision: runtime.currentRevision,
-            anchor,
-            attempt,
-          };
-          if (text) event.text = text;
-          if (suggestion) event.suggestion = true;
-          if (about) event.about = about;
-          if (drawing) event.drawing = drawing;
-          return post(event);
-        },
-      );
-    } finally {
-      if (inFlight === flight) inFlight = null;
-    }
+    const epoch = composerEpoch;
+    const sent = sendMessage(
+      ctx,
+      () => composerCtx(pendingAnchor) === ctx && owns(),
+      (attempt) => {
+        const event = {
+          kind: "comment",
+          revision: runtime.currentRevision,
+          anchor,
+          attempt,
+        };
+        if (text) event.text = text;
+        if (suggestion) event.suggestion = true;
+        if (about) event.about = about;
+        if (drawing) event.drawing = drawing;
+        return post(event);
+      },
+    );
     if (!sent) return;
     let reply = threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
     // A later draft or selection keeps its focus. The accepted comment still belongs
     // in an open panel, including when revealing it must widen the panel's filter.
     const shouldLand =
-      composerEpoch === flight.epoch &&
+      composerEpoch === epoch &&
       loadDraft(ctx) === null &&
       mayLandTyping(reply, composerInput);
     // Continue in the surface already in use. Closing an open panel here reflows the
@@ -483,12 +476,11 @@ export function openComposer(
     composerEpoch += 1;
     const previousText = syncComposer.value();
     const previousDrawing = pendingDrawing;
-    const leavesFlight = inFlight?.ctx === previousCtx && previousText === inFlight.raw;
     syncComposer.load("");
     // Automatic selection merely opens another passage's view. An explicit Comment
     // gesture may instead carry unsent words there, which preserves the old Alt-click
     // promise without making a reader's next selection silently re-anchor their draft.
-    if (carry && (previousText || previousDrawing) && !leavesFlight) {
+    if (carry && (previousText || previousDrawing)) {
       clearDraft(previousCtx);
       text ||= previousText;
       if (!drawingSupplied) drawing = previousDrawing;
@@ -528,7 +520,10 @@ let composerWatch = null;
 function watchComposer() {
   composerWatch?.();
   composerWatch = watchDraft(composerCtx(pendingAnchor), (value) => {
-    if (value === null) return closeComposer();
+    // Settled, not discarded. A send masks its generation and leaves the record
+    // standing, because a refusal has to give the words back; discarding here would
+    // tombstone them first and there would be nothing left to give.
+    if (value === null) return settleComposer();
     const { text, suggest, about, drawing = null } = JSON.parse(value);
     if (syncComposer.value() !== text) {
       syncComposer.load(text);
@@ -571,6 +566,12 @@ export function detachComposer() {
 }
 function closeComposer() {
   leaveComposer(true);
+  showFab(null, null, { returnFocus: "none" });
+}
+// The composer going down because its draft is spent rather than because the reader
+// dropped it: the words are somewhere else now, or on their way back.
+function settleComposer() {
+  leaveComposer(false);
   showFab(null, null, { returnFocus: "none" });
 }
 

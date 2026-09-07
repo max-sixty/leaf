@@ -5,6 +5,10 @@ let clockSkew = 0;
 let clockReads = null;
 const clockPaints = new Set();
 const serverNow = () => Date.now() + clockSkew;
+// When a gesture was made, on the clock every other reading of a message uses. A
+// message this page paints before the log names it still has to say when it was said,
+// and the browser's own clock is the one reading that can disagree with the rest.
+export const saidNow = () => new Date(serverNow()).toISOString();
 
 // A clock reading is a displayed value or a temporal predicate, not raw wall time.
 // Remember the readings made by each synchronous paint so the shared tick can wake

@@ -110,7 +110,8 @@ event, so historical readers do not need a surviving widget to recover it.
 Python derives winners, retractions, settlement, asks, threads, and updates in
 one transaction-consistent browser view. JavaScript combines that view with
 authored initial values and unresolved local gestures to derive complete widget
-state. Widgets render that state, including unset and undecided values; undo
+and conversation state, so a gesture whose result the page can draw is on screen
+before the log answers for it. Widgets render that state, including unset and undecided values; undo
 does not reconstruct widgets or replay baseline actions into the DOM. Page-widget
 state is bounded by document version; widgets frozen into thread markup use the
 conversation window.
@@ -228,9 +229,12 @@ not cause. Establish that by running the failing node ids in a worktree at the
 merge base, under the conditions that produced them. That means the same
 platform, and the same selection and parallelism: a case can fail on CI's Linux
 fonts and pass on a Mac, or fail inside the whole suite under the default `-n 2`
-and pass alone under `-n0`. `scripts/linux-suite.sh` supplies that platform. A
-green CI run is not that control, because the queue leaves main's newest
-completed run several commits behind the base. Until the failure reproduces
+and pass alone under `-n0`. `scripts/linux-suite.sh` supplies that platform in
+its default, emulated mode; its `LEAF_SUITE_NATIVE` build gives up Google Chrome
+for a browser that starts on Apple silicon, so it carries CI's fonts but is not
+the control for a case that drives the installed launcher. A green CI run is not
+that control either, because the queue leaves main's newest completed run
+several commits behind the base. Until the failure reproduces
 there, it is this branch's. Once it does, the branch lands the ordinary way, and
 a red hook takes the `--no-hooks` route above. `lint` is the only required
 check, so a red `test` does not block a merge and this rule is all that gates

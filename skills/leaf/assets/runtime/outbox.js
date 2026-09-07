@@ -32,14 +32,15 @@
  * - `answered`: the server definitively accepted or refused the request;
  * - `readEvent`: a complete state read contained the accepted attempt;
  * - `projection`: the local semantic coordinate and value that the widget already
- *   painted.
+ *   painted;
+ * - `message`: the comment or reply the conversation is already showing.
  *
  * Acceptance and application are not the same fact. A successful POST must include state
  * containing the event minted for the attempt. `deliver` then knows the request was
- * accepted and may open the queue for the next entry. The caller of a successful comment
- * waits until `receiveState` has either rendered that response or reported the local
- * render error, because its continuation opens the complete conversation view and may
- * focus the reply box the response creates.
+ * accepted and may open the queue for the next entry. No caller waits for that: a
+ * message is painted and its thread opened in the gesture that sends it, so the
+ * continuation runs against a card that is already on screen and the round trip happens
+ * behind it.
  *
  * An accepted action stays in the outbox until a complete applied state contains its
  * attempt and `committedProjection` proves the authoritative coordinate now represented
@@ -86,6 +87,7 @@
  * once an authoritative receipt contains it. Modules use this after a send whose visible
  * choreography depends on whether the accepted action survived later events. */
 import { pendingTraffic } from "./traffic.js";
+import { saidNow } from "./presence.js";
 import { registry } from "./registry.js";
 import {
   reconcileKnownState,
@@ -93,17 +95,18 @@ import {
   requirementMatches,
   stageOutboxAction,
 } from "./projection.js";
-import { runtime } from "./context.js";
+import { PENDING, runtime } from "./context.js";
 import { quoted } from "./widget-elements.js";
 import { elementById } from "./passages.js";
 import { RETRY_MS } from "./state-feed.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { postEvent } from "./layer-client.js";
-import { notice } from "./notifications.js";
+import { announce, notice } from "./notifications.js";
 import { receiveState } from "./state-application.js";
 import { newAttempt } from "./drafts.js";
 import { stateCoordinate, unitOf } from "./projection/authored.js";
 import { stateProjection } from "./projection/fold.js";
+import { renderPanel } from "./conversation/reconcile.js";
 
 export const outbox = [];
 
@@ -181,6 +184,47 @@ export function actionStands(event) {
   );
 }
 
+// A comment or reply is the one gesture whose visible result is the words themselves,
+// so the conversation projection reads this list the way the widget projection reads a
+// staged action: authored state, then the log, then what this tab has said and has not
+// yet read back. The reader's words are on screen in the gesture that sends them, and
+// the round trip happens behind them.
+//
+// A reaction is a comment too, and it is not a message: it paints as a mark on the page
+// through its own chip, and has no card in the list for a record to stand in.
+const messageKind = (event) =>
+  (event.kind === "comment" || event.kind === "reply") && !event.token;
+
+// The record the panel renders from while the log is still answering. `pending` is what
+// it renders differently by, and the attempt is the join: the server's own event carries
+// it back, so the message that arrives adopts this one's node instead of replacing it.
+function stageOutboxMessage(entry) {
+  if (!messageKind(entry.event)) return;
+  entry.message = {
+    ...entry.event,
+    id: `${PENDING}${entry.event.attempt}`,
+    author: "user",
+    ts: saidNow(),
+    pending: true,
+  };
+}
+
+// An entry stands here until an installed receipt names its attempt. That boundary
+// rather than its removal from the outbox, because `accountOutbox` runs after the panel
+// has already rendered the state carrying the message: keyed on the receipt, the pending
+// record and the server's own thread change places within one render, instead of both
+// standing for a frame.
+export const pendingMessages = () =>
+  outbox
+    .filter(
+      (entry) =>
+        entry.message &&
+        !(runtime.browser?.receipts ?? []).some(
+          (candidate) => candidate.attempt === entry.event.attempt,
+        ),
+    )
+    .map((entry) => entry.message);
+
 // Returns the event the server minted — the id is the sender's only handle on the
 // thread or message it just created, which is what showThread is handed — or null
 // when the server definitively refused it. Every event carries one browser-minted
@@ -199,6 +243,46 @@ export function actionStands(event) {
 // first after a response is lost, or later after a local render fault — and a lost answer
 // is the case that read reaches soonest, because the append it lost the answer to is
 // itself what ends the held request.
+// A gesture the reader made against a message this tab knew only by the name it had
+// given it: a reply into the card a send had just drawn, a reaction on it, a resolve.
+// The server must be sent the log's name, since one only this page ever used names
+// nothing there.
+//
+// Read from the parent's own entry rather than from the installed state. The queue is
+// serial, so the parent is answered before this one is sent — but delivery advances on
+// acceptance, and applying that answer runs behind it, so the event the server minted is
+// known here a beat before any state read contains it. The installed receipts are the
+// fallback for an entry this tab has already read back and dropped.
+//
+// Written onto the entry, so a retry carries the body the first attempt did.
+function nameParent(entry) {
+  const parent = entry.event.parent;
+  if (typeof parent !== "string" || !parent.startsWith(PENDING)) return;
+  const attempt = parent.slice(PENDING.length);
+  const named =
+    outbox.find((candidate) => candidate.event.attempt === attempt)?.acceptedId ??
+    (runtime.browser?.receipts ?? []).find((candidate) => candidate.attempt === attempt)
+      ?.id;
+  if (!named) return;
+  // Kept, because the control that made this gesture is on a card the log has not
+  // renamed yet and looks its own pending work up by the name it still wears.
+  entry.namedParent = parent;
+  entry.event.parent = named;
+}
+
+// A gesture made against a message the log refused has nothing left to be about.
+// Withdraw it here rather than sending a name the server can only refuse in its turn,
+// in an answer naming an id this page invented. Resolving it null is what gives the
+// reader their words back, through the same path any other refusal takes.
+function withdrawChildren(entry) {
+  const name = PENDING + entry.event.attempt;
+  for (const child of [...outbox])
+    if (child !== entry && child.event.parent === name) {
+      removeOutbox(child);
+      child.resolve(null);
+    }
+}
+
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
 let drainingOutbox = false;
 export function removeOutbox(entry) {
@@ -226,6 +310,7 @@ export function accountOutbox(readEvents) {
 async function deliver(entry) {
   let announced = false;
   for (;;) {
+    nameParent(entry);
     const { event } = entry;
     if (entry.readEvent) return { answer: entry.readEvent };
     const sent = await Promise.race([
@@ -304,6 +389,10 @@ async function drainOutbox() {
       if (!entry) break;
       const { answer, settled } = await deliver(entry);
       entry.answered = true;
+      // What the log called this gesture, for the entries queued behind it that named
+      // it by this page's own word for it (nameParent).
+      entry.acceptedId = answer?.id ?? null;
+      if (!answer && entry.message) withdrawChildren(entry);
       pendingTraffic(unresolved());
       entry.rejected = !answer && entry.event.kind === "action";
       if (entry.event.kind !== "action" && (!answer || entry.readEvent))
@@ -322,6 +411,10 @@ async function drainOutbox() {
         // withdrawn state until the heartbeat's next tick.
         document.dispatchEvent(new Event("lf-actions"));
       }
+      // A refused message leaves this list at once, and the reader's words leave the
+      // panel with it. An accepted one needs no render here: the state the answer
+      // carried has already painted the message the log now holds.
+      if (entry.message && !answer) void renderPanel();
       // The list is an input to the key line and no focus/mouse event accompanies
       // either edge. Repaint before resolving the caller, whose own settlement may
       // move a second row on the same frame.
@@ -369,9 +462,20 @@ export function post(event, { optimistic = false } = {}) {
     outbox.push(entry);
     pendingTraffic(unresolved());
     stageOutboxAction(entry, { optimistic });
+    stageOutboxMessage(entry);
     // Staging commits the widget's optimistic coordinate. Its consumers need
     // that reading now, even while the POST is still waiting for a response.
     if (entry.projection) document.dispatchEvent(new Event("lf-actions"));
+    // The panel is the message's consumer, and it reads the conversation rather than
+    // this list, so it has to be asked. This render is the send's visible result — and
+    // for a reader who has no view of it, the live region is. Said here rather than by
+    // each of the four boxes that send a message, so a fifth cannot arrive silent: this
+    // is the one place that has already decided the gesture was a message. A reaction
+    // is not one, and says its own richer sentence where it is sent.
+    if (entry.message) {
+      announce("Message sent");
+      void renderPanel();
+    }
   });
   paintKeys();
   void drainOutbox();

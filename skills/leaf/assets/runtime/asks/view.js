@@ -444,6 +444,14 @@ const ASK_ROW = "data-lf-for";
 // that control. What they share is this: focus on either means the reader is standing at
 // that ask, which is the one question askPlace asks.
 const ASK_AT = "data-lf-at";
+// Where a stand-in stands: the ask decided by the control it re-presents. Separate from
+// ASK_ROW again, and for a sharper reason than ASK_AT's — ASK_ROW names one element per
+// ask, the row lf-suggestion hangs in the margin, and the runtime, the theme and the
+// suite all read `[data-lf-for="<id>"]` as that row. A proxy wearing it would be a second
+// answer to every selector meaning "the row for this change". What a stand-in needs is
+// only the reading below: focus on it means the reader is standing at the ask its press
+// decides.
+const ASK_STANDS = "data-lf-stands";
 // The tab stop this walk lends an ask that holds nothing to work: such an ask has no box
 // in the tab order and the runtime writes it one — which is paint on the author's element,
 // and PAGE_PAINT_ATTRIBUTES is the whole of what the runtime may leave standing there (a
@@ -481,14 +489,42 @@ function hasReviewedFocus() {
   reviewedThrough = null;
   return false;
 }
+// The ask a node points back at, as the id it names, or null where it points at none.
+const standsAt = (node) => {
+  const el = node.nodeType === 1 ? node : node.parentElement;
+  const row = el?.closest(`[${ASK_ROW}], [${ASK_AT}], [${ASK_STANDS}]`);
+  return (
+    row?.getAttribute(ASK_ROW) ??
+    row?.getAttribute(ASK_AT) ??
+    row?.getAttribute(ASK_STANDS) ??
+    null
+  );
+};
+// What a surface re-presenting a control has to say about it: the control's own
+// attribution, so a stand-in stands where the control it forwards to stands. The living
+// margin builds one when a hoisted control spills into a More options group, and the
+// press it forwards decides the same ask. Saying nothing left the proxy standing nowhere:
+// the ring came off the suggestion for as long as the reader held its own ✗ Reject, and
+// the walk measured its next step from the margin rather than from the change.
+//
+// Said in ASK_STANDS rather than in the row's own attribute, because the stand-in is a
+// second element for the one ask: the row keeps sole answer to `[data-lf-for="<id>"]`,
+// and standsAt above reads the two together.
+//
+// Written only where it changes, like every other repaint of a standing surface: a
+// heartbeat that re-presents the same control restates nothing.
+export function standsWith(node, source) {
+  const at = (source && standsAt(source)) ?? null;
+  if (node.getAttribute(ASK_STANDS) === at) return;
+  if (at) node.setAttribute(ASK_STANDS, at);
+  else node.removeAttribute(ASK_STANDS);
+}
 // A place in the document, stated as the ask it belongs to wherever it belongs to one: a
 // control hoisted out of its ask and pointing back at it stands for that ask and not for
 // the block it was hung beside, or stepping back from a suggestion's own ✓ Accept would
 // land on the suggestion the reader is already standing on.
 export function askPlace(node) {
-  const el = node.nodeType === 1 ? node : node.parentElement;
-  const row = el?.closest(`[${ASK_ROW}], [${ASK_AT}]`);
-  const at = row?.getAttribute(ASK_ROW) ?? row?.getAttribute(ASK_AT);
+  const at = standsAt(node);
   return (at && elementById(at)) ?? node;
 }
 // The ask the reader is standing in: the one holding the focus, or the one a control

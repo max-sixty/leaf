@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat_do_not_populate_process_env"]
 workers_dev = false
 
 [assets]
-directory = "../.tmp/site"
+directory = "../.tmp/site-assets"
 binding = "ASSETS"
 run_worker_first = true
 

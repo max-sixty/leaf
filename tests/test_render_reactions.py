@@ -473,8 +473,8 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
         == 1
     )
     expect(surface.locator(".lf-address")).to_have_count(0)
-    page.keyboard.press("4")
-    round_trip(page)
+    with sending(page, "the shorten reaction"):
+        page.keyboard.press("4")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["token"], sent["anchor"]["section"]) == (
         "comment",
@@ -525,8 +525,8 @@ def test_an_item_hint_opens_comment_and_a_token_outlines_the_item(browser, serve
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(bar.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Tab")
-    bar.locator('.lf-react[data-token="prioritize"]').click()
-    round_trip(page)
+    with sending(page, "the prioritize reaction"):
+        bar.locator('.lf-react[data-token="prioritize"]').click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "prioritize" and sent["anchor"] == {"section": "prose"}
     shown = painted(page, [["prose", "prioritize"]])
@@ -597,8 +597,8 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(
     )
     decision.focus()
     expect(decision).to_be_focused()
-    page.keyboard.press("Enter")
-    round_trip(page)
+    with sending(page, "the map decision"):
+        page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["widget"], sent["action"]) == ("action", target, action)
     expect(page.locator(".lf-margin-reactions")).to_have_count(0)
@@ -708,8 +708,8 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
     # reaction surface has just disappeared.
     raise_choices_on_refill()
     thistle_accept.focus()
-    page.keyboard.press("Enter")
-    round_trip(page)
+    with sending(page, "the accept"):
+        page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["widget"], sent["action"]) == (
         "action",
@@ -1072,10 +1072,10 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
     )
     # The register owns Space on keydown. A miss here can look healthy after keyup,
     # because Chromium's native button behavior then supplies a click of its own.
-    page.keyboard.down("Space")
-    assert page.evaluate("() => window.lfTestReactionClicked")
-    page.keyboard.up("Space")
-    round_trip(page)
+    with sending(page, "the prioritize reaction"):
+        page.keyboard.down("Space")
+        assert page.evaluate("() => window.lfTestReactionClicked")
+        page.keyboard.up("Space")
     expect(page.locator(".lf-live")).to_contain_text("prioritize on Start request")
 
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -1924,16 +1924,16 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     # Taking the last mark off a reply closes the list and returns focus to its ellipsis.
     # Reopening offers the same action again without leaving the token wall out.
     mark = strip(first).locator('.lf-react[data-token="clarify"]')
-    mark.press("Enter")
-    round_trip(page)
+    with sending(page, "the withdrawal"):
+        mark.press("Enter")
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo", withdrawn
     expect(mark).to_have_attribute("aria-pressed", "false")
     expect(mark).to_be_hidden()
     expect(strip(first).locator(".lf-react-trigger")).to_be_focused()
     strip(first).locator(".lf-react-trigger").click()
-    mark.press("Enter")
-    round_trip(page)
+    with sending(page, "the reaction again"):
+        mark.press("Enter")
     again = events_model.read_events(serve.page_dir)[-1]
     assert (again["kind"], again["token"], again["parent"]) == (
         "reply",

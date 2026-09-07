@@ -1,10 +1,12 @@
 # Leaf website worker
 
-The worker forwards every product and example route in `.tmp/site` to the canonical
-Python Leaf server in a Cloudflare Container. A secure, HTTP-only cookie selects one
-short-lived container per browser session. Its copied page directories and append-only
-logs are private to that reader and disappear when the container is replaced; no
-website-only projection or conversation store exists.
+Cloudflare serves each product and example page's immutable live shell from
+`.tmp/site-assets`. Its first paint does not wait for a container. The page's unchanged
+Leaf runtime then reads and writes `/api/*` through the canonical Python server in a
+Cloudflare Container. A secure, HTTP-only cookie selects one short-lived container per
+browser session. Its copied page directories and append-only logs are private to that
+reader and disappear when the container is replaced; no website-only projection or
+conversation store exists.
 
 The deployment admits up to 15,000 concurrent `lite` containers, the current
 account-level capacity implied by Cloudflare's 30 TB concurrent-disk limit. A visible
@@ -64,6 +66,6 @@ npx wrangler secret put OPENAI_API_KEY
 Create the token from Cloudflare's **Edit Cloudflare Workers** template, restrict it to
 the account and the `leaf.page` zone, and add **Workers Containers: Edit** at the
 account level. The stock template does not necessarily include the separate Containers
-permission. The deploy workflow verifies the public
-`/examples/design-decision/api/state` response after Wrangler returns because a
-Containers rollout can finish after the Worker itself becomes active.
+permission. After Wrangler returns, the deploy workflow verifies the edge shell and
+waits until its layer matches the public `/api/state` responses, because a Containers
+rollout can finish after the Worker itself becomes active.

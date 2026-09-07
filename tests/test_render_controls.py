@@ -4330,11 +4330,10 @@ RING_WALKS = (
     # screen for the sweep, which is where its band is read — the chips are a layer nothing
     # can focus, so the reader's place in that mode is not a stop.
     ("item hints", ("Tab", "s", "Shift+Tab", "Tab"), ("corpus", "ship-review")),
-    # Enter selects the item the keyboard is browsing and leaves the response undecided;
-    # c is the Comment gesture that opens the bar's field and focuses it.
+    # Enter opens Comment on the item the keyboard is browsing and focuses its field.
     (
         "the response bar",
-        ("Tab", "s", "Shift+Tab", "Tab", "Enter", "c"),
+        ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
         ("corpus", "ship-review"),
     ),
     ("the comments", ("c",), ("ship-review",)),

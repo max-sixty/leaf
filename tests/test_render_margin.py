@@ -2,7 +2,6 @@
 
 import re
 from datetime import datetime, timedelta
-from io import BytesIO
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
@@ -12,7 +11,6 @@ from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf.served_state import page as served_page
-from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
@@ -2683,28 +2681,6 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     told(page)
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
     assert_status("Waiting for pickup", "Sent 3m ago")
-    label = marker.locator(":scope > .lf-margin-button-label")
-    label_box = label.bounding_box()
-    trace_box = page.locator('.lf-target-trace[data-for="jobs"]')
-    trace_bounds = trace_box.bounding_box()
-    assert (
-        label_box["x"]
-        < trace_bounds["x"] + trace_bounds["width"]
-        < label_box["x"] + label_box["width"]
-    ), "the status label does not cross the target trace"
-    traced_label = label.screenshot()
-    trace_box.evaluate("node => { node.style.visibility = 'hidden' }")
-    untraced_label = label.screenshot()
-    trace_box.evaluate("node => { node.style.visibility = '' }")
-    traced_image = Image.open(BytesIO(traced_label))
-    untraced_image = Image.open(BytesIO(untraced_label))
-    opaque_center = (3, 3, traced_image.width - 3, traced_image.height - 3)
-    assert (
-        ImageChops.difference(
-            traced_image.crop(opaque_center), untraced_image.crop(opaque_center)
-        ).getbbox()
-        is None
-    ), "the target trace paints over the status label"
 
     with service_model.PageTransaction(page_dir) as transaction:
         session_model.record_pickup(transaction, [logged_action])

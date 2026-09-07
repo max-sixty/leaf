@@ -1,8 +1,8 @@
 """Deployment contracts that Wrangler's account-blind dry run cannot prove."""
 
-import tomllib
 from pathlib import Path
 
+import tomllib
 
 ROOT = Path(__file__).parent.parent
 

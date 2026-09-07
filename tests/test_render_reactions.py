@@ -608,10 +608,25 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     page.keyboard.press("Escape")
     expect(strip.locator(".lf-react:visible")).to_have_count(0)
     expect(item).to_have_attribute("data-lf-options-open", "")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page, open=False)
+
+    # Nor does the raise that finds the fold already open: standing the choices in a
+    # cluster the reader unfolded for themselves borrows it, and `openButtonOptions` is
+    # a no-op there, so putting them down leaves the fold where the press found it.
+    # Focus goes back to the page first, the panel's own scope owning `s` where it is.
+    page.evaluate("() => document.body.focus()")
+    page.keyboard.type(hint_code(page, "#sug-refill", 10))
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.evaluate("() => document.body.focus()")
+    page.keyboard.press("r")
+    expect(page.locator(".lf-margin-reactions")).to_be_visible()
+    expect(item).to_have_attribute("data-lf-options-open", "")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-reactions")).to_have_count(0)
+    expect(item).to_have_attribute("data-lf-options-open", "")
 
     # The raise that does unfold a cluster to stand its choices in still folds it back.
+    item.locator(".lf-margin-options .lf-margin-button:visible").first.focus()
+    page.keyboard.press("Escape")
     expect(more).to_be_visible()
     select_paragraph(page, "#replace")
     # The bar standing is the selection's arrival: the anchor `r` reads is captured on

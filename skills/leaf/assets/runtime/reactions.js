@@ -350,11 +350,13 @@ function raiseMarginSurface() {
 }
 
 function lowerMarginSurface() {
-  // If the reader had already unfolded this target, put its ordinary complete view
-  // back before removing the temporary owner-focused reaction view.
-  if (!marginUnfolded && marginTarget) openButtonOptions(marginTarget);
+  const restoreOpen = !marginUnfolded && marginTarget;
   marginOffer?.unregister();
   marginOffer = null;
+  // If the reader had already unfolded this target, restore its ordinary complete
+  // view after removing the temporary owner. While that hidden owner still exists,
+  // the margin correctly sees no visible options and closes the group.
+  if (restoreOpen) openButtonOptions(marginTarget);
   marginTarget = null;
   delete fabBar.dataset.lfMarginRaised;
   pickerFor(fabBar)?.trigger.setAttribute("aria-expanded", "false");

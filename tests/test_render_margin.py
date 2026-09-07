@@ -1393,11 +1393,11 @@ def test_the_feature_gallery_balances_one_button_sample_with_feature_sections(
         )
     ).to_be_visible()
     assert page.locator("#bg-reactions p strong").all_text_contents() == [
-        "1 · 👍 · keep this.",
-        "2 · ❌ · wrong.",
-        "3 · 🤔 · unclear.",
+        "1 · 👍 · keep.",
+        "2 · ❌ · change.",
+        "3 · 🤔 · clarify.",
         "4 · ✂️ · shorten.",
-        "5 · 🔎 · substantiate.",
+        "5 · 🔎 · support.",
         "6 · 🎯 · prioritize.",
     ]
     assert errors == []

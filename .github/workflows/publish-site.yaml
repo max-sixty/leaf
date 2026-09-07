@@ -91,7 +91,10 @@ jobs:
               cat "$response" >&2
               return 1
             fi
-            jq --exit-status "$predicate" "$response"
+            if ! jq --exit-status "$predicate" "$response"; then
+              cat "$response" >&2
+              return 1
+            fi
           }
           verify_state \
             https://leaf.page/api/state \

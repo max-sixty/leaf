@@ -1,9 +1,9 @@
 /* The go-to chord: `g` opens one destination mode, and this owner holds its vocabulary.
 
    Visible, visually discovered targets share one generated-letter namespace. Links,
-   tabs, folds, and visible Page-map Buttons are read together in screen order and
-   receive short prefix-free labels. Most cost one letter; only the tail branches when the
-   scene contains more targets than the available alphabet. The mapping is local to the
+   tabs, folds, the presses a widget built, and visible Page-map Buttons are read together
+   in screen order and receive short prefix-free labels. Most cost one letter; only the
+   tail branches when the scene contains more targets than the available alphabet. The mapping is local to the
    visible scene: scrolling refreshes it once motion settles, while a partly typed label
    freezes it until the reader completes or backs out of that prefix. Routine repaints do
    not regenerate a standing map. A candidate is revalidated before activation, so a
@@ -57,7 +57,7 @@ import { keySequence, progressStates } from "./presentation.js";
 import { banner } from "../banner.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { targetElement } from "../resolved-target.js";
-import { focusDestination } from "../widget-elements.js";
+import { focusDestination, PRESSABLE } from "../widget-elements.js";
 import { el } from "../widget-elements.js";
 import { CHOOSER } from "../version.js";
 import {
@@ -129,6 +129,21 @@ const pageTabs = () => pageParts('[role="tab"]');
 const pageDisclosures = () => pageParts("details > summary");
 // Narrower than the disclosure scope's own reading: this route can reveal a native
 // disclosure by its summary, while an aria-expanded group has no equivalent arrival.
+// The presses themselves, wherever a widget put them. Each is declared as it is built:
+// `offer` writes the tag for a button and `selectableOffer` the role it gave, which is the
+// value the theme's hand already reads, so a widget joins by building its control rather
+// than by an entry here. The register stays about capabilities; a press is a route to one,
+// and this is how a route that spends no key of its own is reached.
+//
+// The reading stops where the hand stops, because it is the same reading. `offer` writes
+// the empty string for every tag but `button`, so a press built as another native control
+// is outside both — the diff's soft-wrap box is `offer("input")` given `type = "checkbox"`
+// afterwards, and it spends `Alt+w` for want of the route this cannot give it.
+//
+// TODO(2026-09-06): the value names the tag rather than pressability, which an `input`
+// carries in its `type` and sets after `offer` returns. Widening it moves the hand, the
+// copy, and the render gate together, so it is its own change rather than a clause here.
+const pageControls = () => pageParts(PRESSABLE);
 
 // A link keeps the platform activation that its author wrote. The chord adds only the
 // arrival it otherwise lacks: a local fragment hands focus to the place the browser just
@@ -238,6 +253,15 @@ const BUILTIN_DIRECT_DESTINATIONS = [
     close: (...args) => leavePageMap(...args),
   },
 ];
+// A press hint is an activation and an arrival. Reveal first so a nested control can open
+// the panel that holds it, then focus and use its click path so pointer and keyboard
+// remain one behavior.
+function press(control) {
+  scrollToElement(control, undefined, "nearest");
+  control.focus({ preventScroll: true });
+  control.click();
+}
+
 const TARGET_KINDS = [
   {
     kind: "Page-map Button",
@@ -248,14 +272,14 @@ const TARGET_KINDS = [
   {
     kind: "Tab",
     list: pageTabs,
-    // A tab hint is an activation and an arrival. Reveal first so a nested tab can open
-    // its owning panel, then focus and use its click path so pointer and keyboard remain
-    // one behavior.
-    go: (tab) => {
-      scrollToElement(tab, undefined, "nearest");
-      tab.focus({ preventScroll: true });
-      tab.click();
-    },
+    go: press,
+  },
+  // After Tab, because a tab a widget built answers both queries and the tab is the
+  // nearer meaning. The collapse above keeps whichever kind is read first.
+  {
+    kind: "Control",
+    list: pageControls,
+    go: press,
   },
   {
     kind: "Link",

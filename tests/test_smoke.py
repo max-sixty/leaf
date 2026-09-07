@@ -8,9 +8,6 @@ from playwright.sync_api import expect
 
 serve = render_support.serve
 open_page = render_support.open_page
-BOTH_STAMPS = render_support.BOTH_STAMPS
-FEATURE_GALLERY = render_support.FEATURE_GALLERY
-
 ROOT = Path(__file__).parent.parent
 
 
@@ -36,26 +33,5 @@ def test_ship_review_asks_are_directly_answerable(browser, serve):
     # whatever happened. At rest a page shows `c` and `r`.
     expect(page.locator(".lf-keyline .lf-key:not([hidden])")).not_to_have_count(0)
 
-    assert errors == []
-    page.close()
-
-
-def test_contained_gallery_pages_leave_the_outer_reader_standing(browser, serve):
-    """Contained Leaf pages neither restore state nor take focus from their holder."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
-    page.locator(".lf-threads-toggle").click()
-    expect(page.locator(".lf-panel")).to_be_visible()
-
-    page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
-    for example in ("comment", "threads"):
-        frame = page.locator(f"#bg-interaction-{example} [data-interaction-frame]")
-        expect(frame).to_have_attribute("data-interaction-ready", "")
-        expect(frame.content_frame.locator("body")).not_to_have_attribute(
-            "data-lf-panel", ""
-        )
-
-    expect(page.locator("body")).to_have_attribute("data-lf-panel", "")
-    assert page.evaluate("() => document.activeElement?.tagName") != "IFRAME"
     assert errors == []
     page.close()

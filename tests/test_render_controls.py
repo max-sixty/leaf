@@ -448,7 +448,7 @@ def test_a_workspace_lands_one_responsive_layout_and_carries_the_column_to_it(
         }"""
     )
 
-    page.keyboard.press("c")
+    page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
     assert page.evaluate("() => window.__lfHeld.length") == 1, (
         "opening the workspace did not produce one controllable column motion"
@@ -2223,7 +2223,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # This page heads the list, marked and never a link: the panel reads as the
     # whole machine, and this page is where the reader already is.
     self_row = others_panel.locator(".lf-others-self")
-    expect(self_row.locator(".lf-pill")).to_have_text("this page")
+    expect(self_row.locator(".lf-chip")).to_have_text("this page")
     expect(self_row.locator(".lf-others-title")).to_have_text("long")
     link = others_panel.locator("a.lf-others-row")
     expect(link.locator(".lf-others-title")).to_have_text("The other leaf")
@@ -2862,7 +2862,7 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
     Told it may break a word, the browser will also break one that was never meant to come
     apart: the tree's module spaces its badges by margin and writes no whitespace between
     them, so a line is one word to the breaker, and it split a two-character badge down the
-    middle and drew half the pill on each line. Read at a phone's width, where the column
+    middle and drew half the chip on each line. Read at a phone's width, where the column
     has the least to give and each of the three is at its worst."""
     page, errors = open_page(browser, serve(UNBREAKABLE_PAGE))
     resized(page, 420, 900)
@@ -2883,7 +2883,7 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
     )
     torn = """() => [...document.querySelectorAll('.lf-tree-badge')]
                       .map((b) => b.getClientRects().length)"""
-    assert page.evaluate(torn) == [1, 1], "a badge is one pill, and it was drawn as two"
+    assert page.evaluate(torn) == [1, 1], "a badge is one chip, and it was drawn as two"
     assert errors == []
     page.close()
 
@@ -3991,6 +3991,86 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     page.close()
 
 
+def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
+    browser, serve
+):
+    """The same half held to the other order, which it read backwards. An outline is
+    painted by its control at its control's level, so a box the control stands in front
+    of cannot stand over the ring around it — but the hit test that answers this half
+    samples the band outside the control's box, where whatever is beneath comes back.
+
+    The panel's edge grip is the shape that made that matter. It floats over the threads
+    at z-index 1, so its band crosses their own lines at every width and scroll position,
+    and the reading named whichever line it happened to land on: a two-pixel change to a
+    card's padding (#374) put a receipt under the coarse grip's foot and took
+    `test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll` down with
+    nothing about the page wrong.
+
+    So: one neighbour under the grip's band and clear of its box, planted twice — once
+    where the grip paints across it, once lifted past the grip by a z-index of its own.
+    The lifted half is the population assertion; a reading gone quiet would pass the
+    first half on its own.
+    """
+    url = serve(LONG_PAGE, comments=6)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    edge = page.locator(".lf-panel > .lf-edge")
+    edge.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    standing = standing_ring(page)
+    assert standing and standing["ring"] == "edge", (
+        f"the keyboard is not standing on the grip's own ring: {standing}"
+    )
+
+    # A band under one run of the grip's ring and clear of the grip's own box, inside a
+    # holder beside the grip in the panel: the holder is what the reading can rank, and
+    # putting the band in the page instead would leave it with nothing to rank against.
+    # Neither paints anything the grip does not already stand in front of, until the band
+    # names the z-index that lifts it past.
+    plant = """(z) => {
+      document.querySelector('.lf-under-plant')?.remove();
+      const grip = document.querySelector('.lf-panel > .lf-edge');
+      const cs = getComputedStyle(grip);
+      const grow = parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset);
+      const b = grip.getBoundingClientRect();
+      const mid = (Math.max(b.top - grow, 0) + Math.min(b.bottom + grow, innerHeight)) / 2;
+      const holder = document.querySelector('.lf-panel')
+        .appendChild(document.createElement('div'));
+      holder.className = 'lf-under-plant';
+      Object.assign(holder.style, {position: 'absolute', inset: '0'});
+      const band = holder.appendChild(document.createElement('div'));
+      Object.assign(band.style, {
+        position: 'fixed', background: 'red',
+        left: `${b.left - grow - 1}px`, top: `${mid - 20}px`,
+        width: `${grow + 1}px`, height: '40px',
+      });
+      if (z) band.style.zIndex = String(z);
+      return grow;
+    }"""
+
+    grow = page.evaluate(plant, 0)
+    assert grow > 0, (
+        f"the grip draws its ring {grow}px outside its box, so there is no band outside "
+        "it to lay anything under and this holds nothing"
+    )
+    assert standing_ring(page)["covers"] == [], (
+        "a neighbour the grip paints across was read as standing over its ring"
+    )
+
+    page.evaluate(plant, 2)
+    covers = standing_ring(page)["covers"]
+    assert any("left edge is under" in c for c in covers), (
+        f"the same band lifted past the grip by a z-index of its own read as {covers}, "
+        "so the half above passed on a reading that answers nothing"
+    )
+
+    page.evaluate("() => document.querySelector('.lf-under-plant').remove()")
+    assert errors == []
+    page.close()
+
+
 def test_a_reader_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
     browser, serve
 ):
@@ -4171,7 +4251,7 @@ RING_WALKS = (
     ),
     ("the comments", ("c",), ("ship-review",)),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
-    # layer dresses in the chrome's pill face, and they are behind a press: the strip
+    # layer dresses in the chrome's chip face, and they are behind a press: the strip
     # shows a token nobody has pressed only while it is open, so a walk of the panel
     # that never opens one stands on the trigger and nothing under it.
     ("a reaction palette", (), ("ship-review",)),
@@ -4913,7 +4993,7 @@ AIM_BOXES = """(floor) => {
   for (const el of document.querySelectorAll(
     '[data-lf-offer], .lf-chrome button, .lf-chrome [role="button"],' +
     ' .lf-chrome [role="checkbox"], .lf-chrome [role="tab"], .lf-chrome .lf-btn,' +
-    ' .lf-chrome .lf-pill, .lf-chrome .lf-quote'
+    ' .lf-chrome .lf-chip, .lf-chrome .lf-quote'
   )) {
     if (seen.has(el)) continue;
     seen.add(el);
@@ -4946,7 +5026,7 @@ AIM_BOXES = """(floor) => {
 AIM_SURFACES = (
     ".lf-thread-action",
     ".lf-preview",
-    ".lf-pill",
+    ".lf-chip",
     ".lf-version-diff",
     ".lf-help-command",
     ".lf-quote",
@@ -4994,7 +5074,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
     """A press the reader cannot land on is a capability the page does not have.
 
     Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
-    reaction pills stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
+    reaction chips stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
     version's Δ, a command in the reference, and a quote at around twelve by seven.
     Three controls reached the coarse-pointer block and the rest reached neither floor,
     so the same presses were small under a finger too.

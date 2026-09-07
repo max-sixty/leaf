@@ -4358,8 +4358,19 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
           const range = document.createRange();
           range.selectNodeContents(button);
           const text = range.getBoundingClientRect();
+          const after = getComputedStyle(button, '::after');
+          const style = getComputedStyle(button);
+          const hasChord = button.hasAttribute('data-lf-chord');
+          const chordBottom = hasChord
+            ? box.bottom - parseFloat(style.borderBottomWidth)
+              - parseFloat(after.bottom)
+            : text.bottom;
+          const chordTop = hasChord
+            ? chordBottom - parseFloat(after.lineHeight)
+            : text.top;
           return {label: button.textContent.trim(),
-                  above: text.top - box.top, below: box.bottom - text.bottom};
+                  above: Math.min(text.top, chordTop) - box.top,
+                  below: box.bottom - Math.max(text.bottom, chordBottom)};
         })"""
     )
     assert text_insets

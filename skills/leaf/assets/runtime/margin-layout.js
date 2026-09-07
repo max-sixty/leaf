@@ -35,9 +35,11 @@
    reading remains withheld. Changing that behavior belongs to the live and copied layouts
    together, not to this export override. */
 const rows = new Map();
-// The room a row was last docked against. A dock is an answer about a width, so it holds
-// while the width it answered about does. Cleared wherever a row restates itself, since
-// its own size is the other half of that answer.
+// The horizontal space a row was last docked against. A dock holds while that space and
+// the row itself do. The shell's presentation carry is the exception: its moving column
+// is transient, so rows keep their answer until the column rests.
+// Cleared wherever a row restates itself, since its own size is the other half of the
+// answer.
 const dockedAgainst = new WeakMap();
 const GAP = 4;
 let pending = 0;
@@ -137,8 +139,13 @@ export function layoutMarginRows() {
   );
   const staysDocked = new Set();
   if (dockedRows.length) {
-    const postureColumnRect = marginColumn().getBoundingClientRect();
+    const postureColumn = marginColumn();
+    const postureColumnRect = postureColumn.getBoundingClientRect();
     const postureRoom = document.body.getBoundingClientRect().right;
+    const columnMoving =
+      parseFloat(
+        getComputedStyle(postureColumn).getPropertyValue("--lf-shell-motion-x"),
+      ) !== 0;
     for (const [row, options] of dockedRows) {
       const anchor =
         typeof options.anchor === "function" ? options.anchor() : options.anchor;
@@ -159,13 +166,18 @@ export function layoutMarginRows() {
         continue;
       }
       // It hangs by its owner's reading and docked anyway, which means it did not fit
-      // the room. Floating it to measure that again is the only way to ask, and asking
-      // moves the host: a cluster holding the reader's focus emits focusout and focusin
-      // on the way out and back, each of which repaints the standing chrome, and that
-      // paint asks for another pass. Against a room that has not changed the measurement
-      // cannot answer differently, so keep the answer instead of taking the rows out of
-      // flow to hear it again.
-      if (dockedAgainst.get(row) === postureRoom) staysDocked.add(row);
+      // the horizontal space. Floating it to measure that again moves a host that may
+      // hold focus, so keep the answer while its inputs hold. During the shell's carry,
+      // every frame has a different drawn column but only the resting position is
+      // durable space to answer about.
+      const against = dockedAgainst.get(row);
+      if (
+        against?.room === postureRoom &&
+        (columnMoving ||
+          (against.columnLeft === postureColumnRect.left &&
+            against.columnRight === postureColumnRect.right))
+      )
+        staysDocked.add(row);
     }
   }
   for (const [row, options] of rows) {
@@ -236,7 +248,11 @@ export function layoutMarginRows() {
       if (options.fallback === "hide") mark(row, "lf-waiting");
       else {
         mark(row, "lf-docked");
-        dockedAgainst.set(row, room);
+        dockedAgainst.set(row, {
+          room,
+          columnLeft: columnRect.left,
+          columnRight: columnRect.right,
+        });
         options.dock?.(row);
         docked = true;
       }

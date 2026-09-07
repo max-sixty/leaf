@@ -1,6 +1,6 @@
 name: ci
 
-# Pull requests keep the landing signal narrow. Main runs the complete suite in
+# Pull requests keep the landing signal narrow. Main adds the nightly surface in
 # four isolated groups, and the scheduled run guarantees one uncancelled daily
 # checkpoint even when main is moving continuously.
 on:
@@ -56,7 +56,6 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   test:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -131,7 +130,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  full:
+  nightly:
     if: needs.changes.outputs.full == 'true'
     needs: changes
     runs-on: ubuntu-24.04
@@ -154,19 +153,19 @@ jobs:
       - name: Install Chromium headless shell
         run: uv run playwright install --with-deps chromium --only-shell
 
-      - name: 🧪 Complete suite · group ${{ matrix.group }}
+      - name: 🧪 Nightly suite · group ${{ matrix.group }}
         run: |
-          uv run pytest tests --run-nightly -v \
+          uv run pytest tests -m nightly -v \
             --splits 4 --group "$TEST_GROUP" --splitting-algorithm least_duration \
             --durations-path .test_durations \
-            --junitxml=".tmp/test-results/full-$TEST_GROUP.xml"
+            --junitxml=".tmp/test-results/nightly-$TEST_GROUP.xml"
 
       - name: Upload pytest results
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: pytest-results-full-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .tmp/test-results/full-${{ matrix.group }}.xml
+          name: pytest-results-nightly-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .tmp/test-results/nightly-${{ matrix.group }}.xml
           if-no-files-found: error
           retention-days: 30
 

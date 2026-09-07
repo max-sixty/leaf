@@ -386,6 +386,13 @@ def test_ci_infrastructure_changes_prove_the_complete_split_path():
         assert select_ci_tests([path]) == {"full": True, "test_modules": []}
 
 
+def test_split_durations_use_collection_node_ids():
+    durations = json.loads((ROOT / ".test_durations").read_text(encoding="utf-8"))
+
+    assert len(durations) > 1_000
+    assert not [nodeid for nodeid in durations if nodeid.endswith("@site")]
+
+
 def test_hidden_hook_remains_callable():
     result = CliRunner().invoke(cli_model.cli, ["hook"], input="{}")
 

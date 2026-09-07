@@ -59,7 +59,7 @@ checkpoint. Pytest-split balances both surfaces from `.test_durations`; refresh
 that file when the four job times diverge materially:
 
 ```sh
-uv run pytest tests --run-nightly --store-durations --clean-durations
+uv run pytest tests -m nightly -n 0 --store-durations --clean-durations
 ```
 
 `scripts/linux-suite.sh` supplies the pinned headless shell, installed Chrome,

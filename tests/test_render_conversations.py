@@ -3171,7 +3171,7 @@ def thread_mark_fault(reading):
 
 
 def test_forced_colors_keep_pointer_focused_threads_distinct(browser, serve):
-    """High contrast keeps the current card visible when pointer focus has no ring."""
+    """High contrast keeps the current card visible from its card and reply box."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     panel_comment(d, "The current card.", {"section": "lede"})
@@ -3191,6 +3191,12 @@ def test_forced_colors_keep_pointer_focused_threads_distinct(browser, serve):
         expect(current).to_be_focused()
         assert current.evaluate("el => el.matches(':focus-within')")
         assert not current.evaluate("el => el.matches(':focus-visible')")
+        assert current.evaluate(
+            "el => getComputedStyle(el).borderColor"
+        ) != peer.evaluate("el => getComputedStyle(el).borderColor")
+        reply = current.locator("textarea")
+        reply.click()
+        expect(reply).to_be_focused()
         assert current.evaluate(
             "el => getComputedStyle(el).borderColor"
         ) != peer.evaluate("el => getComputedStyle(el).borderColor")

@@ -25,13 +25,13 @@ import {
   watchDraft,
 } from "../drafts.js";
 import { wireInput } from "./input.js";
-import { fabAnchorAt, refreshFab, showFab } from "./surface.js";
+import { fabAnchorAt, holdFabLeft, refreshFab, showFab } from "./surface.js";
 import { runtime } from "../context.js";
 import { post } from "../outbox.js";
 import { threadsBox } from "../conversation/panel.js";
 import { landTyping, mayLandTyping } from "./capture.js";
 import { panelIsOpen } from "../chrome-layout.js";
-import { focused, paintHere } from "../keyboard/scopes.js";
+import { focused, paintHere, paintKeys } from "../keyboard/scopes.js";
 import { paintAnchors } from "../anchors.js";
 import { elementById, inChrome } from "../passages.js";
 import { focusSurface } from "../conversation/surfaces.js";
@@ -78,7 +78,6 @@ fabMore.setAttribute("aria-expanded", "false");
 export const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   icon: "edit",
   label: "Suggest",
-  behavior: "disclosure",
   collapse: true,
 });
 fabOptions.append(fabSuggest);
@@ -267,7 +266,6 @@ function syncSuggestMode() {
   responseAction(fabSuggest, {
     icon: suggest ? "edit" : "comment",
     label: suggest ? "Suggest" : "Comment",
-    behavior: "disclosure",
     collapse: true,
   });
   keeps(fabSuggest, "aria-label", suggest ? "Suggest" : "Comment");
@@ -347,13 +345,12 @@ export function setResponseOptions(
     }
     return next;
   }
-  const fixedLeft = next ? fabBar.getBoundingClientRect().left : null;
+  holdFabLeft(next && place);
   if (next) setReact(false);
   responseOptionsOpen = next;
   fabBar.classList.toggle("lf-response-open", next);
   fabMore.setAttribute("aria-expanded", String(next));
-  if (place && fabAnchorAt())
-    showFab(fabAnchorAt(), null, { fixedLeft: next ? fixedLeft : null });
+  if (place && fabAnchorAt()) showFab(fabAnchorAt());
   if (next && focus) {
     const options = responseOptionButtons();
     const destination =
@@ -366,7 +363,7 @@ export function setResponseOptions(
       preventScroll: true,
     });
   }
-  paintHere();
+  paintKeys();
   return next;
 }
 
@@ -382,9 +379,7 @@ export function syncResponseOptions(anchor = fabAnchorAt()) {
 }
 
 export function resetResponseOptions() {
-  responseOptionsOpen = false;
-  fabBar.classList.remove("lf-response-open");
-  fabMore.setAttribute("aria-expanded", "false");
+  setResponseOptions(false, { place: false });
 }
 
 fabMore.onclick = () =>

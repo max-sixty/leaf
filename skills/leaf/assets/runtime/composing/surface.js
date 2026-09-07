@@ -211,6 +211,18 @@ function releaseFabPosition() {
   fabFixedLeft = null;
   fabFixedRightEdge = null;
 }
+// A response expansion changes the bar's own width. Capture its left edge before that
+// mutation so the surface can reflow the larger bar without moving the control the
+// reader just pressed. Selection state decides when the hold applies; geometry never
+// leaves this owner.
+export function holdFabLeft(hold) {
+  if (!hold) {
+    releaseFabPosition();
+    return;
+  }
+  fabFixedLeft = fabBar.getBoundingClientRect().left;
+  fabFixedRightEdge = rightEdge();
+}
 const union = (rects) => {
   if (!rects.length) return null;
   const left = Math.min(...rects.map((rect) => rect.left));
@@ -260,8 +272,9 @@ function anchorBox(anchor) {
 // The passage remains the exact anchor, but its containing paragraph is not spare
 // space: a short selection cannot lend the words after it to the response field.
 // Keep the bar beside that whole block, or above/below it when the rail is too narrow.
-function placeFab(target = anchorBox(fabAnchor), fixedLeft = fabFixedLeft) {
+function placeFab(target = anchorBox(fabAnchor)) {
   if (!fabAnchor || !target) return false;
+  let fixedLeft = fabFixedLeft;
   const edge = rightEdge();
   // The lock spans the expansion's own layout frames, not a changed viewport or
   // workspace. Once the available band changes, re-place the whole group against its
@@ -328,7 +341,7 @@ function placeFab(target = anchorBox(fabAnchor), fixedLeft = fabFixedLeft) {
 export function showFab(
   anchor,
   target = null,
-  { returnFocus = "target", origin = null, place = true, fixedLeft } = {},
+  { returnFocus = "target", origin = null, place = true } = {},
 ) {
   const previous = fabAnchor;
   const previousOrigin = fabOrigin;
@@ -347,10 +360,7 @@ export function showFab(
   fabAnchor = anchor;
   fabFloating = !fabAnchor || place;
   if (!fabAnchor) releaseFabPosition();
-  else if (fixedLeft !== undefined) {
-    fabFixedLeft = fixedLeft;
-    fabFixedRightEdge = fixedLeft == null ? null : rightEdge();
-  } else if (!previous || !sameAnchor(previous, fabAnchor)) releaseFabPosition();
+  else if (!previous || !sameAnchor(previous, fabAnchor)) releaseFabPosition();
   fabOrigin = fabAnchor && origin?.isConnected ? origin : null;
   fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
   fabBar.style.display = fabAnchor ? "inline-flex" : "none";
@@ -370,7 +380,7 @@ export function showFab(
     // screen. `r` still needs the durable anchor so it can extend that existing item;
     // in that route the floating bar is never painted and placement is deliberately
     // skipped. Every route that actually shows the bar keeps the geometry gate.
-    if (place && !placeFab(target ?? anchorBox(fabAnchor), fixedLeft)) {
+    if (place && !placeFab(target ?? anchorBox(fabAnchor))) {
       fabAnchor = null;
       fabOrigin = null;
       releaseFabPosition();

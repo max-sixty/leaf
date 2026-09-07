@@ -25,6 +25,7 @@ import { inPanel, panelIsOpen, setPanel } from "../chrome-layout.js";
 import {
   composerOpen,
   fabInput,
+  fabOptions,
   focusedResponseOption,
   pendingDrawing,
   responseOptionsAreOpen,
@@ -739,63 +740,75 @@ const COMPOSER = {
   ],
 };
 
-const RESPONSE_OPTIONS = {
-  title: "With other responses open",
-  at: () => responseOptionsAreOpen(),
-  rows: [
-    {
-      id: "response.reaction.choose",
-      keys: () =>
-        responseReactionButtons()
-          .slice(0, 9)
-          .map((_, index) => String(index + 1)),
-      label: () => {
-        const count = Math.min(responseReactionButtons().length, 9);
-        return count > 1 ? `1–${count}` : "1";
-      },
-      does: () =>
-        `Put a reaction on the response target: ${reactionTokens()
-          .slice(0, 9)
-          .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
-          .join(", ")}`,
-      line: "react",
-      when: () => !takesLetters(focused()) && responseReactionButtons().length > 0,
-      run: (binding) => responseReactionButtons()[+binding - 1]?.click(),
-    },
-    {
-      id: "response.tab",
-      keys: ["Tab", "Shift+Tab"],
-      does: "Move between the comment and other responses",
-      line: "move",
-      repeat: true,
-      run: stepResponseOptions,
-    },
-    {
-      id: "response.move",
-      keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-      does: "Move through other responses",
-      line: "move",
-      repeat: true,
-      when: () => focusedResponseOption(),
-      run: stepResponseOptions,
-    },
-    {
-      id: "response.activate",
-      keys: PRESS,
-      does: "Use the focused response",
-      line: "choose",
-      when: () => focusedResponseOption(),
-      run: () => focused()?.click(),
-    },
-    {
-      id: "response.close",
-      keys: ["Escape"],
-      does: "Close other responses",
-      line: "close",
-      run: () => setResponseOptions(false, { returnFocus: true }),
-    },
-  ],
+const RESPONSE_REACTION = {
+  id: "response.reaction.choose",
+  keys: () =>
+    responseReactionButtons()
+      .slice(0, 9)
+      .map((_, index) => String(index + 1)),
+  label: () => {
+    const count = Math.min(responseReactionButtons().length, 9);
+    return count > 1 ? `1–${count}` : "1";
+  },
+  does: () =>
+    `Put a reaction on the response target: ${reactionTokens()
+      .slice(0, 9)
+      .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
+      .join(", ")}`,
+  line: "react",
+  when: () => responseReactionButtons().length > 0,
+  run: (binding) => responseReactionButtons()[+binding - 1]?.click(),
 };
+const RESPONSE_TAB = {
+  id: "response.tab",
+  keys: ["Tab", "Shift+Tab"],
+  does: "Move between the comment and other responses",
+  line: "move",
+  repeat: true,
+  run: stepResponseOptions,
+};
+const RESPONSE_MOVE = {
+  id: "response.move",
+  keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
+  does: "Move through other responses",
+  line: "move",
+  repeat: true,
+  when: () => focusedResponseOption(),
+  run: stepResponseOptions,
+};
+const RESPONSE_ACTIVATE = {
+  id: "response.activate",
+  keys: PRESS,
+  does: "Use the focused response",
+  line: "choose",
+  when: () => focusedResponseOption(),
+  run: () => focused()?.click(),
+};
+const RESPONSE_CLOSE = {
+  id: "response.close",
+  keys: ["Escape"],
+  does: "Close other responses",
+  line: "close",
+  run: () => setResponseOptions(false, { returnFocus: true }),
+};
+const RESPONSE_OPTIONS_TITLE = "With other responses open";
+const RESPONSE_OPTIONS = {
+  title: RESPONSE_OPTIONS_TITLE,
+  at: () => responseOptionsAreOpen() && focused() === fabInput,
+  // These two keys move into and out of the disclosure itself, including while the
+  // field's return frame stands nearer than ordinary containing surfaces.
+  rows: [RESPONSE_TAB, RESPONSE_CLOSE],
+};
+export function declareResponseOptionKeys() {
+  // Choice commands apply only while focus is inside the choices. They no longer stand
+  // ahead of the field's exact send command or native text-entry claims.
+  keys(
+    fabOptions,
+    RESPONSE_OPTIONS_TITLE,
+    [RESPONSE_REACTION, RESPONSE_TAB, RESPONSE_MOVE, RESPONSE_ACTIVATE, RESPONSE_CLOSE],
+    { when: responseOptionsAreOpen },
+  );
+}
 
 // The box a reply or a comment is typed into, which is the panel's; a page's own control
 // is somewhere the reader is standing, not something they are writing in. Declared above

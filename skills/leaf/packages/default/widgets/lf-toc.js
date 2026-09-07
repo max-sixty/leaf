@@ -114,13 +114,10 @@ customElements.define(
       start.className = "lf-toc-start";
       start.dataset.lfDepth = "0";
       const startLink = document.createElement("a");
-      const startDestination = pageTitle
-        ? pageTitle.id
-          ? pageTitle
-          : this.#targetFor(pageTitle, 0)
-        : this.#main.id
-          ? this.#main
-          : this.#targetFor(this.#main, 0);
+      const startSource = pageTitle ?? this.#main;
+      const startDestination = startSource.id
+        ? startSource
+        : this.#targetFor(startSource, 0);
       startLink.href = `#${startDestination.id}`;
       // The row's word is its text, as every other row's is. It was an attribute the rail
       // form drew with `content: attr()`, which meant the link had no text at all: every

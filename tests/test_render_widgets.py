@@ -1435,9 +1435,9 @@ def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser,
     page.wait_for_function(
         """nav => {
           const hovered = nav.querySelector('li:hover a');
-          const opaque = [...nav.querySelectorAll('.lf-toc-start a, li a')]
-            .filter(link => getComputedStyle(link).opacity === '1');
-          return hovered && getComputedStyle(hovered).opacity === '1' && opaque.length === 1;
+          return hovered
+            && getComputedStyle(hovered).opacity === '1'
+            && hovered.getAnimations().every(m => m.playState === 'finished');
         }""",
         arg=nav.element_handle(),
     )

@@ -89,7 +89,6 @@ jobs:
           name: pytest-results-${{ github.event_name }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/test-results/*.xml
           if-no-files-found: error
-          include-hidden-files: true
           retention-days: 30
 
   lint:

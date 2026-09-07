@@ -80,6 +80,7 @@ from render_support import (
     undo,
     unfolded_button,
     wait_for_revision,
+    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -624,6 +625,104 @@ def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serv
     ]
     assert errors == []
     page.close()
+
+
+def test_generated_page_interface_first_paints_with_authoritative_geometry(
+    browser, serve
+):
+    """Generated interface reserves room while replay is pending, then first paints
+    against the complete presented page rather than exposing its provisional layout.
+
+    The recorded draft makes the first section much taller during replay. The contents
+    map has already measured the short authored form, so only the presentation signal
+    can replace that stale span in the same turn that releases its visibility."""
+    source = leaf_page(
+        "stable generated interface",
+        """
+<h1>Migration plan</h1>
+<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>
+<section>
+  <h2 id="prepare">Prepare the readers</h2>
+  <lf-draft id="notes"><pre>One short line.</pre></lf-draft>
+</section>
+<section>
+  <h2 id="verify">Verify the readers</h2>
+  <div style="height: 600px"></div>
+</section>
+""",
+    )
+    url = serve(source)
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "notes",
+            "action": "edit",
+            "detail": {
+                "text": "\n".join(
+                    f"Migration checkpoint {number}." for number in range(1, 17)
+                )
+            },
+        },
+    )
+    held = []
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    errors = watched(page)
+    page.add_init_script(
+        """
+        window.__tocFirstPaint = null;
+        new MutationObserver((records, observer) => {
+          if (document.body?.dataset.lfPresented !== '1') return;
+          const first = document.getElementById('prepare');
+          const second = document.getElementById('verify');
+          const nav = document.querySelector('.lf-toc-nav');
+          const row = nav.querySelector('a[href="#prepare"]').parentElement;
+          window.__tocFirstPaint = {
+            visible: nav.checkVisibility({visibilityProperty: true}),
+            span: Number(row.style.getPropertyValue('--lf-toc-span')),
+            actual: second.getBoundingClientRect().top
+              - first.getBoundingClientRect().top,
+          };
+          observer.disconnect();
+        }).observe(document, {
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['data-lf-presented'],
+        });
+        """
+    )
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(url, wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        assert held, "the positive control did not hold the first state response"
+        nav = page.locator(".lf-toc-nav")
+        expect(nav).not_to_be_visible()
+        prepare = nav.locator('a[href="#prepare"]')
+        page.wait_for_function(
+            "link => Number(link.parentElement.style"
+            ".getPropertyValue('--lf-toc-span')) > 0",
+            arg=prepare.element_handle(),
+        )
+        authored_span = prepare.evaluate(
+            "link => Number(link.parentElement.style.getPropertyValue('--lf-toc-span'))"
+        )
+
+        held.pop(0).continue_()
+        page.wait_for_function("() => window.__tocFirstPaint !== null")
+        first_paint = page.evaluate("() => window.__tocFirstPaint")
+        assert first_paint["visible"], first_paint
+        assert first_paint["actual"] > authored_span + 200, (
+            authored_span,
+            first_paint,
+        )
+        assert first_paint["span"] == pytest.approx(first_paint["actual"], abs=1)
+        page.wait_for_function(BOTH_STAMPS)
+        assert errors == []
+    finally:
+        page.close()
 
 
 def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, serve):

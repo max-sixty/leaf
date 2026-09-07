@@ -46,8 +46,8 @@ import { inChrome } from "../passages.js";
 // already hears this write is the one place both surfaces are kept together, rather than a
 // repaint each DISCLOSE row has to remember for itself.
 // A write that says what the attribute already said is not a disclosure changing, and
-// taking it for one closes a loop: paintCoreControls paints `aria-expanded` on the key
-// line's More control, so every paint scheduled the next one and the page repainted for
+// taking it for one closes a loop: renderLine paints `aria-expanded` on the key line's
+// More control, so every paint scheduled the next one and the page repainted for
 // as long as it was open. Reading the old value is what tells the two apart. A real
 // toggle still arrives, including one that lands back where it started, because the
 // record for its return leg carries the other value.

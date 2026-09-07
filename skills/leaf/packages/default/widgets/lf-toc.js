@@ -22,6 +22,7 @@
  * honor a generated target that did not exist during HTML parsing. */
 import {
   LAYOUT,
+  PRESENTATION,
   inChrome,
   once,
   relabel,
@@ -54,6 +55,7 @@ customElements.define(
     #onToggle = () => this.#scheduleMeasure();
     #onLoad = () => this.#scheduleMeasure();
     #onLayout = () => this.#scheduleMeasure();
+    #onPresentation = () => this.#measure();
 
     connectedCallback() {
       if (once(this)) this.#build();
@@ -68,6 +70,7 @@ customElements.define(
       this.#main?.removeEventListener("toggle", this.#onToggle, true);
       this.#main?.removeEventListener("load", this.#onLoad, true);
       this.#main?.removeEventListener(LAYOUT, this.#onLayout);
+      document.removeEventListener(PRESENTATION, this.#onPresentation);
       window.removeEventListener("resize", this.#onResize);
       cancelAnimationFrame(this.#measureFrame);
       cancelAnimationFrame(this.#paintFrame);
@@ -171,6 +174,7 @@ customElements.define(
       this.#main.addEventListener("toggle", this.#onToggle, true);
       this.#main.addEventListener("load", this.#onLoad, true);
       this.#main.addEventListener(LAYOUT, this.#onLayout);
+      document.addEventListener(PRESENTATION, this.#onPresentation);
       window.addEventListener("resize", this.#onResize);
       this.#scheduleMeasure();
     }

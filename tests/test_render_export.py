@@ -1245,6 +1245,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
         toServer: [...document.querySelectorAll('[src^="/"], [href^="/"]')]
             .map(e => e.getAttribute('src') ?? e.getAttribute('href')),
         links: document.querySelectorAll('link[rel="stylesheet"]').length,
+        presented: document.body.dataset.lfPresented,
         column: getComputedStyle(document.querySelector('main')).maxWidth,
         // A page gives up a CSS shell claim for what it hangs in the margin, and
         // a copy keeps only the strips whose residents came with it: a suggestion's
@@ -1368,6 +1369,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
     )
     assert state["toServer"] == [], "the copy still points at a server that isn't there"
     assert state["links"] == 0, "a stylesheet link survived, pointing at nothing"
+    assert state["presented"] == "1", "the copy was taken before presentation finished"
     assert state["column"] != "none", "the theme didn't inline; the copy opens unstyled"
     assert state["empty"] == [], (
         "the copy holds a strip of its own width open with nothing standing in it, so "

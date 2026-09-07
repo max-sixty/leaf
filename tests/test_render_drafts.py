@@ -66,8 +66,7 @@ def select_words(page, passage):
     passage stands in that empty half — it is placed to keep its own target clear, not
     the page — so a gesture aimed at the centre lands on the field instead of on the
     words and never reaches the passage. The words are where a reader aims, so the
-    click goes to the start of the first line the passage draws.
-    """
+    click goes to the start of the first line the passage draws."""
     locator = page.locator(passage)
     locator.scroll_into_view_if_needed()
     x, y = locator.evaluate(

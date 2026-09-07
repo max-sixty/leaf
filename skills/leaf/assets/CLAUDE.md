@@ -507,7 +507,10 @@ Control state is paint: ink, fill, border, or an inset ring. Do not express it b
 changing font weight, size, padding, border width, or another metric. Reserve
 space before a generated control appears. Transient feedback may repaint a control or
 briefly replace its label, but neither may change its geometry; `reserve` measures all
-enumerable labels in the control's current font and sets a minimum width. Re-measure
+enumerable labels in the control's current font and sets a minimum width. Text that
+wraps reserves on the same terms: the narrowest box in which every line it can write
+fits its stated clamp, measured in the face it is set in (`reserveStatusRoom`), because
+a count of characters tracks the advance of a zero rather than of a line. Re-measure
 after changing type tokens; avoid numeric reservations where the possible words are
 available. Pair local visual feedback with `notice` for an assistive announcement.
 

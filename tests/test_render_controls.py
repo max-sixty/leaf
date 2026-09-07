@@ -926,9 +926,11 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
 
 # The longest lines the banner writes about the page's own state, each at the widest
 # count it can carry. The floor the row reserves is two lines of the longest of them
-# (chrome.css, --lf-status-floor), so these are what say whether the floor is the size it
-# claims. The website's own line is longer and the floor deliberately does not cover it;
-# it is measured on the page that writes it, at the end of this test.
+# (banner.js, reserveStatusRoom), and these are written here rather than read off the
+# runtime so that the list the runtime enumerates has something to be wrong against: a
+# line the writer gains and the enumeration misses is a floor that no longer covers what
+# the banner says, and it fails here. The website's line is longer than any of these and
+# is reserved only on the pages that write it; it is measured on one at the end.
 BANNER_LINES = (
     "Server offline — reconnecting. Keep this page open so pending changes can send.",
     (
@@ -936,6 +938,14 @@ BANNER_LINES = (
         "session does."
     ),
     "Claude isn't watching right now. 999 updates are saved. It picks them up next turn.",
+    # The longest of them, and the one a hand-written list missed while the floor was a
+    # number: a claim whose turn ended and then went quiet is dated by the ending, which
+    # is the longer of the two datings, and it still owes the reader the remedy at the
+    # end. Twenty-two pixels wider here than the line the floor was set from.
+    (
+        "Claude left this when its turn ended 999d ago. 999 updates are saved. Nudge it "
+        "in the terminal."
+    ),
 )
 WEBSITE_LINE = (
     "This is an example on the Leaf website. Leaf guide replies here, but cannot edit "
@@ -969,7 +979,7 @@ FLOOR_VS_NEED = """(lines) => {
   let widest = null;
   for (const line of lines) {
     let lo = 20, hi = 1400;
-    while (hi - lo > 1) {
+    while (hi - lo > 0.05) {
       const mid = (lo + hi) / 2;
       if (linesAt(line, mid) <= 2) hi = mid; else lo = mid;
     }
@@ -1044,12 +1054,15 @@ def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser,
     cannot hold. Both halves are asserted here: every line the banner writes fits the box
     it is given at every wide width, and the chip keeps its words wherever it stands.
 
-    The floor is two lines of the longest of those lines and no more. Wider costs a
-    standing address rather than words: at 37 characters instead of 34 this fixture folds
-    Asks behind the door at 900, which is a reader losing a destination to buy the
-    sentence room it was not asking for. The one line longer than the floor is the
-    website's, and the last stop here is the page that writes it, where nothing else
-    crowds the row.
+    The floor is two lines of the longest of those lines and no more, measured in the face
+    the row is set in rather than stated as a count of characters. Stated, it could not be
+    right about two faces at once: two lines of the same words take 35.3 characters where
+    `system-ui` is SF and 38.4 where it is DejaVu, which is what the image CI runs on
+    resolves the keyword to. Thirty-four was under both, and anything over 38.4 buys the
+    sentence room here that the row pays for in folded addresses. The last stop is the
+    website's own line, which is longer than any line a reader's page can reach and is
+    reserved on the pages that write it: at 900 on a wide face it needs a third line in
+    the box the unreserved row left it.
     """
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
@@ -1074,25 +1087,29 @@ def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser,
     expect(page.locator(".lf-preview")).to_have_count(1)
 
     # The floor from above as well as below, because reserving more than the longest of
-    # those lines needs is an address folded for nothing: at 37 characters instead of 34
-    # this row loses Asks behind the door at 900, to buy the sentence 111 pixels it never
-    # asks for.
+    # those lines needs is an address folded for nothing, and the margin is a handful of
+    # pixels: measured on the asks fixture at 900, where the row is fullest, the floor
+    # this desk measures leaves Asks standing and four pixels more take it behind the
+    # door — a reader losing a destination to buy the sentence room it was not asking for.
+    # (This fixture's own row is past that at 900 whatever the floor says, carrying the
+    # preview chip as well, so the bound is asserted here and the fold it protects is
+    # watched by the ask walk in test_render_widgets.py.)
     #
-    # Two characters of slack, and the reason it is not one. Both sides are measured in
-    # the banner's live face, so type size cancels — but the quantity bounded is
-    # `need / ch`, a line's average advance over the digit advance, and that is a property
-    # of the face rather than its size. `--sans` is `system-ui`, which is SF here and
-    # whatever the pinned image maps it to in CI, and this test is nightly, so a bound
-    # that fits this machine to the character fails on main's nightly rather than on the
-    # branch that wrote it. The floor needs 33.2 characters here: one character of slack
-    # leaves 0.2 for the face, two leaves 1.2 and still refuses the 37 that cost the
-    # address, which sits 3.8 over. The floor is the number with evidence behind it; the
-    # slack is the part that was picked.
+    # One pixel of slack either way, and nothing scaled by the face. The floor is measured
+    # rather than stated now, so both numbers here are readings of one width — the row's
+    # in the row's own face, this one in the same face beside it — and the only thing
+    # between them is that each is a bisection stopped within a twentieth of a pixel and
+    # rounded up, which can land on either side of an integer. A slack stated in
+    # characters could not have been written: the quantity bounded is `need / ch`, a
+    # line's average advance over the advance of a zero, and that is a property of the
+    # face rather than its size — 35.3 characters where `system-ui` is SF and 38.4 where
+    # it is DejaVu, which is what the image CI runs on resolves it to. Any constant wide
+    # enough for the second over-reserves on the first.
     fit = page.evaluate(FLOOR_VS_NEED, list(BANNER_LINES))
-    assert fit["need"] <= fit["floor"], (
+    assert fit["need"] <= fit["floor"] + 1, (
         f"the floor is under what {fit['widest']!r} needs for two lines: {fit}"
     )
-    assert fit["floor"] - fit["need"] <= 2 * fit["ch"], (
+    assert fit["floor"] <= fit["need"] + 1, (
         f"the floor reserves more than the longest line needs, which the row pays for in "
         f"folded addresses: {fit}"
     )
@@ -1168,9 +1185,13 @@ def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser,
     assert errors == []
     page.close()
 
-    # The one line longer than the floor, on the page that writes it: no Accept all, no
-    # Asks, no preview chip, so nothing folds and the row leaves it more than the floor
-    # would have reserved. 900 is the narrowest wide window.
+    # The longest line of all, on the page that writes it. It is longer than anything a
+    # reader's own page can say, so it is in the reservation only where it is in the
+    # writing — and it has to be: the row here carries no Accept all, no Asks and no
+    # preview chip, and the room that left the sentence was still a line short of it at
+    # 900 on a face wider than this desk's, where it needs 356 pixels and was handed 351.
+    # A page that reserves its own longest line folds an address for those five pixels
+    # instead, which is the trade this whole row is arranged to make.
     site, site_errors = open_page(
         browser,
         serve(
@@ -1183,6 +1204,10 @@ def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser,
     read = site.evaluate(STATUS_FIT, WEBSITE_LINE)
     assert read["down"]["shown"] >= read["down"]["needed"], (
         f"the website's own example line lost its end on the page that writes it: {read}"
+    )
+    fit = site.evaluate(FLOOR_VS_NEED, [WEBSITE_LINE])
+    assert fit["need"] <= fit["floor"] + 1, (
+        f"the page that writes the website's line did not reserve room for it: {fit}"
     )
     assert site_errors == []
     site.close()

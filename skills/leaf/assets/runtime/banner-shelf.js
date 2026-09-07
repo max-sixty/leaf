@@ -6,10 +6,11 @@ import { paintHere } from "./keyboard/scopes.js";
 // up any control's words, and it gives them up to somewhere a reader can still reach: the
 // banner's row folds the addresses it cannot hold into one menu (`foldShelf`) rather than
 // clipping them or scrolling them off its own edge, and its status sentence keeps a floor
-// stated in the row's own characters so a crowded row can never cut it. That floor is the
-// sentence's own room and is spelled once, as --lf-status-floor beside .lf-banner; the cap
-// this fold reads is the row's share of what is left after it. The row reads in one order
-// at every width, and a control the fold has taken is still at its place in that order.
+// measured from the lines the page can say so a crowded row can never cut it. That floor
+// is the sentence's own room and is spelled once, as --lf-status-floor on .lf-banner
+// (banner.js, reserveStatusRoom); the cap this fold reads is the row's share of what is
+// left after it. The row reads in one order at every width, and a control the fold has
+// taken is still at its place in that order.
 
 // How many addresses stay on the row whatever the width. The last two are the page's
 // reading loop — approval and the conversation — and a reader must never open a menu to
@@ -188,11 +189,12 @@ function foldable() {
 // by counting controls or naming a width. The stylesheet caps the row at the room the
 // status sentence's floor leaves; anything past that cap overflows, and overflowing is
 // the whole of the question this asks. So the two facts this rests on are ones the
-// banner already keeps true: each control that rewrites its own words holds room for
-// the widest it may say (the `reserve` calls where the banner is built), and the cap is
-// a share of the row rather than of the sentence currently in it. A count turning over,
-// or a status ageing from "is working" to "last checked in", therefore moves nothing at
-// all.
+// banner already keeps true: everything that rewrites its own words holds room for the
+// widest it may say — the `reserve` calls where the banner is built, and the sentence's
+// own floor, measured from every line the page can reach rather than the one in it
+// (reserveStatusRoom) — and the cap is a share of the row rather than of the sentence
+// currently in it. A count turning over, or a status ageing from "is working" to "last
+// checked in", therefore moves nothing at all.
 //
 // It moves the one address whose place has changed and no others. Emptying the menu and
 // refilling it on every layout pass answers the same question, and takes every node out

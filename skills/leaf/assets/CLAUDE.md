@@ -734,6 +734,7 @@ been removed. `render-checks/init.js` installs the pre-navigation window-error c
 | Reading | Contract |
 | --- | --- |
 | window-error init channel | no runtime, module, resource, or ResizeObserver error reached the page |
+| `unnamedFormFields` | every input, select, and textarea has an id or name Chrome can identify |
 | `upgraded` and `moving` | upgrade completed and final geometry settled |
 | `invalidPaints` | every var()-backed SVG paint resolves to a valid value in each scheme |
 | `tinyBoxes` | every declared widget has a usable rendered box |

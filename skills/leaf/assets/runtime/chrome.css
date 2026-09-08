@@ -50,8 +50,8 @@
    its foot, the thread list for both of its own, where the outward rings are the controls
    inside a card. A box whose own edge touches something that paints draws its ring inset
    instead, because nothing outside it is free; a sticky run heading is that case with
-   the scroll taken out of it. A large composite region spends no ring room: it repaints
-   its existing edge and ground inside its own box. Where a module decides whether a
+   the scroll taken out of it. A large composite region spends no ring room: it paints
+   a quiet ground inside its own box. Where a module decides whether a
    compact control fits somewhere, the room is part of what has to fit; the suggestion
    row carries it as trailing padding so the fit remains one measured box rather than a
    length read out of CSS.
@@ -390,7 +390,7 @@ textarea.lf-ui:where(:not(.lf-fab-input)) { padding: 8px 10px; border: 1px solid
 :is(input, textarea).lf-ui::placeholder { color: var(--muted); opacity: 1; }
 .lf-ui textarea:where(:not(.lf-fab-input)):is(:focus, .lf-focus),
 textarea.lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--here-ring);
-  --lf-here-ring: text-box; outline-offset: 1px; border-color: var(--accent); }
+  --lf-here-ring: text-box; outline-offset: 0; border-color: transparent; }
 /* Pasted media stays in the draft's Markdown, but the writing surface shows the thing
    rather than its transport. The strip takes its own row beside every textarea shape;
    the compact response bar overrides that row below. */
@@ -1289,7 +1289,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      a second description of it. What .lf-going adds is the clip the fold needs and
      the outcome said in paint: the box is on its way out and may not also state
      that in metrics the fold is animating. */
-  .lf-thread, .lf-going { --lf-thread-pad: 8px; position: relative; border: 1px solid var(--rule); border-radius: var(--r); padding: var(--lf-thread-pad); margin-bottom: 8px; --lf-frame: 1; }
+  .lf-thread, .lf-going { --lf-thread-pad: 8px; position: relative; border: 1px solid transparent; border-radius: var(--r); padding: var(--lf-thread-pad); margin-bottom: 8px; --lf-frame: 1; }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long
      conversation one off-screen wash. The fallback keeps a custom theme without the
@@ -1317,19 +1317,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* The card of the comment the reader is standing in, which is the panel's half of
      the pair the page paints as lf-mark-here. A thread is a composite region rather
      than one control: another perimeter around a large card reads as a blue box, not
-     focus. Repaint its existing edge and ground instead, preserving its geometry and
-     leaving the compact ring for the actual controls inside it. :focus-within keeps
+     focus. Give it a quiet ground instead, preserving its geometry and leaving the
+     compact ring for the actual controls inside it. :focus-within keeps
      the page and panel halves paired whether the reader arrived by key or pointer. */
   .lf-thread:is(:focus-within, .lf-focus-within) {
     outline: none;
-    border-color: var(--here-surface-border);
     background: var(--here-surface);
-  }
-  /* The reply box receives the strong ring while it takes keys. Leave only a quiet
-     edge on the parent so two simultaneous focus treatments do not compete. */
-  .lf-thread:has(> .lf-compose textarea:is(:focus, .lf-focus)) {
-    border-color: color-mix(in srgb, var(--accent) 20%, var(--rule));
-    background: var(--card);
   }
   .lf-quote { margin: 0 0 8px; padding: 2px 8px; border-left: 3px solid var(--mark-ink); color: var(--muted); font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
   .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }

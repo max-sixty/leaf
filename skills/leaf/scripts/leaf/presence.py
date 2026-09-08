@@ -126,10 +126,18 @@ def other_leaves(page_dir: Path) -> list:
                                 from .served_state.browser import project_browser_state
                                 from .served_state.page import project_activity
 
-                                raw = presence(candidate, events)
+                                raw, activity_stream = presence_with_activity(
+                                    candidate, events
+                                )
                                 active = active_descriptor(candidate, events)
                                 browser = project_browser_state(
-                                    candidate, events, None, active, raw, observed_at
+                                    candidate,
+                                    events,
+                                    None,
+                                    active,
+                                    raw,
+                                    observed_at,
+                                    activity_stream=activity_stream,
                                 )
                                 present = {
                                     "title": parser.title.strip() or candidate.name,
@@ -141,6 +149,7 @@ def other_leaves(page_dir: Path) -> list:
                                         raw,
                                         observed_at,
                                         browser,
+                                        activity_stream,
                                     ),
                                 }
                     except Exception:  # noqa: BLE001 - cache this page's fault
@@ -164,16 +173,25 @@ def other_leaves(page_dir: Path) -> list:
     return sorted(others, key=lambda entry: entry["title"].lower())
 
 
-def presence(page_dir: Path, events: list) -> dict:
-    """What a seat showing this page says about it: the agent's claim, everything
-    the directory holds that can answer for it, and where that agent is working.
+def presence_with_activity(page_dir: Path, events: list) -> tuple[dict, dict | None]:
+    """Gather public presence and server-only live activity as separate values.
+
+    The public reading says what a seat showing this page may know: the agent's
+    claim, everything the directory holds that can answer for it, and where that
+    agent is working. Keeping the stream out of that dictionary makes it
+    unavailable to every browser-facing consumer by construction.
+
     One gatherer for every such seat — `full_state` spreads it into the page's own
     state answer, and `other_leaves` attaches it to each entry — so the runtime's one
     claim-against-proof judgment reads the same fields whichever page it judges,
     and the tray's account of a neighbour is the account this page gives of
     itself."""
     stored_status = read_json(page_dir / STATUS_FILE)
-    status = {key: value for key, value in stored_status.items() if key != "work"}
+    status = {
+        key: value
+        for key, value in stored_status.items()
+        if key not in {"work", "stream"}
+    }
     status.setdefault("after", 0)
     claim = page_claim(page_dir)
     active = claim if claim_is_active(claim) else None
@@ -181,7 +199,7 @@ def presence(page_dir: Path, events: list) -> dict:
     # next durable consumer. An action past this seq has not reached that point,
     # which lets the runtime carry it forward onto versions written without it.
     cursor = read_cursor(page_dir)
-    return {
+    reading = {
         "status": status,
         "claims": claim_update_sources(stored_status),
         "listening": wait_is_live(page_dir, active),
@@ -227,6 +245,13 @@ def presence(page_dir: Path, events: list) -> dict:
         # None for a page nothing ever claimed, which is the honest nothing.
         "session_cwd": claim.get("cwd") if claim else None,
     }
+    return reading, stored_status.get("stream")
+
+
+def presence(page_dir: Path, events: list) -> dict:
+    """Return the public presence projection without private activity evidence."""
+    reading, _ = presence_with_activity(page_dir, events)
+    return reading
 
 
 def presence_fingerprint(listening: bool, session_alive, others: list) -> str:

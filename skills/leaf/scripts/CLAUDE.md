@@ -39,7 +39,8 @@ The main owners are:
 - `server` and `hosting`: server address and lifetime state, plus durable and
   process-owned HTTP servers;
 - `session` and `hooks`: direct wait delivery and host lifecycle;
-- `codex`: detached Codex queue delivery and recovery;
+- `codex`: the private App Server terminal launcher, detached Codex queue delivery
+  and recovery, and the observer-only activity subscription;
 - `mcp_server` and `mcp_app`: the bundled MCP transport and comments-only
   snapshot fallback;
 - `presence`: page, claim, and neighboring-leaf presence readings;

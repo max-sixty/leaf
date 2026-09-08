@@ -245,8 +245,7 @@ customElements.define(
         group.setAttribute("role", "radiogroup");
         group.setAttribute("aria-label", label);
         for (const choice of own(control, "lf-playground-choice")) {
-          const input = offer("input", "lf-playground-input");
-          input.type = "radio";
+          const input = offer("input", "lf-playground-input", undefined, "radio");
           input.name = `${this.id}-${name}`;
           input.value = choice.getAttribute("value");
           input.setAttribute("aria-label", choice.getAttribute("label"));
@@ -266,14 +265,17 @@ customElements.define(
         return;
       }
 
-      const input = offer("input", "lf-playground-input");
+      const input = offer(
+        "input",
+        "lf-playground-input",
+        undefined,
+        kind === "toggle" ? "checkbox" : kind,
+      );
       input.name = `${this.id}-${name}`;
       input.setAttribute("aria-label", label);
       if (kind === "toggle") {
-        input.type = "checkbox";
         input.addEventListener("change", () => this.#takeInputs());
       } else {
-        input.type = kind;
         for (const attr of ["min", "max", "step", "placeholder"])
           if (control.hasAttribute(attr))
             input.setAttribute(attr, control.getAttribute(attr));

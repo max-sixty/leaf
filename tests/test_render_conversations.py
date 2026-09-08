@@ -2462,6 +2462,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react",
         # Target actions are contributed outside the chrome scope and share one complete
         # item. These names are the deliberate document-level half of that seam.
+        "lf-margin-cluster",
         "lf-margin-contribution",
         "lf-margin-options",
         "lf-margin-element",

@@ -156,10 +156,10 @@ export function foldOut(t) {
   to.opacity = 0;
   const played = motion(node, [from, to], FOLD_MS);
   if (!played) return null;
-  // The pressed control states the outcome in the metadata row it already occupied. Its
-  // checkmark changes from a quiet action to the green outcome without changing the
-  // control's box, so the fold starts from the layout the reader was looking at.
-  const resolve = node.querySelector(":scope > .lf-msg > .lf-msg-head > .lf-resolve");
+  // The pressed control states the outcome in the thread corner it already occupied.
+  // Its checkmark changes from a quiet action to the green outcome without changing
+  // the control's box, so the fold starts from the layout the reader was looking at.
+  const resolve = node.querySelector(":scope > .lf-resolve");
   resolve.setAttribute("aria-label", "Resolved");
   resolve.title = "Resolved";
   resolve.setAttribute("aria-busy", "false");

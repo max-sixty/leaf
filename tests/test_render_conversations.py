@@ -750,20 +750,23 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
 
 @pytest.mark.parametrize("width", [320, 800])
 @pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_thread_keeps_submit_in_its_field_and_resolve_on_its_metadata_row(
+def test_a_thread_keeps_submit_in_its_field_and_resolve_in_its_corner(
     browser, serve, width, scheme
 ):
-    """Submit belongs to the field while Resolve belongs to the first message head.
+    """Submit belongs to the field while Resolve belongs to the thread.
 
     Growing the field carries Submit with it and leaves Resolve fixed. The textarea
     reserves the icon's whole horizontal band, so words and a scrollbar do not run
-    underneath it. The same geometry holds in the panel's narrowest useful window and
-    with room beside the page, in both palettes."""
+    underneath it. Resolve aligns with the quoted address instead of either message's
+    metadata. The same geometry holds in the panel's narrowest useful window and with
+    room beside the page, in both palettes."""
     context = browser.new_context(
         viewport={"width": width, "height": 720}, color_scheme=scheme
     )
     try:
-        page, errors = open_page(browser, serve(LONG_PAGE, comments=1), context=context)
+        url = serve(LONG_PAGE)
+        panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
+        page, errors = open_page(browser, url, context=context)
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
@@ -800,7 +803,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_on_its_metadata_row(
                                    height: own.height, right: own.right, bottom: own.bottom},
                           compose: rect('.lf-compose'), field: rect('.lf-compose-field'),
                           textarea: rect('.lf-compose textarea'),
-                          head: rect('.lf-msg:first-of-type > .lf-msg-head'),
+                          quote: rect('.lf-quote'),
                           send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
                           closeBorder: getComputedStyle(document.querySelector(
                             '.lf-panel-head [aria-label="Close threads"]')).borderTopWidth,
@@ -829,11 +832,11 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_on_its_metadata_row(
         assert short["send"]["right"] < short["textarea"]["right"]
         assert short["send"]["bottom"] < short["textarea"]["bottom"]
         assert short["padding"] >= short["send"]["width"] + 10
-        assert short["resolve"]["y"] == pytest.approx(short["head"]["y"], abs=1)
-        assert short["resolve"]["bottom"] == pytest.approx(
-            short["head"]["bottom"], abs=1
+        assert short["resolve"]["y"] == pytest.approx(short["quote"]["y"], abs=1)
+        assert short["resolve"]["right"] == pytest.approx(
+            short["quote"]["right"], abs=1
         )
-        assert short["resolve"]["right"] == pytest.approx(short["head"]["right"], abs=1)
+        assert short["resolve"]["bottom"] <= short["quote"]["bottom"]
         assert float(short["closeBorder"][:-2]) == 0
         assert float(short["resolveBorder"][:-2]) >= 1
         assert set(short["radii"].values()) == {button_radius(page)}
@@ -856,6 +859,59 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_on_its_metadata_row(
         assert errors == []
     finally:
         context.close()
+
+
+def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serve):
+    """The picker floats from its message corner without moving the conversation.
+
+    A reaction list used to add forty pixels to its thread only while open. That moved
+    every later thread under the pointer and made choosing a reaction change the layout
+    being acted on. The next card is the single-factor neighbor: opening the picker is
+    the only change between these two frames."""
+    url = serve(PANEL_PAGE)
+    first = panel_comment(
+        serve.page_dir, "Keep the route visible.", {"section": "how-store"}
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Codex",
+            "parent": first,
+            "revision": 1,
+            "text": "The route stays beside the choice.",
+        },
+    )
+    second = panel_comment(
+        serve.page_dir, "Keep the cap visible too.", {"section": "how-cap"}
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{first}"]')
+    neighbor = page.locator(f'.lf-thread[data-id="{second}"]')
+    trigger = card.locator(".lf-msg.claude .lf-react-trigger")
+    trigger.hover()
+    before = {
+        "card": card.bounding_box(),
+        "neighbor": neighbor.bounding_box(),
+    }
+
+    trigger.click()
+    expect(trigger).to_have_attribute("aria-expanded", "true")
+    palette = card.locator(".lf-react-palette")
+    expect(palette).to_be_visible()
+    after = {
+        "card": card.bounding_box(),
+        "neighbor": neighbor.bounding_box(),
+    }
+    assert after == before
+    assert palette.bounding_box()["y"] >= (
+        trigger.bounding_box()["y"] + trigger.bounding_box()["height"]
+    )
+    assert errors == []
+    page.close()
 
 
 def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
@@ -1969,7 +2025,9 @@ def test_a_fold_hands_off_without_reapplying_movement_already_held(browser, serv
     The pointer starts on a resolved card while an open card above it folds. After the
     fold has moved once, closing the resolved disclosure makes that reference zero-size
     without another render. A live open card must take over without paying the fold's
-    already-compensated movement a second time."""
+    already-compensated movement a second time. If closing the disclosure makes the
+    document shorter than the standing scroll offset, the browser may still clamp the
+    list to its new end."""
     page_url = serve(LONG_PAGE, comments=6)
     page_dir = serve.page_dir
     roots = [
@@ -2046,7 +2104,8 @@ def test_a_fold_hands_off_without_reapplying_movement_already_held(browser, serv
       const card = document.querySelector(`.lf-thread[data-id="${id}"]`);
       const box = card.getBoundingClientRect();
       return {top: box.top, contentTop: box.top + list.scrollTop,
-        scrollTop: list.scrollTop, anchor: getComputedStyle(list).overflowAnchor};
+        scrollTop: list.scrollTop, maxScrollTop: list.scrollHeight - list.clientHeight,
+        anchor: getComputedStyle(list).overflowAnchor};
     }"""
     inherited = page.evaluate(reading, successor)
     assert inherited["contentTop"] < started_content_top - 20, (
@@ -2059,8 +2118,10 @@ def test_a_fold_hands_off_without_reapplying_movement_already_held(browser, serv
     assert not resolved_card.evaluate("el => el.checkVisibility()")
     page.evaluate(RENDERED)
     handed_off = page.evaluate(reading, successor)
-    assert handed_off["top"] == pytest.approx(inherited["top"], abs=1), (
-        f"the fallback paid for an old fold delta twice: {inherited} -> {handed_off}"
+    expected_scroll = min(inherited["scrollTop"], handed_off["maxScrollTop"])
+    assert handed_off["scrollTop"] == pytest.approx(expected_scroll, abs=1), (
+        f"the fallback moved beyond the browser's new scroll limit: "
+        f"{inherited} -> {handed_off}"
     )
 
     page.evaluate("i => window.__lfHeld[i].finish()", before)
@@ -2390,6 +2451,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # runtime sheet names it only to say which plane it stands on, so the movement
         # the theme's rule causes is that deliberate face rather than a leaked one.
         "lf-living-margin",
+        "lf-msg-head",
         "lf-react-open",
         "lf-react-palette",
         "lf-react-strip",

@@ -100,22 +100,16 @@ export function threadNode(t, grow) {
     ]);
     div.append(quote);
   }
-  turns(t).forEach((m) => div.append(msgNode(m)));
-  paintReactStrips(div, t);
+  let resolve = null;
   if (!t.resolved) {
-    const row = el("div", "lf-compose");
-    const input = document.createElement("textarea");
-    input.name = "reply";
-    const send = el("button", "lf-btn primary lf-thread-send", "Send");
-    // Resolving takes this node out of the open list and focus with it — the blind
-    // drive fell to body here. Land where t would have gone: the thread that now
-    // holds this one's place, else the previous, else the list. Which is read after
-    // the trip, off the list the fold has already left (foldOut renames the node the
-    // frame the log settles it), so the landing is a thread rather than the room the
-    // pressed one is still giving back.
-    const resolve = settlementControl(t, {
+    // Resolve belongs to the whole thread. Keep it beside the thread's quoted address,
+    // before any message controls in the keyboard order; a message head says only who
+    // wrote that message and when.
+    resolve = settlementControl(t, {
       liveId,
       prepareLanding: () => {
+        // Resolving removes this card and its focus. Land on the thread that takes its
+        // place, or the previous thread when this one was last in the list.
         const mayLand = retainPanelLanding(div);
         const at = openThreads().indexOf(div);
         return () => {
@@ -125,7 +119,15 @@ export function threadNode(t, grow) {
         };
       },
     });
-    div.querySelector(":scope > .lf-msg:first-of-type > .lf-msg-head")?.append(resolve);
+    div.append(resolve);
+  }
+  turns(t).forEach((m) => div.append(msgNode(m)));
+  paintReactStrips(div, t);
+  if (!t.resolved) {
+    const row = el("div", "lf-compose");
+    const input = document.createElement("textarea");
+    input.name = "reply";
+    const send = el("button", "lf-btn primary lf-thread-send", "Send");
     row.append(input, send);
     wireReply(t, input, send, liveId);
     div.append(row);

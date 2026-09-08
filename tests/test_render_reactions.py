@@ -1908,11 +1908,10 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     expect(strip(latest).locator(".lf-react:visible")).to_have_count(6)
     assert strip(latest).evaluate(
         """s => { const row = s.getBoundingClientRect();
+          const trigger = s.querySelector('.lf-react-trigger').getBoundingClientRect();
           const palette = s.querySelector('.lf-react-palette').getBoundingClientRect();
-          return row.height >= palette.height && palette.bottom <= row.bottom + 1; }"""
-    ), (
-        "the open picker overlapped the following message instead of occupying its active row"
-    )
+          return row.height === 0 && palette.top >= trigger.bottom; }"""
+    ), "the picker did not float below its trigger"
     expect(strip(first).locator(".lf-react:visible")).to_have_count(1)
     page.keyboard.press("Escape")
 

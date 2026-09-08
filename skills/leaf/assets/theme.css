@@ -1260,7 +1260,8 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
           color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
 .lf-conversation { display: none; margin-top: var(--sp-2); overflow-wrap: anywhere; }
-.lf-conversation-thread { box-sizing: border-box; min-width: 0; padding: var(--sp-1);
+.lf-conversation-thread { box-sizing: border-box; min-width: 0; position: relative;
+          padding: var(--sp-1);
           font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh);
           color: var(--ink); overflow-wrap: anywhere; }
 .lf-conversation-thread:is(:focus-within, .lf-focus-within) {
@@ -1277,12 +1278,18 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-resolved { display: flex;
           align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .lf-conversation > .lf-say { margin-top: 0; }
-.lf-conversation-thread + .lf-conversation-thread { margin-top: var(--sp-3); }
+.lf-conversation-thread + .lf-conversation-thread { margin-top: var(--sp-3);
+          padding-top: var(--sp-3); border-top: 1px solid var(--rule); }
 .lf-conversation-msg { margin: var(--sp-2) 0; }
 .lf-conversation-msg.claude { position: relative; }
 .lf-conversation-head { display: flex; align-items: baseline; gap: var(--sp-2);
           font-size: var(--t-6); }
-.lf-conversation-head:has(> .lf-resolve) { align-items: center; }
+.lf-conversation-thread > .lf-resolve { position: absolute; z-index: 2;
+          inset-block-start: var(--sp-1); inset-inline-end: var(--sp-1); }
+.lf-conversation-thread:has(> .lf-resolve)
+          > .lf-conversation-msg:first-of-type > .lf-conversation-head {
+          min-height: max(28px, var(--aim-floor));
+          padding-inline-end: calc(max(28px, var(--aim-floor)) + var(--sp-2)); }
 .lf-conversation-msg.claude .lf-conversation-head b { color: var(--accent); }
 .lf-conversation-head time { color: var(--muted-2); }
 .lf-conversation-head .lf-edited { color: var(--muted-2); }
@@ -1339,7 +1346,6 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
           margin-top: 0; }
 .lf-react-strip:has(.lf-react[aria-pressed="true"]) { margin-top: 4px; }
-.lf-react-strip.lf-react-open { position: relative; min-height: 36px; margin-top: 4px; }
 .lf-react-strip > .lf-react-trigger {
           appearance: none; position: absolute; z-index: 2;
           inset-block-start: -3px; inset-inline-end: -2px;
@@ -1347,17 +1353,13 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           display: inline-flex; align-items: center; justify-content: center;
           border: 1px solid transparent; border-radius: var(--r); background: var(--card);
           opacity: 0; cursor: pointer; }
-/* Stand the trigger off the resolve control's ring, not off its box. The trigger is
-   painted above the head and turns opaque while the message is focus-within, which is
-   exactly when the resolve control beside it is wearing a ring, so 2px of clearance from
-   the box put it over the ring's outer band and cut the left edge off. The band is
-   `--here-ring-w` at the 1px offset the conversation rule above names; the 2px is the
-   gap that was already here, now measured from the ring outwards. */
-.lf-conversation-msg.claude:has(> .lf-conversation-head > .lf-resolve)
+/* A source-less inline thread can put Resolve and the first reply on the same row. */
+.lf-conversation-thread:has(> .lf-resolve)
+          > .lf-conversation-msg.claude:first-of-type
           > .lf-react-strip > .lf-react-trigger {
           inset-inline-end: calc(max(28px, var(--aim-floor))
                     + var(--here-ring-w) + 1px + 2px); }
-.lf-react-strip.lf-react-open > .lf-react-trigger { display: none; }
+.lf-react-strip.lf-react-open > .lf-react-trigger { display: inline-flex; }
 .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
           fill: none; stroke: currentColor; stroke-width: 1.6;
           stroke-linecap: round; stroke-linejoin: round; }
@@ -1367,18 +1369,22 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           opacity: 1; }
 .lf-conversation-msg.claude:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
 .lf-react-strip.lf-react-open > .lf-react-palette {
-          position: absolute; z-index: 3; inset-block-start: 0;
-          inset-inline-end: -2px; width: max-content; padding: 4px;
+          position: absolute; z-index: 3;
+          inset-block-start: calc(max(28px, var(--aim-floor)) + 2px);
+          inset-inline-end: -2px; width: max-content; max-width: calc(100% + 4px);
+          padding: 4px;
           border: 1px solid var(--border-2); border-radius: var(--r);
           background: var(--card); box-shadow: 0 4px 12px var(--shade); }
+.lf-react-strip.lf-react-open > .lf-react-palette > .lf-react {
+          box-sizing: border-box; inline-size: 32px; block-size: 32px; padding: 0;
+          border-color: transparent; background: transparent; font-size: 16px; }
 @media (hover: none) {
   .lf-react-strip > .lf-react-trigger { opacity: 1; }
 }
 .lf-react-palette > .lf-react:not(.lf-margin-element, [aria-pressed="true"]) { color: var(--muted);
           border-color: transparent; background: transparent; }
 .lf-react-palette > .lf-react:not(.lf-margin-element, [aria-pressed="true"]):is(:hover, :focus-visible,
-          .lf-focus-visible, [aria-busy="true"]),
-.lf-react-open .lf-react-palette > .lf-react:not(.lf-margin-element, [aria-pressed="true"]) {
+          .lf-focus-visible, [aria-busy="true"]) {
           color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
 /* Where a subject has no page edge of its own, one receipt follows the reader move it
    acknowledges: Sent, Picked up, then Active when an explicit work claim names that

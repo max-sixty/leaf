@@ -4274,6 +4274,26 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     assert ready == panel_send.evaluate(button_face)
     assert ready["backgroundColor"] != quiet["backgroundColor"]
     assert ready["cursor"] == "pointer"
+
+    # The reply is a text box in either seat, so it wears the text box's one band:
+    # the ring replaces the resting border rather than standing a second edge off
+    # it. The panel's copy takes that from the chrome stylesheet, and the inline
+    # copy — inside a declared shadow tree no document rule reaches — takes it from
+    # the theme's own shadow slice, which is why the two readings can be compared.
+    ring = """el => { el.focus(); const s = getComputedStyle(el); return {
+      style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset,
+      border: s.borderColor, name: s.getPropertyValue('--lf-here-ring').trim(),
+    }; }"""
+    band = thread.locator("textarea").evaluate(ring)
+    assert band == panel_thread.locator("textarea").evaluate(ring)
+    assert band == {
+        "style": "solid",
+        "width": "2px",
+        "offset": "0px",
+        "border": "rgba(0, 0, 0, 0)",
+        "name": "text-box",
+    }
+
     panel_thread.locator("textarea").fill("")
     expect(inline_send).to_be_disabled()
     page.get_by_role("button", name=re.compile("^Threads")).click()

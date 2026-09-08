@@ -193,7 +193,7 @@ lf-swipe-card.lf-swipe-dragging {
 
 .lf-swipe-pass.lf-ui,
 .lf-swipe-keep.lf-ui,
-.lf-swipe-undo.lf-ui {
+.lf-swipe-return.lf-ui {
   min-height: max(2.5rem, var(--aim-floor));
   min-width: var(--aim-floor);
   padding: var(--sp-2) var(--sp-3);
@@ -213,21 +213,24 @@ lf-swipe-card.lf-swipe-dragging {
   justify-self: end;
 }
 
-.lf-swipe-undo {
-  grid-column: 1 / -1;
-  justify-self: center;
-}
-
 .lf-swipe-pass:hover:not(:disabled) {
   border-color: var(--danger);
   color: var(--danger-ink);
 }
 
 .lf-swipe-keep:hover:not(:disabled),
-.lf-swipe-undo:hover:not(:disabled) {
+.lf-swipe-return:hover:not(:disabled) {
   border-color: var(--ok);
   color: var(--ok-ink);
 }
+
+.lf-swipe-return.lf-ui {
+  display: block;
+  margin: var(--sp-2) 0 0 auto;
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--t-6);
+}
+.lf-swipe-return[hidden] { display: none; }
 
 .lf-swipe-pass:disabled,
 .lf-swipe-keep:disabled {

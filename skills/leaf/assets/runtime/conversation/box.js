@@ -30,7 +30,7 @@ export const conversationBox = (el, hint) => {
   ta.value = loadDraft(ctx) ?? "";
   ta.setAttribute("aria-label", hint);
   row.append(ta, send, ...(hold ? [hold] : []));
-  const sendComment = (text, raw, owns, holds = false) =>
+  const sendComment = (text, owns, holds = false) =>
     sendMessage(ctx, owns, (attempt) =>
       post({
         kind: "comment",
@@ -54,12 +54,12 @@ export const conversationBox = (el, hint) => {
     // writes for every message. The hold says what its press did beyond sending — and
     // names the send too, because it is the later write to that one region and would
     // otherwise be all the reader heard.
-    send: (text, raw, owns) => {
-      sendComment(text, raw, owns);
+    send: (_text, raw, owns) => {
+      sendComment(raw, owns);
     },
     altSend: hold
-      ? (text, raw, owns) => {
-          if (sendComment(text, raw, owns, true)) notice("Message sent — goal paused");
+      ? (_text, raw, owns) => {
+          if (sendComment(raw, owns, true)) notice("Message sent — goal paused");
         }
       : null,
   });

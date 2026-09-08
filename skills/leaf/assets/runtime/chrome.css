@@ -813,6 +813,13 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-banner-actions > .lf-btn { flex: none; border-color: transparent;
     border-radius: 0; background: transparent; }
   .lf-banner-actions > .lf-btn:hover { background: var(--chip); }
+  /* .lf-btn.on states a comparison or a narrowing with an accent border and a fill,
+     and the resting rule above clears both at the same specificity — so on this row
+     the class would paint ink alone. Restate the treatment the open workspace wears,
+     which the reader already reads as "this control is doing something": neither the
+     fill nor the ring is a metric, so the address keeps the width it reserved. */
+  .lf-banner-actions > .lf-btn.on {
+    background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
   /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
      mask is the page's actual vendored mark, so a project that replaces icon.svg does
      not keep an unrelated leaf-like glyph in the banner. Shape is identity and colour
@@ -888,6 +895,13 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-banner-menu > .lf-btn { width: 100%; border-color: transparent;
     background: none; text-align: left; }
   .lf-banner-menu > .lf-btn:hover { background: var(--chip); }
+  /* The fold moves the row's own node, so an address folded while it is doing
+     something has to go on saying so. The menu's resting rule clears the same two
+     declarations the row's does, and for the same reason, so `.on` needs the same
+     answer here: the treatment the open workspace already keeps in the menu on its
+     own specificity. The menu reserves no width, so nothing is spent restating it. */
+  .lf-banner-menu > .lf-btn.on {
+    background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
   /* The line's momentary other words (notifications.js), in its place rather than beside
      it: the row holds one sentence at a time, and a narrow window clips the notice the
      way it clips the line. Ink rather than the line's ink-2, since it is news. */

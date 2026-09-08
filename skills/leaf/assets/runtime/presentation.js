@@ -109,11 +109,11 @@ export const pagePresented = () =>
   document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 
 // The one initial turn in which box-derived page apparatus can read the complete
-// authoritative layout before the browser paints it. Widget upgrade gives components
-// enough geometry to build, while presentation adds replay, restored chrome, and
-// fragment reveal. Components keep observing later real layout changes through their
-// ordinary ResizeObserver or layout signal; this event exists only to replace a
-// provisional startup reading with the first visible one synchronously.
+// authoritative layout before semantic interaction opens. Widget upgrade gives
+// components enough geometry to build and paint from authored state, while presentation
+// adds replay, restored chrome, and fragment reveal. Components keep observing later
+// real layout changes through their ordinary ResizeObserver or layout signal; this event
+// exists only to replace a provisional startup reading synchronously.
 export const PRESENTATION = "lf-presentation";
 
 // Optional runtime-owned page interface joins the same settlement boundary as the
@@ -125,7 +125,7 @@ export async function settlePageInterface() {
   const pending = [];
   document.dispatchEvent(new CustomEvent(PAGE_INTERFACE, { detail: { pending } }));
   // Each optional owner reports its own failure. One rejected surface must not keep
-  // every generated control on the page hidden behind the presentation boundary.
+  // every generated control on the page behind the upgrade boundary.
   await Promise.allSettled(pending);
 }
 

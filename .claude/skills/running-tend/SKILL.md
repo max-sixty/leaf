@@ -52,6 +52,11 @@ The review selection supplements the everyday CI gate. A docs-only or
 generated-workflow change may need no additional test; a selected failure
 withholds approval.
 
+For a change that can alter browser startup, apply `CLAUDE.md`'s **Working on the
+repository** performance rule. Read the candidate profile from CI and compare it with
+the base. If requests or bytes rise before presentation, check that the PR names the
+user-visible benefit and why the work must happen then.
+
 When a high-level browser test is slow or fails on timing or geometry outside its
 contract, repair its arrangement or move that contract to the lower boundary that
 can prove it. Keep a browser case only where it proves that the boundaries work

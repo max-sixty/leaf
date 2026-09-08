@@ -56,6 +56,7 @@ from render_support import (
     _until,
     actions,
     banner_address,
+    compare_with,
     displaced,
     held_stale,
     holding,
@@ -1354,6 +1355,61 @@ def test_a_yielded_version_returns_when_it_becomes_a_choice(browser, serve):
     resized(page, 1200, 844)
     expect(version).to_be_visible()
     expect(version).not_to_have_attribute("data-lf-yielded", re.compile(r".+"))
+    assert errors == []
+    page.close()
+
+
+STATE_PAINT = """el => {
+  const style = getComputedStyle(el);
+  return {background: style.backgroundColor, shadow: style.boxShadow};
+}"""
+
+
+def test_a_folded_address_keeps_the_paint_that_says_it_is_doing_something(
+    browser, serve
+):
+    """A comparison standing behind the overflow menu is the same comparison, and has
+    to go on looking like one.
+
+    Both places clear the border and the fill `.lf-btn.on` states, each for its own
+    reason: the row so that an address cannot resize it and displace the addresses
+    before it, the menu so that an address reads as a row rather than as a chip. Left
+    at that, the class is ink alone in either — two characters at 2.16:1 against the
+    control's own resting ink. The row was answered first and the menu was not, which
+    put the banner's two active states on opposite sides of one fold: an open
+    workspace's own selector outranks the menu's resting rule and keeps its face
+    across it, and a standing comparison did not. So this reads the one control in
+    both places rather than a number in either, because what the fold promises is that
+    nothing about an address changes except where it stands.
+    """
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    url = serve(html)
+    _publish(serve.page_dir, 2, html, "reworded the suggestion")
+    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    chooser = page.locator(".lf-version")
+    expect(chooser).to_be_enabled()
+
+    resized(page, 1440, 900)
+    compare_with(page, 1)
+    expect(chooser).to_have_class(re.compile(r"\bon\b"))
+    expect(page.locator(".lf-banner-actions > .lf-version")).to_have_count(1)
+    on_the_row = chooser.evaluate(STATE_PAINT)
+    assert (
+        on_the_row["shadow"] != "none"
+        and "rgba(0, 0, 0, 0)" not in on_the_row["background"]
+    ), f"the comparison stood on the row with nothing but ink: {on_the_row}"
+
+    resized(page, 320, 844)
+    expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
+    banner_address(page, ".lf-version")
+    folded = chooser.evaluate(STATE_PAINT)
+
+    assert folded == on_the_row, (
+        f"the comparison changed face when it folded: row {on_the_row}, menu {folded}"
+    )
     assert errors == []
     page.close()
 

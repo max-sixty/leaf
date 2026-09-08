@@ -244,6 +244,7 @@ function showShortcutReference(open, restoreFocus = true) {
     shortcutReferenceDialog.append(head);
     const search = document.createElement("input");
     search.type = "search";
+    search.name = "shortcut-search";
     search.className = "lf-shortcut-reference-search";
     search.placeholder = "Find a key or action";
     search.setAttribute("aria-label", "Search keyboard shortcuts");

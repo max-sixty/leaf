@@ -44,6 +44,7 @@ panelHead.append(panelTitle, closeBtn);
 const findRow = el("div", "lf-find");
 export const findInput = document.createElement("input");
 findInput.type = "search";
+findInput.name = "thread-search";
 findInput.className = "lf-find-box";
 findInput.placeholder = "Find in threads";
 findInput.setAttribute("aria-label", "Find in threads");
@@ -74,6 +75,7 @@ threadsBox.setAttribute("role", "group");
 threadsBox.setAttribute("aria-label", "Threads");
 export const generalRow = el("div", "lf-general");
 export const generalInput = document.createElement("textarea");
+generalInput.name = "comment";
 const generalSend = el("button", "lf-btn primary", "Send");
 generalRow.append(generalInput, generalSend);
 // The panel's foot: the general box below the scrolling thread list.

@@ -23,6 +23,7 @@ export const conversationBox = (el, hint) => {
   box.dataset.lfConversation = el.id;
   const row = offer("div", "lf-say");
   const ta = offer("textarea");
+  ta.name = "comment";
   const send = offer("button", "lf-btn primary", "Send");
   const hold = declaration.hold ? offer("button", "lf-btn", declaration.hold) : null;
   const ctx = "say:" + el.id;

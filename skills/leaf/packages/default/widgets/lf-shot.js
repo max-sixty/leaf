@@ -67,6 +67,7 @@ customElements.define(
 
       const box = offer("input", "lf-shotflip");
       box.type = "checkbox";
+      box.name = "comparison";
       box.ariaLabel = `Compare before and after — ${alt}`;
       this.#button = offer("button", "lf-shot-toggle");
       this.#button.addEventListener("click", () => box.click());

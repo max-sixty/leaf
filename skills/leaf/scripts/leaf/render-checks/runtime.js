@@ -37,6 +37,20 @@ export function moving() {
 
 export const pageSettled = () => moving().length === 0;
 export const arrangements = () => ARRANGEMENTS;
+
+export function unnamedFormFields() {
+  return openRoots(document).flatMap((root) =>
+    [...root.querySelectorAll("input,select,textarea")]
+      .filter((field) => !field.id && !field.name)
+      .map((field) => ({
+        tag: field.localName,
+        className: field.className,
+        label:
+          field.getAttribute("aria-label") ?? field.getAttribute("placeholder") ?? "",
+      })),
+  );
+}
+
 export function arrange(arrangement) {
   localStorage.clear();
   sessionStorage.clear();

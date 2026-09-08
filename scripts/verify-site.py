@@ -7,7 +7,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urlencode, urljoin, urlsplit
 
 from leaf.render_gate.browser import launch_browser
 from playwright.sync_api import sync_playwright
@@ -27,9 +27,16 @@ def check(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
-def private_probe_url(page_url: str, revision: str | int) -> str:
-    """A read-only canonical request that activates one website session."""
-    return urljoin(page_url, f"api/view?revision={revision}&through_seq=0")
+def activation_url(page_url: str, state: dict) -> str:
+    """A canonical private read at the boundary named by passive state."""
+    events = state.get("events") or []
+    query = urlencode(
+        {
+            "revision": state["active"]["revision"],
+            "through_seq": events[-1]["seq"] if events else 0,
+        }
+    )
+    return urljoin(page_url, f"api/view?{query}")
 
 
 def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> None:
@@ -110,28 +117,27 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
         context.close()
         return
 
-    revision = page.locator('meta[name="lf-revision"][data-lf-runtime]').get_attribute(
-        "content"
-    )
+    state_url = urljoin(url, "api/state")
+    passive_response = context.request.get(state_url, timeout=120_000)
+    check(passive_response.ok, f"{state_url} returned {passive_response.status}")
     check(
-        revision is not None and revision.isdecimal() and int(revision) > 0,
-        f"{url} declared no active revision",
+        passive_response.headers.get("leaf-session") == "passive",
+        f"{state_url} left the edge before interaction",
     )
-    activation_url = private_probe_url(url, revision)
-    activation_response = context.request.get(activation_url, timeout=120_000)
+    activation = activation_url(url, passive_response.json())
+    activation_response = context.request.get(activation, timeout=120_000)
     check(
         activation_response.ok,
-        f"{activation_url} returned {activation_response.status}",
+        f"{activation} returned {activation_response.status}",
     )
     check(
         activation_response.headers.get("leaf-session") == "active",
-        f"{activation_url} did not activate a private container",
+        f"{activation} did not activate a private container",
     )
     check(
         isinstance(activation_response.json().get("browser"), dict),
-        f"{activation_url} returned no browser projection",
+        f"{activation} returned no browser projection",
     )
-    state_url = urljoin(url, "api/state")
     state_response = context.request.get(
         state_url,
         headers={"Leaf-Layer": identity["layer"], "Leaf-Release": release},

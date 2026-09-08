@@ -391,6 +391,31 @@ describe("product-site delivery", () => {
     expect(getContainer).not.toHaveBeenCalled();
   });
 
+  it("activates a container for a private read the edge cannot answer", async () => {
+    const sessionId = "1b".repeat(16);
+    const containerFetch = vi.fn(async () =>
+      Response.json(
+        { browser: { basis: { through_seq: 0 } } },
+        { headers: { "Leaf-Layer": LAYER, "Leaf-Release": RELEASE } },
+      ),
+    );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+
+    const response = await worker.fetch(
+      new Request(
+        "https://leaf.page/examples/design-decision/api/view?revision=2&through_seq=0",
+        { headers: { Cookie: `__Host-leaf-page=${sessionId}` } },
+      ),
+      environment(),
+    );
+
+    expect(containerFetch).toHaveBeenCalledOnce();
+    expect(response.headers.get("Leaf-Session")).toBe("active");
+    expect(response.headers.get("Set-Cookie")).toBe(
+      "__Host-leaf-active=1; Path=/; Secure; HttpOnly; SameSite=Lax",
+    );
+  });
+
   it("routes concurrent first uploads through the identity minted by the document", async () => {
     const containerFetch = vi.fn(async () =>
       Response.json(

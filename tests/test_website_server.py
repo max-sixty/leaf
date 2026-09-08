@@ -104,11 +104,14 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
 
         raw_view, _ = get(
-            verify_site.private_probe_url(
-                f"{root}/examples/decision/", state["active"]["revision"]
-            )
+            verify_site.activation_url(f"{root}/examples/decision/", state)
         )
-        assert isinstance(json.loads(raw_view)["browser"], dict)
+        view = json.loads(raw_view)
+        revision = state["active"]["revision"]
+        assert view["browser"]["views"][str(revision)]["basis"] == {
+            "revision": revision,
+            "through_seq": state["events"][-1]["seq"] if state["events"] else 0,
+        }
 
         posted = {
             "kind": "comment",

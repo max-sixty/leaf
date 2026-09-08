@@ -159,6 +159,7 @@ function conversationThreadNode(host, t, collapsible = false) {
       if (!tail) {
         tail = offer("div", "lf-say");
         const input = offer("textarea");
+        input.name = "reply";
         const send = offer("button", "lf-btn primary", "Send");
         tail.append(input, send);
         wireReply(t, input, send, liveId);

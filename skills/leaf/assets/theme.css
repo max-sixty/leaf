@@ -245,10 +245,8 @@
   --react: #dfd1ed40;
   /* The compact "you are here" ring: a control or bounded decision receiving the
      reader's next press wears one consistent band. A large composite surface would
-     turn that band into a second box around the box; it instead uses a quiet edge and
-     ground with the two surface tokens below. A card repaints its existing border;
-     an unbordered region draws the edge inside itself. Both treatments carry the same
-     accent, while their geometry distinguishes a target from a current region. The
+     turn that band into a second box around the box; it instead uses a quiet ground.
+     Its geometry distinguishes a target from a current region. The
      gap is what the ring wants outside a box that stands on its own; a control packed
      into a list states its own inset instead.
 
@@ -261,7 +259,6 @@
   --here-ring-w: 2px;
   --here-ring: var(--here-ring-w) solid var(--accent); --here-ring-gap: 3px;
   --here-ring-room: calc(var(--here-ring-w) + var(--here-ring-gap));
-  --here-surface-border: color-mix(in srgb, var(--accent) 55%, var(--rule));
   --here-surface: color-mix(in srgb, var(--accent) 4%, var(--card));
   /* The same band cast as a shadow, for the boxes that cannot spend an outline on it:
      the anchored response bar, whose focused states already write `outline: none` so
@@ -1267,11 +1264,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh);
           color: var(--ink); overflow-wrap: anywhere; }
 .lf-conversation-thread:is(:focus-within, .lf-focus-within) {
-          outline: none; border-radius: var(--r); background: var(--here-surface);
-          box-shadow: inset 0 0 0 1px var(--here-surface-border); }
-.lf-conversation-thread:has(> .lf-say textarea:is(:focus, .lf-focus)) {
-          background: transparent;
-          box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, var(--rule)); }
+          outline: none; border-radius: var(--r); background: var(--here-surface); }
 @media (forced-colors: active) {
   .lf-conversation-thread:is(:focus-within, .lf-focus-within) {
           outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }

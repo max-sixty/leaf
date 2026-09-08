@@ -5,8 +5,8 @@
    in screen order and receive short prefix-free labels. Most cost one letter; only the
    tail branches when the scene contains more targets than the available alphabet. The
    lowercase kind mnemonics are separate commands that filter that map: `g h` shows hyperlinks,
-   `g t` tabs, `g f` folds, `g m` margin controls and status indicators, and `g a` actions. A filtered map gets
-   its own shorter codes. The mapping is local to the
+   `g t` tabs, `g f` folds, `g m` margin controls and status indicators, and `g a` actions. A filtered map
+   keeps each member's code from the complete map. The mapping is local to the
    visible scene: scrolling refreshes it once motion settles, while a partly typed label
    freezes it until the reader completes or backs out of that prefix. Routine repaints do
    not regenerate a standing map. A candidate is revalidated before activation, so a
@@ -394,9 +394,9 @@ function visibleCandidates(filter = null) {
       left.rect.left - right.rect.left ||
       left.order - right.order,
   );
-  const filtered = filter ? found.filter(({ kind }) => kind === filter.kind) : found;
-  const codes = hintCodes(filtered.length, ADDRESS_KEYS);
-  return filtered.map((candidate, index) => ({ ...candidate, code: codes[index] }));
+  const codes = hintCodes(found.length, ADDRESS_KEYS);
+  const coded = found.map((candidate, index) => ({ ...candidate, code: codes[index] }));
+  return filter ? coded.filter(({ kind }) => kind === filter.kind) : coded;
 }
 
 // Every complete route starts with the same stable prefix. A partial generated hint is

@@ -1369,6 +1369,7 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
     )
     thread = page.locator(".lf-margin-preview .lf-conversation-thread")
     note = page.locator("#p .lf-mark-note")
+    resting = thread.evaluate("el => getComputedStyle(el).backgroundColor")
 
     note.click()
     expect(thread).to_be_focused()
@@ -1380,7 +1381,8 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
         }; }"""
     )
     assert pointer["outline"] == "none"
-    assert pointer["shadow"] != "none"
+    assert pointer["background"] != resting
+    assert pointer["shadow"] == "none"
 
     page.keyboard.press("Escape")
     page.keyboard.press("t")
@@ -1392,7 +1394,6 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
         }; }"""
     )
     assert current["outline"] == "none"
-    assert current["shadow"] != "none"
     assert current == pointer
 
     page.keyboard.press("Enter")
@@ -1406,14 +1407,17 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
     )
     reply_ring = reply.evaluate(
         """el => { const s = getComputedStyle(el); return {
-          style: s.outlineStyle, width: s.outlineWidth,
+          style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset,
+          border: s.borderColor,
         }; }"""
     )
-    assert writing["outline"] == "none"
-    assert writing["background"] != current["background"]
-    assert writing["shadow"] != "none"
-    assert writing["shadow"] != current["shadow"]
-    assert reply_ring == {"style": "solid", "width": "2px"}
+    assert writing == current
+    assert reply_ring == {
+        "style": "solid",
+        "width": "2px",
+        "offset": "0px",
+        "border": "rgba(0, 0, 0, 0)",
+    }
     assert errors == []
     page.close()
 
@@ -1454,8 +1458,8 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
         context.close()
 
 
-def test_inline_thread_edge_has_room_without_focus_reflow(browser, serve):
-    """The region owns the breathing room its inset current edge requires."""
+def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
+    """The region owns the breathing room its current surface requires."""
     url = serve(SEATED_QUESTION_PAGE)
     panel_comment(serve.page_dir, "First job note", {"section": "jobs"})
     root = panel_comment(
@@ -1474,7 +1478,9 @@ def test_inline_thread_edge_has_room_without_focus_reflow(browser, serve):
     focused = thread.evaluate(
         "el => ({width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height})"
     )
-    assert focused == resting, "the current edge changed the inline thread's geometry"
+    assert focused == resting, (
+        "the current surface changed the inline thread's geometry"
+    )
 
     frame = thread.evaluate(
         """el => { const s = getComputedStyle(el); return {
@@ -1502,7 +1508,7 @@ def test_inline_thread_edge_has_room_without_focus_reflow(browser, serve):
         }"""
     )
     assert clearances and min(clearances) >= 3, (
-        f"the 1px inset current edge landed on inline thread content: {clearances}"
+        f"the current surface landed on inline thread content: {clearances}"
     )
     assert errors == []
     page.close()
@@ -2235,13 +2241,13 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
     page.close()
 
 
-def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact(
+def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     browser, serve
 ):
     """Kind prefixes narrow the current generated map instead of replacing it.
 
-    A filtered map assigns short codes from its own members. Its chips show only those
-    generated suffixes; the complete route remains in the shortcut bar.
+    A filtered map preserves the codes its members had in the complete map. Its chips
+    show only those generated suffixes; the complete route remains in the shortcut bar.
     """
     page, errors = open_page(browser, serve(ADDRESSED_PAGE))
     resized(page, 1280, 800)
@@ -2315,8 +2321,7 @@ def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact
         filtered.evaluate_all("els => els.map(el => el.dataset.lfAddressKind)")
     ) == {"Control"}
     filtered_codes = address_codes(page)
-    assert all(len(code) == 1 for code in filtered_codes), filtered_codes
-    assert filtered_codes != control_codes, {
+    assert filtered_codes == control_codes, {
         "before": control_codes,
         "filtered": filtered_codes,
     }
@@ -6073,7 +6078,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
     resting_thread = thread.evaluate(
         "thread => { const s = getComputedStyle(thread); return {"
-        "border: s.borderColor, background: s.backgroundColor}; }"
+        "background: s.backgroundColor}; }"
     )
     thread.focus()
     thread_standing = shortcut_bar_text(page)
@@ -6087,10 +6092,9 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     assert shortcut_bar_text(page) == thread_standing
     current_thread = thread.evaluate(
         "thread => { const s = getComputedStyle(thread); return {"
-        "border: s.borderColor, background: s.backgroundColor, outline: s.outlineStyle}; }"
+        "background: s.backgroundColor, outline: s.outlineStyle}; }"
     )
     assert current_thread["outline"] == "none"
-    assert current_thread["border"] != resting_thread["border"]
     assert current_thread["background"] != resting_thread["background"]
     page.mouse.up()
     assert "reply" not in shortcut_bar_text(page)

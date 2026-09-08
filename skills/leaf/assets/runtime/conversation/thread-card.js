@@ -105,6 +105,7 @@ export function threadNode(t, grow) {
   if (!t.resolved) {
     const row = el("div", "lf-compose");
     const input = document.createElement("textarea");
+    input.name = "reply";
     const send = el("button", "lf-btn primary lf-thread-send", "Send");
     // Resolving takes this node out of the open list and focus with it — the blind
     // drive fell to body here. Land where t would have gone: the thread that now

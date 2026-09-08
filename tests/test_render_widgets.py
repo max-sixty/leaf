@@ -2245,10 +2245,13 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
         to_lane_1.tap()
     expect(page.locator("#sq-col-1 > #sq-card-0")).to_have_count(1)
     expect(card.locator(".lf-grip")).to_be_focused()
+    # The card passes through the visible area while its move is still animating.
     page.wait_for_function(
         """() => {
+          const moved = document.querySelector('#sq-card-0');
+          if (moved.getAnimations().length) return false;
           const board = document.querySelector('#crowd').getBoundingClientRect();
-          const card = document.querySelector('#sq-card-0').getBoundingClientRect();
+          const card = moved.getBoundingClientRect();
           return card.left >= board.left - 1 && card.right <= board.right + 1;
         }"""
     )

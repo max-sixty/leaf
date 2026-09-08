@@ -84,8 +84,9 @@ exactly one element. Put prose in an `lf-pane`; compose multiple named panes wit
 one `lf-split`, where each split takes two panes or splits in `columns` or `rows`.
 The workspace's optional direct native `footer` follows its body. A pane's direct
 `header` and `footer` frame its reading body; put existing action widgets in the
-footer when they should stay available while the body scrolls. Query the registry
-entries for their complete markup contracts.
+footer when they should stay available while the body scrolls. A pane's `label`
+names it for navigation and assistive technology; author a `header` when it needs
+a visible heading. Query the registry entries for their complete markup contracts.
 
 Keep a compound widget's authoring grammar and state ownership together. A
 playground supplies its own controls and preview regions; its Ask still surrounds

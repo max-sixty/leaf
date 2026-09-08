@@ -4,7 +4,6 @@ import {
   arrangeReadingElement,
   once,
   registerArrangedElement,
-  relabel,
 } from "/runtime/widget-api.js";
 
 const direct = (owner, tag) =>
@@ -27,15 +26,8 @@ customElements.define(
         });
         return;
       }
-      let header = direct(this, "header");
+      const header = direct(this, "header");
       const footer = direct(this, "footer");
-      if (!header) {
-        header = document.createElement("header");
-        header.dataset.lfGen = "1";
-        const label = document.createElement("span");
-        relabel(label, this.getAttribute("label"), { says: true });
-        header.append(label);
-      }
       this.setAttribute("role", "region");
       this.setAttribute("aria-label", this.getAttribute("label"));
       this.#arrangement = arrangeReadingElement({

@@ -13,6 +13,11 @@ import { settle, settling } from "./widget-upgrade.js";
 import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
 import { buildReactBar } from "./reactions.js";
 import { rememberAuthoredParents } from "./projection/authored.js";
+import {
+  opaquePassageParts,
+  opaquePassageRoots,
+  verbatimBoundaryIdentity,
+} from "./passages.js";
 
 /* Registry loading and the one initial widget-upgrade lifecycle.
 
@@ -33,16 +38,31 @@ import { rememberAuthoredParents } from "./projection/authored.js";
 // direct children when the registry cannot promise its body is verbatim. Remember
 // those parts before custom-element definitions can add or move anything, so the
 // browser can stop captured context at the same seams after every upgrade has run.
-export const opaquePassageRoots = new WeakSet();
-export const opaquePassageParts = new WeakSet();
+const rememberedPassageRoots = new WeakSet();
 
 export function rememberPassageParts(scope = document) {
   for (const tag of tagsDeclaring(
     (entry) => entry["x-upgrade"] && !entry["x-verbatim"],
   ))
     for (const root of scope.querySelectorAll(tag)) {
+      if (rememberedPassageRoots.has(root)) continue;
+      rememberedPassageRoots.add(root);
       opaquePassageRoots.add(root);
       for (const child of root.children) opaquePassageParts.add(child);
+    }
+  for (const tag of tagsDeclaring((entry) => entry["x-verbatim"]))
+    for (const root of scope.querySelectorAll(tag)) {
+      if (rememberedPassageRoots.has(root)) continue;
+      rememberedPassageRoots.add(root);
+      let index = 0;
+      const visit = (owner) => {
+        for (const child of owner.children) {
+          if (registry[child.localName]?.["x-upgrade"]) {
+            verbatimBoundaryIdentity.set(child, { owner: root, index: index++ });
+          } else visit(child);
+        }
+      };
+      visit(root);
     }
 }
 

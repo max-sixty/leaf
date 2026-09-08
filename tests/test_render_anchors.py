@@ -291,10 +291,20 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     page.close()
 
 
-def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve):
+@pytest.mark.parametrize("revision", [1, 2])
+def test_browser_and_file_captures_stop_at_the_same_widget_fences(
+    browser, serve, revision
+):
     """Module-only words may sit between authored parts, but they cannot give the
     browser more context than the mapped revision can confirm."""
-    page, errors = open_page(browser, serve(FENCED_CAPTURE_PAGE))
+    page, errors = open_page(browser, live_url(serve(FENCED_CAPTURE_PAGE)))
+    if revision == 2:
+        # Activation mounts cloned nodes after preloading their widget modules.
+        (serve.page_dir / ".fixture-versions" / "v2.html").write_text(
+            FENCED_CAPTURE_PAGE.replace("</title>", " revised</title>")
+        )
+        stamp_version_file(serve.page_dir, 2, "Refresh the document")
+        wait_for_revision(page, 2)
     expect(page.locator("#gate-milestone .lf-chips")).to_have_count(1)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     cases = [
@@ -356,6 +366,71 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve
             f"{selector} captured {actual_anchor}, file captured {expected_anchor}"
         )
 
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("workspace", [False, True], ids=["ask", "workspace"])
+def test_quotes_cross_preserving_containers_and_remain_attached(
+    browser, serve, workspace
+):
+    """A layout module does not turn visible prose into separate quotation islands."""
+    ask = """<lf-ask id="decision">
+      <h2 id="question">Which plan should lead?</h2>
+      <lf-options id="plans" choose>
+        <lf-option id="steady">Keep the steady plan.</lf-option>
+        <lf-option id="fast">Try the faster plan.</lf-option>
+      </lf-options>
+    </lf-ask>"""
+    content = (
+        f"""<lf-workspace id="workspace">
+          <lf-split id="split" direction="rows">
+            <lf-pane id="decision-pane" label="Decision">{ask}</lf-pane>
+            <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
+          </lf-split>
+        </lf-workspace>"""
+        if workspace
+        else ask
+    )
+    markup = leaf_page(
+        "Shared quotation",
+        '<h1>Release review</h1><section id="review">'
+        f'<p id="context">Release context.</p>{content}</section>',
+    )
+    url = live_url(serve(markup))
+    page, errors = open_page(browser, url)
+    quote = "Release context. Which plan should lead?"
+    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    expected = anchor_capture_model.capture_anchor(markup, registry, quote, "review")
+    page.evaluate(
+        """() => {
+          const start = document.querySelector('#context').firstChild;
+          const end = document.querySelector('#question').firstChild;
+          const range = document.createRange();
+          range.setStart(start, 0);
+          range.setEnd(end, end.length);
+          getSelection().removeAllRanges();
+          getSelection().addRange(range);
+        }"""
+    )
+    page.dispatch_event("body", "mouseup")
+    expect(page.locator("#lf-composer-quote")).to_have_text(f"“{quote}”")
+    page.locator(".lf-fab-input").click()
+    page.locator(".lf-composer textarea").fill("Keep the question with its context.")
+    with sending(page, "the comment across preserving containers"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator(".lf-thread")).to_have_count(1)
+    actual = [
+        event["anchor"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ][-1]
+    assert actual == expected
+    page.reload()
+    expect(page.locator(".lf-thread .lf-quote")).to_have_text(f"“{quote}”")
+    expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
+        re.compile("detached")
+    )
     assert errors == []
     page.close()
 

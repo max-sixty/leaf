@@ -26,6 +26,7 @@
     "x-content": "prose",
     "x-ask-surface": true,
     "x-upgrade": true,
+    "x-verbatim": true,
     "x-example": "<section id=\"storage-section\">\n  <lf-ask id=\"storage-decision\">\n    <h2>What should a full store do?</h2>\n    <p>The beta never reached the cap. This decides what the first workspace at it sees.</p>\n    <lf-options id=\"full-store\" choose>\n      <lf-option id=\"store-evict\"><strong>Drop the oldest documents</strong> Editing continues. <em>My take: this keeps work moving without losing server data.</em></lf-option>\n      <lf-option id=\"store-stop\"><strong>Pause offline editing</strong> Nothing leaves.</lf-option>\n    </lf-options>\n  </lf-ask>\n</section>"
   },
   "lf-gloss": {
@@ -866,10 +867,11 @@
     "x-content": "prose",
     "x-layout": "workspace",
     "x-upgrade": true,
+    "x-verbatim": true,
     "x-example": "<lf-workspace id=\"review-workspace\"><header><h1>Review</h1></header><lf-pane id=\"review-body\" label=\"Proposal\"><p>Read the proposal.</p></lf-pane></lf-workspace>"
   },
   "lf-pane": {
-    "description": "One labeled reading region in a workspace. Its body may scroll independently in bounded posture and returns to its containing reading flow when space is constrained.",
+    "description": "One reading region in a workspace. Its label names the region accessibly; an authored header supplies any visible heading. Its body may scroll independently in bounded posture and returns to its containing reading flow when space is constrained.",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
@@ -880,6 +882,7 @@
     "x-content": "prose",
     "x-layout": "pane",
     "x-upgrade": true,
+    "x-verbatim": true,
     "x-example": "<lf-pane id=\"detail\" label=\"Selected item\"><p>Read the selected item.</p></lf-pane>"
   },
   "lf-split": {
@@ -894,6 +897,7 @@
     "x-content": "prose",
     "x-layout": "split",
     "x-upgrade": true,
+    "x-verbatim": true,
     "x-example": "<lf-split id=\"review-regions\" direction=\"columns\"><lf-pane id=\"queue\" label=\"Items\"><p>Queue</p></lf-pane><lf-pane id=\"detail\" label=\"Selected item\"><p>Detail</p></lf-pane></lf-split>"
   },
   "$reactions": {

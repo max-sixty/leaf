@@ -1007,6 +1007,105 @@ def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     )
 
 
+def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
+    browser, serve, tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    author_test_widget(tmp_path, "lf-shell", upgrade=True)
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-shell"]["properties"]["mode"] = {
+        "type": "string",
+        "enum": ["prose", "order"],
+    }
+    entries["lf-piece"] = {
+        "description": "An anonymous nested upgraded piece.",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": False,
+        "x-content": "prose",
+        "x-upgrade": True,
+        "x-example": "<lf-piece>Example</lf-piece>",
+    }
+    registry_path.write_text(json.dumps(entries, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
+        'import { once } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-piece", class extends HTMLElement {\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        '    const generated = document.createElement("span");\n'
+        '    generated.dataset.lfGen = "1";\n'
+        '    generated.textContent = " generated descendant";\n'
+        "    this.append(generated);\n"
+        "  }\n"
+        "});\n"
+    )
+    page = leaf_page(
+        "compositional verbatim",
+        """
+<h1>Wrapper contract</h1>
+<lf-shell id="honest-shell">Before <span>passive prose</span>
+  <lf-piece>First child.</lf-piece>
+  <lf-piece>Second child.</lf-piece> After
+</lf-shell>
+<lf-shell id="prose-shell" mode="prose">Before <span>passive prose</span>
+  <lf-piece>First child.</lf-piece>
+  <lf-piece>Second child.</lf-piece> After
+</lf-shell>
+<lf-shell id="order-shell" mode="order">Before <span>passive prose</span>
+  <lf-piece>First child.</lf-piece>
+  <lf-piece>Second child.</lf-piece> After
+</lf-shell>
+<lf-pane id="bare-pane" label="Decision"><p>Pane body.</p></lf-pane>
+""",
+    )
+    (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
+        'import { once } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-shell", class extends HTMLElement {\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        '    if (this.getAttribute("mode") === "prose")\n'
+        '      this.querySelector("span").textContent = "changed passive prose";\n'
+        '    if (this.getAttribute("mode") === "order") {\n'
+        '      const pieces = this.querySelectorAll("lf-piece");\n'
+        "      pieces[0].before(pieces[1]);\n"
+        "    }\n"
+        "  }\n"
+        "});\n"
+    )
+    url = serve(page)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-wrapper",
+            "author": "user",
+            "revision": 1,
+            "text": "Show the wrapper in your reply.",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": "c-wrapper",
+            "revision": 1,
+            "text": "Here it is:",
+            "markup": (
+                '<lf-shell id="reply-shell">Reply before '
+                "<lf-piece>reply child</lf-piece> reply after</lf-shell>"
+            ),
+        },
+    )
+    failures = render_gate_model.render_version(browser, url)
+    dishonest = [failure for failure in failures if "x-verbatim" in failure]
+    assert len(dishonest) == 2, failures
+    assert all("honest-shell" not in failure for failure in dishonest)
+    assert any("prose-shell" in failure for failure in dishonest)
+    assert any("order-shell" in failure for failure in dishonest)
+
+
 def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     browser, serve, tmp_path, monkeypatch
 ):

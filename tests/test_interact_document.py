@@ -28,6 +28,7 @@ from interact_support import (
     append_command,
     before_choice,
     check,
+    comment,
     decide,
     declare_data_input,
     fixture_version_path,
@@ -59,6 +60,54 @@ from leaf.validation import compatibility as validation_model
 def test_check_accepts_a_valid_page(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output
+
+
+def test_a_quote_crosses_an_upgraded_verbatim_wrapper(page_dir):
+    quote = "jobs/backfill.py:88. Which plan should lead?"
+
+    result = comment(page_dir, "--quote", quote, "--text", "compare these")
+
+    assert result.exit_code == 0, result.output
+    anchor = json.loads(result.output)["anchor"]
+    assert anchor["quote"] == quote
+    assert anchor["section"] == "plan"
+
+
+def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries():
+    registry = {
+        "lf-shell": {"x-upgrade": True, "x-verbatim": True},
+        "lf-piece": {"x-upgrade": True, "x-verbatim": True},
+    }
+    plain = passages_model.page_passages(
+        '<lf-shell id="shell"><p>set<em>up</em></p>'
+        "<lf-piece>child words</lf-piece><p>after</p></lf-shell>",
+        registry,
+    ).verbatim["shell"]
+    wrapped = passages_model.page_passages(
+        '<lf-shell id="shell"><p><span>set</span>up</p>'
+        "<lf-piece>different child rendering</lf-piece><p>after</p></lf-shell>",
+        registry,
+    ).verbatim["shell"]
+    separated = passages_model.page_passages(
+        '<lf-shell id="shell"><p>set up</p>'
+        "<lf-piece>child words</lf-piece><p>after</p></lf-shell>",
+        registry,
+    ).verbatim["shell"]
+    non_js_whitespace = passages_model.page_passages(
+        '<lf-shell id="shell">\u0085edge\u0085</lf-shell>', registry
+    ).verbatim["shell"]
+
+    assert (
+        plain
+        == wrapped
+        == [
+            {"text": "setup"},
+            {"boundary": ["shell", 0, "lf-piece", None]},
+            {"text": "after"},
+        ]
+    )
+    assert separated[0] == {"text": "set up"}
+    assert non_js_whitespace == [{"text": "\u0085edge\u0085"}]
 
 
 def construction_nodes(content):

@@ -40,7 +40,15 @@ export { announce, notice } from "./notifications.js";
 export { actionAvailable, actionStands, sendAction } from "./outbox.js";
 export { requestAvailable, sendRequest, watchRequestLifecycle } from "./requests.js";
 export { alignText, alignedNodes } from "./text-alignment.js";
-export { inChrome, renderRetired, says, textNodesUnder, wrote } from "./passages.js";
+export {
+  inChrome,
+  quoteFrom,
+  renderRetired,
+  says,
+  textNodesUnder,
+  verbatimBoundaryIdentity,
+  wrote,
+} from "./passages.js";
 export { ago, clocked, clockValue, quietSince } from "./presence.js";
 export { shallowSigs, undoableAction, withdraw } from "./projection.js";
 export { standingState } from "./projection/fold.js";

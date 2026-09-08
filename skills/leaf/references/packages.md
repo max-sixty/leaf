@@ -203,8 +203,9 @@ A structural widget declares `x-layout` as `workspace`, `pane`, or `split` and k
 `x-content: prose`. Every role requires `id`; a pane also requires a string `label`, and
 a split requires `direction` with the complete `columns`/`rows` enum. A workspace has
 exactly one direct body element between its optional native `header` and `footer`. A
-pane may have one direct native `header` first and one direct native `footer` last. A
-split contains exactly two direct widgets whose own entries declare pane or split. The
+pane may have one direct native `header` first and one direct native `footer` last. Its
+`label` names the accessible region; a visible heading belongs in the authored header.
+A split contains exactly two direct widgets whose own entries declare pane or split. The
 validator reads roles rather than tag names, so a package may supply a differently named
 member without changing Leaf or joining an `x-parent` list.
 

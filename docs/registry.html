@@ -739,12 +739,20 @@
             <h3><code>x-verbatim</code></h3>
             <div class="reference-copy">
               <p>
-                An upgraded element whose body reaches the reader as its own words — the
-                module leaves it in place — which is what makes it quotable; a body
-                without it is source the widget renders (a diagram's notation). The
-                render gate refuses an x-verbatim whose rendered words differ from the
-                file's.
+                An upgraded element that preserves its own authored words and the order
+                and identity of nested upgraded widget boundaries, which makes those
+                words quotable.
               </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-verbatim contract">Full contract</summary>
+                <p>
+                  Each nested upgraded widget keeps its own word and fence contract, so
+                  its generated rendering is not a claim by the wrapper. Without this
+                  promise the passage reader treats the widget as opaque, since its
+                  module may insert or replace words. The render gate refuses changed
+                  wrapper prose or removed and reordered nested ownership boundaries.
+                </p>
+              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-visual">

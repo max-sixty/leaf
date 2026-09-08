@@ -3,9 +3,8 @@
 import json
 from dataclasses import dataclass
 
-from leaf.passages import EMPTY, spoken
+from leaf.passages import page_passages
 from leaf.projection import (
-    frozen_thread_reading,
     page_reading,
     retirement_holders,
     retirement_outcomes,
@@ -81,10 +80,10 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         # deliberately returns none there. Everywhere else, ask the merged registry
         # for the instances and the module's own marker for the host it placed.
         missing_conversations = evaluate_probe(page, "missingConversations", widgets)
-        # x-verbatim honesty: the entry claims the body reaches the reader
-        # as its own words, and the two readings built on that claim — the
-        # browser's says() and the file's spoken() — are compared here on
-        # every instance the log hasn't moved (a decided or rewritten
+        # x-verbatim honesty: the entry claims its own words and ordered upgraded
+        # descendant boundaries reach the reader. Descendants keep their own render
+        # contracts, so their generated words do not become a claim by this wrapper.
+        # Compared for every instance the log hasn't moved (a decided or rewritten
         # widget legitimately shows other words). A module that renders
         # something in the body's stead while the entry still says
         # verbatim strands quotes on words the screen no longer shows.
@@ -100,14 +99,17 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             page, "shownVerbatim", {"widgets": widgets, "touched": touched}
         )
         if shown:
-            thread = frozen_thread_reading(state["events"], registry)
-            spk = {**thread.spoken, **spoken(markup, registry)}
+            expected = {}
+            for event in state["events"]:
+                if fragment := event.get("markup"):
+                    expected.update(page_passages(fragment, registry).verbatim)
+            expected.update(page_passages(markup, registry).verbatim)
             dishonest_verbatim = [
                 f"<{s['tag']} id={s['id']!r}> declares x-verbatim but shows "
-                f"{s['says'][:80]!r} where the file reads "
-                f"{spk.get(s['id'], EMPTY).words[:80]!r}"
+                f"{s['says'][:80]!r} with owned structure {s['compositional']!r} "
+                f"where the file reads {expected.get(s['id'], [])!r}"
                 for s in shown
-                if s["says"] != spk.get(s["id"], EMPTY).words
+                if s["compositional"] != expected.get(s["id"], [])
             ]
         # Behind the caught-up wait above: a report moves a painted attribute and
         # the pass that speaks it runs before the stamp, so a reading taken any

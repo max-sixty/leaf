@@ -363,7 +363,7 @@ function mark(drawing, target, className, id = "") {
   const left = box.left + frame.x;
   const top = box.top + frame.y;
   const data = pathData(drawing);
-  const described = [
+  const described = JSON.stringify([
     className,
     id,
     left,
@@ -373,12 +373,14 @@ function mark(drawing, target, className, id = "") {
     frame.x,
     frame.y,
     data,
-  ].join(" ");
-  // Two marks described alike in one paint are still two marks, so only the first of them
-  // takes the standing node.
-  const standing = mounting.has(described) ? null : mounted.get(described);
+  ]);
+  // Two marks described alike in one paint are still two marks. Take standing nodes in
+  // their prior order so each one keeps its identity.
+  const standing = mounted.get(described)?.shift();
   if (standing) {
-    mounting.set(described, standing);
+    const next = mounting.get(described) ?? [];
+    next.push(standing);
+    mounting.set(described, next);
     return standing;
   }
   const svg = document.createElementNS(SVG_NS, "svg");
@@ -394,7 +396,9 @@ function mark(drawing, target, className, id = "") {
     height: `${height}px`,
   });
   svg.append(pathFor(data));
-  if (!mounting.has(described)) mounting.set(described, svg);
+  const next = mounting.get(described) ?? [];
+  next.push(svg);
+  mounting.set(described, next);
   return svg;
 }
 

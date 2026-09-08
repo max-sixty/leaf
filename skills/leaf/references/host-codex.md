@@ -12,7 +12,63 @@ stream unchanged.
 
 Set the page to `waiting` and run `leaf codex start <page>` before finishing the
 turn with the URL and a concrete gesture. The browser pane is the presentation;
-the detached adapter below carries input back to this same task.
+the detached adapter below carries input back to this same task. When this task
+is running through an App Server, use the live-activity form below instead.
+
+## Live Codex activity through App Server
+
+This experimental, untested local transport connects Leaf to a task controlled
+through the Codex CLI.
+The normal entry point starts a private Unix-socket App Server and runs the
+terminal client against it:
+
+```sh
+leaf codex launch
+```
+
+The launcher exports its endpoint to the task. Start Leaf normally from that
+task; `leaf codex start` subscribes to the exported App Server without another
+option:
+
+```sh
+leaf codex start <page>
+```
+
+The launcher owns both processes. Exiting the terminal stops its App Server, so
+each terminal is independent and no fixed port or separate server tab remains.
+Live activity ends with that server. The detached page carrier falls back to
+Codex's durable local task queue, so later reader input can still open a turn
+when the task is resumed in the CLI or Desktop app.
+
+To run the two processes separately instead, start a loopback WebSocket listener
+and pass the same endpoint to both clients:
+
+```sh
+codex app-server --listen ws://127.0.0.1:4500
+codex --remote ws://127.0.0.1:4500
+```
+
+From that remote CLI task, start Leaf with the same endpoint:
+
+```sh
+leaf codex start <page> --app-server ws://127.0.0.1:4500
+```
+
+Leaf resumes the current task as a second, observer-only client. Plan updates,
+tool starts, streamed agent messages, and waits for approval or user input become
+the page's current activity detail. Agent-message deltas currently replace that
+single detail as the response grows; Leaf does not yet expose a separate streamed
+task response or retain its final text. Activity overlays the authored
+`leaf status` declaration while the turn is active and disappears when it completes.
+Leaf does not call `turn/start` or answer App Server requests; keep the CLI open
+for approvals and input. Reader messages use `codex queue --remote` against that
+same App Server, whose queue dispatches them into the task the observer displays.
+
+Only private absolute Unix sockets and unauthenticated loopback `ws://` endpoints
+are accepted. The loopback WebSocket listener is experimental; do not expose it
+on a network. The task is still stored in Codex's task history and can be resumed
+later from the CLI or Desktop app after the standalone server releases its writer.
+The Desktop app is not a live client of this separately started server.
 
 ## Experimental inline MCP App
 
@@ -42,12 +98,16 @@ turn ends opens a delivery epoch and queues one new user turn in this same task.
 Later input joins that epoch until the turn which processes it ends. Starting the
 command again for another page adds that page to the same task-wide watch.
 
-The loaded Desktop client starts that later turn and keeps ownership of execution
-and approvals. If the task has been unloaded, the item stays queued until Codex
-reopens it; the adapter never resumes the task or answers client requests on the
-user's behalf. The small queued message is a `leaf-delivery` XML element shown as
-one line in a code block. It names the `$leaf` skill and its `path` points to the
-persisted epoch. Read that file and process every entry in `batches`; each
+The App Server's queue service starts that later turn, while the connected Codex
+client remains the interactive client for approvals and user input. A completed turn
+does not stop the adapter or its App Server observer. The observer keeps the task
+loaded, so the App Server starts a queued message at once when the task is idle, or
+after its active turn completes. If the task has been unloaded, the item stays queued
+until Codex reopens it; without live activity the adapter never resumes the task. With
+App Server live activity it resumes only to subscribe and never answers client
+requests on the user's behalf. The small queued message is a `leaf-delivery` XML
+element shown as one line in a code block. It names the `$leaf` skill and its `path`
+points to the persisted epoch. Read that file and process every entry in `batches`; each
 carries its `page`, current `url`, `threads`, `handling`, and exact `events`, the
 same readings a direct wait prints. Do not wait or acknowledge: the adapter owns
 both. If a retry arrives after that path was completed, read the same filename

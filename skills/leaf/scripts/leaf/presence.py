@@ -38,6 +38,11 @@ _neighbor_cache = {}  # page -> (input key, presence entry or None)
 _presence_cache_lock = threading.RLock()
 
 
+def public_status(status: dict) -> dict:
+    """Remove private activity evidence after the server has folded it."""
+    return {key: value for key, value in status.items() if key != "stream"}
+
+
 def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
     """The mutable files whose changes can alter a page presence reading."""
     entries = tuple(
@@ -135,6 +140,7 @@ def other_leaves(page_dir: Path) -> list:
                                     "title": parser.title.strip() or candidate.name,
                                     "url": info["url"],
                                     **raw,
+                                    "status": public_status(raw["status"]),
                                     "activity": project_activity(
                                         candidate,
                                         events,

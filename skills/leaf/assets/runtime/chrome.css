@@ -463,54 +463,43 @@ body.lf-drawing main,
 body.lf-drawing main * { cursor: crosshair !important; }
 body.lf-drawing main .lf-conversation,
 body.lf-drawing main .lf-conversation * { cursor: auto !important; }
-/* An element comment gets the same wash as a text comment and one inset rail to locate
-   the box. A four-sided outline duplicated keyboard focus and read as another container
-   border. The target painter projects this face above the element's descendants; these
-   declarations are the no-JS/export fallback. */
-.lf-mark-el { outline: none; cursor: pointer;
-  background-image: linear-gradient(var(--mark-ink), var(--mark-ink)),
-    linear-gradient(var(--mark), var(--mark));
-  background-position: left top, left top;
-  background-size: 2px 100%, 100% 100%;
-  background-repeat: no-repeat; }
-/* A standing reaction on an element: the same hairline, dashed, over the reacted
-   passage's own wash — a mark fainter than a comment's on both channels (--react in
-   theme.css, ::highlight(lf-react) in marks.css). No hand, since nothing opens on a
-   press here: the glyph in the margin is the control. */
-.lf-react-el { outline: 1px dashed var(--mark-ink); outline-offset: -1px;
-  background-image: linear-gradient(var(--react), var(--react)); }
+/* Element feedback is one hollow contour. Unlike a text highlight, an element mark
+   is projected above everything the target draws, so any interior paint can obscure
+   the target's own words or picture. The target painter keeps this contour above those
+   descendants; these declarations are the no-JS/export fallback. A reaction and a
+   comment share the contour because it locates feedback rather than naming its kind;
+   the margin control carries that distinction. */
+:is(.lf-mark-el, .lf-react-el) {
+  outline: 1px solid var(--mark-ink); outline-offset: -1px; }
+.lf-mark-el { cursor: pointer; }
 /* A copy carries the wash as a <mark> the export wrote into the words, the highlight
    registry being script state no file can hold (BAKE). It carries the line with it: the
    wash alone is 1.08:1 over the light paper, and a copy is the one place the reader
    cannot hover the words to find out whether anything is there. */
 html.lf-copy mark.lf-react { background: var(--react); color: inherit;
-  text-decoration: underline 2px dashed var(--mark-ink); text-underline-offset: 3px; }
+  text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
 /* The glyphs of the reactions standing on a target — a margin element per reaction, the margin element
    being the reaction's own eraser (anchors.js seatReactions). This is an unpositioned
    contribution: the living margin joins it to the target's other RHS controls and
    decides whether their one complete item hangs or docks. */
 .lf-reacts { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .lf-react-mark { text-align: center; }
-/* The draft's own passage uses the accent rail and its pending wash. An open composer
-   is on screen whenever this is, and an already-posted element keeps the posted colour
-   instead, so the two states never contend on one element. */
-.lf-mark-el.lf-pending { cursor: auto;
-  background-image: linear-gradient(var(--accent), var(--accent)),
-    linear-gradient(var(--mark-pending), var(--mark-pending)); }
-/* Hover strengthens the wash without changing the mark's geometry. Keyboard focus is
-   the distinct state that earns a complete outer ring. */
-.lf-mark-el.lf-mark-hover {
-  background-image: linear-gradient(var(--mark-ink), var(--mark-ink)),
-    linear-gradient(var(--mark-hover), var(--mark-hover)); }
+/* The draft's own passage uses the accent contour. An open composer is on screen
+   whenever this is, and an already-posted element keeps the posted colour instead, so
+   the two states never contend on one element. */
+.lf-mark-el.lf-pending { outline: 2px solid var(--accent); outline-offset: -2px;
+  cursor: auto; }
+/* Hover and the current thread use one accent contour. A press can temporarily move
+   focus from the thread to the page; keeping hover visually equivalent means that
+   ordinary pointer transition does not make selection flicker. Keyboard focus is the
+   distinct state that earns a complete outer ring. */
+.lf-mark-el.lf-mark-hover { outline: 2px solid var(--accent); outline-offset: -2px; }
 .lf-mark-el:not(.lf-projected-mark):is(:focus-visible, .lf-focus-visible) {
   outline: var(--here-ring);
   --lf-here-ring: passage-focus; outline-offset: 2px; }
-/* The standing comment's element anchor promotes the rail to accent and strengthens
-   the wash. It remains an annotation rather than turning the whole passage into another
-   framed container; focus on the passage itself is the separate complete ring above. */
-.lf-mark-el.lf-mark-here {
-  background-image: linear-gradient(var(--accent), var(--accent)),
-    linear-gradient(var(--mark-strong), var(--mark-strong)); }
+/* The standing comment promotes the same contour to accent. Focus on the passage
+   itself is the separate outer ring above. */
+.lf-mark-el.lf-mark-here { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
    hand here is the aim's answer rather than the thread's: it stands where the aim has
    an item and comes off where it hasn't, which is the same promise the body is making
@@ -519,9 +508,9 @@ body:is(.lf-aiming, .lf-design) .lf-mark-el { cursor: default; }
 body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
 /* The chrome layer projects every element mark above the element's own descendants,
    so source paint would duplicate it. */
-.lf-projected-mark { outline: none; }
 :is(.lf-mark-el, .lf-react-el, .lf-action-target).lf-projected-mark {
-  background-image: none; }
+  outline: none;
+}
 /* Keyboard access to a picture is runtime chrome beside the provider's drawing rather
    than a role written onto that drawing. Resting it is a conventional clipped control;
    focus gives it a skip-link-style face under the banner. */
@@ -568,7 +557,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
 .lf-earlier { display: block; overflow: hidden; margin-block-start: 10px;
   width: max-content; max-width: 100%;
   padding: 6px 0 6px 12px; border-inline-start: 2px solid var(--rule);
-  background: var(--paper); border-radius: 2px; }
+  background: var(--paper); }
 .lf-earlier-head { display: block; margin-block-end: 3px;
   font: 500 var(--t-6)/1.2 var(--sans); letter-spacing: .02em; color: var(--muted); }
 .lf-earlier-body { display: block; color: var(--ink-2); }
@@ -826,6 +815,13 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-banner-actions > .lf-btn { flex: none; border-color: transparent;
     border-radius: 0; background: transparent; }
   .lf-banner-actions > .lf-btn:hover { background: var(--chip); }
+  /* .lf-btn.on states a comparison or a narrowing with an accent border and a fill,
+     and the resting rule above clears both at the same specificity — so on this row
+     the class would paint ink alone. Restate the treatment the open workspace wears,
+     which the reader already reads as "this control is doing something": neither the
+     fill nor the ring is a metric, so the address keeps the width it reserved. */
+  .lf-banner-actions > .lf-btn.on {
+    background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
   /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
      mask is the page's actual vendored mark, so a project that replaces icon.svg does
      not keep an unrelated leaf-like glyph in the banner. Shape is identity and colour
@@ -901,6 +897,13 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-banner-menu > .lf-btn { width: 100%; border-color: transparent;
     background: none; text-align: left; }
   .lf-banner-menu > .lf-btn:hover { background: var(--chip); }
+  /* The fold moves the row's own node, so an address folded while it is doing
+     something has to go on saying so. The menu's resting rule clears the same two
+     declarations the row's does, and for the same reason, so `.on` needs the same
+     answer here: the treatment the open workspace already keeps in the menu on its
+     own specificity. The menu reserves no width, so nothing is spent restating it. */
+  .lf-banner-menu > .lf-btn.on {
+    background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
   /* The line's momentary other words (notifications.js), in its place rather than beside
      it: the row holds one sentence at a time, and a narrow window clips the notice the
      way it clips the line. Ink rather than the line's ink-2, since it is news. */
@@ -1251,7 +1254,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* One baseline separates conversations without putting boxes back around them. */
   .lf-thread, .lf-going { --lf-thread-pad: 8px; position: relative;
     border: 1px solid transparent; border-block-end-color: var(--rule);
-    border-radius: var(--r); padding: var(--lf-thread-pad); margin-bottom: 8px;
+    padding: var(--lf-thread-pad); margin-bottom: 8px;
     --lf-frame: 1; }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long
@@ -1587,33 +1590,28 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     stroke: var(--accent); }
   .lf-visual-mark { position: absolute; display: none; pointer-events: none;
     --lf-shape-ink: var(--mark-ink); --lf-shape-stroke: 1px;
-    --lf-shape-dash: none;
-    border: 0; }
-  .lf-visual-mark.lf-visual-mark-comment {
-    border-inline-start: 2px solid var(--mark-ink);
-    background-image: linear-gradient(var(--mark), var(--mark)); }
-  .lf-visual-mark.lf-visual-mark-reaction {
-    --lf-shape-dash: 3px 2px; border: 1px dashed var(--mark-ink);
-    background-image: linear-gradient(var(--react), var(--react)); }
+    border: 1px solid var(--mark-ink);
+    /* This layer is above the target's children. Keep its interior physically unable
+       to paint over them, including under package and page-local theme rules. */
+    background: none !important; }
   .lf-visual-mark.lf-visual-mark-pending {
-    border-inline-start: 2px solid var(--accent);
-    background-image: linear-gradient(var(--mark-pending), var(--mark-pending)); }
+    --lf-shape-stroke: var(--here-ring-w);
+    border: var(--here-ring-w) solid var(--accent); }
   .lf-visual-mark.lf-visual-mark-action {
     --lf-shape-ink: var(--accent); border: 1px solid var(--accent); }
   .lf-visual-mark.lf-visual-mark-hover {
-    background-image: linear-gradient(var(--mark-hover), var(--mark-hover)); }
-  .lf-visual-mark.lf-visual-mark-focus {
     border: var(--here-ring-w) solid var(--accent); }
+  .lf-visual-mark.lf-visual-mark-focus {
+    --lf-shape-ink: var(--accent); border: var(--here-ring-w) solid var(--accent); }
   .lf-visual-mark:is(.lf-visual-mark-hover, .lf-visual-mark-focus,
       .lf-visual-mark-here) {
     --lf-shape-stroke: var(--here-ring-w); }
-  .lf-visual-mark:is(.lf-visual-mark-pending, .lf-visual-mark-here) {
+  .lf-visual-mark:is(.lf-visual-mark-pending, .lf-visual-mark-hover,
+      .lf-visual-mark-here) {
     --lf-shape-ink: var(--accent); }
   .lf-visual-mark.lf-visual-mark-here {
-    --lf-shape-dash: none; border-inline-start-color: var(--accent);
-    background-image: linear-gradient(var(--mark-strong), var(--mark-strong)); }
-  .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important;
-    background-image: none; }
+    border: var(--here-ring-w) solid var(--accent); }
+  .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important; }
   .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-composer { display: none; }
   .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {

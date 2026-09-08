@@ -1367,7 +1367,6 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
     )
     thread = page.locator(".lf-margin-preview .lf-conversation-thread")
     note = page.locator("#p .lf-mark-note")
-    resting = thread.evaluate("el => getComputedStyle(el).backgroundColor")
 
     note.click()
     expect(thread).to_be_focused()
@@ -1377,6 +1376,12 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
           outline: s.outlineStyle, background: s.backgroundColor,
           shadow: s.boxShadow,
         }; }"""
+    )
+    # The preview builds the thread when it opens it, and opening it from the mark
+    # makes it current, so the resting tint is only readable from the same element
+    # once the region gives the focus back.
+    resting = thread.evaluate(
+        "el => { el.blur(); return getComputedStyle(el).backgroundColor; }"
     )
     assert pointer["outline"] == "none"
     assert pointer["background"] != resting
@@ -1410,6 +1415,11 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
         }; }"""
     )
     assert writing == current
+    # One ring and no accented border: the reply wears the text box's band, which
+    # replaces the resting border rather than standing off it. `theme.css` states
+    # that inside `.lf-conversation-thread` so a thread seated in a widget's shadow
+    # tree wears the same band, and the chrome text-box rule states it for the
+    # document; both say the same thing, so this reading is the same either way.
     assert reply_ring == {
         "style": "solid",
         "width": "2px",
@@ -1513,11 +1523,15 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
             ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-head'
           ).getBoundingClientRect();
           return {controlTop: control.top, expectedTop: own.top + inset,
-                  controlBottom: control.bottom, headBottom: head.bottom};
+                  controlBottom: control.bottom, headTop: head.top,
+                  headBottom: head.bottom};
         }"""
     )
     assert placement["controlTop"] == pytest.approx(placement["expectedTop"], abs=1)
     assert placement["controlBottom"] <= placement["headBottom"], (
+        f"Resolve hung below the first inline message's row: {placement}"
+    )
+    assert placement["headTop"] < placement["controlBottom"], (
         f"Resolve took a row above the first inline message: {placement}"
     )
 
@@ -1982,20 +1996,23 @@ def test_the_pointer_over_a_comment_lights_the_passage_it_is_about(browser, serv
     wait_hovered(page, "neighbouring block")
 
     # An element anchor answers too, in the chrome projection above its descendants.
-    # ::highlight paints glyphs and a box has none, so the projected wash carries the
+    # ::highlight paints glyphs and a box has none, so the contour gains weight for the
     # middle step. Without it the pointer over an element-anchored card did nothing at
     # all, which from the panel reads as a broken hover rather than as a passage with no
     # words.
+    hovered_el = page.locator("#fig")
+    hovered_el.scroll_into_view_if_needed()
     page.mouse.move(*card_body(page, "on the figure"))
     wait_hovered(page, "")
-    hovered_el = page.locator("#fig")
     expect(hovered_el).to_have_class(re.compile(r"\blf-mark-hover\b"))
-    hovered_wash = hovered_el.evaluate("el => getComputedStyle(el).backgroundImage")
+    hovered_mark = page.locator('.lf-visual-mark[data-for="fig"]')
+    expect(hovered_mark).to_have_class(re.compile(r"\blf-visual-mark-hover\b"))
+    hovered_width = hovered_mark.evaluate("el => getComputedStyle(el).borderLeftWidth")
     page.mouse.move(*card_body(page, "on the second"))
     wait_hovered(page, "neighbouring block")
     assert (
-        hovered_el.evaluate("el => getComputedStyle(el).backgroundImage")
-        != hovered_wash
+        hovered_mark.evaluate("el => getComputedStyle(el).borderLeftWidth")
+        != hovered_width
     )
 
     # Standing in one comment while pointing at another says both, because they answer

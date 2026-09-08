@@ -2268,17 +2268,23 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     stranded = page.locator(".lf-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
-    # The projected mark stays above the figure's own paint and combines a quiet wash
-    # with the rail that distinguishes "has a thread" from a focus ring.
+    # The projected contour stays above the figure's own paint without putting any
+    # paint over its contents.
     figure = page.locator("#fig")
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     figure.scroll_into_view_if_needed()
     expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
     expect(mark).to_be_visible()
-    assert "linear-gradient" in mark.evaluate(
-        "node => getComputedStyle(node).backgroundImage"
+    look = mark.evaluate(
+        """node => { const style = getComputedStyle(node); return {
+          background: style.backgroundImage,
+          borders: [style.borderTopWidth, style.borderRightWidth,
+                    style.borderBottomWidth, style.borderLeftWidth],
+        }; }"""
     )
+    assert look["background"] == "none", look
+    assert len(set(look["borders"])) == 1 and look["borders"][0] != "0px", look
     assert errors == []
     page.close()
 
@@ -2333,6 +2339,75 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
         f"the hover promised the thread on {seam['at']}, and the press at the same point "
         f"opened: {opened}"
     )
+    assert errors == []
+    page.close()
+
+
+def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
+    """A pointer press briefly moves focus from an open thread to the page before its
+    click restores the reply field. The mark must not look deselected during that gap.
+
+    A reaction shares this target with the comment because that was the visible failure:
+    losing the current-thread paint exposed the passive reaction contour underneath.
+    Hover and current therefore need to resolve to the same accent contour for the whole
+    down/up gesture, while passive feedback remains the quieter hairline.
+    """
+    url = serve(INLINE_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the figure.",
+            "anchor": {"section": "fig"},
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "keep",
+            "anchor": {"section": "fig"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    figure = page.locator("#fig")
+    figure.scroll_into_view_if_needed()
+    mark = page.locator('.lf-visual-mark[data-for="fig"]')
+    expect(mark).to_be_visible()
+
+    look = """node => { const style = getComputedStyle(node); return {
+      line: style.borderStyle,
+      width: style.borderWidth,
+      color: style.borderColor,
+    }; }"""
+    passive = mark.evaluate(look)
+    assert passive["line"] == "solid"
+
+    box = figure.bounding_box()
+    point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.move(*point)
+    page.mouse.click(*point)
+    page.wait_for_function("() => document.activeElement?.matches('textarea.lf-ui')")
+    selected = mark.evaluate(look)
+
+    page.mouse.move(*point)
+    page.mouse.down()
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+    pressed = mark.evaluate(look)
+    page.mouse.up()
+
+    assert selected == pressed, (
+        f"the selected contour changed during mouse-down: {selected} -> {pressed}"
+    )
+    assert selected["line"] == "solid"
+    assert selected["width"] != passive["width"]
+    assert selected["color"] != passive["color"]
     assert errors == []
     page.close()
 
@@ -3263,6 +3338,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # that closed the menu on the press alone would ask where the walk stands from a loaded
     # machine and be told the version being read.
     expect(btn).to_have_text("v2")
+    expect(btn).to_have_class(re.compile(r"\bon\b"))
 
     # Escape closes and hands focus back to the press, so the next Tab carries on
     # from the banner rather than from the top of the document. This is the standing the
@@ -3287,11 +3363,13 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_visible()
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
     expect(btn).to_have_text("v2")
+    expect(btn).to_have_class(re.compile(r"\bon\b"))
     expect(btn).to_have_attribute("title", re.compile(r"\(g V\)$"))
     # And walking back down to the version being read is the way off it, which is the row
     # an open lands on with nothing standing.
     page.keyboard.press("ArrowDown")
     expect(btn).to_have_text("v2")
+    expect(btn).not_to_have_class(re.compile(r"\bon\b"))
     # Inside the menu the letter is the menu's own — the newest version, tested where
     # it navigates — so Escape is what closes this.
     page.keyboard.press("Escape")
@@ -4253,6 +4331,26 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     assert ready == panel_send.evaluate(button_face)
     assert ready["backgroundColor"] != quiet["backgroundColor"]
     assert ready["cursor"] == "pointer"
+
+    # The reply is a text box in either seat, so it wears the text box's one band:
+    # the ring replaces the resting border rather than standing a second edge off
+    # it. The panel's copy takes that from the chrome stylesheet, and the inline
+    # copy — inside a declared shadow tree no document rule reaches — takes it from
+    # the theme's own shadow slice, which is why the two readings can be compared.
+    ring = """el => { el.focus(); const s = getComputedStyle(el); return {
+      style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset,
+      border: s.borderColor, name: s.getPropertyValue('--lf-here-ring').trim(),
+    }; }"""
+    band = thread.locator("textarea").evaluate(ring)
+    assert band == panel_thread.locator("textarea").evaluate(ring)
+    assert band == {
+        "style": "solid",
+        "width": "2px",
+        "offset": "0px",
+        "border": "rgba(0, 0, 0, 0)",
+        "name": "text-box",
+    }
+
     panel_thread.locator("textarea").fill("")
     expect(inline_send).to_be_disabled()
     page.get_by_role("button", name=re.compile("^Threads")).click()
@@ -4891,10 +4989,9 @@ TEXT_MARKS = ("lf-mark", "lf-react")
 # The strip is read under the glyphs rather than across them, because a line and a letter
 # are not told apart by colour: both are ink at the same ratio. Below the baseline the
 # only ink a passage has of its own is its descenders, which are stems — a couple of
-# columns each. A rule drawn there takes half the columns when it is dashed and all of
-# them when it is solid. So the floor sits far above what descenders reach and far below
-# what the thinner of the two lines draws, and the unmarked control below is what says
-# which side of it this page is on.
+# columns each. A solid rule spans most of the strip. So the floor sits far above what
+# descenders reach and far below what the thinner of the two lines draws, and the
+# unmarked control below is what says which side of it this page is on.
 LINE_COVERAGE = 0.3
 
 
@@ -4965,12 +5062,12 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
     The wash cannot be that notice, and no alpha can make it one: --mark composites to
     1.13:1 over the light paper, and its hue does not reach 1.5:1 against that paper at
     any alpha at all — opaque it stands at 1.38:1. So the layer marks words the way it
-    marks elements, with a line: an element anchor wears a --mark-ink rail at 9:1
+    marks elements, with a line: an element anchor wears a --mark-ink contour at 9:1
     (.lf-visual-mark), and a passage wears the same ink as an underline.
 
-    A reaction had the element half of that pair (.lf-react-el, dashed) and not the text
-    half. On words it was --react alone, 1.08:1 over the light paper — a mark that is in
-    the log and not on the screen. Both names are read here.
+    A reaction had the element half of that pair and not the text half. On words it was
+    --react alone, 1.08:1 over the light paper — a mark that is in the log and not on the
+    screen. Both names are read here.
 
     Read off the drawn page rather than off the rules, because what a highlight pseudo is
     allowed to carry is the browser's to decide and a declaration that stopped applying
@@ -5001,6 +5098,13 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
         page.wait_for_function(
             "(name) => (CSS.highlights.get(name)?.size ?? 0) > 0", arg=name
         )
+    line_styles = page.evaluate(
+        "(names) => Object.fromEntries(names.map(name => "
+        "[name, getComputedStyle(document.documentElement, `::highlight(${name})`)"
+        ".textDecorationStyle]))",
+        TEXT_MARKS,
+    )
+    assert line_styles == {name: "solid" for name in TEXT_MARKS}, line_styles
     paper = tuple(
         page.evaluate(
             "() => getComputedStyle(document.body).backgroundColor"

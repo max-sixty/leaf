@@ -2,10 +2,10 @@
  *
  * Every element annotation contributes its shown box. A declared visual widget, or a
  * registered visual part, can substitute its drawn surface and, for SVG, painted
- * geometry that Leaf clones into chrome. The projection keeps rails and rings above
- * package-owned descendants without changing document layout. The painter owns geometry
- * caching: scroll only moves cached paint; a layout, resize, source replacement, or
- * target change rebuilds it. */
+ * geometry that Leaf clones into chrome. The projection keeps hollow contours above
+ * package-owned descendants without changing document layout or painting over their
+ * contents. The painter owns geometry caching: scroll only moves cached paint; a layout,
+ * resize, source replacement, or target change rebuilds it. */
 
 import { clippedRect, documentPoint, shownBox } from "./geometry.js";
 import { el } from "./widget-elements.js";

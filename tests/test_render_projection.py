@@ -1853,6 +1853,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         page.wait_for_timeout(0)
         assert len(requests) >= 2, "the stale comparison view was not retried"
         expect(page.locator(".lf-version")).to_have_text("v2")
+        expect(page.locator(".lf-version")).to_have_class(re.compile(r"\bon\b"))
         expect(page.locator("#new-copy")).to_have_class(re.compile(r"lf-ins-block"))
         expect(page.locator("#t-parser")).not_to_have_class(re.compile(r"lf-ins-block"))
     finally:

@@ -100,6 +100,10 @@ disclosure watch; `runtime/keyboard/page.js` owns the page's own scopes and rows
 `runtime/notifications.js` owns visual and assistive announcements and the notice
 element the banner seats;
 `runtime/arrangements.js` owns the browser-state arrangements the arrival gate exercises;
+`runtime/reading-regions.js` owns reading-region identities, effective scrollers,
+allocation and bounded/flow posture transitions;
+`runtime/reading-layout.js` owns shared arrangement construction and furniture slots
+used by structural and compound widgets;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
 `runtime/presence.js` owns the calibrated server clock, relative-time wording,
 and the deadline at which canonical activity asks for another server read;
@@ -418,7 +422,7 @@ The extension keys describe general behavior:
 | `x-measured` | authored scalar words are pinned at an instant to one live data input; checks compare that instant with the source's latest update |
 | `x-says` | named attributes are visible words at declared edges |
 | `x-paints` | named attributes communicate facts through paint and need a quiet spoken reading |
-| `x-verbatim` | authored data must agree with the rendered words |
+| `x-verbatim` | own authored words and the order and identity of nested upgraded boundaries must agree with the rendering |
 | `x-shadow` | a declared open shadow tree is part of the page's composed reading |
 | `x-state` | reader action verbs, current eligibility, facets, units, schemas, and records |
 | `x-report` | report verbs with the same semantic state shape |

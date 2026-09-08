@@ -30,6 +30,8 @@ PUBLIC_TABS = [
     ("release-notes", "Notes"),
     ("triage-board", "Triage"),
     ("command-hub", "Command"),
+    ("notification-playground", "Notification"),
+    ("review-queue", "Review queue"),
     ("ship-review", "Ship review"),
     ("log-retention", "Retention"),
 ]

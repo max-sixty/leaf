@@ -13,6 +13,11 @@ import { settle, settling } from "./widget-upgrade.js";
 import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
 import { buildReactBar } from "./reactions.js";
 import { rememberAuthoredParents } from "./projection/authored.js";
+import {
+  opaquePassageParts,
+  opaquePassageRoots,
+  verbatimBoundaryIdentity,
+} from "./passages.js";
 
 /* Registry loading and the one initial widget-upgrade lifecycle.
 
@@ -29,20 +34,34 @@ import { rememberAuthoredParents } from "./projection/authored.js";
 
    Required widget imports reject through the startup or activation boundary; a missing
    module cannot count as a completed upgrade. */
-// The file-side passage reader fences an upgraded element and each of its original
-// direct children when the registry cannot promise its body is verbatim. Remember
-// those parts before custom-element definitions can add or move anything, so the
-// browser can stop captured context at the same seams after every upgrade has run.
-export const opaquePassageRoots = new WeakSet();
-export const opaquePassageParts = new WeakSet();
+// An opaque widget and its original direct children fence passage capture. A
+// preserving widget owns prose around ordered upgraded-child boundaries instead.
+// Record both readings before upgrades move or replace nodes.
+const rememberedPassageRoots = new WeakSet();
 
 export function rememberPassageParts(scope = document) {
   for (const tag of tagsDeclaring(
     (entry) => entry["x-upgrade"] && !entry["x-verbatim"],
   ))
     for (const root of scope.querySelectorAll(tag)) {
+      if (rememberedPassageRoots.has(root)) continue;
+      rememberedPassageRoots.add(root);
       opaquePassageRoots.add(root);
       for (const child of root.children) opaquePassageParts.add(child);
+    }
+  for (const tag of tagsDeclaring((entry) => entry["x-verbatim"]))
+    for (const root of scope.querySelectorAll(tag)) {
+      if (rememberedPassageRoots.has(root)) continue;
+      rememberedPassageRoots.add(root);
+      let index = 0;
+      const visit = (owner) => {
+        for (const child of owner.children) {
+          if (registry[child.localName]?.["x-upgrade"]) {
+            verbatimBoundaryIdentity.set(child, { owner: root, index: index++ });
+          } else visit(child);
+        }
+      };
+      visit(root);
     }
 }
 

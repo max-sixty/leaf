@@ -1428,6 +1428,92 @@ gallery/
         </lf-tabs>
       </section>
 
+      <section id="bg-layout-family">
+        <p class="eyebrow bg-feature-elements">lf-workspace · lf-pane · lf-split</p>
+        <h2>
+          <strong>Workspace regions</strong
+          ><span class="bg-feature-detail">: nested reading areas</span>
+        </h2>
+        <p id="bg-layout-guide">
+          This workspace is embedded in a document, so its list, detail regions, and
+          action footer stay in document flow. The same pane and split markup can divide
+          a root workspace into columns and rows when the window has room.
+        </p>
+        <lf-workspace id="bg-layout-workspace">
+          <header><h3>Release candidate review</h3></header>
+          <lf-split id="bg-layout-columns" direction="columns">
+            <lf-pane id="bg-layout-list" label="Changes">
+              <header><h4>Changes</h4></header>
+              <lf-tabs id="bg-layout-tabs">
+                <lf-tab id="bg-layout-summary" label="Summary">
+                  <p>
+                    The candidate changes cache keys, receipts, and settlement jobs.
+                  </p>
+                  <ul>
+                    <li>Cache migration copies active entries before cutover.</li>
+                    <li>Receipts show refunds in the settlement currency.</li>
+                    <li>Invalid jobs leave the shared queue for review.</li>
+                  </ul>
+                </lf-tab>
+                <lf-tab id="bg-layout-risk" label="Risk">
+                  <p>
+                    The cache migration is the only change that rewrites stored data.
+                  </p>
+                </lf-tab>
+              </lf-tabs>
+            </lf-pane>
+
+            <lf-split id="bg-layout-rows" direction="rows">
+              <lf-pane id="bg-layout-evidence" label="Evidence">
+                <header><h4>Evidence</h4></header>
+                <article id="bg-layout-article">
+                  <header><strong>Migration rehearsal</strong></header>
+                  <p>
+                    The rehearsal copied 8,412 active keys and preserved every value.
+                  </p>
+                  <details id="bg-layout-trace">
+                    <summary>Inspect the command trace</summary>
+                    <pre><code>copy --source cache-v1 --target cache-v2 --active-only
+verify --source cache-v1 --target cache-v2 --compare values
+switch --readers checkout-api,orders-api</code></pre>
+                  </details>
+                </article>
+              </lf-pane>
+
+              <lf-pane id="bg-layout-tasks" label="Follow-ups">
+                <header><h4>Follow-ups</h4></header>
+                <lf-board id="bg-layout-board">
+                  <lf-column id="bg-layout-ready" label="Ready">
+                    <lf-card id="bg-layout-cache-card"
+                      ><strong>Verify cache expiry</strong> Confirm old keys leave after
+                      the rollback window.</lf-card
+                    >
+                  </lf-column>
+                  <lf-column id="bg-layout-running" label="Running">
+                    <lf-card id="bg-layout-receipt-card"
+                      ><strong>Sample refund receipts</strong> Compare three settlement
+                      currencies.</lf-card
+                    >
+                  </lf-column>
+                  <lf-column id="bg-layout-done" label="Done"></lf-column>
+                </lf-board>
+                <footer>
+                  <lf-ask id="bg-layout-ask">
+                    <h5>Is this candidate ready?</h5>
+                    <lf-options id="bg-layout-decision" choose>
+                      <lf-option id="bg-layout-ship">Ship this candidate</lf-option>
+                      <lf-option id="bg-layout-hold"
+                        >Hold for another rehearsal</lf-option
+                      >
+                    </lf-options>
+                  </lf-ask>
+                </footer>
+              </lf-pane>
+            </lf-split>
+          </lf-split>
+        </lf-workspace>
+      </section>
+
       <section id="bg-version-changes">
         <p class="eyebrow bg-feature-elements">Version picker · Change control</p>
         <h2>

@@ -2,17 +2,47 @@
  * the real preview owns the larger field. */
 lf-playground {
   --lf-frame: 1;
-  display: grid;
-  grid-template-columns: minmax(14rem, .72fr) minmax(0, 1.28fr);
-  gap: var(--sp-4);
+  display: block;
   box-sizing: border-box;
   width: min(100%, 58rem);
+  max-height: 100%;
   margin: var(--sp-4) auto;
   padding: var(--sp-4);
   border: 1px solid var(--border-2);
   border-radius: calc(var(--r) * 1.35);
   background: var(--card);
   container-type: inline-size;
+}
+
+lf-playground > .lf-workspace-content,
+lf-playground .lf-playground-split,
+lf-playground .lf-playground-split > .lf-split-content {
+  min-height: 0;
+}
+
+lf-playground .lf-playground-split > .lf-split-content {
+  gap: var(--sp-4);
+  background: transparent;
+}
+
+lf-playground
+  :is(.lf-playground-controls-region, .lf-playground-preview-region)
+  > .lf-pane-content
+  > .lf-pane-body {
+  padding: 0;
+}
+
+.lf-playground-controls-region > .lf-pane-content > .lf-pane-body {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-3);
+}
+
+.lf-playground-preview-region > .lf-pane-content > .lf-pane-body {
+  display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: var(--sp-3);
 }
 
 .lf-playground-controls {
@@ -26,7 +56,7 @@ lf-playground {
   margin: 0;
   color: var(--muted);
   font: 600 var(--t-6)/1.3 var(--sans);
-  letter-spacing: .065em;
+  letter-spacing: 0.065em;
   text-transform: uppercase;
 }
 
@@ -46,8 +76,10 @@ lf-playground-control {
 }
 
 lf-playground-control > input[type="range"] {
+  box-sizing: border-box;
   grid-column: 1 / -1;
   width: 100%;
+  margin: 0;
   accent-color: var(--accent);
 }
 
@@ -120,7 +152,6 @@ lf-playground-choice input {
 
 .lf-playground-presets {
   display: flex;
-  grid-column: 1 / -1;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-2);
@@ -164,7 +195,6 @@ lf-playground-preview {
 lf-playground-output {
   --lf-frame: 1;
   display: block;
-  grid-column: 1 / -1;
   margin: 0;
   padding: var(--sp-2) var(--sp-3);
   border-left: 3px solid var(--accent);
@@ -181,7 +211,6 @@ lf-playground-value {
 
 .lf-playground-actions {
   display: flex;
-  grid-column: 1 / -1;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--sp-2);
@@ -197,21 +226,15 @@ lf-playground.lf-playground-quoted .lf-playground-controls,
 lf-playground.lf-playground-quoted .lf-playground-actions,
 lf-playground.lf-playground-quoted > lf-playground-control,
 lf-playground.lf-playground-quoted > lf-playground-preset,
-html.lf-copy lf-playground > .lf-playground-controls,
-html.lf-copy lf-playground > .lf-playground-presets,
+html.lf-copy lf-playground .lf-playground-controls,
+html.lf-copy lf-playground .lf-playground-presets,
 html.lf-copy lf-playground > .lf-playground-actions {
   display: none;
 }
 
 @container (max-width: 38rem) {
   lf-playground {
-    grid-template-columns: minmax(0, 1fr);
     padding: var(--sp-3);
-  }
-
-  lf-playground-output,
-  .lf-playground-actions {
-    grid-column: 1;
   }
 
   lf-playground-preview {

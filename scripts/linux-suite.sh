@@ -32,6 +32,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
+git_common_dir="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)"
 
 # The default reproduces CI's everyday job. A nightly failure's group number and the
 # remaining split arguments above reproduce that job's exact selection and parallelism.
@@ -54,9 +55,12 @@ docker build "${build[@]}" -t "$tag" -f "$HERE/linux-suite.Dockerfile" "$HERE"
 # --shm-size, because Chrome's default 64MB there is where a tab dies mid-suite. The
 # named volumes hold uv's packages and Playwright's browser. The first run fills them,
 # and a container thrown away after every run still resolves against warm caches.
-exec docker run --rm "${run[@]}" --shm-size=2g \
-  -v "$ROOT:/repo" -v "$tag-uv:/root/.cache/uv" \
+exec docker run --rm "${run[@]}" --shm-size=2g --workdir "$ROOT" \
+  -v "$ROOT:$ROOT" -v "$git_common_dir:$git_common_dir:ro" \
+  --mount "type=volume,dst=$ROOT/.venv,volume-nocopy" \
+  -v "$tag-uv:/root/.cache/uv" \
   -v "$tag-playwright:/root/.cache/ms-playwright" \
   "$tag" bash -c \
-    'uv run --frozen playwright install chromium --only-shell && exec uv run --frozen pytest "$@"' \
+    'uv run --frozen playwright install chromium --only-shell \
+      && exec uv run --frozen pytest "$@"' \
     bash "$@"

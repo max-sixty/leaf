@@ -385,7 +385,10 @@ def headless_shell():
         raise AssertionError(f"{chromium} is not under a Playwright chromium build")
     root, build = versioned.parent, versioned.name.rsplit("-", 1)[1]
     shell = root / f"chromium_headless_shell-{build}"
-    for candidate in (*sorted(shell.glob("*/chrome-headless-shell*")), chromium):
+    shell_executables = sorted(shell.glob("*/chrome-headless-shell*")) + sorted(
+        shell.glob("*/headless_shell")
+    )
+    for candidate in (*shell_executables, chromium):
         if candidate.is_file():
             return str(candidate)
     raise AssertionError(

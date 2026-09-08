@@ -132,11 +132,7 @@ function conversationThreadNode(host, t, collapsible = false) {
   let tail;
   let resolve;
   if (t.resolved) {
-    thread
-      .querySelector(
-        ":scope > .lf-conversation-msg > .lf-conversation-head > .lf-resolve",
-      )
-      ?.remove();
+    thread.querySelector(":scope > .lf-resolve")?.remove();
     tail = thread.querySelector(":scope > .lf-conversation-resolved");
     const settledBy =
       t.resolved.author === "claude"
@@ -150,10 +146,7 @@ function conversationThreadNode(host, t, collapsible = false) {
       tail.firstChild.textContent = settledBy;
   } else {
     resolve =
-      thread.querySelector(
-        ":scope > .lf-conversation-msg > .lf-conversation-head > .lf-resolve",
-      ) ?? settlementControl(t, { liveId });
-    messages[0]?.querySelector(":scope > .lf-conversation-head")?.append(resolve);
+      thread.querySelector(":scope > .lf-resolve") ?? settlementControl(t, { liveId });
     if (t.root.response?.kind !== "version") {
       tail = thread.querySelector(":scope > .lf-say");
       if (!tail) {
@@ -171,6 +164,7 @@ function conversationThreadNode(host, t, collapsible = false) {
   // message, so it is the full-width fallback immediately before the thread's tail.
   setChildren(thread, [
     ...(summary ? [summary] : []),
+    ...(resolve ? [resolve] : []),
     ...messages,
     ...receipts,
     ...(tail ? [tail] : []),

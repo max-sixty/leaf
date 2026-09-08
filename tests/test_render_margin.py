@@ -719,7 +719,9 @@ def test_a_docked_cluster_keeps_later_margin_elements_beside_their_targets(
     page.close()
 
 
-def test_a_transient_margin_element_label_avoids_the_next_margin_element(browser, serve):
+def test_a_transient_margin_element_label_avoids_the_next_margin_element(
+    browser, serve
+):
     """A tooltip moves rather than covering a neighboring margin element."""
     fixture = leaf_page(
         "Close margin labels",
@@ -781,7 +783,9 @@ def test_a_transient_margin_element_label_avoids_the_next_margin_element(browser
 
 
 @pytest.mark.parametrize("width", [1440, 390])
-def test_dense_suggestion_labels_cover_no_neighboring_margin_element(browser, serve, width):
+def test_dense_suggestion_labels_cover_no_neighboring_margin_element(
+    browser, serve, width
+):
     """Every label in a tightly stacked real cluster finds a clear side."""
     page, errors = open_page(browser, serve(DENSE_SUGGESTIONS_PAGE))
     resized(page, width, 900)
@@ -1020,7 +1024,9 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
         if event.get("token") == "prioritize"
         and event.get("anchor", {}).get("section") == "bg-crowded"
     )
-    take_back = sheet.locator(f'[data-lf-map-margin-element$=":take-back:{reaction["id"]}"]')
+    take_back = sheet.locator(
+        f'[data-lf-map-margin-element$=":take-back:{reaction["id"]}"]'
+    )
     expect(take_back).to_have_attribute("aria-label", "prioritize — take it back")
     with sending(page, "the withdrawal of the spilled reaction"):
         take_back.click()
@@ -1069,7 +1075,9 @@ def test_the_feature_gallery_displays_the_complete_margin_element_schema(
     ) == {"default"}
 
     def specimen(name):
-        return atlas.locator(f'[data-margin-element-specimen="{name}"] > .lf-margin-element')
+        return atlas.locator(
+            f'[data-margin-element-specimen="{name}"] > .lf-margin-element'
+        )
 
     busy = specimen("busy")
     marks = {
@@ -1458,13 +1466,17 @@ def test_margin_registration_rejects_ambiguous_margin_element_identity(browser, 
           return null;
         }"""
     )
-    assert message == 'Duplicate margin element key "same" in margin cluster "ambiguous"'
+    assert (
+        message == 'Duplicate margin element key "same" in margin cluster "ambiguous"'
+    )
     expect(page.locator('[data-lf-margin-for="how-cap"]')).to_have_count(0)
     assert errors == []
     page.close()
 
 
-def test_open_page_map_uses_the_canonical_margin_element_record_and_live_state(browser, serve):
+def test_open_page_map_uses_the_canonical_margin_element_record_and_live_state(
+    browser, serve
+):
     """One retained proxy follows margin element semantics and ARIA without owning activation."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
@@ -1569,7 +1581,9 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
 
     page.keyboard.press("g")
     expect(page.locator(".lf-page-map-sheet")).to_be_hidden()
-    locations = page.locator(f'{CHIPS}[data-lf-address-kind="Margin control or status indicator"]')
+    locations = page.locator(
+        f'{CHIPS}[data-lf-address-kind="Margin control or status indicator"]'
+    )
     expect(locations).to_have_count(1)
 
     # When the motion settles, regenerate the map over the newly visible window.
@@ -1581,7 +1595,9 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
         })"""
     )
     expect(locations).to_have_count(1)
-    page.keyboard.type(address_code(page, "Margin control or status indicator", "map-11"))
+    page.keyboard.type(
+        address_code(page, "Margin control or status indicator", "map-11")
+    )
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(preview).to_contain_text("Map note 11")
@@ -1774,7 +1790,9 @@ def test_g_hints_press_each_visible_page_map_margin_element(browser, serve):
     expect(suggestion_hints).to_have_count(2)
     with sending(page, "the addressed suggestion's acceptance"):
         page.keyboard.type(
-            address_code(page, "Margin control or status indicator", "address-action", "accept")
+            address_code(
+                page, "Margin control or status indicator", "address-action", "accept"
+            )
         )
     expect(page.locator("#address-action lf-old")).to_be_hidden()
     expect(page.locator("#address-action lf-new")).to_be_visible()
@@ -1785,7 +1803,9 @@ def test_g_hints_press_each_visible_page_map_margin_element(browser, serve):
     expect(page.locator("#address-action lf-old")).to_be_visible()
 
     with sending(page, "the addressed suggestion's rejection"):
-        go_to_address(page, "Margin control or status indicator", "address-action", "reject")
+        go_to_address(
+            page, "Margin control or status indicator", "address-action", "reject"
+        )
     expect(page.locator("#address-action lf-old")).to_be_visible()
     expect(page.locator("#address-action lf-new")).to_be_hidden()
 
@@ -1817,7 +1837,9 @@ def test_g_hints_press_each_visible_page_map_margin_element(browser, serve):
           button.tabIndex = 0;
         }"""
     )
-    go_to_address(page, "Margin control or status indicator", "address-disclosure", "edit")
+    go_to_address(
+        page, "Margin control or status indicator", "address-disclosure", "edit"
+    )
     expect(page.locator("#address-disclosure textarea")).to_be_focused()
     expect(disclosure).to_be_hidden()
 
@@ -1877,7 +1899,9 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
     )
     expect(search).to_be_focused()
     expect(sheet.locator(".lf-page-map-group:visible")).to_have_count(0)
-    expect(sheet.get_by_text("No matching actions, statuses, or locations")).to_be_visible()
+    expect(
+        sheet.get_by_text("No matching actions, statuses, or locations")
+    ).to_be_visible()
     page.evaluate(
         """() => {
           const passage = document.querySelector('#bg-neighbors');
@@ -1911,7 +1935,9 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
     page.close()
 
 
-def test_tab_into_a_margin_element_cluster_replaces_ellipsis_with_all_margin_elements(browser, serve):
+def test_tab_into_a_margin_element_cluster_replaces_ellipsis_with_all_margin_elements(
+    browser, serve
+):
     """Keyboard arrival expands one target's peers instead of focusing its overflow."""
     page, errors = open_page(browser, serve(MARGIN_ELEMENT_KEYBOARD_PAGE))
     resized(page, 1440, 900)
@@ -2086,7 +2112,8 @@ def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
 def test_margin_element_tone_colors_only_the_icon(browser, serve, scheme):
     """State keeps its distinct shape; tone never recolors the shell or state mark."""
     page, errors = open_page(
-        browser, serve(leaf_page("margin element tones", '<p id="target">A shared target</p>'))
+        browser,
+        serve(leaf_page("margin element tones", '<p id="target">A shared target</p>')),
     )
     page.emulate_media(color_scheme=scheme, reduced_motion="reduce")
     resized(page, 1440, 900)
@@ -2177,7 +2204,9 @@ def test_margin_element_tone_colors_only_the_icon(browser, serve, scheme):
     page.close()
 
 
-def test_one_target_has_one_primary_margin_element_and_inline_secondary_margin_elements(browser, serve):
+def test_one_target_has_one_primary_margin_element_and_inline_secondary_margin_elements(
+    browser, serve
+):
     """A primary action acts; the ellipsis unfolds the remaining margin elements in place."""
     page, errors = open_page(
         browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION])
@@ -2221,7 +2250,9 @@ def test_one_target_has_one_primary_margin_element_and_inline_secondary_margin_e
     page.keyboard.press("?")
     reference = page.locator(".lf-shortcut-reference")
     expect(reference).to_be_visible()
-    back = reference.locator('.lf-shortcut-reference-command[data-lf-command="margin.back"]')
+    back = reference.locator(
+        '.lf-shortcut-reference-command[data-lf-command="margin.back"]'
+    )
     expect(back).to_have_text("Fold the secondary page actions")
     back.click()
     expect(reference).to_be_hidden()
@@ -2251,9 +2282,9 @@ def test_one_target_has_one_primary_margin_element_and_inline_secondary_margin_e
     expect(draft_item.locator(".lf-draft-pencil")).to_have_attribute(
         "aria-expanded", "false"
     )
-    expect(draft_item.locator(".lf-draft-pencil .lf-margin-element-label")).to_have_text(
-        "Edit…"
-    )
+    expect(
+        draft_item.locator(".lf-draft-pencil .lf-margin-element-label")
+    ).to_have_text("Edit…")
     edit = draft_item.locator(".lf-draft-pencil")
     accept = suggestion.locator(".lf-sug-accept")
     expect(edit.locator(":scope > .lf-margin-element-icon")).to_be_visible()
@@ -2302,7 +2333,9 @@ def test_one_target_has_one_primary_margin_element_and_inline_secondary_margin_e
     before_hover = edit.bounding_box()
     edit.hover()
     expect(edit.locator(".lf-margin-element-label")).to_be_visible()
-    assert edit.bounding_box() == before_hover, "the transient label moved its margin element"
+    assert edit.bounding_box() == before_hover, (
+        "the transient label moved its margin element"
+    )
     page.mouse.move(0, 0)
     expect(edit.locator(".lf-margin-element-label")).to_be_hidden()
 
@@ -2651,7 +2684,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         expect(page.get_by_role("button", name=named)).to_have_count(0)
         expect(page.get_by_role("status", name=named)).to_have_count(1)
         # Hover reveals the full-strength label without dimming or lifting the margin element.
-        margin element = {
+        resting_surface = {
             key: current[key] for key in ("background", "border", "ink", "opacity")
         }
         control.hover()
@@ -2664,7 +2697,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         hovered = face(control)
         assert {
             key: hovered[key] for key in ("background", "border", "ink", "opacity")
-        } == margin element
+        } == resting_surface
         assert hovered["wordOpacity"] == "1"
         assert hovered["wordPosition"] == "absolute"
         assert hovered["wordBackground"] != "rgba(0, 0, 0, 0)"
@@ -2836,7 +2869,9 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     page.close()
 
 
-def test_secondary_margin_element_proxies_preserve_disabled_and_focus_contract(browser, serve):
+def test_secondary_margin_element_proxies_preserve_disabled_and_focus_contract(
+    browser, serve
+):
     """Proxy presses preserve a reader's explicit fold until they leave or close it."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
@@ -3006,7 +3041,9 @@ def test_margin_element_order_budget_and_spilled_actions_are_stable_at_both_widt
         item.get_by_role("button", name=f"Save {target}", exact=True).focus()
         expect(page.locator(f'.lf-target-trace[data-for="{target}"]')).to_be_visible()
         item.get_by_role("button", name=f"Save {target}", exact=True).hover()
-        label = item.locator('[data-lf-margin-element-key="save"] .lf-margin-element-label')
+        label = item.locator(
+            '[data-lf-margin-element-key="save"] .lf-margin-element-label'
+        )
         expect(label).to_be_visible()
         box = label.bounding_box()
         assert box["x"] >= 0 and box["x"] + box["width"] <= width
@@ -3047,7 +3084,9 @@ def test_margin_element_order_budget_and_spilled_actions_are_stable_at_both_widt
     )
     page.emulate_media(forced_colors="none")
 
-    page.evaluate("() => window.marginElementFixtures.forEach(fixture => fixture.rest())")
+    page.evaluate(
+        "() => window.marginElementFixtures.forEach(fixture => fixture.rest())"
+    )
     for target in ("first", "second"):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         expect(item.locator(".lf-margin-element:visible")).to_have_count(2)
@@ -3062,7 +3101,9 @@ def test_margin_element_order_budget_and_spilled_actions_are_stable_at_both_widt
     page.close()
 
 
-def test_a_reading_marker_counts_toward_the_expanded_margin_element_budget(browser, serve):
+def test_a_reading_marker_counts_toward_the_expanded_margin_element_budget(
+    browser, serve
+):
     """A reading-only target never grows a seventh margin element beside its marker."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "Keep this thread visible.", {"section": "how-cap"})
@@ -4404,7 +4445,9 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     sheet = page.locator(".lf-page-map-sheet")
     expect(sheet).to_be_visible()
     expect(
-        sheet.get_by_role("searchbox", name="Find an action, status, or location in Page map")
+        sheet.get_by_role(
+            "searchbox", name="Find an action, status, or location in Page map"
+        )
     ).to_be_focused()
     expect(sheet.locator(".lf-page-map-action").first).to_have_css("min-height", "44px")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before

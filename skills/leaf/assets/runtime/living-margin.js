@@ -432,7 +432,8 @@ const visibleMarginElementLabel = ({ behavior, label }) =>
 
 function marginElementRecord(control) {
   const record = control?.[MARGIN_ELEMENT_RECORD];
-  if (!record) throw new TypeError("A contributed margin element must use marginElement");
+  if (!record)
+    throw new TypeError("A contributed margin element must use marginElement");
   return record;
 }
 
@@ -513,14 +514,18 @@ export function marginElement(
 ) {
   if (!(control instanceof Element))
     throw new TypeError("A margin margin element needs an Element control");
-  if (!String(key ?? "").trim()) throw new TypeError("A margin margin element needs a key");
+  if (!String(key ?? "").trim())
+    throw new TypeError("A margin margin element needs a key");
   if (Boolean(String(glyph ?? "").trim()) === Boolean(icon))
     throw new TypeError("A margin margin element needs exactly one glyph or icon");
-  if (!String(label ?? "").trim()) throw new TypeError("A margin margin element needs a label");
-  if (!MARGIN_ELEMENT_TONES.has(tone)) throw new TypeError(`Unknown margin element tone: ${tone}`);
+  if (!String(label ?? "").trim())
+    throw new TypeError("A margin margin element needs a label");
+  if (!MARGIN_ELEMENT_TONES.has(tone))
+    throw new TypeError(`Unknown margin element tone: ${tone}`);
   if (!MARGIN_ELEMENT_BEHAVIORS.has(behavior))
     throw new TypeError(`Unknown margin element behavior: ${behavior}`);
-  if (!MARGIN_ELEMENT_ROLES.has(role)) throw new TypeError(`Unknown margin element role: ${role}`);
+  if (!MARGIN_ELEMENT_ROLES.has(role))
+    throw new TypeError(`Unknown margin element role: ${role}`);
   const record = control[MARGIN_ELEMENT_RECORD] ?? {};
   Object.assign(record, {
     key: String(key),
@@ -657,7 +662,8 @@ function syncMarginElementCount(control, count) {
 export function marginElementState(control, state) {
   if (!(control instanceof Element) || !control.classList.contains("lf-margin-element"))
     throw new TypeError("A margin element state needs a margin margin element");
-  if (!MARGIN_ELEMENT_STATES.has(state)) throw new TypeError(`Unknown margin element state: ${state}`);
+  if (!MARGIN_ELEMENT_STATES.has(state))
+    throw new TypeError(`Unknown margin element state: ${state}`);
   marginElementRecord(control).state = state;
   keeps(control, "data-lf-state", state);
   if (state === "busy") keeps(control, "aria-busy", "true");
@@ -798,7 +804,8 @@ function comesBefore(left, right) {
 const acknowledgments = () => runtime.activity?.interactions ?? [];
 export const renderMargin = clocked(document.body, renderNow);
 // The margin element the reader is standing on, or null off one: the press row's words read it.
-const focusedMarginElementBehavior = () => focused()?.[MARGIN_ELEMENT_RECORD]?.behavior ?? null;
+const focusedMarginElementBehavior = () =>
+  focused()?.[MARGIN_ELEMENT_RECORD]?.behavior ?? null;
 
 const nav = el("nav", "lf-ui lf-living-margin");
 // Every live page can gain an anchored comment, including one made entirely of prose.
@@ -1002,9 +1009,16 @@ sheetHead.append(sheetClose);
 const sheetSearch = el("input", "lf-page-map-search");
 sheetSearch.type = "search";
 sheetSearch.placeholder = "Find an action, status, or location";
-sheetSearch.setAttribute("aria-label", "Find an action, status, or location in Page map");
+sheetSearch.setAttribute(
+  "aria-label",
+  "Find an action, status, or location in Page map",
+);
 const sheetList = el("div", "lf-page-map-list");
-const sheetEmpty = el("p", "lf-page-map-empty", "No matching actions, statuses, or locations");
+const sheetEmpty = el(
+  "p",
+  "lf-page-map-empty",
+  "No matching actions, statuses, or locations",
+);
 sheetEmpty.hidden = true;
 sheetEmpty.setAttribute("role", "status");
 sheet.append(sheetHead, sheetSearch, sheetList, sheetEmpty);
@@ -1102,7 +1116,9 @@ const compareControlRecords = (left, right) => {
   if (role) return role;
   const offer = left.offered.key.localeCompare(right.offered.key);
   if (offer) return offer;
-  return marginElementRecord(left.control).key.localeCompare(marginElementRecord(right.control).key);
+  return marginElementRecord(left.control).key.localeCompare(
+    marginElementRecord(right.control).key,
+  );
 };
 const directControlRecords = (entry) =>
   directOffers(entry)
@@ -2018,7 +2034,10 @@ const marginKeys = [
     when: () => {
       const active = focused();
       const host = closestAcross(active, "[data-lf-margin-for]");
-      return active?.matches?.(".lf-margin-element") && clusterMarginElements(host).length > 1;
+      return (
+        active?.matches?.(".lf-margin-element") &&
+        clusterMarginElements(host).length > 1
+      );
     },
     run: stepClusterMarginElements,
   },
@@ -2471,15 +2490,23 @@ function placeMarginElementLabel(control) {
     Math.min(marginElementBox.right - labelBox.width, innerWidth - 4 - labelBox.width),
   );
   const cluster = control.closest(".lf-margin-cluster") ?? control.parentElement;
-  const clusterMarginElements = [...(cluster?.querySelectorAll(".lf-margin-element") ?? [])]
+  const clusterMarginElements = [
+    ...(cluster?.querySelectorAll(".lf-margin-element") ?? []),
+  ]
     .filter((candidate) => candidate.checkVisibility())
     .map((candidate) => candidate.getBoundingClientRect());
   const clusterLeft = Math.min(...clusterMarginElements.map((box) => box.left));
   const clusterRight = Math.max(...clusterMarginElements.map((box) => box.right));
-  const centered = (marginElementBox.top + marginElementBox.bottom - labelBox.height) / 2;
+  const centered =
+    (marginElementBox.top + marginElementBox.bottom - labelBox.height) / 2;
   const candidates = [
     labelRect("below", edgeAligned, marginElementBox.bottom + 6, labelBox),
-    labelRect("above", edgeAligned, marginElementBox.top - 6 - labelBox.height, labelBox),
+    labelRect(
+      "above",
+      edgeAligned,
+      marginElementBox.top - 6 - labelBox.height,
+      labelBox,
+    ),
     labelRect("after", clusterRight + 6, centered, labelBox),
     labelRect("before", clusterLeft - 6 - labelBox.width, centered, labelBox),
   ];
@@ -2503,8 +2530,14 @@ function placeMarginElementLabel(control) {
     candidates.find(fits) ??
     candidates[0];
   control.dataset.lfLabelSide = choice.name;
-  label.style.setProperty("--lf-label-x", `${choice.rect.left - marginElementBox.left}px`);
-  label.style.setProperty("--lf-label-y", `${choice.rect.top - marginElementBox.top}px`);
+  label.style.setProperty(
+    "--lf-label-x",
+    `${choice.rect.left - marginElementBox.left}px`,
+  );
+  label.style.setProperty(
+    "--lf-label-y",
+    `${choice.rect.top - marginElementBox.top}px`,
+  );
 }
 
 let labelPlacementFrame = 0;
@@ -2833,9 +2866,9 @@ function buildThreadCard(entry) {
     else previewList.insertBefore(node, cursor);
   }
   if (focusedItem && !focusedNode?.isConnected) {
-    const replacement = [...previewList.querySelectorAll("[data-lf-margin-element]")].find(
-      (candidate) => candidate.dataset.lfMarginElement === focusedItem,
-    );
+    const replacement = [
+      ...previewList.querySelectorAll("[data-lf-margin-element]"),
+    ].find((candidate) => candidate.dataset.lfMarginElement === focusedItem);
     const destination = replacement?.matches("button, textarea:not([disabled])")
       ? replacement
       : (replacement?.querySelector("textarea:not([disabled])") ??
@@ -3392,7 +3425,8 @@ window.addEventListener("resize", () => {
   schedulePostureRender();
 });
 
-export const marginElementChoices = (target) => clusterMarginElements(marginElementHost(target));
+export const marginElementChoices = (target) =>
+  clusterMarginElements(marginElementHost(target));
 export const unfoldedMarginElements = () =>
   expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null;
 export const foldMarginElementOptions = () => setOptionsOpen(null, false);

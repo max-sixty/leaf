@@ -42,7 +42,6 @@ from render_support import (
     go_to_address,
     hold_selection,
     in_threads_scrollport,
-    shortcut_bar_text,
     leaf_page,
     live_url,
     mark_point,
@@ -60,6 +59,7 @@ from render_support import (
     round_trip,
     select,
     sending,
+    shortcut_bar_text,
     stamp_page,
     stamp_version_file,
     standing_mark,
@@ -784,7 +784,9 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     position = page.locator(".lf-walk-position")
     expect(position).to_have_text("Ask 1 of 4 open")
     expect(position).to_have_attribute("aria-hidden", "true")
-    expect(position.locator("xpath=parent::*")).to_have_class(re.compile("lf-shortcut-bar"))
+    expect(position.locator("xpath=parent::*")).to_have_class(
+        re.compile("lf-shortcut-bar")
+    )
     marks = page.locator("#live-question .lf-pick")
     # The arrival stands on the Ask, which wears its options' digits; the marks
     # are the next Tab stops.
@@ -1316,7 +1318,9 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     page.keyboard.press("t")
     expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_focused()
     expect(position).to_have_text("Thread 1 of 1 shown")
-    expect(position.locator("xpath=parent::*")).to_have_class(re.compile("lf-shortcut-bar"))
+    expect(position.locator("xpath=parent::*")).to_have_class(
+        re.compile("lf-shortcut-bar")
+    )
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, False)
     expect(position).to_be_hidden()
@@ -2715,7 +2719,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     sheet = page.get_by_role("dialog", name="Page map", exact=True)
     expect(sheet).to_be_visible()
     expect(
-        sheet.get_by_role("searchbox", name="Find an action, status, or location in Page map")
+        sheet.get_by_role(
+            "searchbox", name="Find an action, status, or location in Page map"
+        )
     ).to_be_focused()
     page.evaluate(
         """() => {
@@ -2752,7 +2758,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(sheet).to_be_visible()
     expect(sheet.locator(".lf-page-map-group")).to_have_count(3)
     expect(
-        sheet.get_by_role("searchbox", name="Find an action, status, or location in Page map")
+        sheet.get_by_role(
+            "searchbox", name="Find an action, status, or location in Page map"
+        )
     ).to_be_focused()
     page.keyboard.press("Escape")
 
@@ -3128,9 +3136,13 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     sheet = page.locator(".lf-page-map-sheet")
     expect(sheet).to_be_visible()
     expect(
-        sheet.get_by_role("searchbox", name="Find an action, status, or location in Page map")
+        sheet.get_by_role(
+            "searchbox", name="Find an action, status, or location in Page map"
+        )
     ).to_be_focused()
-    expect(sheet).to_contain_text("No margin controls, status indicators, or locations yet")
+    expect(sheet).to_contain_text(
+        "No margin controls, status indicators, or locations yet"
+    )
     expect(sheet.locator(".lf-page-map-action")).to_have_count(0)
     assert errors == []
     page.close()
@@ -3311,7 +3323,9 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
         "response.close",
     ]:
         expect(
-            help_el.locator(f'.lf-shortcut-reference-command[data-lf-command="{command}"]')
+            help_el.locator(
+                f'.lf-shortcut-reference-command[data-lf-command="{command}"]'
+            )
         ).to_have_count(1)
 
     seen = set()
@@ -3371,7 +3385,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
     expect(commands.first).to_have_attribute("data-lf-selected", "true")
-    expect(help_el.locator(".lf-shortcut-reference-meta")).to_have_text(re.compile(r" · ⏎ run$"))
+    expect(help_el.locator(".lf-shortcut-reference-meta")).to_have_text(
+        re.compile(r" · ⏎ run$")
+    )
     first_row = commands.first.locator("xpath=ancestor::tr")
     expect(search).to_have_attribute(
         "aria-activedescendant", first_row.get_attribute("id")
@@ -3483,7 +3499,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     )
     page.keyboard.press("ArrowDown")
     expect(
-        help_el.locator('.lf-shortcut-reference-command[data-lf-command="navigation.panel.threads"]')
+        help_el.locator(
+            '.lf-shortcut-reference-command[data-lf-command="navigation.panel.threads"]'
+        )
     ).to_have_attribute("data-lf-selected", "true")
     search.fill("Tab")
     tab_matches = help_el.locator(
@@ -3503,7 +3521,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     assert w_results.index("page.down") >= len(w_matches), w_results
 
     search.fill("resolve it")
-    result = help_el.locator('.lf-shortcut-reference-command[data-lf-command="thread.resolve"]')
+    result = help_el.locator(
+        '.lf-shortcut-reference-command[data-lf-command="thread.resolve"]'
+    )
     expect(result).to_have_count(1)
     expect(result).to_have_attribute("data-lf-command", "thread.resolve")
     expect(search).to_have_attribute("aria-haspopup", "grid")
@@ -3539,7 +3559,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("Escape")
     page.keyboard.press("?")
     search.fill("previous open thread")
-    previous = help_el.locator('.lf-shortcut-reference-command[data-lf-command="thread.previous"]')
+    previous = help_el.locator(
+        '.lf-shortcut-reference-command[data-lf-command="thread.previous"]'
+    )
     expect(previous).to_have_count(1)
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
@@ -3569,12 +3591,18 @@ def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
 
-    first = page.locator('.lf-shortcut-reference-command[data-lf-command="option.choose-1"]')
-    second = page.locator('.lf-shortcut-reference-command[data-lf-command="option.choose-2"]')
+    first = page.locator(
+        '.lf-shortcut-reference-command[data-lf-command="option.choose-1"]'
+    )
+    second = page.locator(
+        '.lf-shortcut-reference-command[data-lf-command="option.choose-2"]'
+    )
     expect(first).to_have_text("Activate the “Keep the store” action")
     expect(second).to_have_text("Activate the “Signed tokens” action")
     expect(
-        page.locator('.lf-shortcut-reference-command[data-lf-command="ask.activate-nth"]')
+        page.locator(
+            '.lf-shortcut-reference-command[data-lf-command="ask.activate-nth"]'
+        )
     ).to_have_count(0)
 
     second.click()
@@ -3621,7 +3649,9 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     assert re.search(r"(⌘⏎|Ctrl\+⏎) / 1\nSave / Cancel", shortcut_bar_text(page))
     expect(save).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
     page.keyboard.press("?")
-    cancel = page.locator('.lf-shortcut-reference-command[data-lf-command="draft.cancel"]')
+    cancel = page.locator(
+        '.lf-shortcut-reference-command[data-lf-command="draft.cancel"]'
+    )
     expect(cancel).to_have_text("Activate the “Cancel” action")
     cancel.click()
     expect(page.locator("#note textarea")).to_have_count(0)
@@ -3654,12 +3684,14 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(mark).to_have_attribute("aria-keyshortcuts", "ArrowUp ArrowDown Space")
     expect(
         page.locator(
-            ".lf-shortcut-reference tr", has_text="Next ask this page is waiting on you for"
+            ".lf-shortcut-reference tr",
+            has_text="Next ask this page is waiting on you for",
         ).locator("kbd")
     ).to_have_text("a")
     expect(
         page.locator(
-            ".lf-shortcut-reference tr", has_text="Previous ask this page is waiting on you for"
+            ".lf-shortcut-reference tr",
+            has_text="Previous ask this page is waiting on you for",
         ).locator("kbd")
     ).to_have_text("A")
     page.keyboard.press("Escape")
@@ -4110,9 +4142,9 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.keyboard.press("Escape")
     expect(line).not_to_contain_text("Threads panel")
     # The blue prefix is gone with the sequence; the ordinary line may reuse the same words.
-    expect(page.locator('.lf-shortcut-bar kbd[data-lf-key-state="pressed"]')).to_have_count(
-        0
-    )
+    expect(
+        page.locator('.lf-shortcut-bar kbd[data-lf-key-state="pressed"]')
+    ).to_have_count(0)
 
     # c is comment everywhere. From the page it enters the page composer directly, and
     # one Escape undoes the one entry: field, panel, and focus origin together.
@@ -4322,7 +4354,9 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     expect(page.locator(".lf-panel")).to_be_visible()
     assert page.evaluate("() => document.scrollingElement.scrollTop") == stranded_before
     resolved_quote.focus()
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("return to the passage")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text(
+        "return to the passage"
+    )
     assert errors == []
     page.close()
 
@@ -4937,8 +4971,12 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     resized(page, 1280, 800)
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Move 60% of a page down")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Move 60% of a page up")
+    expect(page.locator(".lf-shortcut-reference")).to_contain_text(
+        "Move 60% of a page down"
+    )
+    expect(page.locator(".lf-shortcut-reference")).to_contain_text(
+        "Move 60% of a page up"
+    )
     expect(page.locator(".lf-shortcut-reference")).to_contain_text("Caret browsing")
     page.keyboard.press("Escape")
     expect(line).not_to_contain_text("F7")
@@ -5423,9 +5461,9 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     expect(shown).to_have_count(2)
     expect(page.get_by_role("button", name="? more", exact=True)).to_be_visible()
     # One settled read, which pins the count, the order, the keys and the words together.
-    assert shortcut_bar_text(page) == "c\ncomment on the page\ns\ncomment on item\n?\nmore", (
-        shortcut_bar_text(page)
-    )
+    assert (
+        shortcut_bar_text(page) == "c\ncomment on the page\ns\ncomment on item\n?\nmore"
+    ), shortcut_bar_text(page)
 
     # Search and page movement are still declared but off the glance nobody asked for.
     # React has no row at all until a target makes that capability live.
@@ -6421,7 +6459,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(versions_route).to_have_attribute("aria-label", "g then Shift+v")
     sequence_control = help_el.locator('tr[data-lf-command="navigation.address.back"]')
     expect(sequence_control).to_have_class(re.compile(r"\blf-sequence-control\b"))
-    expect(sequence_control.locator("td").first).to_have_css("border-top-style", "solid")
+    expect(sequence_control.locator("td").first).to_have_css(
+        "border-top-style", "solid"
+    )
     expect(help_el).not_to_contain_text("open comment's reply box")
     # And no link scope: this page holds none, while the machine's own tray is full of
     # them — a scope asked about the document at large was had by every page there is.
@@ -6565,7 +6605,9 @@ def test_resolution_uses_its_control_while_x_remains_a_close_symbol(browser, ser
     expect(line).not_to_contain_text("resolve")
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("On a focused thread")
+    expect(page.locator(".lf-shortcut-reference")).to_contain_text(
+        "On a focused thread"
+    )
     focused_section = page.locator(".lf-shortcut-reference-section").filter(
         has=page.get_by_role("heading", name="On a focused thread", exact=True)
     )
@@ -6662,9 +6704,9 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     page.keyboard.press("g")
     # No blue pressed key appears, which proves the sequence refused to arm even if the
     # ordinary line happens to reuse one of its words.
-    expect(page.locator('.lf-shortcut-bar kbd[data-lf-key-state="pressed"]')).to_have_count(
-        0
-    )
+    expect(
+        page.locator('.lf-shortcut-bar kbd[data-lf-key-state="pressed"]')
+    ).to_have_count(0)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("cancel the move")
     page.keyboard.press("Escape")
     # The grab is over (an uncancelled one would also leave the card in Todo),

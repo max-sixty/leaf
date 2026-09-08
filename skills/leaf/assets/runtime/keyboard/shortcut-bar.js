@@ -223,7 +223,9 @@ export function renderLine() {
     shortcutBarEl.removeAttribute("data-lf-walk");
   }
   shortcutBarEl.dataset.lfExpanded = String(shelf);
-  shortcutBarEl.dataset.lfWrap = String(shelf || Boolean(complete) || Boolean(position));
+  shortcutBarEl.dataset.lfWrap = String(
+    shelf || Boolean(complete) || Boolean(position),
+  );
   // Keep the two contextual hints together at the front of the ordinary line.
   // The shelf and a sequence retain registry order because each is a fuller reading of one
   // scene rather than a ranked shortlist.
@@ -255,7 +257,10 @@ export function renderLine() {
     referenceBinding ? `${spell(referenceBinding)} ${referenceLine}` : referenceDoes,
   );
   if (referenceBinding)
-    shortcutBarMore.setAttribute("aria-keyshortcuts", ariaShortcuts([reference], false));
+    shortcutBarMore.setAttribute(
+      "aria-keyshortcuts",
+      ariaShortcuts([reference], false),
+    );
   else shortcutBarMore.removeAttribute("aria-keyshortcuts");
   // Read where it is painted, like every other cell. Every destination keeps its complete
   // sequence while the reader advances through it: completed keys change face, but no key is
@@ -310,7 +315,9 @@ export function renderLine() {
   }
 
   const visible = () =>
-    [...shortcutBarEl.children].filter((node) => !node.hidden && node.checkVisibility());
+    [...shortcutBarEl.children].filter(
+      (node) => !node.hidden && node.checkVisibility(),
+    );
   const rowsUsed = () => {
     const items = visible();
     const tolerance = Math.min(...items.map((node) => node.offsetHeight)) / 2;

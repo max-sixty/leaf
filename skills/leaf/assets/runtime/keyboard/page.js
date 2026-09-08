@@ -655,7 +655,9 @@ const SHORTCUT_REFERENCE = {
       id: "reference.close",
       keys: ["Escape"],
       does: () =>
-        shortcutBarExpanded() ? "Back to more keyboard shortcuts" : "Close this reference",
+        shortcutBarExpanded()
+          ? "Back to more keyboard shortcuts"
+          : "Close this reference",
       line: () =>
         shortcutBarExpanded() ? "back to more shortcuts" : "close shortcut reference",
       control: () => shortcutReferenceClose,
@@ -1464,7 +1466,8 @@ export function paintCoreControls() {
   const returningToMore = Boolean(shortcutBarExpanded());
   const closeSays = returningToMore ? "Back to more shortcuts" : "Close";
   const closeTitle = returningToMore ? "Back to more shortcuts" : "Close the shortcuts";
-  if (shortcutReferenceClose.textContent !== closeSays) shortcutReferenceClose.textContent = closeSays;
+  if (shortcutReferenceClose.textContent !== closeSays)
+    shortcutReferenceClose.textContent = closeSays;
   if (shortcutReferenceClose.dataset.lfKeyTitle !== closeTitle)
     shortcutReferenceClose.dataset.lfKeyTitle = closeTitle;
   keeps(shortcutReferenceClose, "aria-label", closeTitle);

@@ -67,7 +67,11 @@ shortcutReferenceDialog.className = "lf-ui lf-shortcut-reference";
 shortcutReferenceDialog.setAttribute("aria-label", "All keyboard shortcuts");
 shortcutReferenceDialog.setAttribute("aria-modal", "true");
 shortcutReferenceDialog.tabIndex = -1; // focused on open, so the dialog isn't silent to a screen reader
-export const shortcutReferenceClose = el("button", "lf-btn lf-shortcut-reference-close", "Close");
+export const shortcutReferenceClose = el(
+  "button",
+  "lf-btn lf-shortcut-reference-close",
+  "Close",
+);
 shortcutReferenceClose.type = "button";
 shortcutReferenceClose.title = "Close the shortcuts";
 shortcutReferenceClose.setAttribute("aria-label", "Close the shortcuts");
@@ -78,8 +82,8 @@ shortcutReferenceClose.setAttribute("aria-label", "Close the shortcuts");
 // the rows' own liveness.
 //
 // The runtime's own modes come through the same door as a widget's, and the reference was
-  // blind to them while they did not: the sharpest case was the dialog never saying how to
-  // close the dialog, and a quiet page naming no Escape at all. So a section is its title
+// blind to them while they did not: the sharpest case was the dialog never saying how to
+// close the dialog, and a quiet page naming no Escape at all. So a section is its title
 // wherever the title comes from — the box a reply is typed into declares its send key from
 // wireInput and its way out from the typing mode, and they are one heading.
 //
@@ -101,7 +105,9 @@ function declaredStack(origin) {
   const referenceRows = (scope) =>
     byCommand(scope.rows).map(([id, row]) => [
       id,
-      scope.sequence ? { ...row, sequence: scope.sequencePrefix ?? scope.sequence } : row,
+      scope.sequence
+        ? { ...row, sequence: scope.sequencePrefix ?? scope.sequence }
+        : row,
     ]);
   for (const scope of pageScopes().toReversed()) {
     if (scope !== ELEMENTS) {
@@ -230,7 +236,10 @@ function showShortcutReference(open, restoreFocus = true) {
   if (open) {
     shortcutReferenceDialog.textContent = "";
     const head = el("div", "lf-shortcut-reference-head");
-    head.append(el("div", "lf-shortcut-reference-title", "All keyboard shortcuts"), shortcutReferenceClose);
+    head.append(
+      el("div", "lf-shortcut-reference-title", "All keyboard shortcuts"),
+      shortcutReferenceClose,
+    );
     shortcutReferenceDialog.append(head);
     const search = document.createElement("input");
     search.type = "search";
@@ -342,8 +351,9 @@ function showShortcutReference(open, restoreFocus = true) {
               requestAnimationFrame(() => {
                 if (!executeCommand(id, origin)) {
                   showShortcutReference(true);
-                  shortcutReferenceDialog.querySelector(".lf-shortcut-reference-meta").textContent =
-                    "That command is no longer available";
+                  shortcutReferenceDialog.querySelector(
+                    ".lf-shortcut-reference-meta",
+                  ).textContent = "That command is no longer available";
                 }
               });
             };
@@ -429,7 +439,8 @@ function showShortcutReference(open, restoreFocus = true) {
       });
     }
     const bindingSection = document.createElement("section");
-    bindingSection.className = "lf-shortcut-reference-section lf-shortcut-reference-binding-matches";
+    bindingSection.className =
+      "lf-shortcut-reference-section lf-shortcut-reference-binding-matches";
     bindingSection.setAttribute("role", "rowgroup");
     const bindingHeading = el("h3", "", "Binding matches");
     bindingHeading.id = "lf-shortcut-reference-binding-matches";
@@ -601,7 +612,11 @@ function showShortcutReference(open, restoreFocus = true) {
   if (open) reachScrollers(shortcutReferenceDialog);
   if (open)
     shortcutReferenceDialog
-      .querySelector(preserveSelection ? ".lf-shortcut-reference-close" : ".lf-shortcut-reference-search")
+      .querySelector(
+        preserveSelection
+          ? ".lf-shortcut-reference-close"
+          : ".lf-shortcut-reference-search",
+      )
       .focus({ preventScroll: true });
   // Only from inside the overlay: a mousedown somewhere else closes it (standDown), and the
   // press's own focus is the browser's default action, still to come — a restore made from
@@ -611,9 +626,11 @@ function showShortcutReference(open, restoreFocus = true) {
 }
 
 const referenceStops = () =>
-  [...shortcutReferenceDialog.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])')].filter(
-    (node) => node.tabIndex >= 0 && node.checkVisibility(),
-  );
+  [
+    ...shortcutReferenceDialog.querySelectorAll(
+      'button, input, [tabindex]:not([tabindex="-1"])',
+    ),
+  ].filter((node) => node.tabIndex >= 0 && node.checkVisibility());
 export function moveReference(dir) {
   const stops = referenceStops();
   if (!stops.length) return shortcutReferenceDialog.focus({ preventScroll: true });
@@ -627,16 +644,21 @@ export function moveReference(dir) {
   next.focus({ preventScroll: true });
 }
 const commandStops = () =>
-  [...shortcutReferenceDialog.querySelectorAll(".lf-shortcut-reference-command")].filter((node) =>
-    node.checkVisibility(),
-  );
+  [
+    ...shortcutReferenceDialog.querySelectorAll(".lf-shortcut-reference-command"),
+  ].filter((node) => node.checkVisibility());
 export const onCommandRail = () =>
   commandStops().length > 0 &&
-  (focused()?.matches?.(".lf-shortcut-reference-search, .lf-shortcut-reference-command") ?? false);
+  (focused()?.matches?.(
+    ".lf-shortcut-reference-search, .lf-shortcut-reference-command",
+  ) ??
+    false);
 export function moveCommand(dir) {
   const stops = commandStops();
   if (!stops.length) return;
-  const focusedCommand = focused()?.matches?.(".lf-shortcut-reference-command") ? focused() : null;
+  const focusedCommand = focused()?.matches?.(".lf-shortcut-reference-command")
+    ? focused()
+    : null;
   const selected =
     focusedCommand ?? stops.find((stop) => stop.dataset.lfSelected === "true");
   const next = clampedRow(stops, selected, dir);

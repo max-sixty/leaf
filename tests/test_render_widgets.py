@@ -64,7 +64,6 @@ from render_support import (
     banner_address,
     compare_with,
     holding,
-    shortcut_bar_text,
     leaf_page,
     live_url,
     open_page,
@@ -76,6 +75,7 @@ from render_support import (
     select,
     sending,
     sent_events,
+    shortcut_bar_text,
     stamp_page,
     stamp_version_file,
     told,
@@ -2265,7 +2265,9 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     # the Decision action name is not a keycap override.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    pass_reference = page.locator('.lf-shortcut-reference tr[data-lf-command="swipe.pass"]')
+    pass_reference = page.locator(
+        '.lf-shortcut-reference tr[data-lf-command="swipe.pass"]'
+    )
     expect(pass_reference.locator("kbd")).to_have_text("←")
     expect(pass_reference.locator(".lf-key-sequence")).to_have_attribute(
         "aria-label", "ArrowLeft"
@@ -2290,14 +2292,16 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     # The reference exposes the same exact routes as their inline bindings.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator('.lf-shortcut-reference-command[data-lf-command="swipe.pass"]')).to_have_text(
-        "Activate the “Pass” action"
-    )
-    expect(page.locator('.lf-shortcut-reference-command[data-lf-command="swipe.keep"]')).to_have_text(
-        "Activate the “Keep” action"
-    )
     expect(
-        page.locator('.lf-shortcut-reference-command[data-lf-command="ask.activate-nth"]')
+        page.locator('.lf-shortcut-reference-command[data-lf-command="swipe.pass"]')
+    ).to_have_text("Activate the “Pass” action")
+    expect(
+        page.locator('.lf-shortcut-reference-command[data-lf-command="swipe.keep"]')
+    ).to_have_text("Activate the “Keep” action")
+    expect(
+        page.locator(
+            '.lf-shortcut-reference-command[data-lf-command="ask.activate-nth"]'
+        )
     ).to_have_count(0)
     page.keyboard.press("Escape")
 
@@ -4168,7 +4172,9 @@ def test_ask_contextual_addresses_skip_explicit_numeric_bindings(browser, serve)
     # reader enters the Ask, that projection presents the binding it actually resolves.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    inspect_reference = page.locator('.lf-shortcut-reference tr[data-lf-command="test.inspect"]')
+    inspect_reference = page.locator(
+        '.lf-shortcut-reference tr[data-lf-command="test.inspect"]'
+    )
     expect(inspect_reference.locator("kbd")).to_have_text("I")
     expect(inspect_reference.locator(".lf-key-sequence")).to_have_attribute(
         "aria-label", "I"
@@ -5266,7 +5272,10 @@ def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(
 
     page.keyboard.press("Enter")
     expect(page.locator("#storage-decision")).to_be_focused()
-    assert "1–2\nDrop the oldest documents / Pause offline editing" in shortcut_bar_text(page)
+    assert (
+        "1–2\nDrop the oldest documents / Pause offline editing"
+        in shortcut_bar_text(page)
+    )
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#storage-evict")).to_have_attribute("chosen", "")
@@ -5334,7 +5343,9 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     expect(row.locator(".lf-asks-answer")).to_have_text("Accepted")
     row.click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
-    undo = page.locator('[data-lf-for="sug-delete"] [data-lf-margin-element-key="undo"]')
+    undo = page.locator(
+        '[data-lf-for="sug-delete"] [data-lf-margin-element-key="undo"]'
+    )
     expect(undo).to_be_focused()
     assert "1\nUndo" in shortcut_bar_text(page)
 

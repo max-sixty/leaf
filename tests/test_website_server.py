@@ -62,10 +62,14 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
 class FakeCodexHost:
     def __init__(self):
         self.attached = []
+        self.abandoned = []
 
     def attach(self, page_dir: Path) -> str:
         self.attached.append(page_dir)
         return "codex-thread"
+
+    def abandon(self, page_dir: Path, event_id: str) -> None:
+        self.abandoned.append((page_dir, event_id))
 
 
 def test_the_website_label_follows_the_script_contract_not_its_formatting():
@@ -189,7 +193,9 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
     assert accepted == [("hosted-thread", "initial-turn")]
 
 
-def test_the_website_task_discards_a_turn_app_server_rejects(page_dir, monkeypatch):
+def test_the_website_task_preserves_a_delivery_the_app_server_rejects(
+    page_dir, monkeypatch
+):
     host = website_server.WebsiteCodexHost("codex")
     monkeypatch.setattr(
         website_server,
@@ -201,19 +207,10 @@ def test_the_website_task_discards_a_turn_app_server_rejects(page_dir, monkeypat
         "_send",
         lambda *args: (_ for _ in ()).throw(RuntimeError("rejected")),
     )
-    discarded = []
-    monkeypatch.setattr(
-        website_server,
-        "discard_codex_delivery",
-        lambda *args: discarded.append(args),
-    )
-
     with pytest.raises(RuntimeError, match="rejected"):
         host._start_turn(
             "socket", page_dir, "hosted-thread", type("Process", (), {"pid": 41})()
         )
-
-    assert discarded == [("hosted-thread",)]
 
 
 def test_the_starting_connection_projects_codex_activity(monkeypatch):
@@ -466,6 +463,40 @@ def test_a_product_route_uses_the_same_real_page_server(
         )
         assert started == {"status": "started", "thread": "codex-thread"}
         assert agent_host.attached == [published]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+
+
+def test_a_retried_agent_start_returns_the_accepted_task(
+    page_dir, tmp_path, monkeypatch
+):
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    (site / "sitenote.js").write_text("export {};")
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+    monkeypatch.setattr(website_server, "agent_event_pending", lambda *args: True)
+    monkeypatch.setattr(
+        website_server,
+        "agent_event_thread",
+        lambda *args: "already-started-thread",
+    )
+    agent_host = FakeCodexHost()
+    httpd = server_at("127.0.0.1", 0, website_server.handler_for(site, agent_host))
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    root = f"http://127.0.0.1:{httpd.server_address[1]}"
+    try:
+        answer, _ = post(
+            f"{root}/examples/decision/_leaf/agent/start",
+            {"event": "reader-event"},
+        )
+
+        assert answer == {"status": "started", "thread": "already-started-thread"}
+        assert agent_host.attached == []
     finally:
         httpd.shutdown()
         httpd.server_close()

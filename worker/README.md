@@ -46,9 +46,10 @@ the model has no durable or cross-reader filesystem to reach. Public internet is
 The container receives only a dummy OpenAI credential; a trusted Cloudflare outbound
 handler permits the Responses API request and replaces that dummy value with the
 Worker's `OPENAI_API_KEY`. The actual secret never enters model-visible processes or
-files. A Cloudflare-native abuse brake allows one hundred task starts per source IP per
-minute in each Cloudflare location; an over-limit turn receives a visible busy reply
-without sending anything to OpenAI. There is no site-wide quota.
+files. One Cloudflare-native brake allows twenty task starts per source IP per minute
+in each Cloudflare location and, under a separate key, twenty model calls per reader
+container per minute. An over-limit turn receives a visible busy reply or a model-rate
+error without sending anything to OpenAI. There is no site-wide quota.
 
 Run the complete local site with Docker available:
 

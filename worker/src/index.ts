@@ -10,7 +10,11 @@
  * complete shell so a static document never reloads against an older API in a loop.
  */
 
-import { Container, getContainer } from "@cloudflare/containers";
+import {
+  Container,
+  getContainer,
+  type OutboundHandlerContext,
+} from "@cloudflare/containers";
 export { ContainerProxy } from "@cloudflare/containers";
 import {
   type DurableObject,
@@ -90,10 +94,20 @@ export class LeafWebsiteSession extends Container<Env> {
   allowedHosts = ["api.openai.com"];
 
   static outboundByHost = {
-    "api.openai.com": (request: Request, env: Env) => {
+    "api.openai.com": async (
+      request: Request,
+      env: Env,
+      ctx: OutboundHandlerContext,
+    ) => {
       const url = new URL(request.url);
       if (request.method !== "POST" || url.pathname !== "/v1/responses") {
         return new Response("blocked website agent request", { status: 403 });
+      }
+      const capacity = await env.SOURCE_AGENT_RATE_LIMITER.limit({
+        key: `model:${ctx.containerId}`,
+      });
+      if (!capacity.success) {
+        return new Response("website agent model limit reached", { status: 429 });
       }
       const headers = new Headers(request.headers);
       headers.set("Authorization", `Bearer ${env.OPENAI_API_KEY}`);

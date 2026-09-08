@@ -25,9 +25,10 @@ from leaf.codex import (
     _app_server_connect,
     _clear_stream_activity,
     _set_stream_activity,
+    abandon_codex_delivery,
     accept_codex_delivery,
-    discard_codex_delivery,
     prepare_codex_delivery,
+    project_app_server_activity,
 )
 from leaf.conversation import cmd_reply
 from leaf.hosting import server_at
@@ -214,6 +215,7 @@ class WebsiteCodexHost:
         """Project notifications from the connection that started this turn."""
         events = AppServerEvents(thread_id)
         events.turn_id = turn_id
+        last_stream_update = 0.0
         _set_stream_activity(thread_id, turn_id, "Starting")
         try:
             while True:
@@ -221,13 +223,13 @@ class WebsiteCodexHost:
                     message = json.loads(socket.recv(timeout=1))
                 except TimeoutError:
                     continue
-                update = events.read(message)
-                if update is not None:
-                    updated_turn, detail = update
-                    if detail is None:
-                        _clear_stream_activity(thread_id, updated_turn)
-                    else:
-                        _set_stream_activity(thread_id, updated_turn, detail)
+                last_stream_update = project_app_server_activity(
+                    events,
+                    message,
+                    last_stream_update,
+                    _set_stream_activity,
+                    _clear_stream_activity,
+                )
                 if (
                     message.get("method") == "turn/completed"
                     and message.get("params", {}).get("turn", {}).get("id") == turn_id
@@ -262,18 +264,14 @@ class WebsiteCodexHost:
                 page.set_status("waiting", "")
         identity = {"id": thread_id, "host": "codex", "agent": WEBSITE_AGENT}
         prompt = prepare_codex_delivery(page_dir, identity, {"pid": process.pid})
-        try:
-            turn = self._send(
-                socket,
-                "turn/start",
-                {
-                    "threadId": thread_id,
-                    "input": [{"type": "text", "text": prompt}],
-                },
-            )["turn"]
-        except BaseException:
-            discard_codex_delivery(thread_id)
-            raise
+        turn = self._send(
+            socket,
+            "turn/start",
+            {
+                "threadId": thread_id,
+                "input": [{"type": "text", "text": prompt}],
+            },
+        )["turn"]
         accept_codex_delivery(thread_id, turn["id"])
         return thread_id, turn["id"]
 
@@ -340,6 +338,13 @@ class WebsiteCodexHost:
             ):
                 return self._start_thread(page_dir, process)
             return thread_id
+
+    def abandon(self, page_dir: Path, event_id: str) -> None:
+        """Retire a delivery only after any concurrent startup has completed."""
+        with self.lock:
+            claim = page_claim(page_dir)
+            if claim and claim.get("host") == "codex":
+                abandon_codex_delivery(claim["id"], event_id)
 
 
 _agent_host: WebsiteCodexHost | None = None
@@ -455,7 +460,9 @@ class WebsitePageHandler(Handler):
                     return
                 self._json({"status": "ready"})
                 return
-            thread_id = self.agent_host.attach(self.page_dir)
+            thread_id = agent_event_thread(self.page_dir, event_id)
+            if thread_id is None:
+                thread_id = self.agent_host.attach(self.page_dir)
             self._json({"status": "started", "thread": thread_id})
             return
 
@@ -472,6 +479,7 @@ class WebsitePageHandler(Handler):
         except SystemExit as error:
             self._json({"error": str(error)}, 400)
             return
+        self.agent_host.abandon(self.page_dir, event_id)
         if accepted is None:
             self._json({"status": "settled"})
             return

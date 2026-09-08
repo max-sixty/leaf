@@ -15,6 +15,10 @@ interface DeploymentConfig {
     bindings: Array<{ class_name: string }>;
   };
   migrations: Array<{ new_sqlite_classes?: string[] }>;
+  ratelimits: Array<{
+    name: string;
+    simple: { limit: number; period: number };
+  }>;
 }
 
 const config = parse(
@@ -45,6 +49,16 @@ describe("deployment configuration", () => {
   it("admits the full current account capacity of lite sessions", () => {
     expect(container.max_instances).toBe(15_000);
     expect(container.instance_type).toBe("lite");
+  });
+
+  it("bounds reader starts and per-container model calls", () => {
+    expect(config.ratelimits).toEqual([
+      {
+        name: "SOURCE_AGENT_RATE_LIMITER",
+        namespace_id: "34302",
+        simple: { limit: 20, period: 60 },
+      },
+    ]);
   });
 
   it("ships the pinned Codex host and the complete Leaf plugin", () => {

@@ -582,6 +582,10 @@ describe("website page agent", () => {
     const upstream = vi.fn(async () => new Response("ok"));
     vi.stubGlobal("fetch", upstream);
     const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
+    const context = {
+      containerId: "reader-container",
+      className: "LeafWebsiteSession",
+    };
     const response = await handler(
       new Request("https://api.openai.com/v1/responses", {
         method: "POST",
@@ -589,9 +593,13 @@ describe("website page agent", () => {
         body: "{}",
       }),
       env,
+      context,
     );
 
     expect(await response.text()).toBe("ok");
+    expect(env.SOURCE_AGENT_RATE_LIMITER.limit).toHaveBeenCalledWith({
+      key: "model:reader-container",
+    });
     const forwarded = upstream.mock.calls[0][0];
     expect(forwarded.headers.get("Authorization")).toBe("Bearer test-key");
     vi.unstubAllGlobals();
@@ -602,9 +610,33 @@ describe("website page agent", () => {
     const response = await handler(
       new Request("https://api.openai.com/v1/files", { method: "POST" }),
       environment(),
+      { containerId: "reader-container", className: "LeafWebsiteSession" },
     );
 
     expect(response.status).toBe(403);
+  });
+
+  it("caps model calls from one reader container", async () => {
+    const denied = {
+      limit: vi.fn(async () => ({ success: false })),
+    } as unknown as RateLimit;
+    const env = environment({ SOURCE_AGENT_RATE_LIMITER: denied });
+    const upstream = vi.fn(async () => new Response("ok"));
+    vi.stubGlobal("fetch", upstream);
+    const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
+
+    const response = await handler(
+      new Request("https://api.openai.com/v1/responses", {
+        method: "POST",
+        body: "{}",
+      }),
+      env,
+      { containerId: "reader-container", className: "LeafWebsiteSession" },
+    );
+
+    expect(response.status).toBe(429);
+    expect(upstream).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 
   it("never exposes the container's agent routes on the public origin", async () => {

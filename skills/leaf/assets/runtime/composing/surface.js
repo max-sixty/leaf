@@ -41,8 +41,8 @@
    their original anchor, while a later target starts clean and keeps focus.
 
    `placeClear` fits the response bar into a free band bounded by the viewport, its
-   target, and controls carrying `data-lf-offer`. A quoted passage keeps its whole
-   paragraph clear. Placement prioritizes proximity to the target, then visible writing
+   target, and controls carrying `data-lf-offer`. A quoted passage keeps its resolved
+   place clear. Placement prioritizes proximity to the target, then visible writing
    space; geometry supplies CSS room constraints, while CSS owns the field's content
    sizing. */
 import {
@@ -56,7 +56,12 @@ import {
   visualAt,
 } from "../anchors.js";
 import { documentPoint, shownBox, shownParts, shownRect } from "../geometry.js";
-import { targetElement, targetParts, targetSegments } from "../resolved-target.js";
+import {
+  targetElement,
+  targetParts,
+  targetPlace,
+  targetSegments,
+} from "../resolved-target.js";
 import {
   composerOpen,
   fab,
@@ -82,7 +87,7 @@ import { panelCovers } from "../chrome-layout.js";
 import { panel, threadsBox } from "../conversation/panel.js";
 import { banner } from "../banner.js";
 import { shortcutBarEl, less } from "../keyboard/shortcut-bar.js";
-import { blockAt, inChrome, pageRange, pageText, pageWords } from "../passages.js";
+import { inChrome, pageRange, pageText, pageWords } from "../passages.js";
 import {
   leftThePage,
   pageSelection,
@@ -289,9 +294,9 @@ function anchorBox(anchor) {
       .filter(Boolean),
   );
 }
-// The passage remains the exact anchor, but its containing paragraph is not spare
-// space: a short selection cannot lend the words after it to the response field.
-// Keep the bar beside that whole block, or above/below it when the rail is too narrow.
+// The passage remains the exact anchor, but its resolved place is not spare space: a
+// short selection cannot lend the words around it to the response field. Keep the bar
+// beside that whole place, or above/below it when the rail is too narrow.
 function placeFab(target = anchorBox(fabAnchor)) {
   if (!fabAnchor || !target) return false;
   let fixedLeft = fabFixedLeft;
@@ -455,10 +460,10 @@ export const anchorTargetAt = (anchor) => {
   const found = resolveAnchor(anchor, pageText());
   if (!found) return null;
   if (!anchor.quote) return targetElement(found);
-  const block = blockAt(targetSegments(found)[0]?.node);
-  if (!block) return targetElement(found);
-  const root = block.getRootNode();
-  return root instanceof ShadowRoot ? root.host : block;
+  const place = targetPlace(found);
+  if (!place) return null;
+  const root = place.getRootNode();
+  return root instanceof ShadowRoot ? root.host : place;
 };
 export const fabTargetAt = () => anchorTargetAt(fabAnchor);
 export const fabReturnTo = () =>

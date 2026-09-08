@@ -1156,6 +1156,31 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
 # ---------- messages: text is Markdown for the browser, markup is the gate's ----------
 
 
+def test_agent_messages_preserve_a_single_space(page_dir):
+    """Only the zero-length string is empty; every typed character reaches the log."""
+    empty = CliRunner().invoke(cli_model.cli, ["comment", str(page_dir), "--text", ""])
+    assert empty.exit_code != 0
+    assert empty.output == "empty text (pass --text or pipe via stdin)\n"
+
+    opened = CliRunner().invoke(
+        cli_model.cli, ["comment", str(page_dir), "--text", " "]
+    )
+    assert opened.exit_code == 0, opened.output
+    root = json.loads(opened.output)
+
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--to", root["id"], "--text", " ", "--json"],
+    )
+    assert replied.exit_code == 0, replied.output
+    messages = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] in {"comment", "reply"}
+    ]
+    assert [message["text"] for message in messages] == [" ", " "]
+
+
 def test_the_wire_ships_a_message_as_logged(page_dir):
     """The wire adds nothing to the log: text is Markdown the page's vendored runtime
     renders (test_render holds that side), markup is the fragment the CLI gate

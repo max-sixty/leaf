@@ -88,6 +88,41 @@ def select_words(page, passage):
     locator.click(click_count=3, position={"x": x, "y": y})
 
 
+@pytest.mark.parametrize("box", ["general", "reply", "composer"])
+def test_a_single_space_is_message_content_in_every_composer(browser, serve, box):
+    """The shared field and both drawing-aware variants admit the smallest message."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=box == "reply"))
+    if box == "composer":
+        select_words(page, "#p0")
+        expect(page.locator(".lf-fab-input")).to_be_visible()
+        page.keyboard.press("c")
+        surface = page.locator(".lf-composer")
+    else:
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        surface = (
+            page.locator(".lf-general")
+            if box == "general"
+            else page.locator(".lf-threads > .lf-thread").first
+        )
+
+    field = surface.locator("textarea")
+    send = surface.locator(".lf-compose-submit")
+    field.fill(" ")
+    expect(send).to_have_attribute("aria-disabled", "false")
+    with sending(page, f"the {box} message"):
+        send.click()
+
+    message = [
+        event
+        for event in sent_events(serve.page_dir)
+        if event["kind"] in {"comment", "reply"}
+    ][-1]
+    assert message["text"] == " "
+    assert errors == []
+    page.close()
+
+
 def draft_controls(page, draft_id="draft-ops"):
     return page.locator(f".lf-draft-controls[data-lf-for='{draft_id}']")
 
@@ -1782,7 +1817,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
     assert [(event["anchor"], event["text"]) for event in roots] == [
-        ({"section": "jobs"}, raw.strip())
+        ({"section": "jobs"}, raw)
     ]
     assert _traffic(first).sends + _traffic(second).sends == 1
     assert first_errors == []
@@ -1828,7 +1863,7 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_read
         event for event in sent_events(serve.page_dir) if event["kind"] == "reply"
     ]
     assert [(event["parent"], event["text"]) for event in replies] == [
-        (root["id"], raw.strip())
+        (root["id"], raw)
     ]
     assert _traffic(first).sends == _traffic(second).sends == 1
     assert first_errors == []
@@ -1887,7 +1922,7 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
     replies = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "reply"
     ]
-    assert [event["text"] for event in replies] == [sent_raw.strip()]
+    assert [event["text"] for event in replies] == [sent_raw]
     assert first_errors == []
     assert second_errors == []
 
@@ -1923,7 +1958,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
-    assert [event["text"] for event in roots] == [raw.strip()]
+    assert [event["text"] for event in roots] == [raw]
     # Asked of the words rather than of the box: a seat that can hold keeps its composer
     # standing after every root (renderConversations), so an empty one is what says the
     # tab adopted the durable outcome instead of holding the words for a second send.
@@ -2015,7 +2050,7 @@ def test_a_question_can_send_when_draft_storage_refuses_writes(browser, serve):
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
-    assert [event["text"] for event in roots] == [raw.strip()]
+    assert [event["text"] for event in roots] == [raw]
     assert errors == []
     page.close()
 

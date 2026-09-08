@@ -208,6 +208,14 @@ Re-vendor before trusting a browser result after a runtime, theme, registry, or
 widget change. For a user-visible layer change, an `/ui-sweep` and a look at a
 composed page are worth the time; a green suite does not judge visual quality.
 
+Treat website performance as a phase profile, not one score. For a change that can
+alter browser startup, compare the base and candidate readings from
+`scripts/verify-site-local.sh`: document receipt, widget upgrade, authoritative
+presentation, and the requests and bytes loaded by presentation. Compare request counts
+and bytes directly; elapsed time is diagnostic because it varies with the machine and
+network. If a change adds work before presentation, state the user-visible benefit and
+why that work cannot wait until after presentation.
+
 Hand off a visible change with the smallest artifact that proves it. For an
 example, `scripts/preview.py [example] --export` prints a standalone HTML file
 for static rendering; `scripts/preview.py [example]` serves an interactive

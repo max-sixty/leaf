@@ -410,12 +410,15 @@ export function setReact(on, { surface = null } = {}) {
           : trigger?.checkVisibility?.()
             ? trigger
             : document.body;
+      // Hiding a focused choice may leave focus on that now-hidden node or drop it to
+      // body before the browser paints. The reader may choose another control during
+      // that frame; only those two states mean the palette still owes its return.
       if (destination !== document.body)
         requestAnimationFrame(() => {
           if (
             destination.isConnected &&
             destination.checkVisibility?.() &&
-            (!fabBar.contains(from) || focused() === document.body)
+            (focused() === active || focused() === document.body)
           )
             destination.focus({ preventScroll: true });
         });

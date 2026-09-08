@@ -528,8 +528,8 @@ body { position: static !important; box-sizing: border-box !important;
 }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
  * parse while JavaScript upgrades widgets and reads the standing log. Generated page
- * interface keeps its layout but stays hidden until the presentation task has applied
- * authoritative state and given box-derived apparatus its final startup geometry.
+ * interface joins it as soon as widget and page-interface upgrade gives that apparatus
+ * its settled upgrade geometry; durable controls still guard mutation until presentation.
  * Authored dialogs and popovers stay hidden too: those top-layer elements can otherwise
  * escape their ancestors' stacking and inertness. Ordinary prose, links, scrolling, and
  * layout remain available.
@@ -546,7 +546,7 @@ body { position: static !important; box-sizing: border-box !important;
     html[data-lf-live] body:not([data-lf-presented]) .lf-ui {
       transition: none !important;
     }
-    html[data-lf-live] body:not([data-lf-presented]) > main .lf-ui {
+    html[data-lf-live] body:not([data-lf-upgraded]) > main .lf-ui {
       visibility: hidden !important;
     }
     html[data-lf-live] body:not([data-lf-presented])

@@ -665,15 +665,15 @@ def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serv
     page.close()
 
 
-def test_generated_page_interface_first_paints_with_authoritative_geometry(
+def test_generated_page_interface_reconciles_before_semantic_interaction(
     browser, serve
 ):
-    """Generated interface reserves room while replay is pending, then first paints
-    against the complete presented page rather than exposing its provisional layout.
+    """Generated interface paints while replay waits, then reconciles its geometry
+    against the complete presented page before semantic interaction opens.
 
     The recorded draft makes the first section much taller during replay. The contents
-    map has already measured the short authored form, so only the presentation signal
-    can replace that stale span in the same turn that releases its visibility."""
+    map has already painted the short authored form, so the presentation signal must
+    replace that stale span in the same turn that releases durable interaction."""
     source = leaf_page(
         "stable generated interface",
         """
@@ -737,7 +737,7 @@ def test_generated_page_interface_first_paints_with_authoritative_geometry(
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         assert held, "the positive control did not hold the first state response"
         nav = page.locator(".lf-toc-nav")
-        expect(nav).not_to_be_visible()
+        expect(nav).to_be_visible()
         prepare = nav.locator('a[href="#prepare"]')
         page.wait_for_function(
             "link => Number(link.parentElement.style"

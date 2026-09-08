@@ -63,7 +63,7 @@ export function wireInput(
     altSend = null,
     allowsMedia = () => true,
     busy = () => false,
-    hasContent = (raw) => Boolean(raw.trim()),
+    hasContent = (raw) => Boolean(raw),
     layout = () => {},
   },
 ) {

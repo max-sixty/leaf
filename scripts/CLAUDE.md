@@ -30,9 +30,12 @@ rules a new or changed example has to meet.
   with the website's esbuild dependency. Run `npm ci --prefix worker` first. `--serve`
   opens the same Wrangler asset and container boundary the deployed site uses and also
   needs a running Docker.
+  `verify-site-local.sh` checks that built output through that boundary and prints the
+  document, widget-upgrade, and presentation milestones with the requests and bytes
+  loaded by presentation. Pull requests run it for review evidence.
   `.github/workflows/publish-site.yaml` deploys both halves for relevant pushes to
-  `main`; it verifies the bundled graph locally in Chrome before the first public
-  operation, then verifies the exact release again after deployment.
+  `main`; it runs the local check before the first public operation, then verifies the
+  exact release again after deployment.
 - `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws the Leaf
   screenshots that demo uses. Keep the latter while the product can make those frames
   stale.

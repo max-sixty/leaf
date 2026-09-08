@@ -1084,13 +1084,21 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
  * the measure and its insets alone. */
 lf-board { display: grid; grid-auto-flow: column;
            --lf-card-measure: 136px; --lf-column-inset: 8px; --lf-card-inset: 10px;
-           grid-auto-columns: minmax(calc(var(--lf-card-measure)
+           --lf-column-floor: calc(var(--lf-card-measure)
              + 2 * var(--lf-column-inset) + 2 * var(--lf-card-inset)
-             + var(--lf-grip-room, 0px) + 4px), 1fr); /* 4px: the two 1px borders */
+             + var(--lf-grip-room, 0px) + 4px); /* 4px: the two 1px borders */
+           grid-auto-columns: minmax(var(--lf-column-floor), 1fr);
            gap: var(--sp-2); margin: 14px 0; align-items: stretch; overflow-x: auto; }
 lf-column { display: block; background: var(--field); border: 1px solid var(--rule);
             border-radius: var(--r); padding: var(--lf-column-inset); min-height: 64px;
             --lf-frame: 1; }
+/* On a phone, one column needs enough room to read while the next remains visible as the
+   cue that the board continues sideways. The floor still wins inside a narrower frame. */
+@media screen and (max-width: 640px) {
+  lf-board { grid-auto-columns: max(var(--lf-column-floor),
+             calc(100% - var(--sp-4))); scroll-snap-type: inline proximity; }
+  lf-column { scroll-snap-align: start; }
+}
 /* The heading is written by lf-board.js rather than by the x-says pass, because
    it is the list's accessible name as well as its visible words and the pass
    knows nothing about names. Where the upgrade ran, the column carries those

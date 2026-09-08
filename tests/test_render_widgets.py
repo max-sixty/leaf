@@ -1977,6 +1977,37 @@ def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
     page.close()
 
 
+def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable(
+    browser, serve
+):
+    """A phone shows one readable board column and the start of the next.
+
+    The desktop grid divided its wide target across every column even after the board
+    itself had narrowed to the page. On a phone that left most of a second column on
+    screen and squeezed the first into a narrow card. The board remains horizontal, so
+    pointer dragging and its arrow-key directions keep the same meaning at every width.
+    """
+    page, errors = open_page(browser, serve(SQUEEZED_BOARD_PAGE))
+    resized(page, 390, 900)
+    measured = page.locator("#crowd").evaluate(
+        """board => {
+        const box = board.getBoundingClientRect();
+        const columns = [...board.querySelectorAll(':scope > lf-column')]
+          .slice(0, 2).map(column => column.getBoundingClientRect());
+        return {board: box, columns,
+                scrolls: board.scrollWidth > board.clientWidth};
+    }"""
+    )
+    board = measured["board"]
+    first, second = measured["columns"]
+    assert first["width"] > board["width"] * 0.85, measured
+    assert first["right"] <= board["right"] + 1, measured
+    assert first["right"] < second["left"] < board["right"], measured
+    assert measured["scrolls"], measured
+    assert errors == []
+    page.close()
+
+
 def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
     browser, serve
 ):

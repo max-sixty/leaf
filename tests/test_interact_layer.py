@@ -929,16 +929,18 @@ def test_every_vendored_stylesheet_parses(page_dir):
         assert not _css_parse_errors(rules), f"{name}: {_css_parse_errors(rules)}"
 
 
-def test_the_chrome_sheet_spells_the_runtime_s_layout_numbers():
-    """A media query cannot read a custom property, so chrome.css states the covering
-    widths, the strip-taking tray, the width properties, and the Ask stamp as
-    literals while the runtime lays out and paints by the constants. Held equal here
-    rather than trusted to stay so."""
+def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
+    """A media query cannot read a custom property, so the sheets state the covering
+    widths, the strip-taking tray, the width properties, and the Ask stamp as literals
+    while the runtime lays out and paints by the constants. Held equal here rather than
+    trusted to stay so."""
     runtime = schema_model.ASSETS / "runtime"
     layout = (runtime / "chrome-layout.js").read_text()
     trays = (runtime / "trays.js").read_text()
     presentation = (runtime / "presentation.js").read_text()
-    sheet = (runtime / "chrome.css").read_text()
+    sheet = (schema_model.ASSETS / "theme.css").read_text() + (
+        runtime / "chrome.css"
+    ).read_text()
 
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE | re.DOTALL).group(1)
@@ -946,23 +948,55 @@ def test_the_chrome_sheet_spells_the_runtime_s_layout_numbers():
     panel = int(constant(r"^export const PANEL_W = (\d+);", layout))
     tray = int(constant(r"^const TRAY_W = (\d+);", trays))
     strip = constant(r"^export const STRIP_TRAYS = \[(.*?)\];", trays)
-    strip_rule = (
-        "body:is("
-        + ",".join(
-            f'[data-lf-tray="{name}"]' for name in re.findall(r'"([a-z-]+)"', strip)
-        )
-        + ")"
-    )
+    strip_names = re.findall(r'"([a-z-]+)"', strip)
     for spelling in (
         f"(width <= {panel * 2}px)",
         f"(width > {panel * 2}px)",
         f"(width <= {tray * 2}px)",
-        strip_rule,
         "var(" + constant(r'^export const PANEL_PROP = "([^"]+)";', layout) + ")",
         "var(" + constant(r'^export const TRAY_PROP = "([^"]+)";', trays) + ")",
         "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
     ):
-        assert spelling in sheet, f"chrome.css no longer spells {spelling}"
+        assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
+    for tray_name in strip_names:
+        assert f'[data-lf-tray="{tray_name}"]' in sheet
+        assert f'[data-lf-restore-tray="{tray_name}"]' in sheet
+
+
+def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
+    """The classic bootstrap cannot import modules, so the layer gate ties its storage
+    and responsive geometry literals to the runtime owners it precedes."""
+    assets = schema_model.ASSETS
+    layout = (assets / "runtime" / "chrome-layout.js").read_text()
+    trays = (assets / "runtime" / "trays.js").read_text()
+    bootstrap = (assets / "runtime" / "bootstrap.js").read_text()
+    theme = (assets / "theme.css").read_text()
+
+    assert 'root.toggleAttribute("data-lf-live", true)' in bootstrap
+    assert "html[data-lf-live]" in theme
+    assert 'script[type="module"][src="/leaf.js"]' not in theme
+
+    def constant(pattern, source):
+        return re.search(pattern, source, re.MULTILINE).group(1)
+
+    for pattern, source in (
+        (r'^export const PANEL_KEY = "([^"]+)";', layout),
+        (r'^export const TRAY_KEY = "([^"]+)";', trays),
+        (r'key: "(lf-panel-width)"', layout),
+        (r'key: "(lf-tray-width)"', trays),
+    ):
+        key = constant(pattern, source)
+        assert f'localStorage.getItem("{key}")' in bootstrap
+
+    for literal in (
+        constant(r"^export const PANEL_W = (\d+);", layout),
+        constant(r"^const PANEL_MIN = (\d+);", layout),
+        constant(r"^const TRAY_W = (\d+);", trays),
+        constant(r"^const TRAY_MIN = (\d+);", trays),
+        "data-lf-restore-panel",
+        "data-lf-restore-tray",
+    ):
+        assert literal in theme
 
 
 def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(tmp_path):

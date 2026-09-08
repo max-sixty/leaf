@@ -128,6 +128,7 @@ export function bake() {
     document.head.append(link);
   }
   document.adoptedStyleSheets = [];
+  document.documentElement.removeAttribute("data-lf-live");
   document.documentElement.removeAttribute("data-lf-traffic");
   // The reading identifies one live server response. It is neither stable across
   // exports nor meaningful once the scripts and server are gone.

@@ -516,7 +516,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
 
 def test_an_item_hint_opens_comment_and_a_token_outlines_the_item(browser, serve):
     """Keyboard item selection opens Comment. Choosing a token puts an
-    element anchor in the log, which paints as a dashed hairline on the item's boxes
+    element anchor in the log, which paints as a solid hairline on the item's boxes
     and a glyph seated at its first line."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.type(hint_code(page, "#prose", 3))

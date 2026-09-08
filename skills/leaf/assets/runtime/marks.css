@@ -18,10 +18,9 @@
    The wash and the ink answer two questions, so they are moved by two things. The wash
    says how near the reader's attention is, in three steps of one hue: --mark for a mark
    the page merely holds, --mark-hover for the one the pointer is indicating, and
-   --mark-strong for the one the reader is standing in. The ink turns accent for that last
-   one alone (paintStanding), because "you are here" is a different claim from "you are
-   near here", and it is made in the one band this page spends on that fact everywhere
-   else (--here-ring).
+   --mark-strong for the one the reader is standing in. The ink turns accent for hover
+   and standing: the wash still distinguishes "near here" from "you are here," while the
+   shared contour stays stable through the focus transition of a pointer press.
 
    Three steps and not two, because the hover is no longer a thing the reader does only by
    pointing at the prose. A card in the panel indicates its thread the same way (paintHover
@@ -49,22 +48,23 @@
 
    lf-react was the one name with no line, and it was the faintest wash of the set: a
    reacted passage stood at 1.08:1 over the light paper, which is a mark nobody sees.
-   Dashed against the comment's solid contour, the pair the element anchors already draw
-   (.lf-mark-el solid, .lf-react-el dashed) — same relation, said on glyphs. */
+   It now shares the comment's solid line because the line locates feedback; the reaction
+   glyph in the margin says what kind. */
 /* The highlights rank `lf-mark`, `lf-mark-hover`, `lf-mark-here`, `lf-pending`, and a
-   higher one supplies only the properties it states, so a standing mark under the pointer
-   keeps its own wash and its own ink and takes nothing from the hover. Pointing at one
-   comment while standing in another therefore says both, in two washes a reader can tell
-   apart. */
+   higher one supplies only the properties it states. Hover and the current thread share
+   an accent line, so pressing the current target does not briefly demote it when focus
+   moves to the page. Their washes remain distinct on text, and pointing at one comment
+   while standing in another still says both. */
 ::highlight(lf-mark) { background-color: var(--mark);
   text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
-::highlight(lf-mark-hover) { background-color: var(--mark-hover); }
+::highlight(lf-mark-hover) { background-color: var(--mark-hover);
+  text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
 ::highlight(lf-mark-here) {
   background-color: var(--mark-strong);
   text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
 ::highlight(lf-pending) { background-color: var(--mark-pending);
   text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
 ::highlight(lf-react) { background-color: var(--react);
-  text-decoration: underline 2px dashed var(--mark-ink); text-underline-offset: 3px; }
+  text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
 .lf-action-target { outline: 1px solid var(--accent); outline-offset: -1px;
   cursor: pointer; }

@@ -117,8 +117,8 @@
      options, which stand outside the rail's walk and own their own seat while another
      writer owns their relation;
    - `status` reports a move already made and offers no press. It keeps its icon and its
-     circular margin element silhouette and seat in the cluster on the page surface with a ghost
-     shortcut bar, but gives up its raised edge, hover response, pointer, and tab stop. It
+     circular margin element silhouette and seat in the cluster on the page surface with a
+     ghost hairline, but gives up its raised edge, hover response, pointer, and tab stop. It
      remains a `status` in the accessibility tree so the Page map can still land there and
      name the phase. Status is live-session information, so a copy drops it.
 
@@ -449,11 +449,11 @@ function validateMarginElements(offered) {
     const record = marginElementRecord(control);
     if (keys.has(record.key))
       throw new TypeError(
-        `Duplicate margin element key "${record.key}" in margin cluster "${offered.key}"`,
+        `Duplicate margin element key "${record.key}" in margin contribution "${offered.key}"`,
       );
     if (record.owner && record.owner !== offered.key)
       throw new TypeError(
-        `margin element "${record.key}" already belongs to margin cluster "${record.owner}"`,
+        `margin element "${record.key}" already belongs to margin contribution "${record.owner}"`,
       );
     keys.add(record.key);
     record.owner = offered.key;
@@ -513,13 +513,12 @@ export function marginElement(
   },
 ) {
   if (!(control instanceof Element))
-    throw new TypeError("A margin margin element needs an Element control");
-  if (!String(key ?? "").trim())
-    throw new TypeError("A margin margin element needs a key");
+    throw new TypeError("A margin element needs an Element control");
+  if (!String(key ?? "").trim()) throw new TypeError("A margin element needs a key");
   if (Boolean(String(glyph ?? "").trim()) === Boolean(icon))
-    throw new TypeError("A margin margin element needs exactly one glyph or icon");
+    throw new TypeError("A margin element needs exactly one glyph or icon");
   if (!String(label ?? "").trim())
-    throw new TypeError("A margin margin element needs a label");
+    throw new TypeError("A margin element needs a label");
   if (!MARGIN_ELEMENT_TONES.has(tone))
     throw new TypeError(`Unknown margin element tone: ${tone}`);
   if (!MARGIN_ELEMENT_BEHAVIORS.has(behavior))
@@ -661,7 +660,7 @@ function syncMarginElementCount(control, count) {
 
 export function marginElementState(control, state) {
   if (!(control instanceof Element) || !control.classList.contains("lf-margin-element"))
-    throw new TypeError("A margin element state needs a margin margin element");
+    throw new TypeError("A margin element state needs a margin element");
   if (!MARGIN_ELEMENT_STATES.has(state))
     throw new TypeError(`Unknown margin element state: ${state}`);
   marginElementRecord(control).state = state;
@@ -682,15 +681,16 @@ export function registerMarginContribution({
   claim = true,
   reserve = 0,
 }) {
-  if (!String(key ?? "").trim()) throw new TypeError("A margin cluster needs a key");
+  if (!String(key ?? "").trim())
+    throw new TypeError("A margin contribution needs a key");
   if (!new Set(["before", "after"]).has(side))
-    throw new TypeError(`Unknown margin-item side: ${side}`);
+    throw new TypeError(`Unknown margin contribution side: ${side}`);
   if (typeof state !== "string" && typeof state !== "function")
-    throw new TypeError("A margin cluster's state must be a string or function");
+    throw new TypeError("A margin contribution's state must be a string or function");
   if (subject != null && typeof subject !== "string" && typeof subject !== "function")
-    throw new TypeError("A margin cluster's subject must be a string or function");
+    throw new TypeError("A margin contribution's subject must be a string or function");
   if (typeof state === "string" && !MARGIN_ELEMENT_STATES.has(state))
-    throw new TypeError(`Unknown margin-item state: ${state}`);
+    throw new TypeError(`Unknown margin contribution state: ${state}`);
   if (controls instanceof Element) controls.classList.add("lf-margin-contribution");
   const offered = {
     key: String(key),
@@ -1060,7 +1060,7 @@ const offerReadings = (offered) => {
 const offerState = (offered) => {
   const state = typeof offered.state === "function" ? offered.state() : offered.state;
   if (!MARGIN_ELEMENT_STATES.has(state))
-    throw new TypeError(`Unknown margin-item state: ${state}`);
+    throw new TypeError(`Unknown margin contribution state: ${state}`);
   return state;
 };
 // One target has one lifecycle reading. Failure outranks work in flight, which
@@ -1588,7 +1588,7 @@ function collectEntries() {
     const group = groupFor(groups, target);
     if (group.offers.some((candidate) => candidate.key === offered.key))
       throw new TypeError(
-        `Duplicate margin-item key for ${target.id || targetPath(target)}: ${offered.key}`,
+        `Duplicate margin contribution key for ${target.id || targetPath(target)}: ${offered.key}`,
       );
     group.offers.push(offered);
     const subject =
@@ -1596,14 +1596,14 @@ function collectEntries() {
     if (String(subject ?? "").trim()) {
       if (group.subject && group.subject !== String(subject).trim())
         throw new TypeError(
-          `Conflicting margin-item subjects for ${target.id || targetPath(target)}`,
+          `Conflicting margin contribution subjects for ${target.id || targetPath(target)}`,
         );
       group.subject = String(subject).trim();
     }
     const items = typeof offered.items === "function" ? offered.items() : offered.items;
     for (const item of items ?? []) {
       const kind = item.kind ?? "action";
-      if (!KINDS[kind]) throw new TypeError(`Unknown margin-item kind: ${kind}`);
+      if (!KINDS[kind]) throw new TypeError(`Unknown margin reading kind: ${kind}`);
       group.items.push({ marker: false, ...item, owner: offered.key, kind });
     }
   }

@@ -302,7 +302,7 @@ body { position: static; box-sizing: border-box; }
 /* A margin element carries one of three promises on the same paper surface.
    An action's heavier ring and lower shadow say this press acts now; a disclosure's
    firmer single ring says it opens context; read-only status keeps only the page's
-   ghost shortcut bar. All three keep one circular silhouette and one place in the cluster,
+   ghost hairline. All three keep one circular silhouette and one place in the cluster,
    while the static status alone has no raised or responsive material. */
 .lf-margin-element[data-lf-behavior="action"] {
   border-width: 2px;

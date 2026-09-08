@@ -1467,7 +1467,8 @@ def test_margin_registration_rejects_ambiguous_margin_element_identity(browser, 
         }"""
     )
     assert (
-        message == 'Duplicate margin element key "same" in margin cluster "ambiguous"'
+        message
+        == 'Duplicate margin element key "same" in margin contribution "ambiguous"'
     )
     expect(page.locator('[data-lf-margin-for="how-cap"]')).to_have_count(0)
     assert errors == []

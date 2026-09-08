@@ -781,9 +781,15 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     page.locator("#tree.lf-mark-el.lf-pending.lf-projected-mark").wait_for()
     overlay = page.locator(".lf-visual-mark-pending")
     expect(overlay).to_be_visible()
-    assert overlay.evaluate("el => getComputedStyle(el).backgroundImage !== 'none'"), (
-        "the rectangular visual painter dropped the pending comment wash"
+    look = overlay.evaluate(
+        """el => { const style = getComputedStyle(el); return {
+          background: style.backgroundImage,
+          borders: [style.borderTopWidth, style.borderRightWidth,
+                    style.borderBottomWidth, style.borderLeftWidth],
+        }; }"""
     )
+    assert look["background"] == "none", look
+    assert len(set(look["borders"])) == 1 and look["borders"][0] != "0px", look
     page.keyboard.press("Escape")
 
     # And a paragraph is still text: the click reaches no picture and raises nothing.
@@ -849,13 +855,14 @@ def _edge_ink_changes(quiet, painted, target, clip, ink):
     return changed, missing
 
 
-def test_a_screenshot_comment_rail_paints_above_its_edge_to_edge_frame(browser, serve):
-    """A declared visual's annotation rail is above its package-owned children.
+def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
+    browser, serve
+):
+    """A declared visual's annotation contour is above its package-owned children.
 
     lf-shot is the causal case: its positioned frame reaches every side of a host with
     no border of its own. A source-element outline sits below that frame and disappears
-    down both sides. The projected rail remains visible without turning the screenshot
-    into another four-sided card.
+    down both sides. The projected contour remains visible above all four edges.
     """
     example = next(path for path in EXAMPLES if path.stem == "release-notes")
     page, errors = open_page(browser, serve(example))
@@ -885,11 +892,59 @@ def test_a_screenshot_comment_rail_paints_above_its_edge_to_edge_frame(browser, 
     marked = screenshot()
 
     changed, _ = _edge_ink_changes(quiet, marked, box, clip, ink)
-    assert changed["left"] > 0, f"the screenshot frame covered its rail: {changed}"
-    assert all(changed[side] == 0 for side in ("top", "right", "bottom")), (
-        f"the screenshot annotation became a repeated border: {changed}"
+    assert all(changed[side] > 0 for side in changed), (
+        f"the screenshot frame covered part of its annotation contour: {changed}"
     )
 
+    assert errors == []
+    page.close()
+
+
+def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, serve):
+    """The selected thread may strengthen its contour, but its overlay stays hollow.
+
+    This is the checkout-rehearsal regression: the metric fills its host edge to edge,
+    so a mark projected above the widget also sits above every word the widget draws.
+    Comparing the interior with that overlay hidden makes the guarantee independent of
+    the widget's DOM, colors, and stacking choices.
+    """
+    example = next(path for path in EXAMPLES if path.stem == "live-progress")
+    url = serve(example)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "blocked-card-comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Swap this with the next block.",
+            "anchor": {"section": "lp-k-blocked"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread .lf-quote").click()
+
+    card = page.locator("#lp-k-blocked")
+    mark = page.locator('.lf-visual-mark[data-for="lp-k-blocked"].lf-visual-mark-here')
+    expect(mark).to_be_visible()
+    card.scroll_into_view_if_needed()
+    box = card.bounding_box()
+
+    def screenshot():
+        return Image.open(io.BytesIO(page.screenshot(clip=box))).convert("RGB")
+
+    marked = screenshot()
+    mark.evaluate("element => { element.style.visibility = 'hidden'; }")
+    bare = screenshot()
+    inset = math.ceil(3 * page.evaluate("devicePixelRatio"))
+    interior = (inset, inset, marked.width - inset, marked.height - inset)
+    difference = ImageChops.difference(marked.crop(interior), bare.crop(interior))
+    assert difference.getbbox() is None, (
+        "the selected comment painted inside the metric card instead of only around it"
+    )
+    mark.evaluate("element => { element.style.removeProperty('visibility'); }")
     assert errors == []
     page.close()
 

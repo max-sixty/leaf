@@ -10,8 +10,11 @@
  *
  * In the roomy margin the outline becomes a reading map. Each row receives the length
  * of the section it leads as its flex share, so the quiet spine describes the document
- * before its labels appear. Labels pack without changing those rows, and each row's
- * marker follows its label while the label is revealed so the association stays visible.
+ * before its labels appear. A label stays at the row its destination owns. When those
+ * exact positions leave too little room to show the whole outline, the dense posture
+ * reveals one label at a time instead of inventing a second layout for the same route.
+ * A destination inside a closed disclosure or inactive tab joins the margin map when it
+ * joins the displayed document; the ordinary outline keeps its native fragment link.
  * The darker lens is the part of the document in the viewport.
  * ResizeObserver hears late diagrams, images, disclosures, and width changes in the
  * document, and the height of the track the rows are laid into, which the page's chrome
@@ -226,6 +229,7 @@ customElements.define(
         this.#positions.at(-1) + 1,
       );
       this.#sections.forEach(({ row }, index) => {
+        row.toggleAttribute("data-lf-toc-hidden", !this.#shown[index]);
         const nextVisible = this.#shown.findIndex((shown, at) => at > index && shown);
         const next = nextVisible < 0 ? this.#contentEnd : this.#positions[nextVisible];
         row.style.setProperty(
@@ -233,72 +237,27 @@ customElements.define(
           this.#shown[index] ? String(Math.max(1, next - this.#positions[index])) : "0",
         );
       });
-      this.#placeLabels();
+      this.#setLabelPosture();
       this.#paint();
     }
 
-    #placeLabels() {
+    #setLabelPosture() {
       this.removeAttribute("data-lf-dense");
-      for (const { row } of this.#sections)
-        row.style.removeProperty("--lf-toc-label-shift");
-
       if (getComputedStyle(this.#rows).display !== "flex") return;
       const track = this.#rows.getBoundingClientRect();
       const lineHeight = parseFloat(getComputedStyle(this.#nav).lineHeight);
       const labelGap = Number.isFinite(lineHeight) ? lineHeight * 0.5 : 0;
-      let prefix = 0;
-      const labels = this.#sections.map(({ row, link }) => {
-        const label = {
-          ideal: row.getBoundingClientRect().top - track.top,
-          height: link.getBoundingClientRect().height,
-          prefix,
-        };
-        prefix += label.height + labelGap;
-        return label;
-      });
-      // Labels that merely fit still read as one block. Keep half a line between them;
-      // the dense map retains every destination when the expanded outline cannot.
-      const labelHeight = prefix - labelGap;
-      if (labelHeight > track.height + 1) {
-        this.setAttribute("data-lf-dense", "");
-        return;
-      }
-
-      // A label's collision-free top is its marker top minus the height of every label
-      // before it. Those corrected tops must be nondecreasing. Pool adjacent violations
-      // and share their correction, so a crowded group moves around its markers instead
-      // of every collision accumulating below them.
-      const blocks = [];
-      labels.forEach((label, index) => {
-        blocks.push({
-          start: index,
-          end: index,
-          top: label.ideal - label.prefix,
-          count: 1,
+      let previousBottom = track.top - labelGap;
+      const crowded = this.#sections
+        .filter(({ row }) => !row.hasAttribute("data-lf-toc-hidden"))
+        .some(({ row, link }) => {
+          const top = row.getBoundingClientRect().top;
+          const bottom = top + link.getBoundingClientRect().height;
+          const overlaps = top < previousBottom + labelGap - 1;
+          previousBottom = bottom;
+          return overlaps || top < track.top - 1 || bottom > track.bottom + 1;
         });
-        while (blocks.length > 1 && blocks.at(-2).top > blocks.at(-1).top) {
-          const next = blocks.pop();
-          const previous = blocks.pop();
-          const count = previous.count + next.count;
-          blocks.push({
-            start: previous.start,
-            end: next.end,
-            top: (previous.top * previous.count + next.top * next.count) / count,
-            count,
-          });
-        }
-      });
-      const slack = Math.max(0, track.height - labelHeight);
-      for (const block of blocks) {
-        const top = Math.max(0, Math.min(slack, block.top));
-        for (let index = block.start; index <= block.end; index += 1) {
-          const label = labels[index];
-          this.#sections[index].row.style.setProperty(
-            "--lf-toc-label-shift",
-            `${top + label.prefix - label.ideal}px`,
-          );
-        }
-      }
+      if (crowded) this.setAttribute("data-lf-dense", "");
     }
 
     #documentTop(element) {

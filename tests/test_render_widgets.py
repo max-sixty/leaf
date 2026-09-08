@@ -2036,7 +2036,7 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
     assert measured["scrolls"], measured
 
     card = page.locator("#sq-card-0")
-    expect(card.locator(".lf-grip")).to_be_hidden()
+    expect(card.locator(".lf-grip")).to_be_visible()
     to_lane_1 = card.get_by_role("button", name="Move Perch 0 to Lane 1")
     expect(to_lane_1).to_be_visible()
     with sending(page, "the phone category move"):
@@ -2489,6 +2489,7 @@ def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
     round_trip(page)
     expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
     expect(page.locator("#session-keep > #swipe-b")).to_have_count(1)
+    expect(first).to_be_focused()
 
     for binding in ("ArrowLeft", "ArrowLeft", "ArrowRight"):
         page.locator("#session-queue > lf-swipe-card").first.focus()
@@ -2508,6 +2509,7 @@ def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
     round_trip(page)
     expect(page.locator("#session-queue > #swipe-d")).to_have_count(1)
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect(final).to_be_focused()
     assert errors == []
     page.close()
 

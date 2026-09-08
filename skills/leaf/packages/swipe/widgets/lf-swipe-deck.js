@@ -218,14 +218,18 @@ customElements.define(
       button.addEventListener("click", async () => {
         const event = this.#returnable(card);
         if (!event || this.#returning.has(card.id)) return;
+        const refocus = document.activeElement === button;
         this.#returning.add(card.id);
         this.#render();
+        let returned = false;
         try {
-          await withdraw(event);
+          returned = Boolean(await withdraw(event));
         } finally {
           this.#returning.delete(card.id);
           if (this.isConnected) this.#render();
         }
+        if (refocus)
+          (returned ? this.#active() : button).focus({ preventScroll: true });
       });
       card.append(button);
     }

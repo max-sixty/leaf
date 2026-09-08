@@ -1103,8 +1103,6 @@ lf-column { display: block; background: var(--field); border: 1px solid var(--ru
   .lf-board-destinations {
     display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-1);
     margin-top: var(--sp-2); }
-  lf-card { padding-right: var(--lf-card-inset); }
-  lf-card .lf-grip { display: none; }
   .lf-board-destinations-label { color: var(--muted); font-size: var(--t-6); }
   .lf-board-destination { min-height: var(--aim-floor); padding: var(--sp-1) var(--sp-2);
                           border: 1px solid var(--border-2); border-radius: var(--chip-r);

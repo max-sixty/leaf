@@ -1281,6 +1281,10 @@ def opened_tab(page, destination, press, timeout=10_000):
     for one new page at the expected URL. It closes that target and navigates a controlled
     page in the same context for the arrival assertions. This keeps the product action
     observable without repeating a reader gesture or leaking the target.
+
+    `page` must belong to an explicitly created context such as `one_reader`. Playwright
+    refuses `context.new_page()` on the owner context created by `browser.new_page()`,
+    which is what `open_page` uses when no context is passed.
     """
     browser_session = page.context.browser.new_browser_cdp_session()
 

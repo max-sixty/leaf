@@ -371,23 +371,21 @@ export function undoable() {
 // walking to the newest gesture. It has the same authored-version and replayability
 // boundary as the keyboard walk.
 export function undoableAction(widget, action, unit = null) {
-  const candidate = (runtime.view?.undo ?? []).find(
-    ({ event }) => {
-      if (
-        event.kind !== "action" ||
-        event.widget !== widget.id ||
-        event.action !== action ||
-        (!inChrome(widget) && event.revision !== runtime.currentRevision)
-      )
-        return false;
-      if (unit === null) return true;
-      const spec = stateSpecs().find(
-        ({ tag, channel, verb }) =>
-          tag === widget.localName && channel === "x-state" && verb === action,
-      )?.spec;
-      return spec && unitOf(event, spec) === unit;
-    },
-  );
+  const candidate = (runtime.view?.undo ?? []).find(({ event }) => {
+    if (
+      event.kind !== "action" ||
+      event.widget !== widget.id ||
+      event.action !== action ||
+      (!inChrome(widget) && event.revision !== runtime.currentRevision)
+    )
+      return false;
+    if (unit === null) return true;
+    const spec = stateSpecs().find(
+      ({ tag, channel, verb }) =>
+        tag === widget.localName && channel === "x-state" && verb === action,
+    )?.spec;
+    return spec && unitOf(event, spec) === unit;
+  });
   return candidate && canUndoAction(candidate) ? candidate.event : null;
 }
 

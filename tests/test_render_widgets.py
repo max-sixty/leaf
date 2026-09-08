@@ -2015,7 +2015,9 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
     screen and squeezed the first into a narrow card. Wide columns then put the next
     pointer drop target off screen, so the phone offers every other column on the card.
     """
-    context = browser.new_context(viewport={"width": 390, "height": 900}, has_touch=True)
+    context = browser.new_context(
+        viewport={"width": 390, "height": 900}, has_touch=True
+    )
     page, errors = open_page(browser, serve(SQUEEZED_BOARD_PAGE), context=context)
     measured = page.locator("#crowd").evaluate(
         """board => {

@@ -211,7 +211,8 @@ customElements.define(
 
     #returnControl(card) {
       const button = offer("button", "lf-swipe-return", "Return to queue");
-      const title = card.querySelector(":scope > strong")?.textContent.trim() || card.id;
+      const title =
+        card.querySelector(":scope > strong")?.textContent.trim() || card.id;
       button.setAttribute("aria-label", `Return ${title} to queue`);
       button.hidden = true;
       button.addEventListener("click", async () => {

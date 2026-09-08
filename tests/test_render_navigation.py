@@ -16,6 +16,7 @@ from render_support import (
     CLIPPED_BY,
     CONTROL_LABEL_PAGE,
     CROWDED_PAGE,
+    DIFF_PAGE,
     DISCLOSED_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
@@ -3909,6 +3910,22 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     expect(tabs.nth(1)).to_be_focused()
     expect(page.locator("#tab-bath")).not_to_have_attribute("hidden", re.compile(".*"))
     expect(page.locator("#tab-feeders")).to_have_attribute("hidden", re.compile(".*"))
+    assert errors == []
+    page.close()
+
+
+def test_the_g_chord_reaches_a_checkbox_a_widget_built(browser, serve):
+    """A native press joins the generated route through the same offer that styles it."""
+    page, errors = open_page(browser, serve(DIFF_PAGE))
+    checkbox = page.locator("#patch .lf-diff-wrap")
+    expect(checkbox).to_be_visible()
+    checkbox.evaluate("node => { node.id = 'soft-wrap'; }")
+
+    page.keyboard.press("g")
+    page.keyboard.type(address_code(page, "Control", "soft-wrap"))
+
+    expect(checkbox).to_be_checked()
+    expect(checkbox).to_be_focused()
     assert errors == []
     page.close()
 

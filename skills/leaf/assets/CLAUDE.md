@@ -547,12 +547,11 @@ meaning, scope, native overlap, entry and exit symmetry, and focus restoration.
 Each generated hint names the exact visible control it activates. An aggregate location
 may expose each of its visible margin elements or focus itself; it never selects a descendant
 action for the reader. A press a widget built is one of those controls too, read off the
-value `offer` and `selectableOffer` write: the tag for a button, the role for a selectable
-offer. That is what lets a capability decline a page letter without becoming unreachable —
-the row states the capability, and the sequence reaches each control that routes to one. The
-reading stops where the theme's hand stops, because it is the same reading. A widget that
-builds its press as some other native control gets the empty string, the value naming the
-tag rather than pressability, and still spends a binding to make that press reachable.
+value `offer` and `selectableOffer` write: the tag for a button, the type for a native
+checkbox or radio, or the role for a selectable offer. This lets a capability decline a
+page letter without becoming unreachable. The row states the capability, and the sequence
+reaches each control that routes to one. The reading stops where the theme's hand stops,
+because it is the same reading.
 Document every inconsistency the survey exposes in the task handoff. If the rules
 here do not settle one, escalate it to the user before choosing locally; the
 absence of a dispatch conflict does not make a binding precise.

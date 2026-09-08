@@ -152,19 +152,11 @@ const pageDisclosures = () => pageParts("details > summary");
 // Narrower than the disclosure scope's own reading: this route can reveal a native
 // disclosure by its summary, while an aria-expanded group has no equivalent arrival.
 // The presses themselves, wherever a widget put them. Each is declared as it is built:
-// `offer` writes the tag for a button and `selectableOffer` the role it gave, which is the
-// value the theme's hand already reads, so a widget joins by building its control rather
-// than by an entry here. The register stays about capabilities; a press is a route to one,
-// and this is how a route that spends no key of its own is reached.
-//
-// The reading stops where the hand stops, because it is the same reading. `offer` writes
-// the empty string for every tag but `button`, so a press built as another native control
-// is outside both — the diff's soft-wrap box is `offer("input")` given `type = "checkbox"`
-// afterwards, and it spends `Alt+w` for want of the route this cannot give it.
-//
-// TODO(2026-09-06): the value names the tag rather than pressability, which an `input`
-// carries in its `type` and sets after `offer` returns. Widening it moves the hand, the
-// copy, and the render gate together, so it is its own change rather than a clause here.
+// `offer` writes the native press's tag or input type and `selectableOffer` the role it
+// gave, which is the value the theme's hand already reads. A widget joins by building its
+// control rather than by an entry here. The register stays about capabilities; a press is
+// a route to one, and this is how a route that spends no key of its own is reached. The
+// reading stops where the hand stops, because it is the same reading.
 const pageControls = () => pageParts(PRESSABLE);
 
 // A link keeps the platform activation that its author wrote. The sequence adds only the

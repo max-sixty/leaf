@@ -1138,6 +1138,16 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     expect(prepare).to_have_css("opacity", "0")
     expect(prepare).to_have_css("pointer-events", "none")
 
+    nav.hover()
+    page.keyboard.press("g")
+    expect(link_hints).to_have_count(nav.locator("a").count())
+    for link in nav.locator("a").all():
+        expect(link).to_have_css("pointer-events", "auto")
+    page.keyboard.press("Escape")
+    page.mouse.move(1200, 700)
+    expect(prepare).to_have_css("opacity", "0")
+    expect(prepare).to_have_css("pointer-events", "none")
+
     prepare.evaluate(
         "node => node.addEventListener('pointerdown', () => { window.lfTocPressed = true; }, { once: true })"
     )

@@ -1466,7 +1466,8 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
        * A dense route fills its exact row while the separate address hint says its words. */
       body[data-lf-goto] lf-toc .lf-toc-nav a { pointer-events: auto; }
       body[data-lf-goto] lf-toc[data-lf-dense] .lf-toc-nav a {
-        opacity: 0; animation: none; height: 100%; max-height: none;
+        opacity: 0; animation: none; pointer-events: auto;
+        height: 100%; max-height: none;
       }
       lf-toc[data-lf-dense] .lf-toc-nav:hover
         :is(.lf-toc-start, li):hover a,
@@ -1489,7 +1490,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
         animation: none; pointer-events: auto;
       }
       body[data-lf-goto] lf-toc[data-lf-dense] .lf-toc-nav a {
-        opacity: 0; height: 100%; max-height: none;
+        opacity: 0; pointer-events: auto; height: 100%; max-height: none;
       }
       lf-toc[data-lf-dense] .lf-toc-nav:hover
         :is(.lf-toc-start, li):hover a,

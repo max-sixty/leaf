@@ -26,9 +26,10 @@ rules a new or changed example has to meet.
 ## Website and demo
 
 - `site.py` builds <https://leaf.page/> as complete page directories in `.tmp/site`
-  and their derived live shells in `.tmp/site-assets`. `--serve` opens the same
-  Wrangler asset and container boundary the deployed site uses, and needs
-  `npm ci --prefix worker` and a running Docker.
+  and their derived live shells in `.tmp/site-assets`, then bundles the public runtime
+  with the website's esbuild dependency. Run `npm ci --prefix worker` first. `--serve`
+  opens the same Wrangler asset and container boundary the deployed site uses and also
+  needs a running Docker.
   `.github/workflows/publish-site.yaml` deploys both halves for relevant pushes to
   `main`.
 - `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws the Leaf

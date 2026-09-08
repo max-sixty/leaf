@@ -52,6 +52,7 @@ OUT = (
     ROOT / ".tmp" / "site"
 )  # gitignored; the container consumes the complete private page directories
 WRANGLER = ROOT / "worker" / "node_modules" / ".bin" / "wrangler"
+BUNDLE_RUNTIME = ROOT / "worker" / "bundle-runtime.mjs"
 
 PRODUCT_ROUTES = {
     "index.html": "/",
@@ -411,10 +412,25 @@ def build(
         check_links(out)
 
 
+def bundle_published_runtime(out: Path) -> None:
+    """Collapse the public static module graph after its routes have been scoped."""
+    done = subprocess.run(
+        ["node", str(BUNDLE_RUNTIME), str(asset_site(out))],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if done.returncode:
+        sys.exit(f"website runtime bundle failed:\n{done.stdout}{done.stderr}")
+    deduplicate_tree(asset_site(out))
+
+
 def main() -> None:
     if sys.argv[1:] not in ([], ["--serve"]):
         sys.exit("usage: uv run scripts/site.py [--serve]")
     build(OUT)
+    bundle_published_runtime(OUT)
     print(f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT} and {asset_site(OUT)}")
     if sys.argv[1:] == ["--serve"]:
         if not WRANGLER.is_file():

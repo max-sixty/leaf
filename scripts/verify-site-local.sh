@@ -5,7 +5,7 @@ set -euo pipefail
 
 repo_root=$(git rev-parse --show-toplevel)
 log="$repo_root/.tmp/wrangler-dev.log"
-release=$(jq --raw-output .release "$repo_root/.tmp/site/_leaf/site.json")
+release=${LEAF_SITE_RELEASE:-$(jq --raw-output .release "$repo_root/.tmp/site/_leaf/site.json")}
 
 (cd "$repo_root/worker" && npx wrangler dev --port 8787) > "$log" 2>&1 &
 server=$!

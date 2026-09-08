@@ -1520,6 +1520,7 @@ export function scrollToRange(where, behavior = scrollBehavior()) {
       : where.startContainer.parentElement;
   if (!holder) return;
   reveal(holder);
+  const targetScroller = scrollerFor(holder);
   // Reveal every nested scrollport here, but stop before the document's. Using
   // `scrollIntoView` as the prelude to the centred page trip wrote that last box too:
   // it jumped the document to the holder's nearest edge, then glided it somewhere
@@ -1527,7 +1528,7 @@ export function scrollToRange(where, behavior = scrollBehavior()) {
   // revealed before its final box can be read.
   for (
     let box = holder;
-    box && box !== pageScroller;
+    box && box !== targetScroller;
     box = box.assignedSlot ?? parentAcross(box)
   ) {
     if (box.scrollWidth <= box.clientWidth && box.scrollHeight <= box.clientHeight)
@@ -1552,7 +1553,7 @@ export function scrollToRange(where, behavior = scrollBehavior()) {
       byY = destination.bottom - bottom;
     if (byX || byY) box.scrollBy({ left: byX, top: byY, behavior: "instant" });
   }
-  moveScrollerBy(pageScroller, centreBy(where), behavior);
+  moveScrollerBy(targetScroller, centreBy(where, "center", targetScroller), behavior);
 }
 
 // Move to where a thread is painted, if it still is — asked of the pass's own record, so the

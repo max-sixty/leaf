@@ -78,6 +78,67 @@ from render_support import (
 
 pytestmark = pytest.mark.nightly
 
+BOUNDED_WORKSPACE_PAGE = leaf_page(
+    "bounded workspace gate",
+    """
+<lf-workspace id="gate-workspace">
+  <header><h1>Queue</h1></header>
+  <lf-split id="gate-split" direction="columns">
+    <lf-pane id="gate-list" label="Items"><p>First</p><div style="height:900px"></div><p>Last</p></lf-pane>
+    <lf-pane id="gate-detail" label="Detail"><p>Subject</p><div style="height:900px"></div><button>Finish</button></lf-pane>
+  </lf-split>
+  <footer>End of queue</footer>
+</lf-workspace>
+""",
+)
+
+
+def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, serve):
+    """Pane bounds are real scroll bounds, so content past a pane's first fold remains
+    reachable without being exempted from the ordinary geometry checks."""
+    assert (
+        render_gate_model.render_version(browser, serve(BOUNDED_WORKSPACE_PAGE)) == []
+    )
+
+
+RECURSIVE_ROWS_PAGE = leaf_page(
+    "recursive row fit",
+    """
+<lf-workspace id="rows-workspace">
+  <lf-split id="rows" direction="rows">
+    <lf-pane id="upper" label="Upper"><p>Upper body</p><footer style="height:120px">Tall actions</footer></lf-pane>
+    <lf-split id="lower" direction="columns">
+      <lf-pane id="lower-left" label="Lower left"><p>Left body</p></lf-pane>
+      <lf-pane id="lower-right" label="Lower right"><p>Right body</p></lf-pane>
+    </lf-split>
+  </lf-split>
+</lf-workspace>
+""",
+)
+
+
+def test_recursive_rows_flow_before_short_height_hides_pane_furniture(browser, serve):
+    page, errors = open_page(browser, serve(RECURSIVE_ROWS_PAGE))
+    workspace = page.locator("#rows-workspace")
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+
+    # The children's summed minima fit here, but equal rows cannot each give the
+    # taller upper pane its minimum. The workspace must therefore choose flow.
+    page.set_viewport_size({"width": 1200, "height": 700})
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    rows = page.evaluate(
+        """() => {
+          const upper = document.querySelector('#upper').getBoundingClientRect();
+          const lower = document.querySelector('#lower').getBoundingClientRect();
+          const footer = document.querySelector('#upper > footer').getBoundingClientRect();
+          return {upper, lower, footer};
+        }"""
+    )
+    assert rows["lower"]["top"] >= rows["upper"]["bottom"] - 1, rows
+    assert rows["footer"]["bottom"] <= 700, rows
+    assert errors == []
+    page.close()
+
 
 def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):
     """A page that repaints its ledger forever cannot keep a false fact alive forever."""

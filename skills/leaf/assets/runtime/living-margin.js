@@ -292,6 +292,7 @@ import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { landInConversation, showThread } from "./conversation/landing.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
+import { readingRegionFor, shownRegionBounds } from "./reading-regions.js";
 import { commentsEdge, panelIsOpen } from "./chrome-layout.js";
 import { designOn } from "./design.js";
 import { focused, keys, paintHere, paintKeys } from "./keyboard/scopes.js";
@@ -1339,6 +1340,8 @@ function placeThreadPreview() {
   )
     return;
   const marker = previewMarginElement.getBoundingClientRect();
+  const readingRegion = readingRegionFor(previewEntry?.target);
+  const regionBounds = readingRegion && shownRegionBounds(readingRegion);
   // The stylesheet gives the card the room left to the right of this edge, so a marker
   // standing near the window's own edge would leave a conversation too narrow to read
   // or answer in. --thread-card-floor is where that room stops being a margin: past it
@@ -1348,13 +1351,29 @@ function placeThreadPreview() {
   const floor = parseFloat(
     getComputedStyle(preview).getPropertyValue("--thread-card-floor"),
   );
-  const besideLeft = Math.max(8, Math.min(marker.right + 8, innerWidth - 8 - floor));
+  const firstLeft = regionBounds?.left ?? 0;
+  const lastRight = regionBounds?.right ?? innerWidth;
+  const width = Math.min(floor, lastRight - firstLeft - 16);
+  const besideLeft = Math.max(
+    firstLeft + 8,
+    Math.min(marker.right + 8, lastRight - 8 - width),
+  );
   preview.style.setProperty("--lf-thread-left", `${besideLeft}px`);
+  if (regionBounds) {
+    preview.style.setProperty("--lf-thread-width", `${width}px`);
+    preview.style.setProperty(
+      "--lf-thread-max-height",
+      `${Math.max(0, regionBounds.bottom - regionBounds.top - 16)}px`,
+    );
+  } else {
+    preview.style.removeProperty("--lf-thread-width");
+    preview.style.removeProperty("--lf-thread-max-height");
+  }
   const card = preview.getBoundingClientRect();
   const bannerBottom =
     document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
-  const firstTop = bannerBottom + 8;
-  const lastTop = innerHeight - card.height - 8;
+  const firstTop = (regionBounds?.top ?? bannerBottom) + 8;
+  const lastTop = (regionBounds?.bottom ?? innerHeight) - card.height - 8;
   const besideTop = (marker.top + marker.bottom - card.height) / 2;
   preview.style.setProperty(
     "--lf-thread-top",
@@ -1656,11 +1675,14 @@ function revealTarget(target, account) {
 function markerOptions(row) {
   return {
     anchor: () => row.lfEntry?.target,
-    ...(row.lfEntry?.offers.length ? {} : { fallback: "hide" }),
+    ...(row.lfEntry?.offers.length || readingRegionFor(row.lfEntry?.target)
+      ? {}
+      : { fallback: "hide" }),
     priority: 10,
     claim: () => {
       const entry = row.lfEntry;
       if (!entry) return 0;
+      if (readingRegionFor(entry.target)) return 0;
       const primary = choosePrimary(entry);
       const stable = [];
       if (primary && entry.offers.some((offered) => offered.claim))
@@ -1705,15 +1727,17 @@ function markerOptions(row) {
     // Compact mode has no page rail. Dock every contributed item even when a
     // positioned widget happens to leave enough local room for the absolute
     // prototype; that accident must not give one nested target a desktop posture.
-    hangs: () => !commentsEdge.over.matches,
+    hangs: () => !readingRegionFor(row.lfEntry?.target) && !commentsEdge.over.matches,
     // A wide row is hoisted into main's positioning context. If its live width no
     // longer fits the rail, move the same node beside its target before static flow
     // takes over; restore the hoist before measuring whether it fits again.
     float: (item) => {
-      if (item.lfEntry?.offers.length) moveExternalHost(item, false);
+      if (item.lfEntry?.offers.length || readingRegionFor(item.lfEntry?.target))
+        moveExternalHost(item, false);
     },
     dock: (item) => {
-      if (item.lfEntry?.offers.length) moveExternalHost(item, true);
+      if (item.lfEntry?.offers.length || readingRegionFor(item.lfEntry?.target))
+        moveExternalHost(item, true);
     },
     place: (item, column) => {
       const target = item.lfEntry?.target;
@@ -2762,7 +2786,7 @@ function renderNow() {
     keeps(host, "aria-label", `Page actions for ${entry.title}`);
     marker.lfEntry = entry;
     const primary = syncControls(host, marker, more, options, entry);
-    if (entry.offers.length) {
+    if (entry.offers.length || readingRegionFor(entry.target)) {
       keeps(host, "data-lf-external", "1");
       const perch = externalPerch(entry.target, main);
       const dock = externalDocks.get(perch) ?? perch;
@@ -2786,7 +2810,7 @@ function renderNow() {
   // already read above and one final scroll height, then write every name together.
   const mainHeight = main?.scrollHeight ?? 0;
   const positions = pageMapEntries.map((entry) =>
-    entry.target && mainRect && mainHeight
+    entry.target && !readingRegionFor(entry.target) && mainRect && mainHeight
       ? Math.round(
           ((entry.target.getBoundingClientRect().top - mainRect.top) / mainHeight) *
             100,

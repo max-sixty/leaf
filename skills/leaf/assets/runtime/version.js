@@ -97,7 +97,7 @@
  */
 import { runtime } from "./context.js";
 import { designOn, paintLegend } from "./design.js";
-import { shownBox } from "./geometry.js";
+import { clippedRect, shownBox } from "./geometry.js";
 import { PRESS, walkRows } from "./keyboard/bindings.js";
 import {
   focused,
@@ -132,6 +132,14 @@ import { reachScrollers } from "./reach.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
+import {
+  effectiveScroller,
+  readingPosture,
+  readingRegionFor,
+  readingRegions,
+  shownRegionBounds,
+  watchReadingRegionTransitions,
+} from "./reading-regions.js";
 import {
   LIVE_ROOT,
   PAGE_PATH,
@@ -1357,19 +1365,32 @@ export async function prepareActivation(state) {
 // walk over the page's Asks starts when they have pointed at nothing.
 // A block's landmark is the top of its first line (a range), not its border box; restore
 // measures the matched text the same way, so the line box's leading cancels out.
-function* blocksOnScreen() {
+function* blocksOnScreen(region = null) {
   // Read the painted edge directly. The declared height may contain a safe-area
   // `calc()`, whose serialized value is not a number even though its box is exact.
-  const bannerBottom = banner.getBoundingClientRect().bottom;
+  const bounds = region
+    ? shownRegionBounds(region)
+    : { top: banner.getBoundingClientRect().bottom, bottom: innerHeight };
+  if (!bounds) return;
   for (const block of document.querySelectorAll(TEXT_BLOCK)) {
     // [hidden] needs an explicit skip: hidden="until-found" resolves to
     // content-visibility, under which descendants still report real rects —
     // but what's behind an inactive tab isn't what the reader is reading.
-    if (inChrome(block) || block.closest("[hidden]")) continue;
+    if (
+      inChrome(block) ||
+      block.closest("[hidden]") ||
+      (region && !containsAcross(region.body, block)) ||
+      (!region &&
+        readingRegionFor(block) &&
+        readingPosture(readingRegionFor(block)) === "bounded")
+    )
+      continue;
     const range = document.createRange();
     range.selectNodeContents(block);
     const rect = range.getBoundingClientRect();
-    if (rect.height && rect.bottom > bannerBottom) yield [block, rect];
+    const seen = clippedRect(rect, block, new Map());
+    if (seen && seen.bottom > bounds.top && seen.top < bounds.bottom)
+      yield [block, rect];
   }
 }
 // The one block the reader is on, which is the first the walk above yields. Two
@@ -1381,21 +1402,17 @@ export const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 // The quote and the section it's searched in come from the same block, or the search is
 // filtered to a section the text isn't in and can only ever fail — restore then falls back
 // to the section, which doesn't absorb content added above the reader inside it.
-function captureView() {
-  const view = { revision: runtime.currentRevision, y: pageScroller.scrollTop };
-  // Where the Ask walk left off, which is the reader's place stated more exactly than
-  // any block can state it — the walk put them there on purpose. Its element identity
-  // does not survive an authored-main replacement, and the module variable does not
-  // survive document travel, so the id is the one form both can restore. The ring is not
-  // recorded beside it: it is painted from focus, and another document starts on the page.
-  view.ask = landedAt()?.id;
-  for (const [block, rect] of blocksOnScreen()) {
+function captureRegion(region = null) {
+  const box = region ? effectiveScroller(region) : pageScroller;
+  const boxTop = shownBox(box).top;
+  const view = { y: box.scrollTop };
+  for (const [block, rect] of blocksOnScreen(region)) {
     const section = block.closest("[id]");
     if (!view.section && section) {
       // The first on-screen block's section, kept only until a quotable block supplies
       // its own: a page with nothing quotable on screen still has somewhere to land.
       view.section = section.id;
-      view.sectionTop = shownBox(section).top;
+      view.sectionTop = shownBox(section).top - boxTop;
     }
     // Written down the way a comment's quote is, so the search that re-finds it is
     // looking for a string of the same kind.
@@ -1405,10 +1422,28 @@ function captureView() {
       // Unconditionally, so a quotable block under no section clears the earlier one
       // rather than sending the search into a subtree its text isn't in.
       view.section = section?.id;
-      view.sectionTop = section && shownBox(section).top;
+      view.sectionTop = section && shownBox(section).top - boxTop;
       view.quote = text;
-      view.quoteTop = rect.top;
+      view.quoteTop = rect.top - boxTop;
       break;
+    }
+  }
+  return view;
+}
+
+function captureView() {
+  const view = Object.assign(captureRegion(), {
+    revision: runtime.currentRevision,
+    ask: landedAt()?.id,
+    regions: Object.fromEntries(regionViews),
+  });
+  const active = activeReadingRegion();
+  for (const region of readingRegions()) {
+    if (!shownRegionBounds(region)) continue;
+    const reading = captureRegion(region);
+    if (readingPosture(region) === "bounded" || region.id === active?.id) {
+      regionViews.set(region.id, reading);
+      view.regions[region.id] = reading;
     }
   }
   return view;
@@ -1417,25 +1452,18 @@ function captureView() {
 // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and
 // animating from the replacement's raw position is worse than the jump it replaces.
 // Moving to a mark the reader asked for is the other case, and says so.
-function restoreView(view) {
-  // Where the walk left off, put back before the scroll below restores the coarser
-  // reading of the same fact — and put back whether or not this version answered that
-  // Ask, since an Ask the reader has not stepped off is still the one they would step
-  // from. The document's own lookup rather than elementById: the Ask list is the
-  // document's (openAsks), and a landing inside a shadow tree is one stepAsk could never
-  // measure against. A thread's Ask is not here yet — the panel is rebuilt from the log
-  // on the first poll, which is behind this — so the record answers for the page's Asks
-  // and says nothing about the panel's, rather than restoring a second time later over a
-  // walk the reader has made since.
-  setLanded((view.ask && document.getElementById(view.ask)) || null);
+function restoreRegion(view, region = null) {
+  if (!view) return;
+  const box = region ? effectiveScroller(region) : pageScroller;
+  const boxTop = shownBox(box).top;
   const text = pageText();
   const found = view.quote && resolveAnchor(view, text);
   const segments = targetSegments(found);
   if (segments.length) {
     reveal(segments[0].node.parentElement); // the passage may sit behind a tab
     moveScrollerBy(
-      pageScroller,
-      rangeOf(segments).getBoundingClientRect().top - view.quoteTop,
+      box,
+      rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
     );
     return;
   }
@@ -1447,8 +1475,101 @@ function restoreView(view) {
     // generates no box of its own is one a suggestion wrapping whole sections leaves
     // there. Read raw, both sides come back 0 and the correction is 0 — so the restore
     // that had somewhere to land did nothing, silently, and left the reader at the top.
-    moveScrollerBy(pageScroller, shownBox(section).top - view.sectionTop);
-  } else pageScroller.scrollTo({ top: view.y, behavior: "instant" });
+    moveScrollerBy(box, shownBox(section).top - boxTop - view.sectionTop);
+  } else box.scrollTo({ top: view.y, behavior: "instant" });
+}
+
+function restoreView(view) {
+  setLanded((view.ask && document.getElementById(view.ask)) || null);
+  const regions = new Map(readingRegions().map((region) => [region.id, region]));
+  const active = readingRegionFor(focused()) ?? readingRegionFor(readingBlock());
+  const restored = new Set();
+  if (active && view.regions?.[active.id]) {
+    restoreRegion(view.regions[active.id], regions.get(active.id));
+    restored.add(effectiveScroller(regions.get(active.id)));
+  } else {
+    restoreRegion(view);
+    restored.add(pageScroller);
+  }
+  for (const [id, reading] of Object.entries(view.regions ?? {})) {
+    const region = regions.get(id);
+    if (!region) continue;
+    const box = effectiveScroller(region);
+    if (restored.has(box)) continue;
+    restoreRegion(reading, region);
+    restored.add(box);
+  }
+}
+
+// A posture change replaces scroll containers without replacing the document. Keep each
+// semantic region's last reading so a pane that becomes inactive does not inherit the
+// shared page offset when it becomes bounded again. In flow, only the region the reader
+// is working represents the shared page scroller.
+const regionViews = new Map();
+let navigationIntent = 0;
+let lastReadingRegionId = null;
+for (const type of ["pointerdown", "keydown", "wheel", "touchstart"])
+  addEventListener(
+    type,
+    (event) => {
+      navigationIntent++;
+      const region = readingRegionFor(event.composedPath()[0]);
+      if (region) lastReadingRegionId = region.id;
+    },
+    { capture: true, passive: true },
+  );
+
+const activeReadingRegion = (candidates = readingRegions()) => {
+  const focusedRegion = readingRegionFor(focused());
+  if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
+    return focusedRegion;
+  const recent = candidates.find(({ id }) => id === lastReadingRegionId);
+  if (recent) return recent;
+  return candidates
+    .map((region) => [region, blocksOnScreen(region).next().value?.[1]])
+    .filter(([, rect]) => rect)
+    .sort(([, a], [, b]) => a.top - b.top)[0]?.[0];
+};
+
+const postureTransitions = new Map();
+function readingRegionTransition({ phase, owner, from, to, regions }) {
+  if (phase === "before") {
+    const active = activeReadingRegion(regions);
+    const captured =
+      from === "flow" ? regions.filter(({ id }) => id === active?.id) : regions;
+    for (const region of captured)
+      if (shownRegionBounds(region)) regionViews.set(region.id, captureRegion(region));
+    postureTransitions.set(owner, {
+      intent: navigationIntent,
+      to,
+      regions: regions.map(({ id }) => id),
+    });
+    return;
+  }
+  const transition = postureTransitions.get(owner);
+  postureTransitions.delete(owner);
+  if (!transition || transition.intent !== navigationIntent) return;
+  const live = new Map(readingRegions().map((region) => [region.id, region]));
+  const candidates = transition.regions.map((id) => live.get(id)).filter(Boolean);
+  const active = activeReadingRegion(candidates);
+  const restored = new Set();
+  const ordered = active
+    ? [active, ...candidates.filter(({ id }) => id !== active.id)]
+    : candidates;
+  for (const region of ordered) {
+    const reading = regionViews.get(region.id);
+    const box = effectiveScroller(region);
+    if (!reading || restored.has(box)) continue;
+    restoreRegion(reading, region);
+    restored.add(box);
+  }
+}
+
+let readingContinuityInstalled = false;
+function installReadingContinuity() {
+  if (readingContinuityInstalled) return;
+  readingContinuityInstalled = true;
+  watchReadingRegionTransitions(readingRegionTransition);
 }
 
 // Where the reader is standing in the authored page, written down so the swap can hand
@@ -1502,6 +1623,7 @@ function restoreStanding(standing) {
 }
 
 export function installArrival() {
+  installReadingContinuity();
   // Ordinary reload and history travel belong to the browser. The root is its document
   // scrollport, so native restoration is both more complete and less surprising than a
   // parallel session-store reading. Leaf intervenes after upgrades only for two semantic

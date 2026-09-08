@@ -838,7 +838,12 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_in_its_corner(
         assert short["resolve"]["right"] == pytest.approx(
             short["quote"]["right"], abs=1
         )
-        assert short["resolve"]["bottom"] <= short["quote"]["bottom"]
+        # The minimum click target can be taller than a single quote line. Its
+        # center still belongs to that quote's band, above the message content.
+        assert (
+            short["resolve"]["y"] + short["resolve"]["height"] / 2
+            <= short["quote"]["bottom"]
+        )
         assert float(short["closeBorder"][:-2]) == 0
         assert float(short["resolveBorder"][:-2]) == 0
         assert float(short["sendBorder"][:-2]) == 0

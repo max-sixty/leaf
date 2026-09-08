@@ -3285,6 +3285,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # the two are one thing (focusVersionRow).
     open_versions(page)
     expect(menu).to_be_visible()
+    expect(btn).to_have_attribute("aria-expanded", "true")
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
     expect(btn).to_have_text("v2")
     expect(btn).to_have_attribute("title", re.compile(r"\(g V\)$"))

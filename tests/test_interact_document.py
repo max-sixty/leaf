@@ -844,6 +844,76 @@ def test_a_chip_is_admissible_in_both_its_holders(page_dir):
     assert "must be a direct child of <lf-option> or <lf-variant>" in result.output
 
 
+def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
+    """A package can supply structural tags without joining a built-in tag list."""
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-deck"] = {
+        "description": "A project package's differently named split.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "direction": {"enum": ["rows", "columns"]},
+        },
+        "required": ["id", "direction"],
+        "additionalProperties": False,
+        "x-content": "prose",
+        "x-layout": "split",
+        "x-upgrade": False,
+    }
+    registry["lf-zone"] = {
+        "description": "A project package's differently named pane.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "label": {"type": "string"},
+        },
+        "required": ["id", "label"],
+        "additionalProperties": False,
+        "x-content": "prose",
+        "x-layout": "pane",
+        "x-upgrade": False,
+    }
+    registry_path.write_text(json.dumps(registry))
+    version = page_dir / ".fixture-versions" / "v1.html"
+    valid = PAGE.replace(
+        "<h2>Plan</h2>",
+        """<lf-workspace id="review-space">
+  <header><h2>Plan</h2></header>
+  <lf-deck id="regions" direction="columns">
+    <lf-zone id="queue" label="Queue"><p>First</p></lf-zone>
+    <lf-pane id="detail" label="Detail"><p>Second</p></lf-pane>
+  </lf-deck>
+  <footer><p>Finish</p></footer>
+</lf-workspace>""",
+    )
+    version.write_text(valid)
+    assert check(page_dir).exit_code == 0, check(page_dir).output
+
+
+def test_layout_grammar_rejects_invalid_slots_and_split_content(page_dir):
+    version = page_dir / ".fixture-versions" / "v1.html"
+    version.write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            """<lf-workspace id="review-space">
+  <p>Before the misplaced header.</p><header><h2>Plan</h2></header>
+  <lf-split id="regions" direction="columns">
+    <lf-pane id="queue" label="Queue"><p>First</p></lf-pane>
+    <lf-pane id="detail" label="Detail"><p>Second</p></lf-pane>
+    <p>Loose</p>
+  </lf-split>
+</lf-workspace>""",
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "direct <header> must be first" in result.output
+    assert (
+        "exactly two direct pane or split widgets and no loose content" in result.output
+    )
+
+
 def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_dir):
     """A layer that names none colors none, so a page declaring one is asking for
     something it cannot get. The list is therefore read and indexed, never tested for
@@ -4012,6 +4082,12 @@ def test_check_advises_a_page_whose_headings_have_nothing_listing_them(page_dir)
         )
     ]
     assert outline_advice(PAGE.replace("<h2>Plan</h2>", "")) == []
+    workspace = PAGE.replace(
+        "<main>",
+        '<main><lf-workspace id="outline-workspace">'
+        '<lf-pane id="outline-region" label="Proposal">',
+    ).replace("</main>", "</lf-pane></lf-workspace></main>")
+    assert outline_advice(workspace) == []
     assert (
         outline_advice(
             PAGE.replace(

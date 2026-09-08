@@ -663,6 +663,26 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         page.close()
 
 
+@pytest.mark.parametrize("name", ["review-queue", "notification-playground"])
+def test_published_workspaces_keep_their_allocation_under_site_context(
+    hosted, browser, name
+):
+    page, errors = open_page(browser, f"{hosted}/examples/{name}/")
+    try:
+        page.set_viewport_size({"width": 1200, "height": 900})
+        workspace = page.locator("body > main > lf-workspace")
+        expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+        expect(workspace.locator(":scope > header > .sitenote")).to_be_visible()
+        expect(page.locator("body > main > .sitenote")).to_have_count(0)
+        expect(page.locator(".lf-pane-body")).to_have_count(2)
+        page.wait_for_function(
+            "() => document.documentElement.scrollHeight === document.documentElement.clientHeight"
+        )
+        assert errors == []
+    finally:
+        page.close()
+
+
 def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     site, hosted, browser
 ):

@@ -113,6 +113,54 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
     return errors
 
 
+def layout_errors(lf_elements: list, registry: dict) -> list:
+    """Validate the direct grammar of registry-declared structural widgets."""
+    errors = []
+    for rec in lf_elements:
+        role = registry.get(rec["tag"], {}).get("x-layout")
+        if role is None:
+            continue
+        where = at(rec)
+        direct = rec["direct"]
+        if role in {"workspace", "pane"}:
+            headers = [i for i, child in enumerate(direct) if child == "header"]
+            footers = [i for i, child in enumerate(direct) if child == "footer"]
+            if len(headers) > 1 or len(footers) > 1:
+                errors.append(
+                    f"{where}: x-layout {role} admits at most one direct <header> "
+                    "and one direct <footer>"
+                )
+            if headers and headers[0] != 0:
+                errors.append(f"{where}: x-layout {role} direct <header> must be first")
+            if footers and footers[0] != len(direct) - 1:
+                errors.append(f"{where}: x-layout {role} direct <footer> must be last")
+            continue
+
+        direct_widgets = [
+            child
+            for child in lf_elements
+            if child.get("holder") is rec and child.get("parent") == rec["tag"]
+        ]
+        roles = [
+            registry.get(child["tag"], {}).get("x-layout") for child in direct_widgets
+        ]
+        if (
+            len(direct) != 2
+            or len(direct_widgets) != 2
+            or any(child_role not in {"pane", "split"} for child_role in roles)
+        ):
+            found = [
+                f"<{child['tag']}> "
+                f"({registry.get(child['tag'], {}).get('x-layout') or 'not structural'})"
+                for child in direct_widgets
+            ]
+            errors.append(
+                f"{where}: x-layout split must contain exactly two direct pane or "
+                f"split widgets and no loose content, found {found or direct or 'nothing'}"
+            )
+    return errors
+
+
 def visual_part_errors(lf_elements: list, registry: dict) -> list:
     """A visual's authored part tokens each name one stable generated target."""
     errors = []
@@ -474,6 +522,7 @@ def fragment_errors(parser: StructParser, registry: dict) -> list:
     return (
         structure_errors(parser)
         + widget_errors(parser.lf_elements, registry)
+        + layout_errors(parser.lf_elements, registry)
         + visual_part_errors(parser.lf_elements, registry)
         + addressable_instance_errors(parser.lf_elements, registry)
         + ask_surface_errors(parser.lf_elements, registry)

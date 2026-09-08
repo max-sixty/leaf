@@ -185,6 +185,31 @@ def _validate_widget_structure(
     if unknown := sorted(set(entry.get("x-parent", [])) - set(widgets)):
         raise RegistryError(f"{path}: <{tag}> x-parent names unknown widgets {unknown}")
     properties = entry.get("properties", {})
+    layout = entry.get("x-layout")
+    if layout:
+        if entry.get("x-content") != "prose":
+            raise RegistryError(f"{path}: <{tag}> x-layout requires x-content: prose")
+        required = set(entry.get("required", []))
+        if "id" not in required or properties.get("id", {}).get("type") != "string":
+            raise RegistryError(
+                f"{path}: <{tag}> x-layout {layout} instances require a string id"
+            )
+        if layout == "pane" and (
+            "label" not in required
+            or properties.get("label", {}).get("type") != "string"
+        ):
+            raise RegistryError(
+                f"{path}: <{tag}> x-layout pane instances require a string label"
+            )
+        if layout == "split" and (
+            "direction" not in required
+            or set(properties.get("direction", {}).get("enum", []))
+            != {"columns", "rows"}
+        ):
+            raise RegistryError(
+                f"{path}: <{tag}> x-layout split instances require direction with "
+                "enum containing columns and rows"
+            )
     children = entry.get("x-children", {})
     if children and entry.get("x-content") != "items":
         raise RegistryError(f"{path}: <{tag}> x-children requires x-content: items")

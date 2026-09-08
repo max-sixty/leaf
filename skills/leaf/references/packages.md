@@ -10,12 +10,12 @@ when `/leaf` is invoked on a widget to build or a look to change.
 
 ## Package roles
 
-| Package | Reaches |
-| --- | --- |
+| Package                             | Reaches                            |
+| ----------------------------------- | ---------------------------------- |
 | a package selected with `--package` | pages that select its name or path |
-| the project's `.leaf/` | pages initialized from the project |
-| the user's `~/.config/leaf/` | pages initialized for that user |
-| Leaf's bundled default package | every page |
+| the project's `.leaf/`              | pages initialized from the project |
+| the user's `~/.config/leaf/`        | pages initialized for that user    |
+| Leaf's bundled default package      | every page                         |
 
 Presentation used by only one page stays in that version's `<style>`. Everything
 reusable belongs to a package. Leaf creates, checks, and installs the whole
@@ -198,6 +198,29 @@ An items container that needs one child for every semantic role declares
 required string enum, and the child admits the container through `x-parent`. `version
 check` then refuses a missing or repeated enum value. This keeps fixed role sets in the
 package contract without adding their tags or vocabulary to Leaf.
+
+A structural widget declares `x-layout` as `workspace`, `pane`, or `split` and keeps
+`x-content: prose`. Every role requires `id`; a pane also requires a string `label`, and
+a split requires `direction` with the complete `columns`/`rows` enum. A workspace or
+pane may have one direct native `header` first and one direct native `footer` last. A
+split contains exactly two direct widgets whose own entries declare pane or split. The
+validator reads roles rather than tag names, so a package may supply a differently named
+member without changing Leaf or joining an `x-parent` list.
+
+Behavior modules bind these reading areas through the public widget API.
+`registerReadingRegion({id, host, body})` binds identity separately from the current
+scroller, while `registerArrangement({owner, content, regions})` returns
+`setPosture("bounded"|"flow")` and `cleanup()`. Nested arrangements inherit the nearest
+containing posture and read their assigned content box with `readingAllocation(node)`;
+CSS owns how that allocation is divided. Arrangement registration admits its complete
+region collection atomically, so a rejected collision leaves every proposed id free.
+`readingRegionFor(node)`, `readingRegion(id)`,
+`readingRegions()`, `effectiveScroller(node)`, `readingPosture(node)`, and
+`shownRegionBounds(node)` expose the shared readings. Compound widgets create a
+runtime-reserved stable id with `compoundReadingRegionId(owner, localName)`.
+`watchReadingRegionTransitions(listener)` receives a `before` reading while old geometry
+is intact and an `after` reading on settled new geometry; a newer posture change cancels
+the obsolete `after`. The continuity owner decides what to capture and restore.
 
 When a position action completes an Ask only after its own move empties a queue,
 declare `completion: {empty: {within: "CONTAINER-TAG", when: {ATTRIBUTE: [VALUE]}}}`
@@ -506,7 +529,11 @@ ids.
 
 ```html
 <lf-builds id="release-builds" source="release-ci"></lf-builds>
-<lf-source id="release-notes-source" source="release-notes" language="markdown"></lf-source>
+<lf-source
+  id="release-notes-source"
+  source="release-notes"
+  language="markdown"
+></lf-source>
 ```
 
 The host gathers the value; Leaf does not run a provider or fetch a package URL. Set a
@@ -717,7 +744,13 @@ selected. The anchor's `section` is a widget's id, or the id of a runtime part �
 `Threads (2)`).
 
 ```json
-{"kind": "comment", "about": "layer", "version": 3, "anchor": {"section": "feeder-board"}, "text": "cards are cramped — give the column a floor"}
+{
+  "kind": "comment",
+  "about": "layer",
+  "version": 3,
+  "anchor": { "section": "feeder-board" },
+  "text": "cards are cramped — give the column a floor"
+}
 ```
 
 Answer it with the layer: change it where the table above says, `page init` the page,

@@ -97,6 +97,7 @@ shortcutBarMore.append(shortcutBarMoreKey, shortcutBarMoreText);
 // readout without treating the open space between them as covered.
 export const bottomChromeBoxes = () =>
   [shortcutBarEl, walkPositionEl]
+    .filter((node) => getComputedStyle(node).position === "fixed")
     .map((node) => node.getBoundingClientRect())
     .filter((box) => box.height > 0 && box.width > 0);
 

@@ -1320,6 +1320,21 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
         if event["kind"] == "comment"
     ]
 
+    def position_is_front():
+        return page.evaluate(
+            """() => {
+              const readout = document.querySelector('.lf-walk-position');
+              const box = readout.getBoundingClientRect();
+              readout.style.pointerEvents = 'auto';
+              const front = document.elementFromPoint(
+                (box.left + box.right) / 2,
+                (box.top + box.bottom) / 2,
+              ) === readout;
+              readout.style.removeProperty('pointer-events');
+              return front;
+            }"""
+        )
+
     # A panel search belongs to the panel. Closing it keeps that search for the next
     # visit, but must not silently remove a visible page thread from the inline walk.
     page.get_by_role("button", name=re.compile("^Threads")).click()
@@ -1332,7 +1347,9 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     page.keyboard.press("t")
     expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_focused()
     expect(position).to_have_text("Thread 1 of 1 shown")
-    expect(position.locator("xpath=parent::*")).to_have_class(re.compile("lf-chrome"))
+    expect(position.locator("xpath=parent::*")).to_have_class(
+        re.compile("lf-panel-head")
+    )
     expect(position.locator("xpath=ancestor::*[@id='lf-shortcut-bar']")).to_have_count(
         0
     )
@@ -1341,12 +1358,16 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
           const position = document.querySelector('.lf-walk-position')
             .getBoundingClientRect();
           const foot = document.querySelector('.lf-panel-foot').getBoundingClientRect();
-          return {positionBottom: position.bottom, footTop: foot.top};
+          return {
+            positionBottom: position.bottom,
+            footTop: foot.top,
+          };
         }"""
     )
     assert panel_clearance["positionBottom"] < panel_clearance["footTop"], (
         panel_clearance
     )
+    assert position_is_front(), "the open Threads panel painted over its walk position"
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, False)
     expect(position).to_be_hidden()
@@ -1359,6 +1380,10 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(page.locator(".lf-panel")).to_be_hidden()
     expect(position).to_have_text("Thread 1 of 2")
     expect(position).to_have_attribute("aria-hidden", "true")
+    expect(position.locator("xpath=parent::*")).to_have_class(
+        re.compile("lf-margin-preview-head")
+    )
+    assert position_is_front(), "the margin thread painted over its walk position"
 
     page.keyboard.press("t")
     second = page.locator(

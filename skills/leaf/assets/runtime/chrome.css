@@ -1783,11 +1783,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      Hints are the eye's copy of facts spoken elsewhere and stay aria-hidden; More is a
      real control. A category walk's position stands separately on the opposite edge.
      syncLayout keeps the line out of a side-by-side thread panel and, over a covering
-     panel, lifts it only when its rendered box actually meets the panel foot. It lifts
-     the readout above that foot wherever their boxes meet. The chrome root reserves
-     the deepest bottom surface crossing each scroll region, so its last lines never end
-     underneath one. Overflow remains a backstop for a window too narrow to hold even
-     the short line. */
+     panel, lifts it only when its rendered box actually meets the panel foot. The
+     readout joins the header of an open conversation surface because that surface can
+     paint above sibling chrome; on the page it keeps the opposite keyline. The
+     chrome root reserves the deepest fixed bottom surface crossing each scroll region,
+     so its last lines never end underneath one. Overflow remains a backstop for a window
+     too narrow to hold even the short line. */
   .lf-shortcut-bar { position: fixed; left: calc(18px + var(--lf-safe-left));
     bottom: calc(14px + var(--lf-safe-bottom)); z-index: 8940; pointer-events: none;
     display: flex; gap: 12px; align-items: baseline;
@@ -1807,6 +1808,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-walk-position[data-lf-boundary] { border-color: var(--accent);
     background: var(--accent); color: var(--card); }
   .lf-walk-position[hidden] { display: none; }
+  :is(.lf-panel-head, .lf-margin-preview-head) > .lf-walk-position {
+    position: static; z-index: auto; margin-inline: auto 8px; }
   /* A touch device has no keyboard hints to advertise, so the resting line stands down
      whole rather than shrinking. Every hint on it names a key the reader cannot press,
      and the box they cost stands over the words and the controls of a page whose window

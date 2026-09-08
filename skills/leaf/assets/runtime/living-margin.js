@@ -860,10 +860,12 @@ function changePosture() {
 // which way the reader had last crossed 900px. Placed at build, before any of them.
 
 const preview = el("aside", "lf-ui lf-margin-preview");
+export { preview as marginPreview };
 preview.id = "lf-margin-preview";
 preview.setAttribute("popover", "auto");
 preview.setAttribute("role", "dialog");
 const previewHead = el("div", "lf-margin-preview-head");
+export { previewHead as marginPreviewHead };
 const previewTitle = el("strong", "lf-margin-preview-title");
 const previewClose = el(
   "button",

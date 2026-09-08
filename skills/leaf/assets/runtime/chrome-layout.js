@@ -38,12 +38,18 @@
 import { layoutMarginRows } from "./margin-layout.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { setReact, syncReactLayout } from "./reactions.js";
-import { activeInlineThread, closePreview } from "./living-margin.js";
+import {
+  activeInlineThread,
+  closePreview,
+  marginPreview,
+  marginPreviewHead,
+} from "./living-margin.js";
 import { containsAcross } from "./passages.js";
 import {
   closeBtn,
   panel,
   panelFoot,
+  panelHead,
   syncGeneral,
   threadsBox,
 } from "./conversation/panel.js";
@@ -171,19 +177,28 @@ export function syncLayout() {
   // fixed, so a fold cannot resize the boxes this function is watching.
   foldBannerRow();
   const panelBeside = panelOpen && !panelCovers();
+  // A conversation surface can paint above sibling chrome; the margin popover is in the
+  // browser's top layer outright. Seat the readout in that surface's header so it remains
+  // visible without floating over the conversation the walk opened.
+  const positionHost = panelOpen
+    ? panelHead
+    : marginPreview.matches(":popover-open")
+      ? marginPreviewHead
+      : chromeRoot;
+  if (walkPositionEl.parentElement !== positionHost) {
+    if (positionHost === chromeRoot) positionHost.append(walkPositionEl);
+    else positionHost.lastElementChild.before(walkPositionEl);
+  }
   const overlapsAcross = (one, other) =>
     one.left < other.right && other.left < one.right;
   const overlaps = (one, other) =>
     overlapsAcross(one, other) && one.top < other.bottom && other.top < one.bottom;
   const foot = panelFoot.getBoundingClientRect();
-  // The navigation readout stays on the viewport's right edge, which is also the thread
-  // list's edge while that workspace stands. Lift it above the panel foot when needed.
+  // Reset the viewport inset for the page keyline. Inside a conversation header the
+  // stylesheet makes the readout static, so this stored inset has no effect until it
+  // returns to the page.
   walkPositionEl.style.bottom = "calc(14px + var(--lf-safe-bottom))";
-  let position = walkPositionEl.getBoundingClientRect();
-  if (panelOpen && position.height && overlaps(position, foot)) {
-    walkPositionEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
-    position = walkPositionEl.getBoundingClientRect();
-  }
+  const position = walkPositionEl.getBoundingClientRect();
   // Beside the page, the thread panel owns the right strip all the way to its foot. The
   // line starts at the window's left, so cap its room at that strip. Otherwise its room
   // ends before the navigation readout, with the same gap its own cells use.
@@ -191,7 +206,7 @@ export function syncLayout() {
     "--lf-shortcut-bar-right",
     Math.max(
       panelBeside ? commentsEdge.width() : 0,
-      position.width ? position.width + 12 : 0,
+      positionHost === chromeRoot && position.width ? position.width + 12 : 0,
     ) + "px",
   );
   // Start at the line's ordinary foot. A covering sheet lifts it only where the sheet's

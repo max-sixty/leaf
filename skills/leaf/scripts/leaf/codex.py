@@ -125,10 +125,6 @@ def _app_server_connect(endpoint: str):
         "open_timeout": START_TIMEOUT,
         "close_timeout": 1,
         "compression": None,
-        # The connection may outlive the request that opened it while a host
-        # follows turn notifications, so it can't use the reconnecting context
-        # manager returned by the new client API.
-        "legacy": True,
     }
     if socket_path is not None:
         return unix_connect(str(socket_path), uri="ws://localhost/rpc", **options)
@@ -1041,14 +1037,17 @@ def prepare_codex_delivery(
         with PageTransaction(page_dir) as page:
             transition = page.take_claim(identity, lifetime)
             page.close_turn(session_id)
-            obligations = {
+            outstanding = {
                 item["event"]
-                for item in full_state(page_dir, page.events)["activity"]["obligations"]
+                for item in full_state(page_dir, page.events)["activity"][
+                    "interactions"
+                ]
+                if item.get("event") is not None
             }
             batch = [
                 event
                 for event in unacknowledged(page.events, page.cursor)
-                if event["id"] in obligations
+                if event["author"] != "user" or event["id"] in outstanding
             ]
             if not batch:
                 raise RuntimeError("the page has no Leaf input to deliver")

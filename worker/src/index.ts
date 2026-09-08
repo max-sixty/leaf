@@ -67,6 +67,8 @@ const GENERATION_FAILURE_REPLY =
 const RATE_LIMIT_REPLY =
   "This public demo is busy right now. Please wait a minute, then send a new message.";
 const CODEX_PROXY_CREDENTIAL = "leaf-outbound-proxy";
+const CLOUDFLARE_CONTAINER_CA =
+  "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
 interface LeafEvent {
   id: string;
   attempt?: string;
@@ -104,6 +106,7 @@ export class LeafWebsiteSession extends Container<Env> {
     this.envVars = {
       LEAF_AGENT: "Leaf guide",
       OPENAI_API_KEY: CODEX_PROXY_CREDENTIAL,
+      CODEX_CA_CERTIFICATE: CLOUDFLARE_CONTAINER_CA,
     };
   }
 }

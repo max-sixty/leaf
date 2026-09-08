@@ -575,6 +575,8 @@ describe("website page agent", () => {
     expect(session.envVars).toMatchObject({
       LEAF_AGENT: "Leaf guide",
       OPENAI_API_KEY: "leaf-outbound-proxy",
+      CODEX_CA_CERTIFICATE:
+        "/etc/cloudflare/certs/cloudflare-containers-ca.crt",
     });
 
     const upstream = vi.fn(async () => new Response("ok"));

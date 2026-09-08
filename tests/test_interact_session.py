@@ -209,6 +209,41 @@ def test_embedded_codex_delivery_skips_reader_input_already_settled_by_the_host(
     assert [event["text"] for event in epoch["batches"][0]["events"]] == ["second"]
 
 
+def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
+    work_page = PAGE.replace(
+        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
+    )
+    (page_dir / ".fixture-versions" / "v1.html").write_text(work_page)
+    publish(page_dir)
+    action = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "plan-choice",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "change the explanation"},
+    )
+
+    codex_model.prepare_codex_delivery(
+        page_dir,
+        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+        {"pid": os.getpid()},
+    )
+
+    _, epoch = codex_model._current_epoch("hosted-thread")
+    assert [event["id"] for event in epoch["batches"][0]["events"]] == [
+        action["id"],
+        comment["id"],
+    ]
+
+
 @pytest.fixture
 def codex_app_server():
     """A WebSocket App Server that emits two turns when the test advances it."""

@@ -3607,6 +3607,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
           return {
             thread: {
               top: tr.top,
+              contentTop: tr.top + parseFloat(ts.borderTopWidth)
+                + parseFloat(ts.paddingTop),
               right: tr.right - parseFloat(ts.borderRightWidth)
                 - parseFloat(ts.paddingRight),
               bottom: tr.bottom,
@@ -3636,13 +3638,16 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     assert geometry["send"]["bottom"] <= geometry["textarea"]["bottom"]
     assert float(geometry["closeBorder"][:-2]) == 0
     assert float(geometry["resolveBorder"][:-2]) >= 1
-    assert geometry["resolve"]["top"] == pytest.approx(geometry["head"]["top"], abs=1)
+    # Resolve settles the whole thread, so it stands in the thread's own corner. A
+    # preview thread has no quoted address, so the first message head gives it the
+    # room: the control shares that row instead of taking one above it.
+    assert geometry["resolve"]["top"] == pytest.approx(
+        geometry["thread"]["contentTop"], abs=1
+    )
     assert geometry["resolve"]["right"] == pytest.approx(
-        geometry["head"]["right"], abs=1
+        geometry["thread"]["right"], abs=1
     )
-    assert geometry["resolve"]["bottom"] == pytest.approx(
-        geometry["head"]["bottom"], abs=1
-    )
+    assert geometry["resolve"]["bottom"] <= geometry["head"]["bottom"]
     page.locator(".lf-margin-preview-close").click()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()

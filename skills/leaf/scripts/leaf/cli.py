@@ -113,7 +113,7 @@ def codex_launch(codex_path: str | None) -> None:
 @click.option(
     "--app-server",
     metavar="ENDPOINT",
-    help="stream activity from this local App Server; `codex launch` supplies it",
+    help="stream experimental, untested activity from this local App Server; `codex launch` supplies it",
 )
 def codex_start(
     dir: str,

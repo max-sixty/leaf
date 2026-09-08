@@ -1701,8 +1701,8 @@ function paintHover(id, repaintVisuals = true) {
 // passage it is on is worth most.
 //
 // Above the hover and below the draft. A pointer resting on the standing mark supplies
-// the middle wash, while this higher paint keeps the strongest wash and its accent ink:
-// the cursor promises the press, and the ink answers "which one".
+// the middle wash, while this higher paint keeps the strongest wash. The shared accent
+// contour stays stable through a pointer press; the stronger wash answers "which one".
 const HERE = "lf-mark-here";
 let hereParts = [];
 export function paintStanding(repaintVisuals = true) {

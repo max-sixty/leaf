@@ -46,6 +46,7 @@ from render_support import (
     rings_drawn,
     round_trip,
     sending,
+    shortcut_bar_text,
     told,
     undo,
 )
@@ -1197,8 +1198,8 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     the banner is the log's and does not move."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
-    lede = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
-    cap = panel_comment(d, "Is forty megabytes enough?", {"section": "how-cap"})
+    lede = panel_comment(d, "Review: six weeks reads long.", {"section": "lede"})
+    cap = panel_comment(d, "Review: is forty megabytes enough?", {"section": "how-cap"})
     merge = panel_comment(d, "Answer this one first.", {"section": "merge-both"})
 
     page, errors = open_page(browser, url)
@@ -1238,6 +1239,21 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{merge}"]')).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{lede}"]:not([hidden])')).to_have_count(0)
+
+    # Enter accepts the filtered list's first result. From there, the same n/N grammar
+    # as page search walks forward and backward through only the threads found.
+    page.fill(".lf-find-box", "review")
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
+    page.keyboard.press("Enter")
+    expect(page.locator(f'.lf-thread[data-id="{lede}"]')).to_be_focused()
+    search_line = shortcut_bar_text(page)
+    assert re.search(r"n / N\s*search matches", search_line), search_line
+    assert "show all" not in search_line
+    page.keyboard.press("n")
+    expect(page.locator(f'.lf-thread[data-id="{cap}"]')).to_be_focused()
+    page.keyboard.press("Shift+n")
+    expect(page.locator(f'.lf-thread[data-id="{lede}"]')).to_be_focused()
+    page.fill(".lf-find-box", "merge rule")
 
     # Asked for a thread the narrowing hides, the panel shows it rather than nothing:
     # the press came from the page, where no narrowing was ever visible.
@@ -1311,6 +1327,10 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     page.keyboard.press("w")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{theirs}"]')).to_have_count(1)
+    # Waiting-on-reader is a filter, not a text search. It does not claim search-repeat
+    # keys merely because the result list happens to be narrowed.
+    page.keyboard.press("n")
+    expect(page.locator(".lf-threads")).to_be_focused()
     # The card the narrowing hides keeps its node. A widget an agent sent in a reply is
     # instantiated once, in that card, and the banner's Asks count and the tray find it by
     # id in the document — hidden is the list's business, gone would be a claim about the

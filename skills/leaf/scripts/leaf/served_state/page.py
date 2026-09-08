@@ -35,14 +35,10 @@ def project_activity(
     except (FileNotFoundError, SystemExit):
         threads = {}
     evidence = canonical_acknowledgments(
-        events,
         present["claims"],
         threads,
         None,
-        None,
-        {},
-        None,
-        {},
+        events=events,
     )
     return canonical_activity(present, evidence, now)
 

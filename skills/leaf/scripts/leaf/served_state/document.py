@@ -2,25 +2,18 @@
 
 from ..document_reading import read_document
 from ..events import UndoReading
-from ..projection import StateProjection
+from ..projection import PageReading, StateProjection
 from .wire import browser_projection
 
 
 def browser_document(
-    html: str,
-    events: list,
-    registry: dict,
-    revision: int,
+    page: PageReading,
     threads: dict,
-    *,
-    prepared: tuple | None = None,
 ) -> tuple[dict, StateProjection]:
-    document = read_document(
-        html, events, registry, revision, threads, prepared=prepared
-    )
+    document = read_document(page, threads)
     return (
         {
-            "revision": revision,
+            "revision": page.revision,
             "projection": browser_projection(
                 document.projection,
                 scope="document",

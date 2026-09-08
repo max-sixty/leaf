@@ -21,7 +21,7 @@ from leaf.passages import active_enclosing
 from leaf.projection import (
     generated_children,
     markup_facet,
-    page_projection,
+    page_reading,
     retirement_outcomes,
     rewritten_bodies,
 )
@@ -73,7 +73,8 @@ def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bo
         return True
     registry = require_registry(page_dir)
     html = revision_path(page_dir, revision).read_text(encoding="utf-8")
-    projection, parser, spk = page_projection(html, [], registry, revision)
+    page = page_reading(html, [], registry, revision)
+    projection, parser, spk = page.projection, page.parser, page.spoken
     awaiting = page_awaiting_values(html, parser, projection, spk, registry)
     target = root["anchor"]["section"]
     if awaiting.get(target, False):
@@ -91,9 +92,10 @@ def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bo
     original_html = revision_path(page_dir, original_revision).read_text(
         encoding="utf-8"
     )
-    original_projection, original, original_spk = page_projection(
-        original_html, [], registry, original_revision
-    )
+    original_page = page_reading(original_html, [], registry, original_revision)
+    original_projection = original_page.projection
+    original = original_page.parser
+    original_spk = original_page.spoken
     original_awaiting = page_awaiting_values(
         original_html,
         original,
@@ -124,9 +126,9 @@ def _current_anchor(
         return revision, None
     html = revision_path(page_dir, revision).read_text(encoding="utf-8")
     registry = require_registry(page_dir)
-    projection, parser, _ = page_projection(html, events, registry, revision)
-    decided = retirement_outcomes(projection.actions, registry)
-    edited = rewritten_bodies(projection.actions)
+    page = page_reading(html, events, registry, revision)
+    decided = retirement_outcomes(page.projection.actions, registry)
+    edited = rewritten_bodies(page.projection.actions)
     try:
         anchor = capture_anchor(
             html,
@@ -136,7 +138,7 @@ def _current_anchor(
             decided,
             edited,
             part,
-            additions=generated_children(projection.desired, parser.ids),
+            additions=generated_children(page.projection.desired, page.parser.ids),
         )
     except ValueError as err:
         sys.exit(f"can't anchor in revision r{revision}: {err}")

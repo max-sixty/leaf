@@ -1,6 +1,5 @@
-"""Browser-event admission, retry coordination, and transactional append."""
+"""Browser-event admission and transactional append."""
 
-import threading
 from collections.abc import Callable
 from pathlib import Path
 
@@ -13,17 +12,13 @@ from .event_contracts import (
     version_response_comment_error,
     visual_anchor_error,
 )
-from .event_log import (
-    AttemptConflict,
-    AttemptExecution,
-    _attempt_payload,
-)
+from .event_log import AttemptConflict
 from .events import undo_error
 from .files import list_revisions, revision_path, version_revisions
 from .passages import active_enclosing
 from .projection import (
     generated_children,
-    page_projection,
+    page_reading,
     retirement_outcomes,
     rewritten_bodies,
 )
@@ -80,26 +75,18 @@ class _TransactionValidation:
     """Ordered gates against the page state held by one append transaction."""
 
     def __init__(
-        self, page_dir: Path, event: dict, events: list, capture_anchors: bool = False
+        self,
+        page_dir: Path,
+        event: dict,
+        events: list,
+        registry: dict,
+        capture_anchors: bool = False,
     ):
         self.page_dir = page_dir
         self.event = event
         self.events = events
+        self.registry = registry
         self.capture_anchors = capture_anchors
-        self.vendored = None
-
-    def registry_or_rejection(self) -> tuple[dict | None, EventAnswer | None]:
-        """Read the registry once, after this transaction chose its contract."""
-        if self.vendored is None:
-            try:
-                self.vendored = load_registry(self.page_dir)
-            except RegistryError as error:
-                return None, event_rejection(self.event, str(error))
-            if self.vendored is None:
-                return None, event_rejection(
-                    self.event, "the page has no registry.json"
-                )
-        return self.vendored, None
 
     def revision_rejection(self) -> EventAnswer | None:
         if "revision" not in self.event:
@@ -135,14 +122,11 @@ class _TransactionValidation:
     def action_rejection(self) -> EventAnswer | None:
         if self.event["kind"] != "action":
             return None
-        registry, rejection = self.registry_or_rejection()
-        if rejection:
-            return rejection
         if error := action_contract_error(
             self.page_dir,
             self.event,
             self.events,
-            registry,
+            self.registry,
         ):
             return event_rejection(self.event, error)
         return None
@@ -150,14 +134,11 @@ class _TransactionValidation:
     def request_rejection(self) -> EventAnswer | None:
         if self.event["kind"] != "request":
             return None
-        registry, rejection = self.registry_or_rejection()
-        if rejection:
-            return rejection
         if error := request_contract_error(
             self.page_dir,
             self.event,
             self.events,
-            registry,
+            self.registry,
         ):
             return event_rejection(self.event, error)
         return None
@@ -165,10 +146,7 @@ class _TransactionValidation:
     def reaction_rejection(self) -> EventAnswer | None:
         if not self.event.get("token"):
             return None
-        registry, rejection = self.registry_or_rejection()
-        if rejection:
-            return rejection
-        tokens = reaction_tokens(registry)
+        tokens = reaction_tokens(self.registry)
         if self.event["token"] not in tokens:
             return event_rejection(
                 self.event,
@@ -200,15 +178,12 @@ class _TransactionValidation:
             or validates_datum
         ):
             return None
-        registry, rejection = self.registry_or_rejection()
-        if rejection:
-            return rejection
         page_by_id = parse_revision(self.page_dir, self.event["revision"]).by_id
         for error in (
-            datum_anchor_error(self.page_dir, self.event, page_by_id, registry),
-            held_comment_error(self.event, page_by_id, registry),
-            version_response_comment_error(self.event, page_by_id, registry),
-            visual_anchor_error(self.event, page_by_id, registry),
+            datum_anchor_error(self.page_dir, self.event, page_by_id, self.registry),
+            held_comment_error(self.event, page_by_id, self.registry),
+            version_response_comment_error(self.event, page_by_id, self.registry),
+            visual_anchor_error(self.event, page_by_id, self.registry),
         ):
             if error:
                 return event_rejection(self.event, error)
@@ -217,20 +192,18 @@ class _TransactionValidation:
         html = revision_path(self.page_dir, self.event["revision"]).read_text(
             encoding="utf-8"
         )
-        projection, parser, _ = page_projection(
-            html, self.events, registry, self.event["revision"]
-        )
+        page = page_reading(html, self.events, self.registry, self.event["revision"])
         try:
             canonical = capture_anchor(
                 html,
-                registry,
+                self.registry,
                 anchor.get("quote", ""),
                 anchor.get("section"),
-                retirement_outcomes(projection.actions, registry),
-                rewritten_bodies(projection.actions),
+                retirement_outcomes(page.projection.actions, self.registry),
+                rewritten_bodies(page.projection.actions),
                 prefix=anchor.get("prefix") if "prefix" in anchor else None,
                 suffix=anchor.get("suffix") if "suffix" in anchor else None,
-                additions=generated_children(projection.desired, parser.ids),
+                additions=generated_children(page.projection.desired, page.parser.ids),
             )
         except ValueError as error:
             return event_rejection(
@@ -286,117 +259,80 @@ class _TransactionValidation:
         return None
 
 
-class EventEndpoint:
-    """The browser's one write door for a served page.
+def accept_event(
+    page_dir: Path,
+    event: dict,
+    state: StateReader,
+    *,
+    capture_anchors: bool = False,
+) -> EventAnswer:
+    """Validate and append one browser record, then return its current state."""
+    try:
+        registry = load_registry(page_dir)
+    except RegistryError as error:
+        return event_rejection(event, str(error))
+    if registry is None:
+        return event_rejection(event, "the page has no registry.json")
+    contracts = registry["$events"]["kinds"]
+    browser_kinds = sorted(
+        name for name, contract in contracts.items() if "browser" in contract
+    )
+    kind = event.get("kind")
+    if not isinstance(kind, str) or kind not in browser_kinds:
+        return event_rejection(event, f"kind must be one of {browser_kinds}")
+    # The server owns the record envelope and agent identity. Removing client
+    # copies before validation prevents them from entering attempt identity too.
+    for field in ("id", "author", "agent", "session", "ts", "seq"):
+        event.pop(field, None)
+    if error := event_record_error(contracts[kind], event, browser=True):
+        return event_rejection(event, f"{kind} event is invalid: {error}")
+    try:
+        return _execute_event(page_dir, event, state, capture_anchors)
+    except Exception as error:  # noqa: BLE001 - an uncertain write is retryable
+        # A fault may occur after append. Withholding `final` makes the next
+        # identical request find the accepted event or execute the attempt again.
+        body = {"ok": False, "error": f"{type(error).__name__}: {error}"}
+        if attempt := event.get("attempt"):
+            body["attempt"] = attempt
+        return 500, body
 
-    A generated HTTP handler class owns one endpoint, so concurrent request handlers
-    share active attempt executions while separate page servers share nothing. The
-    accepted-state reader stays request-local because it belongs to the transport's
-    publication view, not to event validation or storage.
+
+def _execute_event(
+    page_dir: Path,
+    event: dict,
+    state: StateReader,
+    capture_anchors: bool,
+) -> EventAnswer:
+    """Validate mutable page state and append as one log transaction.
+
+    `accept_event` checks the payload's declared shape before the page transaction. A
+    re-vendor can replace that declaration before this transaction is acquired, so an
+    action's contract is deliberately read again inside the lease: this reading, not
+    the admission reading, is the one allowed to append beside the page's current
+    vocabulary.
     """
-
-    def __init__(self, page_dir: Path, capture_anchors: bool = False):
-        self.page_dir = page_dir
-        # Set by a transport whose comment anchors reach the door unresolved, so the
-        # passage they name is captured against the page under the append lease.
-        self.capture_anchors = capture_anchors
-        self._attempts: dict[str, AttemptExecution] = {}
-        self._attempts_lock = threading.Lock()
-
-    def accept(self, event: dict, state: StateReader) -> EventAnswer:
-        """Validate one browser record, coordinate its attempt, and execute it."""
-        try:
-            registry = load_registry(self.page_dir)
-        except RegistryError as error:
-            return event_rejection(event, str(error))
-        if registry is None:
-            return event_rejection(event, "the page has no registry.json")
-        contracts = registry["$events"]["kinds"]
-        browser_kinds = sorted(
-            name for name, contract in contracts.items() if "browser" in contract
-        )
-        kind = event.get("kind")
-        if not isinstance(kind, str) or kind not in browser_kinds:
-            return event_rejection(event, f"kind must be one of {browser_kinds}")
-        # The server owns the record envelope and agent identity. Removing client
-        # copies before validation prevents them from entering attempt identity too.
-        for field in ("id", "author", "agent", "session", "ts", "seq"):
-            event.pop(field, None)
-        if error := event_record_error(contracts[kind], event, browser=True):
-            return event_rejection(event, f"{kind} event is invalid: {error}")
-        return self._coordinate(event, state)
-
-    def _coordinate(self, event: dict, state: StateReader) -> EventAnswer:
-        """Run one copy of an attempt and share its outcome with concurrent copies."""
-        attempt = event.get("attempt")
-        if not attempt:
-            return self._execute(event, state)
-        payload = _attempt_payload(event)
-        with self._attempts_lock:
-            execution = self._attempts.get(attempt)
-            if execution is None:
-                execution = AttemptExecution(payload)
-                self._attempts[attempt] = execution
-                owner = True
-            else:
-                owner = False
-                if execution.payload != payload:
-                    return event_rejection(
-                        event,
-                        f"attempt {attempt!r} already belongs to another event",
-                        409,
-                    )
-        if not owner:
-            execution.done.wait()
-            return execution.result
-        try:
-            result = self._execute(event, state)
-        except Exception as error:  # noqa: BLE001 - every waiter needs an outcome
-            # A fault may occur after append. Withholding `final` makes the next
-            # identical request find the accepted event or execute the attempt again.
-            result = (
-                500,
-                {
-                    "ok": False,
-                    "attempt": attempt,
-                    "error": f"{type(error).__name__}: {error}",
-                },
+    # Every decision whose validity depends on the log stays under the append
+    # lock through the write. In particular, two tabs cannot both validate an
+    # undo against the same standing target and append after either lock is gone.
+    with PageTransaction(page_dir) as page:
+        # Acceptance outranks mutable state validation. A retry for an accepted
+        # attempt asks for its state; it does not repeat the gesture.
+        accepted, rejection = _accepted_retry(page, event)
+        if rejection:
+            return rejection
+        if not accepted:
+            events = page.events
+            try:
+                registry = load_registry(page_dir)
+            except RegistryError as error:
+                return event_rejection(event, str(error))
+            if registry is None:
+                return event_rejection(event, "the page has no registry.json")
+            validation = _TransactionValidation(
+                page_dir, event, events, registry, capture_anchors
             )
-        finally:
-            execution.result = result
-            execution.done.set()
-            # Waiters retain the execution object. Acceptance is durable in the log;
-            # every other outcome must be evaluated again if it is posted later.
-            with self._attempts_lock:
-                if self._attempts.get(attempt) is execution:
-                    del self._attempts[attempt]
-        return result
-
-    def _execute(self, event: dict, state: StateReader) -> EventAnswer:
-        """Validate mutable page state and append as one log transaction.
-
-        `accept` checks the payload's declared shape before attempt coordination. A
-        re-vendor can replace that declaration before this transaction is acquired,
-        so an action's contract is deliberately read again inside the lease: this
-        reading, not the admission reading, is the one allowed to append beside the
-        page's current vocabulary.
-        """
-        # Every decision whose validity depends on the log stays under the append
-        # lock through the write. In particular, two tabs cannot both validate an
-        # undo against the same standing target and append after either lock is gone.
-        with PageTransaction(self.page_dir) as page:
-            # Acceptance outranks mutable state validation. A retry for an accepted
-            # attempt asks for its state; it does not repeat the gesture.
-            accepted, rejection = _accepted_retry(page, event)
-            if rejection:
+            if rejection := validation.rejection():
                 return rejection
-            if not accepted:
-                events = page.events
-                validation = _TransactionValidation(
-                    self.page_dir, event, events, self.capture_anchors
-                )
-                if rejection := validation.rejection():
-                    return rejection
-                event["author"] = "page" if event["kind"] == "error" else "user"
-                page.append_event(event, validation.vendored)
-        return 200, {"ok": True, "state": state()}
+            event["author"] = "page" if event["kind"] == "error" else "user"
+            page.append_event(event, registry)
+    return 200, {"ok": True, "state": state()}

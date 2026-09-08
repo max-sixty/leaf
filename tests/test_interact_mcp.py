@@ -332,7 +332,10 @@ def test_stdio_presentation_tools_explain_a_stale_page_layer(page_dir):
     for result in results:
         assert result.is_error is True
         assert "cannot be presented with its vendored layer" in result.content[0].text
-        assert "kind `pickup`" in result.content[0].text
+        assert (
+            "$events.kinds must equal Leaf's fixed transport contract"
+            in result.content[0].text
+        )
         assert f"leaf page init {page_dir}" in result.content[0].text
 
 

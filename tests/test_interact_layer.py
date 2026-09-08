@@ -2608,7 +2608,9 @@ def test_package_init_never_overwrites_existing_contents(tmp_path, monkeypatch):
     } == before
 
 
-def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
+def test_package_init_starts_one_checked_upgraded_widget(
+    tmp_path, monkeypatch, headless_shell
+):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     package = Path("packages/risk-notes")
@@ -2678,6 +2680,7 @@ def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
         capture_output=True,
         text=True,
         check=False,
+        env=os.environ | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
     )
     assert rendered.returncode == 0, rendered.stdout + rendered.stderr
 

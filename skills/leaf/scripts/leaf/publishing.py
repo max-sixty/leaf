@@ -9,7 +9,7 @@ from leaf.files import (
 )
 from leaf.host import message_identity
 from leaf.leases import contract_writer
-from leaf.projection import folded_facet, markup_facet, page_projection
+from leaf.projection import folded_facet, markup_facet, page_reading
 from leaf.revisioning import activate_source
 from leaf.service import PageTransaction
 from leaf.validation.admission import read_text_arg
@@ -32,8 +32,8 @@ def _stamp_reading(events: list, activation):
     registry = checked.registry
     if registry is None:
         sys.exit("refusing to stamp index.html: the page has no registry.json")
-    projection, parser, spk = page_projection(checked.html, events, registry, revision)
-    return checked, registry, projection, parser, spk
+    page = page_reading(checked.html, events, registry, revision)
+    return checked, registry, page.projection, page.parser, page.spoken
 
 
 def _completed_work(

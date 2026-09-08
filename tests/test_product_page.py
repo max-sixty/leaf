@@ -10,6 +10,7 @@ from pathlib import Path
 import click
 import pytest
 from click.testing import CliRunner
+from jsonschema import Draft202012Validator
 from leaf import cli as cli_model
 from leaf.registry import validation as registry_validation
 from leaf.validation import compatibility as validation_model
@@ -18,6 +19,22 @@ ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "skills" / "leaf" / "assets"
 DEFAULT_PACKAGE = ROOT / "skills" / "leaf" / "packages" / "default"
 DOCS = ROOT / "docs"
+
+
+def test_kernel_event_contracts_declare_closed_records():
+    events = json.loads((ASSETS / "registry.json").read_text())["$events"]["kinds"]
+    assert events
+    envelope = {"id", "ts", "author", "kind", "seq"}
+    for kind, contract in events.items():
+        for schema in contract.values():
+            Draft202012Validator.check_schema(schema)
+        record = contract["record"]
+        properties = record["properties"]
+        assert record["type"] == "object"
+        assert record["additionalProperties"] is False
+        assert properties["kind"] == {"const": kind}
+        assert envelope <= set(properties)
+        assert envelope <= set(record["required"])
 
 
 def test_docs_pages_use_the_leaf_document_scaffold():

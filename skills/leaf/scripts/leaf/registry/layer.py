@@ -14,8 +14,10 @@ from .contract import (
     unresolved_schema_reference,
 )
 
-# The record keys that constrain declared fields rather than list them.
-RECORD_CONSTRAINTS = frozenset({"oneOf", "dependentSchemas"})
+
+def kernel_event_kinds() -> dict:
+    """The fixed event records produced and consumed by Leaf's kernel."""
+    return read_registry_entries(ASSETS / "registry.json")["$events"]["kinds"]
 
 
 def merge_layer_entries(merged: dict, entries: dict) -> None:
@@ -23,17 +25,15 @@ def merge_layer_entries(merged: dict, entries: dict) -> None:
 
     A tag entry replaces the earlier one whole; schemas never deep-merge,
     because a half-old, half-new contract is no layer's vocabulary. A $ entry
-    merges by member: it is not a contract but the layer's namespace of shared
-    facts. Under replace-whole, a project declaring its one idiom vendored a
-    $idioms holding exactly that idiom — its theme rules kept styling,
-    theme.css concatenating where the registry did not, while the vendored
-    registry silently dropped the shipped ten. A member that is itself a map merges by
-    its own keys for the same reason one level down: $languages.paths is
-    indexed by extension, and a layer adding `.svelte` must not silently drop
-    every shipped extension with it. Scalar and list members replace whole —
-    a names list is one statement — and the grain here decides nothing the
-    gates don't re-check: validation and the vocabulary stamp read the merged
-    result, whichever layer each piece came from.
+    holds shared layer facts, so its members merge. Under replace-whole, a project
+    declaring one idiom vendored a $idioms holding exactly that idiom — its theme
+    rules kept styling, theme.css concatenating where the registry did not, while
+    the vendored registry silently dropped the shipped ten. A member that is itself
+    a map merges by its own keys for the same reason one level down:
+    $languages.paths is indexed by extension, and a layer adding `.svelte` must not
+    silently drop every shipped extension with it. Scalar and list members replace
+    whole — a names list is one statement. `$events.kinds` is the exception: it is
+    Leaf's fixed kernel transport contract, and a layer cannot change it.
 
     Inside a map member the merge is JSON merge-patch: a later layer's value
     replaces the key, a new key joins, and `null` removes one — which is the
@@ -45,6 +45,15 @@ def merge_layer_entries(merged: dict, entries: dict) -> None:
         if not (name.startswith("$") and earlier is not None):
             merged[name] = entry
             continue
+        if (
+            name == "$events"
+            and "kinds" in entry
+            and entry["kinds"] != earlier.get("kinds")
+        ):
+            raise RegistryError(
+                "$events.kinds is Leaf's fixed transport contract and cannot be "
+                "changed by a layer"
+            )
         combined = {**earlier, **entry}
         for key, value in entry.items():
             if isinstance(value, dict) and isinstance(earlier.get(key), dict):
@@ -73,11 +82,9 @@ def required_layer_declarations(registry: dict, path):
 def validate_event_handling(events: dict, kinds: dict, path) -> None:
     """`$events.handling` is read directly by every batch a wait prints, so a
     layer that restates a kind is held to the shape the consumer assumes: a
-    declared kind, one non-empty sentence. Absent is fine (a layer vendored
-    before the member existed), and a null member is the merge's own deletion."""
+    declared kind, one non-empty sentence. The complete vendored registry must
+    carry the map; individual kind guidance remains optional."""
     handling = events.get("handling")
-    if handling is None:
-        return
     if not isinstance(handling, dict) or any(
         kind not in kinds or not isinstance(text, str) or not text.strip()
         for kind, text in handling.items()
@@ -89,96 +96,9 @@ def validate_event_handling(events: dict, kinds: dict, path) -> None:
 
 
 def validate_event_contracts(kinds: dict, path) -> None:
-    if not isinstance(kinds, dict):
-        raise RegistryError(f"{path}: $events.kinds must map names to event contracts")
-    envelope = {"id", "ts", "author", "kind", "seq"}
-    for kind, contract in kinds.items():
-        if (
-            not isinstance(kind, str)
-            or not kind
-            or not isinstance(contract, dict)
-            or set(contract) - {"record", "browser"}
-            or not isinstance(contract.get("record"), dict)
-            or ("browser" in contract and not isinstance(contract["browser"], dict))
-        ):
-            raise RegistryError(
-                f"{path}: $events.kinds must map names to atomic record/browser "
-                "contracts"
-            )
-        for writer, schema in contract.items():
-            try:
-                Draft202012Validator.check_schema(schema)
-            except SchemaError as error:
-                raise RegistryError(
-                    f"{path}: $events kind `{kind}` {writer} is not a valid JSON "
-                    f"Schema: {error.message}"
-                ) from error
-        record = contract["record"]
-        properties = record.get("properties", {})
-        required = record.get("required", [])
-        # The record's closed shape, plus the two constraints a kind states over
-        # fields it lists — which content it must carry (comments take text,
-        # drawing, or token; replies take text or token), and what one field rules
-        # out. Both are compared
-        # kind for kind below, so a layer cannot loosen the installed contract
-        # through them, and both may name only declared fields, checked here.
-        constrained = {
-            name
-            for branch in record.get("oneOf", [])
-            for name in branch.get("required", [])
-        } | set(record.get("dependentSchemas", {}))
-        if (
-            not constrained <= set(properties)
-            or set(record) - RECORD_CONSTRAINTS
-            != {"type", "properties", "required", "additionalProperties"}
-            or record.get("type") != "object"
-            or not envelope <= set(properties)
-            or not envelope <= set(required)
-            or properties.get("kind") != {"const": kind}
-            or record.get("additionalProperties") is not False
-        ):
-            raise RegistryError(
-                f"{path}: $events kind `{kind}` record must use only type, "
-                "properties, required, and additionalProperties (plus oneOf and "
-                "dependentSchemas over declared fields) to declare a closed full "
-                "event schema with required id/ts/author/kind/seq fields and its "
-                "kind const"
-            )
-
-    # Compare a vendored or overlaid contract with the installed producers' own.
-    # Optional fields may grow; installed fields, requirements, and browser doors
-    # may not change.
-    current = read_registry_entries(ASSETS / "registry.json")["$events"]["kinds"]
-    incompatible = []
-    for kind, expected in current.items():
-        actual = kinds.get(kind)
-        if actual is None:
-            incompatible.append(f"kind `{kind}`")
-            continue
-        expected_record = expected["record"]
-        actual_record = actual["record"]
-        expected_properties = expected_record["properties"]
-        actual_properties = actual_record["properties"]
-        changed = sorted(
-            name
-            for name, schema in expected_properties.items()
-            if actual_properties.get(name) != schema
-        )
-        if changed:
-            incompatible.append(f"`{kind}` fields {changed}")
-        elif set(actual_record["required"]) != set(expected_record["required"]):
-            incompatible.append(f"`{kind}` required fields")
-        elif any(
-            actual_record.get(key) != expected_record.get(key)
-            for key in RECORD_CONSTRAINTS
-        ):
-            incompatible.append(f"`{kind}` field constraints")
-        elif actual.get("browser") != expected.get("browser"):
-            incompatible.append(f"`{kind}` browser writer")
-    if incompatible:
+    if kinds != kernel_event_kinds():
         raise RegistryError(
-            f"{path}: $events.kinds omits or changes contracts the current layer "
-            "writes: " + ", ".join(incompatible)
+            f"{path}: $events.kinds must equal Leaf's fixed transport contract"
         )
 
 

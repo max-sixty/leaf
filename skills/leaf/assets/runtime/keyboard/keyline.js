@@ -83,6 +83,7 @@ import { walkPosition } from "../walk-position.js";
 // copies are placeholders, announcements, and the reference); More is a real button because
 // a visible door to the complete list should be a door every reader can work.
 export const keylineEl = el("div", "lf-ui lf-keyline");
+keylineEl.id = "lf-keyline";
 export const walkPositionEl = el("span", "lf-walk-position");
 walkPositionEl.hidden = true;
 walkPositionEl.setAttribute("aria-hidden", "true");

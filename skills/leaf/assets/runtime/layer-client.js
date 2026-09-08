@@ -16,7 +16,7 @@
 
 import { countTraffic } from "./traffic.js";
 import { runtime } from "./context.js";
-import { sayLine } from "./banner.js";
+import { notice } from "./notifications.js";
 
 const layerGeneration = "__LEAF_LAYER_GENERATION__";
 const runtimeScript = document.querySelector("script[data-lf-runtime]");
@@ -32,7 +32,7 @@ let layerReloading = false;
 function reloadDelivery(message) {
   if (layerReloading) return;
   layerReloading = true;
-  sayLine(message);
+  notice(message);
   location.reload();
 }
 

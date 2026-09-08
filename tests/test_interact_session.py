@@ -682,9 +682,7 @@ def test_a_batch_says_what_each_kind_present_asks_of_the_agent(page_dir, capsys)
     }
 
 
-def test_a_page_vendored_before_handling_gets_the_kernel_s_sentences(page_dir, capsys):
-    """The vendored layer states nothing about handling, so the batch falls back
-    to the installed kernel's sentences rather than delivering an empty map."""
+def test_a_page_with_no_handling_does_not_substitute_another_layer(page_dir, capsys):
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     del registry["$events"]["handling"]
@@ -698,8 +696,7 @@ def test_a_page_vendored_before_handling_gets_the_kernel_s_sentences(page_dir, c
 
     assert session_model.cmd_wait(page_dir) == 0
     header = json.loads(capsys.readouterr().out.splitlines()[0])
-    kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
-    assert header["handling"] == {"comment": kernel["$events"]["handling"]["comment"]}
+    assert header["handling"] == {}
 
 
 def test_reopening_a_thread_reveals_its_unanswered_claim(page_dir):

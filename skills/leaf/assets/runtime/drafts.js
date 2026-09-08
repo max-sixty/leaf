@@ -347,7 +347,7 @@ export function sendMessage(ctx, owns, send) {
     // than only told to the boxes, since the one they were typed in may have gone down
     // with the send and a reload must still find them. A later edit of their own has a
     // fresh attempt and is not this generation, and keeps the box.
-    if (rawDraftRecord(ctx)?.attempt !== current.attempt) return;
+    if (activeDraftRecord(ctx)?.attempt !== current.attempt) return;
     tellDraft(ctx, current.text);
   });
   return { attempt: current.attempt, id: `${PENDING}${current.attempt}` };

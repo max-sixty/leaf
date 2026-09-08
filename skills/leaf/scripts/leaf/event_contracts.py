@@ -15,7 +15,7 @@ from leaf.event_meaning import direct_dependencies
 from leaf.events import build_threads
 from leaf.files import revision_path
 from leaf.passages import enclosing_ids
-from leaf.projection import frozen_thread_reading, page_projection
+from leaf.projection import frozen_thread_reading, page_reading
 from leaf.registry.contract import (
     created_children,
     schema_error,
@@ -381,7 +381,8 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
 
     if page_rec:
         html = revision_path(page_dir, revision).read_text(encoding="utf-8")
-        projection, parser, spk = page_projection(html, events, registry, revision)
+        page = page_reading(html, events, registry, revision)
+        projection, parser, spk = page.projection, page.parser, page.spoken
         byid = parser.by_id
         current = parser.by_id[event["widget"]]
         # This door asks whether the request is answered, not whether it is the

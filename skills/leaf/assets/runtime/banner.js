@@ -21,6 +21,7 @@ import { paintHere } from "./keyboard/scopes.js";
 import { announce, notice, noticeEl } from "./notifications.js";
 
 export const banner = el("header", "lf-ui lf-banner");
+banner.id = "lf-banner";
 export const dot = el("span", "lf-dot");
 const statusText = el("span", "lf-status-text", "Connecting…");
 // The line's momentary other words (notifications.js): a gesture recorded, a version
@@ -166,16 +167,6 @@ const showStatus = (kind, tone, ...parts) => {
   saidKind = kind;
   if (changed) announce(statusText.textContent);
 };
-// A reload the page has decided on its own: a layer that has moved under it, or a
-// version it could not show. The reader is looking at a page that is about to go, and a
-// tab reloading with nothing said is the page appearing to lose their place for no
-// reason. One line, in the seat the rest of the banner's news arrives in, said out loud
-// as well — a reload is exactly the moment a reader not watching the banner needs
-// telling, and there is no kind here to have changed.
-export function sayLine(text) {
-  showStatus(saidKind, "", text);
-  announce(text);
-}
 // The developer preview's identity: which checkout is serving this page, and a press to
 // copy the whole diagnostic. It is an address on the row rather than a chip inside the
 // status, because the status's room is the sentence's floor and a chip standing in it

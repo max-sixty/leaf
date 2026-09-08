@@ -63,6 +63,7 @@ import { availableCommands, executeCommand, readerIn } from "./dispatch.js";
 import { reachScrollers } from "../reach.js";
 
 export const helpEl = document.createElement("dialog");
+helpEl.id = "lf-help";
 helpEl.className = "lf-ui lf-help";
 helpEl.setAttribute("aria-label", "All keyboard shortcuts");
 helpEl.setAttribute("aria-modal", "true");

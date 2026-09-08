@@ -20,8 +20,6 @@ from functools import cache
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from websockets.exceptions import WebSocketException
-
 from leaf.codex import (
     AppServerEvents,
     _app_server_connect,
@@ -32,7 +30,6 @@ from leaf.codex import (
     prepare_codex_delivery,
 )
 from leaf.conversation import cmd_reply
-from leaf.service import PageTransaction, page_claim
 from leaf.hosting import server_at
 from leaf.http import Handler, canonical_script_offset, scope_page_urls
 from leaf.registry.storage import layer_metadata
@@ -40,6 +37,8 @@ from leaf.revisioning import activate_source
 from leaf.served_state.page import full_state
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
+from leaf.service import PageTransaction, page_claim
+from websockets.exceptions import WebSocketException
 
 PORT = 8080
 WEBSITE_AGENT = "Leaf guide"

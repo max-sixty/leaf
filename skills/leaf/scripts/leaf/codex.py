@@ -25,6 +25,7 @@ from .files import read_json, write_json
 from .host import host_identity, state_home
 from .leases import adapter_is_live, adapter_lease_path, take_waiter_lease
 from .schema import EVENTS_FILE
+from .served_state.page import full_state
 from .server import running_server
 from .service import (
     PageTransaction,
@@ -34,7 +35,6 @@ from .service import (
     take_page_claim,
     unacknowledged,
 )
-from .served_state.page import full_state
 from .session import Watch, acknowledge, batch_data, read_watch_pass, record_pickup
 
 QUEUE_TIMEOUT = 20

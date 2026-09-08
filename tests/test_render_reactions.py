@@ -1085,7 +1085,7 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
     }
     shown = painted(page, [["flow", "prioritize"]])
     assert shown["outlined"] == [start.get_attribute("data-id")], shown
-    expect(start).to_have_class(re.compile(r"\blf-shaped-mark\b"))
+    expect(start).to_have_class(re.compile(r"\blf-projected-mark\b"))
     expect(page.locator(".lf-visual-mark")).to_have_class(
         re.compile(r"\blf-visual-mark-reaction\b")
     )

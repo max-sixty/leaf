@@ -1908,7 +1908,7 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     decoration = page.locator("#outer-decoration")
     mark = page.locator(".lf-visual-mark")
 
-    expect(outer).to_have_class(re.compile(r"\blf-shaped-mark\b"))
+    expect(outer).to_have_class(re.compile(r"\blf-projected-mark\b"))
     assert page.eval_on_selector_all(
         ".lf-visual-mark-shape > g > *", "nodes => nodes.map(node => node.localName)"
     ) == ["rect"]
@@ -1972,7 +1972,7 @@ def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, se
     surface = page.locator("#html-surface")
     mark = page.locator(".lf-visual-mark")
 
-    expect(semantic).to_have_class(re.compile(r"\blf-shaped-mark\b"))
+    expect(semantic).to_have_class(re.compile(r"\blf-projected-mark\b"))
     expect(mark).to_be_visible()
     expect(mark).not_to_have_class(re.compile(r"\blf-shaped\b"))
     expect(mark).to_have_css("border-radius", "12px")
@@ -2444,7 +2444,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
 def test_the_aims_box_is_what_the_page_shows_of_the_item(browser, serve):
     """The promise paints in the chrome's layer, and claims what the page shows.
 
-    The aim used to wear the mark's hairline, and the mark's band is one pixel at the
+    The aim used to wear the mark's rail, and that band sat at the
     border edge — the one band of an element nobody else paints in, and exactly where a
     widget draws a border of its own. Over an accented option, whose border is
     already the accent, arming changed nothing a reader could see, and what was

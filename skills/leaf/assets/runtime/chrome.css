@@ -1,8 +1,8 @@
 /* The comment layer's private stylesheet: everything the runtime draws that is not
-   the document, banner to shortcut bar, and the shell geometry the document takes on
-   around standing workspaces. The boot module (leaf.js) adopts it as a constructed
-   sheet, so it stands in no head node and a version activation's head reconciliation
-   never meets it; a standalone copy gets its text written into a <style> by the bake.
+   the document, from banner to shortcut bar. The boot module (leaf.js) adopts it as a
+   constructed sheet, so it stands in no head node and a version activation's head
+   reconciliation never meets it; a standalone copy gets its text written into a
+   <style> by the bake.
 
    Two numbers here are spelled again in the runtime, and a layer test holds each pair
    equal: the covering queries `(width <= 840px)` and `(width > 840px)` are twice
@@ -70,56 +70,10 @@
   inherits: false;
   initial-value: 0px;
 }
-/* The browser's root remains the document scrollport. That keeps native fragments,
-   history restoration, wheel/touch input, and browser chrome on one shared reading
-   position. Body is only the layout shell: its margins yield columns to standing
-   workspaces while those workspaces keep their own nested scrollports.
-
-   The root keeps its bar standing so content does not re-centre when a page grows past
-   the viewport mid-session, and overflow-y: scroll is the spelling that asks for it
-   without reserving room the platform will not use. scrollbar-gutter: stable asked for
-   the room instead: Chromium holds the classic bar's width open even where the platform
-   draws overlay bars, and an overlay bar then draws over the strip rather than in it.
-   The width came out of the page while every window-relative coordinate kept the whole
-   window — pointer positions, innerWidth, and the root's own clientWidth — so a drawn
-   edge landed a bar's width off the hand that drew it, a covering sheet anchored to the
-   initial containing block's right edge left a blank strip at the window's, and a page
-   with nothing overflowing measured a bar's width narrower than the box it scrolled in.
-   A standing bar is a no-op where bars overlay, and where they take room it takes
-   exactly the room the bar does, which is the room innerWidth minus the root's
-   clientWidth already reports.
-
-   All of this belongs only to the live screen page. Copies have no fixed banner or
-   session chrome, and paper never receives the arrangement. */
-@media screen {
-  :where(html:not(.lf-copy)) {
-    min-height: 100%;
-    overflow-x: hidden;
-    overflow-y: scroll;
-    scroll-padding-top: calc(var(--lf-banner-h) + 12px);
-    scroll-padding-bottom: max(var(--here-ring-room), var(--lf-shortcut-bar-clear, 0px));
-    /* The foot is the same claim the head makes. Without a shortcut bar it keeps the room
-       a focus ring needs. syncLayout raises it to the fixed line's complete band when
-       one is standing there, so native Tab and scrollIntoView cannot land a control
-       behind the keyboard help. The panel's own list says the same thing about its
-       own edges. */
-    body { min-height: 100%; }
-    /* The banner stands over the head of the document, so the page's first lines get
-       room rather than starting under it, and the shortcut bar reserves the same at the
-       foot (syncLayout). Both are boxes in the flow rather than scroll-container
-       padding. They therefore add to authored page padding and disappear with the
-       screen-only chrome instead of leaving empty strips on paper. */
-    body::before { content: ""; display: block; height: var(--lf-banner-h); }
-  }
-}
 /* Page-attached chrome is absolute against the initial containing block, not against
    body. Body is the layout shell and may move or narrow for standing workspaces; the
    document coordinate system does neither, and root scrolling still carries absolute
    chrome with the passage it stands beside. */
-/* The banner's height, said once. Everything at the top edge derives from it — the
-   bar itself, the panel starting under it, the focus-revealed mark note, the
-   scroll padding that keeps an anchored jump out from beneath it (plus air) — and
-   the room the document leaves for it. */
 /* The chrome's line box, said once, because one control in the banner cannot be
    told it. Chrome computes a select's inner height from its own metrics and
    refuses line-height outright — the computed value stays normal however the
@@ -129,71 +83,7 @@
    .lf-btn arrives at through the line box. Stated in one place so the two cannot
    come apart: a third copy of 1.45 is exactly the drift the reserve comment below
    is about, and this one would show as the chooser sinking again. */
-:root {
-  position: static;
-  --lf-safe-top: env(safe-area-inset-top, 0px);
-  --lf-safe-right: env(safe-area-inset-right, 0px);
-  --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
-  --lf-safe-left: env(safe-area-inset-left, 0px);
-  --lf-banner-h: calc(42px + var(--lf-safe-top));
-  --lf-ui-lh: 1.45;
-}
-@media screen and (width <= 840px) {
-  :root { --lf-banner-h: calc(88px + var(--lf-safe-top)); }
-}
-/* A wide touch layout keeps the desktop row, but its forty-four-pixel aims and their
-   focus ring need a taller bar than the mouse-sized row. This one derived height moves
-   the page, panels, anchored jumps, and the banner edge together. */
-@media screen and (pointer: coarse) and (width > 840px) {
-  :root { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
-}
-body { position: static; box-sizing: border-box; }
-/* The strip itself, and — where there is no room to yield one — the page locking its
-   root scrollport while the sheet covers it. Body's margin narrows the layout shell
-   without replacing the browser's document scroller. Under a covering sheet one wheel
-   gesture still moves one region, and the region is the thread list; the root keeps its
-   position for when the sheet closes.
-
-   The cascade owns this shell geometry. JavaScript states only that the panel is open;
-   CSS determines the room left beside it and the document's container queries respond
-   directly to that result.
-
-   The strip comes out of the page rather than being held aside for it, which makes
-   opening the panel the largest movement in the product: the column re-centres by half
-   the panel's width, and on a window narrow enough to lose width as well it rewraps
-   every line. The cascade lands that final responsive layout in one pass. moveShell
-   carries the column from its old horizontal position so the eye can follow it without
-   making every container query answer a series of transient shell widths.
-
-   Locking the root drops its standing bar, which the reserved gutter this replaced would
-   have held open under hidden too. So where the platform draws classic bars, the strip
-   of page still visible beside the sheet widens by a bar's width as the sheet opens and
-   narrows back as it closes — one more rewrap on the window that was already rewrapping.
-   Holding the room across the lock means reserving it on every platform, the ones whose
-   bars overlay included, which is the disagreement the root's rule above exists to end;
-   the locked state is where it cost the most, a covering sheet anchored to the initial
-   containing block landing a bar's width inside the window's own edge. Both states now
-   read the same way instead: the page's box is the room its coordinates report. */
-@media screen and (not (width <= 840px)) {
-  body[data-lf-panel] { margin-right: var(--lf-panel-w); }
-}
-@media screen and (width <= 840px) {
-  :where(html:not(.lf-copy)):has(body[data-lf-panel]) { overflow-y: hidden; }
-}
-/* A tray that takes its room out of the page takes it the same way as the right panel:
-   a body margin narrows and moves the layout shell while page-attached chrome keeps the
-   document origin above it. The inset gives viewport-fixed page furniture that same
-   left edge. showTray states which tray is up; STRIP_TRAYS states which trays claim
-   this room. */
-@media screen and (not (width <= 600px)) {
-  body:is([data-lf-tray="asks"]) {
-    --lf-shell-inset-left: var(--lf-tray-w);
-    margin-left: var(--lf-tray-w);
-  }
-}
-@media screen and (width <= 600px) {
-  :where(html:not(.lf-copy)):has(body:is([data-lf-tray="asks"])) { overflow-y: hidden; }
-}
+:root { --lf-ui-lh: 1.45; }
 /* Rules at this level are the shared vocabulary: classes whose whole job is
    elements the page owns — a widget's controls wear lf-ui and lf-btn, and the
    runtime marks the page's own elements (lf-mark-el, lf-ins-block). Adding one

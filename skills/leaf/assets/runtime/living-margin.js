@@ -1008,6 +1008,7 @@ sheetClose.onclick = () => sheet.close();
 sheetHead.append(sheetClose);
 const sheetSearch = el("input", "lf-page-map-search");
 sheetSearch.type = "search";
+sheetSearch.name = "page-map-search";
 sheetSearch.placeholder = "Find an action, status, or location";
 sheetSearch.setAttribute(
   "aria-label",
@@ -1868,6 +1869,16 @@ export function openMarginElementOptions(target, { owner = null } = {}) {
 
 export function pageMapMarginElements() {
   return pageMapEntries.flatMap((entry) => clusterMarginElements(hosts.get(entry.key)));
+}
+
+// A generated reading control has one exact meaning even when its target holds other
+// readings behind More. Contributed action controls have no core reading kind.
+export function pageMapMarginElementKind(control) {
+  const host = closestAcross(control, "[data-lf-margin-for]");
+  const entry = host?.lfEntry;
+  if (!entry) return null;
+  if (control.lfChoice) return control.lfChoice.kind;
+  return control === rows.get(entry.key) ? (primaryReading(entry)?.kind ?? null) : null;
 }
 
 export function openPageMapMarginElement(control) {

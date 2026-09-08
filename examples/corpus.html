@@ -279,6 +279,881 @@ catalog.</p>
       </section>
 </lf-tab>
 
+<lf-tab id="corpus-security-boundary" label="Security">
+<h1>Make the agent workspace disposable</h1>
+      <p class="lede" id="security-decision">
+        Tend keeps GitHub Actions’ workspace runner-owned for the whole job and runs
+        every agent in a second, disposable checkout under <code>/tmp</code>. It wraps
+        <code>sandbox_setup</code> and the whole Claude or Codex process in one
+        runner-launched <code>@anthropic-ai/sandbox-runtime</code> (SRT) lifetime. The
+        security invariant is:
+        <strong
+          >runner authority never executes or follows an unchecked agent-controlled
+          path.</strong
+        >
+        Vendor-native permission modes may add defense in depth, but are not a second
+        Tend security boundary.
+      </p>
+
+      <aside class="callout" id="security-outcome">
+        <strong>Outcome · implemented</strong>
+        <p>
+          Tend adopted the boundary in
+          <a href="https://github.com/max-sixty/tend/pull/1173">pull request #1173</a>.
+          The runner checkout now remains stable; the agent receives an independent
+          checkout under <code>/tmp</code>; <code>sandbox_setup</code> and the complete
+          Claude or Codex turn share one SRT lifetime; the supervisor reaps the sandbox
+          UID and exports only bounded files. Fixed runner steps then stop Codex’s
+          inference proxy, delete the disposable checkout and runtime, and restore the
+          hosted runner’s temporary AppArmor policy. The proposal below is preserved as
+          the decision input, including tests and consumer migrations that extend beyond
+          the first implementation.
+        </p>
+      </aside>
+
+      <section id="security-finding">
+        <h2 id="security-finding-heading">
+          The missing boundary is between phases, not between commands
+        </h2>
+        <p id="security-finding-summary">
+          Tend already separates the agent’s UID and credentials from the runner. What
+          it does not separate is durable filesystem state:
+          <code>setup_sandbox.py</code> chowns <code>GITHUB_WORKSPACE</code> to the
+          agent, and each harness later chowns it back. GitHub then runs ordinary
+          workflow steps and registered action POST handlers against that same tree.
+          Restoring local action directories repairs one known consumer, but the set of
+          future consumers is open-ended: Git, PATH entries, language startup files,
+          action manifests, and setup-generated shims.
+        </p>
+        <lf-diagram
+          id="security-current-flow"
+          parts="node:R0 node:R1 node:A1 node:R2 node:P1"
+        >
+          <pre>
+flowchart LR
+  R0[Runner checks out base] --> R1[Runner runs setup]
+  R1 --> A1[Same tree chowned to agent]
+  A1 --> R2[Same tree chowned back]
+  R2 --> P1[Runner steps and action POSTs]
+  classDef danger fill:var(--danger-tint),stroke:var(--danger),color:var(--danger-ink)
+  class A1,R2,P1 danger
+</pre>
+        </lf-diagram>
+        <aside class="callout" id="security-counterexample">
+          A sufficient counterexample is a setup action that adds
+          <code>$GITHUB_WORKSPACE/.venv/bin</code> to PATH. The sandbox is behaving as
+          configured when it lets the agent replace <code>.venv/bin/git</code>; a later
+          runner step is compromised when it resolves that path outside the sandbox.
+          Protecting <code>.git/hooks</code> does not close this route.
+        </aside>
+      </section>
+
+      <section id="security-concepts">
+        <h2 id="security-concepts-heading">
+          Two principals, protected and disposable resources, explicit channels
+        </h2>
+        <table id="security-object-register">
+          <caption>
+            The objects are named by owner and lifecycle, not by where they happen to
+            sit.
+          </caption>
+          <thead>
+            <tr>
+              <th>Object</th>
+              <th>Owner</th>
+              <th>Agent access</th>
+              <th>Runner use after launch</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row"><code>Wᵣ</code> — runner workspace</th>
+              <td>Runner principal</td>
+              <td>Denied</td>
+              <td>Workflow steps and action POSTs; trusted POSTs may mutate it</td>
+            </tr>
+            <tr>
+              <th scope="row"><code>Wₐ</code> — agent checkout</th>
+              <td>Sandbox UID</td>
+              <td>Read/write</td>
+              <td>Never execute; delete before the trusted tail</td>
+            </tr>
+            <tr>
+              <th scope="row"><code>Hₐ</code> — agent home</th>
+              <td>Sandbox UID</td>
+              <td>Read/write</td>
+              <td>Validated data collection only</td>
+            </tr>
+            <tr>
+              <th scope="row"><code>Tₐ</code> — runtime scratch</th>
+              <td>Sandbox UID</td>
+              <td>Read/write</td>
+              <td>Never read by runner; discarded with VM</td>
+            </tr>
+            <tr>
+              <th scope="row"><code>E</code> — export sinks</th>
+              <td>
+                Runner-opened streams and a runner-owned directory containing precreated
+                agent-writable files
+              </td>
+              <td>
+                Write bytes to inherited descriptors or file contents, not directory
+                entries
+              </td>
+              <td>Bounded, no-follow reads after reap</td>
+            </tr>
+            <tr>
+              <th scope="row"><code>P</code> — credential proxies</th>
+              <td>Runner principal</td>
+              <td>One authenticated protocol endpoint</td>
+              <td>Stopped by the supervisor or fixed teardown on every exit</td>
+            </tr>
+          </tbody>
+        </table>
+        <p id="security-three-domains">
+          There are two execution principals: the runner control plane and the untrusted
+          agent process tree. <code>Wᵣ</code>, workflow command files, action cache,
+          proxy state, and long-lived credentials are protected runner resources;
+          <code>Wₐ</code>, <code>Hₐ</code>, and <code>Tₐ</code> are disposable agent
+          resources. <code>Tₐ</code> accounts explicitly for SRT’s built-in writable
+          <code>/tmp/claude</code> and home-relative debug/npm paths; the launcher fixes
+          the sandbox UID and <code>HOME=Hₐ</code>, and no trusted consumer uses those
+          paths. B1 owns trusted initial code/config provisioning, B2 owns contained
+          execution, B3 owns credential grants and network brokerage, and B4 owns
+          results exported to trusted runner consumers. These are responsibilities, not
+          four physically disjoint pipes: dependencies and model responses travel
+          through B3, and subscription authority is deliberately staged in
+          <code>Hₐ</code>. Persistent auto-memory remains untrusted data for a future
+          agent. Any other host service or Unix socket is a new B3 gateway; none is
+          admitted initially.
+        </p>
+        <aside class="callout" id="security-trust-assumptions">
+          The trusted computing base is GitHub’s ephemeral runner VM, the runner
+          process, Tend’s pinned launcher/policy/collector, and SRT. The separate
+          sandbox UID remains: SRT constrains filesystem, network, and descendants; the
+          UID keeps the agent from inspecting or signalling runner-owned proxy
+          processes. A compromise of the runner or SRT itself is outside this boundary.
+          Everything in the checkout, agent home, model response, and persisted memory
+          is untrusted.
+        </aside>
+      </section>
+
+      <section id="security-states">
+        <h2 id="security-states-heading">
+          The job has an irreversible handoff, not a hand-back
+        </h2>
+        <lf-diagram
+          id="security-proposed-states"
+          parts="node:S0 node:S1 node:S2 node:S3 node:S4 node:S5 node:S6 node:S7 node:F"
+        >
+          <pre>
+stateDiagram-v2
+  [*] --> S0
+  state "S0 · Gate passed" as S0
+  state "S1 · Wᵣ prepared" as S1
+  state "S2 · Wₐ imported" as S2
+  state "S3 · sandbox_setup inside SRT" as S3
+  state "S4 · Agent inside same SRT" as S4
+  state "S5 · Finalizer running" as S5
+  state "S6 · Quiescent; outputs validated or skipped" as S6
+  state "S7 · Fixed cleanup, trusted tail + POST" as S7
+  state "Fail closed" as F
+  S0 --> S1: checkout base/default + setup
+  S1 --> S2: import exact target into a new checkout
+  S2 --> S3: trusted launcher starts supervisor + SRT
+  S3 --> S4: setup succeeds
+  S4 --> S5: exit, failure, cancel, or timeout
+  S5 --> S6: process tree reaped
+  S6 --> S7: bounded data accepted, or collection skipped
+  S7 --> [*]: runner VM discarded
+  S0 --> F: gate or checkout failure
+  S1 --> F: import failure
+  S2 --> F: preflight rejects before resource allocation
+  S2 --> S5: initialization or launch fails after allocation
+  S3 --> S5: setup failure or cancellation
+  S5 --> F: cannot prove process-tree termination
+  S6 --> F: export validation failure
+  F --> S7: report failure without agent-tree reads
+</pre>
+        </lf-diagram>
+        <table id="security-state-invariants">
+          <thead>
+            <tr>
+              <th>State</th>
+              <th>Invariant that becomes true</th>
+              <th>What cannot happen next</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">S1</th>
+              <td>
+                Local actions are loaded from <code>Wᵣ</code>; their POST paths remain
+                stable.
+              </td>
+              <td>No PR/head checkout replaces <code>Wᵣ</code>.</td>
+            </tr>
+            <tr>
+              <th scope="row">S2</th>
+              <td>
+                <code>Wₐ</code> is an independent Git directory at the exact target
+                commit; startup-sensitive files are pinned from base; persisted checkout
+                credentials are absent.
+              </td>
+              <td>
+                No filesystem link from <code>Wₐ/.git</code> reaches
+                <code>Wᵣ/.git</code>.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">S3</th>
+              <td>
+                A runner-owned absolute launcher has entered one outer SRT policy; cwd
+                and agent-visible <code>GITHUB_WORKSPACE</code> are <code>Wₐ</code>.
+              </td>
+              <td>
+                Setup cannot select or replace its enforcement executable, policy, or
+                bootstrap PATH.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">S4</th>
+              <td>
+                Setup and agent share the same SRT namespace, filesystem grants,
+                supervisor, and explicit environment.
+              </td>
+              <td>
+                No process in that lifetime can reach <code>Wᵣ</code>, runner home,
+                command files, host sockets, or direct network.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">S5</th>
+              <td>
+                The supervisor waits for SRT and terminates every remaining process
+                owned by the sandbox UID after setup/agent success, failure,
+                cancellation, or timeout.
+              </td>
+              <td>No normal or error return bypasses cleanup.</td>
+            </tr>
+            <tr>
+              <th scope="row">S6</th>
+              <td>
+                Quiescence is proved before bounded collection. Invalid exports are
+                skipped and fail the action; failed quiescence skips every agent-tree
+                read.
+              </td>
+              <td>
+                No writer can race collection, and no agent-selected path is executed or
+                unchecked-dereferenced with runner authority.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">S7</th>
+              <td>
+                Fixed runner steps stop the remaining proxy, delete <code>Wₐ</code> and
+                its runtime, and restore temporary host policy. The runner resumes on
+                <code>Wᵣ</code>, which the agent never accessed.
+              </td>
+              <td>POST cleanup cannot observe the disposable agent tree.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="security-bottlenecks">
+        <h2 id="security-bottlenecks-heading">Put policy at four bottlenecks</h2>
+        <table id="security-bottleneck-table">
+          <thead>
+            <tr>
+              <th>Bottleneck</th>
+              <th>Single responsibility</th>
+              <th>Enforced fact</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">B1 · Content ingress</th>
+              <td>
+                Materialize all non-secret agent-readable startup state: target code,
+                Tend prompt/plugin assets, project instructions, and harness config.
+              </td>
+              <td>
+                Independent Git metadata; exact event-specific commit and
+                branch/upstream topology; no credential; sensitive project startup files
+                pinned from the trusted base; no runner path referenced after launch.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">B2 · Launch and lifetime</th>
+              <td>
+                A trusted supervisor starts <code>sandbox_setup</code> and one harness
+                inside a single outer SRT process boundary, then reaps it on every exit.
+              </td>
+              <td>
+                Runner-owned absolute runtime, <code>bwrap</code>, <code>socat</code>,
+                seccomp-helper, and policy paths; fixed sandbox UID/HOME; sanitized
+                bootstrap PATH; explicit payload environment; every dependency warning
+                is fatal; no host sockets; no direct network; one process lifetime.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">B3 · Authority ingress</th>
+              <td>Translate dummy PAT/API credentials into authenticated requests.</td>
+              <td>
+                PAT and API keys never enter the untrusted domain. Codex subscription
+                mode is the one explicit exception: an access-only token enters
+                <code>Hₐ</code>; its refresh token remains runner-only. Trusted tail
+                steps may separately receive runner credentials.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">B4 · Data egress</th>
+              <td>
+                Convert agent bytes into runner-owned data without treating paths or
+                workflow syntax as authority.
+              </td>
+              <td>
+                Live stdout/stderr are escaped as inert log data through inherited
+                descriptors. Fixed outputs use precreated nonreplaceable entries.
+                Dynamic logs and memory use descriptor-relative traversal that validates
+                every ancestor and inode, with type, link-count, file-count, and
+                total-byte bounds.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p id="security-bottleneck-completeness">
+          These four are exhaustive by direction and kind: static bytes enter at B1; an
+          untrusted process lifetime begins and ends at B2; privileged effects enter at
+          B3; bytes leave at B4. Every proposed exception must name which one it
+          extends. A cache copied into the sandbox is B1, a service socket is B3, and a
+          session-log directory is B4. “Security-related” code elsewhere is suspect
+          unless it implements one of these contracts.
+        </p>
+        <p id="security-bottleneck-consequence">
+          GitHub’s POST chain is not a fifth security mechanism. It is simply a consumer
+          that remains on the runner side of B1. With <code>Wᵣ</code> unchanged, Tend
+          can delete the generated “restore local setup actions” step rather than
+          expanding it into a larger list of things to repair.
+        </p>
+      </section>
+
+      <section id="security-vendor-sandboxes">
+        <h2 id="security-vendor-heading">
+          One outer sandbox is the enforcement seam for both harnesses
+        </h2>
+        <table id="security-vendor-table">
+          <thead>
+            <tr>
+              <th>Harness</th>
+              <th>Use</th>
+              <th>Required posture</th>
+              <th>Why this is still not enough alone</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Codex</th>
+              <td>
+                SRT wraps the supervisor payload containing setup and the complete
+                <code>codex exec</code> process.
+              </td>
+              <td>
+                Remove Tend’s legacy <code>--sandbox</code> surface; do not claim Codex
+                permission profiles as the boundary because their documented scope
+                excludes MCP processes and client-service traffic. Inner execution may
+                be unrestricted relative to the outer boundary.
+              </td>
+              <td>
+                One outer process boundary covers integrations and pre-agent setup.
+                Codex’s own permissions can remain a UX safeguard only if they do not
+                change the tested contract.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Claude Code</th>
+              <td>
+                The same SRT launcher wraps setup and the complete
+                <code>claude -p</code> process.
+              </td>
+              <td>
+                Do not rely on Claude’s Bash-only built-in sandbox or its
+                <code>allowUnsandboxedCommands</code> setting as the outer enforcement
+                switch. No command exclusion may escape the SRT process.
+              </td>
+              <td>
+                The shared adapter gives both harnesses one filesystem/network/process
+                contract while leaving model-specific invocation inside the boundary.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p id="security-vendor-conclusion">
+          This leans on an existing generic sandbox wrapper and keeps Tend out of the
+          bubblewrap/AppArmor implementation. Tend owns the smaller cross-harness
+          contract: a trusted absolute launcher, the SRT policy, the disposable
+          checkout, the supervised lifetime, and the ingress/egress schemas. The
+          selected outer boundary makes Codex’s internal Linux enforcement details
+          irrelevant.
+        </p>
+        <aside class="callout" id="security-srt-contract-gaps">
+          SRT is the primitive, not the policy. Its current Linux dependency check
+          reports a missing seccomp helper only as a warning and then runs with Unix
+          sockets unrestricted. Tend must promote every warning to a launch failure and
+          separately prove that the helper actually applies. SRT also adds writable
+          scratch/debug paths, now classified as <code>Tₐ</code>, and its mandatory Git
+          protections still deny <code>.git/hooks</code> when
+          <code>allowGitConfig</code> permits <code>.git/config</code>. Tend should use
+          SRT’s library API with explicit binary paths, accept the hook restriction
+          initially, and test the effective bwrap and seccomp behavior rather than infer
+          it from successful startup.
+        </aside>
+      </section>
+
+      <section id="security-contracts">
+        <h2 id="security-contracts-heading">Setup becomes a clean ownership seam</h2>
+        <table id="security-setup-contract">
+          <thead>
+            <tr>
+              <th>Config surface</th>
+              <th>Runs where</th>
+              <th>May produce</th>
+              <th>May not assume</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row"><code>setup:</code></th>
+              <td>Runner, with <code>Wᵣ</code> at base/default</td>
+              <td>
+                System toolchains, caches, and runner-only environment; local actions
+                and their POSTs are supported. Services remain runner-only.
+              </td>
+              <td>
+                Files under <code>Wᵣ</code> or runner home, or host sockets/services,
+                will be visible to the agent.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row"><code>sandbox_setup:</code></th>
+              <td>Same vendor sandbox and cwd as the agent</td>
+              <td>
+                Dependencies, generated files, and tools under
+                <code>Wₐ</code>/<code>Hₐ</code>.
+              </td>
+              <td>Sudo, runner home, <code>Wᵣ</code>, or real credentials.</td>
+            </tr>
+            <tr>
+              <th scope="row"><code>sandbox_path</code>/<code>sandbox_env</code></th>
+              <td>Validated once at B2</td>
+              <td>Explicit agent PATH and non-secret environment additions.</td>
+              <td>
+                References into <code>Wᵣ</code>, runner home, or GitHub command-file
+                paths.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p id="security-consumer-impact">
+          The current public-consumer audit found two local
+          <code>setup:</code> composites (PRQL and Worktrunk), which remain supported,
+          and two workspace-warming setup commands (<code>uv sync</code> in Leaf and
+          numbagg), which move to <code>sandbox_setup:</code>. Worktrunk’s one
+          deliberate copy from runner home should be replaced in that repository—install
+          the two tools inside <code>Hₐ</code> or <code>Wₐ</code>—rather than adding a
+          general runner-to-agent artifact bridge. Worktrunk’s multi-user Nix daemon is
+          a separate authority gateway: its socket hands work to
+          <code>nixbld</code> processes outside Tend’s supervised tree. The initial
+          cutover denies it and migrates that consumer to a daemonless/single-user
+          installation inside the agent boundary. If that proves impossible, a
+          constrained Nix broker is a new design decision, not a PATH fix.
+        </p>
+      </section>
+
+      <section id="security-implementation">
+        <h2 id="security-implementation-heading">
+          The proposal cut the work into three slices
+        </h2>
+        <ol class="steps" id="security-implementation-steps">
+          <li>
+            <strong>Prove one shared outer adapter.</strong> On
+            <code>ubuntu-24.04</code>, invoke SRT’s library API from a runner-owned
+            absolute path with runner-owned policy, <code>bwrap</code>,
+            <code>socat</code>, and seccomp-helper paths plus a sanitized bootstrap
+            PATH. Run <code>sandbox_setup</code> and each complete harness under one
+            supervisor. Verify that writable home/project config, PATH, agent arguments,
+            and Codex <code>EXTRA_ARGS</code> cannot weaken the launcher; every SRT
+            dependency warning is fatal; absent or ineffective seccomp stops before
+            setup.
+          </li>
+          <li>
+            <strong>Introduce the lifecycle and schemas.</strong> A tested Python step
+            creates a non-hardlinked, no-alternates clone in <code>RUNNER_TEMP</code>,
+            recreates the exact event-specific commit and branch/upstream semantics,
+            strips credentials, and pins startup-sensitive files from base. It sets
+            subprocess cwd and agent-visible <code>GITHUB_WORKSPACE</code> to
+            <code>Wₐ</code>; GitHub’s runner context remains <code>Wᵣ</code>. The
+            supervisor owns proxies, cancellation, quiescence proof, and B4 collectors.
+          </li>
+          <li>
+            <strong>Change generation and consumers, then delete repairs.</strong>
+            Review and mention resolve targets without replacing <code>Wᵣ</code>. Remove
+            the second workspace checkout, <code>gh pr checkout</code>,
+            <code>clean: false</code>, local-action restore generation, recursive
+            workspace chown/hand-back, legacy Codex sandbox flags, and PATH translation
+            that admits workspace or runner-home paths. Move Leaf/numbagg warming into
+            <code>sandbox_setup</code>; replace Worktrunk’s runner-home copies and
+            multi-user Nix dependency.
+          </li>
+        </ol>
+        <aside class="callout" id="security-cutover-rule">
+          No compatibility mode. Reject explicit <code>sandbox_path</code> or
+          <code>sandbox_env</code> references into forbidden roots with a direct
+          message. Arbitrary setup scripts can contain implicit dependencies that cannot
+          be diagnosed reliably, so document the ownership break and let those failures
+          surface at their real consumer.
+        </aside>
+      </section>
+
+      <section id="security-proof">
+        <h2 id="security-proof-heading">Acceptance is end-to-end and adversarial</h2>
+        <table id="security-proof-table">
+          <thead>
+            <tr>
+              <th>Test</th>
+              <th>Attack or failure</th>
+              <th>Required observation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">POST sentinel</th>
+              <td>
+                A local setup composite registers a POST and the agent replaces its
+                manifest, nested action, <code>git</code>, and every workspace PATH
+                shim.
+              </td>
+              <td>
+                The original POST runs from <code>Wᵣ</code>; every sentinel in
+                <code>Wᵣ</code> is unchanged.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Git separation and usability</th>
+              <td>
+                The agent rewrites config, refs, remotes, and objects under
+                <code>Wₐ/.git</code>, then commits, switches branches, creates a remote,
+                and performs <code>push -u</code>; it separately attempts to create a
+                hook and switches across a commit changing SRT-protected files.
+              </td>
+              <td>
+                Intended Git operations work in <code>Wₐ</code>; hook creation remains
+                denied by SRT and is not initially supported. Protected tracked files
+                still switch correctly or identify an upstream SRT limitation.
+                <code>Wᵣ/.git</code> remains independent. The policy enables disposable
+                <code>.git/config</code> through <code>allowGitConfig</code>.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Import topology</th>
+              <td>
+                Review merge refs, same-repo and fork PR heads, conflicting-PR fallback,
+                open mention PRs, and closed mentions are each imported.
+              </td>
+              <td>
+                Commit identity and push/upstream behavior match today’s workflow
+                without a linked worktree, alternates, or local-clone hardlinks.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Export confusion</th>
+              <td>
+                The agent replaces every result/log/memory path and every ancestor with
+                symlinks, FIFOs, devices, oversized files, hard links, and atomic
+                renames.
+              </td>
+              <td>
+                The descriptor-relative collector rejects each shape without following,
+                hanging, or exceeding file-count/total-byte caps; live output cannot
+                emit GitHub workflow commands.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Process race</th>
+              <td>
+                Setup or agent forks background writers and the job is cancelled during
+                initialization, setup, launch, execution, or export.
+              </td>
+              <td>
+                Any failure after resource allocation enters the one finalizer. Verified
+                quiescence gates agent-tree collection; failed proof skips collection,
+                while trusted tail and registered POSTs may proceed safely because
+                <code>Wᵣ</code> was never exposed.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Boundary override</th>
+              <td>
+                The agent plants <code>bwrap</code>/<code>srt</code> on PATH and edits
+                home/project config, policy paths, CLI args, and Codex
+                <code>EXTRA_ARGS</code>.
+              </td>
+              <td>
+                The runner-owned launcher and policy remain selected; no legacy
+                <code>--sandbox</code> setting or fallback changes the outer boundary.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Sandbox degradation</th>
+              <td>
+                SRT, <code>bwrap</code>, <code>socat</code>, the seccomp helper, its
+                AppArmor permission, or the policy is missing, malformed, or merely
+                warned about.
+              </td>
+              <td>
+                The run fails before <code>sandbox_setup</code>; a live negative
+                Unix-socket probe confirms seccomp rather than trusting dependency
+                discovery or normal startup.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Authority denial</th>
+              <td>
+                The agent tries direct network, runner-owned proxies, arbitrary
+                localhost/Unix sockets, the Nix daemon, and runner process state.
+              </td>
+              <td>
+                Only the specified credential-proxy protocol works. PAT/API secrets
+                remain outside; subscription mode exposes only the intended access token
+                and never its refresh token.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Real consumer matrix</th>
+              <td>
+                All eight known public adopter configs run representative workflows
+                under both harnesses, including Playwright startup and a real Worktrunk
+                Nix operation under the migrated design.
+              </td>
+              <td>
+                Tools remain reachable, local action POSTs succeed, pushes/comments work
+                through the proxy, and no per-consumer exception enters Tend.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p id="security-not-proven">
+          The adapter probe and hosted integration tests subsequently exercised current
+          Claude, Codex, and SRT behavior on GitHub-hosted Ubuntu 24.04, including the
+          nested UID, TLS-intercepting proxy, headless command lines, Unix-socket
+          denial, runner-checkout isolation, and complete teardown.
+        </p>
+      </section>
+
+      <section id="security-alternatives">
+        <h2 id="security-alternatives-heading">Rejected shapes</h2>
+        <table id="security-alternatives-table">
+          <thead>
+            <tr>
+              <th>Shape</th>
+              <th>Reason to reject</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Shared checkout plus more denies/restores</th>
+              <td>
+                Every new runner consumer creates another persistence path to discover
+                and repair. The security property is a list, not an invariant.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Private same-path bind/COW mount</th>
+              <td>
+                It can preserve absolute-path compatibility, but Tend would own mount
+                construction, propagation, teardown, and overlay edge cases. Use it only
+                if the clean setup contract proves impossible in real adopters.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">No post-agent runner work</th>
+              <td>
+                Tend cannot suppress GitHub’s registered action POST lifecycle, and
+                failure reporting, artifact upload, notification state, and memory
+                persistence are legitimate data-plane exits. Isolating their inputs is
+                smaller than reimplementing them.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Vendor sandbox alone on <code>Wᵣ</code></th>
+              <td>
+                Both vendors intentionally persist authorized workspace writes. That
+                confines the write while it happens; it does not constrain a later
+                runner process that consumes the modified bytes.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="security-review">
+        <h2 id="security-review-heading">Astra review</h2>
+        <p id="security-review-status">
+          <strong
+            >Approved and landed: no P0/P1/P2 design or implementation findings
+            remain.</strong
+          >
+          Astra completed two full adversarial passes plus a final verification. The
+          first pass found ten contract gaps; the second found SRT-default assumptions
+          and one partially initialized-launch transition. The proposal above
+          incorporates them. The final pass reviewed the implementation, tests, and
+          hosted probe evidence.
+        </p>
+        <ol id="security-review-findings">
+          <li>
+            <strong>P1 · Whole-process enforcement.</strong> Codex profiles exclude
+            integrations; B2 now uses one outer SRT lifetime for setup and either
+            harness.
+          </li>
+          <li>
+            <strong>P1 · Immutable bootstrap.</strong> B2 now fixes runner-owned
+            absolute runtime/policy paths, separates bootstrap from payload environment,
+            removes legacy override surfaces, and tests hostile PATH/config/arguments.
+          </li>
+          <li>
+            <strong>P1 · Host services.</strong> Runner services are no longer
+            implicitly shared; the Worktrunk Nix daemon is identified as a separate
+            forbidden gateway pending a daemonless migration.
+          </li>
+          <li>
+            <strong>P1 · Failure transitions.</strong> Setup is explicit, and every exit
+            after launch routes through one supervisor that stops proxies and proves
+            quiescence.
+          </li>
+          <li>
+            <strong>P1 · Credential exception.</strong> The universal secret claim now
+            distinguishes PAT/API proxying from Codex’s intentionally staged access-only
+            subscription token and runner-only refresh token.
+          </li>
+          <li>
+            <strong>P2 · Dynamic exports.</strong> B4 now separates inert live streams,
+            fixed precreated entries, and bounded descriptor-relative tree collection.
+          </li>
+          <li>
+            <strong>P2 · Execution context.</strong> The contract now sets both cwd and
+            agent-visible <code>GITHUB_WORKSPACE</code> to <code>Wₐ</code> and defines
+            event-specific Git topology.
+          </li>
+          <li>
+            <strong>P2 · Git usability.</strong> The policy explicitly permits
+            disposable Git metadata and tests commits, remotes, switching, and upstream
+            pushes.
+          </li>
+          <li>
+            <strong>P2 · Ontology.</strong> The model now separates principals,
+            resources, and ingress/egress channels; the invariant forbids privileged
+            execution or unchecked dereference rather than all reads.
+          </li>
+          <li>
+            <strong>P2 · Effective SRT policy.</strong> Implicit writable scratch,
+            degraded seccomp startup, Unix-socket behavior, and mandatory Git-hook
+            denial are explicit contract and probe inputs.
+          </li>
+          <li>
+            <strong>P2 · Partial launch cleanup.</strong> Resource allocation begins a
+            cleanup obligation even when sandbox initialization fails before setup; only
+            pre-allocation rejection may bypass the finalizer.
+          </li>
+          <li>
+            <strong>P3 · Migration diagnostics.</strong> Direct errors are limited to
+            explicit forbidden paths; implicit dependencies are documented and exercised
+            in the consumer matrix.
+          </li>
+        </ol>
+      </section>
+
+      <section id="security-sources">
+        <h2 id="security-sources-heading">Primary evidence</h2>
+        <ul id="security-source-list">
+          <li>
+            <a href="https://github.com/max-sixty/tend/pull/1173"
+              >The merged Tend implementation</a
+            >
+            — the disposable workspace, shared SRT lifecycle, bounded exports, fixed
+            teardown, tests, and review record.
+          </li>
+          <li>
+            <a href="https://learn.chatgpt.com/docs/permissions"
+              >OpenAI Codex permission profiles</a
+            >
+            — exact filesystem rules, documented exclusions for MCP/client-service
+            integrations, legacy <code>--sandbox</code> override behavior, and the
+            warning that persistent writes can be executed later outside the sandbox.
+          </li>
+          <li>
+            <a href="https://learn.chatgpt.com/docs/sandboxing"
+              >OpenAI Codex sandboxing</a
+            >
+            — Linux bubblewrap behavior and Ubuntu 24.04 AppArmor setup.
+          </li>
+          <li>
+            <a href="https://learn.chatgpt.com/docs/developer-commands?surface=cli"
+              >OpenAI Codex CLI commands</a
+            >
+            — the separate <code>codex sandbox</code> command is documented as Landlock
+            + seccomp on Linux, which is why the native implementation detail is
+            non-contractual here.
+          </li>
+          <li>
+            <a href="https://code.claude.com/docs/en/sandboxing"
+              >Anthropic Claude Code sandboxing</a
+            >
+            — Bash-only built-in scope, SRT as a generic wrapper, fail-closed controls,
+            and Linux bubblewrap behavior.
+          </li>
+          <li>
+            <a href="https://github.com/anthropics/sandbox-runtime"
+              >Anthropic sandbox-runtime source and contract</a
+            >
+            — library API, Linux bwrap/network-proxy architecture, mandatory Git denies,
+            seccomp-helper warning behavior, and Unix-socket limitations.
+          </li>
+          <li>
+            <a href="https://github.com/actions/checkout/blob/main/action.yml"
+              >GitHub <code>actions/checkout</code> contract</a
+            >
+            — persisted authentication and post-job cleanup.
+          </li>
+          <li>
+            <a
+              href="https://github.com/actions/runner/blob/main/src/Runner.Worker/ActionManager.cs"
+              >GitHub runner action resolution</a
+            >
+            and
+            <a href="https://github.com/actions/runner/issues/2816"
+              >the local-composite POST reproducer</a
+            >
+            — local action definitions are resolved again from the workspace filesystem.
+          </li>
+          <li>
+            <a
+              href="https://github.com/max-sixty/tend/blob/ad3cb6f79b5587f00712a746a02de829340575fd/generator/src/tend/workflows.py#L215-L252"
+              >Pre-change Tend local-action restore</a
+            >,
+            <a
+              href="https://github.com/max-sixty/tend/blob/ad3cb6f79b5587f00712a746a02de829340575fd/proxy/setup_sandbox.py#L435-L462"
+              >workspace handoff</a
+            >, and
+            <a
+              href="https://github.com/max-sixty/tend/blob/ad3cb6f79b5587f00712a746a02de829340575fd/generator/src/tend/templates/review.yaml.j2#L25-L57"
+              >review checkout sequence</a
+            >.
+          </li>
+        </ul>
+      </section>
+</lf-tab>
+
 <lf-tab id="corpus-heat-loss" label="Heat">
 <h1>Where the heat goes</h1>
       <p class="lede" id="heat-lede">

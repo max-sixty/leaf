@@ -65,6 +65,9 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     # undeclared root's words silently anchor quotes astray. UA shadow roots
     # are closed and invisible here; anything open was attached by a module.
     undeclared_shadow = evaluate_probe(page, "undeclaredShadowRoots", registry)
+    unnamed_fields = (
+        evaluate_probe(page, "unnamedFormFields") if scheme == "light" else []
+    )
     # Replay is scheme-blind, so one scheme's reading covers both.
     conflicts = []
     dishonest_verbatim = []
@@ -277,6 +280,13 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             f"[{scheme}] shadow roots the registry doesn't declare "
             f"(an undeclared root's words anchor quotes astray; declare "
             f"x-shadow): {', '.join(undeclared_shadow)}"
+        )
+    for field in unnamed_fields:
+        label = f" labelled {field['label']!r}" if field["label"] else ""
+        class_name = f" class={field['className']!r}" if field["className"] else ""
+        found.append(
+            f"[{scheme}] <{field['tag']}{class_name}>{label} has neither an id nor "
+            "a name, so Chrome cannot identify the form field"
         )
     found += [f"[{scheme}] {d}" for d in dishonest_verbatim]
     found += [f"[{scheme}] {s}" for s in silent]

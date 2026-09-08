@@ -123,7 +123,15 @@
    naming its widget in print CSS. */
 
 :root {
+  position: static !important;
   color-scheme: light dark;
+  /* The fixed banner's height also reserves the document's head. It lives in the
+     render-blocking theme so the initial document and eventual chrome share one box. */
+  --lf-safe-top: env(safe-area-inset-top, 0px);
+  --lf-safe-right: env(safe-area-inset-right, 0px);
+  --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --lf-safe-left: env(safe-area-inset-left, 0px);
+  --lf-banner-h: calc(42px + var(--lf-safe-top));
   /* The document is warm paper. Code uses a white editor canvas and quiet gray chrome
      to keep source visually distinct from document fields. */
   --paper: #faf9f5;  --ink: #1c1b18;  --muted: #6f6a60;  --rule: #e7e3d9;
@@ -316,6 +324,22 @@
   --series-1: #4589d2; --series-2: #b77114; --series-3: #25966a;
   --series-4: #6c489a; --series-5: #8c2d2a;
 }
+html:root {
+  --lf-panel-w: min(50vw, max(320px, var(--lf-panel-choice, 420px)));
+  --lf-tray-w: min(50vw, max(220px, var(--lf-tray-choice, 300px)));
+}
+@media screen and (width <= 840px) {
+  html:root {
+    --lf-banner-h: calc(88px + var(--lf-safe-top));
+    --lf-panel-w: min(100vw, max(320px, var(--lf-panel-choice, 420px)));
+  }
+}
+@media screen and (pointer: coarse) and (width > 840px) {
+  :root { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
+}
+@media screen and (width <= 600px) {
+  html:root { --lf-tray-w: min(100vw, max(220px, var(--lf-tray-choice, 300px))); }
+}
 /* The other half of --aim-floor, and the whole of what a coarse pointer changes about how
    small a control may be. Every rule that states the floor reads the token, so a control
    joins both answers by joining one of them. */
@@ -448,10 +472,60 @@
  * the same strip and are collision-laid-out rather than summed, so the page reserves only
  * the widest claim.
  * The left still has one claimant: aside.sidebar writes --strip-l directly. */
-body { margin: 0; background: var(--paper); color: var(--ink);
+body { position: static !important; box-sizing: border-box !important;
+       margin: 0; background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
        --lf-shell-inset-left: 0px;
        container: lf-shell / inline-size; }
+/* The live shell's fixed chrome arrives after the authored document, but its room is
+ * part of the document's final layout. The render-blocking theme reserves that room so
+ * the useful initial HTML paints where it will remain. The root stays the document
+ * scrollport, and a standing scrollbar prevents a later height change from recentering
+ * the page. The server's prepaint bootstrap marks a live page before its graph has
+ * loaded; the bake removes that marker and paper has no fixed chrome. */
+@media screen {
+  html[data-lf-live]:not(.lf-copy) {
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: scroll;
+    scroll-padding-top: calc(var(--lf-banner-h) + 12px);
+    scroll-padding-bottom:
+      max(var(--here-ring-room), var(--lf-shortcut-bar-clear, 0px));
+    body { min-height: 100%; }
+    body::before { content: ""; display: block; height: var(--lf-banner-h); }
+  }
+}
+/* A standing workspace narrows the body's layout shell on wide screens and covers it on
+ * compact ones. Bootstrap root attributes supply the same geometry before the runtime
+ * replaces them with body state; stored widths are capped by the same responsive
+ * bargain as the live resizable edges. */
+@media screen and (not (width <= 840px)) {
+  :is(
+    html[data-lf-restore-panel],
+    html[data-lf-live]:has(body[data-lf-panel])
+  ) body { margin-right: var(--lf-panel-w); }
+}
+@media screen and (width <= 840px) {
+  :is(
+    html[data-lf-restore-panel],
+    html[data-lf-live]:has(body[data-lf-panel])
+  ) { overflow-y: hidden; }
+}
+@media screen and (not (width <= 600px)) {
+  :is(
+    html[data-lf-restore-tray="asks"],
+    html[data-lf-live]:has(body[data-lf-tray="asks"])
+  ) body {
+    --lf-shell-inset-left: var(--lf-tray-w);
+    margin-left: var(--lf-tray-w);
+  }
+}
+@media screen and (width <= 600px) {
+  :is(
+    html[data-lf-restore-tray="asks"],
+    html[data-lf-live]:has(body[data-lf-tray="asks"])
+  ) { overflow-y: hidden; }
+}
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
  * parse while JavaScript upgrades widgets and reads the standing log. Generated page
  * interface keeps its layout but stays hidden until the presentation task has applied
@@ -466,29 +540,24 @@ body { margin: 0; background: var(--paper); color: var(--ink);
  * version gate refuses it on the protected top-layer properties below. */
 @layer {
   @media screen {
-    html:has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]),
-    html:has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main,
-    html:has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main *,
-    html:has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) .lf-ui {
+    html[data-lf-live] body:not([data-lf-presented]),
+    html[data-lf-live] body:not([data-lf-presented]) > main,
+    html[data-lf-live] body:not([data-lf-presented]) > main *,
+    html[data-lf-live] body:not([data-lf-presented]) .lf-ui {
       transition: none !important;
     }
-    html:has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main .lf-ui {
+    html[data-lf-live] body:not([data-lf-presented]) > main .lf-ui {
       visibility: hidden !important;
     }
-    html:has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main :is(dialog, [popover]) {
+    html[data-lf-live] body:not([data-lf-presented])
+      > main :is(dialog, [popover]) {
       visibility: hidden !important;
       opacity: 0 !important;
       transition: none !important;
       interactivity: inert !important;
     }
-    html:has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main :is(dialog, [popover])::backdrop {
+    html[data-lf-live] body:not([data-lf-presented])
+      > main :is(dialog, [popover])::backdrop {
       visibility: hidden !important;
       opacity: 0 !important;
       transition: none !important;
@@ -1380,13 +1449,14 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           .lf-focus-visible, [aria-busy="true"]),
 .lf-react-open .lf-react-palette > .lf-react:not(.lf-margin-element, [aria-pressed="true"]) {
           color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
-/* Where a subject has no page edge of its own, one receipt grows beneath the reader
-   move it acknowledges: Sent, Picked up, then Active when an explicit work claim names
-   that subject. This is the panel-local and frozen-conversation fallback; page targets
-   present the same projection through their existing margin element. The state wraps;
-   the age and the explicit silence word do not. A phase change is a change of words
-   and of the Active ink, with no motion: the line answers a question the reader
-   already asked, and a tint that replays is a flash.
+/* Where a subject has no page edge of its own, one receipt follows the reader move it
+   acknowledges: Sent, Picked up, then Active when an explicit work claim names that
+   subject. A message carries it in the metadata row it already owns. Frozen widgets and
+   claims with no source message keep this full-width fallback; page targets present the
+   same projection through their existing margin element. The state wraps; the age and
+   the explicit silence word do not. A phase change is a change of words and semantic
+   color, with no motion: the line answers a question the reader already asked, and a
+   tint that replays is a flash.
    The shadow markers carry the same rule into any declared tree an authored subject
    is staged into; they remain ordinary comments in the document stylesheet. */
 .lf-receipt { display: flex; gap: 6px; align-items: flex-end; clear: both;
@@ -1399,6 +1469,22 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-receipt .lf-receipt-quiet { flex: none; color: var(--warn-ink);
   background: var(--warn-tint); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
 .lf-receipt time { color: var(--muted-2); white-space: nowrap; }
+.lf-receipt.lf-message-receipt { display: inline-flex; flex: 1 1 auto; align-items: baseline;
+  width: auto; min-width: 0; margin: 0; padding: 0; clear: none; grid-column: auto;
+  border: 0; border-radius: 0; background: none; color: var(--ok-ink);
+  font-size: inherit; font-weight: 600; line-height: inherit; }
+.lf-message-receipt::before { content: "·"; flex: none; color: var(--muted-2); }
+.lf-message-receipt[data-lf-phase="queued"],
+.lf-message-receipt[data-lf-phase="picked_up"],
+.lf-message-receipt[data-lf-phase="active"] { color: var(--accent); }
+.lf-message-receipt[data-lf-phase="waiting"],
+.lf-message-receipt[data-lf-dropped],
+.lf-message-receipt[data-lf-dropped] .lf-receipt-state { color: var(--warn-ink); }
+.lf-message-receipt .lf-receipt-state { flex: 0 1 auto; }
+/* Only the state wraps: the name and the age hold their own size, so a long
+   Active detail never breaks the message's timestamp across lines. */
+:is(.lf-msg-head, .lf-conversation-head):has(> .lf-message-receipt)
+  > :is(b, time) { flex: none; }
 /* The runtime's mark on a static box whose computed overflow scrolls (reachScrollers,
  * for what escaped such a box and why the mark is read from the composed page rather
  * than declared here beside each overflow), so no rule in this file or a package's
@@ -1678,7 +1764,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * queries: those ask how much room is left beside the panel, which is the question the
  * runtime's old cramped veto asked, and the answer moves with the panel by design. */
 @media screen and (min-width: 900px) {
-  :root[data-lf-rail] main {
+  :is(
+    :root[data-lf-rail],
+    html[data-lf-live]
+  ) main {
     /* The floor is the generated marker: 32px of glyph hanging 22px off the column,
        with the shared focus-ring room at the outer edge. Claim all three, or opening a
        side panel leaves that last band past body's room and the layout hides the
@@ -1694,8 +1783,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      1208px leaves the 640px evidence floor, 520px margin, and two 24px gutters.
      Static copies need the strip only where they carry a thread marker. */
   @container lf-shell (min-width: 1208px) {
-  body:has(
-      :where(.lf-chrome, .lf-margin-cluster .lf-margin-marker[data-lf-kinds~="comment"])
+  :is(
+      html[data-lf-live] body,
+      body:has(.lf-margin-cluster .lf-margin-marker[data-lf-kinds~="comment"])
     ) > main:where(:not(:has(> aside.sidebar))) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;
@@ -1705,8 +1795,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      that strip too: 1208 + 264 = 1472, so the same 640px document floor holds
      when both contextual surfaces stand. */
   @container lf-shell (min-width: 1472px) {
-  body:has(
-      :where(.lf-chrome, .lf-margin-cluster .lf-margin-marker[data-lf-kinds~="comment"])
+  :is(
+      html[data-lf-live] body,
+      body:has(.lf-margin-cluster .lf-margin-marker[data-lf-kinds~="comment"])
     ) > main:where(:has(> aside.sidebar)) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;

@@ -65,6 +65,7 @@ from render_support import (
     sent_events,
     stamp_page,
     ticked,
+    token_colour,
     told,
     undo,
     wait_for_revision,
@@ -231,10 +232,19 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         context.close()
 
 
-def test_authored_html_paints_while_runtime_startup_is_held(browser, serve):
+@pytest.mark.parametrize(
+    ("width", "has_touch", "banner_height"),
+    [(800, False, 88), (1200, True, 53), (1724, False, 42)],
+)
+def test_authored_html_paints_while_runtime_startup_is_held(
+    browser, serve, width, has_touch, banner_height
+):
     """Immediate authored paint is the contract for every page, not an example mode."""
     boot = []
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    context = browser.new_context(
+        viewport={"width": width, "height": 900}, has_touch=has_touch
+    )
+    page = context.new_page()
     errors = watched(page)
     page.route("**/leaf.js", lambda route: boot.append(route))
 
@@ -251,7 +261,10 @@ def test_authored_html_paints_while_runtime_startup_is_held(browser, serve):
         ), "authored words occupied a box but did not paint"
 
         assert boot, "the positive control did not hold the preview boot module"
+        expect(page.locator("html")).to_have_attribute("data-lf-live", "")
         expect(page.locator("body > main")).to_have_css("pointer-events", "auto")
+        initial = page.locator("body > main").bounding_box()
+        assert initial["y"] == pytest.approx(banner_height, abs=1)
         assert (
             page.evaluate("() => getComputedStyle(document.body, '::after').content")
             == "none"
@@ -259,12 +272,83 @@ def test_authored_html_paints_while_runtime_startup_is_held(browser, serve):
 
         boot.pop().continue_()
         page.wait_for_function(BOTH_STAMPS)
+        page.wait_for_function(
+            "() => document.querySelector('body > main').getAnimations()"
+            ".every(animation => animation.playState !== 'running')"
+        )
+        presented = page.locator("body > main").bounding_box()
+        assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
+            {key: initial[key] for key in ("x", "y", "width")}, abs=1
+        ), f"runtime startup moved the {width}px shell"
         assert errors == []
     finally:
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-        page.close()
+        context.close()
+
+
+@pytest.mark.parametrize(
+    ("saved", "root_attribute", "body_attribute"),
+    [
+        (
+            {"lf-panel-open": "1", "lf-panel-width": "500"},
+            "data-lf-restore-panel",
+            "data-lf-panel",
+        ),
+        (
+            {"lf-tray-up": "asks", "lf-tray-width": "280"},
+            "data-lf-restore-tray",
+            "data-lf-tray",
+        ),
+    ],
+)
+def test_a_restored_workspace_has_its_final_geometry_before_runtime_loads(
+    browser, serve, saved, root_attribute, body_attribute
+):
+    """Returning readers do not watch their saved workspace move the document."""
+    url = serve(leaf_page("Restored workspace", "<h1>Restored workspace</h1>"))
+    context = browser.new_context(viewport={"width": 1600, "height": 900})
+    priming = context.new_page()
+    priming.goto(url, wait_until="load")
+    priming.evaluate(
+        "saved => { for (const [key, value] of Object.entries(saved)) "
+        "localStorage.setItem(key, value); }",
+        saved,
+    )
+    priming.close()
+
+    held = []
+    page = context.new_page()
+    errors = watched(page)
+    page.route("**/leaf.js", lambda route: held.append(route))
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(url, wait_until="commit")
+        expect(page.locator("h1")).to_be_visible()
+        expect(page.locator("html")).to_have_attribute(root_attribute, re.compile(".*"))
+        initial = page.locator("body > main").bounding_box()
+
+        held.pop().continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        page.wait_for_function(
+            "() => document.querySelector('body > main').getAnimations()"
+            ".every(animation => animation.playState !== 'running')"
+        )
+        expect(page.locator("html")).not_to_have_attribute(
+            root_attribute, re.compile(".*")
+        )
+        expect(page.locator("body")).to_have_attribute(body_attribute, re.compile(".*"))
+        presented = page.locator("body > main").bounding_box()
+        assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
+            {key: initial[key] for key in ("x", "y", "width")}, abs=1
+        ), f"restoring {body_attribute} moved the shell"
+        assert errors == []
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        context.close()
 
 
 def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):
@@ -2463,8 +2547,16 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
     receipts = page.locator(".lf-receipt")
-    held_receipt = page.locator(f'.lf-thread[data-id="{held}"] .lf-receipt')
-    other_receipt = page.locator(f'.lf-thread[data-id="{other}"] .lf-receipt')
+    held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
+    other_thread = page.locator(f'.lf-thread[data-id="{other}"]')
+    held_receipt = held_thread.locator(
+        f'.lf-msg.user[data-mid="{held}"] > .lf-msg-head '
+        f'> .lf-receipt[data-receipt-id="{held}"]'
+    )
+    other_receipt = other_thread.locator(
+        f'.lf-msg.user[data-mid="{other}"] > .lf-msg-head '
+        f'> .lf-receipt[data-receipt-id="{other}"]'
+    )
     expect(receipts).to_have_count(2)
     expect(held_receipt).to_contain_text("✓ Sent")
     held_receipt.evaluate("node => { node.dataset.identityProbe = 'kept' }")
@@ -2527,25 +2619,18 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # One line, on the thread it names: a mark that stood on every open thread would
     # say only that the agent is busy, which the banner above already says.
     expect(receipts).to_have_count(2)
-    expect(held_receipt).to_have_text(
-        re.compile(r"^● Active — reading the reconnect traces\s*just now$")
-    )
+    expect(held_receipt).to_have_text("● Active — reading the reconnect traces")
     expect(held_receipt).to_have_attribute("data-identity-probe", "kept")
     expect(held_receipt).to_have_count(1)
     expect(other_receipt).to_have_count(1)
     expect(other_receipt).to_contain_text("✓ Sent")
-    # Under the words that asked and above the box that answers, so it reads in the
-    # thread's own order: what you said, what has been said back, what is being done.
-    assert page.evaluate(
-        f"""() => {{
-        const thread = document.querySelector('.lf-thread[data-id="{held}"]');
-        const kids = [...thread.children];
-        return kids.findIndex((el) => el.matches('.lf-receipt'))
-                > kids.findLastIndex((el) => el.matches('.lf-msg.user'))
-            && kids.findIndex((el) => el.matches('.lf-receipt'))
-                < kids.findIndex((el) => el.matches('.lf-compose'));
-    }}"""
-    ), "the receipt is not between the thread's last message and its reply box"
+    # The move's state is metadata on the exact outgoing message, immediately before
+    # Resolve's auto margin rather than a full-width row of its own.
+    expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
+    assert held_receipt.evaluate(
+        "node => node.parentElement.matches('.lf-msg-head') "
+        "&& node.nextElementSibling.matches('.lf-resolve')"
+    )
 
     # A later claim about the page as a whole is not an answer to the thread, so the
     # line stands: the two seats are one claim, and only one of them has been rewritten.
@@ -2575,9 +2660,12 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(receipts).to_have_count(1)
 
     # And a claim the agent renews after answering stands again: its line is on the thread
-    # a second time, which is a fact about now rather than about what was said.
+    # a second time, which is a fact about now rather than about what was said. With no
+    # unanswered message to own it, the claim uses the full-width fallback.
     status("working", "re-running it against the rolling deploy", "--on", held)
-    expect(held_receipt).to_have_count(1)
+    claim_receipt = held_thread.locator(":scope > .lf-receipt")
+    expect(held_receipt).to_have_count(0)
+    expect(claim_receipt).to_contain_text("re-running it against the rolling deploy")
     expect(receipts).to_have_count(2)
 
     # A conversation the reader has closed asks nothing and shows nothing, for the same
@@ -2585,7 +2673,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
-    expect(held_receipt).to_have_count(0)
+    expect(claim_receipt).to_have_count(0)
     expect(receipts).to_have_count(1)
 
     # Reopening restores a claim that no reply answered. The local line still goes
@@ -2595,14 +2683,14 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         d, {"kind": "unresolve", "author": "user", "parent": held}
     )
     told(page)
-    expect(held_receipt).to_have_count(1)
+    expect(claim_receipt).to_have_count(1)
     expect(receipts).to_have_count(2)
     record_claim(d, id="s", pid=dead_pid)
     told(page)
     expect(page.locator(".lf-status-text")).to_have_text(
         re.compile(r"^No session holds this page\.")
     )
-    expect(held_receipt).to_have_count(0)
+    expect(claim_receipt).to_have_count(0)
     expect(receipts).to_have_count(1)
     assert errors == []
     page.close()
@@ -2660,22 +2748,25 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     )
     page, errors = open_page(browser, url)
     page.keyboard.press("c")
-    receipt = page.locator(f'.lf-thread[data-id="{comment["id"]}"] .lf-receipt')
+    receipt = page.locator(
+        f'.lf-thread[data-id="{comment["id"]}"] '
+        f'.lf-msg.user[data-mid="{comment["id"]}"] > .lf-msg-head '
+        f'> .lf-receipt[data-receipt-id="{comment["id"]}"]'
+    )
     expect(receipt).to_contain_text("○ Waiting for pickup")
+    assert receipt.locator(".lf-receipt-state").evaluate(
+        "node => getComputedStyle(node).color"
+    ) == token_colour(page, "--warn-ink")
     assert errors == []
     page.close()
 
 
 def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
-    """A phase change is a change of words and paint, with no motion, and the line
-    keeps its node and its place through the heartbeats that follow it.
+    """A phase change updates colored metadata without moving or replacing it.
 
-    An event-backed line sits in the slot right after its message, which is the slot
-    every repaint asks to put it in. Inserting a node before itself is a move that
-    changes nothing, and the platform still takes the node out of the document and puts
-    it back: whatever animation it wore restarted, and its live region was re-announced,
-    once every two seconds for as long as the panel stood open. The "Picked up" line
-    flashed at that cadence for the rest of the page's life."""
+    The receipt belongs to the outgoing message's existing header row. Heartbeats leave
+    it alone, while a semantic transition changes its words and color in place.
+    Re-inserting the node would replay its live region and any animation it wore."""
     url = serve(LONG_PAGE)
     d = serve.page_dir
     comment = events_model.append_event(
@@ -2689,8 +2780,17 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     )
     page, errors = open_page(browser, url)
     page.keyboard.press("c")
-    receipt = page.locator(f'.lf-thread[data-id="{comment["id"]}"] .lf-receipt')
+    thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
+    receipt = thread.locator(
+        f'.lf-msg.user[data-mid="{comment["id"]}"] > .lf-msg-head '
+        f'> .lf-receipt[data-receipt-id="{comment["id"]}"]'
+    )
     expect(receipt).to_contain_text("✓ Sent")
+    expect(receipt.locator("time")).to_have_count(0)
+    expect(thread.locator(":scope > .lf-receipt")).to_have_count(0)
+    assert receipt.locator(".lf-receipt-state").evaluate(
+        "node => getComputedStyle(node).color"
+    ) == token_colour(page, "--ok-ink")
     receipt.evaluate(
         """node => {
           node.dataset.identityProbe = 'kept';
@@ -2705,6 +2805,31 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
         session_model.record_pickup(transaction, [comment])
     told(page)
     expect(receipt).to_contain_text("✓ Picked up")
+    assert receipt.locator(".lf-receipt-state").evaluate(
+        "node => getComputedStyle(node).color"
+    ) == token_colour(page, "--accent")
+    active = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "status",
+            str(d),
+            "working",
+            "comparing the replacement against every narrow conversation surface",
+            "--on",
+            comment["id"],
+        ],
+    )
+    assert active.exit_code == 0, active.output
+    page.set_viewport_size({"width": 340, "height": 800})
+    told(page)
+    expect(receipt).to_contain_text("● Active — comparing the replacement")
+    assert receipt.evaluate(
+        """node => {
+          const head = node.parentElement;
+          return [...head.querySelectorAll(':scope > :is(b, time)')]
+            .every(part => getComputedStyle(part).flexShrink === '0');
+        }"""
+    ), "long status metadata can shrink the message author or timestamp"
     ticked(page)
     ticked(page)
     expect(receipt).to_have_attribute("data-identity-probe", "kept")
@@ -2725,10 +2850,8 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     two delegates possible.
 
     The roster's answer is a word on the shared rope, and this says it the same way: a
-    tint alone is silence to whoever is listening rather than looking, and a number
-    alone leaves the reader doing the arithmetic against a threshold only the page
-    knows. `ago` stays rendered whole beside the word rather than reworded to absorb
-    it, so one elapsed line reads the same wherever it appears."""
+    tint alone is silence to whoever is listening rather than looking. Message metadata
+    keeps the message's one timestamp; the explicit `quiet` word carries the warning."""
     page, errors = open_page(
         browser, serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")])
     )
@@ -2786,7 +2909,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         re.compile(r"^Claude is working — rerunning the failing shard")
     )
     expect(work_line).to_contain_text("quiet")
-    expect(work_line.locator("time")).to_have_text("40m ago")
+    expect(work_line.locator("time")).to_have_count(0)
     work_button.click()
     expect(notice).to_have_text("Claude · reading the reconnect traces · quiet")
 
@@ -2810,7 +2933,10 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         re.compile(r"^Claude is working — rerunning the failing shard")
     )
     expect(work_line).to_contain_text("quiet")
-    expect(work_line.locator("time")).to_have_text("6m ago")
+    expect(work_line.locator("time")).to_have_count(0)
+    assert work_line.locator(".lf-receipt-state").evaluate(
+        "node => getComputedStyle(node).color"
+    ) == token_colour(page, "--warn-ink")
 
     # Turn closure belongs to one exact session. An orchestrator ending its turn is
     # no evidence that a delegate abandoned a different update.
@@ -2828,7 +2954,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         session="delegate",
     )
     expect(work_line).not_to_contain_text("quiet")
-    expect(work_line.locator("time")).to_have_text("6m ago")
+    expect(work_line.locator("time")).to_have_count(0)
     work_button.click()
     expect(notice).to_have_text("Claude · reading the reconnect traces")
 

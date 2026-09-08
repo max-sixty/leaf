@@ -231,10 +231,19 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         context.close()
 
 
-def test_authored_html_paints_while_runtime_startup_is_held(browser, serve):
+@pytest.mark.parametrize(
+    ("width", "has_touch", "banner_height"),
+    [(800, False, 88), (1200, True, 53), (1724, False, 42)],
+)
+def test_authored_html_paints_while_runtime_startup_is_held(
+    browser, serve, width, has_touch, banner_height
+):
     """Immediate authored paint is the contract for every page, not an example mode."""
     boot = []
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    context = browser.new_context(
+        viewport={"width": width, "height": 900}, has_touch=has_touch
+    )
+    page = context.new_page()
     errors = watched(page)
     page.route("**/leaf.js", lambda route: boot.append(route))
 
@@ -252,6 +261,8 @@ def test_authored_html_paints_while_runtime_startup_is_held(browser, serve):
 
         assert boot, "the positive control did not hold the preview boot module"
         expect(page.locator("body > main")).to_have_css("pointer-events", "auto")
+        initial = page.locator("body > main").bounding_box()
+        assert initial["y"] == pytest.approx(banner_height, abs=1)
         assert (
             page.evaluate("() => getComputedStyle(document.body, '::after').content")
             == "none"
@@ -259,12 +270,83 @@ def test_authored_html_paints_while_runtime_startup_is_held(browser, serve):
 
         boot.pop().continue_()
         page.wait_for_function(BOTH_STAMPS)
+        page.wait_for_function(
+            "() => document.querySelector('body > main').getAnimations()"
+            ".every(animation => animation.playState !== 'running')"
+        )
+        presented = page.locator("body > main").bounding_box()
+        assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
+            {key: initial[key] for key in ("x", "y", "width")}, abs=1
+        ), f"runtime startup moved the {width}px shell"
         assert errors == []
     finally:
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-        page.close()
+        context.close()
+
+
+@pytest.mark.parametrize(
+    ("saved", "root_attribute", "body_attribute"),
+    [
+        (
+            {"lf-panel-open": "1", "lf-panel-width": "500"},
+            "data-lf-restore-panel",
+            "data-lf-panel",
+        ),
+        (
+            {"lf-tray-up": "asks", "lf-tray-width": "280"},
+            "data-lf-restore-tray",
+            "data-lf-tray",
+        ),
+    ],
+)
+def test_a_restored_workspace_has_its_final_geometry_before_runtime_loads(
+    browser, serve, saved, root_attribute, body_attribute
+):
+    """Returning readers do not watch their saved workspace move the document."""
+    url = serve(leaf_page("Restored workspace", "<h1>Restored workspace</h1>"))
+    context = browser.new_context(viewport={"width": 1600, "height": 900})
+    priming = context.new_page()
+    priming.goto(url, wait_until="load")
+    priming.evaluate(
+        "saved => { for (const [key, value] of Object.entries(saved)) "
+        "localStorage.setItem(key, value); }",
+        saved,
+    )
+    priming.close()
+
+    held = []
+    page = context.new_page()
+    errors = watched(page)
+    page.route("**/leaf.js", lambda route: held.append(route))
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(url, wait_until="commit")
+        expect(page.locator("h1")).to_be_visible()
+        expect(page.locator("html")).to_have_attribute(root_attribute, re.compile(".*"))
+        initial = page.locator("body > main").bounding_box()
+
+        held.pop().continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        page.wait_for_function(
+            "() => document.querySelector('body > main').getAnimations()"
+            ".every(animation => animation.playState !== 'running')"
+        )
+        expect(page.locator("html")).not_to_have_attribute(
+            root_attribute, re.compile(".*")
+        )
+        expect(page.locator("body")).to_have_attribute(body_attribute, re.compile(".*"))
+        presented = page.locator("body > main").bounding_box()
+        assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
+            {key: initial[key] for key in ("x", "y", "width")}, abs=1
+        ), f"restoring {body_attribute} moved the shell"
+        assert errors == []
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        context.close()
 
 
 def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):

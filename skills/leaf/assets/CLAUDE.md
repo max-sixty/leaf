@@ -142,14 +142,14 @@ anatomy (`responseAction`), labels, gesture guards, deferred measurement, layout
 `runtime/scrolling.js` owns the document scroller identity, relative scroller moves,
 fixed-surface wheel forwarding, and the gutter its bar takes;
 `runtime/chrome.css` is the comment layer's private stylesheet, a CSS module the boot
-module adopts, and keeps the root, body's layout shell, and the chrome's paint hosts out
-of the containing-block chain for document-positioned chrome. It also keeps page-attached
-paint below covering workspaces and paint for chrome targets above them.
+module adopts, and keeps the chrome's paint hosts out of the containing-block chain for
+document-positioned chrome. It also keeps page-attached paint below covering workspaces
+and paint for chrome targets above them.
 `runtime/marks.css` is the marks' sheet, adopted by the document and by every shadow
 stage;
-`theme.css` is the default theme: tokens, element styles, class idioms, and the
-element-widgets CSS alone renders, with the shadow slice widgets adopt; a package's
-`theme.css` is appended after it;
+`theme.css` is the render-blocking default theme: the live shell's final page claims,
+tokens, element styles, class idioms, and the element-widgets CSS alone renders, with the
+shadow slice widgets adopt; a package's `theme.css` is appended after it;
 `runtime/resolved-target.js` owns the canonical result of resolving a durable anchor
 into the current document;
 `runtime/target-paint.js` owns element-target paint in the chrome layer;
@@ -273,11 +273,18 @@ Startup order is load-bearing:
 11. Start the state feed; its first answer is applied, reconciled, and presents the
     page.
 
-Authored HTML paints immediately on every page. Its prose, ordinary links, scrolling,
-and layout remain usable while widgets upgrade and the first state read is pending.
-Generated interface inside the page participates in layout but stays invisible until
-`data-lf-presented` releases it with recorded widget actions and authored top-layer UI.
-Fixed status and unanchored discussion chrome remain usable while a live page waits.
+Authored HTML paints immediately on every page. The render-blocking theme reserves the
+fixed banner and the reader's restored workspace, so mounting the runtime does not move
+the document. The inline bootstrap projects that stored arrangement before the theme
+paints; runtime restoration replaces the provisional root state with live body state.
+Prose, ordinary links, scrolling, and layout remain usable while widgets upgrade and the
+first state read is pending.
+Generated interface constructed from authored markup participates in layout but stays
+invisible until `data-lf-presented` releases it with recorded widget actions and authored
+top-layer UI. A data-backed widget whose authored element has no content takes its
+source-dependent space when that data arrives; stable geometry for that content requires
+an authored reserve or a fixed rendering posture. Fixed status and unanchored discussion
+chrome remain usable while a live page waits.
 An optional page-interface failure reports itself without withholding presentation.
 Modules must consult `actionAvailable` or `requestAvailable` before optimistic mutation
 as well as before sending; their common send doors repeat the check. Selecting a passage

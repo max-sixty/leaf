@@ -9,6 +9,24 @@
   const theme = new URL(script.dataset.lfTheme, location.href).href;
   let recovering = false;
 
+  // Reader-arranged workspaces are page geometry, so their saved shape must reach the
+  // document before the module graph that builds their contents. The theme consumes
+  // these provisional root facts; restoreArrangements replaces them with live state.
+  try {
+    const root = document.documentElement;
+    const tray = localStorage.getItem("lf-tray-up");
+    if (tray) root.dataset.lfRestoreTray = tray;
+    else if (localStorage.getItem("lf-panel-open") === "1")
+      root.toggleAttribute("data-lf-restore-panel", true);
+
+    const panelWidth = parseFloat(localStorage.getItem("lf-panel-width"));
+    const trayWidth = parseFloat(localStorage.getItem("lf-tray-width"));
+    if (panelWidth) root.style.setProperty("--lf-panel-choice", `${panelWidth}px`);
+    if (trayWidth) root.style.setProperty("--lf-tray-choice", `${trayWidth}px`);
+  } catch {
+    // A page that cannot remember still starts in the default arrangement.
+  }
+
   function recover() {
     if (recovering) return;
     recovering = true;

@@ -14,7 +14,7 @@ and requests another reading at its next deadline; it does not run a second fold
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` or `leaf ack` process, held open for its life | process exit |
 | acknowledgement cursor | `cursor.json` | `leaf ack`, after the complete batch reached its durable consumer | never; it is monotonic |
-| pickup transition | a `pickup` event in `events.jsonl` | the carrier records `queued` when Codex accepts a batch; direct delivery records `opened` with session and turn identity | never; each event/phase/session/turn transition is idempotent |
+| pickup transition | a `pickup` event in `events.jsonl` | the carrier records `queued` when Codex accepts a batch, and the prompt hook records `opened` with session and turn identity when the queued turn opens; direct delivery records `opened` itself | never; each event/phase/session/turn transition is idempotent |
 | page claim | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on (the pid, or the background job's directory) is gone |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
 | Codex queue state | the host state home's session records | the detached adapter | accepted and every batch receipted, then moved under `history/` |
@@ -65,10 +65,11 @@ that turn's ending and the next one's opening, surfaces unacknowledged user
 events at the next prompt, and releases the session's page claims when it exits.
 Its unanswered-work guard reads `activity.obligations`, the same settled
 interaction projection the browser reads; it does not reconstruct threads itself.
-When the prompt hook carries an acknowledged, unanswered move back into model
-context, it records a new `opened` transition for the new turn as well as naming
-the move in the hook context. The reminder and the browser's handling state are
-therefore one delivery fact.
+When the prompt hook opens a turn, it records a new `opened` transition for its
+acknowledged, unanswered moves. A direct-delivery move that needs a reminder is
+also named in the hook context. A queued Codex move needs no reminder there:
+the prompt itself carries its delivery pointer, while the transition gives the
+browser and the next Stop their shared handling fact.
 Session death is not completion or an explicit stop: work status and desired
 service stay as they were, while a session server retires once no live successor
 has claimed it. Absent the host identity the environment carries, nothing is

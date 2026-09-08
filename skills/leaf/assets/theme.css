@@ -1412,6 +1412,10 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-message-receipt[data-lf-dropped],
 .lf-message-receipt[data-lf-dropped] .lf-receipt-state { color: var(--warn-ink); }
 .lf-message-receipt .lf-receipt-state { flex: 0 1 auto; }
+/* Only the state wraps: the name and the age hold their own size, so a long
+   Active detail never breaks the message's timestamp across lines. */
+:is(.lf-msg-head, .lf-conversation-head):has(> .lf-message-receipt)
+  > :is(b, time) { flex: none; }
 /* The runtime's mark on a static box whose computed overflow scrolls (reachScrollers,
  * for what escaped such a box and why the mark is read from the composed page rather
  * than declared here beside each overflow), so no rule in this file or a package's

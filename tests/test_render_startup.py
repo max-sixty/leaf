@@ -2725,6 +2725,28 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     assert receipt.locator(".lf-receipt-state").evaluate(
         "node => getComputedStyle(node).color"
     ) == token_colour(page, "--accent")
+    active = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "status",
+            str(d),
+            "working",
+            "comparing the replacement against every narrow conversation surface",
+            "--on",
+            comment["id"],
+        ],
+    )
+    assert active.exit_code == 0, active.output
+    page.set_viewport_size({"width": 340, "height": 800})
+    told(page)
+    expect(receipt).to_contain_text("● Active — comparing the replacement")
+    assert receipt.evaluate(
+        """node => {
+          const head = node.parentElement;
+          return [...head.querySelectorAll(':scope > :is(b, time)')]
+            .every(part => getComputedStyle(part).flexShrink === '0');
+        }"""
+    ), "long status metadata can shrink the message author or timestamp"
     ticked(page)
     ticked(page)
     expect(receipt).to_have_attribute("data-identity-probe", "kept")

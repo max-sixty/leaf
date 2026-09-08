@@ -1273,54 +1273,89 @@ def open_page(
     return page, errors
 
 
-def opened_tab(page, press, tries=3, each=10_000):
-    """The tab a press opens, pressed again when the harness loses the one Chromium made.
+def opened_tab(page, destination, press, timeout=10_000):
+    """Press once and return a controlled tab after Chromium opens `destination`.
 
-    Chromium makes the tab every time. After a press whose tab never arrives,
-    `Target.getTargets` holds a second page target in this browser context — attached,
-    loaded, titled, sitting at the href the press named — while `context.pages` still
-    holds one, and it stays that way for the life of the page: the targets pile up press
-    after press and Playwright reports none of them. So `expect_page` spends its whole
-    timeout waiting on a tab that already exists, and the test reads as though the press
-    had opened nothing.
-
-    A driver that loses the handle is not a page state a route can arrange, and there is
-    no second channel to reach an unreported tab through, so the press is made again
-    rather than waited on longer. This is instrument repair, not tolerance for a flaky
-    subject: the press itself is deterministic — the loss reaches every chord, though not
-    at one rate: 3, 10 and 1 of 60 presses lost for ⌃-click, ⌃⇧-click and ⇧-click on a
-    loaded machine — so a runtime that stopped leaving a real href for the platform to act
-    on opens no tab for any of the tries, and the last one says which wait went unanswered.
-
-    A press whose tab is lost still leaves that tab loaded and listening to its server, and no
-    caller can close what it was never handed. A test that closes the tab it receives is
-    closing only the try that was reported; the rest stand until context teardown. That is
-    the standing cost of the repeat, not a leak to chase.
-
-    A press that refuses outright — an anchor hidden, covered, or disabled, the shape a
-    runtime regression takes — raises its own timeout from inside the wait, and Playwright's
-    `EventContextManager.__exit__` cancels the wait and lets it through. Repeating that
-    press would be exactly the tolerance this helper is not, so it is caught where it is
-    raised and named as the subject's refusal.
+    Playwright can permanently lose the Page for a target Chromium opened. The browser's
+    CDP target list is the durable record of the platform action, so the helper waits there
+    for one new page at the expected URL. It closes that target and navigates a controlled
+    page in the same context for the arrival assertions. This keeps the product action
+    observable without repeating a reader gesture or leaking the target.
     """
-    for attempt in range(tries):
+    browser_session = page.context.browser.new_browser_cdp_session()
+
+    def page_targets():
+        return {
+            target["targetId"]: target["url"]
+            for target in browser_session.send("Target.getTargets")["targetInfos"]
+            if target["type"] == "page"
+        }
+
+    before = set(page_targets())
+    opened = {}
+    deadline = time.monotonic() + timeout / 1000
+    try:
         try:
-            with page.context.expect_page(timeout=each) as opened:
-                try:
-                    press()
-                except PlaywrightTimeout as refused:
-                    raise AssertionError(
-                        "the press timed out before any tab could open: the subject "
-                        "refused the gesture, which is not the loss this repeats for"
-                    ) from refused
-            return opened.value
-        except PlaywrightTimeout as lost:
-            if attempt == tries - 1:
+            press()
+        except PlaywrightTimeout as refused:
+            raise AssertionError(
+                "the press timed out before any tab could open: the subject refused "
+                "the gesture"
+            ) from refused
+
+        while True:
+            opened = {
+                target_id: url
+                for target_id, url in page_targets().items()
+                if target_id not in before
+            }
+            if len(opened) > 1:
                 raise AssertionError(
-                    f"no tab after {tries} presses waiting {each}ms each: either the "
-                    "press stopped leaving a real href, or Chromium holds a target "
-                    "Playwright never reported"
-                ) from lost
+                    f"one press opened {len(opened)} page targets: "
+                    f"{sorted(opened.values())}"
+                )
+            if list(opened.values()) == [destination]:
+                break
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise AssertionError(
+                    f"Chromium did not open {destination!r} after one press; "
+                    f"new page targets: {sorted(opened.values())}"
+                )
+            page.wait_for_timeout(min(20, remaining * 1000))
+
+    finally:
+        try:
+            opened = {
+                target_id: url
+                for target_id, url in page_targets().items()
+                if target_id not in before
+            }
+            for target_id in opened:
+                closed = browser_session.send(
+                    "Target.closeTarget", {"targetId": target_id}
+                )
+                assert closed["success"], (
+                    f"Chromium did not close page target {target_id}"
+                )
+            if opened:
+                close_deadline = time.monotonic() + timeout / 1000
+                while set(opened) & set(page_targets()):
+                    if time.monotonic() >= close_deadline:
+                        raise AssertionError(
+                            f"Chromium kept page targets after close: {sorted(opened)}"
+                        )
+                    page.wait_for_timeout(20)
+        finally:
+            browser_session.detach()
+
+    tab = page.context.new_page()
+    try:
+        tab.goto(destination)
+    except Exception:
+        tab.close()
+        raise
+    return tab
 
 
 # Chromium arms request interception the first time a page is routed at all, and

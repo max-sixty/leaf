@@ -2583,7 +2583,7 @@ def test_a_recorded_move_is_acknowledged_in_the_banner_and_nowhere_else(browser,
 
 
 def test_the_banner_opens_a_panel_of_the_machines_leaves(
-    browser, serve, other_leaf, tmp_path
+    browser, serve, other_leaf, one_reader, tmp_path
 ):
     """The leaves panel, end to end: the banner counts the machine's live pages,
     this one included, a press slides out a left tray headed by this page's own
@@ -2601,7 +2601,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
         id="s-self",
         cwd=str(tmp_path / "self-work"),
     )
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, url, context=one_reader)
     btn = page.locator(".lf-others")
     expect(btn).to_have_text("All leaves (2)")
     btn.click()
@@ -2632,11 +2632,12 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
         f"The other leaf\n{tmp_path / 'other-work'}\nWorking — running the suite",
     )
     destination = link.get_attribute("href")
-    tab = opened_tab(page, link.click)
     # The new tab keeps the other page's live root, authorized by the key its link
     # carried, rather than being redirected onto one stamped version.
     assert destination is not None and destination.startswith(f"{other_url}/?t=")
+    tab = opened_tab(page, destination, link.click)
     expect(tab).to_have_url(destination)
+    tab.close()
     # The press left this tab alone, tray still standing.
     expect(others_panel).to_be_visible()
     page.keyboard.press("Escape")
@@ -2954,7 +2955,7 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     page.close()
 
 
-def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
+def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_reader):
     """The tray is a list, and a reader walks it without reaching for the mouse: g L
     opens it and lands on the first neighbour, up and down step between them and clamp
     at the ends, Enter opens the focused one in its own tab, and Esc gives that press
@@ -2964,7 +2965,7 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     scene — and the "?" reference carries the same rows."""
     live_leaf("second", "A second leaf")
     other_url, _ = live_leaf("other", "The other leaf")
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page, errors = open_page(browser, serve(LONG_PAGE), context=one_reader)
     btn = page.locator(".lf-others")
     expect(page.locator(".lf-others-panel")).to_have_attribute(
         "aria-keyshortcuts", "ArrowUp ArrowDown"
@@ -2995,9 +2996,10 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     # Enter is the browser's own on a link, which is why the row is one.
     page.keyboard.press("ArrowDown")
     destination = rows.nth(1).get_attribute("href")
-    tab = opened_tab(page, lambda: page.keyboard.press("Enter"))
     assert destination is not None and destination.startswith(f"{other_url}/?t=")
+    tab = opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
     expect(tab).to_have_url(destination)
+    tab.close()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_be_visible()
     # One press in, one Escape out, and what the Escape gives back is exactly what the

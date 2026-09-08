@@ -91,6 +91,7 @@ import { designOn, setDesign } from "../design.js";
 import {
   isSelecting,
   PAGE_SEARCH,
+  REPEAT_PAGE_SEARCH,
   SELECT,
   startSelecting,
 } from "../composing/targets.js";
@@ -1269,6 +1270,7 @@ export function pageScopes() {
       },
       // Search remains one press from the shelf and named in full by the reference.
       PAGE_SEARCH,
+      REPEAT_PAGE_SEARCH,
       {
         id: "thread.walk",
         // A walk's letter names its category; Shift reverses it. The two existing

@@ -591,6 +591,9 @@ walks open asks. Both walks clamp at their first and last items. Keep these as s
 presses rather than prefix sequences; a walk is often repeated or held. The thread walk
 uses inline thread roots while Threads is closed and panel cards while it is open; only a
 thread with no page or widget-local inline address opens the complete index as a fallback.
+After Enter accepts a `/` page search, `n` selects its next match and `N` selects its
+previous match. Letters remain query text while the search input has focus; Tab and
+Shift-Tab walk its matches before acceptance.
 While the reader stands anywhere in an Ask, its widget's
 ordered actions keep a canonical binding where they declare one and otherwise take the
 next free `1`–`9`. Core projects that exact list into the shortcut bar and visible control
@@ -627,7 +630,8 @@ way this press will go. When turning it on is an entry, its `returnFrame` states
 Escape's inverse rather than a second row guessing from the resulting scene.
 
 Which scope a row belongs to follows from what its press acts on. The page holds
-the presses whose subject is the page: `/` searches its text, `s` names its visible
+the presses whose subject is the page: `/` searches its text, `n`/`N` repeats that
+search, `s` names its visible
 items, `c` comments on it, `t`/`T` and `a`/`A` walk its open sets, `j`/`k` and `d`/`u` move its
 reading, and `g` opens its destinations. A surface holds the presses
 whose

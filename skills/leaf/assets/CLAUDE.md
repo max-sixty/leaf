@@ -273,10 +273,11 @@ Startup order is load-bearing:
 11. Start the state feed; its first answer is applied, reconciled, and presents the
     page.
 
-Authored HTML paints immediately on every page. The render-blocking theme reserves the
-fixed banner and the reader's restored workspace, so mounting the runtime does not move
-the document. The inline bootstrap projects that stored arrangement before the theme
-paints; runtime restoration replaces the provisional root state with live body state.
+Authored HTML paints immediately on every page. The prepaint bootstrap marks the root
+`data-lf-live`, and the render-blocking theme uses that fact to reserve the fixed banner
+and the reader's restored workspace, so mounting the runtime does not move the document.
+The same bootstrap projects that stored arrangement before the theme paints; runtime
+restoration replaces the provisional root state with live body state.
 Prose, ordinary links, scrolling, and layout remain usable while widgets upgrade and the
 first state read is pending.
 Generated interface constructed from authored markup participates in layout but stays

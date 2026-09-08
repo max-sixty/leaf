@@ -260,6 +260,7 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         ), "authored words occupied a box but did not paint"
 
         assert boot, "the positive control did not hold the preview boot module"
+        expect(page.locator("html")).to_have_attribute("data-lf-live", "")
         expect(page.locator("body > main")).to_have_css("pointer-events", "auto")
         initial = page.locator("body > main").bounding_box()
         assert initial["y"] == pytest.approx(banner_height, abs=1)

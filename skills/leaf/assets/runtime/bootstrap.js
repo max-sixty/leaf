@@ -2,6 +2,8 @@
 // It must run even when the entry module or one of its dependencies cannot load.
 (() => {
   const script = document.currentScript;
+  const root = document.documentElement;
+  root.toggleAttribute("data-lf-live", true);
   const incarnation = script.dataset.lfServer;
   const layer = script.dataset.lfLayer;
   const release = script.dataset.lfRelease;
@@ -13,7 +15,6 @@
   // document before the module graph that builds their contents. The theme consumes
   // these provisional root facts; restoreArrangements replaces them with live state.
   try {
-    const root = document.documentElement;
     const tray = localStorage.getItem("lf-tray-up");
     if (tray) root.dataset.lfRestoreTray = tray;
     else if (localStorage.getItem("lf-panel-open") === "1")

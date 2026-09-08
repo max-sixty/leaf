@@ -481,10 +481,10 @@ body { position: static !important; box-sizing: border-box !important;
  * part of the document's final layout. The render-blocking theme reserves that room so
  * the useful initial HTML paints where it will remain. The root stays the document
  * scrollport, and a standing scrollbar prevents a later height change from recentering
- * the page. The canonical module tag identifies a live page before its graph has
- * loaded; copies have no module and paper has no fixed chrome. */
+ * the page. The server's prepaint bootstrap marks a live page before its graph has
+ * loaded; the bake removes that marker and paper has no fixed chrome. */
 @media screen {
-  html:not(.lf-copy):has(script[type="module"][src="/leaf.js"]) {
+  html[data-lf-live]:not(.lf-copy) {
     min-height: 100%;
     overflow-x: hidden;
     overflow-y: scroll;
@@ -502,19 +502,19 @@ body { position: static !important; box-sizing: border-box !important;
 @media screen and (not (width <= 840px)) {
   :is(
     html[data-lf-restore-panel],
-    html:has(script[type="module"][src="/leaf.js"]):has(body[data-lf-panel])
+    html[data-lf-live]:has(body[data-lf-panel])
   ) body { margin-right: var(--lf-panel-w); }
 }
 @media screen and (width <= 840px) {
   :is(
     html[data-lf-restore-panel],
-    html:has(script[type="module"][src="/leaf.js"]):has(body[data-lf-panel])
+    html[data-lf-live]:has(body[data-lf-panel])
   ) { overflow-y: hidden; }
 }
 @media screen and (not (width <= 600px)) {
   :is(
     html[data-lf-restore-tray="asks"],
-    html:has(script[type="module"][src="/leaf.js"]):has(body[data-lf-tray="asks"])
+    html[data-lf-live]:has(body[data-lf-tray="asks"])
   ) body {
     --lf-shell-inset-left: var(--lf-tray-w);
     margin-left: var(--lf-tray-w);
@@ -523,7 +523,7 @@ body { position: static !important; box-sizing: border-box !important;
 @media screen and (width <= 600px) {
   :is(
     html[data-lf-restore-tray="asks"],
-    html:has(script[type="module"][src="/leaf.js"]):has(body[data-lf-tray="asks"])
+    html[data-lf-live]:has(body[data-lf-tray="asks"])
   ) { overflow-y: hidden; }
 }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
@@ -540,29 +540,24 @@ body { position: static !important; box-sizing: border-box !important;
  * version gate refuses it on the protected top-layer properties below. */
 @layer {
   @media screen {
-    html:has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]),
-    html:has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main,
-    html:has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main *,
-    html:has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) .lf-ui {
+    html[data-lf-live] body:not([data-lf-presented]),
+    html[data-lf-live] body:not([data-lf-presented]) > main,
+    html[data-lf-live] body:not([data-lf-presented]) > main *,
+    html[data-lf-live] body:not([data-lf-presented]) .lf-ui {
       transition: none !important;
     }
-    html:has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main .lf-ui {
+    html[data-lf-live] body:not([data-lf-presented]) > main .lf-ui {
       visibility: hidden !important;
     }
-    html:has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main :is(dialog, [popover]) {
+    html[data-lf-live] body:not([data-lf-presented])
+      > main :is(dialog, [popover]) {
       visibility: hidden !important;
       opacity: 0 !important;
       transition: none !important;
       interactivity: inert !important;
     }
-    html:has(script[type="module"][src="/leaf.js"])
-      body:not([data-lf-presented]) > main :is(dialog, [popover])::backdrop {
+    html[data-lf-live] body:not([data-lf-presented])
+      > main :is(dialog, [popover])::backdrop {
       visibility: hidden !important;
       opacity: 0 !important;
       transition: none !important;
@@ -1754,7 +1749,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 @media screen and (min-width: 900px) {
   :is(
     :root[data-lf-rail],
-    html:has(script[type="module"][src="/leaf.js"])
+    html[data-lf-live]
   ) main {
     /* The floor is the generated marker: 32px of glyph hanging 22px off the column,
        with the shared focus-ring room at the outer edge. Claim all three, or opening a
@@ -1771,8 +1766,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      1208px leaves the 640px evidence floor, 520px margin, and two 24px gutters.
      Static copies need the strip only where they carry a thread marker. */
   @container lf-shell (min-width: 1208px) {
-  :where(
-      html:has(script[type="module"][src="/leaf.js"]) body,
+  :is(
+      html[data-lf-live] body,
       body:has(.lf-margin-cluster .lf-margin-marker[data-lf-kinds~="comment"])
     ) > main:where(:not(:has(> aside.sidebar))) {
     --claim-map: var(--thread-margin);
@@ -1783,8 +1778,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      that strip too: 1208 + 264 = 1472, so the same 640px document floor holds
      when both contextual surfaces stand. */
   @container lf-shell (min-width: 1472px) {
-  :where(
-      html:has(script[type="module"][src="/leaf.js"]) body,
+  :is(
+      html[data-lf-live] body,
       body:has(.lf-margin-cluster .lf-margin-marker[data-lf-kinds~="comment"])
     ) > main:where(:has(> aside.sidebar)) {
     --claim-map: var(--thread-margin);

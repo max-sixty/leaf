@@ -972,6 +972,10 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     bootstrap = (assets / "runtime" / "bootstrap.js").read_text()
     theme = (assets / "theme.css").read_text()
 
+    assert 'root.toggleAttribute("data-lf-live", true)' in bootstrap
+    assert "html[data-lf-live]" in theme
+    assert 'script[type="module"][src="/leaf.js"]' not in theme
+
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE).group(1)
 

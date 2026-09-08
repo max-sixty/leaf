@@ -3648,6 +3648,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
         geometry["thread"]["right"], abs=1
     )
     assert geometry["resolve"]["bottom"] <= geometry["head"]["bottom"]
+    assert geometry["head"]["top"] < geometry["resolve"]["bottom"]
     page.locator(".lf-margin-preview-close").click()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()

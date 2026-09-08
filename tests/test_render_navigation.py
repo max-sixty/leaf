@@ -1515,11 +1515,15 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
             ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-head'
           ).getBoundingClientRect();
           return {controlTop: control.top, expectedTop: own.top + inset,
-                  controlBottom: control.bottom, headBottom: head.bottom};
+                  controlBottom: control.bottom, headTop: head.top,
+                  headBottom: head.bottom};
         }"""
     )
     assert placement["controlTop"] == pytest.approx(placement["expectedTop"], abs=1)
     assert placement["controlBottom"] <= placement["headBottom"], (
+        f"Resolve hung below the first inline message's row: {placement}"
+    )
+    assert placement["headTop"] < placement["controlBottom"], (
         f"Resolve took a row above the first inline message: {placement}"
     )
 

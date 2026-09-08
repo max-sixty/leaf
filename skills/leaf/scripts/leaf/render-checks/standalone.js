@@ -191,7 +191,7 @@ export function bake() {
   // them but simply gone. `test_a_copy_keeps_the_rail_a_decided_change_left` is
   // that, and it is what a sweep of every inline custom property on the root ran
   // into: read as a stale number, the rail is the one that is not.
-  for (const stale of ["--lf-panel-w", "--lf-tray-w", "--lf-shortcut-bar-clear"])
+  for (const stale of ["--lf-panel-w", "--lf-tray-w", "--lf-bottom-chrome-clear"])
     document.documentElement.style.removeProperty(stale);
   // The tab icon is the third seat of the banner's status (paintTab), and a file has
   // no session behind it — a copy keeping the tone it was exported under would claim

@@ -1612,7 +1612,7 @@ def test_a_copy_carries_none_of_the_exporters_own_window(browser, serve, tmp_pat
                 found[inline[i]] = inline.getPropertyValue(inline[i]);
         return found;
     }"""
-    session = ("--lf-panel-w", "--lf-tray-w")
+    session = ("--lf-panel-w", "--lf-tray-w", "--lf-bottom-chrome-clear")
 
     live = browser.new_page(viewport={"width": 1200, "height": 900})
     live.goto(url, wait_until="load")

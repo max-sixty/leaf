@@ -7,7 +7,7 @@ import { asksPanel, othersPanel } from "./trays.js";
 import { panel, wireGeneralBox } from "./conversation/panel.js";
 import { composer, fab, fabBar } from "./composing/selection.js";
 import { shortcutReferenceDialog } from "./keyboard/reference.js";
-import { shortcutBarEl } from "./keyboard/shortcut-bar.js";
+import { shortcutBarEl, walkPositionEl } from "./keyboard/shortcut-bar.js";
 import { el, focusDestination, offer } from "./widget-elements.js";
 import { overflowMenu } from "./banner-shelf.js";
 import { inspectEl, legendRoot } from "./design.js";
@@ -107,6 +107,7 @@ export function mountChrome() {
     mediaViewer,
     shortcutReferenceDialog,
     shortcutBarEl,
+    walkPositionEl,
     inspectEl,
   );
   document.body.prepend(skipToChrome);

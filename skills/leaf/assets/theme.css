@@ -490,7 +490,7 @@ body { position: static !important; box-sizing: border-box !important;
     overflow-y: scroll;
     scroll-padding-top: calc(var(--lf-banner-h) + 12px);
     scroll-padding-bottom:
-      max(var(--here-ring-room), var(--lf-shortcut-bar-clear, 0px));
+      max(var(--here-ring-room), var(--lf-bottom-chrome-clear, 0px));
     body { min-height: 100%; }
     body::before { content: ""; display: block; height: var(--lf-banner-h); }
   }

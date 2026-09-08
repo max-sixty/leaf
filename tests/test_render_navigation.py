@@ -782,9 +782,7 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     position = page.locator(".lf-walk-position")
     expect(position).to_have_text("Ask 1 of 4 open")
     expect(position).to_have_attribute("aria-hidden", "true")
-    expect(position.locator("xpath=parent::*")).to_have_class(
-        re.compile("lf-shortcut-bar")
-    )
+    expect(position.locator("xpath=parent::*")).to_have_class(re.compile("lf-chrome"))
     marks = page.locator("#live-question .lf-pick")
     # The arrival stands on the Ask, which wears its options' digits; the marks
     # are the next Tab stops.
@@ -826,8 +824,8 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     page.close()
 
 
-def test_the_ask_walk_position_leads_the_narrow_status_line(browser, serve):
-    """Navigation context gets the first row without acquiring a second box."""
+def test_the_ask_walk_position_uses_the_opposite_corner(browser, serve):
+    """Navigation state stays separate from commands and marks a clamped press."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     resized(page, 390, 780)
     position = page.locator(".lf-walk-position")
@@ -840,33 +838,51 @@ def test_the_ask_walk_position_leads_the_narrow_status_line(browser, serve):
         """() => {
           const box = (selector) => document.querySelector(selector).getBoundingClientRect();
           const position = box('.lf-walk-position');
-          const hint = box('.lf-shortcut-bar .lf-key:not([hidden])');
           const line = box('.lf-shortcut-bar');
-          const style = getComputedStyle(document.querySelector('.lf-walk-position'));
+          const positionStyle = getComputedStyle(
+            document.querySelector('.lf-walk-position'));
+          const lineStyle = getComputedStyle(document.querySelector('.lf-shortcut-bar'));
           return {position: {left: position.left, right: position.right,
                              top: position.top, bottom: position.bottom},
-                  hint: {top: hint.top},
-                  line: {left: line.left, right: line.right},
+                  line: {left: line.left, right: line.right,
+                         top: line.top, bottom: line.bottom},
                   first: document.querySelector('.lf-shortcut-bar').firstElementChild
                     .className,
                   parent: document.querySelector('.lf-walk-position').parentElement
                     .className,
-                  face: {background: style.backgroundColor,
-                         border: style.borderTopWidth, shadow: style.boxShadow},
-                  userSelect: style.userSelect};
+                  face: {background: positionStyle.backgroundColor,
+                         lineBackground: lineStyle.backgroundColor,
+                         border: positionStyle.borderTopWidth,
+                         shadow: positionStyle.boxShadow},
+                  font: {line: parseFloat(lineStyle.fontSize),
+                         position: parseFloat(positionStyle.fontSize)},
+                  userSelect: positionStyle.userSelect};
         }"""
     )
-    assert "lf-walk-position" in geometry["first"], geometry
-    assert "lf-shortcut-bar" in geometry["parent"], geometry
-    assert geometry["position"]["bottom"] <= geometry["hint"]["top"], geometry
-    assert geometry["line"]["left"] <= geometry["position"]["left"], geometry
-    assert geometry["position"]["right"] <= geometry["line"]["right"], geometry
-    assert geometry["face"] == {
-        "background": "rgba(0, 0, 0, 0)",
-        "border": "0px",
-        "shadow": "none",
-    }, geometry
+    assert "lf-walk-position" not in geometry["first"], geometry
+    assert "lf-chrome" in geometry["parent"], geometry
+    assert geometry["line"]["right"] < geometry["position"]["left"], geometry
+    assert geometry["line"]["bottom"] == geometry["position"]["bottom"], geometry
+    assert geometry["font"]["position"] > geometry["font"]["line"], geometry
+    assert geometry["face"]["background"] == geometry["face"]["lineBackground"], (
+        geometry
+    )
+    assert geometry["face"]["border"] == "1px", geometry
+    assert geometry["face"]["shadow"] == "none", geometry
     assert geometry["userSelect"] == "none", geometry
+
+    for index in range(2, 5):
+        page.keyboard.press("a")
+        expect(position).to_have_text(f"Ask {index} of 4 open")
+    expect(position).not_to_have_attribute("data-lf-boundary", "")
+    ordinary = position.evaluate("node => getComputedStyle(node).backgroundColor")
+    page.keyboard.press("a")
+    expect(position).to_have_text("Ask 4 of 4 open")
+    expect(position).to_have_attribute("data-lf-boundary", "")
+    assert (
+        position.evaluate("node => getComputedStyle(node).backgroundColor") != ordinary
+    )
+    expect(position).not_to_have_attribute("data-lf-boundary", "")
 
     page.locator("#h").click()
     expect(position).to_be_hidden()
@@ -1316,8 +1332,20 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     page.keyboard.press("t")
     expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_focused()
     expect(position).to_have_text("Thread 1 of 1 shown")
-    expect(position.locator("xpath=parent::*")).to_have_class(
-        re.compile("lf-shortcut-bar")
+    expect(position.locator("xpath=parent::*")).to_have_class(re.compile("lf-chrome"))
+    expect(position.locator("xpath=ancestor::*[@id='lf-shortcut-bar']")).to_have_count(
+        0
+    )
+    panel_clearance = page.evaluate(
+        """() => {
+          const position = document.querySelector('.lf-walk-position')
+            .getBoundingClientRect();
+          const foot = document.querySelector('.lf-panel-foot').getBoundingClientRect();
+          return {positionBottom: position.bottom, footTop: foot.top};
+        }"""
+    )
+    assert panel_clearance["positionBottom"] < panel_clearance["footTop"], (
+        panel_clearance
     )
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, False)
@@ -1340,9 +1368,24 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(page.locator(".lf-panel")).to_be_hidden()
     expect(position).to_have_text("Thread 2 of 2")
 
+    ordinary = position.evaluate("node => getComputedStyle(node).backgroundColor")
+    page.keyboard.press("t")
+    expect(second).to_be_focused()
+    expect(position).to_have_text("Thread 2 of 2")
+    expect(position).to_have_attribute("data-lf-boundary", "")
+    assert (
+        position.evaluate("node => getComputedStyle(node).backgroundColor") != ordinary
+    )
+    expect(position).not_to_have_attribute("data-lf-boundary", "")
+
     page.keyboard.press("Shift+t")
     expect(first).to_be_focused()
     expect(position).to_have_text("Thread 1 of 2")
+
+    page.keyboard.press("Shift+t")
+    expect(first).to_be_focused()
+    expect(position).to_have_text("Thread 1 of 2")
+    expect(position).to_have_attribute("data-lf-boundary", "")
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -5624,12 +5667,13 @@ def test_a_coarse_pointer_gets_only_active_navigation_context(browser, serve):
 
         page.keyboard.press("a")
         line = page.locator(".lf-shortcut-bar")
-        expect(line).to_be_visible()
-        expect(line.locator(".lf-walk-position")).to_have_text("Ask 1 of 4 open")
-        expect(line.locator(":scope > :visible")).to_have_count(1)
+        expect(line).to_be_hidden()
+        position = page.locator(".lf-walk-position")
+        expect(position).to_have_text("Ask 1 of 4 open")
         active_room = page.evaluate(
             """() => ({
-              height: document.querySelector('.lf-shortcut-bar').getBoundingClientRect().height,
+              height: document.querySelector('.lf-walk-position')
+                .getBoundingClientRect().height,
               reserved: parseFloat(getComputedStyle(
                 document.querySelector('.lf-chrome')).paddingBottom),
             })"""

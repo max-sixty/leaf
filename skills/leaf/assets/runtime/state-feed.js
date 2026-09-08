@@ -297,16 +297,11 @@ export function startFeed(present, initialRead = beginRead()) {
       void ask();
     });
   };
-  const resume = () => {
-    if (!feedStarted || !pageIsVisible() || !sessionIsActive()) return;
-    void ask();
-    listen();
-  };
   document.addEventListener("visibilitychange", () => {
-    if (pageIsVisible()) resume();
+    if (pageIsVisible()) listen();
     else stopListening();
   });
-  document.addEventListener("lf-session-active", resume);
+  document.addEventListener("lf-session-active", listen);
   // Presentation waits on the first read, and the ear opens after it: the page then
   // holds a reading for the stream's first word to be compared with, so an unchanged
   // page is not asked for twice.

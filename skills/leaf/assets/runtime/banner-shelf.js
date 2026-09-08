@@ -185,6 +185,13 @@ function foldable() {
   return run.slice(0, Math.max(0, run.length - KEPT));
 }
 
+// A low-priority diagnostic can belong to this address order without spending the
+// banner's resting row. It is still moved, not copied, and unfoldShelf still seats it
+// temporarily when the banner measures its widest label. The attribute states the
+// address's priority; the shelf remains the one owner of where that priority puts it.
+const alwaysFolded = () =>
+  [...bannerActions.children].filter((control) => control.dataset.lfAlwaysFold);
+
 // What the row keeps and what the menu takes, decided by measuring the row rather than
 // by counting controls or naming a width. The stylesheet caps the row at the room the
 // status sentence's floor leaves; anything past that cap overflows, and overflowing is
@@ -247,7 +254,11 @@ function refold() {
     overflowBtn.hidden = overflowMenu.children.length === 0;
     return bannerActions.scrollWidth <= bannerActions.clientWidth;
   };
+  // Permanent overflow keeps the same front-to-back order as the complete address
+  // run. Put it at the menu's front before considering which other addresses fit.
+  overflowMenu.prepend(...alwaysFolded());
   for (let back = overflowMenu.lastElementChild; back;) {
+    if (back.dataset.lfAlwaysFold) break;
     overflowBtn.after(back);
     if (newsControls.has(back)) paintPresence(back);
     if (fits()) {

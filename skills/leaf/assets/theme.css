@@ -1878,17 +1878,17 @@ html.lf-versioning::view-transition-new(root) {
 .lf-compose-submit:is(:disabled, [aria-disabled="true"]) { opacity: 1;
           border-color: transparent; background: transparent; color: var(--muted); }
 .lf-compose-submit:is(:disabled, [aria-disabled="true"])::before {
-          border: 1px solid var(--border-2); background: var(--paper); }
+          border: 0; background: transparent; }
 .lf-resolve.lf-icon-action { position: relative; flex: none; margin-inline-start: auto;
           border: 0; background: transparent; color: var(--ink);
           box-shadow: none; }
 .lf-resolve.lf-icon-action::before { content: ""; position: absolute;
           box-sizing: border-box; inline-size: 28px; block-size: 28px;
-          border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper); }
+          border: 0; border-radius: var(--r); background: transparent; }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover {
           background: transparent; color: var(--ok-ink); box-shadow: none; }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {
-          border-color: var(--ok); background: var(--ok-tint); }
+          background: var(--ok-tint); }
 .lf-resolve.lf-icon-action .lf-action-icon { inline-size: 15px; block-size: 15px; }
 .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
 /* Draw mode takes page-widget presses before their controls can act. This rule is in

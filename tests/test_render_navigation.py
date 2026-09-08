@@ -1073,10 +1073,10 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     # figure in the posted mark's own ink, pointer cursor and all, over no thread to open.
     page.keyboard.press("Escape")
     assert page.locator("#fig.lf-pending").count() == 0, (
-        "the outline outlived its composer"
+        "the mark outlived its composer"
     )
     assert page.locator("#fig.lf-mark-el").count() == 0, (
-        "the figure kept a thread's outline over no thread"
+        "the figure kept a thread's mark over no thread"
     )
 
     # A drag across the caption remains a native selection, so the composer carries the
@@ -1090,7 +1090,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         "the visual containing the drag replaced its selected passage"
     )
     assert page.locator("#fig.lf-pending").count() == 0, (
-        "the figure got the element outline over a live selection"
+        "the figure got the element mark over a live selection"
     )
     page.keyboard.press("Escape")
     assert errors == []

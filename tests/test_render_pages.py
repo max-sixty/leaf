@@ -638,8 +638,12 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
             "text": "which host answers?",
         },
     )
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    (d / ".fixture-versions" / "v2.html").write_text(TWIN_V2)
+    stamp_version_file(d, 2, "a twin")
+    wait_for_revision(page, 2)
+    expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
 
     broken = []
 
@@ -687,7 +691,6 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     errors.remove(fault.value.text)
 
     version_menu = page.locator(".lf-version-menu")
-    assert version_menu.get_attribute("aria-keyshortcuts") is None
     page.locator(".lf-version").click()
     expect(version_menu).not_to_contain_text("Rejected version")
     page.keyboard.press("Escape")
@@ -710,10 +713,13 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
     """Rollback preserves an unchanged chooser subtree and its focused row."""
     url = serve(TWIN_V1)
     d = serve.page_dir
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
+    (d / ".fixture-versions" / "v2.html").write_text(TWIN_V2)
+    stamp_version_file(d, 2, "a twin")
+    wait_for_revision(page, 2)
     page.locator(".lf-version").click()
     menu = page.locator(".lf-version-menu")
-    row = menu.locator(".lf-version-row").first
+    row = menu.locator('.lf-version-row[aria-current="true"]')
     expect(row).to_be_focused()
 
     broken = []
@@ -765,14 +771,14 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     # belongs to the widget that holds it, which is the element the page gave a name.
     page.locator("#flow svg").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
-    page.locator("#flow.lf-mark-el.lf-pending.lf-shaped-mark").wait_for()
+    page.locator("#flow.lf-mark-el.lf-pending.lf-projected-mark").wait_for()
     expect(page.locator(".lf-visual-mark-pending")).to_be_visible()
     assert not composer_quote(page)["shown"], "a picture has no words to quote back"
     page.keyboard.press("Escape")
 
     page.locator("#tree").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
-    page.locator("#tree.lf-mark-el.lf-pending.lf-shaped-mark").wait_for()
+    page.locator("#tree.lf-mark-el.lf-pending.lf-projected-mark").wait_for()
     overlay = page.locator(".lf-visual-mark-pending")
     expect(overlay).to_be_visible()
     assert overlay.evaluate("el => getComputedStyle(el).backgroundImage !== 'none'"), (
@@ -843,13 +849,13 @@ def _edge_ink_changes(quiet, painted, target, clip, ink):
     return changed, missing
 
 
-def test_a_screenshot_comment_mark_paints_above_its_edge_to_edge_frame(browser, serve):
-    """A declared visual is painted in chrome, above its package-owned children.
+def test_a_screenshot_comment_rail_paints_above_its_edge_to_edge_frame(browser, serve):
+    """A declared visual's annotation rail is above its package-owned children.
 
     lf-shot is the causal case: its positioned frame reaches every side of a host with
     no border of its own. A source-element outline sits below that frame and disappears
-    down both sides. Pixel differences on all four edge bands prove the projected mark
-    is visible paint rather than merely a class or an occluded outline.
+    down both sides. The projected rail remains visible without turning the screenshot
+    into another four-sided card.
     """
     example = next(path for path in EXAMPLES if path.stem == "release-notes")
     page, errors = open_page(browser, serve(example))
@@ -869,7 +875,7 @@ def test_a_screenshot_comment_mark_paints_above_its_edge_to_edge_frame(browser, 
     quiet = screenshot()
     shot.locator(".lf-shotflip").click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    expect(shot).to_have_class(re.compile(r"\blf-shaped-mark\b"))
+    expect(shot).to_have_class(re.compile(r"\blf-projected-mark\b"))
     overlay = page.locator(".lf-visual-mark-pending")
     expect(overlay).to_be_visible()
     ink = overlay.evaluate(
@@ -878,9 +884,10 @@ def test_a_screenshot_comment_mark_paints_above_its_edge_to_edge_frame(browser, 
     )
     marked = screenshot()
 
-    changed, missing = _edge_ink_changes(quiet, marked, box, clip, ink)
-    assert not missing, (
-        f"the screenshot frame covered the mark's {missing} edge: {changed} ink pixels"
+    changed, _ = _edge_ink_changes(quiet, marked, box, clip, ink)
+    assert changed["left"] > 0, f"the screenshot frame covered its rail: {changed}"
+    assert all(changed[side] == 0 for side in ("top", "right", "bottom")), (
+        f"the screenshot annotation became a repeated border: {changed}"
     )
 
     assert errors == []

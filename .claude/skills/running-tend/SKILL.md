@@ -39,10 +39,23 @@ trackers have no rows and are closed by `ci-fix` itself.
 
 ## A red `ci` on main is live
 
-Pull requests run the everyday suite before merge, while `wt merge` runs that
-gate on the maintainer's machine. The complete nightly suite first runs after
-main moves on either path, so a red `ci` on main is already affecting whoever
+Pull requests and main run the everyday and website-worker gates. The complete
+suite runs on the daily schedule. A red `ci` on main is already affecting whoever
 pulls next. Treat it as live.
+
+## Review test selection
+
+Before approving a product change, choose and run the smallest test selection
+that exercises the failures the diff could introduce. Select from the product
+paths and contracts in the diff, not from the test files it happens to touch.
+The review selection supplements the everyday CI gate. A docs-only or
+generated-workflow change may need no additional test; a selected failure
+withholds approval.
+
+When a high-level browser test is slow or fails on timing or geometry outside its
+contract, repair its arrangement or move that contract to the lower boundary that
+can prove it. Keep a browser case only where it proves that the boundaries work
+together.
 
 ## Reading a red suite
 

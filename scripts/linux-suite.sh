@@ -5,8 +5,8 @@
 # failed on the runner from the day CI landed and none of them could be reproduced.
 #
 #   scripts/linux-suite.sh
-#   scripts/linux-suite.sh tests -m nightly --splits 4 --group 2 \
-#     --splitting-algorithm least_duration --durations-path .test_durations
+#   scripts/linux-suite.sh tests/test_render_controls.py -k banner
+#   scripts/linux-suite.sh tests -m nightly
 #
 # Needs a Docker daemon that can run linux/amd64 (linux-suite.Dockerfile says why). On
 # Apple silicon that is `colima start --vm-type vz --vz-rosetta`.
@@ -34,8 +34,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 git_common_dir="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)"
 
-# The default reproduces CI's everyday job. A nightly failure's group number and the
-# remaining split arguments above reproduce that job's exact selection and parallelism.
+# The default reproduces CI's everyday job. Pass a nightly failure's file, node id, or
+# marker selection to reproduce the same surface.
 if [ $# -eq 0 ]; then set -- tests; fi
 
 # Separate tags and caches per build, so switching between them neither rebuilds the

@@ -54,7 +54,6 @@ module-name = "leaf"
 [dependency-groups]
 dev = [
   "pytest>=9.1",
-  "pytest-split>=0.11",
   "pytest-xdist>=3",
   "axe-playwright-python>=0.1.4",
   "pre-commit>=4.6.2",

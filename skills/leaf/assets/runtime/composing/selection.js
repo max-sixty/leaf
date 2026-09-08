@@ -73,6 +73,7 @@ export const fab = responseAction(el("button", "lf-ui lf-fab"), {
   label: "Comment",
   behavior: "disclosure",
 });
+fab.id = "lf-comment-button";
 fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";
 export const fabMore = responseAction(el("button", "lf-ui lf-response-more"), {
@@ -98,6 +99,7 @@ fabOptions.append(fabSuggest);
 fabBar.append(fab, fabMore, fabOptions);
 
 export const composer = el("div", "lf-ui lf-composer");
+composer.id = "lf-composer";
 // Only ever shown detached — paintAnchors, its one writer, keeps it out of sight while
 // the page is marking the passage. lf-ui on the element itself, not just on the composer
 // around it: this is the only injected chrome carrying an id, and "which section is this

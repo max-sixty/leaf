@@ -24,13 +24,6 @@ the relevant design note or in git history.
 - **Measure a pending count in the favicon.** Prototype the count at 16px and keep it
   only if it remains legible beside the existing status treatment.
 
-- **Wire elements where they are built.** Let each chrome element's owner attach its
-  own DOM listeners and scopes at module scope and call the behavior's owner from the
-  handler, so `mountChrome` keeps only the steps that need the document (the banner's
-  reservations, the layout observers, the margin's appends). While there, settle one
-  idiom for owner state other owners read: `export let` bindings or reader functions,
-  not both.
-
 - **Give the touch grip room of its own, then fit more thread cards.** At a coarse
   pointer the panel's resize grip is a 44px square laid over the list, and nothing
   reserves that space: cards run under it at every scroll position, so whether its
@@ -45,7 +38,8 @@ the relevant design note or in git history.
   every card carries. Collapsing that to a single Reply affordance until the reader
   enters the card is the change that would.
 
-- **Make the MCP bundle fail loud on an evaluation-order fault.** esbuild hoists
-  cross-module `let`/`const` into `var`s, so a fault the browser throws on reads
-  `undefined` in the bundle; give `test_render_mcp` a probe that would see it, or build
-  the bundle in a form that keeps the dead zone.
+- **Make the experimental direct MCP bundle fail loud on an evaluation-order fault.**
+  `scripts/mcp-app/direct-build.mjs` bundles the full runtime for the direct-page
+  experiment; it is not the shipped MCP App. Esbuild hoists cross-module `let`/`const`
+  into `var`s, so a fault the ordinary page throws reads `undefined` in this experimental
+  bundle. Give its direct probe a reading that sees the fault, or preserve the dead zone.

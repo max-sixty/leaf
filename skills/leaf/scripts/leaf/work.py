@@ -10,7 +10,7 @@ from .files import latest_revision, revision_path
 from .passages import enclosing_of, page_passages
 from .projection import (
     StateProjection,
-    page_projection,
+    page_reading,
     retirement_outcomes,
     rewritten_bodies,
 )
@@ -125,10 +125,10 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
     if widget_revision is not None:
         html = revision_path(page_dir, widget_revision).read_text(encoding="utf-8")
         registry = require_registry(page_dir)
-        widget_projection, parser, spk = page_projection(
-            html, events, registry, widget_revision
-        )
-        rec = parser.by_id.get(target)
+        page = page_reading(html, events, registry, widget_revision)
+        widget_projection = page.projection
+        spk = page.spoken
+        rec = page.parser.by_id.get(target)
         if rec and rec["tag"] in registry:
             widget = rec
 
@@ -173,7 +173,7 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
                 coordinate,
                 event,
                 spec,
-                parser,
+                page.parser,
                 spk,
                 registry,
                 events,

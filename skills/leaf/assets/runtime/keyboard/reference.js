@@ -63,6 +63,7 @@ import { availableCommands, executeCommand, readerIn } from "./dispatch.js";
 import { reachScrollers } from "../reach.js";
 
 export const shortcutReferenceDialog = document.createElement("dialog");
+shortcutReferenceDialog.id = "lf-shortcut-reference";
 shortcutReferenceDialog.className = "lf-ui lf-shortcut-reference";
 shortcutReferenceDialog.setAttribute("aria-label", "All keyboard shortcuts");
 shortcutReferenceDialog.setAttribute("aria-modal", "true");

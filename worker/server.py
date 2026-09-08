@@ -2,7 +2,7 @@
 
 The Cloudflare Worker selects one container filesystem per browser session. This
 adapter selects the product or example page directory behind a clean public route,
-then hands the request to the same Handler and EventEndpoint as a locally served Leaf.
+then hands the request to the same Handler and event admission as a locally served Leaf.
 Agent input comes from Leaf's shared projections; this adapter owns no parallel state
 store or event semantics.
 """
@@ -18,13 +18,11 @@ from urllib.parse import urlsplit
 
 from leaf.conversation import cmd_reply
 from leaf.document_reading import read_document
-from leaf.event_endpoint import EventEndpoint
 from leaf.events import build_threads, spoken_turns
 from leaf.files import latest_revision, revision_path
 from leaf.hosting import server_at
 from leaf.http import Handler, canonical_script_offset, scope_page_urls
-from leaf.passages import enclosing_of
-from leaf.projection import page_projection
+from leaf.projection import page_reading
 from leaf.registry.storage import layer_metadata, require_registry
 from leaf.revisioning import activate_source
 from leaf.served_state.service import PageStateService
@@ -50,10 +48,9 @@ AGENT_REPLY_PATH = "/_leaf/agent/reply"
 
 
 @cache
-def page_binding(page_dir: Path) -> tuple[EventEndpoint, dict, str, dict | None]:
+def page_binding(page_dir: Path) -> tuple[dict, str, dict | None]:
     """Read immutable delivery metadata once per published page and process."""
     return (
-        EventEndpoint(page_dir),
         layer_metadata(page_dir),
         (page_dir / "runtime" / "bootstrap.js").read_text(encoding="utf-8"),
         preview_metadata(page_dir),
@@ -113,8 +110,8 @@ def agent_turn(page_dir: Path, event_id: str) -> dict | None:
         revision = latest_revision(page_dir)
         html = revision_path(page_dir, revision).read_text(encoding="utf-8")
         registry = require_registry(page_dir)
-        prepared = page_projection(html, events, registry, revision)
-        threads = build_threads(events, enclosing_of(prepared[2]))
+        prepared = page_reading(html, events, registry, revision)
+        threads = build_threads(events, prepared.within)
         thread = threads.get(root_id)
         turns = spoken_turns(thread) if thread else []
         if (
@@ -127,14 +124,7 @@ def agent_turn(page_dir: Path, event_id: str) -> dict | None:
         ):
             return None
 
-        document = read_document(
-            html,
-            events,
-            registry,
-            revision,
-            threads,
-            prepared=prepared,
-        )
+        document = read_document(prepared, threads)
         decisions = [
             {
                 "widget": coordinate[0],
@@ -279,8 +269,11 @@ class WebsitePageHandler(Handler):
             return
         self._json({"status": "appended", "event": accepted["id"]})
 
-    def _select_page(self) -> bool:
+    def _select_page(self) -> bool | None:
         external = urlsplit(self.path)
+        if self.command == "GET" and external.path == "/health":
+            self._send(200, "text/plain; charset=utf-8", b"ok\n")
+            return None
         selected = published_page(self.site_root, self.pages, external.path)
         if selected is None:
             return False
@@ -288,9 +281,8 @@ class WebsitePageHandler(Handler):
         if not (page_dir / "events.jsonl").is_file():
             return False
 
-        endpoint, identity, bootstrap, preview = page_binding(page_dir)
+        identity, bootstrap, preview = page_binding(page_dir)
         self.page_dir = page_dir
-        self.event_endpoint = endpoint
         self.layer = identity["generation"]
         self.layer_identity = identity
         self.bootstrap = bootstrap
@@ -299,45 +291,6 @@ class WebsitePageHandler(Handler):
         self.page_root = page_root
         self.path = inside + (f"?{external.query}" if external.query else "")
         return True
-
-    def _not_found(self) -> None:
-        # An unread POST body makes an HTTP/1.1 connection unsafe to reuse.
-        if self.command == "POST":
-            self.close_connection = True
-        self._json({"error": "not found"}, 404)
-
-    def _select_or_answer(self) -> bool | None:
-        try:
-            return self._select_page()
-        except Exception as error:  # noqa: BLE001 - outer HTTP route boundary
-            if self.command == "POST":
-                self.close_connection = True
-            try:
-                self._json({"error": f"{type(error).__name__}: {error}"}, 500)
-            except OSError:
-                pass
-            return None
-
-    def do_GET(self) -> None:
-        if urlsplit(self.path).path == "/health":
-            self._send(200, "text/plain; charset=utf-8", b"ok\n")
-            return
-        selected = self._select_or_answer()
-        if selected is None:
-            return
-        if not selected:
-            self._not_found()
-            return
-        super().do_GET()
-
-    def do_POST(self) -> None:
-        selected = self._select_or_answer()
-        if selected is None:
-            return
-        if not selected:
-            self._not_found()
-            return
-        super().do_POST()
 
 
 def handler_for(site_root: Path) -> type[WebsitePageHandler]:

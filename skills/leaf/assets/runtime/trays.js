@@ -120,6 +120,7 @@ othersBtn.title = "Leaves live on this machine, and what each is doing";
 // A nav, because navigation is what it is and a bare div may not carry the
 // aria-label the card needs (axe: aria-prohibited-attr, serious).
 export const othersPanel = el("nav", "lf-ui lf-tray-panel lf-others-panel");
+othersPanel.id = "lf-leaves";
 othersPanel.setAttribute("aria-label", "Leaves on this machine");
 othersPanel.tabIndex = -1;
 traysEdge.handle(othersPanel, () => othersBtn);
@@ -128,6 +129,7 @@ export const leavesList = trayList(othersPanel);
 // order the page asks them. The list is declaration-driven, so a widget joins without
 // a row here knowing what kind of thing it is standing for.
 export const asksPanel = el("nav", "lf-ui lf-tray-panel lf-asks-panel");
+asksPanel.id = "lf-asks";
 asksPanel.setAttribute("aria-label", "Asks from this page");
 asksPanel.tabIndex = -1;
 traysEdge.handle(asksPanel, () => asksBtn);

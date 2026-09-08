@@ -274,6 +274,7 @@ export const versionBtn = el("button", "lf-btn lf-version", versionLabel(false))
 versionBtn.setAttribute("aria-haspopup", "menu");
 versionBtn.setAttribute("aria-expanded", "false");
 export const versionMenu = el("div", "lf-ui lf-version-menu");
+versionMenu.id = "lf-versions";
 versionMenu.setAttribute("popover", "auto");
 versionMenu.setAttribute("role", "menu");
 versionMenu.setAttribute("aria-label", "Versions");

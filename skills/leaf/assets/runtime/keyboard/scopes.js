@@ -165,11 +165,9 @@ export function merge(sections, { title, when, at, liveInReference, rows }) {
  * those rows mean right now waits for the scope's first paint: the scene is the scope's
  * `when` and each row's own, callbacks over their owner's state, and a scope declared
  * while modules are still evaluating would run them against an owner that has not
- * evaluated yet — the one evaluation-order path `leaf/evaluation-order` cannot see, since
- * the rule reads module bodies and not the callbacks another module runs. The frame is
- * after every module body, so the ambiguous scene and the `aria-keyshortcuts` projection
- * are both settled there; a first paint that refuses a scope retracts it from both
- * indexes.
+ * evaluated yet. The frame is after every module body, so the ambiguous scene and the
+ * `aria-keyshortcuts` projection are both settled there; a first paint that refuses a
+ * scope retracts it from both indexes.
  *
  * Returns the rows, so a widget that says its own keys out loud — a grip announcing what a
  * grabbed card answers — reads them back off the declaration rather than restating them.

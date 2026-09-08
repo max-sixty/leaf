@@ -1504,8 +1504,7 @@ def test_edit_refuses_a_page_vendored_before_its_event_contract(page_dir, monkey
     )
 
     assert result.exit_code != 0
-    assert "current layer writes" in result.output
-    assert "edit" in result.output
+    assert "$events.kinds must equal Leaf's fixed transport contract" in result.output
     assert events_model.read_events(page_dir) == before
 
 

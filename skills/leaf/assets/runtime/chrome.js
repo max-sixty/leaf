@@ -86,25 +86,6 @@ skipToChrome.onclick = () => {
 export function mountChrome() {
   configureInput({ upload: uploadMedia, address: commentAddress });
   mountBanner();
-  // The runtime's parts, named: a design comment can point at one, and an anchor names an
-  // element by id, so each part that is a thing to point at carries a stable one under the
-  // runtime's own prefix. `[id]:not(.lf-ui)` — how the anchor pass asks which section a
-  // passage is in — still passes over them, every one wearing lf-ui. What has no id is
-  // what nobody comments on: the notice, the live region, the scope root itself.
-  for (const [part, id] of [
-    [banner, "lf-banner"],
-    [versionMenu, "lf-versions"],
-    [othersPanel, "lf-leaves"],
-    [asksPanel, "lf-asks"],
-    [panel, "lf-threads"],
-    [fab, "lf-comment-button"],
-    [composer, "lf-composer"],
-    [mediaViewer, "lf-media-viewer"],
-    [shortcutReferenceDialog, "lf-shortcut-reference"],
-    [shortcutBarEl, "lf-shortcut-bar"],
-  ])
-    part.id = id;
-
   chromeRoot.append(
     banner,
     overflowMenu,

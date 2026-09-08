@@ -9,8 +9,6 @@ FROM ubuntu:24.04
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-ENV UV_PROJECT_ENVIRONMENT=/venv
-
 # Chrome is the half of this image that pins it to amd64, so it is also what a native
 # build gives up (`CHROME=0`, linux-suite.sh's `LEAF_SUITE_NATIVE`). Everything the
 # platforms actually disagree about is in the other half — the fonts — which both builds
@@ -18,7 +16,7 @@ ENV UV_PROJECT_ENVIRONMENT=/venv
 ARG CHROME=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl gnupg \
+      ca-certificates curl git gnupg \
  && if [ "$CHROME" = 1 ]; then \
       curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
         | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
@@ -35,7 +33,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       fonts-liberation fonts-dejavu-core fonts-noto-color-emoji \
  && rm -rf /var/lib/apt/lists/*
 
-# The checkout is mounted rather than copied, and linux-suite.sh installs the locked
-# headless shell into its persistent browser cache. `/venv` is the container's
-# environment; the `.venv` beside the checkout holds the host's binaries.
-WORKDIR /repo
+# linux-suite.sh mounts the checkout at its real path with its Git common directory,
+# hides the host's `.venv` behind a container volume, then installs the locked headless
+# shell into a persistent browser cache.

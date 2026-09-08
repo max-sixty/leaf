@@ -22,6 +22,7 @@ import { showThread } from "./landing.js";
 import { paintDrawings, validDrawing } from "../composing/drawing.js";
 
 export const panel = el("dialog", "lf-ui lf-panel");
+panel.id = "lf-threads";
 const panelHead = el("div", "lf-panel-head");
 export const closeBtn = el("button", "lf-btn lf-icon-action lf-close-action");
 closeBtn.append(iconElement("cross", "lf-action-icon"));

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from leaf.passages import EMPTY, spoken
 from leaf.projection import (
     frozen_thread_reading,
-    page_projection,
+    page_reading,
     retirement_holders,
     retirement_outcomes,
 )
@@ -126,12 +126,10 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             # against anything wider would fail a page both sides are right
             # about.
             if slots := retirement_slots(registry):
-                projection, vparser, _ = page_projection(
-                    markup, state["events"], registry, here
-                )
-                outcomes = retirement_outcomes(projection.actions, registry)
+                reading = page_reading(markup, state["events"], registry, here)
+                outcomes = retirement_outcomes(reading.projection.actions, registry)
                 holders = []
-                for h in retirement_holders(vparser, registry):
+                for h in retirement_holders(reading.parser, registry):
                     declared = slots[h["tag"]]
                     outcome = outcomes.get(h["id"])
                     if outcome not in declared:
@@ -202,7 +200,9 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     relative = []
     if scheme == "light" and replayed:
         if touched and earlier is not None:
-            projection, _, _ = page_projection(markup, state["events"], registry, here)
+            projection = page_reading(
+                markup, state["events"], registry, here
+            ).projection
             conflicts = evaluate_probe(
                 page,
                 "replayOverrides",

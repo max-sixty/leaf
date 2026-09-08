@@ -1,7 +1,13 @@
 """Interaction-scoped acknowledgment lifecycle projection."""
 
 from .events import awaits_agent, seat_root, spoken_turns
-from .projection import NO_RECORD, canonical_updates, folded_facet, markup_facet
+from .projection import (
+    NO_RECORD,
+    PageReading,
+    canonical_updates,
+    folded_facet,
+    markup_facet,
+)
 
 
 def page_action_unsettled(
@@ -27,14 +33,12 @@ def page_action_unsettled(
 
 
 def canonical_acknowledgments(
-    events: list,
     claims: list,
     threads: dict,
-    projection,
-    parser,
-    spk: dict,
     conversation,
-    registry: dict,
+    *,
+    page: PageReading | None = None,
+    events: list | None = None,
 ) -> list[dict]:
     """The unsettled reader moves and the strongest evidence held for each.
 
@@ -45,6 +49,11 @@ def canonical_acknowledgments(
     settle the source move, so the row disappears instead of becoming a second
     outcome surface.
     """
+    if page is not None:
+        events = page.events
+    elif events is None:
+        raise TypeError("events are required without a page reading")
+
     deliveries: dict[str, dict[str, dict]] = {}
     for event in events:
         if event["kind"] != "pickup":
@@ -138,11 +147,17 @@ def canonical_acknowledgments(
     # its standing record. A recordless verb has no markup form to compare, so a
     # later version note in the log is the document's answer to that move.
     moves = []
-    if projection is not None:
-        for coordinate, (source, spec) in projection.actions.items():
+    if page is not None:
+        for coordinate, (source, spec) in page.projection.actions.items():
             widget, unit, facet = coordinate
             if not page_action_unsettled(
-                coordinate, source, spec, parser, spk, registry, events
+                coordinate,
+                source,
+                spec,
+                page.parser,
+                page.spoken,
+                page.registry,
+                page.events,
             ):
                 continue
             moves.append(

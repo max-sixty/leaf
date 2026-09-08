@@ -312,6 +312,22 @@ class StateProjection(NamedTuple):
     classified: dict
 
 
+class PageReading(NamedTuple):
+    """One page document and the durable state folded against that exact source."""
+
+    html: str
+    revision: int
+    events: list
+    registry: dict
+    parser: StructParser
+    spoken: dict
+    projection: StateProjection
+
+    @property
+    def within(self) -> dict:
+        return enclosing_of(self.spoken)
+
+
 class FrozenThreadReading(NamedTuple):
     """The panel's frozen markup and durable state as one document.
 
@@ -485,8 +501,8 @@ def folded_facet(e: dict, spec: dict):
     return value
 
 
-def page_projection(html: str, events: list, registry: dict, upto):
-    """Project one page's markup and log window through one construction.
+def page_reading(html: str, events: list, registry: dict, revision: int) -> PageReading:
+    """Read one page's markup and log window through one construction.
 
     Document inspection and the passage readings used by `leaf comment` and
     `version check` share declarations, floors, and the log window. The parser
@@ -494,10 +510,14 @@ def page_projection(html: str, events: list, registry: dict, upto):
     authored construction."""
     parser = parse_structure(html)
     spk = spoken(html, registry)
-    return (
-        state_projection(events, parser.by_id, spk, registry, upto),
+    return PageReading(
+        html,
+        revision,
+        events,
+        registry,
         parser,
         spk,
+        state_projection(events, parser.by_id, spk, registry, revision),
     )
 
 

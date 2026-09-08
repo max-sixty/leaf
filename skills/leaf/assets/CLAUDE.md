@@ -29,31 +29,11 @@ stylesheet never loads. `runtime/widget-api.js` is the one public
 helper surface for behavior modules and reexports capabilities directly from their
 runtime owners; an owner never reaches back through the entry module or public facade.
 
-The owners form one import cycle, which fixes what a module body may touch as it
-evaluates: its own declarations, a module the cycle does not reach (the
-`leaf/evaluation-order` rule in `eslint.config.mjs` computes that set from the import
-graph; `context.js`, `registry.js`, `widget-elements.js`, `keyboard/scopes.js` are
-examples), and a function declaration of another owner — referenced, never called,
-since the callee's own imports may not have evaluated yet. A read of another owner's
-part is a mount step under `runtime/chrome.js`'s `mountChrome`, and a value read from
-one is asked for at use. The register (`keyboard/scopes.js`) stays outside the cycle
-because it owns the repaint frame (`paintHere`) and `leaf.js`, not the register,
-imports `standing.js` and registers its painting as the first boot step. The page's
-own scope list is built on first use (`keyboard/page.js`: `pageScopes`) because its
-members are other owners' constants. Evaluation order is fixed by the import graph
-and the same on every page, so a read that breaks this is no error until an unrelated
-import edge reorders the walk, and then an uncaught `ReferenceError` at boot on every
-page. The browser gate is the guarantee (`leaf version check --render` and the
-everyday smoke test read page errors); the lint rule is the early, line-precise word:
-it refuses a module-scope read of a cycle binding or call of a cycle function, over the
-whole runtime directory whenever a runtime file is committed, and it does not see a
-callback another module runs during evaluation. The register closes the one such path
-it owns: `keys()` checks a declaration's shape and publishes it unread, and the repaint
-frame — which lands after every module body — is where a scope is first read, where its
-capability and row `when` predicates first run, where an ambiguous scope is refused, and
-where `aria-keyshortcuts` is first written. The `eslint-evaluation-order` pre-commit
-hook runs `scripts/evaluation-order-faults.mjs`, which feeds eslint the faults above at
-a real cycle path and checks that the rule refuses each on the right line.
+Many owners participate in an import cycle. Keep module bodies declarative: install
+cross-owner behavior from `leaf.js`'s boot sequence or defer reads until a function is
+called. Native module evaluation reports an early read as a startup error, which the
+browser gate observes. The keyboard register follows the same boundary: `keys()` checks
+and stores each declaration unread, and the first repaint after boot evaluates it.
 `runtime/chrome.js` owns the chrome's root, the order its parts stack in, and
 `mountChrome`, the one step that puts them in the document and wires what needs them
 there;

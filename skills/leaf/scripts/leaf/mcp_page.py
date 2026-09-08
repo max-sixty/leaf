@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import secrets
 import threading
 from dataclasses import dataclass
@@ -12,7 +11,6 @@ from urllib.parse import urlsplit
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
 
-from .event_endpoint import EventEndpoint
 from .files import revision_path
 from .hosting import server_at
 from .http import Handler
@@ -51,7 +49,6 @@ def _with_ready_signal(body: bytes, page_root: str) -> bytes:
 class _PageSession:
     page_dir: Path
     capability: str
-    endpoint: EventEndpoint
     layer_identity: dict
     bootstrap: str
     preview: dict | None
@@ -82,7 +79,6 @@ class _RoutedPageHandler(Handler):
             return False
         inside = f"/{parts[3]}" if len(parts) == 4 and parts[3] else "/"
         self.page_dir = session.page_dir
-        self.event_endpoint = session.endpoint
         self.layer = session.layer_identity["generation"]
         self.layer_identity = session.layer_identity
         self.bootstrap = session.bootstrap
@@ -90,13 +86,6 @@ class _RoutedPageHandler(Handler):
         self.page_root = f"/p/{session.capability}"
         self.path = inside + (f"?{external.query}" if external.query else "")
         return True
-
-    def _unknown_capability(self) -> None:
-        # A POST body has not been consumed yet, so this HTTP/1.1 connection cannot
-        # safely be reused after the refusal.
-        if self.command == "POST":
-            self.close_connection = True
-        self._json({"error": "not found"}, 404)
 
     def _send(self, status: int, ctype: str, body: bytes) -> None:
         if status == 200 and ctype.startswith("text/html"):
@@ -108,35 +97,6 @@ class _RoutedPageHandler(Handler):
             self._send(200, "text/javascript; charset=utf-8", _READY_SCRIPT)
             return
         super()._get()
-
-    def _select_or_answer(self) -> bool | None:
-        """Select a page, answering route faults before the shared handler exists."""
-        try:
-            return self._select_page()
-        except Exception as error:  # noqa: BLE001 - this is the outer route boundary
-            if self.command == "POST":
-                self.close_connection = True
-            with contextlib.suppress(OSError):
-                self._json({"error": f"{type(error).__name__}: {error}"}, 500)
-            return None
-
-    def do_GET(self):
-        selected = self._select_or_answer()
-        if selected is None:
-            return
-        if not selected:
-            self._unknown_capability()
-            return
-        super().do_GET()
-
-    def do_POST(self):
-        selected = self._select_or_answer()
-        if selected is None:
-            return
-        if not selected:
-            self._unknown_capability()
-            return
-        super().do_POST()
 
 
 class ProcessPageServer:
@@ -172,7 +132,6 @@ class ProcessPageServer:
                 session = _PageSession(
                     page_dir=page_dir,
                     capability=capability,
-                    endpoint=EventEndpoint(page_dir),
                     layer_identity=identity,
                     bootstrap=(page_dir / "runtime" / "bootstrap.js").read_text(
                         encoding="utf-8"
@@ -194,7 +153,6 @@ class ProcessPageServer:
                 session.bootstrap = (
                     session.page_dir / "runtime" / "bootstrap.js"
                 ).read_text(encoding="utf-8")
-                session.endpoint = EventEndpoint(session.page_dir)
             return session
 
     def close(self) -> None:

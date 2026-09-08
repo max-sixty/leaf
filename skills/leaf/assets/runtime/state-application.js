@@ -34,7 +34,6 @@ import {
   isSignoffDeclared,
   paintApproval,
   renderStatus,
-  sayLine,
   stateSignoff,
 } from "./banner.js";
 import { renderOthers } from "./live-leaves.js";
@@ -339,7 +338,7 @@ export async function receiveState(state) {
     // was leaving. Say what the reload is for before making it: a tab that reloads
     // itself in silence reads as the page having lost their place for no reason.
     if (willActivate) {
-      sayLine("Couldn't show that version — reloading this page.");
+      notice("Couldn't show that version — reloading this page.");
       location.reload();
     }
     throw error;

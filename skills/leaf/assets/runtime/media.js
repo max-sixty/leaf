@@ -13,9 +13,8 @@
 // speaking the canonical text that drafts and events carry. MEDIA_PATH's escaped form
 // below dodges the same rewrite; neither may be spelled the obvious way.
 const CANONICAL_MEDIA_ROOT = "/" + "media/";
-const declaredPageRoot = document.querySelector(
-  "script[data-lf-runtime]",
-)?.dataset.lfPageRoot;
+const declaredPageRoot = document.querySelector("script[data-lf-runtime]")?.dataset
+  .lfPageRoot;
 const MODULE_PAGE_ROOT =
   declaredPageRoot === undefined
     ? new URL("../", import.meta.url)

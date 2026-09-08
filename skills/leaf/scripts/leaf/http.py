@@ -156,10 +156,7 @@ def scope_document_routes(
     def scope_routes(value: bytes) -> bytes:
         return _ROOTED_PAGE_ROUTE.sub(
             lambda match: (
-                match.group("before")
-                + route_root(match)
-                + b"/"
-                + match.group("path")
+                match.group("before") + route_root(match) + b"/" + match.group("path")
             ),
             value,
         )
@@ -167,10 +164,7 @@ def scope_document_routes(
     def scope_start_tag(tag_match: re.Match) -> bytes:
         tag = _ROOTED_PAGE_ATTRIBUTE.sub(
             lambda match: (
-                match.group("before")
-                + route_root(match)
-                + b"/"
-                + match.group("path")
+                match.group("before") + route_root(match) + b"/" + match.group("path")
             ),
             tag_match.group(),
         )

@@ -68,8 +68,8 @@ export function sameDelivery(response) {
 let sessionMode = release ? "unknown" : "active";
 let sessionServer = null;
 const sessionChannel =
-  release && typeof BroadcastChannel !== "undefined"
-    ? new BroadcastChannel("leaf-session")
+  release && typeof window.BroadcastChannel !== "undefined"
+    ? new window.BroadcastChannel("leaf-session")
     : null;
 
 function activateSession(broadcast, server = null) {

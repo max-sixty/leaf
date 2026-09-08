@@ -9,8 +9,8 @@ store or event semantics.
 
 from __future__ import annotations
 
-import os
 import json
+import os
 import re
 from functools import cache
 from pathlib import Path
@@ -27,9 +27,9 @@ from leaf.passages import enclosing_of
 from leaf.projection import page_projection
 from leaf.registry.storage import layer_metadata, require_registry
 from leaf.revisioning import activate_source
+from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
 from leaf.service import PageTransaction
-from leaf.served_state.service import PageStateService
 from leaf.thread_context import thread_roots
 
 PORT = 8080
@@ -190,9 +190,7 @@ def published_page(
             inside = "/"
         elif path.startswith(f"{page_root}/"):
             inside = path[len(page_root) :]
-            if not (
-                PAGE_RESOURCE.match(inside) or inside.startswith("/_leaf/agent/")
-            ):
+            if not (PAGE_RESOURCE.match(inside) or inside.startswith("/_leaf/agent/")):
                 continue
         else:
             continue

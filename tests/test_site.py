@@ -278,9 +278,10 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     gallery = manifest["pages"]["/examples/feature-gallery"]
     revisions = files_model.list_revisions(gallery_page)
     assert set(gallery["states"]) == {str(revision) for revision in revisions}
-    assert gallery["state"] == gallery["states"][
-        str(files_model.latest_revision(gallery_page))
-    ]
+    assert (
+        gallery["state"]
+        == gallery["states"][str(files_model.latest_revision(gallery_page))]
+    )
     for revision, state_path in gallery["states"].items():
         state = json.loads((assets / state_path.lstrip("/")).read_text())
         assert revision in state["browser"]["views"]
@@ -304,7 +305,9 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
         with urllib.request.urlopen(f"{hosted}{route}") as response:
             served = response.read()
         materialized = (assets / relative).read_bytes()
-        page_root = "/examples/design-decision" if route.startswith("/examples/") else ""
+        page_root = (
+            "/examples/design-decision" if route.startswith("/examples/") else ""
+        )
         public_root = page_root or "/"
         materialized = materialized.replace(
             manifest["pages"][public_root]["assets"].encode(),

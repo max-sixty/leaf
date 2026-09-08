@@ -27,13 +27,16 @@ def check(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
-def verify_page(
-    browser, path: str, kind: str, release: str, activate: bool
-) -> None:
+def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> None:
     context = browser.new_context()
     page = context.new_page()
     failures: list[str] = []
-    page.on("console", lambda message: failures.append(message.text) if message.type == "error" else None)
+    page.on(
+        "console",
+        lambda message: (
+            failures.append(message.text) if message.type == "error" else None
+        ),
+    )
     page.on("pageerror", lambda error: failures.append(str(error)))
     url = urljoin(f"{ORIGIN}/", path.lstrip("/"))
     response = page.goto(url, wait_until="load", timeout=120_000)
@@ -60,13 +63,17 @@ def verify_page(
         f"{url} loaded unversioned runtime resources: {code}",
     )
     check(
-        not any(urlsplit(resource).path.endswith("/api/news") for resource in resources),
+        not any(
+            urlsplit(resource).path.endswith("/api/news") for resource in resources
+        ),
         f"{url} opened a news stream before interaction",
     )
     secure = urlsplit(ORIGIN).scheme == "https"
     identity_cookie = "__Host-leaf-page" if secure else "leaf-page-local"
     cookie_names = {cookie["name"] for cookie in context.cookies()}
-    check(identity_cookie in cookie_names, f"{url} did not establish one session identity")
+    check(
+        identity_cookie in cookie_names, f"{url} did not establish one session identity"
+    )
     check(
         not cookie_names.intersection(
             {
@@ -124,7 +131,9 @@ def verify_page(
         f"{state_url} reached a different container release",
     )
     state = state_response.json()
-    check(state.get("release") == release, f"{state_url} body belongs to another release")
+    check(
+        state.get("release") == release, f"{state_url} body belongs to another release"
+    )
     check(
         state.get("publication", {}).get("kind") == kind,
         f"{state_url} returned the wrong page kind",

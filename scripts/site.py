@@ -41,7 +41,7 @@ from preview import prepare
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from worker.server import SITE_MANIFEST, initial_state, with_sitenote  # noqa: E402
+from worker.server import SITE_MANIFEST, initial_state, with_sitenote
 
 LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
@@ -215,7 +215,9 @@ def asset_site(out: Path) -> Path:
 def deduplicate_tree(root: Path, *, mutable_names: set[str] = frozenset()) -> None:
     """Hard-link identical build outputs without changing their public paths."""
     canonical: dict[tuple[int, bytes], Path] = {}
-    for path in sorted(candidate for candidate in root.rglob("*") if candidate.is_file()):
+    for path in sorted(
+        candidate for candidate in root.rglob("*") if candidate.is_file()
+    ):
         if path.name in mutable_names:
             continue
         body = path.read_bytes()
@@ -293,7 +295,9 @@ def publish_pages(out: Path, env: dict, catalog_previews: Path | None = None) ->
 def publish_live_shells(out: Path) -> Path:
     """Materialize the public bytes of every private page directory."""
     digest = hashlib.sha256()
-    for path in sorted(candidate for candidate in out.rglob("*") if candidate.is_file()):
+    for path in sorted(
+        candidate for candidate in out.rglob("*") if candidate.is_file()
+    ):
         digest.update(path.relative_to(out).as_posix().encode())
         digest.update(b"\0")
         digest.update(path.read_bytes())

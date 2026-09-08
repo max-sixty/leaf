@@ -315,11 +315,7 @@ export function startFeed(present, initialRead = beginRead()) {
     // One shared clock serves temporal paint, deferred work, and failed reads.
     setInterval(() => {
       if (!pageIsVisible()) return;
-      if (
-        readAnswered &&
-        sessionIsActive() &&
-        activityTransitionDue(runtime.state)
-      )
+      if (readAnswered && sessionIsActive() && activityTransitionDue(runtime.state))
         void ask();
       else if (readAnswered) void heartbeat();
       else void ask();

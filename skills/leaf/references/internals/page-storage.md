@@ -80,13 +80,9 @@ A page directory holds:
                          threads or page widgets. At the state boundary these
                          private records become canonical claim updates, which
                          their local receipts show beside the page-wide banner
-                         (`leaf status … --on`). An optional `stream` record holds
-                         the latest session-, turn-, and event-floor-bound activity
-                         observed from a live Codex App Server. It overlays the
-                         declaration in canonical activity without replacing it and
-                         is cleared when the turn or observer ends. Delivery pickup
-                         never writes this file; its queued/opened phase, session,
-                         and turn are page-owned evidence in events.jsonl
+                         (`leaf status … --on`). Delivery pickup never writes
+                         this file; its queued/opened phase, session, and turn are
+                         page-owned evidence in events.jsonl
     waiter.lock          bare-shell `leaf wait` lease, held open and locked for
                          the command's life. A host session holds one lease at
                          sessions/<id>.wait instead, because one wait watches all

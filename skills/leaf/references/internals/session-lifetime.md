@@ -10,7 +10,6 @@ and requests another reading at its next deadline; it does not run a second fold
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
 | work declaration: state, detail, event floor, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
-| live Codex activity: session, turn, detail, event floor | optional `stream` in `status.json` | the detached adapter's observer-only App Server client | turn completion, observer exit, loss of the wait lease, or the working grace without another event |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` or `leaf ack` process, held open for its life | process exit |
 | acknowledgement cursor | `cursor.json` | `leaf ack`, after the complete batch reached its durable consumer | never; it is monotonic |
@@ -36,10 +35,6 @@ a `waiting` declaration, so a receipt cannot say **Picked up** while the banner 
 the agent awaits the reader. A fresh `working` declaration is considered only when
 its recorded event floor reaches the obligations it could describe. Turn identity,
 not elapsed time, decides whether opened delivery belongs to the turn now running.
-Fresh activity from the claimed Codex task's App Server outranks that declaration
-while its watcher is live. It is an observation bound to one turn and event floor,
-not a second work declaration; the declaration remains underneath and becomes current
-again when the turn or observer ends.
 
 A work declaration has to be renewed, and `leaf status` renews it. `--on` names the thread
 or widget the work is about, so one check-in moves the banner, the Target
@@ -118,12 +113,8 @@ reinitializing the same page path cannot revive old transport work; a
 reinitialized page whose events no longer match retires its old batch. The
 adapter has a second lease because a generic wait lease cannot prove its output
 can enter a later Codex turn; the Stop hook trusts only the pair. Leaf's queue
-command never calls `turn/start`. While the App Server observer is connected, queueing
-targets the same server as the CLI; after it disconnects, queueing returns to Codex's
-durable local task queue. The observer's second connection resumes the task only to
-subscribe to notifications. That subscription keeps the task loaded, so the App
-Server dispatches queued input when the task is idle or its active turn completes.
-The CLI remains the interactive client for every approval and user-input request.
+command never resumes or starts the task; the loaded Desktop client keeps the
+task writer and owns every execution or approval request.
 
 `server start` spawns the service into a session of its own and hands back the
 URL that process printed and the lifetime it recorded, so a killed carrier costs

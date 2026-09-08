@@ -7,7 +7,7 @@ from pathlib import Path
 import click
 
 from leaf.agent_state import cmd_page_state
-from leaf.codex import cmd_codex_launch, cmd_codex_start, run_adapter
+from leaf.codex import cmd_codex_start, run_adapter
 from leaf.conversation import (
     cmd_comment,
     cmd_edit,
@@ -87,42 +87,18 @@ def mcp() -> None:
     run_mcp_server()
 
 
-@cli.group(short_help="Launch Codex and connect Leaf pages to its tasks.")
+@cli.group(short_help="Deliver page updates to later turns of this Codex task.")
 def codex() -> None:
-    """Launch Codex or run Leaf's detached delivery carrier."""
-
-
-@codex.command(
-    "launch", short_help="Launch an experimental, untested streaming Codex terminal."
-)
-@click.option("--codex-path", hidden=True)
-def codex_launch(codex_path: str | None) -> None:
-    """Run Codex with a private local App Server for Leaf activity.
-
-    This integration is experimental and untested.
-    """
-    try:
-        sys.exit(cmd_codex_launch(codex_path))
-    except RuntimeError as error:
-        raise click.ClickException(str(error)) from error
+    """Run Leaf's detached Codex delivery carrier."""
 
 
 @codex.command("start", short_help="Keep PAGE connected after this turn ends.")
 @click.argument("dir", metavar="PAGE")
 @click.option("--codex-path", hidden=True)
-@click.option(
-    "--app-server",
-    metavar="ENDPOINT",
-    help="stream activity from this local App Server; `codex launch` supplies it",
-)
-def codex_start(
-    dir: str,
-    codex_path: str | None,
-    app_server: str | None,
-) -> None:
+def codex_start(dir: str, codex_path: str | None) -> None:
     """Start one task-wide delivery carrier and claim PAGE for it."""
     try:
-        click.echo(cmd_codex_start(resolve_dir(dir), codex_path, app_server))
+        click.echo(cmd_codex_start(resolve_dir(dir), codex_path))
     except RuntimeError as error:
         raise click.ClickException(str(error)) from error
 
@@ -130,14 +106,9 @@ def codex_start(
 @codex.command("run", hidden=True)
 @click.option("--codex-path", required=True)
 @click.option("--ready-fd", type=int)
-@click.option("--app-server", hidden=True)
-def codex_run(
-    codex_path: str,
-    ready_fd: int | None,
-    app_server: str | None,
-) -> None:
+def codex_run(codex_path: str, ready_fd: int | None) -> None:
     """Run the detached carrier child."""
-    sys.exit(run_adapter(codex_path, ready_fd, app_server))
+    sys.exit(run_adapter(codex_path, ready_fd))
 
 
 @cli.group(short_help="Create pages and add media.")

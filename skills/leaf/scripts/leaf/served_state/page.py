@@ -10,7 +10,7 @@ from ..event_log import now_iso
 from ..events import build_threads
 from ..files import active_descriptor, version_descriptors
 from ..passages import active_enclosing
-from ..presence import presence, public_status
+from ..presence import presence
 from ..registry.contract import RegistryError
 from ..registry.storage import layer_metadata, load_registry
 from .browser import project_browser_state
@@ -98,7 +98,6 @@ def full_state(
         "source_error": source_error,
         "data": browser_data(page_dir, registry),
         **present,
-        "status": public_status(present["status"]),
         "activity": activity,
         "browser": browser,
         # As logged: a message's text is Markdown the page's vendored runtime renders,

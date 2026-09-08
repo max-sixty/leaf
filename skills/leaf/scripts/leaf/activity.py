@@ -93,15 +93,6 @@ def canonical_activity(
     """Return the one current reading of agent activity for a page snapshot."""
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
-    stream = status.get("stream")
-    stream_quiet = bool(stream and _quiet(stream.get("ts"), now, WORKING_GRACE))
-    stream_current = bool(
-        stream
-        and stream.get("session") == present.get("claim_session")
-        and present["listening"]
-        and not stream_quiet
-        and status["state"] != "idle"
-    )
     status_quiet = _quiet(status.get("ts"), now, WORKING_GRACE)
     status_dropped = _dropped(status.get("ts"), present.get("turn_closed"), now)
     status_quiet = status_quiet or status_dropped
@@ -118,8 +109,6 @@ def canonical_activity(
     # remains Closed. Emit every such boundary; consumers decide nothing locally and
     # ask this fold for the next complete reading when it arrives.
     if due := _deadline(status.get("ts"), WORKING_GRACE, now):
-        deadlines.append(due)
-    if stream and (due := _deadline(stream.get("ts"), WORKING_GRACE, now)):
         deadlines.append(due)
     if due := _deadline(present.get("turn_closed"), TURN_RENEWAL_GRACE, now):
         deadlines.append(due)
@@ -146,10 +135,12 @@ def canonical_activity(
         (item.get("delivery_seq") or item["seq"] for item in outstanding),
         default=0,
     )
-    status_after = stream.get("after", 0) if stream_current else status.get("after", 0)
+    status_after = status.get("after", 0)
     current_work = (
-        stream_current or (status["state"] == "working" and not status_quiet)
-    ) and status_after >= newest_position
+        status["state"] == "working"
+        and not status_quiet
+        and status_after >= newest_position
+    )
     opened = [item for item in outstanding if item["phase"] == "picked_up"]
     handling = [
         item
@@ -180,16 +171,7 @@ def canonical_activity(
     elif unheld:
         kind = "unheld"
     elif current_work:
-        kind = "working"
-        if stream_current:
-            detail, ts, quiet, dropped = (
-                stream.get("detail", ""),
-                stream.get("ts"),
-                False,
-                False,
-            )
-        else:
-            detail = status.get("detail", "")
+        kind, detail = "working", status.get("detail", "")
     elif active:
         latest = max(active, key=lambda item: (item["seq"], item["id"]))
         detail, ts = latest.get("detail") or "", latest["ts"]

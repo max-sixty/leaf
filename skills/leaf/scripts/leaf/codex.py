@@ -3,22 +3,15 @@
 import hashlib
 import json
 import os
-import queue
 import select
 import shutil
 import subprocess
 import sys
-import tempfile
-import threading
 import time
 import uuid
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
-from urllib.parse import urlsplit
 from xml.etree import ElementTree
-
-from websockets.exceptions import WebSocketException
-from websockets.sync.client import connect, unix_connect
 
 from .event_log import flocked, read_cursor
 from .files import read_json, write_json
@@ -40,18 +33,6 @@ QUEUE_TIMEOUT = 20
 START_TIMEOUT = 20
 ACTIVE_DELIVERY_RECOVERY_TIMEOUT = 15 * 60
 DELIVERY_EPOCH_FORMAT = "leaf-codex-delivery-v1"
-APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
-STREAM_UPDATE_INTERVAL = 0.2
-STREAM_TEXT_METHODS = {
-    "item/agentMessage/delta",
-    "item/reasoning/summaryTextDelta",
-}
-STREAM_HEARTBEAT_METHODS = {
-    "item/commandExecution/outputDelta",
-    "item/fileChange/outputDelta",
-    "item/mcpToolCall/progress",
-}
-STREAM_THROTTLED_METHODS = STREAM_TEXT_METHODS | STREAM_HEARTBEAT_METHODS
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -78,326 +59,16 @@ def check_queue_command(codex_path: str) -> None:
     _run_codex(codex_path, "queue", "--help")
 
 
-def queue_delivery(
-    codex_path: str,
-    thread_id: str,
-    prompt: str,
-    app_server: str | None = None,
-) -> None:
+def queue_delivery(codex_path: str, thread_id: str, prompt: str) -> None:
     """Hand one pointer prompt to Codex's durable same-task queue."""
-    arguments = ["queue"]
-    if app_server is not None:
-        arguments.extend(["--remote", app_server])
-    arguments.extend(["--thread", thread_id, "--message", prompt])
-    _run_codex(codex_path, *arguments)
-
-
-def app_server_socket_path(endpoint: str) -> Path | None:
-    """Validate a local App Server endpoint and return its Unix socket path."""
-    try:
-        parsed = urlsplit(endpoint)
-        hostname = parsed.hostname
-    except ValueError as error:
-        raise RuntimeError("--app-server needs a valid local endpoint") from error
-    if parsed.query or parsed.fragment or parsed.username or parsed.password:
-        raise RuntimeError("--app-server needs a local WebSocket or Unix endpoint")
-    if parsed.scheme == "ws" and hostname in {"127.0.0.1", "::1", "localhost"}:
-        return None
-    if parsed.scheme == "unix" and not parsed.netloc and parsed.path:
-        path = Path(parsed.path)
-        if path.is_absolute():
-            return path
-    raise RuntimeError(
-        "--app-server needs a local loopback ws:// endpoint or an absolute "
-        "unix:/// socket"
+    _run_codex(
+        codex_path,
+        "queue",
+        "--thread",
+        thread_id,
+        "--message",
+        prompt,
     )
-
-
-def check_app_server_endpoint(endpoint: str) -> None:
-    """Keep the experimental unauthenticated transport on this machine."""
-    app_server_socket_path(endpoint)
-
-
-def _app_server_connect(endpoint: str):
-    socket_path = app_server_socket_path(endpoint)
-    options = {
-        "open_timeout": START_TIMEOUT,
-        "close_timeout": 1,
-        "compression": None,
-    }
-    if socket_path is not None:
-        return unix_connect(str(socket_path), uri="ws://localhost/rpc", **options)
-    return connect(endpoint, **options)
-
-
-def _head(text: str, limit: int = 180) -> str:
-    line = " ".join(text.split())
-    return line if len(line) <= limit else line[: limit - 1] + "…"
-
-
-def _tail(text: str, limit: int = 240) -> str:
-    line = " ".join(text.split())
-    return line if len(line) <= limit else "…" + line[-(limit - 1) :]
-
-
-class AppServerEvents:
-    """Fold one task's event notifications into its latest readable activity."""
-
-    # TODO(2026-09-08): Project agent-message deltas into a task-response reading
-    # outside the event log, and retain the final text until the next turn.
-
-    def __init__(self, thread_id: str):
-        self.thread_id = thread_id
-        self.turn_id: str | None = None
-        self.details: dict[str, str] = {}
-        self.text: dict[str, str] = {}
-
-    def read(self, message: dict) -> tuple[str, str | None] | None:
-        """Return (turn, detail); a None detail clears the completed turn."""
-        method = message.get("method")
-        params = message.get("params") or {}
-        message_thread = params.get("threadId")
-        if message_thread is not None and message_thread != self.thread_id:
-            return None
-
-        if method == "turn/started":
-            self.turn_id = params["turn"]["id"]
-            self.details.clear()
-            self.text.clear()
-            return self.turn_id, "Starting"
-
-        turn_id = params.get("turnId") or self.turn_id
-        if method == "turn/completed":
-            completed = params["turn"]["id"]
-            if self.turn_id == completed:
-                self.turn_id = None
-                self.details.clear()
-                self.text.clear()
-            return completed, None
-        if turn_id is None:
-            return None
-
-        if method == "turn/plan/updated":
-            steps = params.get("plan", [])
-            current = next(
-                (step["step"] for step in steps if step["status"] == "inProgress"),
-                None,
-            )
-            if current is None:
-                current = next(
-                    (step["step"] for step in steps if step["status"] == "pending"),
-                    None,
-                )
-            return (turn_id, _head(current)) if current else None
-
-        if method == "item/started":
-            item = params["item"]
-            detail = self._item_detail(item)
-            if detail:
-                self.details[item["id"]] = detail
-            return (turn_id, detail) if detail else None
-
-        if method == "item/completed":
-            item = params["item"]
-            self.details.pop(item["id"], None)
-            if item["type"] == "agentMessage" and item.get("text"):
-                return turn_id, _tail(item["text"])
-            return None
-
-        if method in STREAM_TEXT_METHODS:
-            item_id = params["itemId"]
-            combined = self.text.get(item_id, "") + params["delta"]
-            self.text[item_id] = combined
-            prefix = "Thinking — " if method.endswith("summaryTextDelta") else ""
-            return turn_id, prefix + _tail(combined)
-
-        if method in STREAM_HEARTBEAT_METHODS:
-            detail = self.details.get(params["itemId"])
-            return (turn_id, detail) if detail else None
-
-        if method in {
-            "item/commandExecution/requestApproval",
-            "item/fileChange/requestApproval",
-            "item/permissions/requestApproval",
-            "item/tool/requestUserInput",
-        }:
-            return turn_id, "Waiting for input in Codex"
-
-        if method == "thread/status/changed":
-            flags = params.get("status", {}).get("activeFlags", [])
-            if "waitingOnApproval" in flags or "waitingOnUserInput" in flags:
-                return turn_id, "Waiting for input in Codex"
-        return None
-
-    @staticmethod
-    def _item_detail(item: dict) -> str | None:
-        kind = item["type"]
-        if kind == "commandExecution":
-            return "Running " + _head(item["command"])
-        if kind == "fileChange":
-            paths = [change["path"] for change in item.get("changes", [])]
-            return "Editing " + _head(", ".join(paths)) if paths else "Editing files"
-        if kind == "mcpToolCall":
-            app = item.get("appContext") or {}
-            name = app.get("appName") or item.get("server")
-            return "Using " + _head(f"{name}: {item['tool']}")
-        if kind == "dynamicToolCall":
-            return "Using " + _head(item["tool"])
-        if kind == "collabAgentToolCall":
-            return "Coordinating " + _head(item["tool"])
-        if kind == "webSearch":
-            return "Searching the web" + (
-                " — " + _head(item["query"]) if item.get("query") else ""
-            )
-        if kind == "imageView":
-            return "Inspecting " + _head(item["path"])
-        if kind == "contextCompaction":
-            return "Compacting the conversation"
-        if kind == "imageGeneration":
-            return "Generating an image"
-        if kind == "enteredReviewMode":
-            return "Reviewing " + _head(item["review"])
-        return None
-
-
-class AppServerObserver:
-    """Subscribe to one running Codex task without taking control of it."""
-
-    def __init__(self, endpoint: str, thread_id: str):
-        check_app_server_endpoint(endpoint)
-        self.endpoint = endpoint
-        self.thread_id = thread_id
-        self.events = AppServerEvents(thread_id)
-        self.stop_event = threading.Event()
-        self.available = threading.Event()
-        self.socket = None
-        self.last_stream_update = 0.0
-        self.started = False
-        self.ready: queue.Queue[BaseException | None] = queue.Queue(maxsize=1)
-        self.thread = threading.Thread(
-            target=self._run,
-            name="leaf-codex-app-server",
-            daemon=True,
-        )
-
-    def start(self) -> None:
-        self.thread.start()
-        try:
-            outcome = self.ready.get(timeout=START_TIMEOUT)
-        except queue.Empty as error:
-            self.stop()
-            raise RuntimeError("Codex App Server did not answer") from error
-        if outcome is not None:
-            self.stop()
-            raise RuntimeError(f"Codex App Server connection failed: {outcome}")
-
-    def stop(self) -> None:
-        self.stop_event.set()
-        self.available.clear()
-        if self.socket is not None:
-            self.socket.close()
-        self.thread.join(timeout=3)
-        _clear_stream_activity(self.thread_id)
-
-    def _send(self, socket, method: str, request_id: int, params: dict) -> dict:
-        socket.send(json.dumps({"method": method, "id": request_id, "params": params}))
-        while not self.stop_event.is_set():
-            raw = socket.recv(timeout=START_TIMEOUT)
-            message = json.loads(raw)
-            if message.get("id") == request_id and "method" not in message:
-                if error := message.get("error"):
-                    raise RuntimeError(error.get("message") or str(error))
-                return message.get("result") or {}
-            self._read(message)
-        raise RuntimeError("Codex App Server observer stopped")
-
-    def _connect(self) -> None:
-        with _app_server_connect(self.endpoint) as socket:
-            self.socket = socket
-            self._send(
-                socket,
-                "initialize",
-                0,
-                {
-                    "clientInfo": {
-                        "name": "leaf",
-                        "title": "Leaf",
-                        "version": "0",
-                    }
-                },
-            )
-            socket.send(json.dumps({"method": "initialized", "params": {}}))
-            result = self._send(
-                socket,
-                "thread/resume",
-                1,
-                {"threadId": self.thread_id, "excludeTurns": True},
-            )
-            resumed = result.get("thread", {})
-            if resumed.get("status", {}).get("type") == "active":
-                active = next(
-                    (
-                        turn["id"]
-                        for turn in reversed(resumed.get("turns", []))
-                        if turn.get("status") == "inProgress"
-                    ),
-                    "active",
-                )
-                self.events.turn_id = active
-                _set_stream_activity(self.thread_id, active, "Working in Codex")
-            self.available.set()
-            if not self.started:
-                self.started = True
-                self.ready.put(None)
-            while not self.stop_event.is_set():
-                try:
-                    raw = socket.recv(timeout=1)
-                except TimeoutError:
-                    continue
-                self._read(json.loads(raw))
-
-    def _read(self, message: dict) -> None:
-        update = self.events.read(message)
-        if update is None:
-            return
-        turn_id, detail = update
-        if detail is None:
-            _clear_stream_activity(self.thread_id)
-        else:
-            now = time.monotonic()
-            if (
-                message.get("method") in STREAM_THROTTLED_METHODS
-                and now - self.last_stream_update < STREAM_UPDATE_INTERVAL
-            ):
-                return
-            _set_stream_activity(self.thread_id, turn_id, detail)
-            self.last_stream_update = now
-
-    def _run(self) -> None:
-        failures = 0
-        while not self.stop_event.is_set():
-            try:
-                self._connect()
-                failures = 0
-            except (
-                OSError,
-                RuntimeError,
-                WebSocketException,
-                json.JSONDecodeError,
-            ) as error:
-                self.available.clear()
-                _clear_stream_activity(self.thread_id)
-                if not self.started:
-                    self.ready.put(error)
-                    return
-                failures += 1
-                if failures == 1:
-                    print(
-                        f"Codex App Server stream retry: {error}",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-                self.stop_event.wait(min(30, 2 ** min(failures, 5)))
 
 
 def _session_key(session_id: str) -> str:
@@ -628,11 +299,7 @@ def _record_receipt(epoch_path: Path, batch_index: int) -> None:
         _write_epoch(epoch_path, epoch)
 
 
-def _recover_delivery(
-    codex_path: str,
-    session_id: str,
-    app_server: str | None = None,
-) -> bool:
+def _recover_delivery(codex_path: str, session_id: str) -> bool:
     """Advance one durable queue or page-receipt transition."""
     lock = delivery_lock_path(session_id)
     lock.parent.mkdir(parents=True, exist_ok=True)
@@ -662,10 +329,7 @@ def _recover_delivery(
             queued = epoch_path, len(epoch["batches"]), _offer_epoch(epoch_path, epoch)
     if queued is not None:
         epoch_path, queued_count, prompt = queued
-        if app_server is None:
-            queue_delivery(codex_path, session_id, prompt)
-        else:
-            queue_delivery(codex_path, session_id, prompt, app_server)
+        queue_delivery(codex_path, session_id, prompt)
         with flocked(lock):
             epoch = read_json(epoch_path)
             if epoch is not None and epoch["queue"] == "pending":
@@ -721,18 +385,6 @@ def _locked_codex_pages(session_id: str):
             if claim and claim["id"] == session_id and claim["host"] == "codex":
                 pages.append(page)
         yield pages
-
-
-def _set_stream_activity(session_id: str, turn_id: str, detail: str) -> None:
-    with _locked_codex_pages(session_id) as pages:
-        for page in pages:
-            page.set_stream_activity(session_id, turn_id, detail)
-
-
-def _clear_stream_activity(session_id: str, turn_id: str | None = None) -> None:
-    with _locked_codex_pages(session_id) as pages:
-        for page in pages:
-            page.clear_stream_activity(session_id, turn_id)
 
 
 def _capture_pages(session_id: str, pages: list[PageTransaction]) -> None:
@@ -856,11 +508,7 @@ def finish_turn(
     return delivery + reasons
 
 
-def run_adapter(
-    codex_path: str,
-    ready_fd: int | None = None,
-    app_server: str | None = None,
-) -> int:
+def run_adapter(codex_path: str, ready_fd: int | None = None) -> int:
     """Own the session watch until every claimed page ends or transfers."""
     identity = host_identity()
     if identity is None or identity["host"] != "codex":
@@ -875,12 +523,8 @@ def run_adapter(
             "another `leaf wait` is already active; stop it before starting delivery"
         )
     leases_released = False
-    observer = None
     try:
         check_queue_command(codex_path)
-        if app_server is not None:
-            observer = AppServerObserver(app_server, identity["id"])
-            observer.start()
         if ready_fd is not None:
             os.write(ready_fd, b'{"ready":true}\n')
             os.close(ready_fd)
@@ -888,16 +532,7 @@ def run_adapter(
         failures = 0
         while True:
             try:
-                queue_server = (
-                    app_server
-                    if observer is not None and observer.available.is_set()
-                    else None
-                )
-                recovered = _recover_delivery(
-                    codex_path,
-                    identity["id"],
-                    queue_server,
-                )
+                recovered = _recover_delivery(codex_path, identity["id"])
             except (OSError, RuntimeError) as error:
                 failures += 1
                 if failures == 1:
@@ -929,10 +564,9 @@ def run_adapter(
                 with flocked(start_lock):
                     captured = False
                     reading = read_watch_pass(watch, None, deliver=capture)
-                    if captured or (reading.outcome is None and reading.live):
+                    if captured or reading.live:
                         continue
                     if _has_delivery_work(identity["id"]):
-                        time.sleep(1)
                         continue
                     watch.release()
                     lease.close()
@@ -948,18 +582,12 @@ def run_adapter(
             os.close(ready_fd)
         raise
     finally:
-        if observer is not None:
-            observer.stop()
         if not leases_released:
             watch.release()
             lease.close()
 
 
-def cmd_codex_start(
-    page_dir: Path,
-    codex_path: str | None = None,
-    app_server: str | None = None,
-) -> str:
+def cmd_codex_start(page_dir: Path, codex_path: str | None = None) -> str:
     """Claim PAGE and start one detached delivery carrier for this task."""
     identity = host_identity()
     if identity is None or identity["host"] != "codex":
@@ -968,9 +596,6 @@ def cmd_codex_start(
     if executable is None:
         raise RuntimeError("cannot find the `codex` executable on PATH")
     session_id = identity["id"]
-    app_server = app_server or os.environ.get(APP_SERVER_ENV)
-    if app_server is not None:
-        check_app_server_endpoint(app_server)
     transition = take_page_claim(page_dir)
     launch_lock = adapter_start_lock_path(session_id)
     launch_lock.parent.mkdir(parents=True, exist_ok=True)
@@ -981,21 +606,18 @@ def cmd_codex_start(
             read_fd, write_fd = os.pipe()
             log_path = adapter_log_path(session_id)
             with open(log_path, "ab", buffering=0) as log:
-                arguments = [
-                    sys.executable,
-                    "-m",
-                    "leaf",
-                    "codex",
-                    "run",
-                    "--codex-path",
-                    executable,
-                    "--ready-fd",
-                    str(write_fd),
-                ]
-                if app_server is not None:
-                    arguments.extend(["--app-server", app_server])
                 process = subprocess.Popen(
-                    arguments,
+                    [
+                        sys.executable,
+                        "-m",
+                        "leaf",
+                        "codex",
+                        "run",
+                        "--codex-path",
+                        executable,
+                        "--ready-fd",
+                        str(write_fd),
+                    ],
                     stdin=subprocess.DEVNULL,
                     stdout=log,
                     stderr=log,
@@ -1020,57 +642,4 @@ def cmd_codex_start(
     except BaseException:
         restore_page_claim(page_dir, transition)
         raise
-    streamed = f" with live activity from {app_server}" if app_server else ""
-    return f"Codex delivery started for task {session_id}{streamed}"
-
-
-def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
-    deadline = time.monotonic() + START_TIMEOUT
-    while time.monotonic() < deadline:
-        if path.exists():
-            return
-        if process.poll() is not None:
-            log.seek(0)
-            detail = log.read().decode(errors="replace").strip()
-            raise RuntimeError(detail or "Codex App Server exited before it was ready")
-        time.sleep(0.05)
-    raise RuntimeError("Codex App Server did not become ready")
-
-
-def _stop_process(process: subprocess.Popen) -> None:
-    if process.poll() is not None:
-        return
-    process.terminate()
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(timeout=5)
-
-
-def cmd_codex_launch(codex_path: str | None = None) -> int:
-    """Run one private App Server and its Codex terminal client."""
-    executable = codex_path or shutil.which("codex")
-    if executable is None:
-        raise RuntimeError("cannot find the `codex` executable on PATH")
-    with tempfile.TemporaryDirectory(prefix="leaf-codex-", dir="/tmp") as directory:
-        path = Path(directory) / "app-server.sock"
-        endpoint = f"unix://{path}"
-        environment = os.environ | {APP_SERVER_ENV: endpoint}
-        with tempfile.TemporaryFile() as log:
-            server = subprocess.Popen(
-                [executable, "app-server", "--listen", endpoint],
-                env=environment,
-                stdin=subprocess.DEVNULL,
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
-            try:
-                _wait_for_app_server(path, server, log)
-                return subprocess.call(
-                    [executable, "--remote", endpoint],
-                    env=environment,
-                )
-            finally:
-                _stop_process(server)
+    return f"Codex delivery started for task {session_id}"

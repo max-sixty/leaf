@@ -77,7 +77,7 @@ Options:
 
 Commands:
   ack         Acknowledge one batch, then wait for the next.
-  codex       Launch Codex and connect Leaf pages to its tasks.
+  codex       Deliver page updates to later turns of this Codex task.
   comment     Open an agent thread — on a passage, or on the page whole.
   data        Set, capture, or clear page-bound external data.
   edit        Edit one of this agent session's messages.
@@ -101,14 +101,13 @@ Commands:
             ["codex", "--help"],
             """Usage: leaf codex [OPTIONS] COMMAND [ARGS]...
 
-  Launch Codex or run Leaf's detached delivery carrier.
+  Run Leaf's detached Codex delivery carrier.
 
 Options:
   --help  Show this message and exit.
 
 Commands:
-  launch  Launch an experimental, untested streaming Codex terminal.
-  start   Keep PAGE connected after this turn ends.
+  start  Keep PAGE connected after this turn ends.
 """,
             id="codex",
         ),

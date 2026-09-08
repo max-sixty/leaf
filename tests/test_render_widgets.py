@@ -1029,9 +1029,10 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     assert markers[-1]["y"] > nav_box["y"] + nav_box["height"] * 0.68
     assert markers[4]["y"] - markers[3]["y"] > markers[3]["y"] - markers[2]["y"]
 
-    # The marker rows remain an exact scale of the document even where two nearby,
-    # two-line labels need more room than the sections they name. The labels move aside
-    # without overlapping; they do not make those short rows taller.
+    # The rows and viewport lens remain an exact scale of the document even where two
+    # nearby, two-line labels need more room than the sections they name. The labels move
+    # aside without overlapping or making those short rows taller; their markers move
+    # with them so each visible association remains direct.
     map_layout = nav.locator(".lf-toc-rows").evaluate(
         """rows => {
           const track = rows.getBoundingClientRect();
@@ -1143,6 +1144,30 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "return [r.x, r.y, r.width, r.height]; })"
     )
     assert revealed_boxes == hidden_boxes
+
+    marker_alignment = nav.locator(".lf-toc-start, li").evaluate_all(
+        """items => items.map(item => {
+          const marker = getComputedStyle(item, '::before');
+          const row = item.getBoundingClientRect();
+          const label = item.querySelector(':scope > a');
+          const labelBox = label.getBoundingClientRect();
+          const lineHeight = parseFloat(getComputedStyle(label).lineHeight);
+          return {
+            label: label.textContent.trim(),
+            shift: labelBox.top - row.top,
+            markerCenter:
+              row.top + parseFloat(marker.top) + parseFloat(marker.height) / 2,
+            labelCenter: labelBox.top + lineHeight / 2,
+          };
+        })"""
+    )
+    assert any(abs(item["shift"]) > 1 for item in marker_alignment), (
+        "the fixture packed no label away from its document-scale row"
+    )
+    assert all(
+        item["markerCenter"] == pytest.approx(item["labelCenter"], abs=1)
+        for item in marker_alignment
+    ), f"a contents marker parted from its revealed label: {marker_alignment}"
 
     # The viewport rail stays put through the whole document, including where its
     # authored sidebar has not reached the sticky edge yet and where main ends.

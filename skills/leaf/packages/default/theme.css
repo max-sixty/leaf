@@ -1293,9 +1293,9 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) { outline
  * the one reading of the route and keeps every word the map says; the open outline on
  * screen sits under the title and leaves it out. It is still navigation apparatus, so
  * weight and ink distinguish it within the same sans voice as the section labels. Their common inset then reads as one route rather than two typographic systems.
- * Depth changes only the labels' inset. Every knot stays on the same spine, and every
- * label is limited to two lines and packs around the markers without changing their
- * positions, so prose never distorts the map.
+ * Depth changes only the labels' inset. Every knot stays on the same spine and follows
+ * its collision-packed label, while the proportional rows and viewport lens retain the
+ * document scale. Labels stop at two lines, so prose never distorts that structure.
  * The open, paper, and copy forms retain the complete words.
  *
  * The one-pixel sibling target is what leaves native fragment navigation behind in a
@@ -1397,7 +1397,8 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       lf-toc ol { display: contents; }
       lf-toc .lf-toc-start::before, lf-toc li::before {
         content: ""; position: absolute; z-index: 2;
-        top: 7px; left: -1px; width: 3px; height: 3px; border-radius: 50%;
+        top: calc(7px + var(--lf-toc-label-shift, 0px));
+        left: -1px; width: 3px; height: 3px; border-radius: 50%;
         background: var(--muted);
       }
       lf-toc :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {

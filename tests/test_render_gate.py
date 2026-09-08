@@ -205,6 +205,22 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
     ), f"an async reading has to name itself, and this came back as {failures}"
 
 
+def test_the_gate_reports_a_form_field_chrome_cannot_identify(browser, serve):
+    source = LONG_PAGE.replace(
+        '<h1 id="t">Long</h1>',
+        '<h1 id="t">Long</h1><label>Search <input class="unnamed" name=""></label>',
+    )
+
+    failures = render_gate_model.render_version(browser, serve(source))
+
+    assert [failure for failure in failures if "Chrome cannot identify" in failure] == [
+        (
+            "[light] <input class='unnamed'> has neither an id nor a name, so Chrome "
+            "cannot identify the form field"
+        )
+    ]
+
+
 def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):
     """A stopped compositor cannot strand the gate inside page.evaluate."""
     runtime = (render_checks_model.PROBE_ROOT / "runtime.js").read_text()

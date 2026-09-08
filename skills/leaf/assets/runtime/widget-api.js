@@ -1,6 +1,7 @@
 /* The one helper surface behavior modules import. Every capability is reexported from
    its domain owner; owners import one another, and leaf.js only boots. */
 export { ARRANGEMENTS } from "./arrangements.js";
+export { arrangeReadingElement, registerArrangedElement } from "./reading-layout.js";
 export { itemWord, navigateToDatum } from "./anchors.js";
 export { shownBand, shownBox, shownParts } from "./geometry.js";
 export { inUi, uiInside } from "./shadow.js";
@@ -22,11 +23,32 @@ export {
 export { loadMarkdown, renderMarkdown } from "./markdown.js";
 export { scrollerFor } from "./navigation.js";
 export { pageScroller } from "./scrolling.js";
+export {
+  compoundReadingRegionId,
+  effectiveScroller,
+  readingAllocation,
+  readingPosture,
+  readingRegion,
+  readingRegionFor,
+  readingRegions,
+  registerArrangement,
+  registerReadingRegion,
+  shownRegionBounds,
+  watchReadingRegionTransitions,
+} from "./reading-regions.js";
 export { announce, notice } from "./notifications.js";
 export { actionAvailable, actionStands, sendAction } from "./outbox.js";
 export { requestAvailable, sendRequest, watchRequestLifecycle } from "./requests.js";
 export { alignText, alignedNodes } from "./text-alignment.js";
-export { inChrome, renderRetired, says, textNodesUnder, wrote } from "./passages.js";
+export {
+  inChrome,
+  quoteFrom,
+  renderRetired,
+  says,
+  textNodesUnder,
+  verbatimBoundaryIdentity,
+  wrote,
+} from "./passages.js";
 export { ago, clocked, clockValue, quietSince } from "./presence.js";
 export { shallowSigs, undoableAction, withdraw } from "./projection.js";
 export { standingState } from "./projection/fold.js";

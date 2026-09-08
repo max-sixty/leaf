@@ -16,7 +16,9 @@
  * second event history authoritative. */
 import {
   actionAvailable,
+  arrangeReadingElement,
   commands,
+  compoundReadingRegionId,
   failSoft,
   keeps,
   layoutChanged,
@@ -26,6 +28,7 @@ import {
   once,
   paintKeys,
   quoted,
+  registerArrangedElement,
   reserve,
   says,
   sendAction,
@@ -59,9 +62,11 @@ customElements.define(
     #projected = undefined;
     #ready = false;
     #interactive = false;
+    #arrangements = [];
 
     connectedCallback() {
       if (!once(this)) {
+        if (this.#interactive && this.#ready) this.#registerLayout();
         this.#paintAvailability();
         return;
       }
@@ -69,8 +74,13 @@ customElements.define(
         this.#build();
         this.#ready = true;
       } catch (error) {
+        this.#cleanupLayout();
         failSoft(this, error);
       }
+    }
+
+    disconnectedCallback() {
+      this.#cleanupLayout();
     }
 
     get values() {
@@ -109,9 +119,9 @@ customElements.define(
         panel.setAttribute("role", "group");
         panel.setAttribute("aria-labelledby", panelTitle.id);
         panel.append(panelTitle, ...this.#controls);
-        this.prepend(panel);
+        let presetBar = null;
         if (presets.length) {
-          const presetBar = offer("div", "lf-playground-presets");
+          presetBar = offer("div", "lf-playground-presets");
           const presetTitle = offer(
             "span",
             "lf-playground-presets-title",
@@ -121,12 +131,12 @@ customElements.define(
           presetBar.setAttribute("role", "group");
           presetBar.setAttribute("aria-labelledby", presetTitle.id);
           presetBar.append(presetTitle, ...presets);
-          this.prepend(presetBar);
         }
 
         for (const control of this.#controls) this.#buildControl(control);
         for (const preset of presets) this.#buildPreset(preset);
-        this.#buildActions();
+        const actions = this.#buildActions();
+        this.#buildLayout({ panel, presetBar, preview: previews[0], actions });
       }
 
       const stored = this.#storedValues();
@@ -245,8 +255,7 @@ customElements.define(
         group.setAttribute("role", "radiogroup");
         group.setAttribute("aria-label", label);
         for (const choice of own(control, "lf-playground-choice")) {
-          const input = offer("input", "lf-playground-input");
-          input.type = "radio";
+          const input = offer("input", "lf-playground-input", undefined, "radio");
           input.name = `${this.id}-${name}`;
           input.value = choice.getAttribute("value");
           input.setAttribute("aria-label", choice.getAttribute("label"));
@@ -266,14 +275,17 @@ customElements.define(
         return;
       }
 
-      const input = offer("input", "lf-playground-input");
+      const input = offer(
+        "input",
+        "lf-playground-input",
+        undefined,
+        kind === "toggle" ? "checkbox" : kind,
+      );
       input.name = `${this.id}-${name}`;
       input.setAttribute("aria-label", label);
       if (kind === "toggle") {
-        input.type = "checkbox";
         input.addEventListener("change", () => this.#takeInputs());
       } else {
-        input.type = kind;
         for (const attr of ["min", "max", "step", "placeholder"])
           if (control.hasAttribute(attr))
             input.setAttribute(attr, control.getAttribute(attr));
@@ -334,7 +346,7 @@ customElements.define(
     }
 
     #buildActions() {
-      const actions = offer("div", "lf-playground-actions");
+      const actions = offer("footer", "lf-playground-actions");
       this.#reset = offer("button", "lf-btn lf-playground-reset", "Reset");
       this.#copy = offer("button", "lf-btn lf-playground-copy", "Copy instruction");
       this.#submit = offer(
@@ -346,8 +358,104 @@ customElements.define(
       this.#copy.addEventListener("click", () => this.#copyInstruction());
       this.#submit.addEventListener("click", () => this.#choose());
       actions.append(this.#reset, this.#copy, this.#submit);
-      this.append(actions);
       measure(this.#copy, () => reserve(this.#copy, ["Copy instruction", "Copied"]));
+      return actions;
+    }
+
+    #buildLayout({ panel, presetBar, preview, actions }) {
+      const controlsHost = document.createElement("div");
+      controlsHost.className = "lf-playground-controls-region";
+      controlsHost.setAttribute("role", "region");
+      controlsHost.setAttribute("aria-label", "Controls");
+      controlsHost.append(...[presetBar, panel].filter(Boolean));
+      const controlsId = compoundReadingRegionId(this, "controls");
+      const controls = arrangeReadingElement({
+        owner: controlsHost,
+        kind: "pane",
+        regions: [{ id: controlsId, host: controlsHost }],
+      });
+
+      const previewHost = document.createElement("div");
+      previewHost.className = "lf-playground-preview-region";
+      previewHost.setAttribute("role", "region");
+      previewHost.setAttribute("aria-label", "Preview");
+      previewHost.append(preview, this.#output);
+      const previewId = compoundReadingRegionId(this, "preview");
+      const previewRegion = arrangeReadingElement({
+        owner: previewHost,
+        kind: "pane",
+        regions: [{ id: previewId, host: previewHost }],
+      });
+
+      const split = document.createElement("div");
+      split.className = "lf-playground-split";
+      split.dataset.lfDirection = "columns";
+      split.append(controlsHost, previewHost);
+      const splitRegion = arrangeReadingElement({ owner: split, kind: "split" });
+
+      this.append(split, actions);
+      const workspace = arrangeReadingElement({
+        owner: this,
+        kind: "workspace",
+        footer: actions,
+      });
+      this.#arrangements = [
+        controls.arrangement,
+        previewRegion.arrangement,
+        splitRegion.arrangement,
+        workspace.arrangement,
+      ];
+    }
+
+    #registerLayout() {
+      const workspaceContent = this.querySelector(":scope > .lf-workspace-content");
+      const split = workspaceContent?.querySelector(":scope > .lf-playground-split");
+      const splitContent = split?.querySelector(":scope > .lf-split-content");
+      const controlsHost = splitContent?.querySelector(
+        ":scope > .lf-playground-controls-region",
+      );
+      const previewHost = splitContent?.querySelector(
+        ":scope > .lf-playground-preview-region",
+      );
+      if (!workspaceContent || !split || !splitContent || !controlsHost || !previewHost)
+        throw new Error("lost its arranged regions");
+      const controlsBody = controlsHost.querySelector(
+        ":scope > .lf-pane-content > .lf-pane-body",
+      );
+      const previewBody = previewHost.querySelector(
+        ":scope > .lf-pane-content > .lf-pane-body",
+      );
+      this.#arrangements = [
+        registerArrangedElement({
+          owner: controlsHost,
+          content: controlsHost.querySelector(":scope > .lf-pane-content"),
+          body: controlsBody,
+          regions: [
+            {
+              id: compoundReadingRegionId(this, "controls"),
+              host: controlsHost,
+            },
+          ],
+        }),
+        registerArrangedElement({
+          owner: previewHost,
+          content: previewHost.querySelector(":scope > .lf-pane-content"),
+          body: previewBody,
+          regions: [
+            {
+              id: compoundReadingRegionId(this, "preview"),
+              host: previewHost,
+            },
+          ],
+        }),
+        registerArrangedElement({ owner: split, content: splitContent }),
+        registerArrangedElement({ owner: this, content: workspaceContent }),
+      ];
+    }
+
+    #cleanupLayout() {
+      for (const arrangement of this.#arrangements) arrangement.cleanup();
+      this.#arrangements = [];
     }
 
     #commands() {

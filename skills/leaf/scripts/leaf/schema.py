@@ -419,6 +419,7 @@ EXTENSION_SCHEMA = {
         "x-guidance": GUIDANCE_SCHEMA,
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,
+        "x-layout": {"enum": ["workspace", "pane", "split"]},
         # Attributes holding 1-based line references into the nearest data body —
         # the element's own <pre>, or its holder's (lf-note's `at` names a line of
         # its lf-code). `version check` refuses one outside the body (line_ref_errors).

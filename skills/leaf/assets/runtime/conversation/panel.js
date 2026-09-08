@@ -20,6 +20,7 @@ import { landTyping, mayLandTyping } from "../composing/capture.js";
 import { wireInput } from "../composing/input.js";
 import { showThread } from "./landing.js";
 import { paintDrawings, validDrawing } from "../composing/drawing.js";
+import { registerArrangement } from "../reading-regions.js";
 
 export const panel = el("dialog", "lf-ui lf-panel");
 panel.id = "lf-threads";
@@ -82,6 +83,17 @@ generalRow.append(generalInput, generalSend);
 export const panelFoot = el("div", "lf-panel-foot");
 panelFoot.append(generalRow);
 panel.append(panelHead, findRow, threadsBox, panelFoot);
+
+let readingArrangement = null;
+export function mountPanelReadingRegion() {
+  if (readingArrangement) return;
+  readingArrangement = registerArrangement({
+    owner: panel,
+    content: panel,
+    regions: [{ id: "lf-threads", host: panel, body: threadsBox }],
+  });
+  void readingArrangement.setPosture("bounded");
+}
 
 closeBtn.onclick = () => setPanel(false);
 

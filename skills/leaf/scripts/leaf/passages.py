@@ -20,10 +20,10 @@ from .structure import VOID_TAGS, implicit_closes
 #
 #   x-says      attribute values the reader sees. renderSaid puts them in the DOM, so
 #               they go in here too, at the edge the registry names.
-#   x-verbatim  an upgraded element whose body reaches the reader as its own words
-#               (lf-draft renders the authored text into a plain div, deliberately
-#               unmarked so anchoring can see it). Without it, an upgraded element is
-#               opaque: a diagram body is a picture by the time it is read.
+#   x-verbatim  an upgraded element that preserves its own words around nested upgraded
+#               widget boundaries. Those descendants keep their own declarations;
+#               without this key the whole upgraded element is opaque, as a diagram's
+#               notation is once its module has drawn a picture.
 #   x-retired-when  the outcome under which this element leaves the page: a decided
 #               suggestion's losing slot. The browser builds its anchor pass's skip
 #               list from this key too (`quotable` in leaf.js), so a reading given
@@ -73,6 +73,49 @@ def collapse(text: str) -> str:
     """One space per whitespace run, none at the edges — the reading every quote and
     facet comparison uses, the browser's quoteFrom in Python."""
     return COLLAPSE.sub(" ", text).strip(" ")
+
+
+class _OwnedWords:
+    """One verbatim owner's words with upgraded descendants reduced to boundaries."""
+
+    def __init__(self, owner: str):
+        self.owner = owner
+        self.text = ""
+        self.block = None
+        self.space = False
+        self.boundaries = 0
+        self.parts = []
+
+    def write(self, data: str, block: int) -> None:
+        if self.text and block != self.block:
+            self.space = True
+        self.block = block
+        for ch in data:
+            if ch in COLLAPSE_CHARS:
+                self.space = bool(self.text)
+                continue
+            if self.space:
+                self.text += " "
+                self.space = False
+            self.text += ch
+
+    def boundary(self, tag: str, element_id: str | None) -> None:
+        self.flush()
+        self.parts.append(
+            {"boundary": [self.owner, self.boundaries, tag, element_id or None]}
+        )
+        self.boundaries += 1
+
+    def flush(self) -> None:
+        if words := self.text.strip(" "):
+            self.parts.append({"text": words})
+        self.text = ""
+        self.block = None
+        self.space = False
+
+    def reading(self) -> list:
+        self.flush()
+        return self.parts
 
 
 # What a text node's "block" resolves to: one space goes wherever two runs of text sit in
@@ -144,6 +187,7 @@ class _PassageParser(HTMLParser):
         # `spoken`). Written for every id the markup carries, since a widget's
         # detail may name one the page holds outside the vocabulary.
         self.enclosing = {}
+        self.verbatim = {}
         self.bearing = (
             set()
         )  # ids still showing something: text under them, or a surviving child
@@ -173,6 +217,12 @@ class _PassageParser(HTMLParser):
                 self._space = False
             self.text += ch
             self.owner.append(ids)
+        for frame in reversed(self.stack):
+            if frame["verbatim"]:
+                self.verbatim[frame["id"]].write(data, block)
+                break
+            if frame["upgrade"]:
+                break
 
     def _fence(self) -> None:
         """Words may stand here that this reading knows nothing about. Recorded as a
@@ -202,7 +252,9 @@ class _PassageParser(HTMLParser):
                 self.handle_endtag(child["tag"])
             self.stack.pop()
         if not frame["skip"]:
+            self.stack.append(frame)
             self._said(frame, frame["tail"])
+            self.stack.pop()
         if frame["fenced"]:
             self._fence()
         # A decided element closing with nothing shown left the page with its decision:
@@ -239,8 +291,16 @@ class _PassageParser(HTMLParser):
             if tag in TEXT_BLOCK_TAGS
             else (parent["tb"] if parent else None)
         )
-        # A module may write anywhere inside the element it upgrades, unless the registry
-        # says the body reaches the reader as its own words.
+        block = tb if tb else self._fresh()
+        if entry.get("x-upgrade"):
+            for ancestor in reversed(self.stack):
+                if ancestor["verbatim"]:
+                    self.verbatim[ancestor["id"]].boundary(tag, attrs_d.get("id"))
+                    break
+                if ancestor["upgrade"]:
+                    break
+        # An upgrade is opaque unless it preserves its own words and ordered nested
+        # upgraded boundaries. Descendants keep their own contracts.
         opaque = bool(entry.get("x-upgrade") and not entry.get("x-verbatim"))
         # A slot a decision retired: its words left the page with the outcome the
         # registry names, and everything under it goes too. Looked up by the parent's
@@ -301,14 +361,18 @@ class _PassageParser(HTMLParser):
             "sub": sub,
             "retired_by": retired_by,
             "opaque": opaque,
+            "upgrade": bool(entry.get("x-upgrade")),
+            "verbatim": bool(entry.get("x-verbatim") and attrs_d.get("id")),
             "fenced": opaque or bool(parent and parent["opaque"]),
             "tb": tb,
             # …and where there is none, the element is its own text node's parent, which
             # is what the runtime falls back to. Fresh per element, so `a<em>b</em>c`
             # under a <div> reads as three blocks and under a <p> as one.
-            "block": tb if tb else self._fresh(),
+            "block": block,
             "tail": [],
         }
+        if frame["verbatim"]:
+            self.verbatim[frame["id"]] = _OwnedWords(frame["id"])
         # Each x-says value at the edge of the element's own words, in registry order,
         # which is where renderSaid puts it and where a pseudo-element stood before it.
         head = []
@@ -372,6 +436,7 @@ class Passages(NamedTuple):
     gone: dict  # decided id whose decision left it empty → the outcome that did it
     shown: dict  # id whose data body this withheld → the words a module shows there
     enclosing: dict  # id → the ids enclosing it, outermost first, itself last
+    verbatim: dict  # id → compositional words with upgraded descendants as boundaries
 
 
 def page_passages(
@@ -390,6 +455,7 @@ def page_passages(
         # Collapsed the way `text` is, so one comparison answers for both.
         {id: collapse(words) for id, words in parser.shown.items()},
         parser.enclosing,
+        {wid: reading.reading() for wid, reading in parser.verbatim.items()},
     )
 
 

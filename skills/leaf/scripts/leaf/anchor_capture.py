@@ -66,9 +66,15 @@ def capture_anchor(
         raise ValueError("--part needs --section to name its visual")
     if part and quote:
         raise ValueError("--part names a visual box; use it without --quote")
-    text, owner, fences, retired, rewritten, gone, shown, enclosing = page_passages(
-        html, registry, decided, rewrites, additions
-    )
+    passages = page_passages(html, registry, decided, rewrites, additions)
+    text = passages.text
+    owner = passages.owner
+    fences = passages.fences
+    retired = passages.retired
+    rewritten = passages.rewritten
+    gone = passages.gone
+    shown = passages.shown
+    enclosing = passages.enclosing
     if section:
         # Against the structure, not the text: an element anchor is the one a click makes
         # on a diagram or an image, and those hold no text to look for.

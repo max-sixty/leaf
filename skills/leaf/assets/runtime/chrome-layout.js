@@ -255,7 +255,10 @@ export function syncLayout() {
   // body. The container is in the flow, holds nothing but out-of-flow chrome, and is
   // watched by nobody, so what it takes is room the document has and no measurement's
   // business.
-  chromeRoot.style.paddingBottom = clear;
+  const boundedWorkspace = document.querySelector(
+    "body > main > [data-lf-root-workspace][data-lf-posture='bounded']",
+  );
+  chromeRoot.style.paddingBottom = boundedWorkspace ? "0px" : clear;
   // Flow room lets the document reach past the line; scroll padding tells native focus
   // navigation where the visible edge actually is. Keep both on the same measured band
   // so a Tab stop already inside the viewport cannot be accepted underneath the line.

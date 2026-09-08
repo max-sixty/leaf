@@ -87,7 +87,7 @@ disclosures keep supporting detail available without putting it in that path. A
 quick-answer page puts its first Ask in the initial viewport, with the short
 shared premise and alternatives it needs. A record or system page may expose the
 whole state and put each Ask where that state makes it answerable. The visible
-page follows the subject's shape rather than a report outline;
+page follows the subject's shape, whether a scrolling document or a workspace;
 `references/page-authoring.md` owns the concrete choices.
 
 A page states what is true now, not how it got there. Correct a wrong figure in

@@ -748,6 +748,8 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
+    stamp_version_file(serve.page_dir, 2, "two")
     panel_comment(serve.page_dir, "Is this ready?", author="claude")
     page, errors = open_page(browser, url)
     resized(page, 1280, 900)
@@ -874,10 +876,10 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
 
     # A control that settles its own decisions disappears while it still owns focus. Hand
     # the reader to the next standing address instead of silently dropping them on body.
-    page, errors = open_page(browser, url, pin=True)
+    page, errors = open_page(browser, url.replace("/v1.html", "/v2.html"), pin=True)
     resized(page, 1200, 900)
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
-    stamp_version_file(serve.page_dir, 2, "two")
+    (serve.page_dir / ".fixture-versions" / "v3.html").write_text(html)
+    stamp_version_file(serve.page_dir, 3, "three")
     expect(page.locator(".lf-latest-chip")).to_have_class(re.compile(r"lf-news-shown"))
     answer_all = page.locator(".lf-answer-all")
     # The blanket answer decides its decisions one at a time, so the press owes one round
@@ -1049,8 +1051,8 @@ SPELLING_SWAP = """() => {
 }"""
 
 
-def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser, serve):
-    """A developer preview's identity is an address on the row, not a bite out of the line.
+def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
+    """Developer diagnostics remain reachable without becoming permanent banner chrome.
 
     The row reserves a floor for the status sentence and folds addresses to keep it. The
     reservation used to be stated for the whole status box, so anything else standing in
@@ -1059,10 +1061,9 @@ def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser,
     the four lines it needed, while the chip beside it clipped its own name at scrollWidth
     348 in a 238px box. At 1024 the sentence had 26 pixels.
 
-    So the floor is the sentence's own room now and the chip stands with the addresses,
-    where the row's rule already holds every control to its words and folds whole what it
-    cannot hold. Both halves are asserted here: every line the banner writes fits the box
-    it is given at every wide width, and the chip keeps its words wherever it stands.
+    So the floor is the sentence's own room now and the diagnostic stands with the
+    addresses, permanently behind their shared door. Every line the banner writes still
+    fits the box it is given at every wide width.
 
     The floor is two lines of the longest of those lines and no more, measured in the face
     the row is set in rather than stated as a count of characters. Stated, it could not be
@@ -1154,14 +1155,9 @@ def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser,
         assert not standing["inStatus"], (
             f"at {width} the preview chip stood inside the status box: {standing}"
         )
-        assert standing["folded"] or standing["onRow"], (
-            f"at {width} the preview chip was neither on the row nor behind the door: "
-            f"{standing}"
+        assert standing["folded"] and not standing["onRow"], (
+            f"at {width} preview diagnostics left the banner overflow: {standing}"
         )
-        if standing["onRow"]:
-            assert standing["shown"] >= standing["needed"], (
-                f"at {width} the preview chip clipped its own name: {standing}"
-            )
     # News arriving without a gesture must not move a chrome control, and a checkout going
     # dirty is that news: the chip gains a `+` where it stands. The reservation is what
     # keeps the row still, and it is taken once, when the chip is first drawn — so it is a
@@ -1192,6 +1188,9 @@ def test_a_preview_chip_costs_addresses_rather_than_the_status_sentence(browser,
         assert swap["wide"] == swap["narrow"], (
             f"the preview chip changed width between its two spellings: {swap}"
         )
+    page.locator(".lf-banner-more").click()
+    expect(page.locator(".lf-banner-menu > .lf-preview")).to_be_visible()
+    page.keyboard.press("Escape")
     assert errors == []
     page.close()
 
@@ -1310,6 +1309,55 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
     page.close()
 
 
+def test_one_version_is_a_passive_label(browser, serve):
+    """A lone version orients the reader without advertising an empty choice."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    version = page.locator(".lf-version")
+    expect(version).to_be_disabled()
+    expect(version).to_have_text("v1")
+    expect(version).not_to_have_attribute("aria-haspopup", re.compile(r".+"))
+    expect(version).not_to_have_attribute("aria-expanded", re.compile(r".+"))
+    expect(page.locator(".lf-version-menu")).to_be_hidden()
+    threads = page.locator(".lf-threads-toggle")
+    expect(threads).to_have_css("border-top-color", "rgba(0, 0, 0, 0)")
+    expect(threads).to_have_css("background-color", "rgba(0, 0, 0, 0)")
+    expect(threads).to_have_css("border-bottom-left-radius", "0px")
+    expect(threads).to_have_css("border-bottom-right-radius", "0px")
+    threads.click()
+    expect(threads).to_have_attribute("aria-expanded", "true")
+    expect(threads).not_to_have_css("box-shadow", "none")
+    assert errors == []
+    page.close()
+
+
+def test_a_yielded_version_returns_when_it_becomes_a_choice(browser, serve):
+    """A quiet label hidden for room can become an active destination later."""
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    url = serve(html)
+    page, errors = open_page(browser, url)
+    version = page.locator(".lf-version")
+
+    resized(page, 320, 844)
+    expect(version).to_be_hidden()
+    expect(version).to_have_attribute("data-lf-yielded", "1")
+
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
+    stamp_version_file(serve.page_dir, 2, "two")
+    expect(version).to_be_enabled()
+    expect(version).to_have_attribute("aria-haspopup", "menu")
+    expect(version).not_to_have_attribute("data-lf-yielded", re.compile(r".+"))
+    expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
+
+    resized(page, 1200, 844)
+    expect(version).to_be_visible()
+    expect(version).not_to_have_attribute("data-lf-yielded", re.compile(r".+"))
+    assert errors == []
+    page.close()
+
+
 def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
     """An open versions menu keeps the two edges its anchor names, and no others.
 
@@ -1322,7 +1370,10 @@ def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
     the button's own box rather than against numbers, because what the anchor promises is
     a relation and not a coordinate.
     """
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    url = serve(LONG_PAGE)
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(LONG_PAGE)
+    stamp_version_file(serve.page_dir, 2, "two")
+    page, errors = open_page(browser, url)
     chooser = page.locator(".lf-version")
     expect(chooser).to_be_enabled()
     chooser.click()
@@ -1469,6 +1520,8 @@ def test_a_phone_banner_folds_its_addresses_into_one_menu(browser, serve, other_
     # The row keeps the reading loop and the door; everything else is behind it.
     expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
     expect(page.locator(".lf-banner-actions > .lf-threads-toggle")).to_be_visible()
+    expect(page.locator(".lf-banner-actions > .lf-version.lf-passive")).to_be_visible()
+    expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(0)
 
     # Every folded address, from the keyboard, through that one door. The press is the
     # popover's own invoker, so the menu opens and puts the reader on its first address
@@ -2314,36 +2367,8 @@ def test_a_runtime_cannot_adopt_a_new_registry_while_it_is_loading(browser, serv
     page.close()
 
 
-def test_a_marked_element_wears_the_same_stroke_on_every_side(browser, serve):
-    """The mark is drawn in the one band of an element nobody else paints in.
-
-    Both sides of an element's edge belong to somebody. Outside it, the mark is at
-    the mercy of whatever encloses the element — a board is a scroller, so a mark
-    drawn outside a column flush against its padding box was clipped down to the one
-    vertical line that fell in the gutter. Inside it, the mark is at the mercy of
-    what the element paints over itself: an outline is painted before positioned
-    descendants, so a choose group's cells, which are relative and carry a
-    background, wipe out whatever of it reaches past the group's own border.
-
-    Neither failure moves anything, so no geometry read finds either — and both
-    reach the reader as an uneven box rather than as a missing one, which is how
-    this arrived: 2px two pixels in came out a hairline on a group's top and sides
-    and stayed 2px along its bottom, where the last cell stops short, and what was
-    reported was that the box was thicker at the bottom than the top.
-
-    One page carries both shapes, because a fix for either alone passes half of
-    this: the group is the element that paints over its own mark, the column the
-    element something else clips.
-
-    The colour is asserted here rather than assumed by the measurement, since the
-    scans have to be told what to look for and taking that off the element makes the
-    test blind to the one thing it is measuring in.
-
-    The viewport is an odd number of pixels wide so that the horizontal scans are asked
-    a real question. The page column is centred, so an even window puts every box on a
-    whole x and both side scans then measure from exactly the padding they were handed —
-    which is the one value `mark_edges` used to assume for all four sides, so half of
-    what it now derives would never have run against a number that differed."""
+def test_a_marked_element_uses_a_visible_rail_until_keyboard_focus(browser, serve):
+    """Element comments keep one rail above child paint; focus gets a complete ring."""
     context = browser.new_context(
         viewport={"width": 1201, "height": 900},
         color_scheme="light",
@@ -2362,33 +2387,30 @@ def test_a_marked_element_wears_the_same_stroke_on_every_side(browser, serve):
             },
         )
     page, errors = open_page(browser, url, context=context)
-    expect(page.locator("#approach.lf-mark-el")).to_have_count(1)
-    expect(page.locator("#col-doing.lf-mark-el")).to_have_count(1)
-    ink = token_colour(page, "--mark-ink")
+    ink = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--mark-ink")))
     for ident in ("approach", "col-doing"):
-        # The root scrollport changes the page's reading position directly. Centre each
-        # specimen before taking the viewport-bounded pixel clip so this paint test does
-        # not depend on both fixtures happening to fit at the initial scroll position.
-        page.locator(f"#{ident}").evaluate(
-            "node => node.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'})"
+        target = page.locator(f"#{ident}")
+        expect(target).to_have_class(re.compile(r"\blf-mark-el\b"))
+        target.evaluate(
+            "node => node.scrollIntoView({block: 'center', inline: 'nearest', "
+            "behavior: 'instant'})"
         )
-        painted = page.evaluate(
-            "(id) => getComputedStyle(document.getElementById(id)).outlineColor", ident
+        edges = mark_edges(page, ident, ink)
+        assert edges["left"] == {4}, f"the rail on #{ident} was covered: {edges}"
+        assert all(edges[side] == {0} for side in ("top", "right", "bottom")), (
+            f"the rail on #{ident} became a repeated border: {edges}"
         )
-        assert painted == ink, (
-            f"the mark on #{ident} is painted {painted}, not the comment layer's own "
-            f"--mark-ink ({ink})"
-        )
-        edges = mark_edges(page, ident, tuple(int(n) for n in re.findall(r"\d+", ink)))
-        widths = {side: sorted(seen) for side, seen in edges.items()}
-        assert all(len(seen) == 1 for seen in edges.values()), (
-            f"the mark on #{ident} changes width along a side: {widths}"
-        )
-        stroke = {next(iter(seen)) for seen in edges.values()}
-        assert 0 not in stroke, f"the mark on #{ident} is missing from a side: {widths}"
-        assert len(stroke) == 1, (
-            f"the mark on #{ident} is not the same stroke on every side: {widths}"
-        )
+
+    target = page.locator("#approach")
+    target.evaluate("node => { node.tabIndex = 0; node.focus(); }")
+    expect(page.locator('.lf-visual-mark[data-for="approach"]')).to_have_class(
+        re.compile(r"\blf-visual-mark-focus\b")
+    )
+    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
+    focused = mark_edges(page, "approach", accent)
+    assert all(seen == {4} for seen in focused.values()), (
+        f"keyboard focus did not restore a complete ring: {focused}"
+    )
     assert errors == []
     page.close()
     context.close()
@@ -2614,6 +2636,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     expect(self_row.locator(".lf-others-title")).to_have_text("long")
     link = others_panel.locator("a.lf-others-row")
     expect(link.locator(".lf-others-title")).to_have_text("The other leaf")
+    expect(link.locator(":scope > .lf-external-mark")).to_be_hidden()
     # The fixture's page claims working with a fresh ts and nothing contradicts it,
     # so the row says so — dot and words both the banner's own vocabulary.
     expect(link.locator(".lf-others-line")).to_have_text("Working — running the suite")
@@ -2676,7 +2699,10 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
         "<title>long</title>",
         '<title>long</title><meta name="lf-review" content="sign-off">',
     )
-    page, errors = open_page(browser, serve(html))
+    url = serve(html)
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
+    stamp_version_file(serve.page_dir, 2, "two")
+    page, errors = open_page(browser, url)
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
     expect(page.locator(".lf-signoff")).to_be_visible()
 
@@ -3151,7 +3177,7 @@ def test_workspaces_replace_each_other_and_name_the_open_one(
         )
 
     active = [
-        token_colour(page, "--accent"),
+        "rgba(0, 0, 0, 0)",
         token_colour(page, "--accent"),
         token_colour(page, "--chip"),
     ]
@@ -3470,7 +3496,10 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     Each surface is opened by its own key, which is also the assertion that it can be, and
     each is proved standing before axe reads it — a sweep over a surface that never opened
     is a green that means nothing, which is the shape `tests/CLAUDE.md` names."""
-    page, errors = open_page(browser, serve(ADDRESSED_PAGE, comments=1))
+    url = serve(ADDRESSED_PAGE, comments=1)
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(ADDRESSED_PAGE)
+    stamp_version_file(serve.page_dir, 2, "two")
+    page, errors = open_page(browser, url)
     resized(page, width, 900)
     page.emulate_media(color_scheme=color_scheme)
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
@@ -4186,24 +4215,12 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     page.close()
 
 
-def test_the_ring_reading_tells_a_ring_from_the_layers_other_outline(browser, serve):
-    """The reading sweeps for boxes painting the ring, so it has to know one on sight.
+def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve):
+    """The reading ignores element rails and still recognizes the real focus ring.
 
-    Style and width do not say. A mark under the pointer takes the ring's own width while
-    keeping the mark's hue. A sweep asking style and width alone claims it and then
-    reports the page painting a ring no rule named — a complaint with no answer, since
-    naming it puts the mark in a population the keyboard can never light.
-
-    Nothing in the corpus paints one during the walk today, so the walk
-    going green says nothing about this. What it turns on is which example is written
-    next and where the walk last left the pointer, and neither is a decision anybody
-    would make knowing it decided this.
-
-    The colour is what separates them, and it has to be resolved on both sides: a custom
-    property serializes as it was written, `outline-color` as it resolved, and a package
-    writing `color-mix()` for its accent once left every rule in the layer uncredited.
-
-    The real ring goes last, as the control: without it a reading that claimed nothing at
+    A marked passage uses a rail rather than an outline, so it must not enter the
+    population of complete keyboard rings. The real ring goes last as the control;
+    without it a reading that claimed nothing at
     all would pass the case above and prove only that it was silent."""
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
     url = serve(example, comments=2, seed_log=False)
@@ -4242,22 +4259,16 @@ def test_the_ring_reading_tells_a_ring_from_the_layers_other_outline(browser, se
         "here and would pass this test however it behaved"
     )
 
-    for how in ("mark",):
-        style, width, colour = page.evaluate(plant, how)
-        # Non-vacuity: the lookalike has to actually be painted, at the ring's own
-        # weight, or the reading was never given the chance to mistake it for one.
-        assert (style, width) == ("solid", "2px"), (
-            f"{how} drew {style} {width}, not the 2px solid this is written against, so "
-            "the reading was never offered anything to confuse with a ring"
-        )
-        assert not claimed(), (
-            f"the reading counted {how} ({colour}) as a here ring: {claimed()}"
-        )
+    style, _width, colour = page.evaluate(plant, "mark")
+    assert style == "none", "mark unexpectedly drew a complete outline"
+    assert not claimed(), (
+        f"the reading counted the mark ({colour}) as a here ring: {claimed()}"
+    )
 
-    style, width, colour = page.evaluate(plant, "the ring itself")
+    _style, _width, colour = page.evaluate(plant, "the ring itself")
     assert claimed(), (
         f"a box wearing the layer's own ring ({colour}) was not counted, so the three "
-        "case above proves only that this reading is silent"
+        "cases above prove only that this reading is silent"
     )
 
     assert errors == []
@@ -4891,7 +4902,7 @@ RING_NEW_STOP = f"""async () => {{
 # A stop the reader cannot find, or null when they can. The walk stands on every control
 # a page has; this asks, at each one, whether anything on screen says so.
 #
-# Four answers count, because the layer leaves "here" drawn in four ways and every one of
+# Three answers count, because the layer leaves "here" drawn in three ways and every one of
 # them is the reader seeing the same thing.
 #
 # The platform's own ring (`outline-style: auto`) is the first and the commonest. Leaf
@@ -4914,19 +4925,11 @@ RING_NEW_STOP = f"""async () => {{
 # report, and the walk makes no gesture — so nothing here is being excused today. A
 # reading of the wash has to come with the corpus case that shows it.
 #
-# `.lf-mark-here` is a smaller one of the same kind: it paints the accent ring on a box a
-# standing thread is anchored to, with no focus of its own, so a stop inside such a box
-# is credited to it. Today the corpus anchors one element comment, to a diagram, which
-# has nothing focusable inside it.
+# A marked element now answers the keyboard with the same named accent ring as any other
+# focusable passage. Its resting rail and stronger hover wash are background layers, so
+# neither can be mistaken for focus.
 #
-# The mark's own ink is the third. A box carrying an element comment already wears a
-# hairline in --mark-ink, and the layer ranks its states in that one property: 1px
-# posted, 2px indicated, 2px accent stood in. Focus indicates, so a marked box answers
-# the keyboard at the indicated weight in its own ink. Width is what keeps this from
-# passing everything: a mark that is merely posted is a hairline, and a hairline is not
-# an answer to where the keyboard is.
-#
-# The band cast as a shadow is the fourth. The anchored response bar draws it that way —
+# The band cast as a shadow is the third. The anchored response bar draws it that way —
 # its focused states take the outline off so the field and its choices keep one
 # silhouette — and to a reader that is the same ring. It is the sweep's own reading
 # (HERE_SHADOW), so the two halves of this file agree on what an accent shadow ring is
@@ -4944,21 +4947,20 @@ RING_NEW_STOP = f"""async () => {{
 SEEN_STOP = f"""() => {{
   const e = ({DEEP_FOCUS})();
   if (!e) return null;
-  const {{ accent, mixed, markInk }} = ({ACCENT_SWATCH})();
+  const {{ accent, mixed }} = ({ACCENT_SWATCH})();
   const shown = (el) => {{
     const cs = getComputedStyle(el);
     if (cs.outlineStyle === 'auto') return true;
     return cs.outlineStyle === 'solid'
       && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
-      && (cs.outlineColor === accent || cs.outlineColor === markInk);
+      && cs.outlineColor === accent;
   }};
   // An ancestor answers only for a ring whose rule named it. Every ancestor on this
   // chain contains the focus by construction, so containing it says nothing; what
   // separates a ring drawn because the reader is here from one drawn for another
   // reason is that the layer's focus rules say which ring they are and the pointer's
-  // do not. `.lf-mark-hover` is the case: a resting mouse over a marked box paints the
-  // indicated weight in the mark's own ink, and unnamed it no longer answers the
-  // keyboard's question for every stop underneath it.
+  // do not. An element mark's rail and hover wash are the case: neither is a named
+  // outline, so neither answers the keyboard's question for every stop underneath it.
   const named = (el) =>
     getComputedStyle(el).getPropertyValue('--lf-here-ring').trim() !== 'none';
   if (shown(e)) return null;
@@ -5124,6 +5126,13 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             browser,
             url.replace(f"/v{current_version}.html", f"/v{next_version}.html"),
         )
+        if name == "release-notes":
+            # Ordinary element marks use a quiet rail at rest and a full ring only
+            # when the marked element itself receives keyboard focus. Give that
+            # conditional state a real stop in the causal walk.
+            page.locator("main p").first.evaluate(
+                "node => { node.classList.add('lf-mark-el'); node.tabIndex = 0; }"
+            )
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         # Opened, not pressed for a decision: a settled group's disclosure is this

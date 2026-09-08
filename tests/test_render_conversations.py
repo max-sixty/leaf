@@ -809,6 +809,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_in_its_corner(
                             '.lf-panel-head [aria-label="Close threads"]')).borderTopWidth,
                           resolveBorder: getComputedStyle(thread.querySelector(
                             '.lf-resolve'), '::before').borderTopWidth,
+                          sendBorder: getComputedStyle(thread.querySelector(
+                            '.lf-thread-send'), '::before').borderTopWidth,
                           radii: {
                             send: radius('.lf-thread-send'),
                             sendFill: radius('.lf-thread-send', '::before'),
@@ -838,7 +840,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_in_its_corner(
         )
         assert short["resolve"]["bottom"] <= short["quote"]["bottom"]
         assert float(short["closeBorder"][:-2]) == 0
-        assert float(short["resolveBorder"][:-2]) >= 1
+        assert float(short["resolveBorder"][:-2]) == 0
+        assert float(short["sendBorder"][:-2]) == 0
         assert set(short["radii"].values()) == {button_radius(page)}
         assert short["overflow"] == 0
 
@@ -1105,8 +1108,16 @@ def test_a_run_of_threads_says_which_part_of_the_page_it_is_about(browser, serve
     heading reached through page navigation belongs."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
-    for i in range(6):
+    merge_threads = [
         panel_comment(d, f"On the merge rule, {i}.", {"section": "merge-both"})
+        for i in range(6)
+    ]
+    heading_thread = panel_comment(d, "On the heading.", {"section": "h-merge"})
+    heading_quote_thread = panel_comment(
+        d,
+        "On the selected heading words.",
+        {"section": "h-merge", "quote": "The merge rule"},
+    )
     panel_comment(d, "On the lede.", {"section": "lede"})
 
     page, errors = open_page(browser, url)
@@ -1115,6 +1126,23 @@ def test_a_run_of_threads_says_which_part_of_the_page_it_is_about(browser, serve
     panel_settled(page)
     heading = page.locator(".lf-group[data-group]", has_text="The merge rule")
     expect(heading).to_have_count(1)
+    expect(heading).to_have_css("text-transform", "none")
+    quote = page.locator(f'.lf-thread[data-id="{merge_threads[0]}"] .lf-quote-label')
+    expect(quote).to_contain_text("Two people editing one document")
+    expect(quote).not_to_contain_text("The merge rule")
+    gutter = quote.evaluate(
+        """label => { const quote = label.closest('.lf-quote');
+          const box = quote.getBoundingClientRect();
+          const line = parseFloat(getComputedStyle(quote).borderInlineStartWidth);
+          return label.getBoundingClientRect().left - box.left - line; }"""
+    )
+    assert gutter >= 10, f"the quote rail leaves only {gutter}px before its text"
+    expect(
+        page.locator(f'.lf-thread[data-id="{heading_thread}"] .lf-quote-label')
+    ).to_have_count(0)
+    expect(
+        page.locator(f'.lf-thread[data-id="{heading_quote_thread}"] .lf-quote-label')
+    ).to_have_count(0)
 
     # Scroll the run's own threads up past the top of the list, and the heading is still
     # there — pinned at the top edge rather than gone with them. Opaque, because what it
@@ -2490,7 +2518,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-address",
         "lf-over-mark",
         "lf-mark-el",
-        "lf-shaped-mark",  # a semantic SVG mark projects its contour above the drawing
+        "lf-projected-mark",  # an element mark projects above authored paint
         "lf-mark-hover",  # the same element mark, for the one the pointer indicates
         "lf-mark-here",  # the same element mark, for the comment the reader is in
         "lf-pending",

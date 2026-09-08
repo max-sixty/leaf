@@ -3597,11 +3597,9 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
           const send = thread.querySelector('.lf-compose-submit');
           const close = preview.querySelector('.lf-margin-preview-close');
           const resolve = thread.querySelector('.lf-resolve');
-          const head = thread.querySelector('.lf-conversation-head');
           const tr = thread.getBoundingClientRect();
           const ta = textarea.getBoundingClientRect();
           const sr = send.getBoundingClientRect();
-          const hr = head.getBoundingClientRect();
           const rr = resolve.getBoundingClientRect();
           const ts = getComputedStyle(thread);
           return {
@@ -3617,7 +3615,6 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
             send: {top: sr.top, right: sr.right, bottom: sr.bottom, left: sr.left},
             closeBorder: getComputedStyle(close).borderTopWidth,
             resolveBorder: getComputedStyle(resolve, '::before').borderTopWidth,
-            head: {top: hr.top, right: hr.right, bottom: hr.bottom},
             resolve: {top: rr.top, right: rr.right, bottom: rr.bottom},
           };
         }"""
@@ -3635,14 +3632,12 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     assert geometry["send"]["top"] >= geometry["textarea"]["top"]
     assert geometry["send"]["bottom"] <= geometry["textarea"]["bottom"]
     assert float(geometry["closeBorder"][:-2]) == 0
-    assert float(geometry["resolveBorder"][:-2]) >= 1
-    assert geometry["resolve"]["top"] == pytest.approx(geometry["head"]["top"], abs=1)
+    assert float(geometry["resolveBorder"][:-2]) == 0
+    assert geometry["resolve"]["top"] >= geometry["thread"]["top"]
     assert geometry["resolve"]["right"] == pytest.approx(
-        geometry["head"]["right"], abs=1
+        geometry["thread"]["right"], abs=1
     )
-    assert geometry["resolve"]["bottom"] == pytest.approx(
-        geometry["head"]["bottom"], abs=1
-    )
+    assert geometry["resolve"]["bottom"] <= geometry["thread"]["bottom"]
     page.locator(".lf-margin-preview-close").click()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()

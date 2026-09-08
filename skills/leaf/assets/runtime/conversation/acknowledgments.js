@@ -118,7 +118,7 @@ export function paintAcknowledgmentsNow() {
           messageHead ?? view,
           receipt,
           messageHead
-            ? messageHead.querySelector(":scope > .lf-resolve")
+            ? null
             : view.querySelector(
                 ":scope > :is(.lf-compose, .lf-say, .lf-thread-actions)",
               ),

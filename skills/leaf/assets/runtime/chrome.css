@@ -1248,7 +1248,11 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      a second description of it. What .lf-going adds is the clip the fold needs and
      the outcome said in paint: the box is on its way out and may not also state
      that in metrics the fold is animating. */
-  .lf-thread, .lf-going { --lf-thread-pad: 8px; position: relative; border: 1px solid transparent; border-radius: var(--r); padding: var(--lf-thread-pad); margin-bottom: 8px; --lf-frame: 1; }
+  /* One baseline separates conversations without putting boxes back around them. */
+  .lf-thread, .lf-going { --lf-thread-pad: 8px; position: relative;
+    border: 1px solid transparent; border-block-end-color: var(--rule);
+    border-radius: var(--r); padding: var(--lf-thread-pad); margin-bottom: 8px;
+    --lf-frame: 1; }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long
      conversation one off-screen wash. The fallback keeps a custom theme without the
@@ -1286,6 +1290,17 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-quote { margin: 0 0 8px; padding: 2px 8px 2px 12px;
     border-inline-start: 3px solid var(--mark-ink); color: var(--muted);
     font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
+  /* Resolve acts on the thread, so it stands in the thread's corner beside the quoted
+     address. The quote reserves the action's band; a source-less thread gives the same
+     room to its first message head. */
+  :is(.lf-thread, .lf-going) > .lf-resolve { position: absolute;
+    inset-block-start: var(--lf-thread-pad); inset-inline-end: var(--lf-thread-pad); }
+  :is(.lf-thread, .lf-going):has(> .lf-resolve) > .lf-quote {
+    padding-inline-end: calc(max(28px, var(--aim-floor)) + 8px); }
+  :is(.lf-thread, .lf-going):not(:has(> .lf-quote)):has(> .lf-resolve)
+    > .lf-msg:first-of-type > .lf-msg-head {
+    min-height: max(28px, var(--aim-floor));
+    padding-inline-end: calc(max(28px, var(--aim-floor)) + 8px); }
   .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }
   .lf-quote:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: passage-focus;
     outline-offset: 2px; }
@@ -1310,7 +1325,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      carried 12.5px and 11.5px, a pixel apart for no reason either could give, and the
      11.5 was --t-6 written out. */
   .lf-msg-head { display: flex; gap: 6px; align-items: baseline; font-size: var(--t-6); }
-  .lf-msg-head:has(> .lf-resolve) { align-items: center; }
   .lf-msg.claude .lf-msg-head b { color: var(--accent); }
   .lf-msg time { color: var(--muted-2); }
   .lf-msg-head .lf-edited { color: var(--muted-2); }
@@ -1476,13 +1490,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-react[aria-busy="true"] { opacity: .55; }
   /* A reply with no feedback keeps no row. Its add control sits over the unused
      top-right corner and appears only for the message under pointer or keyboard focus.
-     Opening it temporarily gives the popover a row; at rest only feedback already left
-     earns flow space. Beside Resolve, its resting gap also reserves Resolve's focus
-     ring so the later-painted reaction control cannot cover that indication. */
+     The picker is an overlaid menu below that control; opening it never moves this
+     message or the conversations after it. At rest only feedback already left earns
+     flow space. */
   .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
     margin-top: 0; }
   .lf-react-strip:has(.lf-react[aria-pressed="true"]) { margin-top: 4px; }
-  .lf-react-strip.lf-react-open { position: relative; min-height: 36px; margin-top: 4px; }
   .lf-react-strip > .lf-react-trigger {
     appearance: none; position: absolute; z-index: 2;
     inset-block-start: -3px; inset-inline-end: -2px;
@@ -1491,18 +1504,15 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     border: 1px solid transparent; border-radius: var(--r); background: var(--card);
     opacity: 0; cursor: pointer;
   }
-  /* Stand the trigger off the resolve control's ring, not off its box. The trigger is
-     painted above the head and turns opaque while the message is focus-within, which is
-     exactly when the resolve control beside it is wearing a ring, so 2px of clearance
-     from the box put it over the ring's outer band and cut the left edge off. The band
-     is `--here-ring-w` at the 2px offset the `.lf-btn` floor names; the 2px is the gap
-     that was already here, now measured from the ring outwards. */
-  .lf-msg.claude:has(> .lf-msg-head > .lf-resolve)
+  /* In a source-less thread the first agent message shares the top row with Resolve.
+     Stand its reaction trigger beyond Resolve's complete focus band. */
+  .lf-thread:not(:has(> .lf-quote)):has(> .lf-resolve)
+    > .lf-msg.claude:first-of-type
     > .lf-react-strip > .lf-react-trigger {
     inset-inline-end: calc(max(28px, var(--aim-floor))
       + var(--here-ring-w) + 2px + 2px);
   }
-  .lf-react-strip.lf-react-open > .lf-react-trigger { display: none; }
+  .lf-react-strip.lf-react-open > .lf-react-trigger { display: inline-flex; }
   .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
     fill: none; stroke: currentColor; stroke-width: 1.6;
     stroke-linecap: round; stroke-linejoin: round; }
@@ -1512,18 +1522,22 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   }
   .lf-msg.claude:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
   .lf-react-strip.lf-react-open > .lf-react-palette {
-    position: absolute; z-index: 3; inset-block-start: 0;
-    inset-inline-end: -2px; width: max-content; padding: 4px;
+    position: absolute; z-index: 3;
+    inset-block-start: calc(max(28px, var(--aim-floor)) + 2px);
+    inset-inline-end: -2px; width: max-content; max-width: calc(100% + 4px);
+    padding: 4px;
     border: 1px solid var(--border-2); border-radius: var(--r);
     background: var(--card); box-shadow: 0 4px 12px var(--shade);
   }
+  .lf-react-strip.lf-react-open > .lf-react-palette > .lf-react {
+    box-sizing: border-box; inline-size: 32px; block-size: 32px; padding: 0;
+    border-color: transparent; background: transparent; font-size: 16px; }
   @media (hover: none) {
     .lf-react-strip > .lf-react-trigger { opacity: 1; }
   }
   .lf-react-palette > .lf-react:not(.lf-margin-element, [aria-pressed="true"]) { border-color: transparent;
     background: transparent; color: var(--muted); }
-  .lf-react-palette > .lf-react:not(.lf-margin-element, [aria-pressed="true"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-busy="true"]),
-  .lf-react-open .lf-react-palette > .lf-react:not(.lf-margin-element, [aria-pressed="true"]) {
+  .lf-react-palette > .lf-react:not(.lf-margin-element, [aria-pressed="true"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-busy="true"]) {
     border-color: var(--border-2); background: var(--chip); color: var(--ink-2); }
   .lf-fab-bar .lf-react-palette > .lf-response-action:not([aria-pressed="true"]) {
     background: var(--card); }

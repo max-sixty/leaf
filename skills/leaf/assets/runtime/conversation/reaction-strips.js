@@ -16,9 +16,9 @@ import { reactDone, removeNode } from "./reconcile.js";
    `paintReactStrips` puts one reaction surface on each agent message and marks the
    latest one `lf-open`, which makes it the thread's `r` target. A message reveals its
    overlaid add-reaction affordance on hover or keyboard focus. A closed surface shows
-   only standing emoji; opening it replaces the trigger with the complete list. A token
-   press closes the list and
-   returns focus to the trigger; any standing mark remains visible as its own eraser. */
+   only standing emoji; opening it floats the complete list below the trigger. A token
+   press closes the list and returns focus to the trigger; any standing mark remains
+   visible as its own eraser. */
 // The strip on each agent message keeps the reader's standing marks visible and offers
 // one overlaid trigger when that message is under the pointer or keyboard focus. A list
 // opens only on the surface the reader chose.

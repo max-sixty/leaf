@@ -7,7 +7,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urlencode, urljoin, urlsplit
 
 from leaf.render_gate.browser import launch_browser
 from playwright.sync_api import sync_playwright
@@ -25,6 +25,24 @@ PAGES = (
 def check(condition: bool, message: str) -> None:
     if not condition:
         raise RuntimeError(message)
+
+
+def activation_url(page_url: str, state: dict) -> str:
+    """The private read that moves one reader off the edge and onto a container.
+
+    A passive reader's `/api/state` is answered by the edge, so activation has to
+    name a route the canonical server owns, carrying the parameters that route
+    requires. This is the projection a tab asks for when it travels to a revision
+    it has already observed: a read the page server answers, with no write behind it.
+    """
+    events = state.get("events") or []
+    query = urlencode(
+        {
+            "revision": state["active"]["revision"],
+            "through_seq": events[-1]["seq"] if events else 0,
+        }
+    )
+    return urljoin(page_url, f"api/view?{query}")
 
 
 def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> None:
@@ -105,17 +123,23 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
         context.close()
         return
 
-    activation_url = urljoin(url, "api/data")
-    activation_response = context.request.get(activation_url, timeout=120_000)
+    state_url = urljoin(url, "api/state")
+    passive_response = context.request.get(state_url, timeout=120_000)
+    check(passive_response.ok, f"{state_url} returned {passive_response.status}")
+    check(
+        passive_response.headers.get("leaf-session") == "passive",
+        f"{state_url} left the edge before interaction",
+    )
+    activation = activation_url(url, passive_response.json())
+    activation_response = context.request.get(activation, timeout=120_000)
     check(
         activation_response.ok,
-        f"{activation_url} returned {activation_response.status}",
+        f"{activation} returned {activation_response.status}",
     )
     check(
         activation_response.headers.get("leaf-session") == "active",
-        f"{activation_url} did not activate a private container",
+        f"{activation} did not activate a private container",
     )
-    state_url = urljoin(url, "api/state")
     state_response = context.request.get(
         state_url,
         headers={"Leaf-Layer": identity["layer"], "Leaf-Release": release},

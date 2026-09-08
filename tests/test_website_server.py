@@ -23,6 +23,11 @@ _previews_spec = importlib.util.spec_from_file_location(
 )
 example_previews = importlib.util.module_from_spec(_previews_spec)
 _previews_spec.loader.exec_module(example_previews)
+_verify_spec = importlib.util.spec_from_file_location(
+    "verify_site", ROOT / "scripts" / "verify-site.py"
+)
+verify_site = importlib.util.module_from_spec(_verify_spec)
+_verify_spec.loader.exec_module(verify_site)
 
 
 def get(url: str) -> tuple[bytes, dict]:
@@ -237,6 +242,42 @@ def test_a_product_route_uses_the_same_real_page_server(
         httpd.shutdown()
         httpd.server_close()
         thread.join(timeout=2)
+
+
+def test_the_release_gate_leaves_the_edge_by_a_route_this_server_answers(
+    page_dir, tmp_path
+):
+    """The deploy gate's activating request is a projection the page server answers.
+
+    A passive reader's `/api/state` is answered by the edge, so the request that
+    moves one browser onto its own container has to name a canonical route and
+    carry what that route requires. A gate asking for anything else refuses every
+    deployment, whatever the deployment did.
+    """
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    (site / "sitenote.js").write_text("export {};")
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+
+    httpd = server_at("127.0.0.1", 0, website_server.handler_for(site))
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    page_url = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision/"
+    try:
+        state = json.loads(get(f"{page_url}api/state")[0])
+        view = json.loads(get(verify_site.activation_url(page_url, state))[0])
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+
+    revision = state["active"]["revision"]
+    assert view["browser"]["views"][str(revision)]["basis"] == {
+        "revision": revision,
+        "through_seq": state["events"][-1]["seq"] if state["events"] else 0,
+    }
 
 
 def test_an_agent_reply_is_dropped_when_a_newer_reader_turn_overtakes_it(

@@ -2289,6 +2289,15 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
         "authoredWords": True,
         "spokenWords": True,
     }
+    # A short allocation scrolls the preview and instruction as successive blocks;
+    # shrinking the preview's grid track would paint it underneath the instruction.
+    content_boxes = preview.evaluate(
+        """body => [...body.children].map(node => node.getBoundingClientRect().toJSON())"""
+    )
+    assert content_boxes[0]["bottom"] <= content_boxes[1]["top"], content_boxes
+    assert controls.evaluate("body => body.scrollWidth === body.clientWidth"), (
+        "native control margins must fit inside the allocated pane width"
+    )
     controls.evaluate("body => body.scrollTop = 80")
     assert controls.evaluate("body => body.scrollTop") > 0
     assert preview.evaluate("body => body.scrollTop") == 0

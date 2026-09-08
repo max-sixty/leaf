@@ -40,7 +40,7 @@ lf-playground
 
 .lf-playground-preview-region > .lf-pane-content > .lf-pane-body {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  align-content: start;
   gap: var(--sp-3);
 }
 
@@ -78,6 +78,7 @@ lf-playground-control > input[type="range"] {
   box-sizing: border-box;
   grid-column: 1 / -1;
   width: 100%;
+  margin: 0;
   accent-color: var(--accent);
 }
 

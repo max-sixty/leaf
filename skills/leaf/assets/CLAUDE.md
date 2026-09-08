@@ -501,8 +501,9 @@ During startup, generated interface first appears in its settled upgrade positio
 authored and tab-local state. An asynchronous producer joins the applicable widget, data,
 or page-interface settlement before `data-lf-upgraded` releases that interface. Apparatus
 that also depends on authoritative replay takes one synchronous reading on `PRESENTATION`,
-then uses `ResizeObserver` or the shared layout signal for later changes. Provisional
-defaults may reserve space, but they do not paint.
+then uses `ResizeObserver` or the shared layout signal for later changes. An asynchronous
+producer's default may reserve space without painting; a box-derived reading taken before
+replay does paint, and `PRESENTATION` replaces it.
 
 Control state is paint: ink, fill, border, or an inset ring. Do not express it by
 changing font weight, size, padding, border width, or another metric. Reserve

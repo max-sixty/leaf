@@ -2652,11 +2652,13 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_receipt).to_have_count(1)
     expect(other_receipt).to_have_count(1)
     expect(other_receipt).to_contain_text("✓ Sent")
-    # The move's state is metadata on the exact outgoing message rather than a
-    # full-width row of its own. Resolve remains the thread-level action.
+    # The move's state is metadata on the exact outgoing message, immediately before
+    # Resolve's auto margin rather than a full-width row of its own.
     expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
-    assert held_receipt.evaluate("node => node.parentElement.matches('.lf-msg-head')")
-    expect(held_thread.locator(":scope > .lf-resolve")).to_have_count(1)
+    assert held_receipt.evaluate(
+        "node => node.parentElement.matches('.lf-msg-head') "
+        "&& node.nextElementSibling.matches('.lf-resolve')"
+    )
 
     # A later claim about the page as a whole is not an answer to the thread, so the
     # line stands: the two seats are one claim, and only one of them has been rewritten.

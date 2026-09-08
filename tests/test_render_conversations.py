@@ -2492,6 +2492,8 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-trigger",
         "lf-react-trigger-icon",
         "lf-resolve",
+        # Active buttons share the theme's existing .lf-btn.on state.
+        "on",
     }, "the authored-theme class surface changed: widen the exception on purpose"
     # Every one of these is worn by something the runtime puts inside the page rather than
     # inside its own container — or, for lf-address, on both sides of that line at once,

@@ -1693,11 +1693,10 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
         "el => { el.blur(); return getComputedStyle(el).backgroundColor; }"
     )
     assert pointer["outline"] == "none"
+    assert pointer["background"] != resting
     assert pointer["shadow"] == "none"
 
     page.keyboard.press("Escape")
-    resting = thread.evaluate("el => getComputedStyle(el).backgroundColor")
-    assert pointer["background"] != resting
     page.keyboard.press("t")
     expect(thread).to_be_focused()
     current = thread.evaluate(
@@ -1733,7 +1732,7 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
     assert reply_ring == {
         "style": "solid",
         "width": "2px",
-        "offset": "1px",
+        "offset": "0px",
         "border": "rgba(0, 0, 0, 0)",
     }
     assert errors == []

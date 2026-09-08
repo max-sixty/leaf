@@ -1492,6 +1492,8 @@ def test_a_phone_banner_folds_its_addresses_into_one_menu(browser, serve, other_
     # The row keeps the reading loop and the door; everything else is behind it.
     expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
     expect(page.locator(".lf-banner-actions > .lf-threads-toggle")).to_be_visible()
+    expect(page.locator(".lf-banner-actions > .lf-version.lf-passive")).to_be_visible()
+    expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(0)
 
     # Every folded address, from the keyboard, through that one door. The press is the
     # popover's own invoker, so the menu opens and puts the reader on its first address

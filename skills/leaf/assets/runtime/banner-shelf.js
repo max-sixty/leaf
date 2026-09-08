@@ -182,8 +182,17 @@ export function unfoldShelf() {
 // reading loop at its end.
 function foldable() {
   const run = [...bannerActions.children].filter((control) => control !== overflowBtn);
-  return run.slice(0, Math.max(0, run.length - KEPT));
+  // Passive orientation has no press to recover inside the menu and therefore stays
+  // on the row. Folding a disabled label would make visible state unreachable to a
+  // keyboard reader.
+  return run
+    .slice(0, Math.max(0, run.length - KEPT))
+    .filter((control) => !control.classList.contains("lf-passive"));
 }
+const passive = () =>
+  [...bannerActions.children].filter((control) =>
+    control.classList.contains("lf-passive"),
+  );
 
 // A low-priority diagnostic can belong to this address order without spending the
 // banner's resting row. It is still moved, not copied, and unfoldShelf still seats it
@@ -254,6 +263,10 @@ function refold() {
     overflowBtn.hidden = overflowMenu.children.length === 0;
     return bannerActions.scrollWidth <= bannerActions.clientWidth;
   };
+  // Restore quiet orientation before each measurement. It remains on the row whenever
+  // the reading loop leaves room for it, and gives up its ink entirely when even the
+  // actionable row cannot fit; it never becomes an unreachable menu entry.
+  for (const control of passive()) control.style.removeProperty("display");
   // Permanent overflow keeps the same front-to-back order as the complete address
   // run. Put it at the menu's front before considering which other addresses fit.
   overflowMenu.prepend(...alwaysFolded());
@@ -278,6 +291,12 @@ function refold() {
     if (!first) break;
     overflowMenu.append(first);
     if (newsControls.has(first)) paintPresence(first);
+  }
+  if (!fits()) {
+    for (const control of passive()) {
+      control.style.display = "none";
+      if (fits()) break;
+    }
   }
   paintDoor();
   lastRun = runKey();

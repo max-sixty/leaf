@@ -3635,7 +3635,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     assert geometry["send"]["top"] >= geometry["textarea"]["top"]
     assert geometry["send"]["bottom"] <= geometry["textarea"]["bottom"]
     assert float(geometry["closeBorder"][:-2]) == 0
-    assert float(geometry["resolveBorder"][:-2]) >= 1
+    assert float(geometry["resolveBorder"][:-2]) == 0
     assert geometry["resolve"]["top"] == pytest.approx(geometry["head"]["top"], abs=1)
     assert geometry["resolve"]["right"] == pytest.approx(
         geometry["head"]["right"], abs=1

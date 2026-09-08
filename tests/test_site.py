@@ -1233,7 +1233,10 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
                 _, url = served_example(source.stem)
                 opened(page, errors, url)
             newest = len(example_versions(source))
-            expect(page.locator(".lf-banner .lf-version")).to_have_text(f"v{newest} ▾")
+            disclosure = " ▾" if newest > 1 else ""
+            expect(page.locator(".lf-banner .lf-version")).to_have_text(
+                f"v{newest}{disclosure}"
+            )
             expect(page.locator(".lf-status-text")).to_have_text(
                 "This is an example on the Leaf website. Leaf guide replies here, "
                 "but cannot edit this page. Install Leaf"

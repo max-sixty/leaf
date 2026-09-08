@@ -3117,28 +3117,19 @@ def test_the_picker_runs_in_number_order_past_v9(browser, serve):
     page.close()
 
 
-def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
-    """A layer owes a way out over exactly the pages its way in is live on, and the
-    menu's two were live over different ones. `g V` opened it wherever there was a version
-    at all; the mode binding its Escape stood only above one. So on the commonest page
-    there is — a page with one version — `g V` raised a menu no key could put down: the
-    Escape chip read "back to the page", focus fell to body, and the menu stayed painted
-    over the bar.
+def test_the_versions_menu_can_close_from_every_door(browser, serve):
+    """A version menu opened from either door returns to its actual origin.
 
-    Not fixed by taking the menu away, which is what the walk being empty invites. A
-    first version's menu holds that version and the note saying what it changed, and that
-    is the whole reason the chooser is a menu rather than a select — see
-    test_a_key_on_screen_is_a_key_that_works, which asks for it by name. Two facts, so
-    two predicates: `versionsOffered` for the layer and `versionsToWalk` for the rows.
-
-    Asserted from both doors, the pointer's being the one that would have kept the trap,
-    and the walk asserted absent so the fix cannot be "make everything live"."""
+    A single version is now passive orientation rather than an empty choice. Publish a
+    second version so this test keeps exercising the menu's pointer and keyboard exits.
+    """
     url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, INLINE_PAGE, "two")
     page, errors = open_page(browser, live_url(url))
     menu = page.locator(".lf-version-menu")
     line = page.locator(".lf-shortcut-bar")
 
-    # One version: the menu opens, holds its one row, and Escape ends it.
+    # Two versions: the menu opens from the global route and Escape ends it.
     page.keyboard.press("g")
     expect(line).to_contain_text("versions")
     page.keyboard.press("Escape")
@@ -3146,7 +3137,7 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     expect(menu).to_be_hidden()
     open_versions(page)
     expect(menu).to_be_visible()
-    expect(page.locator(".lf-version-row")).to_have_count(1)
+    expect(page.locator(".lf-version-row")).to_have_count(2)
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -3174,33 +3165,12 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("close")
     page.keyboard.press("Escape")
 
-    # The line is the menu's while the reader is in it: its own way out is named, the
-    # page's keys are gone with the presses the mode took, and the walk — which has
-    # nowhere to step — is not offered beside them. Escape is the popover's own
-    # dismissal, named by the menu's row where no return frame names it first.
+    # The line is the menu's while the reader is in it: its own way out is named and the
+    # page's keys are gone with the presses the mode took.
     open_versions(page)
-    # Both ways out, each saying which way it goes: on a one-version menu the reader is
-    # at both boundaries at once and the line prints the pair.
-    expect(line).to_contain_text("leave forward")
-    expect(line).to_contain_text("leave backward")
-    expect(line).not_to_contain_text("walk — marking changes")
+    expect(line).to_contain_text("walk — marking changes")
     expect(line).not_to_contain_text("page down")
     page.keyboard.press("Escape")
-
-    # The control: a second version, where the walk is live and the layer is unchanged.
-    # The live root follows the new revision itself on its next poll — waited for rather
-    # than forced with a reload, which raced that activation and lost the press to it
-    # about one run in five.
-    _publish(serve.page_dir, 2, INLINE_PAGE, "second")
-    wait_for_revision(page, 2)
-    page.wait_for_function(
-        "() => document.querySelectorAll('.lf-version-row').length > 1"
-    )
-    open_versions(page)
-    expect(menu).to_be_visible()
-    expect(line).to_contain_text("walk — marking changes")
-    page.keyboard.press("Escape")
-    expect(menu).not_to_be_visible()
     assert errors == []
     page.close()
 
@@ -3603,6 +3573,7 @@ customElements.define('lf-menu-preparation', class extends HTMLElement {
             "text": "Please prepare the next version.",
         },
     )
+    _publish(serve.page_dir, 2, INLINE_PAGE, "two")
     page, errors = open_page(browser, url, pin=True)
     menu = page.locator(".lf-version-menu")
     page.locator(".lf-version").click()
@@ -3625,20 +3596,20 @@ customElements.define('lf-menu-preparation', class extends HTMLElement {
                 "markup": '<lf-menu-preparation id="version-preparation"><pre>Prepared</pre></lf-menu-preparation>',
             },
         )
-        _publish(serve.page_dir, 2, INLINE_PAGE, "two")
+        _publish(serve.page_dir, 3, INLINE_PAGE, "three")
     page.wait_for_timeout(0)  # dispatch the held request's route callback
     assert reads
     reads[0].continue_()
     page.wait_for_function("() => typeof window.finishMenuPreparation === 'function'")
-    expect(page.locator(".lf-version-row")).to_have_count(1)
+    expect(page.locator(".lf-version-row")).to_have_count(2)
     try:
         page.keyboard.press("Escape")
         expect(menu).to_be_hidden()
-        expect(page.locator(".lf-version-row")).to_have_count(2)
+        expect(page.locator(".lf-version-row")).to_have_count(3)
     finally:
         page.evaluate("() => window.finishMenuPreparation()")
     told(page)
-    expect(page.locator(".lf-version-row").last).to_contain_text("v2 (latest version)")
+    expect(page.locator(".lf-version-row").last).to_contain_text("v3 (latest version)")
     assert errors == []
     page.close()
 
@@ -4334,7 +4305,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     round_trip(page)
     assert len(events_model.read_events(serve.page_dir)) == count
     page.keyboard.press("g")
-    assert "versions" in shortcut_bar_text(page)
+    assert "versions" not in shortcut_bar_text(page)
     page.keyboard.press("Escape")
     file.evaluate("details => { details.open = true; }")
     expect(thread.locator("textarea")).to_be_visible()

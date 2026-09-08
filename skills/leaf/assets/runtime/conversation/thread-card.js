@@ -193,7 +193,7 @@ export function paintThreadQuotes() {
     // A quote selected from the run heading can be built before the final grouping
     // pass has omitted that heading. Reconcile absence as well as changed words so the
     // temporary duplicate does not become a kept node for the life of the tab.
-    if (!said) {
+    if (thread && !said) {
       quote?.remove();
       continue;
     }

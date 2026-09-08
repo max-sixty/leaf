@@ -248,7 +248,7 @@ export function anchorLabel(anchor, about, omitted = null) {
   if (anchor?.quote) return `“${anchor.quote}”`;
   if (!anchor?.section) return "";
   const item = elementById(anchor.section);
-  if (omitted === item) return "";
+  if (omitted && omitted === item) return "";
   if (anchor.visual) {
     const part = visualPartLabel(item, anchor.visual) ?? anchor.visual;
     return `§ ${item ? `${itemWord(item)} · ${part}` : `${anchor.section} · ${part}`}`;

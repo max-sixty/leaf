@@ -650,7 +650,9 @@ export function itemSays(item, omitted = null) {
   const whole =
     own ||
     quoteFrom(
-      textNodesUnder(item).filter((node) => !subtracts || !omitted.contains(node)),
+      textNodesUnder(item).filter(
+        (segment) => !subtracts || !omitted.contains(segment.node),
+      ),
     );
   if ([...whole].length <= ITEM_SAYS_CAP) return whole;
   const short = cut(whole, 0, ITEM_SAYS_CAP);

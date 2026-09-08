@@ -20,6 +20,47 @@ PAGES = (
     ("/examples/design-decision/", "example", True),
     ("/examples/feature-gallery/versions/v1.html", "example", False),
 )
+PROFILE_SCRIPT = """(() => {
+  window.__leafStartup = {};
+  const snapshot = () => {
+    const resources = performance.getEntriesByType("resource");
+    const code = resources.filter(entry => {
+      const url = new URL(entry.name);
+      return url.origin === location.origin &&
+        (url.pathname.endsWith(".js") || url.pathname.endsWith(".css") ||
+         url.pathname.endsWith("/registry.json"));
+    });
+    const javascript = code.filter(entry => new URL(entry.name).pathname.endsWith(".js"));
+    const bytes = entries => entries.reduce((total, entry) => total + entry.encodedBodySize, 0);
+    return {
+      at: performance.now(),
+      requests: resources.length,
+      bytes: bytes(resources),
+      code_requests: code.length,
+      code_bytes: bytes(code),
+      js_requests: javascript.length,
+      js_bytes: bytes(javascript),
+    };
+  };
+  const record = () => {
+    const body = document.body;
+    if (!body) return;
+    for (const [name, attribute] of [
+      ["upgraded", "data-lf-upgraded"],
+      ["presented", "data-lf-presented"],
+    ]) {
+      if (body.hasAttribute(attribute) && !window.__leafStartup[name])
+        window.__leafStartup[name] = snapshot();
+    }
+  };
+  new MutationObserver(record).observe(document, {
+    attributes: true,
+    attributeFilter: ["data-lf-upgraded", "data-lf-presented"],
+    childList: true,
+    subtree: true,
+  });
+  record();
+})()"""
 
 
 def check(condition: bool, message: str) -> None:
@@ -39,9 +80,10 @@ def activation_url(page_url: str, state: dict) -> str:
     return urljoin(page_url, f"api/view?{query}")
 
 
-def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> None:
+def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> dict:
     context = browser.new_context()
     page = context.new_page()
+    page.add_init_script(PROFILE_SCRIPT)
     failures: list[str] = []
     page.on(
         "console",
@@ -113,9 +155,15 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
         f"{url} scoped private media into the release namespace: {media['path']}",
     )
     check(not failures, f"{url} reported browser errors: {failures}")
+    startup = page.evaluate(
+        """() => ({
+          document: performance.getEntriesByType("navigation")[0].responseEnd,
+          ...window.__leafStartup,
+        })"""
+    )
     if not activate:
         context.close()
-        return
+        return startup
 
     state_url = urljoin(url, "api/state")
     passive_response = context.request.get(state_url, timeout=120_000)
@@ -161,6 +209,22 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
         f"{state_url} returned the wrong page kind",
     )
     context.close()
+    return startup
+
+
+def startup_line(path: str, startup: dict) -> str:
+    """Render observed startup costs without turning machine speed into a gate."""
+    presented = startup["presented"]
+    return (
+        f"  {path} — HTML {startup['document']:.0f} ms; "
+        f"upgraded {startup['upgraded']['at']:.0f} ms; "
+        f"presented {presented['at']:.0f} ms; "
+        f"by presentation {presented['js_requests']} JS / "
+        f"{presented['js_bytes'] / 1024:.0f} KiB, "
+        f"{presented['code_requests']} code / "
+        f"{presented['code_bytes'] / 1024:.0f} KiB, "
+        f"{presented['requests']} total / {presented['bytes'] / 1024:.0f} KiB"
+    )
 
 
 def verify_cross_tab_activation(browser) -> None:
@@ -200,11 +264,16 @@ def main() -> None:
     with sync_playwright() as playwright:
         browser, browser_name = launch_browser(playwright)
         try:
-            for path, kind, activate in PAGES:
-                verify_page(browser, path, kind, release, activate)
+            profiles = [
+                (path, verify_page(browser, path, kind, release, activate))
+                for path, kind, activate in PAGES
+            ]
             verify_cross_tab_activation(browser)
         finally:
             browser.close()
+    print("Leaf startup profile (observed, not a pass/fail budget):")
+    for path, profile in profiles:
+        print(startup_line(path, profile))
     print(f"✓ leaf.page serves release {release} in {browser_name}")
 
 

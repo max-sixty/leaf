@@ -66,7 +66,7 @@ customElements.define(
 
     connectedCallback() {
       if (!once(this)) {
-        if (this.#interactive) this.#registerLayout();
+        if (this.#interactive && this.#ready) this.#registerLayout();
         this.#paintAvailability();
         return;
       }

@@ -2456,6 +2456,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     # The preview must grow around its content before the instruction begins.
     resized(page, 1280, 720)
     page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
     expect(workspace).to_have_attribute("data-lf-posture", "bounded")
     notification_box = page.locator("#notification-card").bounding_box()
     preview_box = page.locator("#notification-preview").bounding_box()

@@ -19,6 +19,7 @@ import {
 } from "../anchors.js";
 import { banner } from "../banner.js";
 import { openPageDrawing, pageComposerDrawing } from "../conversation/panel.js";
+import { setChildren } from "../conversation/reconcile.js";
 import { setDesign } from "../design.js";
 import { documentPoint, shownBox } from "../geometry.js";
 import { paintHere } from "../keyboard/scopes.js";
@@ -456,13 +457,9 @@ export function paintDrawings(threads = lastThreads) {
       }
     }
   }
-  // The layer is written only where the marks differ from the ones standing in it, so a
-  // paint that describes unchanged ink leaves the reader's marks exactly where they are.
-  if (
-    drawingLayer.childNodes.length !== marks.length ||
-    marks.some((node, index) => drawingLayer.childNodes[index] !== node)
-  )
-    drawingLayer.replaceChildren(...marks);
+  // The layer keeps every mark already standing where it is, so a paint that describes
+  // unchanged ink leaves the reader's marks exactly where they are.
+  setChildren(drawingLayer, marks);
   mounted = mounting;
   for (const target of observed)
     if (!nextObserved.has(target)) {

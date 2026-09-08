@@ -1387,13 +1387,14 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           .lf-focus-visible, [aria-busy="true"]),
 .lf-react-open .lf-react-palette > .lf-react:not(.lf-margin-element, [aria-pressed="true"]) {
           color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
-/* Where a subject has no page edge of its own, one receipt grows beneath the reader
-   move it acknowledges: Sent, Picked up, then Active when an explicit work claim names
-   that subject. This is the panel-local and frozen-conversation fallback; page targets
-   present the same projection through their existing margin element. The state wraps;
-   the age and the explicit silence word do not. A phase change is a change of words
-   and of the Active ink, with no motion: the line answers a question the reader
-   already asked, and a tint that replays is a flash.
+/* Where a subject has no page edge of its own, one receipt follows the reader move it
+   acknowledges: Sent, Picked up, then Active when an explicit work claim names that
+   subject. A message carries it in the metadata row it already owns. Frozen widgets and
+   claims with no source message keep this full-width fallback; page targets present the
+   same projection through their existing margin element. The state wraps; the age and
+   the explicit silence word do not. A phase change is a change of words and semantic
+   color, with no motion: the line answers a question the reader already asked, and a
+   tint that replays is a flash.
    The shadow markers carry the same rule into any declared tree an authored subject
    is staged into; they remain ordinary comments in the document stylesheet. */
 .lf-receipt { display: flex; gap: 6px; align-items: flex-end; clear: both;
@@ -1406,6 +1407,18 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-receipt .lf-receipt-quiet { flex: none; color: var(--warn-ink);
   background: var(--warn-tint); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
 .lf-receipt time { color: var(--muted-2); white-space: nowrap; }
+.lf-receipt.lf-message-receipt { display: inline-flex; flex: 1 1 auto; align-items: baseline;
+  width: auto; min-width: 0; margin: 0; padding: 0; clear: none; grid-column: auto;
+  border: 0; border-radius: 0; background: none; color: var(--ok-ink);
+  font-size: inherit; font-weight: 600; line-height: inherit; }
+.lf-message-receipt::before { content: "·"; flex: none; color: var(--muted-2); }
+.lf-message-receipt[data-lf-phase="queued"],
+.lf-message-receipt[data-lf-phase="picked_up"],
+.lf-message-receipt[data-lf-phase="active"] { color: var(--accent); }
+.lf-message-receipt[data-lf-phase="waiting"],
+.lf-message-receipt[data-lf-dropped],
+.lf-message-receipt[data-lf-dropped] .lf-receipt-state { color: var(--warn-ink); }
+.lf-message-receipt .lf-receipt-state { flex: 0 1 auto; }
 /* The runtime's mark on a static box whose computed overflow scrolls (reachScrollers,
  * for what escaped such a box and why the mark is read from the composed page rather
  * than declared here beside each overflow), so no rule in this file or a package's

@@ -351,6 +351,7 @@ async function siteManifest(request: Request, env: Env): Promise<SiteManifest> {
       return parseSiteManifest(await response.json());
     });
     manifests.set(env.ASSETS as object, pending);
+    pending.catch(() => manifests.delete(env.ASSETS as object));
   }
   return pending;
 }

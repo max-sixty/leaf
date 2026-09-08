@@ -458,6 +458,44 @@ def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, brow
         page.close()
 
 
+def test_a_layer_mismatch_signals_startup_failure_on_window(served_example, browser):
+    """The gallery and bootstrap listeners hear a runtime-generation mismatch."""
+    _, url = served_example("design-decision")
+    page = browser.new_page()
+    page.add_init_script(
+        """
+        window.__leafStartupFailures = 0;
+        window.addEventListener(
+          "lf-startup-failed",
+          () => window.__leafStartupFailures++,
+        );
+        """
+    )
+
+    def mismatch_layer(route):
+        response = route.fetch()
+        body = (
+            response.body()
+            .decode()
+            .replace(
+                'const layerGeneration = "',
+                'const layerGeneration = "mismatch-',
+                1,
+            )
+        )
+        route.fulfill(response=response, body=body)
+
+    page.route("**/runtime/layer-client.js", mismatch_layer)
+    try:
+        page.goto(url, wait_until="domcontentloaded")
+        expect(page.get_by_role("status")).to_have_text(
+            "Leaf couldn't start. Waiting for the server to update."
+        )
+        assert page.evaluate("() => window.__leafStartupFailures") == 1
+    finally:
+        page.close()
+
+
 def test_session_activation_reaches_other_tabs(served_example, browser):
     """One tab's first private request wakes its already-open peers."""
     _, url = served_example("design-decision")

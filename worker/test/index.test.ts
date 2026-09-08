@@ -116,6 +116,21 @@ function environment(overrides: Partial<Env> = {}): Env {
 }
 
 describe("product-site delivery", () => {
+  it("retries the site manifest after a transient asset failure", async () => {
+    const env = environment();
+    vi.mocked(env.ASSETS.fetch).mockResolvedValueOnce(
+      new Response("unavailable", { status: 503 }),
+    );
+
+    await expect(
+      worker.fetch(new Request("https://leaf.page/"), env),
+    ).rejects.toThrow("site manifest returned 503");
+    const response = await worker.fetch(new Request("https://leaf.page/"), env);
+
+    expect(response.status).toBe(404);
+    expect(env.ASSETS.fetch).toHaveBeenCalledTimes(3);
+  });
+
   it.each([
     "/",
     "/how-it-works/",

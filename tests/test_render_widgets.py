@@ -2005,6 +2005,68 @@ def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
     page.close()
 
 
+def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable(
+    browser, serve
+):
+    """A phone shows one readable column and moves a card without a distant drop target.
+
+    The desktop grid divided its wide target across every column even after the board
+    itself had narrowed to the page. On a phone that left most of a second column on
+    screen and squeezed the first into a narrow card. Wide columns then put the next
+    pointer drop target off screen, so the phone offers every other column on the card.
+    """
+    context = browser.new_context(
+        viewport={"width": 390, "height": 900}, has_touch=True
+    )
+    page, errors = open_page(browser, serve(SQUEEZED_BOARD_PAGE), context=context)
+    measured = page.locator("#crowd").evaluate(
+        """board => {
+        const box = board.getBoundingClientRect();
+        const columns = [...board.querySelectorAll(':scope > lf-column')]
+          .slice(0, 2).map(column => column.getBoundingClientRect());
+        return {board: box, columns,
+                scrolls: board.scrollWidth > board.clientWidth};
+    }"""
+    )
+    board = measured["board"]
+    first, second = measured["columns"]
+    assert first["width"] > board["width"] * 0.85, measured
+    assert first["right"] <= board["right"] + 1, measured
+    assert first["right"] < second["left"] < board["right"], measured
+    assert measured["scrolls"], measured
+
+    card = page.locator("#sq-card-0")
+    expect(card.locator(".lf-grip")).to_be_visible()
+    to_lane_1 = card.get_by_role("button", name="Move Perch 0 to Lane 1")
+    expect(to_lane_1).to_be_visible()
+    with sending(page, "the phone category move"):
+        to_lane_1.tap()
+    expect(page.locator("#sq-col-1 > #sq-card-0")).to_have_count(1)
+    expect(card.locator(".lf-grip")).to_be_focused()
+    page.wait_for_function(
+        """() => {
+          const board = document.querySelector('#crowd').getBoundingClientRect();
+          const card = document.querySelector('#sq-card-0').getBoundingClientRect();
+          return card.left >= board.left - 1 && card.right <= board.right + 1;
+        }"""
+    )
+    moved = card.bounding_box()
+    board = page.locator("#crowd").bounding_box()
+    assert moved and board
+    assert board["x"] <= moved["x"] and moved["x"] + moved["width"] <= (
+        board["x"] + board["width"] + 1
+    )
+
+    to_lane_0 = card.get_by_role("button", name="Move Perch 0 to Lane 0")
+    expect(to_lane_0).to_be_visible()
+    with sending(page, "the phone return move"):
+        to_lane_0.tap()
+    expect(page.locator("#sq-col-0 > #sq-card-0")).to_have_count(1)
+    assert errors == []
+    page.close()
+    context.close()
+
+
 def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
     browser, serve
 ):
@@ -2420,6 +2482,48 @@ def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve)
             "index": 2,
         },
     ]
+    assert errors == []
+    page.close()
+
+
+def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
+    """A ledger row withdraws its own classification, including the finishing one."""
+    page, errors = open_page(browser, serve(SWIPE_PAGE))
+    deck = page.locator("#session-triage")
+
+    deck.get_by_role("button", name="← Pass", exact=True).click()
+    deck.get_by_role("button", name="Keep →", exact=True).click()
+    round_trip(page)
+
+    first = page.locator("#swipe-a")
+    second = page.locator("#swipe-b")
+    first.get_by_role(
+        "button", name="Return Buffer rolling expiry to queue", exact=True
+    ).click()
+    round_trip(page)
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    expect(page.locator("#session-keep > #swipe-b")).to_have_count(1)
+    expect(first).to_be_focused()
+
+    for binding in ("ArrowLeft", "ArrowLeft", "ArrowRight"):
+        page.locator("#session-queue > lf-swipe-card").first.focus()
+        page.keyboard.press(binding)
+    round_trip(page)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    expect(
+        second.get_by_role(
+            "button", name="Return Bound fallback lifetime to queue", exact=True
+        )
+    ).to_be_hidden()
+
+    final = page.locator("#swipe-d")
+    final.get_by_role(
+        "button", name="Return Index account sessions to queue", exact=True
+    ).click()
+    round_trip(page)
+    expect(page.locator("#session-queue > #swipe-d")).to_have_count(1)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect(final).to_be_focused()
     assert errors == []
     page.close()
 

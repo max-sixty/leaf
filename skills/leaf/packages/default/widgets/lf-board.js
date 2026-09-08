@@ -1,10 +1,11 @@
-/* lf-board: the one widget the user edits directly, movable two ways that
- * share one send path and one gesture gate. Dragging is wired via the vendored
- * SortableJS (pointer-driven `forceFallback` mode, so touch works and the
- * follower is stylable — native HTML5 DnD is not used). The grip is a press
- * (`offer`), so the keyboard path needs no pointer: Enter grabs, arrows restate
- * the card's placement (announced through the live region), Enter drops, and
- * Escape or focus loss restores the origin. Either way the board wears
+/* lf-board: the one widget the user edits directly, with every move sharing one send
+ * path and one gesture gate. Dragging is wired via the vendored SortableJS
+ * (pointer-driven `forceFallback` mode, so the follower is stylable — native HTML5 DnD
+ * is not used). Phones show each card's other columns as direct move buttons instead;
+ * a horizontal board cannot expose a distant drop target while the pointer is held.
+ * The grip is a press (`offer`), so the keyboard path needs no pointer: Enter grabs,
+ * arrows restate the card's placement (announced through the live region), Enter drops,
+ * and Escape or focus loss restores the origin. During a gesture the board wears
  * .lf-dragging for the whole gesture — the runtime's poll gates on it (no
  * version-follow, no foreign-action replay mid-gesture) — and a completed move
  * reports through #send as one absolute `move` action, indistinguishable on
@@ -70,8 +71,10 @@ customElements.define(
       // the shortcut reference dialog — it stays the static board the theme renders anyway.
       if (quoted(this)) return;
       // Own cards only (:scope-deep would double-wire a nested board's cards).
-      for (const card of this.querySelectorAll(":scope > lf-column > lf-card"))
+      for (const card of this.querySelectorAll(":scope > lf-column > lf-card")) {
         this.#grip(card);
+        this.#destinations(card);
+      }
       // The room a card's text keeps clear of its grip, measured off the grip's own
       // box rather than stated as a number (the pick column's answer): the theme
       // spends it (--lf-grip-room), and only a board that grew grips states it, so
@@ -147,6 +150,10 @@ customElements.define(
           const grip = card.querySelector(":scope > .lf-grip");
           if (grip && grip.getAttribute("aria-label") !== name)
             grip.setAttribute("aria-label", name);
+          for (const button of card.querySelectorAll(
+            ":scope > .lf-board-destinations > .lf-board-destination",
+          ))
+            button.hidden = button.dataset.lfBoardTarget === col.id;
         }
       }
     }
@@ -189,6 +196,10 @@ customElements.define(
         grip.setAttribute("aria-disabled", String(!available));
         grip.tabIndex = available ? 0 : -1;
       }
+      for (const button of this.querySelectorAll(
+        ":scope > lf-column > lf-card > .lf-board-destinations button",
+      ))
+        button.disabled = !available;
     };
 
     #observeNames() {
@@ -294,6 +305,45 @@ customElements.define(
         });
       });
       card.append(grip);
+    }
+
+    #destinations(card) {
+      const columns = [...this.querySelectorAll(":scope > lf-column")];
+      if (columns.length < 2) return;
+      const group = offer("div", "lf-board-destinations");
+      group.setAttribute("role", "group");
+      group.setAttribute("aria-label", `Move ${this.#title(card)} to`);
+      const label = document.createElement("span");
+      label.className = "lf-board-destinations-label";
+      label.dataset.lfGen = "1";
+      label.textContent = "Move to";
+      group.append(label);
+      for (const column of columns) {
+        const button = offer(
+          "button",
+          "lf-board-destination",
+          column.getAttribute("label"),
+        );
+        button.dataset.lfBoardTarget = column.id;
+        button.setAttribute(
+          "aria-label",
+          `Move ${this.#title(card)} to ${column.getAttribute("label")}`,
+        );
+        button.addEventListener("click", () => {
+          if (!actionAvailable(this, "move")) return;
+          const from = card.parentElement;
+          if (from === column) return;
+          this.#place(
+            card,
+            column,
+            this.#cards(column).length,
+            card.querySelector(":scope > .lf-grip"),
+          );
+          this.#send(card, from, column);
+        });
+        group.append(button);
+      }
+      card.append(group);
     }
 
     #grab(card, grip) {

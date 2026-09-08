@@ -1,11 +1,12 @@
 /* lf-swipe-deck: a position-recorded classification queue with one activation path.
  * The Pass and Keep buttons own the semantic action. Arrow keys and pointer swipes call
  * those buttons, whose click handler first places one card optimistically and then sends
- * the same absolute action the runtime replays after reload, sync, or undo. The final
- * classification is `finish`: that one event both places its card and completes the
- * deck's Ask, so one undo restores both. Complete projection supplies the ordered cards
- * in every pile; this module places the retained nodes and carries only the live pointer
- * gesture. A card's parent pile presents whether it is unseen, passed, or kept.
+ * the same absolute action the runtime replays after reload, sync, or undo. A classified
+ * card can withdraw its own action and return to the queue. The final classification is
+ * `finish`: that one event both places its card and completes the deck's Ask, so returning
+ * that card restores both. Complete projection supplies the ordered cards in every pile;
+ * this module places the retained nodes and carries only the live pointer gesture. A
+ * card's parent pile presents whether it is unseen, passed, or kept.
  *
  * Piles remain labeled lists in quoted exhibits and static copies. Quoted decks stop at
  * that structure: no controls, tab stops, key scope, or pointer listeners are installed.
@@ -40,10 +41,10 @@ customElements.define(
   class extends HTMLElement {
     #pass = null;
     #keep = null;
-    #undo = null;
     #progress = null;
     #pointer = null;
     #interactive = false;
+    #returning = new Set();
     #stop = null;
 
     connectedCallback() {
@@ -110,17 +111,14 @@ customElements.define(
       this.#progress.setAttribute("aria-live", "polite");
       this.#progress.tabIndex = -1;
       this.#keep = offer("button", "lf-swipe-keep", "Keep →");
-      this.#undo = offer("button", "lf-swipe-undo", "Undo last swipe");
-      this.#undo.hidden = true;
-      controls.append(this.#pass, this.#progress, this.#keep, this.#undo);
+      controls.append(this.#pass, this.#progress, this.#keep);
       this.append(controls);
+
+      for (const card of this.#piles().flatMap((pile) => this.#cards(pile)))
+        this.#returnControl(card);
 
       this.#pass.addEventListener("click", () => this.#swipe("pass", -1));
       this.#keep.addEventListener("click", () => this.#swipe("keep", 1));
-      this.#undo.addEventListener("click", async () => {
-        const event = undoableAction(this, "finish");
-        if (event) await withdraw(event);
-      });
       commands(
         this,
         "In a swipe deck",
@@ -179,7 +177,6 @@ customElements.define(
       const available = Boolean(active && action && actionAvailable(this, action));
       this.#pass.disabled = !available;
       this.#keep.disabled = !available;
-      this.#undo.hidden = !undoableAction(this, "finish");
 
       const unseen = this.#cards(this.#pile("unseen"));
       const classified =
@@ -190,13 +187,52 @@ customElements.define(
 
       for (const pile of this.#piles()) {
         const cards = this.#cards(pile);
-        for (const card of cards) card.tabIndex = card === active && available ? 0 : -1;
+        for (const card of cards) {
+          card.tabIndex = card === active && available ? 0 : -1;
+          const button = card.querySelector(":scope > .lf-swipe-return");
+          if (!button) continue;
+          const event = this.#returnable(card);
+          button.hidden = !event;
+          button.disabled = this.#returning.has(card.id);
+        }
         const label = pile.querySelector(':scope > [data-lf-said="verdict"]');
         if (label)
           label.textContent = `${VERDICTS[pile.getAttribute("verdict")]} · ${cards.length}`;
       }
       paintKeys();
     };
+
+    #returnable(card) {
+      const finish = undoableAction(this, "finish", card.id);
+      if (finish) return finish;
+      if (!actionAvailable(this, "swipe")) return null;
+      return undoableAction(this, "swipe", card.id);
+    }
+
+    #returnControl(card) {
+      const button = offer("button", "lf-swipe-return", "Return to queue");
+      const title =
+        card.querySelector(":scope > strong")?.textContent.trim() || card.id;
+      button.setAttribute("aria-label", `Return ${title} to queue`);
+      button.hidden = true;
+      button.addEventListener("click", async () => {
+        const event = this.#returnable(card);
+        if (!event || this.#returning.has(card.id)) return;
+        const refocus = document.activeElement === button;
+        this.#returning.add(card.id);
+        this.#render();
+        let returned = false;
+        try {
+          returned = Boolean(await withdraw(event));
+        } finally {
+          this.#returning.delete(card.id);
+          if (this.isConnected) this.#render();
+        }
+        if (refocus)
+          (returned ? this.#active() : button).focus({ preventScroll: true });
+      });
+      card.append(button);
+    }
 
     #place(card, destination, index) {
       const without = this.#cards(destination).filter(

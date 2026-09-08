@@ -10,7 +10,7 @@ import { reachScrollers } from "./reach.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
 import { settle, settling } from "./widget-upgrade.js";
-import { revealLayer, sameLayer } from "./layer-client.js";
+import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
 import { buildReactBar } from "./reactions.js";
 import { rememberAuthoredParents } from "./projection/authored.js";
 
@@ -86,8 +86,7 @@ export async function upgradeWidgets() {
   const response = await fetch("/registry.json");
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
-  const responseGeneration = response.headers.get("Leaf-Layer");
-  if (responseGeneration && !sameLayer(responseGeneration)) return false;
+  if (!sameDelivery(response)) return false;
   Object.assign(registry, await response.json());
   const registryGeneration = registry.$layer?.generation;
   if (typeof registryGeneration !== "string" || !registryGeneration)

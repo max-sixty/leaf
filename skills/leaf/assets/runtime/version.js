@@ -152,7 +152,7 @@ import { settle, settling } from "./widget-upgrade.js";
 import { reserveNewsSlot, showNews } from "./banner-shelf.js";
 import { allButTheReference, midComposition } from "./keyboard/page.js";
 import { readAndApply } from "./state-feed.js";
-import { reportPageError, sameLayer } from "./layer-client.js";
+import { reportPageError, sameDelivery } from "./layer-client.js";
 import { resetAuthoredPage } from "./projection.js";
 import { banner, stateSignoff } from "./banner.js";
 import { importWidgets, rememberPassageParts } from "./widget-loader.js";
@@ -823,8 +823,7 @@ async function baseReading(baseRevision, throughSeq) {
   });
   const res = await fetch(`/api/view?${params}`);
   if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
-  const generation = res.headers.get("Leaf-Layer");
-  if (generation && !sameLayer(generation)) return null;
+  if (!sameDelivery(res)) return null;
   const answer = await res.json();
   if (!answer.browser) throw new Error(`revision r${baseRevision} has no projection`);
   return answer.browser;
@@ -1170,8 +1169,7 @@ export const comparisonChanges = () => (diffOn ? [...diffMarked] : []);
 async function authoredDocument(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
-  const generation = response.headers.get("Leaf-Layer");
-  if (generation && !sameLayer(generation)) return null;
+  if (!sameDelivery(response)) return null;
   const doc = new DOMParser().parseFromString(await response.text(), "text/html");
   if (doc.querySelectorAll("body > main").length !== 1)
     throw new Error(`${url} has no single authored main`);

@@ -128,6 +128,26 @@ EMPTY_QUOTED_SWIPE_PAGE = leaf_page(
 """,
 )
 
+
+TALL_BOARD_PAGE = leaf_page(
+    "tall board",
+    """
+<h1 id="t">Sprint</h1>
+<lf-board id="crowd">
+  <lf-column id="sq-col-0" label="Lane 0">
+"""
+    + "".join(
+        f"""    <lf-card id="sq-card-{i}"><strong>Perch {i}</strong>
+    The warden has documented every reading she takes at dawn.</lf-card>
+"""
+        for i in range(8)
+    )
+    + """  </lf-column>
+</lf-board>
+""",
+)
+
+
 PLAYGROUND_PAGE = leaf_page(
     "card playground",
     """
@@ -1739,6 +1759,154 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         "    - text: your change\n"
         "    - 'button \"Move: Squirrel baffle — Done\"': ⠿"
     )
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize(
+    ("axis", "source", "key", "steps"),
+    [
+        pytest.param("column", SQUEEZED_BOARD_PAGE, "ArrowRight", 4, id="columns"),
+        pytest.param("row", TALL_BOARD_PAGE, "ArrowDown", 7, id="rows"),
+    ],
+)
+@pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
+def test_a_keyboard_move_keeps_the_card_in_view(
+    browser, serve, reduced_motion, axis, source, key, steps
+):
+    """A move and its Escape return keep the focused card on screen."""
+    page, errors = open_page(browser, serve(source))
+    page.emulate_media(reduced_motion=reduced_motion)
+    resized(page, 390, 500)
+    board = page.locator("#crowd")
+    card = page.locator("#sq-card-0")
+    grip = card.locator(".lf-grip")
+
+    if axis == "column":
+        assert board.evaluate("el => el.scrollWidth > el.clientWidth"), (
+            "the board fits, so the keyboard move has no hidden column to reveal"
+        )
+    else:
+        assert page.locator("#sq-card-7").evaluate(
+            "el => el.getBoundingClientRect().bottom > innerHeight"
+        ), "the lane fits, so the row move has no hidden destination to reveal"
+
+    def wait_for_placement(column, row):
+        placement = """([column, row, axis]) => {
+          const board = document.querySelector('#crowd');
+          const card = board.querySelector('#sq-card-0');
+          const cards = [...card.parentElement.querySelectorAll(':scope > lf-card')];
+          const outer = board.getBoundingClientRect();
+          const inner = card.getBoundingClientRect();
+          const visible = axis === 'column'
+            ? inner.left >= outer.left - 1 && inner.right <= outer.right + 1
+            : inner.top >= -1 && inner.bottom <= innerHeight + 1;
+          return card.parentElement.id === `sq-col-${column}`
+            && cards.indexOf(card) === row && card.getAnimations().length === 0
+            && visible;
+        }"""
+        where = [column, row, axis]
+        page.wait_for_function(placement, arg=where)
+        page.evaluate(
+            """axis => {
+              const box = axis === 'column'
+                ? document.querySelector('#crowd') : document.scrollingElement;
+              window.__lfMoveScroll = axis === 'column' ? box.scrollLeft : box.scrollTop;
+              window.__lfMoveScrollSince = performance.now();
+            }""",
+            axis,
+        )
+        page.wait_for_function(
+            """([axis, hold]) => {
+              const box = axis === 'column'
+                ? document.querySelector('#crowd') : document.scrollingElement;
+              const now = axis === 'column' ? box.scrollLeft : box.scrollTop;
+              if (now !== window.__lfMoveScroll) {
+                window.__lfMoveScroll = now;
+                window.__lfMoveScrollSince = performance.now();
+                return false;
+              }
+              return performance.now() - window.__lfMoveScrollSince > hold;
+            }""",
+            arg=[axis, SCROLL_SETTLE_MS],
+        )
+        page.wait_for_function(placement, arg=where)
+
+    grip.focus()
+    page.keyboard.press("Enter")
+    for step in range(1, steps + 1):
+        page.keyboard.press(key)
+        # Each key gets its own rendered placement. Otherwise a later press can cancel
+        # the prior FLIP before the test has exercised its scroll tracking.
+        wait_for_placement(
+            step if axis == "column" else 0, step if axis == "row" else 0
+        )
+
+    page.keyboard.press("Escape")
+    wait_for_placement(0, 0)
+    expect(page.locator("#sq-col-0 > #sq-card-0")).to_have_count(1)
+    expect(grip).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_cancelling_a_keyboard_move_stops_its_scroll(browser, serve):
+    """Escape supersedes a reveal still travelling toward the abandoned placement."""
+    page, errors = open_page(browser, serve(TALL_BOARD_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 390, 500)
+    card = page.locator("#sq-card-0")
+    grip = card.locator(".lf-grip")
+    origin = card.evaluate(
+        """el => { const box = el.getBoundingClientRect();
+                    return {top: box.top + scrollY, bottom: box.bottom + scrollY}; }"""
+    )
+
+    grip.focus()
+    page.keyboard.press("Enter")
+    for _ in range(7):
+        page.keyboard.press("ArrowDown")
+    expect(page.locator("#sq-col-0 > #sq-card-0")).to_have_count(1)
+    assert (
+        card.evaluate(
+            "el => [...el.parentElement.querySelectorAll(':scope > lf-card')].indexOf(el)"
+        )
+        == 7
+    )
+    page.wait_for_function(
+        """origin => {
+          const top = origin.top - scrollY;
+          const bottom = origin.bottom - scrollY;
+          return scrollY > 0 && top >= 0 && bottom <= innerHeight;
+        }""",
+        arg=origin,
+    )
+    page.keyboard.press("Escape")
+
+    # Read only once the document has held one position. Without cancellation, the
+    # abandoned smooth reveal continues past Escape and settles with the restored,
+    # focused card above the viewport.
+    page.evaluate(
+        """() => { window.__lfScroll = document.scrollingElement.scrollTop;
+                    window.__lfScrollSince = performance.now(); }"""
+    )
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    page.wait_for_function(
+        "() => document.querySelector('#sq-card-0').getAnimations().length === 0"
+    )
+    reading = card.evaluate(
+        """el => {
+          const cards = [...el.parentElement.querySelectorAll(':scope > lf-card')];
+          const box = el.getBoundingClientRect();
+          return {index: cards.indexOf(el), top: box.top, bottom: box.bottom,
+                  viewport: innerHeight};
+        }"""
+    )
+    assert reading["index"] == 0, reading
+    assert reading["top"] >= -1 and reading["bottom"] <= reading["viewport"] + 1, (
+        reading
+    )
+    expect(grip).to_be_focused()
     assert errors == []
     page.close()
 

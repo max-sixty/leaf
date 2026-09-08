@@ -141,7 +141,37 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
 
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.get_by_role("dialog", name="All keyboard shortcuts")).to_be_visible()
+    reference = page.get_by_role("dialog", name="All keyboard shortcuts")
+    expect(reference).to_be_visible()
+    resized(page, 320, 900)
+    operation = reference.locator("tr").filter(has_text="Restart the sample worker")
+    geometry = operation.evaluate(
+        """row => {
+          const key = row.querySelector('.lf-key-label > kbd');
+          const keyBox = key.getBoundingClientRect();
+          const action = row.cells[1];
+          const actionBox = action.getBoundingClientRect();
+          const range = document.createRange(), broken = [];
+          const walker = document.createTreeWalker(action, NodeFilter.SHOW_TEXT);
+          for (let node = walker.nextNode(); node; node = walker.nextNode())
+            for (const match of node.textContent.matchAll(/[A-Za-z]+/g)) {
+              range.setStart(node, match.index);
+              range.setEnd(node, match.index + match[0].length);
+              if (new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size > 1)
+                broken.push(match[0]);
+            }
+          return {
+            broken,
+            keyFits: key.scrollWidth <= key.clientWidth && key.scrollHeight <= key.clientHeight,
+            keyRight: keyBox.right,
+            actionLeft: actionBox.left,
+          };
+        }"""
+    )
+    assert geometry["keyFits"], geometry
+    assert geometry["keyRight"] <= geometry["actionLeft"], geometry
+    assert geometry["broken"] == [], geometry
+    resized(page, 1600, 900)
     page.keyboard.press("Escape")
 
     page.locator(".lf-others").click()
@@ -161,7 +191,15 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     ).to_be_in_viewport()
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    expect(page.get_by_role("dialog", name="Page map", exact=True)).to_be_visible()
+    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    expect(sheet).to_be_visible()
+    header = sheet.locator(".lf-page-map-head")
+    close = header.get_by_role("button", name="Close", exact=True)
+    header_box, close_box = header.bounding_box(), close.bounding_box()
+    assert header_box and close_box
+    assert close_box["x"] + close_box["width"] == pytest.approx(
+        header_box["x"] + header_box["width"], abs=0.5
+    ), (header_box, close_box)
     assert errors == []
     page.close()
 
@@ -1544,6 +1582,30 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     panel_settled(page)
     panel_thread = threads.first
     panel_reply = panel_thread.locator(":scope > .lf-compose textarea")
+    if long_thread:
+        # Opening the mark focuses its reply before native smooth placement finishes.
+        # Arm the list itself immediately before that gesture. A prior scrollend cannot
+        # pass without a causal move, and a preliminary one is withdrawn if a later frame
+        # continues the same arrival.
+        page.evaluate(
+            """() => {
+              const list = document.querySelector('.lf-threads');
+              const rest = window.__lfThreadScrollRest = {
+                at: null, event: 0, moved: false, start: list.scrollTop,
+              };
+              list.addEventListener('scroll', () => {
+                rest.at = null;
+                rest.moved ||= list.scrollTop !== rest.start;
+              }, {passive: true});
+              list.addEventListener('scrollend', () => {
+                const event = ++rest.event;
+                const at = list.scrollTop;
+                requestAnimationFrame(() => {
+                  if (rest.event === event && list.scrollTop === at) rest.at = at;
+                });
+              });
+            }"""
+        )
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(panel_reply).to_be_focused()
     in_threads_scrollport(page, ".lf-threads > .lf-thread:first-of-type .lf-compose")
@@ -1551,17 +1613,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
         page.wait_for_function(
             """() => {
               const list = document.querySelector('.lf-threads');
-              const thread = list.querySelector('.lf-thread:first-of-type');
-              const compose = thread.querySelector(':scope > .lf-compose');
-              const view = list.getBoundingClientRect();
-              const target = compose.getBoundingClientRect();
-              const clear = parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
-              const start = view.top + clear;
-              const blocks = [...thread.querySelectorAll(
-                ':scope > .lf-msg, :scope > .lf-msg .lf-msg-body > *, ' +
-                ':scope > .lf-msg .lf-msg-text > *'), compose];
-              return target.bottom <= view.bottom && blocks.some((block) =>
-                Math.abs(block.getBoundingClientRect().top - start) < 2);
+              const rest = window.__lfThreadScrollRest;
+              return rest.moved && rest.at === list.scrollTop;
             }"""
         )
         landing = page.evaluate(
@@ -3338,6 +3391,58 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     )
     page.keyboard.press("ArrowDown")
     expect(commands.last).to_have_attribute("data-lf-selected", "true")
+
+    # On a phone, every complete binding stays in its own key column. Search adds a
+    # scope to each match; that context takes a second line rather than squeezing the
+    # action down to one word or painting over it.
+    resized(page, 390, 800)
+    geometry = help_el.evaluate(
+        """help => ({
+          tables: [...help.querySelectorAll('table')].filter(table => table.offsetWidth)
+            .map(table => ({client: table.clientWidth, scroll: table.scrollWidth})),
+          keys: [...help.querySelectorAll('tr:not([hidden]) .lf-key-sequence')]
+            .map(key => ({
+              top: key.getBoundingClientRect().top,
+              right: key.getBoundingClientRect().right,
+              actionTop: key.closest('tr').querySelector('.lf-shortcut-reference-action')
+                .getBoundingClientRect().top,
+              cellRight: key.closest('td').getBoundingClientRect().right,
+            })),
+        })"""
+    )
+    assert all(table["scroll"] <= table["client"] for table in geometry["tables"]), (
+        geometry
+    )
+    assert all(key["right"] <= key["cellRight"] for key in geometry["keys"]), geometry
+    assert all(abs(key["top"] - key["actionTop"]) <= 3 for key in geometry["keys"]), (
+        geometry
+    )
+    search.fill("space")
+    matches = help_el.locator(
+        ".lf-shortcut-reference-binding-matches tr[data-lf-command]:visible"
+    ).evaluate_all(
+        """rows => rows.map(row => {
+          const cell = row.cells[1].getBoundingClientRect();
+          const scope = row.querySelector('.lf-shortcut-reference-scope').getBoundingClientRect();
+          const key = row.querySelector('.lf-key-sequence').getBoundingClientRect();
+          return {cellLeft: cell.left, scopeLeft: scope.left,
+                  keyTop: key.top,
+                  actionTop: row.querySelector('.lf-shortcut-reference-action')
+                    .getBoundingClientRect().top,
+                  keyRight: key.right,
+                  keyCellRight: row.cells[0].getBoundingClientRect().right};
+        })"""
+    )
+    assert matches
+    assert all(item["keyRight"] <= item["keyCellRight"] for item in matches), matches
+    assert all(abs(item["keyTop"] - item["actionTop"]) <= 3 for item in matches), (
+        matches
+    )
+    assert all(
+        item["scopeLeft"] == pytest.approx(item["cellLeft"], abs=0.5)
+        for item in matches
+    ), matches
+    resized(page, 1200, 800)
 
     # A key query may also occur in command ids and prose. Actual bindings lead the
     # filtered DOM, which is both the visual order and the Arrow-key command rail. A

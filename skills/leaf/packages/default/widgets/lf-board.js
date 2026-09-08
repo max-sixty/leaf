@@ -315,20 +315,22 @@ customElements.define(
 
     #step(card, grip, dCol, dRow) {
       const col = card.parentElement;
+      let target;
+      let index;
       if (dRow) {
         const cards = this.#cards(col);
         const to = cards.indexOf(card) + dRow;
         if (to < 0 || to >= cards.length) return;
-        this.#place(card, col, to);
+        target = col;
+        index = to;
       } else {
         const cols = [...this.querySelectorAll(":scope > lf-column")];
-        const target = cols[cols.indexOf(col) + dCol];
+        target = cols[cols.indexOf(col) + dCol];
         if (!target) return;
         // Same visual index; #place clamps to the target's end.
-        this.#place(card, target, this.#cards(col).indexOf(card));
+        index = this.#cards(col).indexOf(card);
       }
-      grip.focus({ preventScroll: true }); // reparenting blurred it (Chromium)
-      card.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+      this.#place(card, target, index, grip);
       const now = card.parentElement;
       const cards = this.#cards(now);
       announce(
@@ -349,8 +351,9 @@ customElements.define(
     #cancel(refocus = false) {
       const { card, grip, from, index } = this.#grabbed;
       this.#release();
-      this.#place(card, from, index);
-      if (refocus) grip.focus({ preventScroll: true }); // Esc keeps focus; blur means it left
+      // Escape keeps focus and returns the view to the origin. Blur restores the card
+      // without taking the viewport from the control the reader deliberately entered.
+      this.#place(card, from, index, refocus ? grip : null);
       announce(`${this.#title(card)} — move cancelled`);
     }
 
@@ -363,17 +366,30 @@ customElements.define(
       dragging(this, false);
     }
 
-    // The one writer of "card X sits at index i among column C's cards": arrow steps,
-    // a cancelled grab, refusal reconciliation, and replay all place through it. Every
-    // placement FLIPs from where the card stood, so a move reads as motion wherever it
-    // came from — a restore arriving at response time has no gesture behind it, which
-    // is the case the norm says needs the motion more. A FLIP already in flight is
-    // cancelled before measuring, or its transform would be read as position.
-    #place(card, col, index) {
+    // Arrow steps and a cancelled grab place through one writer. A FLIP already in
+    // flight and any smooth reveal are cancelled before measuring, or their motion
+    // would become the origin or carry on after a later arrow or Escape superseded it.
+    // Keyboard placement refocuses and reveals the final box before FLIP puts its paint
+    // back at the old box; native scrolling and the card's motion then run together.
+    #place(card, col, index, grip = null) {
       for (const a of card.getAnimations()) a.cancel();
+      for (const box of [this, scrollerFor(this)])
+        box.scrollTo({
+          left: box.scrollLeft,
+          top: box.scrollTop,
+          behavior: "instant",
+        });
       const first = card.getBoundingClientRect();
       const rest = this.#cards(col).filter((c) => c !== card);
       col.insertBefore(card, rest[index] ?? null);
+      if (grip) {
+        grip.focus({ preventScroll: true }); // reparenting blurred it (Chromium)
+        card.scrollIntoView({
+          behavior: scrollBehavior(),
+          block: "nearest",
+          inline: "nearest",
+        });
+      }
       const last = card.getBoundingClientRect();
       const dx = first.left - last.left;
       const dy = first.top - last.top;

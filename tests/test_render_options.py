@@ -611,6 +611,48 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     page.close()
 
 
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_an_open_option_ring_stays_visible_at_rest(browser, serve, color_scheme):
+    """Every untaken option keeps a visible boundary before the reader aims at it."""
+    page, errors = open_page(browser, serve(ASK_PAGE), color_scheme=color_scheme)
+    readings = page.locator(
+        'lf-options[choose] > lf-option:not([chosen]) > .lf-pick[role="checkbox"]'
+    ).evaluate_all(
+        """marks => {
+          const canvas = document.createElement('canvas');
+          canvas.width = canvas.height = 1;
+          const context = canvas.getContext('2d', {willReadFrequently: true});
+          const rgb = color => {
+            context.clearRect(0, 0, 1, 1);
+            context.fillStyle = color;
+            context.fillRect(0, 0, 1, 1);
+            return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+          };
+          const luminance = color => rgb(color)
+            .map(channel => channel / 255)
+            .map(channel => channel <= .04045
+              ? channel / 12.92
+              : ((channel + .055) / 1.055) ** 2.4)
+            .reduce((sum, channel, index) =>
+              sum + channel * [.2126, .7152, .0722][index], 0);
+          const contrast = (a, b) => {
+            const [light, dark] = [luminance(a), luminance(b)].sort((a, b) => b - a);
+            return (light + .05) / (dark + .05);
+          };
+          return marks.map(mark => {
+            const indicator = getComputedStyle(mark, '::before').borderTopColor;
+            const background = getComputedStyle(mark.parentElement).backgroundColor;
+            return {id: mark.parentElement.id, indicator, background,
+                    contrast: contrast(indicator, background)};
+          });
+        }"""
+    )
+    assert readings, "the fixture contains no open option controls"
+    assert all(reading["contrast"] >= 3 for reading in readings), readings
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize(
     ("ask", "group", "question"),
     [

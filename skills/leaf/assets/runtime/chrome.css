@@ -826,6 +826,13 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-banner-actions > .lf-btn { flex: none; border-color: transparent;
     border-radius: 0; background: transparent; }
   .lf-banner-actions > .lf-btn:hover { background: var(--chip); }
+  /* .lf-btn.on states a comparison or a narrowing with an accent border and a fill,
+     and the resting rule above clears both at the same specificity — so on this row
+     the class would paint ink alone. Restate the treatment the open workspace wears,
+     which the reader already reads as "this control is doing something": neither the
+     fill nor the ring is a metric, so the address keeps the width it reserved. */
+  .lf-banner-actions > .lf-btn.on {
+    background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
   /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
      mask is the page's actual vendored mark, so a project that replaces icon.svg does
      not keep an unrelated leaf-like glyph in the banner. Shape is identity and colour

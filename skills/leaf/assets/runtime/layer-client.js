@@ -3,9 +3,10 @@
 
    A vendored runtime and registry are one generation. This module carries the
    `__LEAF_LAYER_GENERATION__` placeholder (quoted, once) and the registry carries the same epoch
-   after `page init`. `sameLayer` checks every successful state read and POST response.
-   If the server speaks a newer layer, the tab reloads before it reads or posts again. Do
-   not let one generation interpret another generation's registry or events.
+   after `page init`. `sameDelivery` checks every successful state read and POST response
+   against the document's layer and website release. Active responses also establish the
+   private server incarnation, so an ephemeral replacement reloads before its new event
+   sequence meets the old DOM. Do not let one delivery interpret another's state.
 
    `reportPageError` is the common runtime error surface. A widget failure may `failSoft`
    its own element so the rest of the page and Threads remain usable, but it does not
@@ -18,24 +19,83 @@ import { runtime } from "./context.js";
 import { notice } from "./notifications.js";
 
 const layerGeneration = "__LEAF_LAYER_GENERATION__";
+const runtimeScript = document.querySelector("script[data-lf-runtime]");
+const documentLayer = runtimeScript?.dataset.lfLayer;
+const release = runtimeScript?.dataset.lfRelease;
+
+if (documentLayer && documentLayer !== layerGeneration) {
+  window.dispatchEvent(new Event("lf-startup-failed"));
+  throw new Error("Leaf's document and runtime belong to different layers");
+}
 
 let layerReloading = false;
+function reloadDelivery(message) {
+  if (layerReloading) return;
+  layerReloading = true;
+  notice(message);
+  location.reload();
+}
+
 export function layerHeaders(headers = {}) {
-  return { "Leaf-Layer": layerGeneration, ...headers };
+  return {
+    "Leaf-Layer": layerGeneration,
+    ...(release && { "Leaf-Release": release }),
+    ...headers,
+  };
 }
 
 export function sameLayer(generation) {
   if (generation === layerGeneration) return true;
-  if (!layerReloading) {
-    layerReloading = true;
-    // Say what is about to happen before it happens. The reader is looking at a page
-    // that re-vendoring has moved out from under, and a tab that reloads itself with
-    // nothing said is a page that appears to have lost their place for no reason.
-    notice("Leaf has been updated — reloading this page.");
-    location.reload();
-  }
+  // Say what is about to happen before it happens. The reader is looking at a page
+  // that re-vendoring has moved out from under, and a tab that reloads itself with
+  // nothing said is a page that appears to have lost their place for no reason.
+  reloadDelivery("Leaf has been updated — reloading this page.");
   return false;
 }
+
+export function sameDelivery(response) {
+  if (layerReloading) return false;
+  const generation = response.headers.get("Leaf-Layer");
+  const responseRelease = response.headers.get("Leaf-Release");
+  if (generation && !sameLayer(generation)) return false;
+  if (release && responseRelease && responseRelease !== release) {
+    reloadDelivery("Leaf has been updated — reloading this page.");
+    return false;
+  }
+  return true;
+}
+
+let sessionMode = release ? "unknown" : "active";
+let sessionServer = null;
+const sessionChannel =
+  release && typeof window.BroadcastChannel !== "undefined"
+    ? new window.BroadcastChannel("leaf-session")
+    : null;
+
+function activateSession(broadcast, server = null) {
+  if (server && sessionServer && server !== sessionServer) {
+    reloadDelivery("This Leaf session restarted — reloading the page.");
+    return;
+  }
+  if (server) sessionServer = server;
+  const activated = sessionMode !== "active";
+  sessionMode = "active";
+  if (activated) document.dispatchEvent(new Event("lf-session-active"));
+  if (broadcast) sessionChannel?.postMessage({ active: true, server });
+}
+
+sessionChannel?.addEventListener("message", (event) => {
+  if (event.data?.active === true) activateSession(false, event.data.server);
+});
+
+export function observeSession(response) {
+  const mode = response.headers.get("Leaf-Session");
+  if (mode !== "active" && mode !== "passive") return;
+  if (mode === "active") activateSession(true, response.headers.get("Leaf-Server"));
+  else if (sessionMode !== "active") sessionMode = "passive";
+}
+
+export const sessionIsActive = () => sessionMode === "active";
 
 export let revealLayer;
 const layerReady = new Promise((resolve) => (revealLayer = resolve));
@@ -63,8 +123,8 @@ export const postEvent = async (event) => {
   } finally {
     countTraffic("acked");
   }
-  const responseGeneration = response.headers.get("Leaf-Layer");
-  if (response.ok && responseGeneration && !sameLayer(responseGeneration)) return null;
+  observeSession(response);
+  if (response.ok && !sameDelivery(response)) return null;
   return response;
 };
 
@@ -87,8 +147,8 @@ export const uploadMedia = async (file) => {
   } finally {
     countTraffic("acked");
   }
-  const responseGeneration = response.headers.get("Leaf-Layer");
-  if (response.ok && responseGeneration && !sameLayer(responseGeneration)) return null;
+  observeSession(response);
+  if (response.ok && !sameDelivery(response)) return null;
   let answer;
   try {
     answer = await response.json();

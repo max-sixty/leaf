@@ -9,6 +9,7 @@ store or event semantics.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from functools import cache
@@ -20,10 +21,11 @@ from leaf.document_reading import read_document
 from leaf.events import build_threads, spoken_turns
 from leaf.files import latest_revision, revision_path
 from leaf.hosting import server_at
-from leaf.http import Handler, canonical_script_offset
+from leaf.http import Handler, canonical_script_offset, scope_page_urls
 from leaf.projection import page_reading
 from leaf.registry.storage import layer_metadata, require_registry
 from leaf.revisioning import activate_source
+from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
 from leaf.service import PageTransaction
 from leaf.thread_context import thread_roots
@@ -35,14 +37,7 @@ PUBLICATION = {
     "agent": WEBSITE_AGENT,
     "install_url": "/#install",
 }
-EXAMPLE_ROUTE = re.compile(r"^/examples/(?P<slug>[a-z0-9-]+)(?P<inside>/.*)?$")
-PRODUCT_ROUTES = {
-    "/": "index",
-    "/examples": "examples",
-    "/how-it-works": "how-it-works",
-    "/packages": "packages",
-    "/registry": "registry",
-}
+SITE_MANIFEST = "_leaf/site.json"
 PAGE_RESOURCE = re.compile(
     r"^/(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:/|$)"
     r"|^/(?:icon\.svg|leaf\.js|registry\.json|sitenote\.js|theme\.css)$"
@@ -62,12 +57,15 @@ def page_binding(page_dir: Path) -> tuple[dict, str, dict | None]:
     )
 
 
-def with_sitenote(document: bytes, page_root: str) -> bytes:
+def with_sitenote(
+    document: bytes, page_root: str, *, asset_root: str | None = None
+) -> bytes:
     """Insert website chrome at the canonical runtime boundary."""
     source = document.decode()
-    offset = canonical_script_offset(source, page_root)
+    assets = asset_root if asset_root is not None else page_root
+    offset = canonical_script_offset(source, assets)
     site_script = (
-        f'<script type="module" src="{page_root}/sitenote.js" data-lf-site></script>'
+        f'<script type="module" src="{assets}/sitenote.js" data-lf-site></script>'
     )
     return (source[:offset] + site_script + source[offset:]).encode()
 
@@ -170,55 +168,30 @@ def _agent_event(posted: dict, *, with_text: bool) -> tuple[str, str | None]:
     return event_id, text
 
 
-def published_page(site_root: Path, path: str) -> tuple[Path, str, str, str] | None:
-    """Resolve a public URL to its independent page directory and inside route."""
-    if path in {"/", ""} or path.startswith("/_leaf/agent/"):
-        inside = "/" if path in {"/", ""} else path
-        return site_root / "_leaf" / "pages" / "index", "", inside, "product"
-
-    for route, name in PRODUCT_ROUTES.items():
-        if route in {"/", "/examples"}:
+def published_page(
+    site_root: Path, pages: dict, path: str
+) -> tuple[Path, str, str, str] | None:
+    """Resolve a public URL through the build's generated page manifest."""
+    for public_root, page in sorted(
+        pages.items(), key=lambda item: len(item[0]), reverse=True
+    ):
+        page_root = "" if public_root == "/" else public_root
+        if path in {page_root, f"{page_root}/"}:
+            inside = "/"
+        elif path.startswith(f"{page_root}/"):
+            inside = path[len(page_root) :]
+            if not (PAGE_RESOURCE.match(inside) or inside.startswith("/_leaf/agent/")):
+                continue
+        else:
             continue
-        if path in {route, f"{route}/"}:
-            return site_root / "_leaf" / "pages" / name, route, "/", "product"
-        if path.startswith(f"{route}/"):
-            return (
-                site_root / "_leaf" / "pages" / name,
-                route,
-                path[len(route) :],
-                "product",
-            )
-
-    if path in {"/examples", "/examples/"}:
-        return (
-            site_root / "_leaf" / "pages" / "examples",
-            "/examples",
-            "/",
-            "product",
-        )
-    if path.startswith("/examples/"):
-        inside_catalog = path[len("/examples") :]
-        if PAGE_RESOURCE.match(inside_catalog) or inside_catalog.startswith(
-            "/_leaf/agent/"
-        ):
-            return (
-                site_root / "_leaf" / "pages" / "examples",
-                "/examples",
-                inside_catalog,
-                "product",
-            )
-        match = EXAMPLE_ROUTE.fullmatch(path)
-        if match is not None:
-            slug = match.group("slug")
-            return (
-                site_root / "examples" / slug,
-                f"/examples/{slug}",
-                match.group("inside") or "/",
-                "example",
-            )
-
-    if PAGE_RESOURCE.match(path):
-        return site_root / "_leaf" / "pages" / "index", "", path, "product"
+        directory = page.get("directory")
+        kind = page.get("kind")
+        if not isinstance(directory, str) or kind not in {"product", "example"}:
+            raise ValueError(f"invalid site manifest entry for {public_root}")
+        page_dir = (site_root / directory).resolve()
+        if not page_dir.is_relative_to(site_root):
+            raise ValueError(f"site manifest path escapes its root: {directory}")
+        return page_dir, page_root, inside, kind
     return None
 
 
@@ -226,9 +199,15 @@ class WebsitePageHandler(Handler):
     """Bind every clean website route to one initialized page directory."""
 
     site_root: Path
+    pages: dict
     sitenote: bytes
     protocol_version = "HTTP/1.1"
     layer = ""
+
+    def page_state(self, view_revision: int | None = None) -> dict:
+        state = super().page_state(view_revision)
+        state["release"] = self.release
+        return state
 
     def authorized(self) -> bool:
         # The outer Worker has already selected this browser's isolated container.
@@ -295,7 +274,7 @@ class WebsitePageHandler(Handler):
         if self.command == "GET" and external.path == "/health":
             self._send(200, "text/plain; charset=utf-8", b"ok\n")
             return None
-        selected = published_page(self.site_root, external.path)
+        selected = published_page(self.site_root, self.pages, external.path)
         if selected is None:
             return False
         page_dir, page_root, inside, kind = selected
@@ -317,14 +296,35 @@ class WebsitePageHandler(Handler):
 def handler_for(site_root: Path) -> type[WebsitePageHandler]:
     """Make one process handler over every page directory in a site build."""
     root = site_root.resolve()
+    manifest = json.loads((root / SITE_MANIFEST).read_text(encoding="utf-8"))
     return type(
         "PublishedPageHandler",
         (WebsitePageHandler,),
         {
             "site_root": root,
+            "pages": manifest["pages"],
             "sitenote": (root / "sitenote.js").read_bytes(),
+            "release": manifest["release"],
         },
     )
+
+
+def initial_state(
+    page_dir: Path,
+    page_root: str,
+    kind: str,
+    release: str,
+    view_revision: int | None = None,
+) -> dict:
+    """Build the canonical state shared by readers before any private mutation."""
+    state = PageStateService(
+        page_dir,
+        layer_identity=layer_metadata(page_dir),
+        preview=preview_metadata(page_dir),
+        publication={**PUBLICATION, "kind": kind},
+    ).page_state(view_revision)
+    state["release"] = release
+    return scope_page_urls(state, page_root)
 
 
 def main() -> None:

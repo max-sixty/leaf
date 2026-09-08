@@ -4,6 +4,7 @@
   const script = document.currentScript;
   const incarnation = script.dataset.lfServer;
   const layer = script.dataset.lfLayer;
+  const release = script.dataset.lfRelease;
   const entry = new URL(script.dataset.lfEntry, location.href).href;
   const theme = new URL(script.dataset.lfTheme, location.href).href;
   let recovering = false;
@@ -25,9 +26,13 @@
     const check = async () => {
       try {
         const response = await fetch(script.dataset.lfProbe, { cache: "no-store" });
-        if (response.status === 404) return;
+        if (response.status === 404) {
+          if (release) location.reload();
+          return;
+        }
         const current = response.headers.get("Leaf-Server");
         let generation = response.headers.get("Leaf-Layer");
+        const currentRelease = response.headers.get("Leaf-Release");
         if (!generation && response.ok) {
           try {
             generation = (await response.json())?.["$layer"]?.generation;
@@ -37,7 +42,8 @@
         }
         if (
           (current && current !== incarnation) ||
-          (generation && generation !== layer)
+          (generation && generation !== layer) ||
+          (release && currentRelease && currentRelease !== release)
         ) {
           location.reload();
           return;

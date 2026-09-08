@@ -40,6 +40,20 @@ def post(url: str, body: dict, headers: dict | None = None) -> tuple[dict, dict]
         return json.loads(response.read()), dict(response.headers)
 
 
+def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
+    """Give a focused server fixture the same generated routing authority as a build."""
+    manifest = {
+        "release": "0" * 64,
+        "pages": {
+            route: {"directory": directory, "kind": kind}
+            for route, (directory, kind) in pages.items()
+        },
+    }
+    target = site / website_server.SITE_MANIFEST
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(manifest), encoding="utf-8")
+
+
 def test_the_website_label_follows_the_script_contract_not_its_formatting():
     document = (
         b'<!doctype html><html><head><script\n type="module" '
@@ -57,6 +71,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
     (site / "sitenote.js").write_text("document.body.dataset.site = 'example';\n")
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
 
     httpd = server_at(
         "127.0.0.1",
@@ -180,6 +195,7 @@ def test_a_product_route_uses_the_same_real_page_server(
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
     (site / "sitenote.js").write_text("export {};")
+    write_manifest(site, {page_root or "/": (f"_leaf/pages/{name}", "product")})
 
     httpd = server_at("127.0.0.1", 0, website_server.handler_for(site))
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
@@ -231,6 +247,7 @@ def test_an_agent_reply_is_dropped_when_a_newer_reader_turn_overtakes_it(
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
     (site / "sitenote.js").write_text("export {};")
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = server_at("127.0.0.1", 0, website_server.handler_for(site))
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
@@ -280,6 +297,7 @@ def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
     (site / "sitenote.js").write_text("document.body.dataset.site = 'example';\n")
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
 
     with example_previews.serve_examples(site) as root:
         state = json.loads(get(f"{root}/examples/decision/api/state")[0])

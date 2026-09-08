@@ -1,11 +1,11 @@
 /**
- * Public Leaf site as isolated, canonical Leaf sessions.
+ * Public Leaf site with edge reads and isolated canonical mutation sessions.
  *
  * Cloudflare serves the immutable live shell of each product and example page. API
- * requests go to the Python Leaf server in a container selected by an opaque browser
- * cookie. The container starts with the same complete page directories and writes only
- * to its own ephemeral filesystem, so one reader can exercise the real event log
- * without changing another reader's page or inventing a second state implementation.
+ * initial state stay at the edge. A request needing mutation starts the Python Leaf
+ * server in a container selected by an opaque browser cookie. The container starts with
+ * the same complete page directories and writes only to its own ephemeral filesystem,
+ * so one reader can exercise the real event log without changing another reader's page.
  * During an image rollout, a layer mismatch pins that reader briefly to the container's
  * complete shell so a static document never reloads against an older API in a loop.
  */
@@ -21,18 +21,23 @@ import {
 import { NonRetryableError } from "cloudflare:workflows";
 
 import {
+  activeCookie,
+  activeFromCookie,
   clearContainerCookie,
   containerCookie,
   containerFromCookie,
-  isPageRequest,
   isPageApiRequest,
   isPageMediaRequest,
   isPrivatePageRequest,
   needsPageSlash,
   newSessionId,
   pageRoute,
+  parseSiteManifest,
+  releaseAssetRoute,
   sessionCookie,
   sessionFromCookie,
+  type PageRoute,
+  type SiteManifest,
 } from "./routing";
 
 export interface Env {
@@ -119,11 +124,7 @@ function validatedAgentParams(value: unknown): AgentWorkflowParams {
     typeof params.sessionId !== "string" ||
     !/^[0-9a-f]{32}$/.test(params.sessionId) ||
     typeof params.route !== "string" ||
-    !(
-      ["/", "/examples", "/how-it-works", "/packages", "/registry"].includes(
-        params.route,
-      ) || /^\/examples\/[a-z0-9-]+$/.test(params.route)
-    ) ||
+    !/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/.test(params.route) ||
     typeof params.eventId !== "string" ||
     !/^[A-Za-z0-9_-]{1,128}$/.test(params.eventId) ||
     typeof params.sourceId !== "string" ||
@@ -339,34 +340,100 @@ function staticAssetResponse(response: Response): Response {
   });
 }
 
-async function staticLayer(
+const manifests = new WeakMap<object, Promise<SiteManifest>>();
+
+async function siteManifest(request: Request, env: Env): Promise<SiteManifest> {
+  let pending = manifests.get(env.ASSETS as object);
+  if (!pending) {
+    const url = new URL("/_leaf/site.json", request.url);
+    pending = env.ASSETS.fetch(new Request(url)).then(async (response) => {
+      if (!response.ok) throw new Error(`site manifest returned ${response.status}`);
+      return parseSiteManifest(await response.json());
+    });
+    manifests.set(env.ASSETS as object, pending);
+    pending.catch(() => manifests.delete(env.ASSETS as object));
+  }
+  return pending;
+}
+
+function stampedStaticResponse(
+  response: Response,
+  route: PageRoute,
+  release: string,
+): Response {
+  const staticResponse = staticAssetResponse(response);
+  const headers = new Headers(staticResponse.headers);
+  headers.set("Leaf-Layer", route.layer);
+  headers.set("Leaf-Release", release);
+  return new Response(staticResponse.body, {
+    status: staticResponse.status,
+    statusText: staticResponse.statusText,
+    headers,
+  });
+}
+
+async function staticState(
   request: Request,
   env: Env,
-  pageRoot: string,
-): Promise<string | null> {
-  const url = new URL(request.url);
-  url.pathname = `${pageRoot === "/" ? "" : pageRoot}/registry.json`;
-  url.search = "";
+  manifest: SiteManifest,
+  route: PageRoute,
+): Promise<Response> {
+  const viewRevision = request.headers.get("Leaf-View-Revision");
+  const statePath = viewRevision === null ? route.state : route.states[viewRevision];
+  if (statePath === undefined) {
+    return new Response("unknown page revision", { status: 400 });
+  }
+  const url = new URL(statePath, request.url);
   const response = await env.ASSETS.fetch(new Request(url));
-  if (!response.ok) return null;
-  const registry = (await response.json()) as {
-    $layer?: { generation?: unknown };
-  };
-  const generation = registry.$layer?.generation;
-  return typeof generation === "string" && generation ? generation : null;
+  if (!response.ok) return new Response("state unavailable", { status: 503 });
+  const state = (await response.json()) as Record<string, unknown>;
+  const now = new Date();
+  state.now = now.toISOString();
+  state.taken = now.getTime() / 1000;
+  const headers = new Headers({
+    "Cache-Control": "no-store",
+    "Content-Type": "application/json; charset=utf-8",
+    "Leaf-Layer": route.layer,
+    "Leaf-Release": manifest.release,
+    "Leaf-Session": "passive",
+  });
+  return Response.json(state, { headers });
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<Response> {
     const url = new URL(request.url);
     const pathname = url.pathname;
     if (isPrivatePageRequest(pathname)) {
       return new Response("not found", { status: 404 });
     }
-    if (!isPageRequest(pathname)) {
+    const manifest = await siteManifest(request, env);
+    const releasedAsset = releaseAssetRoute(pathname, manifest.pages);
+    if (releasedAsset !== null) {
+      const assetUrl = new URL(request.url);
+      assetUrl.pathname = releasedAsset.pathname;
+      const response = stampedStaticResponse(
+        await env.ASSETS.fetch(new Request(assetUrl, request)),
+        releasedAsset.route,
+        manifest.release,
+      );
+      const headers = new Headers(response.headers);
+      headers.set("Cache-Control", "public, max-age=31536000, immutable");
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
+    }
+    const route = pageRoute(pathname, manifest.pages);
+    if (route === null) {
       return staticAssetResponse(await env.ASSETS.fetch(request));
     }
-    if (needsPageSlash(pathname)) {
+    if (needsPageSlash(pathname, route)) {
       const canonical = new URL(request.url);
       canonical.pathname += "/";
       return Response.redirect(canonical.toString(), 308);
@@ -375,20 +442,37 @@ export default {
     const secure = url.protocol === "https:";
     const cookie = request.headers.get("Cookie");
     const existing = sessionFromCookie(cookie, secure);
+    const active = activeFromCookie(cookie, secure);
     const containerOnly = containerFromCookie(cookie, secure);
     const sessionId = existing ?? randomSessionId();
-    const route = pageRoute(pathname);
-    if (route === null) return new Response("not found", { status: 404 });
+    if (
+      !active &&
+      !containerOnly &&
+      request.method === "GET" &&
+      route.inside === "api/state"
+    ) {
+      return staticState(request, env, manifest, route);
+    }
     if (
       (request.method === "GET" || request.method === "HEAD") &&
-      !isPageApiRequest(pathname) &&
+      !isPageApiRequest(route) &&
       !containerOnly
     ) {
-      const response = staticAssetResponse(await env.ASSETS.fetch(request));
-      if (response.status !== 404 || !isPageMediaRequest(pathname)) {
-        if (existing !== null || route.inside !== "") return response;
+      const response = stampedStaticResponse(
+        await env.ASSETS.fetch(request),
+        route,
+        manifest.release,
+      );
+      if (response.status !== 404 || !isPageMediaRequest(route)) {
+        if (!response.headers.get("Content-Type")?.startsWith("text/html")) {
+          return response;
+        }
         const headers = new Headers(response.headers);
-        headers.append("Set-Cookie", sessionCookie(sessionId, secure));
+        if (existing === null) {
+          headers.append("Set-Cookie", sessionCookie(sessionId, secure));
+        } else if (active) {
+          ctx.waitUntil(getContainer(env.PAGES, sessionId).start());
+        }
         return new Response(response.body, {
           status: response.status,
           statusText: response.statusText,
@@ -410,22 +494,40 @@ export default {
       }
     }
     const requestLayer = request.headers.get("Leaf-Layer");
+    const requestRelease = request.headers.get("Leaf-Release");
     const responseLayer = response.headers.get("Leaf-Layer");
+    const responseRelease = response.headers.get("Leaf-Release");
     const needsContainer =
-      requestLayer !== null &&
-      responseLayer !== null &&
-      requestLayer !== responseLayer;
+      (requestLayer !== null &&
+        responseLayer !== null &&
+        requestLayer !== responseLayer) ||
+      (requestRelease !== null &&
+        responseRelease !== null &&
+        requestRelease !== responseRelease);
     const containerCaughtUp =
       containerOnly &&
       requestLayer !== null &&
       requestLayer === responseLayer &&
-      (await staticLayer(request, env, route.root)) === responseLayer;
-    if (existing !== null && !needsContainer && !containerCaughtUp) return response;
+      route.layer === responseLayer &&
+      requestRelease !== null &&
+      requestRelease === responseRelease &&
+      manifest.release === responseRelease;
+    if (existing !== null && active && !needsContainer && !containerCaughtUp) {
+      const headers = new Headers(response.headers);
+      headers.set("Leaf-Session", "active");
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
+    }
 
     const headers = new Headers(response.headers);
+    headers.set("Leaf-Session", "active");
     if (existing === null) {
       headers.append("Set-Cookie", sessionCookie(sessionId, secure));
     }
+    if (!active) headers.append("Set-Cookie", activeCookie(secure));
     if (needsContainer) headers.append("Set-Cookie", containerCookie(secure));
     if (containerCaughtUp) {
       headers.append("Set-Cookie", clearContainerCookie(secure));

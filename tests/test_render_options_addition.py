@@ -1,11 +1,15 @@
 """Added-option presentation and replay tests."""
 
+import base64
+import re
+
 import pytest
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
     ASK_WITH_CONTEXT_PAGE,
+    EXAMPLE_MEDIA,
     button_radius,
     open_page,
     round_trip,
@@ -250,6 +254,54 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     undo(page)
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(0)
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+PASTE_IMAGE = """(textarea, encoded) => {
+  const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+  const transfer = new DataTransfer();
+  transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+  textarea.dispatchEvent(new ClipboardEvent('paste', {
+    bubbles: true,
+    cancelable: true,
+    clipboardData: transfer,
+  }));
+}"""
+
+
+def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
+    """A box that will not take a picture says so, rather than swallowing the paste.
+
+    An option is the text of an option, so this field declines images as the composer
+    declines them while a suggestion stands. What it may not do is decline them in
+    silence: the shelf never appears, the words never change, and nothing is uploaded,
+    so a reader who pasted a screenshot sees exactly what a reader whose paste worked
+    would see. The empty send in the same box already answers its own nothing out loud;
+    this is the other way a box can go quiet on a gesture."""
+    page, errors = open_page(browser, serve(ASK_PAGE))
+    uploads = []
+    page.on(
+        "request",
+        lambda request: (
+            uploads.append(request.url) if request.url.endswith("/api/media") else None
+        ),
+    )
+    form = page.locator("#jobs > .lf-another")
+    field = form.get_by_role("textbox", name="Another option", exact=True)
+    pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
+    field.evaluate(PASTE_IMAGE, base64.b64encode(pixels).decode())
+
+    notice = page.locator(".lf-notice")
+    expect(notice).to_have_class(re.compile(r"\bshow\b"))
+    assert notice.inner_text() == "Images can be added to comments, not options"
+    expect(form.locator(".lf-composer-media")).to_be_hidden()
+    expect(form.locator(".lf-composer-media img")).to_have_count(0)
+    assert field.input_value() == ""
+    assert uploads == [], "a refused paste still uploaded its bytes"
+    assert not [
+        event for event in sent_events(serve.page_dir) if event["kind"] == "action"
+    ]
     assert errors == []
     page.close()
 

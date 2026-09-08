@@ -74,7 +74,7 @@ export class OptionAddition {
       sends: "add option",
       icon: "add",
       sendBtn: this.#add,
-      allowsMedia: null,
+      allowsMedia: () => "Images can be added to comments, not options",
       busy: () => !this.available(),
       hasContent: (raw) => Boolean(raw.trim()),
       layout: this.#paintEmpty,

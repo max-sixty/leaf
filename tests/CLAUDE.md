@@ -47,25 +47,19 @@ uv run pytest --lf --lfnf=none -x -n0
 
 Before handing over a browser-facing change, run its complete browser file and
 the everyday suite. `wt merge` runs pre-commit and the everyday suite after
-rebasing. Every pull request runs the everyday suite. A product or shared test
-harness change also runs the complete suite; a change confined to test modules
-runs those modules' nightly cases; Markdown prose and other workflow changes stop
-at the everyday suite. The extended cases use four isolated CI jobs, while the
-two-worker pytest default still caps the browser load inside each job.
-
-Main runs those same four groups without blocking a merge. A newer main commit
-cancels obsolete groups, while a separate daily run always finishes a complete
-checkpoint. Pytest-split balances both surfaces from `.test_durations`; refresh
-that file when the four job times diverge materially:
+rebasing. Pull requests and main run pre-commit, the everyday suite, and the
+website-worker checks. Tend's review chooses the smallest additional test
+selection that covers the product paths a pull request changes. The scheduled
+CI run exercises every nightly case in one job:
 
 ```sh
-uv run pytest tests -m nightly -n 0 --store-durations --clean-durations
+uv run pytest tests -m nightly
 ```
 
 `scripts/linux-suite.sh` supplies the pinned headless shell, installed Chrome,
 and CI fonts. Its default reproduces the everyday job; pass a failed nightly
-job's group and split arguments to reproduce that job's exact selection. It
-needs a Docker daemon that can run `linux/amd64`.
+file, node id, or marker selection to reproduce that surface. It needs a Docker
+daemon that can run `linux/amd64`.
 
 The developer environment comes from the one `pyproject.toml` and `uv.lock` at
 the repo root, which is also the payload project: `uv sync` installs `leaf`

@@ -299,8 +299,8 @@ class _PassageParser(HTMLParser):
                     break
                 if ancestor["upgrade"]:
                     break
-        # A module may write anywhere inside the element it upgrades, unless the registry
-        # says the body reaches the reader as its own words.
+        # An upgrade is opaque unless it preserves its own words and ordered nested
+        # upgraded boundaries. Descendants keep their own contracts.
         opaque = bool(entry.get("x-upgrade") and not entry.get("x-verbatim"))
         # A slot a decision retired: its words left the page with the outcome the
         # registry names, and everything under it goes too. Looked up by the parent's

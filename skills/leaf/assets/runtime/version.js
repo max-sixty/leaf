@@ -727,12 +727,9 @@ const diffBlockSel = () =>
     TEXT_BLOCK,
     "aside",
     ...tagsDeclaring((e) => e["x-parent"] && (e["x-content"] ?? "prose") === "prose"),
-    // A verbatim body reaches the reader as its own words, so the widget is a block
-    // of the page's prose the way a paragraph is. The leaf-blocks-only rule below
-    // keeps the two sides symmetric: unupgraded (the base document) the authored
-    // <pre> inside is the leaf and keys the same collapsed text the upgraded
-    // widget's standing body keys live — so a rewritten or new draft marks, where
-    // it used to be the one block of prose the diff was blind to.
+    // Preserving widgets contribute their own prose. The leaf-blocks-only rule
+    // below avoids counting nested blocks twice and keeps base and live readings
+    // symmetric: a draft's authored <pre> and rendered body key the same words.
     ...tagsDeclaring((e) => e["x-verbatim"]),
   ].join(",");
 // Opaque: a widget whose upgrade renders its data body, so the text on screen is the

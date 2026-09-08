@@ -34,10 +34,9 @@ import {
 
    Required widget imports reject through the startup or activation boundary; a missing
    module cannot count as a completed upgrade. */
-// The file-side passage reader fences an upgraded element and each of its original
-// direct children when the registry cannot promise its body is verbatim. Remember
-// those parts before custom-element definitions can add or move anything, so the
-// browser can stop captured context at the same seams after every upgrade has run.
+// An opaque widget and its original direct children fence passage capture. A
+// preserving widget owns prose around ordered upgraded-child boundaries instead.
+// Record both readings before upgrades move or replace nodes.
 const rememberedPassageRoots = new WeakSet();
 
 export function rememberPassageParts(scope = document) {

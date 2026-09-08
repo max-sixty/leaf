@@ -62,6 +62,7 @@ export class OptionAddition {
   #buildForm() {
     this.#form = offer("form", "lf-another");
     this.#input = offer("textarea");
+    this.#input.name = "option";
     this.#input.rows = 1;
     this.#input.setAttribute("aria-label", ANOTHER);
     this.#add = offer("button", "lf-btn", "Add");

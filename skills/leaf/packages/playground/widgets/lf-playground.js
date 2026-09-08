@@ -267,6 +267,7 @@ customElements.define(
       }
 
       const input = offer("input", "lf-playground-input");
+      input.name = `${this.id}-${name}`;
       input.setAttribute("aria-label", label);
       if (kind === "toggle") {
         input.type = "checkbox";

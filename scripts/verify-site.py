@@ -27,6 +27,11 @@ def check(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
+def private_probe_url(page_url: str, revision: str | int) -> str:
+    """A read-only canonical request that activates one website session."""
+    return urljoin(page_url, f"api/view?revision={revision}&through_seq=0")
+
+
 def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> None:
     context = browser.new_context()
     page = context.new_page()
@@ -105,7 +110,14 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
         context.close()
         return
 
-    activation_url = urljoin(url, "api/data")
+    revision = page.locator('meta[name="lf-revision"][data-lf-runtime]').get_attribute(
+        "content"
+    )
+    check(
+        revision is not None and revision.isdecimal() and int(revision) > 0,
+        f"{url} declared no active revision",
+    )
+    activation_url = private_probe_url(url, revision)
     activation_response = context.request.get(activation_url, timeout=120_000)
     check(
         activation_response.ok,
@@ -114,6 +126,10 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
     check(
         activation_response.headers.get("leaf-session") == "active",
         f"{activation_url} did not activate a private container",
+    )
+    check(
+        isinstance(activation_response.json().get("browser"), dict),
+        f"{activation_url} returned no browser projection",
     )
     state_url = urljoin(url, "api/state")
     state_response = context.request.get(

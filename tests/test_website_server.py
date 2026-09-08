@@ -23,6 +23,11 @@ _previews_spec = importlib.util.spec_from_file_location(
 )
 example_previews = importlib.util.module_from_spec(_previews_spec)
 _previews_spec.loader.exec_module(example_previews)
+_verify_spec = importlib.util.spec_from_file_location(
+    "verify_site", ROOT / "scripts" / "verify-site.py"
+)
+verify_site = importlib.util.module_from_spec(_verify_spec)
+_verify_spec.loader.exec_module(verify_site)
 
 
 def get(url: str) -> tuple[bytes, dict]:
@@ -97,6 +102,13 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             "install_url": "/#install",
         }
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
+
+        raw_view, _ = get(
+            verify_site.private_probe_url(
+                f"{root}/examples/decision/", state["active"]["revision"]
+            )
+        )
+        assert isinstance(json.loads(raw_view)["browser"], dict)
 
         posted = {
             "kind": "comment",

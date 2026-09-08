@@ -2423,8 +2423,8 @@ def test_a_runtime_cannot_adopt_a_new_registry_while_it_is_loading(browser, serv
     page.close()
 
 
-def test_a_marked_element_uses_a_visible_rail_until_keyboard_focus(browser, serve):
-    """Element comments keep one rail above child paint; focus gets a complete ring."""
+def test_a_marked_element_uses_a_complete_contour(browser, serve):
+    """Element comments and keyboard focus both keep a complete visible boundary."""
     context = browser.new_context(
         viewport={"width": 1201, "height": 900},
         color_scheme="light",
@@ -2452,9 +2452,8 @@ def test_a_marked_element_uses_a_visible_rail_until_keyboard_focus(browser, serv
             "behavior: 'instant'})"
         )
         edges = mark_edges(page, ident, ink)
-        assert edges["left"] == {4}, f"the rail on #{ident} was covered: {edges}"
-        assert all(edges[side] == {0} for side in ("top", "right", "bottom")), (
-            f"the rail on #{ident} became a repeated border: {edges}"
+        assert all(seen == {2} for seen in edges.values()), (
+            f"the comment contour on #{ident} was incomplete: {edges}"
         )
 
     target = page.locator("#approach")
@@ -4272,10 +4271,10 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
 
 
 def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve):
-    """The reading ignores element rails and still recognizes the real focus ring.
+    """The reading ignores element contours and still recognizes the real focus ring.
 
-    A marked passage uses a rail rather than an outline, so it must not enter the
-    population of complete keyboard rings. The real ring goes last as the control;
+    A marked passage uses the comment ink and no focus-ring declaration, so it must not
+    enter the population of keyboard rings. The real ring goes last as the control;
     without it a reading that claimed nothing at
     all would pass the case above and prove only that it was silent."""
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
@@ -4316,7 +4315,7 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
     )
 
     style, _width, colour = page.evaluate(plant, "mark")
-    assert style == "none", "mark unexpectedly drew a complete outline"
+    assert style == "solid", "the element comment lost its complete contour"
     assert not claimed(), (
         f"the reading counted the mark ({colour}) as a here ring: {claimed()}"
     )
@@ -4981,9 +4980,9 @@ RING_NEW_STOP = f"""async () => {{
 # report, and the walk makes no gesture — so nothing here is being excused today. A
 # reading of the wash has to come with the corpus case that shows it.
 #
-# A marked element now answers the keyboard with the same named accent ring as any other
-# focusable passage. Its resting rail and stronger hover wash are background layers, so
-# neither can be mistaken for focus.
+# A marked element answers the keyboard with the same named accent ring as any other
+# focusable passage. Its resting contour has no focus-ring declaration, so it cannot be
+# mistaken for focus.
 #
 # The band cast as a shadow is the third. The anchored response bar draws it that way —
 # its focused states take the outline off so the field and its choices keep one
@@ -5015,7 +5014,7 @@ SEEN_STOP = f"""() => {{
   // chain contains the focus by construction, so containing it says nothing; what
   // separates a ring drawn because the reader is here from one drawn for another
   // reason is that the layer's focus rules say which ring they are and the pointer's
-  // do not. An element mark's rail and hover wash are the case: neither is a named
+  // do not. An element mark's contour is the case: it is not a named
   // outline, so neither answers the keyboard's question for every stop underneath it.
   const named = (el) =>
     getComputedStyle(el).getPropertyValue('--lf-here-ring').trim() !== 'none';
@@ -5183,7 +5182,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             url.replace(f"/v{current_version}.html", f"/v{next_version}.html"),
         )
         if name == "release-notes":
-            # Ordinary element marks use a quiet rail at rest and a full ring only
+            # Ordinary element marks use a quiet contour at rest and an accent ring only
             # when the marked element itself receives keyboard focus. Give that
             # conditional state a real stop in the causal walk.
             page.locator("main p").first.evaluate(

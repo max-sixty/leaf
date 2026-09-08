@@ -1996,20 +1996,23 @@ def test_the_pointer_over_a_comment_lights_the_passage_it_is_about(browser, serv
     wait_hovered(page, "neighbouring block")
 
     # An element anchor answers too, in the chrome projection above its descendants.
-    # ::highlight paints glyphs and a box has none, so the projected wash carries the
+    # ::highlight paints glyphs and a box has none, so the contour gains weight for the
     # middle step. Without it the pointer over an element-anchored card did nothing at
     # all, which from the panel reads as a broken hover rather than as a passage with no
     # words.
+    hovered_el = page.locator("#fig")
+    hovered_el.scroll_into_view_if_needed()
     page.mouse.move(*card_body(page, "on the figure"))
     wait_hovered(page, "")
-    hovered_el = page.locator("#fig")
     expect(hovered_el).to_have_class(re.compile(r"\blf-mark-hover\b"))
-    hovered_wash = hovered_el.evaluate("el => getComputedStyle(el).backgroundImage")
+    hovered_mark = page.locator('.lf-visual-mark[data-for="fig"]')
+    expect(hovered_mark).to_have_class(re.compile(r"\blf-visual-mark-hover\b"))
+    hovered_width = hovered_mark.evaluate("el => getComputedStyle(el).borderLeftWidth")
     page.mouse.move(*card_body(page, "on the second"))
     wait_hovered(page, "neighbouring block")
     assert (
-        hovered_el.evaluate("el => getComputedStyle(el).backgroundImage")
-        != hovered_wash
+        hovered_mark.evaluate("el => getComputedStyle(el).borderLeftWidth")
+        != hovered_width
     )
 
     # Standing in one comment while pointing at another says both, because they answer

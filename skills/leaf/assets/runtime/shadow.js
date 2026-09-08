@@ -82,7 +82,8 @@ const SHADOW_CSS = /\/\* lf-shadow:start \*\/([\s\S]*?)\/\* lf-shadow:end \*\//g
 // document's rules cannot withhold generated interface, or a dialog or popover promoted
 // out of an x-shadow widget. Every legitimate page shadow tree is built here; repeat
 // those boundaries inside it, together with transition suppression. The shadow's
-// ordinary contents still paint before presentation, just like authored light DOM.
+// ordinary contents paint immediately and its generated interface paints after upgrade,
+// on the same boundaries as authored and generated light DOM.
 export const SHADOW_STARTUP_CSS = `
 @layer {
   @media screen {
@@ -91,7 +92,7 @@ export const SHADOW_STARTUP_CSS = `
     :host-context(body:not([data-lf-presented])) *::after {
       transition: none !important;
     }
-    :host-context(body:not([data-lf-presented])) .lf-ui {
+    :host-context(body:not([data-lf-upgraded])) .lf-ui {
       visibility: hidden !important;
     }
     :host-context(body:not([data-lf-presented])) :is(dialog, [popover]),

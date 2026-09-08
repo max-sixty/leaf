@@ -139,12 +139,12 @@ export function wireGeneralBox() {
     accessibleName: generalHint,
     sends: "send",
     sendBtn: generalSend,
-    hasContent: (raw) => Boolean(raw.trim() || generalDrawing),
+    hasContent: (raw) => Boolean(raw || generalDrawing),
     save: saveGeneralDraft,
-    send: async (text, raw, owns) => {
+    send: async (_text, raw, owns) => {
       const sent = await sendMessage("general", owns, (attempt, payload) => {
         const event = { kind: "comment", revision: runtime.currentRevision, attempt };
-        if (text) event.text = text;
+        if (raw) event.text = raw;
         const drawing = drawingIn(payload);
         if (designOn && !drawing) event.about = "layer";
         if (drawing) event.drawing = drawing;

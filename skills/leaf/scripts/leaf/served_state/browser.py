@@ -22,6 +22,7 @@ def browser_state(
     active: dict,
     view_revisions: set[int],
     now: str,
+    activity_stream: dict | None = None,
 ) -> dict:
     """The browser's derived reading of one transaction-consistent page snapshot.
 
@@ -101,7 +102,9 @@ def browser_state(
         "basis": {"through_seq": through_seq},
         "views": views,
         "conversation": conversation,
-        "activity": canonical_activity(present, interaction_evidence, now),
+        "activity": canonical_activity(
+            present, interaction_evidence, now, activity_stream
+        ),
         "receipts": [event for event in events if event.get("attempt")],
         "version_notes": {
             str(event["version"]): event["text"]
@@ -121,6 +124,7 @@ def project_browser_state(
     source_overrides: dict[int, str] | None = None,
     *,
     include_active_view: bool = True,
+    activity_stream: dict | None = None,
 ) -> dict | None:
     """Project only the documents one browser reading can consume.
 
@@ -160,4 +164,5 @@ def project_browser_state(
         active,
         wanted if include_active_view else {requested_revision},
         now,
+        activity_stream,
     )

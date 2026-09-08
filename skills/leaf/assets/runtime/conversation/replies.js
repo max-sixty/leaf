@@ -26,7 +26,7 @@ const REPLY_DRAFT_CONTEXT = Symbol("reply draft context");
 // gesture that sends it. A second view pressing Send afterwards reads the generation as
 // spent and refuses on its own — in this tab and in any other showing the page, which is
 // further than a hold kept in this document's memory reached.
-const sendReply = (t, liveId, text, raw, owns) =>
+const sendReply = (t, liveId, text, owns) =>
   sendMessage("reply:" + threadKey(t), owns, (attempt) =>
     post({
       kind: "reply",
@@ -58,8 +58,8 @@ export function wireReply(t, input, send, liveId = () => t.root.id) {
     // they were when they pressed it. Whether typing continues here is that one
     // reading, taken now, rather than a race against a scroll or a blur arriving during
     // a flight this no longer waits on.
-    send: (text, raw, owns) => {
-      const sent = sendReply(t, liveId, text, raw, owns);
+    send: (_text, raw, owns) => {
+      const sent = sendReply(t, liveId, raw, owns);
       if (!sent || (focused() !== input && focused() !== send) || !mayLandTyping(input))
         return;
       landTyping(input);

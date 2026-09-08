@@ -528,8 +528,8 @@ body { position: static !important; box-sizing: border-box !important;
 }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
  * parse while JavaScript upgrades widgets and reads the standing log. Generated page
- * interface keeps its layout but stays hidden until the presentation task has applied
- * authoritative state and given box-derived apparatus its final startup geometry.
+ * interface joins it as soon as widget and page-interface upgrade gives that apparatus
+ * its settled upgrade geometry; durable controls still guard mutation until presentation.
  * Authored dialogs and popovers stay hidden too: those top-layer elements can otherwise
  * escape their ancestors' stacking and inertness. Ordinary prose, links, scrolling, and
  * layout remain available.
@@ -546,7 +546,7 @@ body { position: static !important; box-sizing: border-box !important;
     html[data-lf-live] body:not([data-lf-presented]) .lf-ui {
       transition: none !important;
     }
-    html[data-lf-live] body:not([data-lf-presented]) > main .lf-ui {
+    html[data-lf-live] body:not([data-lf-upgraded]) > main .lf-ui {
       visibility: hidden !important;
     }
     html[data-lf-live] body:not([data-lf-presented])
@@ -1381,8 +1381,20 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
           color: inherit; font: inherit; resize: none; field-sizing: content;
           max-height: 50vh; overflow-y: auto; }
-.lf-conversation-thread :is(.lf-btn, textarea, summary):is(:focus-visible, .lf-focus-visible) {
+.lf-conversation-thread :is(.lf-btn, summary):is(:focus-visible, .lf-focus-visible) {
           outline: var(--here-ring); outline-offset: 1px; --lf-here-ring: conversation; }
+/* The reply is a text box and wears the text box's band: the ring replaces the resting
+   border in place rather than standing a second edge off it. The chrome stylesheet
+   states that for every text box in the document and reaches this one too, but only
+   while the thread is seated in light DOM — a thread an x-thread-surface widget seats
+   inside its own shadow tree is out of that rule's reach, and read only the rules above
+   it kept its resting border under the ring, which is the accented border plus outline
+   the text box rule exists to remove. Repeated here on the terms the chrome rule sets,
+   so the reply field wears one band wherever the thread is seated, the way .lf-mark-note
+   and .lf-chip repeat their own faces through this boundary. */
+.lf-conversation-thread textarea:is(:focus, .lf-focus) {
+          outline: var(--here-ring); outline-offset: 0; border-color: transparent;
+          --lf-here-ring: text-box; }
 @media print {
   .lf-conversation-thread,
   .lf-conversation-thread :is(.lf-conversation-msg, .lf-conversation-resolved) {

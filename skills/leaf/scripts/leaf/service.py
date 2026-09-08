@@ -228,6 +228,8 @@ class PageTransaction:
             # comparing wall-clock timestamps that are only precise to a second.
             "after": self.events[-1]["seq"] if self.events else 0,
         }
+        if state != "idle" and (stream := self.status.get("stream")):
+            status["stream"] = stream
         claims = [] if state == "idle" else list(self.status.get("work", []))
         if work:
             identity = message_identity()
@@ -245,6 +247,34 @@ class PageTransaction:
             )
         if claims:
             status["work"] = claims
+        write_json(self.page_dir / STATUS_FILE, status)
+
+    def set_stream_activity(self, session_id: str, turn_id: str, detail: str) -> None:
+        """Record activity observed directly from the task's live event stream."""
+        status = dict(self.status)
+        if status["state"] == "idle":
+            return
+        stream = {
+            "session": session_id,
+            "turn": turn_id,
+            "detail": detail,
+            "ts": now_iso(),
+            "after": self.events[-1]["seq"] if self.events else 0,
+        }
+        status["stream"] = stream
+        write_json(self.page_dir / STATUS_FILE, status)
+
+    def clear_stream_activity(
+        self, session_id: str, turn_id: str | None = None
+    ) -> None:
+        """Remove this task's live reading without changing its declaration."""
+        status = dict(self.status)
+        stream = status.get("stream")
+        if not stream or stream.get("session") != session_id:
+            return
+        if turn_id is not None and stream.get("turn") != turn_id:
+            return
+        status.pop("stream")
         write_json(self.page_dir / STATUS_FILE, status)
 
     @property

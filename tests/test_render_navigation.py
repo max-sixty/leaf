@@ -1686,6 +1686,12 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
           shadow: s.boxShadow,
         }; }"""
     )
+    # The preview builds the thread when it opens it, and opening it from the mark
+    # makes it current, so the resting tint is only readable from the same element
+    # once the region gives the focus back.
+    resting = thread.evaluate(
+        "el => { el.blur(); return getComputedStyle(el).backgroundColor; }"
+    )
     assert pointer["outline"] == "none"
     assert pointer["shadow"] == "none"
 
@@ -1719,6 +1725,11 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
         }; }"""
     )
     assert writing == current
+    # One ring and no accented border: the reply wears the text box's band, which
+    # replaces the resting border rather than standing off it. `theme.css` states
+    # that inside `.lf-conversation-thread` so a thread seated in a widget's shadow
+    # tree wears the same band, and the chrome text-box rule states it for the
+    # document; both say the same thing, so this reading is the same either way.
     assert reply_ring == {
         "style": "solid",
         "width": "2px",
@@ -1822,11 +1833,15 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
             ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-head'
           ).getBoundingClientRect();
           return {controlTop: control.top, expectedTop: own.top + inset,
-                  controlBottom: control.bottom, headBottom: head.bottom};
+                  controlBottom: control.bottom, headTop: head.top,
+                  headBottom: head.bottom};
         }"""
     )
     assert placement["controlTop"] == pytest.approx(placement["expectedTop"], abs=1)
     assert placement["controlBottom"] <= placement["headBottom"], (
+        f"Resolve hung below the first inline message's row: {placement}"
+    )
+    assert placement["headTop"] < placement["controlBottom"], (
         f"Resolve took a row above the first inline message: {placement}"
     )
 

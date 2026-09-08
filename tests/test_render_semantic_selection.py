@@ -516,6 +516,113 @@ def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, se
     page.close()
 
 
+def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
+    """The search prompt keeps letters as query text. Once Enter accepts that search,
+    lowercase n advances through its matches and uppercase N goes back, while a focused
+    Comment box keeps both letters as text."""
+    html = leaf_page(
+        "repeat search",
+        """
+<h1 id="title">Repeated words</h1>
+<p id="first">The first copper needle is here.</p>
+<p id="second">The second copper needle is here.</p>
+""",
+    )
+    page, errors = open_page(browser, serve(html))
+    page.set_viewport_size({"width": 1200, "height": 900})
+    page.keyboard.press("/")
+    page.keyboard.type("needle")
+    expect(page.get_by_role("searchbox", name="Search page text")).to_have_value(
+        "needle"
+    )
+    shown = page.locator(".lf-shortcut-bar .lf-key:not([hidden])")
+    expect(shown).to_have_count(2)
+    expect(shown.filter(has_text="select match")).to_have_count(1)
+    expect(shown.filter(has_text="matches")).to_have_count(1)
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Press n for next, Shift+n for previous, or c to comment"
+    )
+
+    selected_in = """() => {
+      const selection = getSelection();
+      return selection.rangeCount
+        ? selection.getRangeAt(0).startContainer.parentElement.closest('p')?.id
+        : null;
+    }"""
+    assert page.evaluate(selected_in) == "first"
+
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    help_el = page.locator(".lf-shortcut-reference")
+    expect(help_el.locator('tr[data-lf-command="page.search.next"] kbd')).to_have_text(
+        "n"
+    )
+    expect(
+        help_el.locator('tr[data-lf-command="page.search.previous"] kbd')
+    ).to_have_text("N")
+    page.keyboard.press("Escape")
+
+    page.keyboard.press("n")
+    assert page.evaluate(selected_in) == "second"
+    page.keyboard.press("Shift+n")
+    assert page.evaluate(selected_in) == "first"
+
+    composer = page.locator(".lf-fab-input")
+    composer.focus()
+    page.keyboard.type("nN")
+    expect(composer).to_have_value("nN")
+    assert (
+        page.evaluate(
+            """() => [...CSS.highlights.get('lf-pending')][0]
+              .startContainer.parentElement.closest('p').id"""
+        )
+        == "first"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_search_selection_keeps_the_response_bar_off_its_passage(browser, serve):
+    """A quote's resolved place is the area being read, whether the words remain in
+    an authored text block or a widget renders them in its own readable body."""
+    html = leaf_page(
+        "clear selected passages",
+        """
+<p id="plain">The plain copper needle is here.</p>
+<lf-draft id="draft"><pre>The drafted copper needle is here.</pre></lf-draft>
+""",
+    )
+    page, errors = open_page(browser, serve(html))
+    page.set_viewport_size({"width": 1200, "height": 900})
+
+    def response_bar_is_clear_of(target):
+        return page.evaluate(
+            """target => {
+              const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+              const passage = document.querySelector(target).getBoundingClientRect();
+              return bar.right <= passage.left || bar.left >= passage.right ||
+                bar.bottom <= passage.top || bar.top >= passage.bottom;
+            }""",
+            target,
+        )
+
+    page.keyboard.press("/")
+    page.keyboard.type("needle")
+    page.keyboard.press("Enter")
+    assert response_bar_is_clear_of("#plain")
+
+    page.keyboard.press("n")
+    assert page.evaluate("() => getSelection().anchorNode.parentElement.className") == (
+        "lf-draft-body"
+    )
+    assert response_bar_is_clear_of("#draft"), (
+        "the response bar covered the readable body of a widget-rendered passage"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_slash_stays_native_in_text_entry_and_searches_the_scope_in_front(
     browser, serve
 ):

@@ -3153,10 +3153,8 @@ THREAD_STANDING = """() => {
   const box = card.getBoundingClientRect();
   const viewport = list.getBoundingClientRect();
   return {
-    border: paint.borderColor,
     background: paint.backgroundColor,
     outline: paint.outlineStyle,
-    restingBorder: resting?.borderColor ?? null,
     restingBackground: resting?.backgroundColor ?? null,
     cuts: [
       box.top < viewport.top - .5 && 'top',
@@ -3178,12 +3176,10 @@ def thread_mark_fault(reading):
     """Why a current thread is indistinguishable from a resting card, if it is."""
     if not reading:
         return "focus is not inside a thread"
-    if reading["restingBorder"] is None or reading["restingBackground"] is None:
+    if reading["restingBackground"] is None:
         return "there is no resting peer to distinguish the current thread from"
     if reading["outline"] != "none":
         return f"the thread draws a {reading['outline']} outline around the whole card"
-    if reading["border"] == reading["restingBorder"]:
-        return "the current thread's edge is the same as a resting card's"
     if reading["background"] == reading["restingBackground"]:
         return "the current thread's surface is the same as a resting card's"
     if reading["cuts"]:
@@ -3230,7 +3226,7 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
     browser, serve
 ):
     """Where the reader is standing has to be visible from wherever they walked to it.
-    A current thread repaints its own edge and surface; compact controls inside the list
+    A current thread paints its own surface; compact controls inside the list
     keep the focus ring. Either treatment can disappear at a scroll edge or beneath a
     neighbour, and the thread list has had both failures in both directions.
 
@@ -3519,7 +3515,7 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
     """The walk above never sees this, and that is the point of having it twice: t/T
     scroll their landing into the band the list declares unlandable. A click scrolls
     nothing. The reader nudges the list, the run heading pins over the first card of its
-    run, and takes the edge that distinguishes the current card from a resting one.
+    run, and takes the first strip of the surface that distinguishes the current card.
 
     So the gesture here is a real press rather than a locator click, which would scroll
     the card into view for its own actionability check and quietly perform the fix it is
@@ -3542,10 +3538,10 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
 
-        # Bury the card by exactly its edge, which is the reader's own case: a list nudged
-        # a dozen pixels puts the first card of a run under the heading. The depth is the
-        # border's width rather than a comfortable number on purpose: it leaves the rest
-        # of the card visible while hiding exactly the edge that says this one is current.
+        # Bury the card by exactly its reserved edge, which is the reader's own case: a
+        # list nudged a dozen pixels puts the first card of a run under the heading. The
+        # depth is one pixel rather than a comfortable number on purpose: it leaves the
+        # rest of the card visible while hiding the first strip of its current ground.
         page.evaluate(BURY, page.evaluate(UNDER_HEADING)["edge"])
         page.evaluate(RENDERED)
         buried = page.evaluate(UNDER_HEADING)
@@ -3578,7 +3574,7 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
         )
 
         # The reply box receives the compact ring and the parent keeps its quiet current
-        # edge. Reached by key this was never wrong, because landIn already lands the
+        # ground. Reached by key this was never wrong, because landIn already lands the
         # thread around the box; a press into it went the way every other press did.
         page.evaluate(BURY, buried["edge"])
         page.evaluate(RENDERED)

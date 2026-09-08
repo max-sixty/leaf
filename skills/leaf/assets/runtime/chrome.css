@@ -2005,9 +2005,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      the route itself, not a reminder of a predictable ordinal. */
   .lf-targets { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
   .lf-targets > .lf-target-hint { position: absolute; display: block;
+    min-width: 0; height: auto; padding: 0; border: 0; background: transparent;
     transform: translate(-50%, -50%); }
-  .lf-goto-targets > .lf-chord-address { min-width: 0; height: auto; padding: 0;
-    border: 0; background: transparent; }
   .lf-targets > .lf-target-hint.lf-in { transform: translate(-50%, 0); }
   /* The hint the keyboard is browsing is where the reader is standing in this mode, so
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can

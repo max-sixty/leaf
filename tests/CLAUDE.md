@@ -50,10 +50,10 @@ the everyday suite. `wt merge` runs pre-commit and the everyday suite after
 rebasing. Pull requests and main run pre-commit, the everyday suite, and the
 website-worker checks. Tend's review chooses the smallest additional test
 selection that covers the product paths a pull request changes. The scheduled
-CI run exercises every nightly case in one job:
+CI run exercises the complete suite in one job:
 
 ```sh
-uv run pytest tests -m nightly
+uv run pytest tests --run-nightly
 ```
 
 `scripts/linux-suite.sh` supplies the pinned headless shell, installed Chrome,

@@ -95,8 +95,8 @@ jobs:
       - name: Install Chromium headless shell
         run: uv run playwright install --with-deps chromium --only-shell
 
-      - name: 🧪 Complete browser and published-site tests
-        run: uv run pytest tests -m nightly -v --junitxml=.tmp/test-results/nightly.xml
+      - name: 🧪 Complete test suite
+        run: uv run pytest tests --run-nightly -v --junitxml=.tmp/test-results/nightly.xml
 
       - name: Upload pytest results
         if: always()

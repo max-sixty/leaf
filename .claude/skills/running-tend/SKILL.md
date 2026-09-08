@@ -40,8 +40,8 @@ trackers have no rows and are closed by `ci-fix` itself.
 ## A red `ci` on main is live
 
 Pull requests and main run the everyday and website-worker gates. The complete
-nightly suite runs on the daily schedule. A red `ci` on main is already affecting
-whoever pulls next. Treat it as live.
+suite runs on the daily schedule. A red `ci` on main is already affecting whoever
+pulls next. Treat it as live.
 
 ## Review test selection
 

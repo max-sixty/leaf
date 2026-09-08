@@ -186,8 +186,8 @@ uv run pytest tests
 `tests/CLAUDE.md` owns environment setup, focused runs, nightly selection, and
 the Linux suite. `wt merge` runs pre-commit and the everyday suite on the rebased
 tree. Pull requests and main run that gate plus the website-worker checks. Tend
-adds focused tests during review. A daily CI run exercises the complete nightly
-surface in one job.
+adds focused tests during review. A daily CI run exercises the complete suite in
+one job.
 
 That suite reads one file under `worker/`: `tests/test_website_server.py` loads
 `worker/server.py` and drives the route adapter, and pre-commit's ruff hooks
@@ -195,8 +195,8 @@ take it as they take every other Python file. Nothing on either landing path
 parses `worker/src/`: pre-commit's whitespace and typos hooks take those files,
 but its prettier and eslint hooks take JavaScript and HTML rather than
 TypeScript. So a TypeScript change carries no gate until `ci`'s
-`website-worker` job runs it, which on a `wt merge` is after main has already
-moved. Run it before landing one:
+`test` job runs it, which on a `wt merge` is after main has already moved. Run
+it before landing one:
 
 ```sh
 npm ci --prefix worker

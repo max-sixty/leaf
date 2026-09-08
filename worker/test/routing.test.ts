@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ACTIVE_COOKIE,
   CONTAINER_COOKIE,
+  HTTP_ACTIVE_COOKIE,
   HTTP_CONTAINER_COOKIE,
   HTTP_SESSION_COOKIE,
   SESSION_COOKIE,
+  activeCookie,
+  activeFromCookie,
   clearContainerCookie,
   containerCookie,
   containerFromCookie,
   isPageApiRequest,
   isPageMediaRequest,
-  isPageRequest,
   isPrivatePageRequest,
   needsPageSlash,
   newSessionId,
@@ -19,41 +22,46 @@ import {
   sessionFromCookie,
 } from "../src/routing";
 
+const page = (kind: "product" | "example") => ({
+  assets: `/_leaf-release/${"a".repeat(64)}/page`,
+  directory: "page",
+  kind,
+  layer: "layer",
+  state: "/_leaf/state/page.json",
+  states: { "1": "/_leaf/state/page.json" },
+});
+const pages = {
+  "/": page("product"),
+  "/examples": page("product"),
+  "/packages": page("product"),
+  "/examples/design-decision": page("example"),
+};
+const route = (pathname: string) => pageRoute(pathname, pages);
+
 describe("website page routing", () => {
   it("sends product and concrete example routes to Leaf", () => {
-    expect(isPageRequest("/")).toBe(true);
-    expect(isPageRequest("/api/state")).toBe(true);
-    expect(isPageRequest("/examples/")).toBe(true);
-    expect(isPageRequest("/examples/api/state")).toBe(true);
-    expect(isPageRequest("/examples/design-decision/")).toBe(true);
-    expect(isPageRequest("/examples/design-decision/api/state")).toBe(true);
-    expect(isPageApiRequest("/api/news")).toBe(true);
-    expect(isPageApiRequest("/examples/design-decision/api/state")).toBe(true);
-    expect(isPageApiRequest("/examples/design-decision/runtime/state-feed.js")).toBe(
-      false,
-    );
-    expect(isPageApiRequest("/examples/design-decision/")).toBe(false);
-    expect(isPageMediaRequest("/media/upload.png")).toBe(true);
-    expect(isPageMediaRequest("/examples/design-decision/media/upload.png")).toBe(
-      true,
-    );
-    expect(isPageMediaRequest("/examples/design-decision/theme.css")).toBe(false);
-    expect(isPageRequest("/media/social-card.png")).toBe(true);
-    expect(isPageRequest("/sitenote.js")).toBe(true);
-    expect(isPageRequest("/examples.html")).toBe(false);
-    expect(isPageRequest("/examples/../registry.json")).toBe(false);
-    expect(needsPageSlash("/packages")).toBe(true);
-    expect(needsPageSlash("/examples/design-decision")).toBe(true);
-    expect(needsPageSlash("/examples/design-decision/")).toBe(false);
-    expect(pageRoute("/examples/api/event")).toEqual({
+    expect(route("/")).not.toBeNull();
+    expect(route("/api/state")).not.toBeNull();
+    expect(route("/examples/")).not.toBeNull();
+    expect(isPageApiRequest(route("/examples/api/state"))).toBe(true);
+    expect(isPageApiRequest(route("/examples/design-decision/api/state"))).toBe(true);
+    expect(isPageApiRequest(route("/examples/design-decision/runtime/state-feed.js"))).toBe(false);
+    expect(isPageMediaRequest(route("/media/upload.png"))).toBe(true);
+    expect(isPageMediaRequest(route("/examples/design-decision/media/upload.png"))).toBe(true);
+    expect(isPageMediaRequest(route("/examples/design-decision/theme.css"))).toBe(false);
+    expect(route("/examples.html")).toBeNull();
+    expect(route("/examples/missing/")).toBeNull();
+    expect(needsPageSlash("/packages", route("/packages")!)).toBe(true);
+    expect(needsPageSlash("/examples/design-decision/", route("/examples/design-decision/")!)).toBe(false);
+    expect(route("/examples/api/event")).toEqual({
       root: "/examples",
       inside: "api/event",
-      kind: "product",
+      ...pages["/examples"],
     });
-    expect(pageRoute("/examples/design-decision/api/event")).toEqual({
+    expect(route("/examples/design-decision/api/event")).toEqual({
       root: "/examples/design-decision",
       inside: "api/event",
-      kind: "example",
+      ...pages["/examples/design-decision"],
     });
     expect(isPrivatePageRequest("/_leaf/pages/index/index.html")).toBe(true);
     expect(isPrivatePageRequest("/examples/design-decision/_leaf/agent/reply")).toBe(
@@ -63,6 +71,16 @@ describe("website page routing", () => {
   });
 
   it("pins a mismatched page until its container catches the edge", () => {
+    expect(activeFromCookie(`${ACTIVE_COOKIE}=1`, true)).toBe(true);
+    expect(activeFromCookie(`${HTTP_ACTIVE_COOKIE}=1`, false)).toBe(true);
+    expect(activeFromCookie(`${HTTP_ACTIVE_COOKIE}=1`, true)).toBe(false);
+    expect(activeFromCookie(null, true)).toBe(false);
+    expect(activeCookie(true)).toBe(
+      `${ACTIVE_COOKIE}=1; Path=/; Secure; HttpOnly; SameSite=Lax`,
+    );
+    expect(activeCookie(false)).toBe(
+      `${HTTP_ACTIVE_COOKIE}=1; Path=/; HttpOnly; SameSite=Lax`,
+    );
     expect(containerFromCookie(`${CONTAINER_COOKIE}=1`, true)).toBe(true);
     expect(containerFromCookie(`${HTTP_CONTAINER_COOKIE}=1`, false)).toBe(true);
     expect(containerFromCookie(`${HTTP_CONTAINER_COOKIE}=1`, true)).toBe(false);

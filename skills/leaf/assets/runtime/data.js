@@ -15,7 +15,7 @@ import { runtime } from "./context.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { registry } from "./registry.js";
 import { clocked } from "./presence.js";
-import { reportPageError } from "./layer-client.js";
+import { reportPageError, sameDelivery } from "./layer-client.js";
 
 export function acceptData(candidate) {
   if (
@@ -216,9 +216,7 @@ export async function loadDataFragment(manifest, key) {
   });
   if (snapshot) params.set("snapshot", snapshot);
   const response = await fetch(`/api/data?${params}`);
-  const responseLayer = response.headers.get("Leaf-Layer");
-  if (response.ok && responseLayer && responseLayer !== registry.$layer?.generation) {
-    location.reload();
+  if (response.ok && !sameDelivery(response)) {
     throw new Error("Leaf's data vocabulary changed while loading a fragment");
   }
   const answer = await response.json().catch(() => ({}));

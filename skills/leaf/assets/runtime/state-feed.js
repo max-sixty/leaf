@@ -16,7 +16,13 @@
 import { countTraffic } from "./traffic.js";
 import { activityTransitionDue, tickClock } from "./presence.js";
 import { runtime } from "./context.js";
-import { layerHeaders, reportPageError, sameLayer } from "./layer-client.js";
+import {
+  layerHeaders,
+  observeSession,
+  reportPageError,
+  sameDelivery,
+  sessionIsActive,
+} from "./layer-client.js";
 import {
   projectionDeferred,
   reconcileKnownState,
@@ -58,8 +64,8 @@ async function readState() {
       // recovery boundary.
       return null;
     }
-    const responseGeneration = res?.ok && res.headers.get("Leaf-Layer");
-    if (responseGeneration && !sameLayer(responseGeneration)) return null;
+    if (res) observeSession(res);
+    if (res?.ok && !sameDelivery(res)) return null;
     // A refusal is not state: the server answers a missing key with error-shaped JSON
     // at 403. A live server refusing the key and a dead one both leave the page
     // unreachable from here, and the terminal link is the recourse for both.
@@ -253,7 +259,7 @@ export function startFeed(present, initialRead = beginRead()) {
     openNews?.close();
   };
   const listen = () => {
-    if (!feedStarted || !pageIsVisible() || news) return;
+    if (!feedStarted || !pageIsVisible() || !sessionIsActive() || news) return;
     const opened = new EventSource("/api/news");
     news = opened;
     const alive = () => {
@@ -291,10 +297,16 @@ export function startFeed(present, initialRead = beginRead()) {
       void ask();
     });
   };
+  const resume = () => {
+    if (!feedStarted || !pageIsVisible() || !sessionIsActive()) return;
+    void ask();
+    listen();
+  };
   document.addEventListener("visibilitychange", () => {
-    if (pageIsVisible()) listen();
+    if (pageIsVisible()) resume();
     else stopListening();
   });
+  document.addEventListener("lf-session-active", resume);
   // Presentation waits on the first read, and the ear opens after it: the page then
   // holds a reading for the stream's first word to be compared with, so an unchanged
   // page is not asked for twice.
@@ -303,7 +315,12 @@ export function startFeed(present, initialRead = beginRead()) {
     // One shared clock serves temporal paint, deferred work, and failed reads.
     setInterval(() => {
       if (!pageIsVisible()) return;
-      if (readAnswered && activityTransitionDue(runtime.state)) void ask();
+      if (
+        readAnswered &&
+        sessionIsActive() &&
+        activityTransitionDue(runtime.state)
+      )
+        void ask();
       else if (readAnswered) void heartbeat();
       else void ask();
       // A presentation that failed is retried here as the poll retried it, since

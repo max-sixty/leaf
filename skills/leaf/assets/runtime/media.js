@@ -3,16 +3,23 @@
    The draft and event log keep one representation: ordinary Markdown naming immutable
    page media. A composer projects the generated image blocks as thumbnails beside its
    textarea, then materializes the same Markdown again when its visible words change or
-   Send reads the draft. Sent-message images open one native modal viewer. Its URL is
-   derived from this module's served route, so a normal page and an MCP capability page
-   resolve the same canonical `/media/…` text without rewriting durable content. */
+   Send reads the draft. Sent-message images open one native modal viewer. The document
+   declares its public page root because a website module may live under an immutable
+   release URL; ordinary and MCP pages fall back to the module route. All three resolve
+   the same canonical `/media/…` text without rewriting durable content. */
 
 // Joined rather than written whole: the MCP boundary's route scoper rewrites a quoted
 // media root in served JS (http.py's _ROOTED_PAGE_ROUTE), and this constant has to keep
 // speaking the canonical text that drafts and events carry. MEDIA_PATH's escaped form
 // below dodges the same rewrite; neither may be spelled the obvious way.
 const CANONICAL_MEDIA_ROOT = "/" + "media/";
-const MODULE_PAGE_ROOT = new URL("../", import.meta.url);
+const declaredPageRoot = document.querySelector(
+  "script[data-lf-runtime]",
+)?.dataset.lfPageRoot;
+const MODULE_PAGE_ROOT =
+  declaredPageRoot === undefined
+    ? new URL("../", import.meta.url)
+    : new URL(`${declaredPageRoot || ""}/`, location.origin);
 const MEDIA_NAME = /^[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)$/;
 const MEDIA_PATH = String.raw`\/media\/[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)`;
 const PASTED_MEDIA = new RegExp(String.raw`!\[Pasted image\]\((${MEDIA_PATH})\)`, "g");

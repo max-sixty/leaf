@@ -128,6 +128,9 @@ def served_example(site, tmp_path):
     examples = session_site / "examples"
     examples.mkdir(parents=True)
     shutil.copy2(site / "sitenote.js", session_site / "sitenote.js")
+    manifest = session_site / website_server.SITE_MANIFEST
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(site / website_server.SITE_MANIFEST, manifest)
     httpd = hosting_model.server_at(
         "127.0.0.1", 0, website_server.handler_for(session_site)
     )
@@ -248,9 +251,13 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
 
     example_root = assets / "examples" / "design-decision"
     document = (example_root / "index.html").read_text(encoding="utf-8")
+    manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
+    release = manifest["release"]
+    asset_root = manifest["pages"]["/examples/design-decision"]["assets"]
     assert 'data-lf-server="published"' in document
-    assert 'src="/examples/design-decision/leaf.js"' in document
-    assert 'src="/examples/design-decision/sitenote.js"' in document
+    assert f'data-lf-release="{release}"' in document
+    assert f'src="{asset_root}/leaf.js"' in document
+    assert f'src="{asset_root}/sitenote.js"' in document
     assert (example_root / "runtime" / "state-feed.js").is_file()
     assert (example_root / "registry.json").is_file()
     assert list((example_root / "versions").glob("v*.html"))
@@ -258,12 +265,34 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     for private in ("data.json", "events.jsonl", "status.json", "cursor.json"):
         assert not (example_root / private).exists()
 
+    # Public paths remain page-scoped, but repeated immutable payload bytes occupy one
+    # inode in the build and container image rather than one complete copy per page.
+    repeated = [
+        site_build.asset_site(site) / "runtime" / "margin-layout.js",
+        example_root / "runtime" / "margin-layout.js",
+    ]
+    assert repeated[0].read_bytes() == repeated[1].read_bytes()
+    assert repeated[0].stat().st_ino == repeated[1].stat().st_ino
+
+    gallery_page = site / "examples" / "feature-gallery"
+    gallery = manifest["pages"]["/examples/feature-gallery"]
+    revisions = files_model.list_revisions(gallery_page)
+    assert set(gallery["states"]) == {str(revision) for revision in revisions}
+    assert gallery["state"] == gallery["states"][
+        str(files_model.latest_revision(gallery_page))
+    ]
+    for revision, state_path in gallery["states"].items():
+        state = json.loads((assets / state_path.lstrip("/")).read_text())
+        assert revision in state["browser"]["views"]
+        assert state["release"] == release
+
 
 def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
     site, hosted
 ):
     """Materialization reuses Leaf's delivery transforms rather than approximating them."""
     assets = site_build.asset_site(site)
+    manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
     for route, relative in (
         ("/", "index.html"),
         ("/examples/design-decision/", "examples/design-decision/index.html"),
@@ -275,6 +304,12 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
         with urllib.request.urlopen(f"{hosted}{route}") as response:
             served = response.read()
         materialized = (assets / relative).read_bytes()
+        page_root = "/examples/design-decision" if route.startswith("/examples/") else ""
+        public_root = page_root or "/"
+        materialized = materialized.replace(
+            manifest["pages"][public_root]["assets"].encode(),
+            page_root.encode(),
+        )
         if relative.endswith(".html"):
             served = re.sub(
                 rb'data-lf-server="[^"]+"', b'data-lf-server="published"', served
@@ -393,6 +428,64 @@ def test_a_website_example_keeps_its_version_identity_and_history(
         assert errors == []
     finally:
         page.close()
+
+
+def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, browser):
+    """A lower sequence from a replacement cannot be applied over vanished state."""
+    _, url = served_example("design-decision")
+    page, errors = open_page(browser, url)
+    try:
+        with page.expect_navigation(wait_until="load", timeout=10_000):
+            page.evaluate(
+                """async () => {
+                  const script = document.querySelector("script[data-lf-runtime]");
+                  const url = new URL("runtime/layer-client.js", new URL(script.dataset.lfEntry, location.origin));
+                  const client = await import(url.href);
+                  client.observeSession(new Response(null, {headers: {
+                    "Leaf-Session": "active", "Leaf-Server": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  }}));
+                  setTimeout(() => client.observeSession(new Response(null, {headers: {
+                    "Leaf-Session": "active", "Leaf-Server": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                  }})), 0);
+                }"""
+            )
+        page.wait_for_function(BOTH_STAMPS)
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_session_activation_reaches_other_tabs(served_example, browser):
+    """One tab's first private request wakes its already-open peers."""
+    _, url = served_example("design-decision")
+    context = browser.new_context()
+    leader = context.new_page()
+    follower = context.new_page()
+    errors = [*watched(leader), *watched(follower)]
+    try:
+        for page in (leader, follower):
+            page.goto(url, wait_until="load")
+            page.wait_for_function(BOTH_STAMPS)
+        follower.evaluate(
+            """() => {
+              window.__leafActivated = 0;
+              document.addEventListener("lf-session-active", () => window.__leafActivated++);
+            }"""
+        )
+        leader.evaluate(
+            """async () => {
+              const script = document.querySelector("script[data-lf-runtime]");
+              const url = new URL("runtime/layer-client.js", new URL(script.dataset.lfEntry, location.origin));
+              const client = await import(url.href);
+              client.observeSession(new Response(null, {headers: {
+                "Leaf-Session": "active", "Leaf-Server": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }}));
+            }"""
+        )
+        follower.wait_for_function("window.__leafActivated === 1", timeout=5_000)
+        assert errors == []
+    finally:
+        context.close()
 
 
 def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):

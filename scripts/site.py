@@ -2,9 +2,10 @@
 """Assemble the published site (https://leaf.page/) into .tmp/site.
 
 Every product document under `docs/` is a Leaf source. The build publishes all five as
-complete page directories, alongside the worked examples, and the Worker gives every
-browser a private copy served by Leaf's canonical Python server. The catalog previews
-come from the external revision pinned in `example-previews.json`.
+complete page directories, alongside the worked examples. The Worker serves the
+build-generated initial projection at the edge, then gives an interacting browser a
+private copy through Leaf's canonical Python server. The catalog previews come from the
+external revision pinned in `example-previews.json`.
 
 The worked examples and developer feature gallery become complete Leaf page directories
 under examples/<name>/. The same preparation path that serves a local fixture vendors
@@ -20,8 +21,10 @@ Usage: uv run scripts/site.py [--serve]
        (writes .tmp/site; --serve keeps a local preview open)
 """
 
+import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -31,13 +34,14 @@ from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
 from example_assets import example_previews
+from leaf.files import latest_revision, list_revisions
 from leaf.http import scope_document_routes
 from leaf.live_shell import write_live_shell
 from preview import prepare
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from worker.server import with_sitenote
+from worker.server import SITE_MANIFEST, initial_state, with_sitenote  # noqa: E402
 
 LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
@@ -208,6 +212,21 @@ def asset_site(out: Path) -> Path:
     return out.with_name(f"{out.name}-assets")
 
 
+def deduplicate_tree(root: Path, *, mutable_names: set[str] = frozenset()) -> None:
+    """Hard-link identical build outputs without changing their public paths."""
+    canonical: dict[tuple[int, bytes], Path] = {}
+    for path in sorted(candidate for candidate in root.rglob("*") if candidate.is_file()):
+        if path.name in mutable_names:
+            continue
+        body = path.read_bytes()
+        identity = (len(body), hashlib.sha256(body).digest())
+        existing = canonical.setdefault(identity, path)
+        if existing == path:
+            continue
+        path.unlink()
+        os.link(existing, path)
+
+
 def checked_product_sources(page: Path, env: dict) -> list[tuple[Path, bytes]]:
     """Validate every product document before publishing any of them."""
     checked = []
@@ -273,12 +292,54 @@ def publish_pages(out: Path, env: dict, catalog_previews: Path | None = None) ->
 
 def publish_live_shells(out: Path) -> Path:
     """Materialize the public bytes of every private page directory."""
+    digest = hashlib.sha256()
+    for path in sorted(candidate for candidate in out.rglob("*") if candidate.is_file()):
+        digest.update(path.relative_to(out).as_posix().encode())
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    release = os.environ.get("LEAF_SITE_RELEASE", digest.hexdigest())
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", release):
+        raise ValueError("LEAF_SITE_RELEASE must be a full git or SHA-256 hex digest")
     assets = asset_site(out)
     shutil.rmtree(assets, ignore_errors=True)
     assets.mkdir(parents=True)
+    manifest = {"release": release, "pages": {}}
     for page_dir, page_root in published_pages(out):
         destination = assets / page_root.lstrip("/")
-        write_live_shell(page_dir, destination, page_root=page_root)
+        key = "root" if page_root == "" else page_root.strip("/").replace("/", "--")
+        asset_root = f"/_leaf-release/{release}/{key}"
+        write_live_shell(
+            page_dir,
+            destination,
+            page_root=page_root,
+            release_id=release,
+            asset_root=asset_root,
+        )
+        kind = "example" if page_root.startswith("/examples/") else "product"
+        states = {}
+        current = latest_revision(page_dir)
+        for revision in list_revisions(page_dir):
+            state_path = f"/_leaf/state/{key}--r{revision}.json"
+            state = initial_state(page_dir, page_root, kind, release, revision)
+            state_file = assets / state_path.lstrip("/")
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(
+                json.dumps(state, ensure_ascii=False), encoding="utf-8"
+            )
+            states[str(revision)] = state_path
+        if current is None:
+            raise ValueError(f"{page_dir} has no active revision")
+        state_path = states[str(current)]
+        state = initial_state(page_dir, page_root, kind, release)
+        manifest["pages"][page_root or "/"] = {
+            "directory": page_dir.relative_to(out).as_posix(),
+            "assets": asset_root,
+            "kind": kind,
+            "layer": state["layer"]["generation"],
+            "state": state_path,
+            "states": states,
+        }
         if page_root.startswith("/examples/"):
             documents = [
                 destination / "index.html",
@@ -286,9 +347,32 @@ def publish_live_shells(out: Path) -> Path:
                 *sorted((destination / "revisions").glob("*.html")),
             ]
             for document in documents:
-                document.write_bytes(with_sitenote(document.read_bytes(), page_root))
+                document.write_bytes(
+                    with_sitenote(
+                        document.read_bytes(), page_root, asset_root=asset_root
+                    )
+                )
             shutil.copy2(out / "sitenote.js", destination / "sitenote.js")
     shutil.copy2(out / "sitenote.js", assets / "sitenote.js")
+    manifest_text = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+    private_manifest = out / SITE_MANIFEST
+    private_manifest.parent.mkdir(parents=True, exist_ok=True)
+    private_manifest.write_text(manifest_text, encoding="utf-8")
+    public_manifest = assets / SITE_MANIFEST
+    public_manifest.parent.mkdir(parents=True, exist_ok=True)
+    public_manifest.write_text(manifest_text, encoding="utf-8")
+    deduplicate_tree(assets)
+    deduplicate_tree(
+        out,
+        mutable_names={
+            "cursor.json",
+            "data.json",
+            "events.jsonl",
+            "index.html",
+            "service.json",
+            "status.json",
+        },
+    )
     return assets
 
 

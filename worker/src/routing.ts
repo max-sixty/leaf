@@ -2,6 +2,8 @@
 
 export const SESSION_COOKIE = "__Host-leaf-page";
 export const HTTP_SESSION_COOKIE = "leaf-page-local";
+export const ACTIVE_COOKIE = "__Host-leaf-active";
+export const HTTP_ACTIVE_COOKIE = "leaf-active-local";
 export const CONTAINER_COOKIE = "__Host-leaf-container";
 export const HTTP_CONTAINER_COOKIE = "leaf-container-local";
 
@@ -9,77 +11,130 @@ export interface PageRoute {
   root: string;
   inside: string;
   kind: "product" | "example";
+  layer: string;
+  state: string;
+  states: Record<string, string>;
+  assets: string;
 }
 
-const PRODUCT_ROOTS = ["/examples", "/how-it-works", "/packages", "/registry"];
-const PRODUCT_ROOT_SET = new Set(["/", ...PRODUCT_ROOTS]);
+export interface SitePage {
+  assets: string;
+  directory: string;
+  kind: "product" | "example";
+  layer: string;
+  state: string;
+  states: Record<string, string>;
+}
+
+export interface SiteManifest {
+  release: string;
+  pages: Record<string, SitePage>;
+}
+
 const PAGE_RESOURCE =
   /^(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:\/|$)|^(?:icon\.svg|leaf\.js|registry\.json|sitenote\.js|theme\.css)$/;
-const EXAMPLE_ROUTE = /^\/examples\/([a-z0-9-]+)(?:\/(.*))?$/;
-const EXAMPLE_WITHOUT_SLASH = /^\/examples\/[a-z0-9-]+$/;
 const SESSION_ID = /^[0-9a-f]{32}$/;
 
-export function pageRoute(pathname: string): PageRoute | null {
-  if (pathname === "/") return { root: "/", inside: "", kind: "product" };
-
-  for (const root of PRODUCT_ROOTS.filter((candidate) => candidate !== "/examples")) {
-    if (pathname === root || pathname === `${root}/`) {
-      return { root, inside: "", kind: "product" };
-    }
-    if (pathname.startsWith(`${root}/`)) {
-      return { root, inside: pathname.slice(root.length + 1), kind: "product" };
+export function parseSiteManifest(value: unknown): SiteManifest {
+  const manifest = value as Partial<SiteManifest> | null;
+  if (
+    manifest === null ||
+    typeof manifest !== "object" ||
+    typeof manifest.release !== "string" ||
+    !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(manifest.release) ||
+    manifest.pages === null ||
+    typeof manifest.pages !== "object"
+  ) {
+    throw new Error("invalid Leaf site manifest");
+  }
+  for (const [root, page] of Object.entries(manifest.pages)) {
+    if (
+      (root !== "/" && !/^\/[a-z0-9-]+(?:\/[a-z0-9-]+)*$/.test(root)) ||
+      page === null ||
+      typeof page !== "object" ||
+      !["product", "example"].includes(page.kind) ||
+      typeof page.directory !== "string" ||
+      !page.directory ||
+      page.directory.startsWith("/") ||
+      page.directory.split("/").includes("..") ||
+      typeof page.assets !== "string" ||
+      !/^\/_leaf-release\/(?:[0-9a-f]{40}|[0-9a-f]{64})\/[a-z0-9-]+$/.test(
+        page.assets,
+      ) ||
+      !page.assets.startsWith(`/_leaf-release/${manifest.release}/`) ||
+      typeof page.layer !== "string" ||
+      !page.layer ||
+      typeof page.state !== "string" ||
+      !/^\/_leaf\/state\/[a-z0-9-]+\.json$/.test(page.state) ||
+      page.states === null ||
+      typeof page.states !== "object" ||
+      !Object.keys(page.states).length ||
+      !Object.entries(page.states).every(
+        ([revision, state]) =>
+          /^[1-9][0-9]*$/.test(revision) &&
+          typeof state === "string" &&
+          /^\/_leaf\/state\/[a-z0-9-]+\.json$/.test(state),
+      ) ||
+      !Object.values(page.states).includes(page.state)
+    ) {
+      throw new Error(`invalid Leaf site manifest page: ${root}`);
     }
   }
-
-  if (pathname === "/examples" || pathname === "/examples/") {
-    return { root: "/examples", inside: "", kind: "product" };
-  }
-  if (pathname.startsWith("/examples/")) {
-    const inside = pathname.slice("/examples/".length);
-    if (PAGE_RESOURCE.test(inside)) {
-      return { root: "/examples", inside, kind: "product" };
-    }
-    const example = EXAMPLE_ROUTE.exec(pathname);
-    if (example !== null) {
-      return {
-        root: `/examples/${example[1]}`,
-        inside: example[2] ?? "",
-        kind: "example",
-      };
-    }
-  }
-
-  const inside = pathname.slice(1);
-  return PAGE_RESOURCE.test(inside) ? { root: "/", inside, kind: "product" } : null;
+  return manifest as SiteManifest;
 }
 
-export function isPageRequest(pathname: string): boolean {
-  return pageRoute(pathname) !== null;
+export function releaseAssetRoute(
+  pathname: string,
+  pages: Record<string, SitePage>,
+): { route: PageRoute; pathname: string } | null {
+  for (const [root, page] of Object.entries(pages)) {
+    if (!pathname.startsWith(`${page.assets}/`)) continue;
+    const inside = pathname.slice(page.assets.length + 1);
+    if (!PAGE_RESOURCE.test(inside) || inside.startsWith("api/")) return null;
+    const publicRoot = root === "/" ? "" : root;
+    return {
+      route: { root, inside, ...page },
+      pathname: `${publicRoot}/${inside}`,
+    };
+  }
+  return null;
 }
 
-export function isPageApiRequest(pathname: string): boolean {
-  const route = pageRoute(pathname);
+export function pageRoute(
+  pathname: string,
+  pages: Record<string, SitePage>,
+): PageRoute | null {
+  const roots = Object.keys(pages).sort((left, right) => right.length - left.length);
+  for (const root of roots) {
+    const publicRoot = root === "/" ? "" : root;
+    let inside: string;
+    if (pathname === (publicRoot || "/") || pathname === `${publicRoot}/`) {
+      inside = "";
+    } else if (pathname.startsWith(`${publicRoot}/`)) {
+      inside = pathname.slice(publicRoot.length + 1);
+      if (!PAGE_RESOURCE.test(inside)) continue;
+    } else {
+      continue;
+    }
+    return { root, inside, ...pages[root] };
+  }
+  return null;
+}
+
+export function isPageApiRequest(route: PageRoute | null): boolean {
   return route?.inside === "api" || route?.inside.startsWith("api/") || false;
 }
 
-export function isPageMediaRequest(pathname: string): boolean {
-  const route = pageRoute(pathname);
+export function isPageMediaRequest(route: PageRoute | null): boolean {
   return route?.inside === "media" || route?.inside.startsWith("media/") || false;
 }
 
-export function needsPageSlash(pathname: string): boolean {
-  return (
-    (PRODUCT_ROOT_SET.has(pathname) && pathname !== "/") ||
-    EXAMPLE_WITHOUT_SLASH.test(pathname)
-  );
+export function needsPageSlash(pathname: string, route: PageRoute): boolean {
+  return route.inside === "" && pathname !== "/" && !pathname.endsWith("/");
 }
 
 export function isPrivatePageRequest(pathname: string): boolean {
-  return (
-    pathname === "/_leaf" ||
-    pathname.startsWith("/_leaf/") ||
-    (pageRoute(pathname)?.inside.startsWith("_leaf/") ?? false)
-  );
+  return pathname === "/_leaf" || pathname.includes("/_leaf/");
 }
 
 export function sessionFromCookie(
@@ -107,6 +162,14 @@ export function containerFromCookie(
     .some((item) => item.trim() === `${expected}=1`);
 }
 
+export function activeFromCookie(cookie: string | null, secure: boolean): boolean {
+  if (cookie === null) return false;
+  const expected = secure ? ACTIVE_COOKIE : HTTP_ACTIVE_COOKIE;
+  return cookie
+    .split(";")
+    .some((item) => item.trim() === `${expected}=1`);
+}
+
 export function newSessionId(random: Uint8Array): string {
   if (random.byteLength !== 16) {
     throw new Error("a Leaf website session id needs exactly 16 random bytes");
@@ -123,6 +186,12 @@ export function sessionCookie(sessionId: string, secure: boolean): string {
 
 export function containerCookie(secure: boolean): string {
   const name = secure ? CONTAINER_COOKIE : HTTP_CONTAINER_COOKIE;
+  const security = secure ? "; Secure" : "";
+  return `${name}=1; Path=/${security}; HttpOnly; SameSite=Lax`;
+}
+
+export function activeCookie(secure: boolean): string {
+  const name = secure ? ACTIVE_COOKIE : HTTP_ACTIVE_COOKIE;
   const security = secure ? "; Secure" : "";
   return `${name}=1; Path=/${security}; HttpOnly; SameSite=Lax`;
 }

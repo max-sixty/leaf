@@ -11,6 +11,8 @@ from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import service as service_model
+from leaf import session as session_model
 from leaf.registry import storage as registry_storage
 from PIL import Image
 from playwright.sync_api import expect
@@ -4151,6 +4153,34 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
             },
         },
     )
+    page, errors = open_page(browser, url, color_scheme=scheme)
+    thread = page.locator(
+        f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
+    )
+    panel_thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
+    expect(thread).to_have_count(1)
+    expect(thread).to_have_attribute("open", "")
+    expect(thread.locator("textarea")).to_be_visible()
+    inline_receipt = thread.locator(
+        f'.lf-conversation-msg.user[data-event="{root["id"]}"] '
+        f'> .lf-conversation-head > .lf-receipt[data-receipt-id="{root["id"]}"]'
+    )
+    panel_receipt = panel_thread.locator(
+        f'.lf-msg.user[data-mid="{root["id"]}"] > .lf-msg-head '
+        f'> .lf-receipt[data-receipt-id="{root["id"]}"]'
+    )
+    expect(inline_receipt).to_contain_text("✓ Sent")
+    expect(panel_receipt).to_contain_text("✓ Sent")
+    inline_receipt.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
+    panel_receipt.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        session_model.record_pickup(transaction, [root])
+    told(page)
+    expect(inline_receipt).to_contain_text("✓ Picked up")
+    expect(panel_receipt).to_contain_text("✓ Picked up")
+    expect(inline_receipt).to_have_attribute("data-identity-probe", "inline")
+    expect(panel_receipt).to_have_attribute("data-identity-probe", "panel")
+
     reply = events_model.append_event(
         serve.page_dir,
         {
@@ -4161,13 +4191,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
             "text": "The guard now covers the replacement path.",
         },
     )
-    page, errors = open_page(browser, url, color_scheme=scheme)
-    thread = page.locator(
-        f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
-    )
-    expect(thread).to_have_count(1)
-    expect(thread).to_have_attribute("open", "")
-    expect(thread.locator("textarea")).to_be_visible()
+    told(page)
+    expect(inline_receipt).to_have_count(0)
+    expect(panel_receipt).to_have_count(0)
     palette = thread.evaluate(
         """thread => {
           const style = getComputedStyle(thread);
@@ -4194,7 +4220,6 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(page.locator(".lf-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    panel_thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
     expect(panel_thread).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-panel")).to_be_hidden()

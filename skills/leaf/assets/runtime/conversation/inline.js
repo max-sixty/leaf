@@ -167,19 +167,12 @@ function conversationThreadNode(host, t, collapsible = false) {
     }
   }
   const receipts = [...thread.querySelectorAll(":scope > .lf-receipt")];
-  const after = new Map(
-    receipts.map((receipt) => [receipt.dataset.receiptId, receipt]),
-  );
-  const placed = new Set();
-  const messageRows = messages.flatMap((message) => {
-    const receipt = after.get(message.dataset.event);
-    if (receipt) placed.add(receipt);
-    return receipt ? [message, receipt] : [message];
-  });
+  // Message-owned receipts live in their message headers. A direct child has no source
+  // message, so it is the full-width fallback immediately before the thread's tail.
   setChildren(thread, [
     ...(summary ? [summary] : []),
-    ...messageRows,
-    ...receipts.filter((receipt) => !placed.has(receipt)),
+    ...messages,
+    ...receipts,
     ...(tail ? [tail] : []),
   ]);
   // Settlement replaces the focused controls in either tail shape. Transfer only

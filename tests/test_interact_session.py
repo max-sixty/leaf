@@ -3261,6 +3261,17 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
         assert capsys.readouterr().out == ""
 
+        hooks_model.cmd_hook(
+            {"hook_event_name": "UserPromptSubmit", "session_id": "codex-thread"}
+        )
+        assert capsys.readouterr().out == ""
+        assert [
+            item["phase"] for item in page_state(page)["activity"]["obligations"]
+        ] == ["picked_up"]
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+        reason = json.loads(capsys.readouterr().out)["reason"]
+        assert "1 acknowledged reader move with no answer" in reason
+
         for text in ("second click", "third click"):
             events_model.append_event(
                 page, {"kind": "comment", "author": "user", "text": text}

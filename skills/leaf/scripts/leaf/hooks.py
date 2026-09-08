@@ -39,10 +39,16 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
         # Asked of every page, watched or not, and ahead of the watch question
         # below: a watcher cannot deliver a comment the cursor has already
         # passed, so a live wait is no answer to this one.
-        stale = [
+        acknowledged = [
             obligation
             for obligation in state["activity"]["obligations"]
-            if obligation["seq"] <= state["cursor"] and obligation["phase"] != "queued"
+            if obligation["seq"] <= state["cursor"]
+        ]
+        # Queue acceptance belongs to the originating turn, so it is not debt
+        # there. The later UserPromptSubmit still opens it below; from that
+        # point its ordinary unanswered debt is enforced again.
+        stale = [
+            obligation for obligation in acknowledged if obligation["phase"] != "queued"
         ]
         if stale:
             ids = ", ".join(
@@ -124,13 +130,13 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
             with PageTransaction(page_dir) as page:
                 claim = page.active_claim
                 if claim and claim["id"] == session_id:
-                    if prompt_open and stale:
+                    if prompt_open and acknowledged:
                         by_id = {event["id"]: event for event in page.events}
                         record_pickup(
                             page,
                             [
                                 by_id[obligation["event"]]
-                                for obligation in stale
+                                for obligation in acknowledged
                                 if obligation["event"] in by_id
                             ],
                             phase="opened",

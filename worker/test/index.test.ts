@@ -26,19 +26,111 @@ vi.mock("@openai/agents-openai", () => ({
 import { getContainer } from "@cloudflare/containers";
 import worker, { LeafWebsiteSession, type Env, runAgentWorkflow } from "../src/index";
 
+const RELEASE = "a".repeat(64);
+const LAYER = "edge-layer";
+const MANIFEST = {
+  release: RELEASE,
+  pages: {
+    "/": {
+      assets: `/_leaf-release/${RELEASE}/root`,
+      directory: "_leaf/pages/index",
+      kind: "product",
+      layer: LAYER,
+      state: "/_leaf/state/root.json",
+      states: { "1": "/_leaf/state/root.json" },
+    },
+    "/examples": {
+      assets: `/_leaf-release/${RELEASE}/examples`,
+      directory: "_leaf/pages/examples",
+      kind: "product",
+      layer: LAYER,
+      state: "/_leaf/state/examples.json",
+      states: { "1": "/_leaf/state/examples.json" },
+    },
+    "/examples/design-decision": {
+      assets: `/_leaf-release/${RELEASE}/examples--design-decision`,
+      directory: "examples/design-decision",
+      kind: "example",
+      layer: LAYER,
+      state: "/_leaf/state/examples--design-decision--r2.json",
+      states: {
+        "1": "/_leaf/state/examples--design-decision--r1.json",
+        "2": "/_leaf/state/examples--design-decision--r2.json",
+      },
+    },
+    "/how-it-works": {
+      assets: `/_leaf-release/${RELEASE}/how-it-works`,
+      directory: "_leaf/pages/how-it-works",
+      kind: "product",
+      layer: LAYER,
+      state: "/_leaf/state/how-it-works.json",
+      states: { "1": "/_leaf/state/how-it-works.json" },
+    },
+    "/packages": {
+      assets: `/_leaf-release/${RELEASE}/packages`,
+      directory: "_leaf/pages/packages",
+      kind: "product",
+      layer: LAYER,
+      state: "/_leaf/state/packages.json",
+      states: { "1": "/_leaf/state/packages.json" },
+    },
+    "/registry": {
+      assets: `/_leaf-release/${RELEASE}/registry`,
+      directory: "_leaf/pages/registry",
+      kind: "product",
+      layer: LAYER,
+      state: "/_leaf/state/registry.json",
+      states: { "1": "/_leaf/state/registry.json" },
+    },
+  },
+};
+
 function environment(overrides: Partial<Env> = {}): Env {
   const allow = { limit: vi.fn(async () => ({ success: true })) } as RateLimit;
+  const suppliedAssets = overrides.ASSETS;
+  const rest = { ...overrides };
+  delete rest.ASSETS;
+  const fetch = vi.fn(async (request: Request) => {
+    const pathname = new URL(request.url).pathname;
+    if (pathname === "/_leaf/site.json") return Response.json(MANIFEST);
+    if (pathname.startsWith("/_leaf/state/")) {
+      return Response.json({
+        reading: "published",
+        layer: { generation: LAYER },
+        publication: { kind: pathname.includes("examples--") ? "example" : "product" },
+        release: RELEASE,
+        now: "2000-01-01T00:00:00Z",
+        taken: 0,
+      });
+    }
+    return suppliedAssets?.fetch(request) ?? new Response("not found", { status: 404 });
+  });
   return {
-    ASSETS: { fetch: vi.fn() } as unknown as Fetcher,
+    ASSETS: { fetch } as unknown as Fetcher,
     PAGES: {} as DurableObjectNamespace<LeafWebsiteSession>,
     AGENT_WORKFLOW: { create: vi.fn() } as unknown as Workflow,
     SOURCE_AGENT_RATE_LIMITER: allow,
     OPENAI_API_KEY: "test-key",
-    ...overrides,
+    ...rest,
   };
 }
 
 describe("product-site delivery", () => {
+  it("retries the site manifest after a transient asset failure", async () => {
+    const env = environment();
+    vi.mocked(env.ASSETS.fetch).mockResolvedValueOnce(
+      new Response("unavailable", { status: 503 }),
+    );
+
+    await expect(
+      worker.fetch(new Request("https://leaf.page/"), env),
+    ).rejects.toThrow("site manifest returned 503");
+    const response = await worker.fetch(new Request("https://leaf.page/"), env);
+
+    expect(response.status).toBe(404);
+    expect(env.ASSETS.fetch).toHaveBeenCalledTimes(3);
+  });
+
   it.each([
     "/",
     "/how-it-works/",
@@ -72,9 +164,41 @@ describe("product-site delivery", () => {
       expect(response.headers.get("Set-Cookie")).toMatch(
         /^__Host-leaf-page=[0-9a-f]{32}; Path=\/; Secure; HttpOnly; SameSite=Lax$/,
       );
+      expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
       expect(await response.text()).toBe("<!doctype html><title>Leaf</title>");
     },
   );
+
+  it("pins a same-layer session whose container belongs to another release", async () => {
+    const sessionId = "0b".repeat(16);
+    const containerFetch = vi.fn(async () =>
+      Response.json(
+        { reading: "old-release" },
+        {
+          headers: {
+            "Leaf-Layer": LAYER,
+            "Leaf-Release": "b".repeat(64),
+          },
+        },
+      ),
+    );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+
+    const response = await worker.fetch(
+      new Request("https://leaf.page/examples/design-decision/api/state", {
+        headers: {
+          Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-active=1`,
+          "Leaf-Layer": LAYER,
+          "Leaf-Release": RELEASE,
+        },
+      }),
+      environment(),
+    );
+
+    expect(response.headers.get("Set-Cookie")).toBe(
+      "__Host-leaf-container=1; Path=/; Secure; HttpOnly; SameSite=Lax",
+    );
+  });
 
   it("serves a page's immutable runtime without allocating its session", async () => {
     const asset = new Response("export {};", {
@@ -92,10 +216,90 @@ describe("product-site delivery", () => {
       env,
     );
 
-    expect(response).toBe(asset);
+    expect(await response.text()).toBe("export {};");
+    expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
     expect(assetFetch).toHaveBeenCalledOnce();
     expect(getContainer).not.toHaveBeenCalled();
     expect(response.headers.get("Set-Cookie")).toBeNull();
+  });
+
+  it("identifies a fresh historical document without allocating its session", async () => {
+    const response = await worker.fetch(
+      new Request(
+        "https://leaf.page/examples/design-decision/versions/v1.html",
+      ),
+      environment({
+        ASSETS: {
+          fetch: async () =>
+            new Response("<!doctype html><title>Earlier</title>", {
+              headers: { "Content-Type": "text/html; charset=utf-8" },
+            }),
+        } as unknown as Fetcher,
+      }),
+    );
+
+    expect(response.headers.get("Set-Cookie")).toMatch(
+      /^__Host-leaf-page=[0-9a-f]{32}; Path=\/; Secure; HttpOnly; SameSite=Lax$/,
+    );
+    expect(getContainer).not.toHaveBeenCalled();
+  });
+
+  it("maps a release-addressed module graph to immutable edge assets", async () => {
+    const assetFetch = vi.fn(async () =>
+      new Response("export {};", {
+        headers: { "Content-Type": "application/javascript" },
+      }),
+    );
+    const env = environment({
+      ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+    });
+
+    const response = await worker.fetch(
+      new Request(
+        `https://leaf.page/_leaf-release/${RELEASE}/examples--design-decision/runtime/state-feed.js`,
+      ),
+      env,
+    );
+
+    expect(assetFetch.mock.calls[0][0].url).toBe(
+      "https://leaf.page/examples/design-decision/runtime/state-feed.js",
+    );
+    expect(response.headers.get("Cache-Control")).toBe(
+      "public, max-age=31536000, immutable",
+    );
+    expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
+    expect(getContainer).not.toHaveBeenCalled();
+  });
+
+  it("prewarms an active reader's container while returning the edge document", async () => {
+    const sessionId = "07".repeat(16);
+    const started = Promise.resolve();
+    const start = vi.fn(() => started);
+    vi.mocked(getContainer).mockReturnValue({ start } as never);
+    const waitUntil = vi.fn();
+    const env = environment({
+      ASSETS: {
+        fetch: async () =>
+          new Response("<!doctype html><title>Leaf</title>", {
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          }),
+      } as unknown as Fetcher,
+    });
+
+    const response = await worker.fetch(
+      new Request("https://leaf.page/examples/design-decision/", {
+        headers: {
+          Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-active=1`,
+        },
+      }),
+      env,
+      { waitUntil } as unknown as ExecutionContext,
+    );
+
+    expect(await response.text()).toContain("<title>Leaf</title>");
+    expect(getContainer).toHaveBeenCalledWith(env.PAGES, sessionId);
+    expect(start).toHaveBeenCalledOnce();
+    expect(waitUntil).toHaveBeenCalledWith(started);
   });
 
   it.each([
@@ -150,14 +354,14 @@ describe("product-site delivery", () => {
       }),
     );
 
-    expect(response).toBe(media);
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+      new Uint8Array([4, 5, 6]),
+    );
     expect(assetFetch).toHaveBeenCalledOnce();
     expect(getContainer).not.toHaveBeenCalled();
   });
 
-  it("keeps page state on the reader's canonical container", async () => {
-    const containerFetch = vi.fn(async () => Response.json({ reading: "state-1" }));
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+  it("serves initial page state at the edge without creating a session", async () => {
     const env = environment();
 
     const response = await worker.fetch(
@@ -165,12 +369,101 @@ describe("product-site delivery", () => {
       env,
     );
 
-    expect(containerFetch).toHaveBeenCalledOnce();
-    expect(env.ASSETS.fetch).not.toHaveBeenCalled();
-    expect(response.headers.get("Set-Cookie")).toMatch(
-      /^__Host-leaf-page=[0-9a-f]{32}; Path=\/; Secure; HttpOnly; SameSite=Lax$/,
+    expect(getContainer).not.toHaveBeenCalled();
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(response.headers.get("Leaf-Session")).toBe("passive");
+    expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
+    const state = await response.json();
+    expect(state).toMatchObject({ reading: "published", release: RELEASE });
+    expect(state.taken).toBeGreaterThan(0);
+  });
+
+  it("keeps an identified but inactive reader on passive edge state", async () => {
+    const sessionId = "1a".repeat(16);
+    const response = await worker.fetch(
+      new Request("https://leaf.page/examples/design-decision/api/state", {
+        headers: { Cookie: `__Host-leaf-page=${sessionId}` },
+      }),
+      environment(),
     );
-    expect(await response.json()).toEqual({ reading: "state-1" });
+
+    expect(response.headers.get("Leaf-Session")).toBe("passive");
+    expect(getContainer).not.toHaveBeenCalled();
+  });
+
+  it("routes concurrent first uploads through the identity minted by the document", async () => {
+    const containerFetch = vi.fn(async () =>
+      Response.json(
+        { path: "/media/0123456789abcdef.png" },
+        { headers: { "Leaf-Layer": LAYER, "Leaf-Release": RELEASE } },
+      ),
+    );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const env = environment({
+      ASSETS: {
+        fetch: async () =>
+          new Response("<!doctype html><title>Leaf</title>", {
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          }),
+      } as unknown as Fetcher,
+    });
+    const document = await worker.fetch(
+      new Request("https://leaf.page/examples/design-decision/"),
+      env,
+    );
+    const cookie = document.headers.get("Set-Cookie")!;
+    const sessionId = /__Host-leaf-page=([0-9a-f]{32})/.exec(cookie)![1];
+    const upload = () =>
+      worker.fetch(
+        new Request("https://leaf.page/examples/design-decision/api/media", {
+          method: "POST",
+          headers: { Cookie: cookie, "Content-Type": "image/png" },
+          body: new Uint8Array([1, 2, 3]),
+        }),
+        env,
+      );
+
+    const responses = await Promise.all([upload(), upload()]);
+
+    expect(getContainer).toHaveBeenNthCalledWith(1, env.PAGES, sessionId);
+    expect(getContainer).toHaveBeenNthCalledWith(2, env.PAGES, sessionId);
+    expect(containerFetch).toHaveBeenCalledTimes(2);
+    for (const response of responses) {
+      expect(response.headers.get("Leaf-Session")).toBe("active");
+      expect(response.headers.get("Set-Cookie")).toBe(
+        "__Host-leaf-active=1; Path=/; Secure; HttpOnly; SameSite=Lax",
+      );
+    }
+  });
+
+  it("serves the requested historical revision from the release manifest", async () => {
+    const env = environment();
+
+    const response = await worker.fetch(
+      new Request("https://leaf.page/examples/design-decision/api/state", {
+        headers: { "Leaf-View-Revision": "1" },
+      }),
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(vi.mocked(env.ASSETS.fetch).mock.calls[1][0].url).toBe(
+      "https://leaf.page/_leaf/state/examples--design-decision--r1.json",
+    );
+    expect(getContainer).not.toHaveBeenCalled();
+  });
+
+  it("rejects a historical revision absent from the release manifest", async () => {
+    const response = await worker.fetch(
+      new Request("https://leaf.page/examples/design-decision/api/state", {
+        headers: { "Leaf-View-Revision": "99" },
+      }),
+      environment(),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).toBe("unknown page revision");
+    expect(getContainer).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -192,7 +485,7 @@ describe("product-site delivery", () => {
       const response = await worker.fetch(
         new Request(`https://leaf.page${statePath}`, {
           headers: {
-            Cookie: `__Host-leaf-page=${sessionId}`,
+            Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-active=1`,
             "Leaf-Layer": "edge-layer",
           },
         }),
@@ -211,14 +504,17 @@ describe("product-site delivery", () => {
       const document = await worker.fetch(
         new Request(`https://leaf.page${documentPath}`, {
           headers: {
-            Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-container=1`,
+            Cookie:
+              `__Host-leaf-page=${sessionId}; __Host-leaf-active=1; ` +
+              "__Host-leaf-container=1",
           },
         }),
         env,
       );
 
-      expect(document).toBe(documentResponse);
-      expect(env.ASSETS.fetch).not.toHaveBeenCalled();
+      expect(await document.text()).toBe("<!doctype html><title>Container</title>");
+      expect(document.headers.get("Leaf-Session")).toBe("active");
+      expect(env.ASSETS.fetch).toHaveBeenCalledOnce();
       expect(containerFetch).toHaveBeenCalledTimes(2);
     },
   );
@@ -228,24 +524,20 @@ describe("product-site delivery", () => {
     const containerFetch = vi.fn(async () =>
       Response.json(
         { reading: "current-container" },
-        { headers: { "Leaf-Layer": "current-layer" } },
+        { headers: { "Leaf-Layer": LAYER, "Leaf-Release": RELEASE } },
       ),
     );
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
-    const assetFetch = vi.fn(async () =>
-      Response.json({ $layer: { generation: "current-layer" } }),
-    );
-    const env = environment({
-      ASSETS: { fetch: assetFetch } as unknown as Fetcher,
-    });
+    const env = environment();
 
     const response = await worker.fetch(
       new Request("https://leaf.page/examples/design-decision/api/state", {
         headers: {
           Cookie:
-            `__Host-leaf-page=${sessionId}; ` +
+            `__Host-leaf-page=${sessionId}; __Host-leaf-active=1; ` +
             "__Host-leaf-container=1",
-          "Leaf-Layer": "current-layer",
+          "Leaf-Layer": LAYER,
+          "Leaf-Release": RELEASE,
         },
       }),
       env,
@@ -254,10 +546,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Set-Cookie")).toBe(
       "__Host-leaf-container=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax",
     );
-    expect(assetFetch).toHaveBeenCalledOnce();
-    expect(assetFetch.mock.calls[0][0].url).toBe(
-      "https://leaf.page/examples/design-decision/registry.json",
-    );
+    expect(env.ASSETS.fetch).toHaveBeenCalledOnce();
   });
 
   it("passes a static non-HTML asset through unchanged", async () => {
@@ -273,7 +562,7 @@ describe("product-site delivery", () => {
       env,
     );
 
-    expect(response).toBe(asset);
+    expect(await response.text()).toBe("body {}");
     expect(response.headers.get("Content-Security-Policy")).toBeNull();
   });
 });

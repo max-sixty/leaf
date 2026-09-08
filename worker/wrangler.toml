@@ -25,6 +25,10 @@ image = "../Dockerfile.website"
 # account limits allow 15,000 concurrent instances of the lite type.
 max_instances = 15000
 instance_type = "lite"
+# A visible tab's news stream keeps an active session alive. During a release,
+# Cloudflare may still replace it after this bounded drain window; website state is
+# explicitly ephemeral until it has a durable page-directory store.
+rollout_active_grace_period = 600
 
 [[durable_objects.bindings]]
 name = "PAGES"

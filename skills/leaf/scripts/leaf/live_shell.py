@@ -22,6 +22,8 @@ def write_live_shell(
     *,
     page_root: str = "",
     server_id: str = "published",
+    release_id: str | None = None,
+    asset_root: str | None = None,
 ) -> None:
     """Write live documents and browser assets without copying session state.
 
@@ -54,8 +56,11 @@ def write_live_shell(
                 server_id=server_id,
                 layer_id=identity["generation"],
                 bootstrap=bootstrap,
+                release_id=release_id,
+                page_root=page_root,
             ),
             page_root,
+            asset_root=asset_root,
         )
 
     write(Path("index.html"), document(active, stamped_version(events, active)))
@@ -80,5 +85,5 @@ def write_live_shell(
                 continue
             body = file.read_bytes()
             if file.suffix in {".css", ".js"}:
-                body = scope_page_routes(body, page_root)
+                body = scope_page_routes(body, page_root, asset_root=asset_root)
             write(relative, body)

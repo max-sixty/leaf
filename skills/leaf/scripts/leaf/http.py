@@ -111,7 +111,9 @@ _STYLE_ELEMENT = re.compile(
 )
 
 
-def scope_page_routes(body: bytes, page_root: str) -> bytes:
+def scope_page_routes(
+    body: bytes, page_root: str, *, asset_root: str | None = None
+) -> bytes:
     """Put Leaf's canonical root routes below one delivery capability path.
 
     Package modules intentionally speak the same root-relative browser contract as
@@ -119,35 +121,51 @@ def scope_page_routes(body: bytes, page_root: str) -> bytes:
     adapts those known routes at its HTTP boundary instead of making packages learn a
     second addressing convention.
     """
-    if not page_root:
+    if not page_root and not asset_root:
         return body
-    root = page_root.rstrip("/").encode()
+    page = page_root.rstrip("/").encode()
+    assets = (asset_root if asset_root is not None else page_root).rstrip("/").encode()
     return _ROOTED_PAGE_ROUTE.sub(
-        lambda match: match.group("before") + root + b"/" + match.group("path"),
+        lambda match: (
+            match.group("before")
+            + (page if match.group("path").startswith(b"api/") else assets)
+            + b"/"
+            + match.group("path")
+        ),
         body,
     )
 
 
-def scope_document_routes(body: bytes, page_root: str) -> bytes:
+def scope_document_routes(
+    body: bytes, page_root: str, *, asset_root: str | None = None
+) -> bytes:
     """Scope only route-bearing HTML attributes in an authored document.
 
     Authored prose is also the anchorable record. A route-looking phrase in that
     prose must therefore remain byte-for-byte identical to the immutable revision,
     while actual browser addresses still need the process page capability.
     """
-    if not page_root:
+    if not page_root and not asset_root:
         return body
-    root = page_root.rstrip("/").encode()
+    page = page_root.rstrip("/").encode()
+    assets = (asset_root if asset_root is not None else page_root).rstrip("/").encode()
+
+    def route_root(match: re.Match) -> bytes:
+        return page if match.group("path").startswith(b"api/") else assets
 
     def scope_routes(value: bytes) -> bytes:
         return _ROOTED_PAGE_ROUTE.sub(
-            lambda match: match.group("before") + root + b"/" + match.group("path"),
+            lambda match: (
+                match.group("before") + route_root(match) + b"/" + match.group("path")
+            ),
             value,
         )
 
     def scope_start_tag(tag_match: re.Match) -> bytes:
         tag = _ROOTED_PAGE_ATTRIBUTE.sub(
-            lambda match: match.group("before") + root + b"/" + match.group("path"),
+            lambda match: (
+                match.group("before") + route_root(match) + b"/" + match.group("path")
+            ),
             tag_match.group(),
         )
         return _STYLE_ATTRIBUTE.sub(
@@ -230,6 +248,8 @@ def supervised_document(
     server_id: str,
     layer_id: str,
     bootstrap: str,
+    release_id: str | None = None,
+    page_root: str = "",
 ) -> bytes:
     """Supervise HTTP startup before the module graph or stylesheet can load.
 
@@ -251,9 +271,19 @@ def supervised_document(
     )
     digest = base64.b64encode(hashlib.sha256(bootstrap.encode()).digest()).decode()
     csp = PAGE_CSP + f"; script-src 'self' 'sha256-{digest}'"
+    release = (
+        f' data-lf-release="{html.escape(release_id, quote=True)}"'
+        if release_id is not None
+        else ""
+    )
+    public_root = (
+        f' data-lf-page-root="{html.escape(page_root, quote=True)}"'
+        if release_id is not None
+        else ""
+    )
     supervised = (
         f'<meta http-equiv="Content-Security-Policy" content="{html.escape(csp, quote=True)}">'
-        f'<script data-lf-runtime data-lf-server="{server_id}" data-lf-layer="{layer_id}" data-lf-entry="/leaf.js" '
+        f'<script data-lf-runtime data-lf-server="{server_id}" data-lf-layer="{layer_id}"{release}{public_root} data-lf-entry="/leaf.js" '
         f'data-lf-theme="/theme.css" data-lf-probe="/registry.json">{bootstrap}</script>'
     )
     return (
@@ -279,6 +309,9 @@ class Handler(BaseHTTPRequestHandler):
     # claim. Their banner reads this explicit presentation fact instead of mistaking
     # the deliberately unattended page for an abandoned ordinary Leaf.
     publication = None
+    # A website release spans its document, static layer and container image. Ordinary
+    # page servers have no release boundary beyond their vendored layer.
+    release = None
     frame_ancestors_policy = FRAME_ANCESTORS_CSP
 
     def _state_service(self) -> PageStateService:
@@ -470,6 +503,8 @@ class Handler(BaseHTTPRequestHandler):
         }:
             self.send_header("Leaf-Layer", self.layer)
             self.send_header("Leaf-Server", self.server_id)
+            if self.release is not None:
+                self.send_header("Leaf-Release", self.release)
         if self.set_cookie:
             self.send_header(
                 "Set-Cookie",
@@ -626,6 +661,8 @@ class Handler(BaseHTTPRequestHandler):
                 server_id=self.server_id,
                 layer_id=self.layer,
                 bootstrap=self.bootstrap,
+                release_id=self.release,
+                page_root=self.page_root,
             )
         except ValueError as error:
             self._json({"error": str(error)}, 500)
@@ -656,6 +693,8 @@ class Handler(BaseHTTPRequestHandler):
                     server_id=self.server_id,
                     layer_id=self.layer,
                     bootstrap=self.bootstrap,
+                    release_id=self.release,
+                    page_root=self.page_root,
                 ),
             )
             return True

@@ -473,13 +473,14 @@ def test_render_reports_a_word_the_printed_page_loses(browser, serve):
 
 
 def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
-    """Image clicks and the target's margin element flip the same fixed frame.
+    """Captions choose a frame; image clicks and the margin element flip it.
 
-    Both state labels keep their corresponding sides while the active rule moves.
-    Repeated presses keep their target and focus. The margin element names the next frame
-    after either route and answers both native activation keys. Arriving by Tab rings
-    the whole card, rail included. The render gate also checks selectable captions and
-    the two-frame print view."""
+    Both state labels keep their corresponding sides while the active rule moves, and
+    mouse or keyboard activation chooses the named frame directly. Repeated flip presses
+    keep their target and focus. The margin element names the next frame after either
+    route and answers both native activation keys. Arriving by Tab rings the whole card,
+    rail included. The render gate also checks selectable captions and the two-frame
+    print view."""
     url = serve(
         SHOT_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -518,6 +519,30 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
         == '" · bottom"'
     )
     page.emulate_media(media="screen")
+    assert shown_frames(page) == ["before"]
+    before_caption = page.get_by_role(
+        "button", name="before — the navigation rail", exact=True
+    )
+    after_caption = page.get_by_role(
+        "button", name="after — the navigation rail", exact=True
+    )
+    expect(before_caption).to_have_attribute("aria-pressed", "true")
+    expect(after_caption).to_have_attribute("aria-pressed", "false")
+    after_caption.click()
+    assert shown_frames(page) == ["after"]
+    expect(before_caption).to_have_attribute("aria-pressed", "false")
+    expect(after_caption).to_have_attribute("aria-pressed", "true")
+    after_caption.click()
+    assert shown_frames(page) == ["after"], (
+        "the active caption toggled away from itself"
+    )
+    before_caption.click()
+    assert shown_frames(page) == ["before"]
+    after_caption.focus()
+    page.keyboard.press("Enter")
+    assert shown_frames(page) == ["after"]
+    before_caption.focus()
+    page.keyboard.press("Space")
     assert shown_frames(page) == ["before"]
     at = flip_point(page)
     page.mouse.click(*at)

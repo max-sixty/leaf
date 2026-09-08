@@ -1347,13 +1347,15 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-resolved { display: flex;
           align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .lf-conversation > .lf-say { margin-top: 0; }
-.lf-conversation-thread + .lf-conversation-thread { margin-top: var(--sp-3);
-          padding-top: var(--sp-3); border-top: 1px solid var(--rule); }
+.lf-conversation-thread + .lf-conversation-thread { margin-top: calc(2 * var(--sp-3)); }
+.lf-conversation-thread + .lf-conversation-thread::before { content: "";
+          position: absolute; inset-inline: var(--sp-1); inset-block-start: calc(-1 * var(--sp-3));
+          border-top: 1px solid var(--rule); pointer-events: none; }
 .lf-conversation-msg { margin: var(--sp-2) 0; }
 .lf-conversation-msg.claude { position: relative; }
 .lf-conversation-head { display: flex; align-items: baseline; gap: var(--sp-2);
           font-size: var(--t-6); }
-.lf-conversation-thread > .lf-resolve { position: absolute; z-index: 2;
+.lf-conversation-thread > .lf-resolve.lf-icon-action { position: absolute; z-index: 2;
           inset-block-start: var(--sp-1); inset-inline-end: var(--sp-1); }
 .lf-conversation-thread:has(> .lf-resolve)
           > .lf-conversation-msg:first-of-type > .lf-conversation-head {

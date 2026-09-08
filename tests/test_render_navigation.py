@@ -1495,6 +1495,34 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
         f"a sibling separator remained inside the current region: {frame}"
     )
 
+    separator = thread.evaluate(
+        """el => { const s = getComputedStyle(el, '::before'); return {
+          content: s.content, borderTop: s.borderTopWidth,
+        }; }"""
+    )
+    assert separator == {"content": '""', "borderTop": "1px"}, (
+        f"the gap between inline threads lost its separator: {separator}"
+    )
+
+    resolve = thread.locator(":scope > .lf-resolve")
+    expect(resolve).to_have_css("position", "absolute")
+    placement = thread.evaluate(
+        """el => {
+          const own = el.getBoundingClientRect();
+          const inset = parseFloat(getComputedStyle(el).paddingTop);
+          const control = el.querySelector(':scope > .lf-resolve').getBoundingClientRect();
+          const head = el.querySelector(
+            ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-head'
+          ).getBoundingClientRect();
+          return {controlTop: control.top, expectedTop: own.top + inset,
+                  controlBottom: control.bottom, headBottom: head.bottom};
+        }"""
+    )
+    assert placement["controlTop"] == pytest.approx(placement["expectedTop"], abs=1)
+    assert placement["controlBottom"] <= placement["headBottom"], (
+        f"Resolve took a row above the first inline message: {placement}"
+    )
+
     clearances = thread.evaluate(
         """el => {
           const root = el.getBoundingClientRect();

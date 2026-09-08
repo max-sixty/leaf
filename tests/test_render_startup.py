@@ -678,10 +678,10 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     """Paint readiness and semantic-interaction readiness are separate facts.
 
     The authored document is useful while the first state response is held: its text,
-    link, structure, and shadow-rendered diff paint. Generated interface in light and
-    shadow DOM reserves its room without painting. A choice based on that not-yet-
-    reconciled document cannot mutate or post, and authored top-layer UI stays withheld.
-    Releasing the response applies the standing decision and opens interaction once."""
+    link, structure, and generated interface in light and shadow DOM all paint after
+    upgrade. A durable choice based on that not-yet-reconciled document cannot mutate or
+    post, and authored top-layer UI stays withheld. Releasing the response applies the
+    standing decision and opens semantic interaction once."""
     url = serve(
         SHORT_SUGGESTION.replace(
             "<lf-old>",
@@ -743,7 +743,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
         assert held, "the positive control did not hold the first state response"
         choice = page.locator("#startup-choice .lf-pick").first
         expect(choice).to_have_attribute("aria-disabled", "true")
-        expect(choice).not_to_be_visible()
+        expect(choice).to_be_visible()
         choice.dispatch_event("click")
         expect(page.locator("#startup-a")).not_to_have_attribute("chosen", "")
         suggestion_accept = page.locator(
@@ -822,9 +822,9 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             """() => {
               const ui = document.querySelector('#shadowed').shadowRoot
                 .querySelector('.lf-ui');
-              return ui && !ui.checkVisibility({visibilityProperty: true});
+              return ui?.checkVisibility({visibilityProperty: true});
             }"""
-        ), "generated shadow interface painted before replay"
+        ), "generated shadow interface remained withheld after upgrade"
         assert not page.locator("#stale-dialog").is_visible(), (
             "authored top-layer content painted before replay"
         )
@@ -957,11 +957,12 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 
 def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
-    """An opt-in runtime surface is part of the page's first stable UI.
+    """Page visuals paint after upgrade while agent and durable state still wait.
 
-    The interaction gallery loads its own module and inserts controls. Holding replay
-    proves that work completes by the widget-upgrade stamp, with its reserved controls
-    withheld until presentation instead of appearing in a later frame."""
+    The feature gallery's optional interface and playground both generate controls.
+    Holding replay proves they finish and paint by the widget-upgrade stamp. Page-local
+    playground changes work immediately, while its durable submit and the agent-derived
+    banner remain unavailable until the authoritative projection arrives."""
     url = serve(FEATURE_GALLERY)
     held = []
     page = browser.new_page(viewport={"width": 1440, "height": 900})
@@ -975,11 +976,35 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
         expect(gallery).to_have_attribute("data-interaction-installed", "1")
         controls = gallery.locator(".interaction-controls")
         expect(controls).to_have_count(1)
-        expect(controls).not_to_be_visible()
+        expect(controls).to_be_visible()
+        playground = page.locator("#bg-card-playground")
+        expect(playground.locator(".lf-playground-controls")).to_be_visible()
+        expect(playground.locator(".lf-playground-presets")).to_be_visible()
+        expect(playground.locator(".lf-playground-actions")).to_be_visible()
+        submit = playground.get_by_role("button", name="Apply card")
+        expect(submit).to_be_disabled()
+        expect(page.locator(".lf-status-text")).to_have_text(
+            re.compile(r"^Connecting")
+        )
+
+        playground.get_by_role("button", name="Evening invite").click()
+        expect(playground.locator("input[aria-label='Card title']")).to_have_value(
+            "Evening walk"
+        )
+        assert page.locator("#bg-playground-card-title").evaluate(
+            "element => getComputedStyle(element, '::before').content"
+        ) == '"Evening walk"'
 
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(controls).to_be_visible()
+        expect(submit).to_be_enabled()
+        expect(playground.locator("input[aria-label='Card title']")).to_have_value(
+            "Evening walk"
+        )
+        expect(page.locator(".lf-status-text")).not_to_have_text(
+            re.compile(r"^Connecting")
+        )
         assert errors == []
     finally:
         page.close()
@@ -2626,13 +2651,13 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_receipt).to_have_count(1)
     expect(other_receipt).to_have_count(1)
     expect(other_receipt).to_contain_text("✓ Sent")
-    # The move's state is metadata on the exact outgoing message, immediately before
-    # Resolve's auto margin rather than a full-width row of its own.
+    # The move's state is metadata on the exact outgoing message rather than a
+    # full-width row of its own. Resolve remains the thread-level action.
     expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
     assert held_receipt.evaluate(
-        "node => node.parentElement.matches('.lf-msg-head') "
-        "&& node.nextElementSibling.matches('.lf-resolve')"
+        "node => node.parentElement.matches('.lf-msg-head')"
     )
+    expect(held_thread.locator(":scope > .lf-resolve")).to_have_count(1)
 
     # A later claim about the page as a whole is not an answer to the thread, so the
     # line stands: the two seats are one claim, and only one of them has been rewritten.

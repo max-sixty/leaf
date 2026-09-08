@@ -145,10 +145,10 @@ function presentPage() {
     notice(`Updated to ${runtime.currentLabel}`);
   openDraft(savedComposer);
   promoteDeferredModals();
-  // The presented attribute and every write after it are one JavaScript task, so the
-  // browser has not painted the generated page interface yet. Give geometry consumers
-  // one synchronous read of that final startup layout before the task returns; later
-  // ResizeObserver and layout signals remain responsible for reader-driven changes.
+  // The presented attribute and every write after it are one JavaScript task. Give
+  // geometry consumers one synchronous read of the authoritative startup layout before
+  // semantic interaction opens; they may replace geometry already painted from authored
+  // state, and later ResizeObserver and layout signals own reader-driven changes.
   document.dispatchEvent(new Event(PRESENTATION));
 }
 

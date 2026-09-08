@@ -280,9 +280,11 @@ The same bootstrap projects that stored arrangement before the theme paints; run
 restoration replaces the provisional root state with live body state.
 Prose, ordinary links, scrolling, and layout remain usable while widgets upgrade and the
 first state read is pending.
-Generated interface constructed from authored markup participates in layout but stays
-invisible until `data-lf-presented` releases it with recorded widget actions and authored
-top-layer UI. A data-backed widget whose authored element has no content takes its
+Generated interface constructed from authored markup participates in layout while it
+settles, then `data-lf-upgraded` releases it from authored and tab-local state without
+waiting for the first server reading. Durable controls remain unavailable until
+`data-lf-presented`, and authored top-layer UI stays withheld until that same semantic
+interaction boundary. A data-backed widget whose authored element has no content takes its
 source-dependent space when that data arrives; stable geometry for that content requires
 an authored reserve or a fixed rendering posture. Fixed status and unanchored discussion
 chrome remain usable while a live page waits.
@@ -495,11 +497,12 @@ arriving without a gesture must not move any chrome control. A content change
 the reader requested may reflow the content it replaces, provided the change is
 shown as trackable motion rather than an unexplained jump.
 
-During startup, generated interface first appears in its authoritative position. An
-asynchronous producer joins the applicable widget, data, or page-interface settlement
-before presentation. Apparatus that derives its position from final boxes takes one
-synchronous reading on `PRESENTATION`, then uses `ResizeObserver` or the shared layout
-signal for later changes. Provisional defaults may reserve space, but they do not paint.
+During startup, generated interface first appears in its settled upgrade position, from
+authored and tab-local state. An asynchronous producer joins the applicable widget, data,
+or page-interface settlement before `data-lf-upgraded` releases that interface. Apparatus
+that also depends on authoritative replay takes one synchronous reading on `PRESENTATION`,
+then uses `ResizeObserver` or the shared layout signal for later changes. Provisional
+defaults may reserve space, but they do not paint.
 
 Control state is paint: ink, fill, border, or an inset ring. Do not express it by
 changing font weight, size, padding, border width, or another metric. Reserve

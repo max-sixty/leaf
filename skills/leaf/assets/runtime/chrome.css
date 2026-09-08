@@ -463,21 +463,21 @@ body.lf-drawing main,
 body.lf-drawing main * { cursor: crosshair !important; }
 body.lf-drawing main .lf-conversation,
 body.lf-drawing main .lf-conversation * { cursor: auto !important; }
-/* Element annotations are hollow contours. Unlike a text highlight, an element mark
+/* Element feedback is one hollow contour. Unlike a text highlight, an element mark
    is projected above everything the target draws, so any interior paint can obscure
    the target's own words or picture. The target painter keeps this contour above those
-   descendants; these declarations are the no-JS/export fallback. */
-.lf-mark-el { outline: 1px solid var(--mark-ink); outline-offset: -1px;
-  cursor: pointer; }
-/* A standing reaction uses the same complete contour, dashed. No hand, since nothing
-   opens on a press here: the glyph in the margin is the control. */
-.lf-react-el { outline: 1px dashed var(--mark-ink); outline-offset: -1px; }
+   descendants; these declarations are the no-JS/export fallback. A reaction and a
+   comment share the contour because it locates feedback rather than naming its kind;
+   the margin control carries that distinction. */
+:is(.lf-mark-el, .lf-react-el) {
+  outline: 1px solid var(--mark-ink); outline-offset: -1px; }
+.lf-mark-el { cursor: pointer; }
 /* A copy carries the wash as a <mark> the export wrote into the words, the highlight
    registry being script state no file can hold (BAKE). It carries the line with it: the
    wash alone is 1.08:1 over the light paper, and a copy is the one place the reader
    cannot hover the words to find out whether anything is there. */
 html.lf-copy mark.lf-react { background: var(--react); color: inherit;
-  text-decoration: underline 2px dashed var(--mark-ink); text-underline-offset: 3px; }
+  text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
 /* The glyphs of the reactions standing on a target — a margin element per reaction, the margin element
    being the reaction's own eraser (anchors.js seatReactions). This is an unpositioned
    contribution: the living margin joins it to the target's other RHS controls and
@@ -489,9 +489,11 @@ html.lf-copy mark.lf-react { background: var(--react); color: inherit;
    the two states never contend on one element. */
 .lf-mark-el.lf-pending { outline: 2px solid var(--accent); outline-offset: -2px;
   cursor: auto; }
-/* Hover adds weight without changing the mark's box. Keyboard focus is the distinct
-   state that earns a complete outer ring. */
-.lf-mark-el.lf-mark-hover { outline-width: 2px; outline-offset: -2px; }
+/* Hover and the current thread use one accent contour. A press can temporarily move
+   focus from the thread to the page; keeping hover visually equivalent means that
+   ordinary pointer transition does not make selection flicker. Keyboard focus is the
+   distinct state that earns a complete outer ring. */
+.lf-mark-el.lf-mark-hover { outline: 2px solid var(--accent); outline-offset: -2px; }
 .lf-mark-el:not(.lf-projected-mark):is(:focus-visible, .lf-focus-visible) {
   outline: var(--here-ring);
   --lf-here-ring: passage-focus; outline-offset: 2px; }
@@ -1588,29 +1590,27 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     stroke: var(--accent); }
   .lf-visual-mark { position: absolute; display: none; pointer-events: none;
     --lf-shape-ink: var(--mark-ink); --lf-shape-stroke: 1px;
-    --lf-shape-dash: none;
     border: 1px solid var(--mark-ink);
     /* This layer is above the target's children. Keep its interior physically unable
        to paint over them, including under package and page-local theme rules. */
     background: none !important; }
-  .lf-visual-mark.lf-visual-mark-reaction {
-    --lf-shape-dash: 3px 2px; border-style: dashed; }
   .lf-visual-mark.lf-visual-mark-pending {
     --lf-shape-stroke: var(--here-ring-w);
     border: var(--here-ring-w) solid var(--accent); }
   .lf-visual-mark.lf-visual-mark-action {
     --lf-shape-ink: var(--accent); border: 1px solid var(--accent); }
   .lf-visual-mark.lf-visual-mark-hover {
-    border-width: var(--here-ring-w); }
+    border: var(--here-ring-w) solid var(--accent); }
   .lf-visual-mark.lf-visual-mark-focus {
     --lf-shape-ink: var(--accent); border: var(--here-ring-w) solid var(--accent); }
   .lf-visual-mark:is(.lf-visual-mark-hover, .lf-visual-mark-focus,
       .lf-visual-mark-here) {
     --lf-shape-stroke: var(--here-ring-w); }
-  .lf-visual-mark:is(.lf-visual-mark-pending, .lf-visual-mark-here) {
+  .lf-visual-mark:is(.lf-visual-mark-pending, .lf-visual-mark-hover,
+      .lf-visual-mark-here) {
     --lf-shape-ink: var(--accent); }
   .lf-visual-mark.lf-visual-mark-here {
-    --lf-shape-dash: none; border: var(--here-ring-w) solid var(--accent); }
+    border: var(--here-ring-w) solid var(--accent); }
   .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important; }
   .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-composer { display: none; }

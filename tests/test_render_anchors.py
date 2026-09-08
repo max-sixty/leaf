@@ -2343,6 +2343,75 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     page.close()
 
 
+def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
+    """A pointer press briefly moves focus from an open thread to the page before its
+    click restores the reply field. The mark must not look deselected during that gap.
+
+    A reaction shares this target with the comment because that was the visible failure:
+    losing the current-thread paint exposed the passive reaction contour underneath.
+    Hover and current therefore need to resolve to the same accent contour for the whole
+    down/up gesture, while passive feedback remains the quieter hairline.
+    """
+    url = serve(INLINE_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the figure.",
+            "anchor": {"section": "fig"},
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "keep",
+            "anchor": {"section": "fig"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    figure = page.locator("#fig")
+    figure.scroll_into_view_if_needed()
+    mark = page.locator('.lf-visual-mark[data-for="fig"]')
+    expect(mark).to_be_visible()
+
+    look = """node => { const style = getComputedStyle(node); return {
+      line: style.borderStyle,
+      width: style.borderWidth,
+      color: style.borderColor,
+    }; }"""
+    passive = mark.evaluate(look)
+    assert passive["line"] == "solid"
+
+    box = figure.bounding_box()
+    point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.move(*point)
+    page.mouse.click(*point)
+    page.wait_for_function("() => document.activeElement?.matches('textarea.lf-ui')")
+    selected = mark.evaluate(look)
+
+    page.mouse.move(*point)
+    page.mouse.down()
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+    pressed = mark.evaluate(look)
+    page.mouse.up()
+
+    assert selected == pressed, (
+        f"the selected contour changed during mouse-down: {selected} -> {pressed}"
+    )
+    assert selected["line"] == "solid"
+    assert selected["width"] != passive["width"]
+    assert selected["color"] != passive["color"]
+    assert errors == []
+    page.close()
+
+
 def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
     """A finger is a pointer that arrives already down, and the click it ends on has to
     answer for a position it never moved through.
@@ -4920,10 +4989,9 @@ TEXT_MARKS = ("lf-mark", "lf-react")
 # The strip is read under the glyphs rather than across them, because a line and a letter
 # are not told apart by colour: both are ink at the same ratio. Below the baseline the
 # only ink a passage has of its own is its descenders, which are stems — a couple of
-# columns each. A rule drawn there takes half the columns when it is dashed and all of
-# them when it is solid. So the floor sits far above what descenders reach and far below
-# what the thinner of the two lines draws, and the unmarked control below is what says
-# which side of it this page is on.
+# columns each. A solid rule spans most of the strip. So the floor sits far above what
+# descenders reach and far below what the thinner of the two lines draws, and the
+# unmarked control below is what says which side of it this page is on.
 LINE_COVERAGE = 0.3
 
 
@@ -4997,9 +5065,9 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
     marks elements, with a line: an element anchor wears a --mark-ink contour at 9:1
     (.lf-visual-mark), and a passage wears the same ink as an underline.
 
-    A reaction had the element half of that pair (.lf-react-el, dashed) and not the text
-    half. On words it was --react alone, 1.08:1 over the light paper — a mark that is in
-    the log and not on the screen. Both names are read here.
+    A reaction had the element half of that pair and not the text half. On words it was
+    --react alone, 1.08:1 over the light paper — a mark that is in the log and not on the
+    screen. Both names are read here.
 
     Read off the drawn page rather than off the rules, because what a highlight pseudo is
     allowed to carry is the browser's to decide and a declaration that stopped applying
@@ -5030,6 +5098,13 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
         page.wait_for_function(
             "(name) => (CSS.highlights.get(name)?.size ?? 0) > 0", arg=name
         )
+    line_styles = page.evaluate(
+        "(names) => Object.fromEntries(names.map(name => "
+        "[name, getComputedStyle(document.documentElement, `::highlight(${name})`)"
+        ".textDecorationStyle]))",
+        TEXT_MARKS,
+    )
+    assert line_styles == {name: "solid" for name in TEXT_MARKS}, line_styles
     paper = tuple(
         page.evaluate(
             "() => getComputedStyle(document.body).backgroundColor"

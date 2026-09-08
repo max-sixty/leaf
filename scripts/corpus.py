@@ -22,6 +22,7 @@ CORPUS_DATA = EXAMPLES_DIR / "corpus.data.json"
 # specialized command surface and two conversation reviews, then the developer gallery.
 PUBLIC_TABS = [
     ("design-decision", "Decision"),
+    ("security-boundary", "Security"),
     ("heat-loss", "Heat"),
     ("live-progress", "Live"),
     ("postmortem", "Postmortem"),

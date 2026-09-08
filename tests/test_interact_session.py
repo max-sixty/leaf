@@ -24,8 +24,6 @@ from xml.etree import ElementTree
 
 import pytest
 from click.testing import CliRunner
-from websockets.sync.server import serve as serve_websocket
-from websockets.sync.server import unix_serve as serve_unix_websocket
 from conftest import CLAUDE_IDENTITY, CODEX_IDENTITY, LEAF_COMMAND
 from interact_support import (
     COMMAND_SUBJECTS,
@@ -69,6 +67,8 @@ from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.served_state import page as served_page
+from websockets.sync.server import serve as serve_websocket
+from websockets.sync.server import unix_serve as serve_unix_websocket
 
 
 def last_deliverable_seq(page_dir: Path) -> int:
@@ -2064,9 +2064,9 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
         time.sleep(0.05)
 
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
-    assert leases_model.lock_is_held(
-        lease_path
-    ), "acknowledgement returned without holding the next wait"
+    assert leases_model.lock_is_held(lease_path), (
+        "acknowledgement returned without holding the next wait"
+    )
     status_before_delivery = (page_dir / "status.json").read_bytes()
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
@@ -4015,9 +4015,9 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
     executor = ThreadPoolExecutor(max_workers=1)
     first = executor.submit(vendoring_model.cmd_init, page)
     try:
-        assert reached_layer.wait(
-            timeout=10
-        ), "the first init never reached its held read"
+        assert reached_layer.wait(timeout=10), (
+            "the first init never reached its held read"
+        )
 
         launcher = PLUGIN_ROOT / "bin" / "leaf"
         second = spawn(

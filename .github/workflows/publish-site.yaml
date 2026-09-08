@@ -71,24 +71,7 @@ jobs:
       # Exercise the bundled graph through the same Worker and container boundary
       # before a deployment can make it public.
       - name: Verify the bundled release locally in Chrome
-        working-directory: worker
-        run: |
-          npx wrangler dev --port 8787 > ../.tmp/wrangler-dev.log 2>&1 &
-          server=$!
-          trap 'kill "$server" 2>/dev/null || true; wait "$server" || true' EXIT
-          deadline=$(( SECONDS + 180 ))
-          until curl --fail --silent --output /dev/null http://127.0.0.1:8787/; do
-            if ! kill -0 "$server" 2>/dev/null; then
-              cat ../.tmp/wrangler-dev.log
-              exit 1
-            fi
-            (( SECONDS < deadline )) || {
-              cat ../.tmp/wrangler-dev.log
-              exit 1
-            }
-            sleep 2
-          done
-          LEAF_SITE_ORIGIN=http://127.0.0.1:8787 uv run ../scripts/verify-site.py "$LEAF_SITE_RELEASE"
+        run: scripts/verify-site-local.sh
 
       - name: Build and push the exact container image
         working-directory: worker

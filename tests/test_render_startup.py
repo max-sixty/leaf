@@ -166,8 +166,8 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
     try:
         status = page.locator(".lf-banner .lf-status-text")
         expect(status).to_have_text(
-            "This is an example on the Leaf website. Leaf guide replies here, but "
-            "cannot edit this page. Install Leaf"
+            "This is an example on the Leaf website. Leaf guide replies and revises "
+            "this private copy. Install Leaf"
         )
         expect(status.locator("a")).to_have_attribute("href", "/#install")
         expect(page.locator(".lf-banner .lf-dot")).to_have_class(

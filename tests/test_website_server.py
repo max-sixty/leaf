@@ -59,6 +59,15 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
     target.write_text(json.dumps(manifest), encoding="utf-8")
 
 
+class FakeCodexHost:
+    def __init__(self):
+        self.attached = []
+
+    def attach(self, page_dir: Path) -> str:
+        self.attached.append(page_dir)
+        return "codex-thread"
+
+
 def test_the_website_label_follows_the_script_contract_not_its_formatting():
     document = (
         b'<!doctype html><html><head><script\n type="module" '
@@ -70,6 +79,207 @@ def test_the_website_label_follows_the_script_contract_not_its_formatting():
     )
 
 
+def test_the_website_host_delivers_into_the_existing_codex_thread(
+    page_dir, tmp_path, monkeypatch
+):
+    host = website_server.WebsiteCodexHost(
+        "codex",
+        tmp_path / "app-server.sock",
+        tmp_path / "app-server.log",
+    )
+    process = type("Process", (), {"pid": 41})()
+    monkeypatch.setattr(host, "_ensure_server", lambda: process)
+    monkeypatch.setattr(
+        website_server,
+        "page_claim",
+        lambda page: {"id": "hosted-thread", "host": "codex"},
+    )
+    requests = []
+
+    def request(method, params, before_close=None):
+        requests.append((method, params))
+        if before_close is not None:
+            before_close("socket", {"thread": {"id": "hosted-thread"}})
+        return {"thread": {"id": "hosted-thread"}}
+
+    monkeypatch.setattr(host, "_request", request)
+    started = []
+    monkeypatch.setattr(
+        host,
+        "_start_turn",
+        lambda *args: started.append(args) or ("hosted-thread", "turn-2"),
+    )
+
+    thread_id = host.attach(page_dir)
+
+    assert thread_id == "hosted-thread"
+    assert requests == [
+        (
+            "thread/resume",
+            {
+                "threadId": "hosted-thread",
+                "cwd": str(page_dir),
+                "excludeTurns": True,
+            },
+        )
+    ]
+    assert started == [("socket", page_dir, "hosted-thread", process)]
+
+
+def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
+    host = website_server.WebsiteCodexHost("codex")
+    requests = []
+    sent = []
+    prepared = []
+    accepted = []
+
+    def request(method, params, before_close=None):
+        requests.append((method, params))
+        result = {"thread": {"id": "hosted-thread"}}
+        if before_close is not None:
+            before_close("socket", result)
+        return result
+
+    monkeypatch.setattr(host, "_request", request)
+
+    def send(socket, method, params):
+        sent.append((socket, method, params))
+        return {"turn": {"id": "initial-turn"}}
+
+    monkeypatch.setattr(host, "_send", send)
+    monkeypatch.setattr(
+        website_server,
+        "prepare_codex_delivery",
+        lambda *args: prepared.append(args) or "<leaf-delivery />",
+    )
+    monkeypatch.setattr(
+        website_server,
+        "accept_codex_delivery",
+        lambda *args: accepted.append(args),
+    )
+
+    assert host._start_thread(page_dir, type("Process", (), {"pid": 41})()) == (
+        "hosted-thread"
+    )
+    assert requests == [
+        (
+            "thread/start",
+            {
+                "model": "gpt-5.6-luna",
+                "cwd": str(page_dir),
+                "approvalPolicy": "never",
+                "sandbox": "danger-full-access",
+                "developerInstructions": website_server.CODEX_INSTRUCTIONS,
+                "config": {"model_reasoning_effort": "low"},
+            },
+        )
+    ]
+    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+    assert prepared == [(page_dir, identity, {"pid": 41})]
+    assert sent == [
+        (
+            "socket",
+            "turn/start",
+            {
+                "threadId": "hosted-thread",
+                "input": [{"type": "text", "text": "<leaf-delivery />"}],
+            },
+        )
+    ]
+    assert accepted == [("hosted-thread", "initial-turn")]
+
+
+def test_the_website_task_discards_a_turn_app_server_rejects(page_dir, monkeypatch):
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(
+        website_server,
+        "prepare_codex_delivery",
+        lambda *args: "<leaf-delivery />",
+    )
+    monkeypatch.setattr(
+        host,
+        "_send",
+        lambda *args: (_ for _ in ()).throw(RuntimeError("rejected")),
+    )
+    discarded = []
+    monkeypatch.setattr(
+        website_server,
+        "discard_codex_delivery",
+        lambda *args: discarded.append(args),
+    )
+
+    with pytest.raises(RuntimeError, match="rejected"):
+        host._start_turn(
+            "socket", page_dir, "hosted-thread", type("Process", (), {"pid": 41})()
+        )
+
+    assert discarded == [("hosted-thread",)]
+
+
+def test_the_starting_connection_projects_codex_activity(monkeypatch):
+    messages = iter(
+        [
+            json.dumps(
+                {
+                    "method": "item/started",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turnId": "initial-turn",
+                        "item": {
+                            "id": "command-1",
+                            "type": "commandExecution",
+                            "command": "leaf version check .",
+                        },
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "method": "turn/completed",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turn": {"id": "initial-turn"},
+                    },
+                }
+            ),
+        ]
+    )
+
+    class Socket:
+        closed = False
+
+        def recv(self, timeout):
+            return next(messages)
+
+        def close(self):
+            self.closed = True
+
+    socket = Socket()
+    updates = []
+    clears = []
+    monkeypatch.setattr(
+        website_server,
+        "_set_stream_activity",
+        lambda *args: updates.append(args),
+    )
+    monkeypatch.setattr(
+        website_server,
+        "_clear_stream_activity",
+        lambda *args: clears.append(args),
+    )
+
+    website_server.WebsiteCodexHost._follow_turn(
+        socket, "hosted-thread", "initial-turn"
+    )
+
+    assert updates == [
+        ("hosted-thread", "initial-turn", "Starting"),
+        ("hosted-thread", "initial-turn", "Running leaf version check ."),
+    ]
+    assert clears == [("hosted-thread", "initial-turn")]
+    assert socket.closed
+
+
 def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeypatch):
     site = tmp_path / "site"
     published = site / "examples" / "decision"
@@ -78,10 +288,11 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
     (site / "sitenote.js").write_text("document.body.dataset.site = 'example';\n")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
 
+    agent_host = FakeCodexHost()
     httpd = server_at(
         "127.0.0.1",
         0,
-        website_server.handler_for(site),
+        website_server.handler_for(site, agent_host),
     )
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
@@ -145,10 +356,13 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             f"{root}/examples/decision/_leaf/agent/turn",
             {"event": comment["id"]},
         )
-        assert ready["status"] == "ready"
-        assert ready["turn"]["reply_to"] == comment["id"]
-        assert ready["turn"]["conversation"]["messages"][-1]["text"] == posted["text"]
-        assert "Plan" in ready["turn"]["page"]["visible_text"]
+        assert ready == {"status": "ready"}
+        started, _ = post(
+            f"{root}/examples/decision/_leaf/agent/start",
+            {"event": comment["id"]},
+        )
+        assert started == {"status": "started", "thread": "codex-thread"}
+        assert agent_host.attached == [published]
 
         monkeypatch.setenv("LEAF_AGENT", "Leaf guide")
         monkeypatch.setenv("LEAF_SESSION_ID", "leaf-website-agent")
@@ -212,7 +426,8 @@ def test_a_product_route_uses_the_same_real_page_server(
     (site / "sitenote.js").write_text("export {};")
     write_manifest(site, {page_root or "/": (f"_leaf/pages/{name}", "product")})
 
-    httpd = server_at("127.0.0.1", 0, website_server.handler_for(site))
+    agent_host = FakeCodexHost()
+    httpd = server_at("127.0.0.1", 0, website_server.handler_for(site, agent_host))
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
@@ -245,9 +460,12 @@ def test_a_product_route_uses_the_same_real_page_server(
             if event.get("attempt") == posted["attempt"]
         )
         ready, _ = post(f"{root}{page_root}/_leaf/agent/turn", {"event": comment["id"]})
-        assert ready["status"] == "ready"
-        assert ready["turn"]["reply_to"] == comment["id"]
-        assert ready["turn"]["conversation"]["messages"][-1]["text"] == posted["text"]
+        assert ready == {"status": "ready"}
+        started, _ = post(
+            f"{root}{page_root}/_leaf/agent/start", {"event": comment["id"]}
+        )
+        assert started == {"status": "started", "thread": "codex-thread"}
+        assert agent_host.attached == [published]
     finally:
         httpd.shutdown()
         httpd.server_close()

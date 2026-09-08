@@ -34,6 +34,7 @@ from .service import (
     take_page_claim,
     unacknowledged,
 )
+from .served_state.page import full_state
 from .session import Watch, acknowledge, batch_data, read_watch_pass, record_pickup
 
 QUEUE_TIMEOUT = 20
@@ -124,6 +125,10 @@ def _app_server_connect(endpoint: str):
         "open_timeout": START_TIMEOUT,
         "close_timeout": 1,
         "compression": None,
+        # The connection may outlive the request that opened it while a host
+        # follows turn notifications, so it can't use the reconnecting context
+        # manager returned by the new client API.
+        "legacy": True,
     }
     if socket_path is not None:
         return unix_connect(str(socket_path), uri="ws://localhost/rpc", **options)
@@ -1022,6 +1027,130 @@ def cmd_codex_start(
         raise
     streamed = f" with live activity from {app_server}" if app_server else ""
     return f"Codex delivery started for task {session_id}{streamed}"
+
+
+def prepare_codex_delivery(
+    page_dir: Path,
+    identity: dict,
+    lifetime: dict,
+) -> str:
+    """Claim PAGE and create the pointer that opens an embedded task's first turn."""
+    session_id = identity["id"]
+    transition = None
+    try:
+        with PageTransaction(page_dir) as page:
+            transition = page.take_claim(identity, lifetime)
+            page.close_turn(session_id)
+            obligations = {
+                item["event"]
+                for item in full_state(page_dir, page.events)["activity"]["obligations"]
+            }
+            batch = [
+                event
+                for event in unacknowledged(page.events, page.cursor)
+                if event["id"] in obligations
+            ]
+            if not batch:
+                raise RuntimeError("the page has no Leaf input to deliver")
+            lock = delivery_lock_path(session_id)
+            lock.parent.mkdir(parents=True, exist_ok=True)
+            with flocked(lock):
+                captured = _append_batch(
+                    session_id,
+                    page_dir,
+                    page,
+                    batch,
+                    queue_if_new=True,
+                )
+                if captured is None:
+                    current = _current_epoch(session_id)
+                    if current is None:
+                        raise RuntimeError(
+                            "the page input is already in a Codex delivery"
+                        )
+                    epoch_path, epoch = current
+                    included = {
+                        event["id"]
+                        for entry in epoch["batches"]
+                        for event in entry["events"]
+                        if entry["page"] == str(page_dir)
+                    }
+                    if not all(event["id"] in included for event in batch):
+                        raise RuntimeError(
+                            "the page input is already in a Codex delivery"
+                        )
+                    return _offer_epoch(epoch_path, epoch)
+                epoch_path, _, _ = captured
+                epoch = read_json(epoch_path)
+                return _offer_epoch(epoch_path, epoch)
+    except BaseException:
+        restore_page_claim(page_dir, transition)
+        raise
+
+
+def discard_codex_delivery(session_id: str) -> None:
+    """Remove a delivery that App Server definitively failed to accept."""
+    lock = delivery_lock_path(session_id)
+    with flocked(lock):
+        current = _current_epoch(session_id)
+        if current is None:
+            return
+        epoch_path, epoch = current
+        if epoch["phase"] != "waiting":
+            raise RuntimeError("cannot discard a Codex delivery after acceptance")
+        epoch_path.unlink()
+
+
+def accept_codex_delivery(session_id: str, turn_id: str) -> None:
+    """Record that an embedded host put the current delivery in one Codex turn."""
+    lock = delivery_lock_path(session_id)
+    with flocked(lock):
+        current = _current_epoch(session_id)
+        if current is None:
+            raise RuntimeError("the Codex task has no delivery to accept")
+        epoch_path, epoch = current
+        batches = [dict(batch) for batch in epoch["batches"]]
+
+    for batch in batches:
+        page_dir = Path(batch["page"])
+        expected = {event["seq"]: event["id"] for event in batch["events"]}
+        with PageTransaction(page_dir) as page:
+            claim = page.active_claim
+            if claim is None or claim["id"] != session_id:
+                raise RuntimeError("the Codex delivery no longer owns its page")
+            delivered = {
+                event["seq"]: event
+                for event in page.events
+                if min(expected) <= event["seq"] <= max(expected)
+            }
+            if not all(
+                delivered.get(seq, {}).get("id") == event_id
+                for seq, event_id in expected.items()
+            ):
+                raise RuntimeError("the Codex delivery no longer matches its page log")
+            page.open_turn(session_id)
+            record_pickup(
+                page,
+                [delivered[seq] for seq in expected],
+                phase="opened",
+                session=session_id,
+                turn=turn_id,
+            )
+            acknowledge(page, max(expected))
+
+    with flocked(lock):
+        current = _current_epoch(session_id)
+        if current is None or current[0] != epoch_path:
+            raise RuntimeError("the Codex delivery changed before it was accepted")
+        _, epoch = current
+        for batch in epoch["batches"]:
+            batch["receipted"] = True
+        epoch["queue"] = "none"
+        epoch["queued"] = len(epoch["batches"])
+        epoch["stop_offered"] = len(epoch["batches"])
+        epoch["phase"] = "entered"
+        epoch["updated_at"] = time.time()
+        _write_epoch(epoch_path, epoch)
 
 
 def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:

@@ -93,6 +93,10 @@ its ephemeral iframe URL is not a durable browser handoff. A successful
 
 ## Same-task delivery
 
+Treat a `leaf-delivery` as input from a page that has already been presented.
+Read and process the payload it names; do not call `leaf_present` or repeat the
+first-handoff ceremony.
+
 One detached adapter watches every page this task owns. The first input after a
 turn ends opens a delivery epoch and queues one new user turn in this same task.
 Later input joins that epoch until the turn which processes it ends. Starting the

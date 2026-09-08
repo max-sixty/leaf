@@ -1235,8 +1235,8 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
             newest = len(example_versions(source))
             expect(page.locator(".lf-banner .lf-version")).to_have_text(f"v{newest}")
             expect(page.locator(".lf-status-text")).to_have_text(
-                "This is an example on the Leaf website. Leaf guide replies here, "
-                "but cannot edit this page. Install Leaf"
+                "This is an example on the Leaf website. Leaf guide replies and "
+                "revises this private copy. Install Leaf"
             )
             if source == FEATURE_GALLERY:
                 expect(
@@ -1335,8 +1335,8 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     page, errors = open_page(browser, url)
     try:
         expect(page.locator(".lf-banner .lf-status-text")).to_have_text(
-            "This is an example on the Leaf website. Leaf guide replies here, but "
-            "cannot edit this page. Install Leaf"
+            "This is an example on the Leaf website. Leaf guide replies and revises "
+            "this private copy. Install Leaf"
         )
         expect(page.locator(".lf-banner .lf-status-text a")).to_have_attribute(
             "href", "/#install"

@@ -114,6 +114,101 @@ print("queued")
     return program, log
 
 
+def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "make this editable"},
+    )
+    identity = {
+        "id": "hosted-thread",
+        "host": "codex",
+        "agent": "Leaf guide",
+    }
+
+    prompt = codex_model.prepare_codex_delivery(
+        page_dir,
+        identity,
+        {"pid": os.getpid()},
+    )
+    assert (
+        codex_model.prepare_codex_delivery(
+            page_dir,
+            identity,
+            {"pid": os.getpid()},
+        )
+        == prompt
+    )
+    codex_model.accept_codex_delivery("hosted-thread", "initial-turn")
+
+    assert prompt.startswith("```xml\n<leaf-delivery ")
+    claim = service_model.page_claim(page_dir)
+    assert {key: claim[key] for key in ("id", "host", "pid", "agent")} == {
+        "id": "hosted-thread",
+        "host": "codex",
+        "pid": os.getpid(),
+        "agent": "Leaf guide",
+    }
+    assert claim["turn_closed"] is None
+    assert claim["turn"] is not None
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    _, epoch = codex_model._current_epoch("hosted-thread")
+    assert epoch["queue"] == "none"
+    assert epoch["queued"] == 1
+    assert epoch["stop_offered"] == 1
+    assert epoch["phase"] == "entered"
+    assert epoch["batches"][0]["receipted"] is True
+
+
+def test_embedded_codex_delivery_can_retry_after_app_server_rejects_it(page_dir):
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "make this editable"},
+    )
+    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+    first = codex_model.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+
+    codex_model.discard_codex_delivery("hosted-thread")
+    second = codex_model.prepare_codex_delivery(
+        page_dir, identity, {"pid": os.getpid()}
+    )
+
+    assert second != first
+    _, epoch = codex_model._current_epoch("hosted-thread")
+    assert [event["text"] for event in epoch["batches"][0]["events"]] == [
+        "make this editable"
+    ]
+
+
+def test_embedded_codex_delivery_skips_reader_input_already_settled_by_the_host(
+    page_dir,
+):
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "first"},
+    )
+    first = events_model.read_events(page_dir)[-1]
+    conversation_model.cmd_reply(
+        page_dir,
+        first["id"],
+        "try again later",
+        None,
+        identity={"agent": "Leaf guide", "session": "website-agent"},
+    )
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "second"},
+    )
+
+    codex_model.prepare_codex_delivery(
+        page_dir,
+        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+        {"pid": os.getpid()},
+    )
+
+    _, epoch = codex_model._current_epoch("hosted-thread")
+    assert [event["text"] for event in epoch["batches"][0]["events"]] == ["second"]
+
+
 @pytest.fixture
 def codex_app_server():
     """A WebSocket App Server that emits two turns when the test advances it."""
@@ -2104,9 +2199,9 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
         time.sleep(0.05)
 
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
-    assert leases_model.lock_is_held(lease_path), (
-        "acknowledgement returned without holding the next wait"
-    )
+    assert leases_model.lock_is_held(
+        lease_path
+    ), "acknowledgement returned without holding the next wait"
     status_before_delivery = (page_dir / "status.json").read_bytes()
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
@@ -4055,9 +4150,9 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
     executor = ThreadPoolExecutor(max_workers=1)
     first = executor.submit(vendoring_model.cmd_init, page)
     try:
-        assert reached_layer.wait(timeout=10), (
-            "the first init never reached its held read"
-        )
+        assert reached_layer.wait(
+            timeout=10
+        ), "the first init never reached its held read"
 
         launcher = PLUGIN_ROOT / "bin" / "leaf"
         second = spawn(

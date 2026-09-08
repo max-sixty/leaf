@@ -960,8 +960,8 @@ BANNER_LINES = (
     ),
 )
 WEBSITE_LINE = (
-    "This is an example on the Leaf website. Leaf guide replies here, but cannot edit "
-    "this page. Install Leaf"
+    "This is an example on the Leaf website. Leaf guide replies and revises this "
+    "private copy. Install Leaf"
 )
 
 # The floor as a length, against the width the longest of those lines needs for two of

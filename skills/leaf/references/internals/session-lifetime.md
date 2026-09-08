@@ -10,14 +10,14 @@ and requests another reading at its next deadline; it does not run a second fold
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
 | work declaration: state, detail, event floor, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
-| live Codex activity: session, turn, detail, event floor | optional `stream` in `status.json` | the detached adapter's observer-only App Server client | turn completion, observer exit, loss of the wait lease, or the working grace without another event |
+| live Codex activity: session, turn, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` or `leaf ack` process, held open for its life | process exit |
 | acknowledgement cursor | `cursor.json` | `leaf ack`, after the complete batch reached its durable consumer | never; it is monotonic |
 | pickup transition | a `pickup` event in `events.jsonl` | the carrier records `queued` when Codex accepts a batch, then `opened` with session and turn identity when it enters model context; direct delivery records `opened` | never; each event/phase/session/turn transition is idempotent |
 | page claim | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on (the pid, or the background job's directory) is gone |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
-| Codex delivery epoch | the host state home's session records | the detached adapter | closed and every batch receipted, then moved under `history/` |
+| Codex delivery epoch | the host state home's session records | the detached adapter or an embedded App Server host | closed and every batch receipted, then moved under `history/` |
 
 Delivery acceptance is a different fact from authored work, but it is exact agent
 activity. Pickup never rewrites `status.json`. The server projects one interaction
@@ -124,6 +124,16 @@ durable local task queue. The observer's second connection resumes the task only
 subscribe to notifications. That subscription keeps the task loaded, so the App
 Server dispatches queued input when the task is idle or its active turn completes.
 The CLI remains the interactive client for every approval and user-input request.
+
+An embedded host that already controls App Server can deliver the same epoch directly
+with `turn/start` instead of launching the detached queue adapter. After App Server
+accepts the turn, the host records the delivery's actual task and turn, advances its
+page cursor, and keeps the initiating connection for activity notifications. A retry
+therefore reads the durable pickup instead of starting the event again. A later event
+creates the next epoch and resumes the same task; when a turn is already active, App
+Server treats the additional `turn/start` input as steering for that turn. This is a
+different host transport over the same page claim, event log, delivery payload, and
+activity projection, not another conversation store.
 
 `server start` spawns the service into a session of its own and hands back the
 URL that process printed and the lifetime it recorded, so a killed carrier costs

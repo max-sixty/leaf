@@ -1,14 +1,21 @@
 ---
 name: leaf
-description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate. Use for “explain this in HTML,” “write up the findings,” “show me the options,” or work whose progress or review belongs in a shared page.
+description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes reader input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” work whose progress or review belongs in a shared page, or a `leaf-delivery` message.
 allowed-tools:
   - Bash(leaf:*)
   - Bash(jq:*)
 ---
 
-Present the session's subject as a live HTML page. The user comments on exact
-passages, acts through the page's widgets, and follows revisions in place. With
-no subject in `$ARGUMENTS`, use the work already under discussion.
+If the input is a `leaf-delivery` element, this is a continuation of an existing
+page, not a request to present a new one. Read its payload, then read
+`references/host-codex.md`, `references/event-batches.md`, and, for reader
+messages, `references/conversation-threads.md`. Process every delivered event
+through the page and its Leaf CLI. Do not call `leaf_present`, initialize a page,
+or hand the page over again in response to the delivery pointer.
+
+Otherwise, present the session's subject as a live HTML page. The user comments
+on exact passages, acts through the page's widgets, and follows revisions in
+place. With no subject in `$ARGUMENTS`, use the work already under discussion.
 
 Leaf's writing guidance supplies defaults only; any user-specific guidance on
 tone, structure, depth, or format takes precedence.

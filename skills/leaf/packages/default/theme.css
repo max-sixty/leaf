@@ -1447,12 +1447,6 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
         animation: lf-toc-enable-links 0s .24s forwards;
       }
-      /* A pointer waits for the labels it revealed to finish appearing. The go-to sequence
-       * already made an explicit keyboard gesture, and its candidate reading needs these
-       * visible page routes to participate immediately. */
-      body[data-lf-goto] lf-toc:not([data-lf-dense]) .lf-toc-nav a {
-        pointer-events: auto;
-      }
       /* When all labels cannot fit beside the track, the destination under the pointer or
        * keyboard focus reveals on its own. Turning the rail into a second scrollable outline
        * would put the markers and viewport lens in a different coordinate system. */
@@ -1464,8 +1458,15 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
         max-height: 1.25em; font-size: var(--t-6); line-height: 1.25;
         -webkit-line-clamp: 1;
       }
-      lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
+      lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within) a {
         opacity: 0; animation: none; pointer-events: none;
+      }
+      /* A pointer waits for the labels it revealed to finish appearing. The go-to sequence
+       * already made an explicit keyboard gesture, so every route participates immediately.
+       * A dense route fills its exact row while the separate address hint says its words. */
+      body[data-lf-goto] lf-toc .lf-toc-nav a { pointer-events: auto; }
+      body[data-lf-goto] lf-toc[data-lf-dense] .lf-toc-nav a {
+        opacity: 0; animation: none; height: 100%; max-height: none;
       }
       lf-toc[data-lf-dense] .lf-toc-nav:hover
         :is(.lf-toc-start, li):hover a,
@@ -1480,11 +1481,15 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
   lf-toc a { transition: none; }
   @container lf-page style(--lf-sidebar-posture: margin) {
     @container style(--lf-sidebar-slot: margin) {
-      lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
+      lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within) a {
+        opacity: 0; pointer-events: none;
+      }
+      lf-toc .lf-toc-nav:is(:hover, :focus-within) a,
+      body[data-lf-goto] lf-toc .lf-toc-nav a {
         animation: none; pointer-events: auto;
       }
-      lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
-        opacity: 0; pointer-events: none;
+      body[data-lf-goto] lf-toc[data-lf-dense] .lf-toc-nav a {
+        opacity: 0; height: 100%; max-height: none;
       }
       lf-toc[data-lf-dense] .lf-toc-nav:hover
         :is(.lf-toc-start, li):hover a,

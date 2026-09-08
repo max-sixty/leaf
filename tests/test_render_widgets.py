@@ -1105,6 +1105,10 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
         "return [r.x, r.y, r.width, r.height]; })"
     )
+    resting_rows = nav.locator(".lf-toc-start, li").evaluate_all(
+        "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
+        "return [r.x, r.y, r.width, r.height]; })"
+    )
     resting_marker_centers = nav.locator(".lf-toc-start, li").evaluate_all(
         "items => items.map(item => { const s = getComputedStyle(item, '::before'); "
         "const r = item.getBoundingClientRect(); "
@@ -1117,13 +1121,17 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     page.keyboard.press("g")
     for link in nav.locator("a").all():
         expect(link).to_have_css("opacity", "0")
-        expect(link).to_have_css("pointer-events", "none")
+        expect(link).to_have_css("pointer-events", "auto")
+    link_hints = page.locator(
+        '.lf-goto-targets > .lf-sequence-address[data-lf-address-kind="Link"]'
+    )
+    expect(link_hints).to_have_count(nav.locator("a").count())
     assert (
-        nav.locator(".lf-toc-start, li, a").evaluate_all(
+        nav.locator(".lf-toc-start, li").evaluate_all(
             "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
             "return [r.x, r.y, r.width, r.height]; })"
         )
-        == hidden_boxes
+        == resting_rows
     )
     assert nav.evaluate("node => !node.contains(document.activeElement)")
     page.keyboard.press("Escape")

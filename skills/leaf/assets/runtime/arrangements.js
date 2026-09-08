@@ -49,4 +49,9 @@ export function restoreArrangements() {
   if (readerStore.get(PANEL_KEY) === "1") setPanel(true);
   restoreTrays();
   if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
+  const root = document.documentElement;
+  root.removeAttribute("data-lf-restore-panel");
+  root.removeAttribute("data-lf-restore-tray");
+  root.style.removeProperty("--lf-panel-choice");
+  root.style.removeProperty("--lf-tray-choice");
 }

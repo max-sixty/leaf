@@ -233,6 +233,7 @@ function wrapSwitch() {
   const label = offer("label", "lf-diff-wrap-label");
   const box = offer("input", "lf-diff-wrap");
   box.type = "checkbox";
+  box.name = "soft-wrap";
   // The words beside the control are its accessible name (WCAG Label in Name); the
   // label element supplies them, so nothing here restates them as an aria-label.
   label.append(box, "Soft wrap");
@@ -246,6 +247,7 @@ function reviewTools(host) {
   const label = offer("label", "lf-diff-search-label");
   const search = document.createElement("input");
   search.type = "search";
+  search.name = "diff-search";
   search.className = "lf-diff-search";
   search.placeholder = "Filter files";
   search.setAttribute("aria-label", "Filter diff files");

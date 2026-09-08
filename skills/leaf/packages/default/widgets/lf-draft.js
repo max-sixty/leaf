@@ -594,6 +594,7 @@ customElements.define(
         return;
       }
       const ta = offer("textarea", "lf-draft-edit");
+      ta.name = "edit";
       // A set-aside edit outranks the authored text here too: reopening resumes it.
       ta.value = seed ?? loadEdit(this.id) ?? this.#body.textContent;
       ta.setAttribute("aria-label", `Edit ${this.id}`);

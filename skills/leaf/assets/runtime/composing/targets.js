@@ -33,6 +33,7 @@ selectionSearch.hidden = true;
 const selectionInput = document.createElement("input");
 selectionInput.className = "lf-target-search-box";
 selectionInput.type = "search";
+selectionInput.name = "page-search";
 selectionInput.autocomplete = "off";
 selectionInput.spellcheck = false;
 selectionInput.maxLength = 160;

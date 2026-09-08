@@ -750,20 +750,23 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
 
 @pytest.mark.parametrize("width", [320, 800])
 @pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_thread_keeps_submit_in_its_field_and_resolve_on_its_metadata_row(
+def test_a_thread_keeps_submit_in_its_field_and_resolve_in_its_corner(
     browser, serve, width, scheme
 ):
-    """Submit belongs to the field while Resolve belongs to the first message head.
+    """Submit belongs to the field while Resolve belongs to the thread.
 
     Growing the field carries Submit with it and leaves Resolve fixed. The textarea
     reserves the icon's whole horizontal band, so words and a scrollbar do not run
-    underneath it. The same geometry holds in the panel's narrowest useful window and
-    with room beside the page, in both palettes."""
+    underneath it. Resolve aligns with the quoted address instead of either message's
+    metadata. The same geometry holds in the panel's narrowest useful window and with
+    room beside the page, in both palettes."""
     context = browser.new_context(
         viewport={"width": width, "height": 720}, color_scheme=scheme
     )
     try:
-        page, errors = open_page(browser, serve(LONG_PAGE, comments=1), context=context)
+        url = serve(LONG_PAGE)
+        panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
+        page, errors = open_page(browser, url, context=context)
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
@@ -800,12 +803,14 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_on_its_metadata_row(
                                    height: own.height, right: own.right, bottom: own.bottom},
                           compose: rect('.lf-compose'), field: rect('.lf-compose-field'),
                           textarea: rect('.lf-compose textarea'),
-                          head: rect('.lf-msg:first-of-type > .lf-msg-head'),
+                          quote: rect('.lf-quote'),
                           send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
                           closeBorder: getComputedStyle(document.querySelector(
                             '.lf-panel-head [aria-label="Close threads"]')).borderTopWidth,
                           resolveBorder: getComputedStyle(thread.querySelector(
                             '.lf-resolve'), '::before').borderTopWidth,
+                          sendBorder: getComputedStyle(thread.querySelector(
+                            '.lf-thread-send'), '::before').borderTopWidth,
                           radii: {
                             send: radius('.lf-thread-send'),
                             sendFill: radius('.lf-thread-send', '::before'),
@@ -829,13 +834,14 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_on_its_metadata_row(
         assert short["send"]["right"] < short["textarea"]["right"]
         assert short["send"]["bottom"] < short["textarea"]["bottom"]
         assert short["padding"] >= short["send"]["width"] + 10
-        assert short["resolve"]["y"] == pytest.approx(short["head"]["y"], abs=1)
-        assert short["resolve"]["bottom"] == pytest.approx(
-            short["head"]["bottom"], abs=1
+        assert short["resolve"]["y"] == pytest.approx(short["quote"]["y"], abs=1)
+        assert short["resolve"]["right"] == pytest.approx(
+            short["quote"]["right"], abs=1
         )
-        assert short["resolve"]["right"] == pytest.approx(short["head"]["right"], abs=1)
+        assert short["resolve"]["bottom"] <= short["quote"]["bottom"]
         assert float(short["closeBorder"][:-2]) == 0
-        assert float(short["resolveBorder"][:-2]) >= 1
+        assert float(short["resolveBorder"][:-2]) == 0
+        assert float(short["sendBorder"][:-2]) == 0
         assert set(short["radii"].values()) == {button_radius(page)}
         assert short["overflow"] == 0
 
@@ -856,6 +862,59 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_on_its_metadata_row(
         assert errors == []
     finally:
         context.close()
+
+
+def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serve):
+    """The picker floats from its message corner without moving the conversation.
+
+    A reaction list used to add forty pixels to its thread only while open. That moved
+    every later thread under the pointer and made choosing a reaction change the layout
+    being acted on. The next card is the single-factor neighbor: opening the picker is
+    the only change between these two frames."""
+    url = serve(PANEL_PAGE)
+    first = panel_comment(
+        serve.page_dir, "Keep the route visible.", {"section": "how-store"}
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Codex",
+            "parent": first,
+            "revision": 1,
+            "text": "The route stays beside the choice.",
+        },
+    )
+    second = panel_comment(
+        serve.page_dir, "Keep the cap visible too.", {"section": "how-cap"}
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{first}"]')
+    neighbor = page.locator(f'.lf-thread[data-id="{second}"]')
+    trigger = card.locator(".lf-msg.claude .lf-react-trigger")
+    trigger.hover()
+    before = {
+        "card": card.bounding_box(),
+        "neighbor": neighbor.bounding_box(),
+    }
+
+    trigger.click()
+    expect(trigger).to_have_attribute("aria-expanded", "true")
+    palette = card.locator(".lf-react-palette")
+    expect(palette).to_be_visible()
+    after = {
+        "card": card.bounding_box(),
+        "neighbor": neighbor.bounding_box(),
+    }
+    assert after == before
+    assert palette.bounding_box()["y"] >= (
+        trigger.bounding_box()["y"] + trigger.bounding_box()["height"]
+    )
+    assert errors == []
+    page.close()
 
 
 def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
@@ -1049,8 +1108,16 @@ def test_a_run_of_threads_says_which_part_of_the_page_it_is_about(browser, serve
     heading reached through page navigation belongs."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
-    for i in range(6):
+    merge_threads = [
         panel_comment(d, f"On the merge rule, {i}.", {"section": "merge-both"})
+        for i in range(6)
+    ]
+    heading_thread = panel_comment(d, "On the heading.", {"section": "h-merge"})
+    heading_quote_thread = panel_comment(
+        d,
+        "On the selected heading words.",
+        {"section": "h-merge", "quote": "The merge rule"},
+    )
     panel_comment(d, "On the lede.", {"section": "lede"})
 
     page, errors = open_page(browser, url)
@@ -1059,6 +1126,23 @@ def test_a_run_of_threads_says_which_part_of_the_page_it_is_about(browser, serve
     panel_settled(page)
     heading = page.locator(".lf-group[data-group]", has_text="The merge rule")
     expect(heading).to_have_count(1)
+    expect(heading).to_have_css("text-transform", "none")
+    quote = page.locator(f'.lf-thread[data-id="{merge_threads[0]}"] .lf-quote-label')
+    expect(quote).to_contain_text("Two people editing one document")
+    expect(quote).not_to_contain_text("The merge rule")
+    gutter = quote.evaluate(
+        """label => { const quote = label.closest('.lf-quote');
+          const box = quote.getBoundingClientRect();
+          const line = parseFloat(getComputedStyle(quote).borderInlineStartWidth);
+          return label.getBoundingClientRect().left - box.left - line; }"""
+    )
+    assert gutter >= 10, f"the quote rail leaves only {gutter}px before its text"
+    expect(
+        page.locator(f'.lf-thread[data-id="{heading_thread}"] .lf-quote-label')
+    ).to_have_count(0)
+    expect(
+        page.locator(f'.lf-thread[data-id="{heading_quote_thread}"] .lf-quote-label')
+    ).to_have_count(0)
 
     # Scroll the run's own threads up past the top of the list, and the heading is still
     # there — pinned at the top edge rather than gone with them. Opaque, because what it
@@ -1969,7 +2053,9 @@ def test_a_fold_hands_off_without_reapplying_movement_already_held(browser, serv
     The pointer starts on a resolved card while an open card above it folds. After the
     fold has moved once, closing the resolved disclosure makes that reference zero-size
     without another render. A live open card must take over without paying the fold's
-    already-compensated movement a second time."""
+    already-compensated movement a second time. If closing the disclosure makes the
+    document shorter than the standing scroll offset, the browser may still clamp the
+    list to its new end."""
     page_url = serve(LONG_PAGE, comments=6)
     page_dir = serve.page_dir
     roots = [
@@ -2046,7 +2132,8 @@ def test_a_fold_hands_off_without_reapplying_movement_already_held(browser, serv
       const card = document.querySelector(`.lf-thread[data-id="${id}"]`);
       const box = card.getBoundingClientRect();
       return {top: box.top, contentTop: box.top + list.scrollTop,
-        scrollTop: list.scrollTop, anchor: getComputedStyle(list).overflowAnchor};
+        scrollTop: list.scrollTop, maxScrollTop: list.scrollHeight - list.clientHeight,
+        anchor: getComputedStyle(list).overflowAnchor};
     }"""
     inherited = page.evaluate(reading, successor)
     assert inherited["contentTop"] < started_content_top - 20, (
@@ -2059,8 +2146,10 @@ def test_a_fold_hands_off_without_reapplying_movement_already_held(browser, serv
     assert not resolved_card.evaluate("el => el.checkVisibility()")
     page.evaluate(RENDERED)
     handed_off = page.evaluate(reading, successor)
-    assert handed_off["top"] == pytest.approx(inherited["top"], abs=1), (
-        f"the fallback paid for an old fold delta twice: {inherited} -> {handed_off}"
+    expected_scroll = min(inherited["scrollTop"], handed_off["maxScrollTop"])
+    assert handed_off["scrollTop"] == pytest.approx(expected_scroll, abs=1), (
+        f"the fallback moved beyond the browser's new scroll limit: "
+        f"{inherited} -> {handed_off}"
     )
 
     page.evaluate("i => window.__lfHeld[i].finish()", before)
@@ -2390,6 +2479,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # runtime sheet names it only to say which plane it stands on, so the movement
         # the theme's rule causes is that deliberate face rather than a leaked one.
         "lf-living-margin",
+        "lf-msg-head",
         "lf-react-open",
         "lf-react-palette",
         "lf-react-strip",
@@ -2428,7 +2518,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-address",
         "lf-over-mark",
         "lf-mark-el",
-        "lf-shaped-mark",  # a semantic SVG mark projects its contour above the drawing
+        "lf-projected-mark",  # an element mark projects above authored paint
         "lf-mark-hover",  # the same element mark, for the one the pointer indicates
         "lf-mark-here",  # the same element mark, for the comment the reader is in
         "lf-pending",
@@ -3153,10 +3243,8 @@ THREAD_STANDING = """() => {
   const box = card.getBoundingClientRect();
   const viewport = list.getBoundingClientRect();
   return {
-    border: paint.borderColor,
     background: paint.backgroundColor,
     outline: paint.outlineStyle,
-    restingBorder: resting?.borderColor ?? null,
     restingBackground: resting?.backgroundColor ?? null,
     cuts: [
       box.top < viewport.top - .5 && 'top',
@@ -3178,12 +3266,10 @@ def thread_mark_fault(reading):
     """Why a current thread is indistinguishable from a resting card, if it is."""
     if not reading:
         return "focus is not inside a thread"
-    if reading["restingBorder"] is None or reading["restingBackground"] is None:
+    if reading["restingBackground"] is None:
         return "there is no resting peer to distinguish the current thread from"
     if reading["outline"] != "none":
         return f"the thread draws a {reading['outline']} outline around the whole card"
-    if reading["border"] == reading["restingBorder"]:
-        return "the current thread's edge is the same as a resting card's"
     if reading["background"] == reading["restingBackground"]:
         return "the current thread's surface is the same as a resting card's"
     if reading["cuts"]:
@@ -3230,7 +3316,7 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
     browser, serve
 ):
     """Where the reader is standing has to be visible from wherever they walked to it.
-    A current thread repaints its own edge and surface; compact controls inside the list
+    A current thread paints its own surface; compact controls inside the list
     keep the focus ring. Either treatment can disappear at a scroll edge or beneath a
     neighbour, and the thread list has had both failures in both directions.
 
@@ -3519,7 +3605,7 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
     """The walk above never sees this, and that is the point of having it twice: t/T
     scroll their landing into the band the list declares unlandable. A click scrolls
     nothing. The reader nudges the list, the run heading pins over the first card of its
-    run, and takes the edge that distinguishes the current card from a resting one.
+    run, and takes the first strip of the surface that distinguishes the current card.
 
     So the gesture here is a real press rather than a locator click, which would scroll
     the card into view for its own actionability check and quietly perform the fix it is
@@ -3542,10 +3628,10 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
 
-        # Bury the card by exactly its edge, which is the reader's own case: a list nudged
-        # a dozen pixels puts the first card of a run under the heading. The depth is the
-        # border's width rather than a comfortable number on purpose: it leaves the rest
-        # of the card visible while hiding exactly the edge that says this one is current.
+        # Bury the card by exactly its reserved edge, which is the reader's own case: a
+        # list nudged a dozen pixels puts the first card of a run under the heading. The
+        # depth is one pixel rather than a comfortable number on purpose: it leaves the
+        # rest of the card visible while hiding the first strip of its current ground.
         page.evaluate(BURY, page.evaluate(UNDER_HEADING)["edge"])
         page.evaluate(RENDERED)
         buried = page.evaluate(UNDER_HEADING)
@@ -3578,7 +3664,7 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
         )
 
         # The reply box receives the compact ring and the parent keeps its quiet current
-        # edge. Reached by key this was never wrong, because landIn already lands the
+        # ground. Reached by key this was never wrong, because landIn already lands the
         # thread around the box; a press into it went the way every other press did.
         page.evaluate(BURY, buried["edge"])
         page.evaluate(RENDERED)

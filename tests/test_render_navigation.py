@@ -416,15 +416,13 @@ def test_the_feature_gallery_exercises_an_inline_diff_thread(browser, serve):
         """button => {
           const style = getComputedStyle(button);
           const face = getComputedStyle(button, '::before');
-          const row = getComputedStyle(button.closest('.lf-diff-thread-outlet'));
           return {
             background: face.backgroundColor,
             opacity: style.opacity,
-            row: row.backgroundColor,
           };
         }"""
     )
-    assert disabled_palette["background"] == disabled_palette["row"]
+    assert disabled_palette["background"] == "rgba(0, 0, 0, 0)"
     assert disabled_palette["opacity"] == "1"
     send.hover()
     assert (
@@ -1073,10 +1071,10 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     # figure in the posted mark's own ink, pointer cursor and all, over no thread to open.
     page.keyboard.press("Escape")
     assert page.locator("#fig.lf-pending").count() == 0, (
-        "the outline outlived its composer"
+        "the mark outlived its composer"
     )
     assert page.locator("#fig.lf-mark-el").count() == 0, (
-        "the figure kept a thread's outline over no thread"
+        "the figure kept a thread's mark over no thread"
     )
 
     # A drag across the caption remains a native selection, so the composer carries the
@@ -1090,7 +1088,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         "the visual containing the drag replaced its selected passage"
     )
     assert page.locator("#fig.lf-pending").count() == 0, (
-        "the figure got the element outline over a live selection"
+        "the figure got the element mark over a live selection"
     )
     page.keyboard.press("Escape")
     assert errors == []
@@ -1369,6 +1367,7 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
     )
     thread = page.locator(".lf-margin-preview .lf-conversation-thread")
     note = page.locator("#p .lf-mark-note")
+    resting = thread.evaluate("el => getComputedStyle(el).backgroundColor")
 
     note.click()
     expect(thread).to_be_focused()
@@ -1380,7 +1379,8 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
         }; }"""
     )
     assert pointer["outline"] == "none"
-    assert pointer["shadow"] != "none"
+    assert pointer["background"] != resting
+    assert pointer["shadow"] == "none"
 
     page.keyboard.press("Escape")
     page.keyboard.press("t")
@@ -1392,7 +1392,6 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
         }; }"""
     )
     assert current["outline"] == "none"
-    assert current["shadow"] != "none"
     assert current == pointer
 
     page.keyboard.press("Enter")
@@ -1406,14 +1405,17 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
     )
     reply_ring = reply.evaluate(
         """el => { const s = getComputedStyle(el); return {
-          style: s.outlineStyle, width: s.outlineWidth,
+          style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset,
+          border: s.borderColor,
         }; }"""
     )
-    assert writing["outline"] == "none"
-    assert writing["background"] != current["background"]
-    assert writing["shadow"] != "none"
-    assert writing["shadow"] != current["shadow"]
-    assert reply_ring == {"style": "solid", "width": "2px"}
+    assert writing == current
+    assert reply_ring == {
+        "style": "solid",
+        "width": "2px",
+        "offset": "0px",
+        "border": "rgba(0, 0, 0, 0)",
+    }
     assert errors == []
     page.close()
 
@@ -1454,8 +1456,8 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
         context.close()
 
 
-def test_inline_thread_edge_has_room_without_focus_reflow(browser, serve):
-    """The region owns the breathing room its inset current edge requires."""
+def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
+    """The region owns the breathing room its current surface requires."""
     url = serve(SEATED_QUESTION_PAGE)
     panel_comment(serve.page_dir, "First job note", {"section": "jobs"})
     root = panel_comment(
@@ -1474,7 +1476,9 @@ def test_inline_thread_edge_has_room_without_focus_reflow(browser, serve):
     focused = thread.evaluate(
         "el => ({width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height})"
     )
-    assert focused == resting, "the current edge changed the inline thread's geometry"
+    assert focused == resting, (
+        "the current surface changed the inline thread's geometry"
+    )
 
     frame = thread.evaluate(
         """el => { const s = getComputedStyle(el); return {
@@ -1487,6 +1491,34 @@ def test_inline_thread_edge_has_room_without_focus_reflow(browser, serve):
     )
     assert frame["borderTop"] == "0px", (
         f"a sibling separator remained inside the current region: {frame}"
+    )
+
+    separator = thread.evaluate(
+        """el => { const s = getComputedStyle(el, '::before'); return {
+          content: s.content, borderTop: s.borderTopWidth,
+        }; }"""
+    )
+    assert separator == {"content": '""', "borderTop": "1px"}, (
+        f"the gap between inline threads lost its separator: {separator}"
+    )
+
+    resolve = thread.locator(":scope > .lf-resolve")
+    expect(resolve).to_have_css("position", "absolute")
+    placement = thread.evaluate(
+        """el => {
+          const own = el.getBoundingClientRect();
+          const inset = parseFloat(getComputedStyle(el).paddingTop);
+          const control = el.querySelector(':scope > .lf-resolve').getBoundingClientRect();
+          const head = el.querySelector(
+            ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-head'
+          ).getBoundingClientRect();
+          return {controlTop: control.top, expectedTop: own.top + inset,
+                  controlBottom: control.bottom, headBottom: head.bottom};
+        }"""
+    )
+    assert placement["controlTop"] == pytest.approx(placement["expectedTop"], abs=1)
+    assert placement["controlBottom"] <= placement["headBottom"], (
+        f"Resolve took a row above the first inline message: {placement}"
     )
 
     clearances = thread.evaluate(
@@ -1502,7 +1534,7 @@ def test_inline_thread_edge_has_room_without_focus_reflow(browser, serve):
         }"""
     )
     assert clearances and min(clearances) >= 3, (
-        f"the 1px inset current edge landed on inline thread content: {clearances}"
+        f"the current surface landed on inline thread content: {clearances}"
     )
     assert errors == []
     page.close()
@@ -1949,21 +1981,22 @@ def test_the_pointer_over_a_comment_lights_the_passage_it_is_about(browser, serv
     page.mouse.move(*card_body(page, "on the second"))
     wait_hovered(page, "neighbouring block")
 
-    # An element anchor answers too, in the property it has. ::highlight paints glyphs and
-    # a box has none, so the wash lands on nothing there and the middle step is said in
-    # the outline instead — the same rank, one weight up from the posted hairline. Without
-    # it the pointer over an element-anchored card did nothing at all, which from the
-    # panel reads as a broken hover rather than as a passage with no words.
+    # An element anchor answers too, in the chrome projection above its descendants.
+    # ::highlight paints glyphs and a box has none, so the projected wash carries the
+    # middle step. Without it the pointer over an element-anchored card did nothing at
+    # all, which from the panel reads as a broken hover rather than as a passage with no
+    # words.
     page.mouse.move(*card_body(page, "on the figure"))
     wait_hovered(page, "")
     hovered_el = page.locator("#fig")
     expect(hovered_el).to_have_class(re.compile(r"\blf-mark-hover\b"))
+    hovered_wash = hovered_el.evaluate("el => getComputedStyle(el).backgroundImage")
+    page.mouse.move(*card_body(page, "on the second"))
+    wait_hovered(page, "neighbouring block")
     assert (
-        page.evaluate(
-            "() => getComputedStyle(document.querySelector('#fig')).outlineWidth"
-        )
-        == "2px"
-    ), "the pointer on an element-anchored card left its box unchanged"
+        hovered_el.evaluate("el => getComputedStyle(el).backgroundImage")
+        != hovered_wash
+    )
 
     # Standing in one comment while pointing at another says both, because they answer
     # different questions and rank apart: the standing mark keeps its ink above the wash.
@@ -2235,15 +2268,26 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
     page.close()
 
 
-def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact(
+def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     browser, serve
 ):
-    """Kind prefixes narrow the current generated map instead of replacing it.
+    """Semantic prefixes narrow the current generated map instead of replacing it.
 
-    A filtered map assigns short codes from its own members. Its chips show only those
-    generated suffixes; the complete route remains in the shortcut bar.
+    A filtered map preserves the codes its members had in the complete map. Its chips
+    show only those generated suffixes; the complete route remains in the shortcut bar.
     """
-    page, errors = open_page(browser, serve(ADDRESSED_PAGE))
+    url = serve(ADDRESSED_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "A visible thread.",
+            "anchor": {"section": "opts-decision"},
+        },
+    )
+    page, errors = open_page(browser, url)
     resized(page, 1280, 800)
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
 
@@ -2266,14 +2310,14 @@ def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact
             "action": "Show only visible margin controls and status indicators",
         },
         {
-            "command": "navigation.target.filter.tabs",
+            "command": "navigation.target.filter.threads",
             "keys": ["g", "t"],
-            "action": "Show only visible tabs",
+            "action": "Show only visible Thread controls",
         },
         {
-            "command": "navigation.target.filter.actions",
+            "command": "navigation.target.filter.asks",
             "keys": ["g", "a"],
-            "action": "Show only visible actions",
+            "action": "Show only visible Ask controls",
         },
         {
             "command": "navigation.target.filter.hyperlinks",
@@ -2304,34 +2348,46 @@ def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact
         "els => els.every(el => el.textContent === el.dataset.lfAddress)"
     ), "an inline hint repeated the sequence context"
 
-    control_codes = page.locator(
-        f'{CHIPS}[data-lf-address-kind="Control"]'
-    ).evaluate_all("els => els.map(el => el.dataset.lfAddress)")
-    assert len(control_codes) >= 2, control_codes
-    page.keyboard.press("a")
+    mixed = page.locator(
+        f'{CHIPS}[data-lf-address-kind="Margin control or status indicator"]'
+        '[data-lf-address-for="opts-decision"]'
+    )
+    expect(mixed).to_have_count(2)
+    mixed_codes = mixed.evaluate_all(
+        "els => Object.fromEntries(els.map(el => "
+        "[el.dataset.lfAddressMarginElement, el.dataset.lfAddress]))"
+    )
+    thread_code = mixed_codes["reading:threadList"]
+    ask_key = next(key for key in mixed_codes if key != "reading:threadList")
+    ask_code = mixed_codes[ask_key]
+
+    page.keyboard.press("m")
     filtered = page.locator(CHIPS)
-    expect(filtered).to_have_count(len(control_codes))
-    assert set(
-        filtered.evaluate_all("els => els.map(el => el.dataset.lfAddressKind)")
-    ) == {"Control"}
-    filtered_codes = address_codes(page)
-    assert all(len(code) == 1 for code in filtered_codes), filtered_codes
-    assert filtered_codes != control_codes, {
-        "before": control_codes,
-        "filtered": filtered_codes,
-    }
+    expect(filtered).to_have_count(2)
+    assert address_codes(page) == list(mixed_codes.values())
+    page.keyboard.press("Escape")
+    shortcut_bar_text(page)
+
+    page.keyboard.press("t")
+    expect(filtered).to_have_count(1)
+    assert address_codes(page) == [thread_code]
     target_route = page.locator(
         '.lf-shortcut-bar .lf-key[data-lf-commands~="navigation.target"]'
     )
     assert target_route.locator("kbd").evaluate_all(
         "keys => keys.map(key => key.textContent)"
-    ) == ["g", "a", "letters"]
+    ) == ["g", "t", "letters"]
     assert target_route.locator("kbd").evaluate_all(
         "keys => keys.map(key => key.dataset.lfKeyState)"
     ) == ["pressed", "pressed", "neutral"]
     expect(target_route).not_to_contain_text("filter")
 
+    page.keyboard.type(thread_code)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-margin-thread")).to_have_count(1)
     page.keyboard.press("Escape")
+
+    page.keyboard.press("g")
     shortcut_bar_text(page)
     expect(page.locator("body")).to_have_attribute("data-lf-goto", "")
     assert (
@@ -2343,11 +2399,26 @@ def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact
         == initial_kinds
     )
 
+    page.keyboard.press("a")
+    expect(filtered).to_have_count(1)
+    assert address_codes(page) == [ask_code]
+    expect(page.locator(".lf-live")).to_have_text(
+        "1 visible Ask controls; type a hint or press Tab to hear them."
+    )
+    page.keyboard.type(ask_code)
+    expect(page.locator("#opts-decision")).to_be_focused()
+    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-ask", "1")
+
     # A filter with no members stays empty through the same resize refresh that
     # regenerates a populated map. Escape still restores the complete map.
-    page.keyboard.press("t")
+    page.locator("#opt-a").click()
+    round_trip(page)
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="ask"]')).to_have_count(0)
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("g")
+    page.keyboard.press("a")
     expect(page.locator(CHIPS)).to_have_count(0)
-    expect(page.locator(".lf-live")).to_have_text("No visible tabs.")
+    expect(page.locator(".lf-live")).to_have_text("No visible Ask controls.")
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("d")
     expect(page.locator("body")).to_have_attribute("data-lf-goto", "")
@@ -2554,7 +2625,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
             "visible target",
         ),
         (
-            "navigation.target.filter.tabs",
+            "navigation.target.filter.threads",
             ["g", "kind"],
             ["pressed", "neutral"],
             "filter by kind",
@@ -3020,7 +3091,9 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
     prints what the rows say, and inventing a difference here would be this projection
     disagreeing with the reference and the announcements.
     """
-    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+    url = serve(LONG_PAGE, comments=2)
+    _publish(serve.page_dir, 2, LONG_PAGE, "two")
+    page, errors = open_page(browser, url)
 
     # The shelf, because the ordinary shortlist shows the first live row and little else:
     # what this is about is two words a reader can see at one time, and the shelf is where
@@ -3033,12 +3106,12 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
     }, f"the line no longer offers both the comments and the thread walk: {standing}"
 
     # The registered return frame is nearer than the menu's native Tab handoffs, so the
-    # shortlist contains the actual Escape return and one directional handoff.
+    # shortlist contains the actual Escape return and the version walk.
     page.keyboard.press("Escape")
     open_versions(page)
     page.evaluate(RENDERED)
     versions = page.evaluate(KEY_LINE_HINTS)
-    assert {"navigation.return", "version.leave-forward"} <= {
+    assert {"navigation.return", "version.previous version.next"} <= {
         hint["commands"] for hint in versions
     }, f"the versions menu no longer offers its two visible ways out: {versions}"
 
@@ -3488,7 +3561,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
         help_el.locator("tr[data-lf-command]:visible").first.get_attribute(
             "data-lf-command"
         )
-        == "navigation.target.filter.tabs"
+        == "navigation.target.filter.threads"
     )
     search.fill("g T")
     assert (
@@ -3809,12 +3882,10 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     expect(tabs).to_have_count(2)
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
-    # The old tab mnemonic now narrows the generated map to that kind; its fresh
-    # codes retain the same activation and focus behavior as the unfiltered map.
+    # Tabs need no separate kind mnemonic to remain directly reachable: the complete
+    # generated map keeps their activation and focus behavior.
     page.keyboard.press("g")
-    page.keyboard.press("t")
     expect(page.locator(f'{CHIPS}[data-lf-address-kind="Tab"]')).to_have_count(2)
-    expect(page.locator(f'{CHIPS}:not([data-lf-address-kind="Tab"])')).to_have_count(0)
     page.keyboard.type(address_code(page, "Tab", "tab-bath"))
 
     expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
@@ -4367,7 +4438,9 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
     The focused element's own rows remain nearer so a draft can keep its specific Escape
     and a wired composer can send with Mod+Enter. The text-entry scope then claims the
     characters and editing keys before an ancestor widget can see them."""
-    page, errors = open_page(browser, serve(NOTED_PAGE))
+    url = serve(NOTED_PAGE)
+    _publish(serve.page_dir, 2, NOTED_PAGE, "two")
+    page, errors = open_page(browser, url)
     page.evaluate(
         """async () => {
           const { commands } = await import('/runtime/widget-api.js');
@@ -4768,7 +4841,6 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     banner_destinations = {
         "navigation.panel.threads": (page.locator(".lf-threads-toggle"), "T"),
         "navigation.panel.asks": (page.locator(".lf-asks"), "A"),
-        "version.open": (version, "V"),
     }
     for control, suffix in banner_destinations.values():
         expect(control).to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
@@ -4776,6 +4848,8 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     expect(page.locator(".lf-goto-targets > [data-lf-address-command]")).to_have_count(
         0
     )
+    expect(version).to_be_disabled()
+    expect(version).to_have_attribute("title", "v1")
     expect(page.locator(".lf-latest-chip")).to_have_attribute(
         "title", re.compile(r"\(g V v\)$")
     )
@@ -4856,7 +4930,6 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     resized(page, 390, 800)
     for command, control in (
         ("navigation.panel.threads", page.locator(".lf-threads-toggle")),
-        ("version.open", page.locator(".lf-version")),
     ):
         hint = page.locator(
             f'.lf-goto-targets > .lf-target-hint[data-lf-address-command="{command}"]'
@@ -6073,7 +6146,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
     resting_thread = thread.evaluate(
         "thread => { const s = getComputedStyle(thread); return {"
-        "border: s.borderColor, background: s.backgroundColor}; }"
+        "background: s.backgroundColor}; }"
     )
     thread.focus()
     thread_standing = shortcut_bar_text(page)
@@ -6087,10 +6160,9 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     assert shortcut_bar_text(page) == thread_standing
     current_thread = thread.evaluate(
         "thread => { const s = getComputedStyle(thread); return {"
-        "border: s.borderColor, background: s.backgroundColor, outline: s.outlineStyle}; }"
+        "background: s.backgroundColor, outline: s.outlineStyle}; }"
     )
     assert current_thread["outline"] == "none"
-    assert current_thread["border"] != resting_thread["border"]
     assert current_thread["background"] != resting_thread["background"]
     page.mouse.up()
     assert "reply" not in shortcut_bar_text(page)
@@ -6304,7 +6376,9 @@ def test_the_key_line_names_the_selected_comment_and_its_other_responses(
 
 def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
     """Once Comment focuses a selected passage's field, shortcut letters are text."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    url = serve(TARGETS_PAGE)
+    _publish(serve.page_dir, 2, TARGETS_PAGE, "two")
+    page, errors = open_page(browser, url)
 
     box = page.locator("#prose").bounding_box()
     select(
@@ -6452,11 +6526,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(
         help_el.locator("tr", has_text="bottom of the page").locator(".lf-key-sequence")
     ).to_have_attribute("aria-label", "g then Shift+g")
-    versions_route = help_el.locator(
-        'tr[data-lf-command="version.open"] .lf-key-sequence'
-    )
-    expect(versions_route.locator("kbd")).to_have_text(["g", "V"])
-    expect(versions_route).to_have_attribute("aria-label", "g then Shift+v")
+    expect(help_el.locator('tr[data-lf-command="version.open"]')).to_have_count(0)
     sequence_control = help_el.locator('tr[data-lf-command="navigation.address.back"]')
     expect(sequence_control).to_have_class(re.compile(r"\blf-sequence-control\b"))
     expect(sequence_control.locator("td").first).to_have_css(
@@ -6470,12 +6540,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Previous open thread")
     expect(help_el).not_to_contain_text("On a focused thread")
     expect(help_el).not_to_contain_text("waiting on you for")
-    # A first version has a useful chooser but no neighbouring version to walk. Escape is
-    # the popover's native dismissal, and the menu's row names it so the line can print
-    # the way out of a pointer-opened menu (a keyboard entry's return frame names it
-    # "back" first).
-    expect(help_el).to_contain_text("The versions, and what each one changed")
-    expect(help_el).to_contain_text("Close the versions menu")
+    # A first version is passive orientation, so neither a chooser nor a walk is offered.
+    expect(help_el).not_to_contain_text("The versions, and what each one changed")
+    expect(help_el).not_to_contain_text("Close the versions menu")
     expect(help_el).not_to_contain_text("Previous version")
     expect(help_el).not_to_contain_text("Next version")
     page.keyboard.press("Escape")
@@ -6521,9 +6588,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         help_el.locator("tr", has_text="Previous open thread").locator("kbd")
     ).to_have_text("T")
     expect(help_el).to_contain_text("On a focused thread")
-    # Still one version, so there is no version walk to advertise; the menu's own
-    # Escape row stands whatever the count.
-    expect(help_el).to_contain_text("Close the versions menu")
+    # Still one version, so neither the chooser nor its walk is advertised.
+    expect(help_el).not_to_contain_text("Close the versions menu")
     expect(help_el).not_to_contain_text("Previous version")
     expect(help_el).not_to_contain_text("Next version")
     page.keyboard.press("Escape")

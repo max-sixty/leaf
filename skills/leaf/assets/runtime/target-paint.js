@@ -1,18 +1,19 @@
 /* Element-target paint in Leaf's chrome layer.
  *
- * Ordinary anchors keep their CSS outlines. A declared visual widget, or a registered
- * visual part, contributes its shown box or, for SVG, painted geometry that Leaf clones
- * into chrome, so aim, margin correspondence, and persistent states cover the same
- * package drawing. The painter owns geometry caching: scroll only moves cached paint; a
- * layout, resize, source replacement, or target change rebuilds it. */
+ * Every element annotation contributes its shown box. A declared visual widget, or a
+ * registered visual part, can substitute its drawn surface and, for SVG, painted
+ * geometry that Leaf clones into chrome. The projection keeps rails and rings above
+ * package-owned descendants without changing document layout. The painter owns geometry
+ * caching: scroll only moves cached paint; a layout, resize, source replacement, or
+ * target change rebuilds it. */
 
 import { clippedRect, documentPoint, shownBox } from "./geometry.js";
 import { el } from "./widget-elements.js";
 import { aimBox } from "./composing/aim.js";
 import { inChrome } from "./passages.js";
 
-// Persistent paint for semantic visual parts. target-paint.js owns these pointer-inert
-// projections and keeps every anchored state above the package drawing.
+// Persistent pointer-inert projections for every element target. A semantic visual
+// part can replace the ordinary box with its provider-owned drawing.
 export const visualMarkLayer = el("div", "lf-ui lf-visual-marks");
 visualMarkLayer.setAttribute("aria-hidden", "true");
 export const targetTraceBox = el("div", "lf-ui lf-target-trace lf-target-paint");
@@ -20,7 +21,7 @@ targetTraceBox.setAttribute("aria-hidden", "true");
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const SHAPE_STROKE_ROOM = 2;
-const SHAPED = "lf-shaped-mark";
+const PROJECTED = "lf-projected-mark";
 const STATE_CLASSES = {
   comment: "lf-visual-mark-comment",
   reaction: "lf-visual-mark-reaction",
@@ -299,7 +300,7 @@ function syncStates() {
 function paintTargets(rebuildGeometry = true) {
   for (const element of [...overlays.keys()])
     if (!targets.has(element)) {
-      element.classList.remove(SHAPED);
+      element.classList.remove(PROJECTED);
       overlays.get(element).overlay.remove();
       overlays.delete(element);
     }
@@ -310,7 +311,7 @@ function paintTargets(rebuildGeometry = true) {
       rebuildGeometry || !record ? paintGeometry(target.surface) : record.geometry;
     const placed = placement(target.surface, Boolean(geometry));
     if (!placed) {
-      element.classList.remove(SHAPED);
+      element.classList.remove(PROJECTED);
       if (record) {
         record.geometry = geometry;
         record.shapeKey = "";
@@ -329,7 +330,9 @@ function paintTargets(rebuildGeometry = true) {
     }
     const { overlay, shape } = record;
     const { rect, shapeKey } = placed;
-    element.classList.add(SHAPED);
+    element.classList.add(PROJECTED);
+    if (element.id) overlay.setAttribute("data-for", element.id);
+    else overlay.removeAttribute("data-for");
     overlay.classList.toggle("lf-shaped", Boolean(geometry));
     if (
       rebuildGeometry ||

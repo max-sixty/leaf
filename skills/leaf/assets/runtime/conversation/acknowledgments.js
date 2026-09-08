@@ -1,20 +1,20 @@
 /* Server-projected interaction receipts and explicit work claims.
 
    `.lf-receipt` is transient runtime chrome for a subject with no page-edge margin element.
-   `paintAcknowledgmentsNow` is its one writer. An unsettled reader message paints after
-   that exact message in the full thread panel, and an event-backed widget frozen into
-   conversation chrome paints beneath its owner. Inline page conversations and page
-   widgets use their target's existing margin cluster instead; an explicit page-widget
-   claim is the cluster's **Active** reading. The fallback receipt wears `lf-ui` and
-   `data-lf-gen`: it is an account of the conversation, not authored words, so
-   selection and diff readings skip it. Reconcile widget state first and paint receipts
-   afterward, so each receipt describes the state the widget now displays. Keep
-   surviving nodes across state applications, and in their place, so an unchanged phase
-   is not re-announced: a node taken out of the document and put back replays every
-   animation it wears and re-announces its live region. A phase change is a change of
-   words and of the Active ink, with no motion. Its live state span changes only with
-   semantic phase or detail; the separate age clock may repaint on a heartbeat without
-   entering the live region. */
+   `paintAcknowledgmentsNow` is its one writer. An unsettled reader message carries the
+   receipt in its existing metadata row; an event-backed widget frozen into conversation
+   chrome keeps the full-width fallback beneath its owner. A claim with no preceding
+   message uses that fallback too. Inline page conversations and page widgets use their
+   target's existing margin cluster instead; an explicit page-widget claim is the
+   cluster's **Active** reading. Every receipt wears `lf-ui` and `data-lf-gen`: it is an
+   account of the conversation, not authored words, so selection and diff readings skip
+   it. Reconcile widget state first and paint receipts afterward, so each receipt
+   describes the state the widget now displays. Keep surviving nodes across state
+   applications, and in their place, so an unchanged phase is not re-announced: a node
+   taken out of the document and put back replays every animation it wears and
+   re-announces its live region. A phase change updates words and semantic color with no
+   motion. Its live state span changes only with semantic phase or detail; the separate
+   age clock may repaint on a heartbeat without entering the live region. */
 import { ago } from "../presence.js";
 import { el } from "../widget-elements.js";
 import { runtime } from "../context.js";
@@ -38,20 +38,24 @@ const phaseText = (receipt) => {
 // change is a change of words and paint and nothing else: motion here would answer
 // a question the reader already asked, and an animation the line wore would replay
 // on any move the heartbeat made (below).
-function paintReceipt(host, receipt, before, wanted) {
+function paintReceipt(host, receipt, before, wanted, metadata = false) {
   if (!host) return;
   let line = [...host.children].find(
     (child) => child.matches(".lf-receipt") && child.dataset.receiptId === receipt.id,
   );
   if (!line) {
-    line = el("div", "lf-receipt lf-ui");
+    line = el(
+      metadata ? "span" : "div",
+      `lf-receipt lf-ui${metadata ? " lf-message-receipt" : ""}`,
+    );
     line.dataset.lfGen = "1";
     line.dataset.receiptId = receipt.id;
     const state = el("span", "lf-receipt-state");
     state.setAttribute("role", "status");
     state.setAttribute("aria-live", "polite");
     state.setAttribute("aria-atomic", "true");
-    line.append(state, el("time"));
+    line.append(state);
+    if (!metadata) line.append(el("time"));
   }
   // `before` names the slot the line belongs in by the node standing there now, and
   // for an event-backed line that node is the line itself once it has been placed.
@@ -68,17 +72,21 @@ function paintReceipt(host, receipt, before, wanted) {
   const semantic = phaseText(receipt);
   if (state.textContent !== semantic) state.textContent = semantic;
   line.classList.toggle("is-active", receipt.phase === "active");
+  line.dataset.lfPhase = receipt.phase;
+  line.toggleAttribute("data-lf-dropped", Boolean(receipt.dropped));
 
   let quiet = line.querySelector(":scope > .lf-receipt-quiet");
   const isQuiet = receipt.phase === "active" && receipt.quiet;
   if (isQuiet && !quiet) {
     quiet = el("span", "lf-receipt-quiet", "quiet");
-    line.insertBefore(quiet, line.lastElementChild);
+    line.insertBefore(quiet, line.querySelector(":scope > time"));
   } else if (!isQuiet) quiet?.remove();
 
   const time = line.querySelector(":scope > time");
-  const age = ago(receipt.ts);
-  if (time.textContent !== age) time.textContent = age;
+  if (time) {
+    const age = ago(receipt.ts);
+    if (time.textContent !== age) time.textContent = age;
+  }
 }
 
 export function paintAcknowledgmentsNow() {
@@ -103,14 +111,19 @@ export function paintAcknowledgmentsNow() {
                 `.lf-conversation-msg[data-event="${CSS.escape(receipt.event)}"])`,
             )
           : null;
+        const messageHead = source?.querySelector(
+          ":scope > :is(.lf-msg-head, .lf-conversation-head)",
+        );
         paintReceipt(
-          view,
+          messageHead ?? view,
           receipt,
-          source?.nextSibling ??
-            view.querySelector(
-              ":scope > :is(.lf-compose, .lf-say, .lf-thread-actions)",
-            ),
+          messageHead
+            ? null
+            : view.querySelector(
+                ":scope > :is(.lf-compose, .lf-say, .lf-thread-actions)",
+              ),
           wanted,
+          Boolean(messageHead),
         );
       }
       continue;

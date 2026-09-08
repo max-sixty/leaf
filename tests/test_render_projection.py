@@ -901,7 +901,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         f"the passage moved from {before}px to {after}px in the viewport"
     )
     version = page.locator(".lf-version")
-    expect(version).to_have_text("Draft ▾")
+    expect(version).to_have_text("Draft")
     expect(version).to_have_attribute("title", re.compile(r"^Draft after v1:"))
     expect(version).to_have_attribute("aria-label", "Draft after v1: open versions")
     version.click()
@@ -972,7 +972,7 @@ def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser,
     told(pinned)
 
     expect(live).to_have_title("Live second")
-    expect(live.locator(".lf-version")).to_have_text("Draft ▾")
+    expect(live.locator(".lf-version")).to_have_text("Draft")
     expect(live.locator(".lf-version")).to_have_attribute(
         "title", re.compile(r"^Draft after v1:")
     )
@@ -1852,7 +1852,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
             held[0][2] = True
         page.wait_for_timeout(0)
         assert len(requests) >= 2, "the stale comparison view was not retried"
-        expect(page.locator(".lf-version")).to_have_text("Δ v2 ▾")
+        expect(page.locator(".lf-version")).to_have_text("v2")
         expect(page.locator("#new-copy")).to_have_class(re.compile(r"lf-ins-block"))
         expect(page.locator("#t-parser")).not_to_have_class(re.compile(r"lf-ins-block"))
     finally:

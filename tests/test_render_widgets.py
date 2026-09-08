@@ -2042,6 +2042,20 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
     with sending(page, "the phone category move"):
         to_lane_1.tap()
     expect(page.locator("#sq-col-1 > #sq-card-0")).to_have_count(1)
+    expect(card.locator(".lf-grip")).to_be_focused()
+    page.wait_for_function(
+        """() => {
+          const board = document.querySelector('#crowd').getBoundingClientRect();
+          const card = document.querySelector('#sq-card-0').getBoundingClientRect();
+          return card.left >= board.left - 1 && card.right <= board.right + 1;
+        }"""
+    )
+    moved = card.bounding_box()
+    board = page.locator("#crowd").bounding_box()
+    assert moved and board
+    assert board["x"] <= moved["x"] and moved["x"] + moved["width"] <= (
+        board["x"] + board["width"] + 1
+    )
 
     to_lane_0 = card.get_by_role("button", name="Move Perch 0 to Lane 0")
     expect(to_lane_0).to_be_visible()

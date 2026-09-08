@@ -333,7 +333,12 @@ customElements.define(
           if (!actionAvailable(this, "move")) return;
           const from = card.parentElement;
           if (from === column) return;
-          this.#place(card, column, this.#cards(column).length);
+          this.#place(
+            card,
+            column,
+            this.#cards(column).length,
+            card.querySelector(":scope > .lf-grip"),
+          );
           this.#send(card, from, column);
         });
         group.append(button);

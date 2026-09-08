@@ -3263,6 +3263,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # that closed the menu on the press alone would ask where the walk stands from a loaded
     # machine and be told the version being read.
     expect(btn).to_have_text("v2")
+    expect(btn).to_have_class(re.compile(r"\bon\b"))
 
     # Escape closes and hands focus back to the press, so the next Tab carries on
     # from the banner rather than from the top of the document. This is the standing the
@@ -3287,11 +3288,13 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_visible()
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
     expect(btn).to_have_text("v2")
+    expect(btn).to_have_class(re.compile(r"\bon\b"))
     expect(btn).to_have_attribute("title", re.compile(r"\(g V\)$"))
     # And walking back down to the version being read is the way off it, which is the row
     # an open lands on with nothing standing.
     page.keyboard.press("ArrowDown")
     expect(btn).to_have_text("v2")
+    expect(btn).not_to_have_class(re.compile(r"\bon\b"))
     # Inside the menu the letter is the menu's own — the newest version, tested where
     # it navigates — so Escape is what closes this.
     page.keyboard.press("Escape")

@@ -88,12 +88,14 @@ def _canonical_interactions(
 
 
 def canonical_activity(
-    present: dict, interaction_evidence: list[dict], now_iso: str
+    present: dict,
+    interaction_evidence: list[dict],
+    now_iso: str,
+    stream: dict | None = None,
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot."""
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
-    stream = status.get("stream")
     stream_quiet = bool(stream and _quiet(stream.get("ts"), now, WORKING_GRACE))
     stream_current = bool(
         stream
@@ -146,10 +148,13 @@ def canonical_activity(
         (item.get("delivery_seq") or item["seq"] for item in outstanding),
         default=0,
     )
-    status_after = stream.get("after", 0) if stream_current else status.get("after", 0)
-    current_work = (
-        stream_current or (status["state"] == "working" and not status_quiet)
-    ) and status_after >= newest_position
+    stream_work = stream_current and stream.get("after", 0) >= newest_position
+    declared_work = (
+        status["state"] == "working"
+        and not status_quiet
+        and status.get("after", 0) >= newest_position
+    )
+    current_work = stream_work or declared_work
     opened = [item for item in outstanding if item["phase"] == "picked_up"]
     handling = [
         item
@@ -181,7 +186,7 @@ def canonical_activity(
         kind = "unheld"
     elif current_work:
         kind = "working"
-        if stream_current:
+        if stream_work:
             detail, ts, quiet, dropped = (
                 stream.get("detail", ""),
                 stream.get("ts"),

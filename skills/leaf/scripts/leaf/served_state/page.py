@@ -10,7 +10,7 @@ from ..event_log import now_iso
 from ..events import build_threads
 from ..files import active_descriptor, version_descriptors
 from ..passages import active_enclosing
-from ..presence import presence, public_status
+from ..presence import presence_with_activity
 from ..registry.contract import RegistryError
 from ..registry.storage import layer_metadata, load_registry
 from .browser import project_browser_state
@@ -22,6 +22,7 @@ def project_activity(
     present: dict,
     now: str,
     browser: dict | None,
+    activity_stream: dict | None = None,
 ) -> dict:
     """Project activity with or without a usable vendored browser layer."""
     if browser is not None:
@@ -40,7 +41,7 @@ def project_activity(
         None,
         events=events,
     )
-    return canonical_activity(present, evidence, now)
+    return canonical_activity(present, evidence, now, activity_stream)
 
 
 def full_state(
@@ -58,7 +59,7 @@ def full_state(
         active = active_override
     else:
         active = active_descriptor(page_dir, events)
-    present = presence(page_dir, events)
+    present, activity_stream = presence_with_activity(page_dir, events)
     now = now_iso()
     browser = project_browser_state(
         page_dir,
@@ -68,8 +69,11 @@ def full_state(
         present,
         now,
         source_overrides=source_overrides,
+        activity_stream=activity_stream,
     )
-    activity = project_activity(page_dir, events, present, now, browser)
+    activity = project_activity(
+        page_dir, events, present, now, browser, activity_stream
+    )
     try:
         registry = load_registry(page_dir)
     except RegistryError:
@@ -98,7 +102,6 @@ def full_state(
         "source_error": source_error,
         "data": browser_data(page_dir, registry),
         **present,
-        "status": public_status(present["status"]),
         "activity": activity,
         "browser": browser,
         # As logged: a message's text is Markdown the page's vendored runtime renders,

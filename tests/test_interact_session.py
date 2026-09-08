@@ -549,7 +549,13 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
 
     status = files_model.read_json(claimed / "status.json")
     assert (status["state"], status["detail"]) == ("waiting", "comment on the page")
+    public_presence = presence_model.presence(
+        claimed, events_model.read_events(claimed)
+    )
+    assert "stream" not in public_presence
+    assert "stream" not in public_presence["status"]
     live = page_state(claimed)
+    assert "stream" not in live
     assert "stream" not in live["status"]
     activity = live["activity"]
     assert (activity["kind"], activity["detail"]) == (
@@ -565,6 +571,40 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     assert (returned["kind"], returned["detail"]) == (
         "listening",
         "review the result",
+    )
+    lease.close()
+
+
+def test_declared_work_is_not_suppressed_by_an_older_stream_floor(claimed):
+    serving(claimed, 1)
+    claim = service_model.page_claim(claimed)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, claim)
+    )
+    assert lease
+    events_model.append_event(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "new work",
+        },
+    )
+    session_model.cmd_status(claimed, "working", "Handling the new work")
+    status = files_model.read_json(claimed / "status.json")
+    status["stream"] = {
+        "session": claim["id"],
+        "turn": "older-turn",
+        "detail": "Older streamed work",
+        "ts": status["ts"],
+        "after": 0,
+    }
+    files_model.write_json(claimed / "status.json", status)
+
+    activity = page_state(claimed)["activity"]
+    assert (activity["kind"], activity["detail"]) == (
+        "working",
+        "Handling the new work",
     )
     lease.close()
 

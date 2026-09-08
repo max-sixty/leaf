@@ -21,12 +21,20 @@ DEFAULT_PACKAGE = ROOT / "skills" / "leaf" / "packages" / "default"
 DOCS = ROOT / "docs"
 
 
-def test_kernel_event_contracts_are_valid_json_schemas():
+def test_kernel_event_contracts_declare_closed_records():
     events = json.loads((ASSETS / "registry.json").read_text())["$events"]["kinds"]
     assert events
-    for contract in events.values():
+    envelope = {"id", "ts", "author", "kind", "seq"}
+    for kind, contract in events.items():
         for schema in contract.values():
             Draft202012Validator.check_schema(schema)
+        record = contract["record"]
+        properties = record["properties"]
+        assert record["type"] == "object"
+        assert record["additionalProperties"] is False
+        assert properties["kind"] == {"const": kind}
+        assert envelope <= set(properties)
+        assert envelope <= set(record["required"])
 
 
 def test_docs_pages_use_the_leaf_document_scaffold():

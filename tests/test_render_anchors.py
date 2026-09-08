@@ -704,12 +704,9 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-goto-targets .lf-target-hint")).to_have_count(0)
     page.keyboard.press("s")
-    # Compare the selection surface's available key with the option and chord's neutral
-    # state; the distinct go-to surface can legitimately hold a completed prefix.
-    selection_key = (
-        ".lf-targets:not(.lf-goto-targets) .lf-target-hint "
-        'kbd[data-lf-key-state="neutral"]'
-    )
+    # With the go-to surface gone, compare an available selection key with the option
+    # and chord's neutral state.
+    selection_key = '.lf-targets .lf-target-hint kbd[data-lf-key-state="neutral"]'
     hint = page.locator(selection_key).first
     expect(hint).to_be_visible()
     # The standing paint can replace the hint layer between browser round trips. Read

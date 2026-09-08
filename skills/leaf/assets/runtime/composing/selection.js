@@ -64,6 +64,7 @@ fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
 export const fabInput = document.createElement("textarea");
 fabInput.className = "lf-ui lf-response-control lf-fab-input";
+fabInput.name = "comment";
 fabInput.rows = 1;
 fabInput.autocomplete = "off";
 fabInput.placeholder = "Comment…";
@@ -112,6 +113,7 @@ composerQuote.id = "lf-composer-quote";
 const suggestRow = el("label", "lf-suggest-row");
 const suggestCheck = document.createElement("input");
 suggestCheck.type = "checkbox";
+suggestCheck.name = "suggest-replacement";
 suggestRow.append(suggestCheck, document.createTextNode("Suggest replacement text"));
 // The page-anchored composer is the extended Comment control itself. The hidden
 // composer node keeps the draft's controls and quote description, while this textarea

@@ -1008,6 +1008,7 @@ sheetClose.onclick = () => sheet.close();
 sheetHead.append(sheetClose);
 const sheetSearch = el("input", "lf-page-map-search");
 sheetSearch.type = "search";
+sheetSearch.name = "page-map-search";
 sheetSearch.placeholder = "Find an action, status, or location";
 sheetSearch.setAttribute(
   "aria-label",

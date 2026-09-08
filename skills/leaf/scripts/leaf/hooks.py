@@ -2,7 +2,6 @@
 
 import json
 
-from . import codex as codex_delivery
 from .event_log import read_events
 from .leases import adapter_is_live
 from .schema import (
@@ -161,34 +160,19 @@ def cmd_hook(payload: dict) -> None:
                 continue
         return
     if event == "UserPromptSubmit":
-        codex, delivery = codex_delivery.open_turn(sid)
-        if not codex:
-            open_session_turn(sid)
+        open_session_turn(sid)
         reasons = unattended_pages(sid, prompt_open=True)
-        if delivery is not None:
-            reasons.insert(
-                0,
-                "new Leaf input joined this turn. Process every batch in:\n" + delivery,
-            )
     elif event == "Stop":
         reasons = unattended_pages(sid)
-        codex_reasons = codex_delivery.finish_turn(
-            sid,
-            reasons,
-            bool(payload.get("stop_hook_active")),
-        )
-        if codex_reasons is not None:
-            reasons = codex_reasons
-        else:
-            # A first Stop blocked on outstanding Leaf work does not end the
-            # turn: Claude continues in the same turn with this reason as new
-            # context. Stamp only a turn the hook allows to end (cleanly or on
-            # the repeated stop that deliberately fails open).
-            if not reasons or payload.get("stop_hook_active"):
-                close_session_turn(sid)
-            # A repeated ordinary debt is the same Stop hook asking again.
-            if payload.get("stop_hook_active"):
-                return
+        # A first Stop blocked on outstanding Leaf work does not end the
+        # turn: Claude continues in the same turn with this reason as new
+        # context. Stamp only a turn the hook allows to end (cleanly or on
+        # the repeated stop that deliberately fails open).
+        if not reasons or payload.get("stop_hook_active"):
+            close_session_turn(sid)
+        # A repeated ordinary debt is the same Stop hook asking again.
+        if payload.get("stop_hook_active"):
+            return
     else:
         reasons = unattended_pages(sid)
     if not reasons:

@@ -2452,6 +2452,20 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     )
     expect(workspace).to_have_attribute("data-lf-posture", "bounded")
 
+    # Beside Threads, the notification wraps beyond the preview's minimum height.
+    # The preview must grow around its content before the instruction begins.
+    resized(page, 1280, 720)
+    page.locator(".lf-threads-toggle").click()
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    notification_box = page.locator("#notification-card").bounding_box()
+    preview_box = page.locator("#notification-preview").bounding_box()
+    instruction_box = page.locator("#notification-instruction").bounding_box()
+    assert notification_box["y"] + notification_box["height"] <= (
+        preview_box["y"] + preview_box["height"]
+    )
+    assert preview_box["y"] + preview_box["height"] <= instruction_box["y"]
+    page.locator(".lf-threads-toggle").click()
+
     resized(page, 1100, 420)
     expect(workspace).to_have_attribute("data-lf-posture", "flow")
     resized(page, 500, 900)

@@ -40,6 +40,7 @@ lf-playground
 
 .lf-playground-preview-region > .lf-pane-content > .lf-pane-body {
   display: grid;
+  grid-auto-rows: max-content;
   align-content: start;
   gap: var(--sp-3);
 }

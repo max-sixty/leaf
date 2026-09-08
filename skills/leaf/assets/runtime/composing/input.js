@@ -11,7 +11,8 @@ import { iconElement } from "../icons.js";
 // textarea's native newline. The stylesheet owns
 // textarea growth through `field-sizing: content`, within the room supplied by floating
 // placement; script does not derive textarea height from its text. When the surface
-// accepts images, a paste uploads bytes to page media. The draft keeps the resulting
+// accepts images, a paste uploads bytes to page media; one that does not says so in a
+// notice, so no box answers a pasted picture with silence. The draft keeps the resulting
 // Markdown, while the textarea shows only the reader's words and a thumbnail projection.
 // So the box holds more than its .value, and wire() returns the seam that says so:
 // sync.value() reads the complete draft, sync.load() replaces it — a stored record, a
@@ -61,6 +62,7 @@ export function wireInput(
     icon = "send",
     altBtn = null,
     altSend = null,
+    // `true` to take a pasted image; otherwise the sentence the reader is told instead.
     allowsMedia = () => true,
     busy = () => false,
     hasContent = (raw) => Boolean(raw.trim()),
@@ -213,10 +215,14 @@ export function wireInput(
       .map((item) => item.getAsFile())
       .filter(Boolean);
     if (!images.length) return;
-    if (!allowsMedia) return;
     event.preventDefault();
-    if (!allowsMedia()) {
-      notice("Images can be added to comments, not replacement text");
+    // A refusal is a sentence, so every box that will not take a picture says why it
+    // will not. A silent one reads as a paste that worked — the same failure the empty
+    // send below is written against — and the box that stayed silent was the one whose
+    // caller declined images outright rather than the one that declines them in a mode.
+    const allowed = allowsMedia();
+    if (allowed !== true) {
+      notice(allowed);
       return;
     }
 

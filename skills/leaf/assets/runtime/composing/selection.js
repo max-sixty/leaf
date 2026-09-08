@@ -220,7 +220,10 @@ syncComposer = wireInput(composerInput, {
         : "Comment…",
   sends: () => (suggestCheck.checked ? "suggest" : "comment"),
   sendBtn: composerSend,
-  allowsMedia: () => !suggestCheck.checked,
+  allowsMedia: () =>
+    suggestCheck.checked
+      ? "Images can be added to comments, not replacement text"
+      : true,
   hasContent: holdsWords,
   save: saveComposerDraft,
   layout: refreshFab,

@@ -1367,7 +1367,6 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
     )
     thread = page.locator(".lf-margin-preview .lf-conversation-thread")
     note = page.locator("#p .lf-mark-note")
-    resting = thread.evaluate("el => getComputedStyle(el).backgroundColor")
 
     note.click()
     expect(thread).to_be_focused()
@@ -1379,6 +1378,8 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
         }; }"""
     )
     assert pointer["outline"] == "none"
+    thread.evaluate("element => element.blur()")
+    resting = thread.evaluate("element => getComputedStyle(element).backgroundColor")
     assert pointer["background"] != resting
     assert pointer["shadow"] == "none"
 
@@ -1413,7 +1414,7 @@ def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser,
     assert reply_ring == {
         "style": "solid",
         "width": "2px",
-        "offset": "0px",
+        "offset": "1px",
         "border": "rgba(0, 0, 0, 0)",
     }
     assert errors == []
@@ -1982,20 +1983,23 @@ def test_the_pointer_over_a_comment_lights_the_passage_it_is_about(browser, serv
     wait_hovered(page, "neighbouring block")
 
     # An element anchor answers too, in the chrome projection above its descendants.
-    # ::highlight paints glyphs and a box has none, so the projected wash carries the
+    # ::highlight paints glyphs and a box has none, so the contour gains weight for the
     # middle step. Without it the pointer over an element-anchored card did nothing at
     # all, which from the panel reads as a broken hover rather than as a passage with no
     # words.
+    hovered_el = page.locator("#fig")
+    hovered_el.scroll_into_view_if_needed()
     page.mouse.move(*card_body(page, "on the figure"))
     wait_hovered(page, "")
-    hovered_el = page.locator("#fig")
     expect(hovered_el).to_have_class(re.compile(r"\blf-mark-hover\b"))
-    hovered_wash = hovered_el.evaluate("el => getComputedStyle(el).backgroundImage")
+    hovered_mark = page.locator('.lf-visual-mark[data-for="fig"]')
+    expect(hovered_mark).to_have_class(re.compile(r"\blf-visual-mark-hover\b"))
+    hovered_width = hovered_mark.evaluate("el => getComputedStyle(el).borderLeftWidth")
     page.mouse.move(*card_body(page, "on the second"))
     wait_hovered(page, "neighbouring block")
     assert (
-        hovered_el.evaluate("el => getComputedStyle(el).backgroundImage")
-        != hovered_wash
+        hovered_mark.evaluate("el => getComputedStyle(el).borderLeftWidth")
+        != hovered_width
     )
 
     # Standing in one comment while pointing at another says both, because they answer

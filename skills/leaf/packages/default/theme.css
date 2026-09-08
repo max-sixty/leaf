@@ -1271,7 +1271,7 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) { outline
 @media print {
   lf-shot, lf-shot:has(.lf-shotframe) { display: block; }
   lf-shot > .lf-shotrail { border-bottom: 1px solid var(--rule);
-    border-radius: var(--r); margin-bottom: var(--sp-2); }
+    margin-bottom: var(--sp-2); }
   lf-shot .lf-shotcap { color: var(--ink) !important; box-shadow: none !important; }
   lf-shot .lf-shotcap[data-lf-state="before"]::after { content: " · top"; }
   lf-shot .lf-shotcap[data-lf-state="after"]::after { content: " · bottom"; }

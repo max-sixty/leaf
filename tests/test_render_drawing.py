@@ -15,6 +15,7 @@ from render_support import (
     RENDERED,
     TARGETS_PAGE,
     live_url,
+    nudge,
     open_page,
     panel_settled,
     sending,
@@ -56,9 +57,10 @@ READ_BOX = """selector => {
 def mark_box(page, selector):
     """Read a drawing mark's box, resolving and measuring it in one page-side call.
 
-    Every paint replaces the whole drawing layer, so a two-step read — Playwright
-    resolves the element, then measures the handle it got — can measure a node the
-    next paint has already detached, and a detached box reads as all zeros.
+    A paint that moves the ink replaces the node that carried it, so a two-step read —
+    Playwright resolves the element, then measures the handle it got — can measure a node
+    a scroll or a layout change has already detached, and a detached box reads as all
+    zeros.
     """
     return page.evaluate(READ_BOX, selector)
 
@@ -143,9 +145,14 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     )
     assert stacking["z"] == "8890", stacking
     stable_mark = mark.element_handle()
+    # A state read repaints the marks, as an anchor repaint and a size notice also do.
+    # This one describes ink that has not moved, so the mark the reader is looking at has
+    # to be the same node afterwards.
+    nudge(serve.page_dir)
+    told(page)
     page.evaluate(RENDERED)
     assert stable_mark.evaluate("node => node.isConnected"), (
-        "an idle drawing must not sustain a ResizeObserver repaint loop"
+        "a repaint describing unchanged ink must keep the mark it already painted"
     )
     relation = mark_relation(page, posted, "#bg-choice-trail")
     page.evaluate("scrollBy(0, 100)")

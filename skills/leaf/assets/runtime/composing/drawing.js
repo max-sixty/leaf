@@ -96,9 +96,9 @@ function pathData(drawing) {
     .join(" ");
 }
 
-function pathFor(drawing) {
+function pathFor(data) {
   const path = document.createElementNS(SVG_NS, "path");
-  path.setAttribute("d", pathData(drawing));
+  path.setAttribute("d", data);
   path.setAttribute("fill", "none");
   path.setAttribute("vector-effect", "non-scaling-stroke");
   return path;
@@ -344,6 +344,14 @@ for (const type of ["mousedown", "mouseup", "click", "dblclick"])
     true,
   );
 
+// A mark is completely described by the ink, where it sits, and which drawing it
+// stands for, so two paints that describe one mark the same way call for the same node.
+// Most paints are asked for by something the page did elsewhere — an anchor repaint, a
+// state read, a size notice — and describe ink that has not moved. Keeping the node that
+// description already painted leaves the mark, and anything holding it, in the document.
+let mounted = new Map();
+let mounting = new Map();
+
 function mark(drawing, target, className, id = "") {
   if (!validDrawing(drawing)) return null;
   const box = target ? shownBox(target) : { left: -scrollX, top: -scrollY };
@@ -351,6 +359,27 @@ function mark(drawing, target, className, id = "") {
   const frame = drawingFrame(drawing);
   const { width, height } = frame;
   if (!width || !height) return null;
+  const left = box.left + frame.x;
+  const top = box.top + frame.y;
+  const data = pathData(drawing);
+  const described = [
+    className,
+    id,
+    left,
+    top,
+    width,
+    height,
+    frame.x,
+    frame.y,
+    data,
+  ].join(" ");
+  // Two marks described alike in one paint are still two marks, so only the first of them
+  // takes the standing node.
+  const standing = mounting.has(described) ? null : mounted.get(described);
+  if (standing) {
+    mounting.set(described, standing);
+    return standing;
+  }
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.classList.add("lf-drawing-mark", className);
   if (id) svg.dataset.thread = id;
@@ -358,12 +387,13 @@ function mark(drawing, target, className, id = "") {
   svg.setAttribute("preserveAspectRatio", "none");
   svg.setAttribute("aria-hidden", "true");
   Object.assign(svg.style, {
-    left: `${box.left + frame.x}px`,
-    top: `${box.top + frame.y}px`,
+    left: `${left}px`,
+    top: `${top}px`,
     width: `${width}px`,
     height: `${height}px`,
   });
-  svg.append(pathFor(drawing));
+  svg.append(pathFor(data));
+  if (!mounting.has(described)) mounting.set(described, svg);
   return svg;
 }
 
@@ -393,6 +423,7 @@ export function paintDrawings(threads = lastThreads) {
   lastThreads = threads;
   const nextObserved = new Set();
   const marks = [];
+  mounting = new Map();
   for (const thread of threads) {
     if (thread.resolved || !thread.root.drawing) continue;
     const place = thread.root.anchor ? placedAt(thread.root.id) : null;
@@ -425,7 +456,14 @@ export function paintDrawings(threads = lastThreads) {
       }
     }
   }
-  drawingLayer.replaceChildren(...marks);
+  // The layer is written only where the marks differ from the ones standing in it, so a
+  // paint that describes unchanged ink leaves the reader's marks exactly where they are.
+  if (
+    drawingLayer.childNodes.length !== marks.length ||
+    marks.some((node, index) => drawingLayer.childNodes[index] !== node)
+  )
+    drawingLayer.replaceChildren(...marks);
+  mounted = mounting;
   for (const target of observed)
     if (!nextObserved.has(target)) {
       sizes.unobserve(target);

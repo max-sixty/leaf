@@ -394,7 +394,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     ]
     page, errors = open_page(browser, url)
     try:
-        expect(page.locator(".lf-version")).to_have_text("v2 ▾")
+        expect(page.locator(".lf-version")).to_have_text("v2")
         current = page.evaluate("() => fetch('api/state').then(r => r.json())")
         assert current["active"]["revision"] == mappings[2]
         assert current["active"]["version"] == 2
@@ -416,7 +416,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
         )
         page.wait_for_function(BOTH_STAMPS)
 
-        expect(page.locator(".lf-version")).to_have_text("v1 ▾")
+        expect(page.locator(".lf-version")).to_have_text("v1")
         expect(page.locator("#ret-cost-keep")).to_have_count(0)
         markup = page.evaluate(
             "() => fetch('../versions/v1.html').then(response => response.text())"
@@ -1233,7 +1233,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
                 _, url = served_example(source.stem)
                 opened(page, errors, url)
             newest = len(example_versions(source))
-            expect(page.locator(".lf-banner .lf-version")).to_have_text(f"v{newest} ▾")
+            expect(page.locator(".lf-banner .lf-version")).to_have_text(f"v{newest}")
             expect(page.locator(".lf-status-text")).to_have_text(
                 "This is an example on the Leaf website. Leaf guide replies here, "
                 "but cannot edit this page. Install Leaf"

@@ -112,7 +112,7 @@ export function setAnchoringReady(ready) {
    `x-says` attribute; the row does not infer a heading from surrounding layout.
 
    `paintAnchors` is the only anchor writer. One pass decides thread marks, element
-   outlines, and the open composer's pending mark. It clears and paints through the
+   rails, and the open composer's pending mark. It clears and paints through the
    same composed-tree helpers, then records exactly what it drew in `marked`,
    `pendingMarks`, and `pendingOutline`. Other features consult those records rather
    than looking for arbitrary DOM paint. The anchor runtime exposes only the questions
@@ -173,9 +173,8 @@ export function setAnchoringReady(ready) {
    refresh the reading when content moves under a stationary pointer.
 
    `paintHover` paints both kinds of anchor, as `paintStanding` does. `::highlight`
-   paints glyphs, so a box wears the posted wash as a background image instead
-   (`.lf-mark-el`) and says the hover rank in the property it has, one weight up from
-   the posted hairline (`.lf-mark-el.lf-mark-hover`).
+   paints glyphs, so a box projects the posted wash and locating rail into the chrome
+   layer instead and says the hover rank by strengthening that wash.
    Without that, an element-anchored comment answered the pointer with nothing at all —
    which from the panel, where there is no page cursor to change, reads as a broken
    hover rather than as a passage with no words.
@@ -637,14 +636,24 @@ const ITEM_SAYS_CAP = 52;
 // note on `overIn`) while the item's own marks and offers still are. A veto on
 // `inChrome` stood in front of this, from the days only an anchor's section reached it:
 // it threw the reading away and left the Asks tray naming the question by its raw id.
-export function itemSays(item) {
+export function itemSays(item, omitted = null) {
   if (!item) return "";
   // A module that names its own kind (x-word) may name its own words too: a rewrite's
   // slots read `courtyardcovered terrace` as text nodes, and `courtyard → covered
   // terrace` is what the page shows. Asked the same way as the word, and falling
   // back the same way for a tag that has not upgraded or answers nothing.
-  const own = registry[item.localName]?.["x-word"] === "module" ? item.lfSays?.() : "";
-  const whole = own || quoteFrom(textNodesUnder(item));
+  const subtracts = Boolean(omitted && item.contains(omitted));
+  const own =
+    !subtracts && registry[item.localName]?.["x-word"] === "module"
+      ? item.lfSays?.()
+      : "";
+  const whole =
+    own ||
+    quoteFrom(
+      textNodesUnder(item).filter(
+        (segment) => !subtracts || !omitted.contains(segment.node),
+      ),
+    );
   if ([...whole].length <= ITEM_SAYS_CAP) return whole;
   const short = cut(whole, 0, ITEM_SAYS_CAP);
   const at = short.lastIndexOf(" ");
@@ -856,6 +865,8 @@ let pendingPlaced = null;
 let pendingMarks = []; // the same record for the open composer's own passage
 let pendingOutline = []; // the elements the open draft outlines, owned by nobody else
 let actionOutline = []; // the visual target whose action bar is standing
+// Element identity -> a provider's narrower visual surface. Ordinary elements project
+// their own box and therefore need no entry.
 const visualTargets = new Map();
 // What the pointer would take, in whichever arming stands — the ⌥ aim's item, or design
 // mode's target: the element, and the control's word where the pointer is on one — and
@@ -939,13 +950,23 @@ function paintVisualStates() {
   const reactions = new Set(elementMarks(reacted.values()));
   const pending = new Set(pendingOutline);
   const action = new Set(actionOutline);
-  const hover = new Set(hoverParts);
+  const hover = new Set(elementMarks(hoverParts));
+  const here = new Set(elementMarks(hereParts));
+  // Paint every element state in chrome, not only widgets that declare a visual
+  // surface. A group whose edge-to-edge children paint their own paper can cover a
+  // background or inset shadow on the group itself; the chrome projection is above
+  // those children and therefore keeps the annotation's rail intact. A declared
+  // visual still substitutes its own surface so diagrams retain their contour.
+  const elements = new Set(
+    [comments, reactions, pending, action, hover, here]
+      .flatMap((states) => [...states])
+      .filter((element) => element instanceof Element),
+  );
   const focus = new Set(
-    [...visualTargets.keys()].filter((element) =>
+    [...elements].filter((element) =>
       element.matches(":focus-visible, .lf-focus-visible"),
     ),
   );
-  const here = new Set(hereParts);
   const stateSources = [
     ["comment", comments],
     ["reaction", reactions],
@@ -956,9 +977,9 @@ function paintVisualStates() {
     ["here", here],
   ];
   setTargets(
-    [...visualTargets].map(([element, surface]) => ({
+    [...elements].map((element) => ({
       element,
-      surface,
+      surface: visualTargets.get(element) ?? element,
       states: new Set(
         stateSources
           .filter(([, elements]) => elements.has(element))
@@ -1109,8 +1130,8 @@ export function paintAnchors(threads = buildThreads()) {
   }
 
   // The composer's own passage, in the accent rather than the mark's own ink, so a draft
-  // never reads as a posted comment. An element a thread already outlines keeps the posted
-  // colour: there is one outline to give, and the thread's is the clickable one.
+  // never reads as a posted comment. An element a thread already marks keeps the posted
+  // colour: there is one mark to give, and the thread's is the clickable one.
   //
   // The ⌥ aim does not wear this paint, though it is the same fact one step earlier:
   // a promise has to interrupt where an annotation may whisper, so the aim has a box
@@ -1128,7 +1149,7 @@ export function paintAnchors(threads = buildThreads()) {
       }
     : null;
   // Where the draft's passage is, recorded the way the threads' is. An element a thread
-  // already outlines belongs in the record too — it is marked, just in the posted colour
+  // already marks belongs in the record too — it is marked, just in the posted colour
   // rather than the accent.
   const draftMarked = Boolean(draft && draft.status !== "outdated");
   pendingMarks =

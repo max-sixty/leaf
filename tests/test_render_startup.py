@@ -202,6 +202,8 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         expect(badge).to_have_text("Preview · fb77@26499ea1abcd+")
         expect(badge).to_have_attribute("aria-label", "Copy preview diagnostics")
 
+        page.get_by_role("button", name="More page addresses", exact=True).click()
+        expect(badge).to_be_visible()
         badge.click()
         expect(page.locator(".lf-live")).to_have_text("Copied preview diagnostics")
         expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")

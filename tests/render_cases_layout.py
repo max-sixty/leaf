@@ -894,10 +894,8 @@ FOCUS_IN_PAGE = """() => {
 # check is for survives untouched — a stray pick writes `chosen` on the option and a
 # stray tab switch moves the panels' attributes, both of them authored rather than
 # generated, and structure is compared either way.
-# The page as a press leaves it. Where the pointer is resting is not that: the runtime
-# paints .lf-mark-hover on a marked element under the cursor, so a reading taken with
-# the pointer still on an item reports that paint as a change the press made. It is not
-# authored state and comes off when the pointer leaves.
+# The page as a press leaves it. Where the pointer is resting and the projection Leaf
+# paints above descendants are not authored state, so neither belongs in this reading.
 PAGE_MARKUP = """() => [...document.body.children]
     .filter((n) => !n.classList.contains("lf-chrome"))
     .map((n) => {
@@ -905,7 +903,7 @@ PAGE_MARKUP = """() => [...document.body.children]
         for (const g of c.querySelectorAll("[data-lf-gen]")) g.textContent = "";
         if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
         for (const el of [c, ...c.querySelectorAll("*")])
-            el.classList?.remove("lf-mark-hover");
+            el.classList?.remove("lf-mark-hover", "lf-projected-mark");
         return c.outerHTML;
     })
     .join("").replaceAll(' class=""', "")"""

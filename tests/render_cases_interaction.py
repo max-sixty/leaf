@@ -844,7 +844,7 @@ def live_url(version_url):
 
 
 # A live page a reader is mid-press on when the next revision lands: hyperlinks for the
-# generated target map, and a decision whose pick mark the key line offers digits over.
+# generated target map, and a decision whose pick mark the shortcut bar offers digits over.
 # The second revision adds a paragraph above everything and takes the middle link away,
 # so a restored place has moved and a target has gone; the third adds another.
 #

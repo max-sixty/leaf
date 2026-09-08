@@ -455,10 +455,10 @@ The causal helpers:
   for a test that wants the page's next request.
 - `ticked(page)` waits for the page's next local re-application, the heartbeat
   that applies a correction an editor deferred.
-- `undo(page)` waits until the key line offers undo, presses `z`, observes the
+- `undo(page)` waits until the shortcut bar offers undo, presses `z`, observes the
   new send enter the wire, and waits for its round trip; undo can be refused
   while the preceding gesture is still unresolved.
-- `key_line(page)` reads what the key line says, once, after the repaint's own
+- `shortcut_bar_text(page)` reads what the shortcut bar says, once, after the repaint's own
   frame. `paintHere` coalesces to a `requestAnimationFrame`, so a read taken in
   the same round-trip as the press is a read of the frame before.
 
@@ -480,15 +480,15 @@ never on the name being there.
 A retrying assertion that a paint has not happened is the same trap with the
 other sign, and worse: a negative assertion is satisfied by the first poll, and
 the first poll is before the frame. Wait on a positive fact the same frame
-writes (the key line's word, through `key_line`) and read the absence behind it.
+writes (the shortcut bar's word, through `shortcut_bar_text`) and read the absence behind it.
 Bug-back with a probe that paints the mark the assertion denies, not by
 reverting the change, which usually stops the mark being painted at all.
 
-The key line is the sharpest case, because a second mechanism supplies its
+The shortcut bar is the sharpest case, because a second mechanism supplies its
 answer late: every state application repaints it, the two-second heartbeat
 included, so an auto-retrying assertion on what it says goes green on whichever
 tick lands inside its budget. A word that is supposed to turn over within the
-press is read once, through `key_line`, and never waited for.
+press is read once, through `shortcut_bar_text`, and never waited for.
 
 Read the event log only after `round_trip`, and read the event a gesture just
 made through `sending`; the runtime posts behind the press the driver has

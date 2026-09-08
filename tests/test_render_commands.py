@@ -38,11 +38,11 @@ from render_support import (
     UNPARSABLE_DIAGRAM,
     author_test_widget,
     flip_point,
-    key_line,
     open_page,
     page_registry,
     primed,
     resized,
+    shortcut_bar_text,
     shown_frames,
     solid_png,
 )
@@ -473,10 +473,10 @@ def test_render_reports_a_word_the_printed_page_loses(browser, serve):
 
 
 def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
-    """Image clicks and the target's Button flip the same fixed frame.
+    """Image clicks and the target's margin element flip the same fixed frame.
 
     Both state labels keep their corresponding sides while the active rule moves.
-    Repeated presses keep their target and focus. The Button names the next frame
+    Repeated presses keep their target and focus. The margin element names the next frame
     after either route and answers both native activation keys. Arriving by Tab rings
     the whole card, rail included. The render gate also checks selectable captions and
     the two-frame print view."""
@@ -545,18 +545,18 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
         }
     box = page.locator("lf-shot input[type=checkbox]")
     expect(box).to_be_focused()
-    assert "show before" in key_line(page)
+    assert "show before" in shortcut_bar_text(page)
     # The native checkbox is the overlay itself. Hold it across two frames: focus and the
-    # screenshot key line must remain stable for the whole human press.
+    # screenshot shortcut bar must remain stable for the whole human press.
     page.mouse.down()
     expect(box).to_be_focused()
-    assert "show before" in key_line(page)
+    assert "show before" in shortcut_bar_text(page)
     page.mouse.up()
     expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
     assert shown_frames(page) == ["before"]
     button = page.get_by_role("button", name="Show after — the navigation rail")
-    expect(page.locator(".lf-margin-item").filter(has=button)).to_be_visible()
-    expect(button.locator(".lf-margin-button-icon")).to_have_attribute(
+    expect(page.locator(".lf-margin-cluster").filter(has=button)).to_be_visible()
+    expect(button.locator(".lf-margin-element-icon")).to_have_attribute(
         "data-lf-icon", "compare-before"
     )
     button_bounds = button.bounding_box()
@@ -570,8 +570,8 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     assert shown_frames(page) == ["after"]
     button = page.get_by_role("button", name="Show before — the navigation rail")
     expect(button).to_be_focused()
-    assert "show before" in key_line(page)
-    expect(button.locator(".lf-margin-button-icon")).to_have_attribute(
+    assert "show before" in shortcut_bar_text(page)
+    expect(button.locator(".lf-margin-element-icon")).to_have_attribute(
         "data-lf-icon", "compare-after"
     )
     assert button.bounding_box() == button_bounds
@@ -584,7 +584,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     page.keyboard.press("Space")
     assert shown_frames(page) == ["before"]
 
-    # Image activation updates the Button too; Space still works at the image.
+    # Image activation updates the margin element too; Space still works at the image.
     page.mouse.click(*at)
     expect(
         page.get_by_role("button", name="Show before — the navigation rail")

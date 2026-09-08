@@ -14,10 +14,10 @@ export { DISCLOSE } from "./keyboard/disclosure.js";
 export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 export { focused, keys as commands, paintKeys, saying } from "./keyboard/scopes.js";
 export {
-  BUTTON_GRAMMAR,
-  marginButton,
-  marginButtonState,
-  registerMarginItem,
+  MARGIN_ELEMENT_SCHEMA,
+  marginElement,
+  marginElementState,
+  registerMarginContribution,
 } from "./living-margin.js";
 export { loadMarkdown, renderMarkdown } from "./markdown.js";
 export { scrollerFor } from "./navigation.js";

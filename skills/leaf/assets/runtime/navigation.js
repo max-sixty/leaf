@@ -69,7 +69,7 @@ export function commentOnItem(item) {
   commentOnTarget({ anchor: { section: item.id }, element: item });
 }
 // t/T walk open threads in page order. A closed panel keeps the walk at the thread's
-// inline address: a declared widget outlet first, then the Thread Button's card. A thread
+// inline address: a declared widget outlet first, then the thread margin element's card. A thread
 // with no page address is indexed only by Threads, so that destination opens the panel.
 // Once the panel is open, the walk stays in its list. Both paths are clamped, not wrapped.
 export function stepThread(dir) {
@@ -172,7 +172,7 @@ export function stepReading(amount, unit) {
   const from = holding(box) ? glide.goal : box.scrollTop;
   glideTo(box, from + amount);
 }
-// One eased travel to a goal, shared by the reading-page step and the chord's edges. The
+// One eased travel to a goal, shared by the reading-page step and the sequence's edges. The
 // goal is clamped here, so a step pressed on at the foot banks no debt for u to press
 // back through, and an edge may be asked for as the height it cannot exceed.
 export function glideTo(box, goal) {

@@ -2,7 +2,7 @@
    they move; this owner says where that destination stands in the list the same next
    press will use. It stores only the walk and its stable destination, then derives the
    ordinal on every standing paint so an answered Ask, a resolved thread, or a narrowed
-   panel cannot leave a stale denominator behind. The keyline owns its visual rendering;
+   panel cannot leave a stale denominator behind. The shortcut bar owns its visual rendering;
    the existing live region announces each key arrival once. */
 import { openAsks } from "./asks/model.js";
 import { standingIn } from "./asks/view.js";

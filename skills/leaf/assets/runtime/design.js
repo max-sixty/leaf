@@ -26,7 +26,7 @@ export const legendRoot = el("div", "lf-ui lf-legend");
 legendRoot.setAttribute("aria-hidden", "true");
 
 /* The reader commenting on the layer rather than the page: what a widget looks like or
- * does, a control, the runtime's own chrome. A mode rather than a chord, because it is
+ * does, a control, the runtime's own chrome. A mode rather than a sequence, because it is
  * entered for a batch of remarks and changes what a press means everywhere: a press
  * comments on what it lands on and does nothing else, so a card can be pointed at
  * without moving it and a pick mark without picking. Prose keeps the browser's
@@ -45,7 +45,7 @@ export let designOn = false;
 export const DESIGN_KEY = "lf-design";
 
 // How long a name may run where the chrome writes one on a line of its own: the word
-// design mode shows for the control under the pointer, and the passage the key line
+// design mode shows for the control under the pointer, and the passage the shortcut bar
 // names in what `z` would take back. One cut, because it is one line's worth of room.
 export const CONTROL_WORD_CAP = 24;
 

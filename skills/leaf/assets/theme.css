@@ -57,7 +57,7 @@
 /* Ordinary action controls use `.lf-btn`, whose shared theme rules also enter declared
    shadow trees. Packages may set placement and density, but keep its shape, border,
    hover, and disabled treatment. Icon-only actions keep the same corner on a square
-   face. Margin Buttons, reaction chips, and status labels retain their own forms.
+   face. Margin elements, reaction chips, and status labels retain their own forms.
 
    Typography is presentation, not passage permission. A chip or code annotation may look
    like apparatus and still be a page word the reader can quote.
@@ -141,12 +141,12 @@
      rather than a number in each rule, and one token rather than two floors and a media
      query in each of them: what changes between a mouse and a finger is this length and
      nothing else, so the query belongs here where it is asked once. A control that has
-     to be a fixed size under a finger — a margin Button, the key line's More — still
+     to be a fixed size under a finger — a margin element, the shortcut bar's More — still
      says so where it is written; this is the floor, not the size. */
   --aim-floor: 24px;
   /* --rail has no authored value: the shared margin measures its widest target item
      after content modules have contributed their controls, then states that width on
-     the root. The rule that spends it is beside .lf-margin-item below. */
+     the root. The rule that spends it is beside .lf-margin-cluster below. */
   /* A sidenote's strip: a column of text plus its gutter, chosen rather than measured
      off anything the way --rail is. The 360px it leaves the note sets about fifty-six
      characters of --t-5 serif. The rule that spends it is beside aside.sidenote below.
@@ -1381,16 +1381,16 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 @media (hover: none) {
   .lf-react-strip > .lf-react-trigger { opacity: 1; }
 }
-.lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]) { color: var(--muted);
+.lf-react-palette > .lf-react:not(.lf-margin-element, [aria-pressed="true"]) { color: var(--muted);
           border-color: transparent; background: transparent; }
-.lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]):is(:hover, :focus-visible,
+.lf-react-palette > .lf-react:not(.lf-margin-element, [aria-pressed="true"]):is(:hover, :focus-visible,
           .lf-focus-visible, [aria-busy="true"]),
-.lf-react-open .lf-react-palette > .lf-react:not(.lf-margin-button, [aria-pressed="true"]) {
+.lf-react-open .lf-react-palette > .lf-react:not(.lf-margin-element, [aria-pressed="true"]) {
           color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
 /* Where a subject has no page edge of its own, one receipt grows beneath the reader
    move it acknowledges: Sent, Picked up, then Active when an explicit work claim names
    that subject. This is the panel-local and frozen-conversation fallback; page targets
-   present the same projection through their existing margin Button. The state wraps;
+   present the same projection through their existing margin element. The state wraps;
    the age and the explicit silence word do not. A phase change is a change of words
    and of the Active ink, with no motion: the line answers a question the reader
    already asked, and a tint that replays is a flash.
@@ -1604,17 +1604,17 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 /* A suggestion's contribution is an unpositioned group inside the shared target cluster.
  * Its only theme rules are the semantics of the decision controls; placement, docking,
- * packing, and the focus-ring allowance belong to .lf-margin-item below. */
+ * packing, and the focus-ring allowance belong to .lf-margin-cluster below. */
 .lf-sug-actions { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
 /* The living margin is a retained projection with one cluster per page target. Its
- * primary Button, optional `…`, and the secondary Buttons that ellipsis unfolds share
+ * primary margin element, optional `…`, and the secondary margin elements that ellipsis unfolds share
  * one host. One packing pass keeps the clusters clear, docks each whole unit when the
  * margin is too narrow, and tells wide exhibits which occupied bands they must yield. */
 .lf-living-margin { position: absolute; z-index: 2; pointer-events: none; }
 .lf-living-margin[hidden] { display: none; }
 .lf-margin-toolbar { position: absolute; inset: 0; }
-.lf-margin-item { position: absolute; z-index: 2; left: 100%; margin-left: 22px;
+.lf-margin-cluster { position: absolute; z-index: 2; left: 100%; margin-left: 22px;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--here-ring-room); pointer-events: auto; }
 /* What a hovered or focused item says about the target it acts on is said on the target:
@@ -1625,8 +1625,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * constant one is a hairline ending in the gutter, pointing at nothing. What it would
  * buy once measured is a second statement of the fact the target trace already makes, which is
  * why the item's raise is the whole of its own hover paint. */
-.lf-margin-item:is(:hover, :focus-within) { z-index: 3; }
-.lf-margin-item.lf-waiting { display: none; }
+.lf-margin-cluster:is(:hover, :focus-within) { z-index: 3; }
+.lf-margin-cluster.lf-waiting { display: none; }
 /* display, because the item is inline-flex where it hangs and absolute position is what
  * blockifies it there. Left inline-level once docked, the row joins whatever line box
  * its perch sits on: a change inside a card perches on an inline element, so the ✓/✗
@@ -1636,19 +1636,19 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * fit-content keeps that line the width of the controls standing in it, the box the row
  * had in the margin: a block-level row stretched to the column would take presses across
  * the whole width of a line the reader is trying to select in (pointer-events above). */
-.lf-margin-item.lf-docked { position: static; display: flex; width: fit-content;
+.lf-margin-cluster.lf-docked { position: static; display: flex; width: fit-content;
     max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
 .lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
 .lf-margin-options[hidden] { display: none; }
-.lf-margin-item.lf-docked .lf-margin-options { flex-wrap: wrap; white-space: normal; }
+.lf-margin-cluster.lf-docked .lf-margin-options { flex-wrap: wrap; white-space: normal; }
 /* The word stays in the DOM and out of the paint: a reaction reads as the same
  * circular, glyph-only status before the runtime's stylesheet arrives, and a widget
  * rebuilding its own control reads the word back off the span. What names the control
- * is the aria-label `marginButton` writes, not that word — the runtime style below
+ * is the aria-label `marginElement` writes, not that word — the runtime style below
  * turns the span into transient hover and focus chrome, and it rides into a static copy
  * with the rest of the sheet, so in a file the word is hidden in every medium too. */
-.lf-margin-button > :is(.lf-margin-button-space, .lf-margin-button-label) {
+.lf-margin-element > :is(.lf-margin-element-space, .lf-margin-element-label) {
   display: none;
 }
 .lf-margin-reactions { display: inline-flex; align-items: center; gap: 4px;
@@ -1702,7 +1702,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      Static copies need the strip only where they carry a thread marker. */
   @container lf-shell (min-width: 1208px) {
   body:has(
-      :where(.lf-chrome, .lf-margin-item .lf-margin-marker[data-lf-kinds~="comment"])
+      :where(.lf-chrome, .lf-margin-cluster .lf-margin-marker[data-lf-kinds~="comment"])
     ) > main:where(:not(:has(> aside.sidebar))) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;
@@ -1713,7 +1713,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      when both contextual surfaces stand. */
   @container lf-shell (min-width: 1472px) {
   body:has(
-      :where(.lf-chrome, .lf-margin-item .lf-margin-marker[data-lf-kinds~="comment"])
+      :where(.lf-chrome, .lf-margin-cluster .lf-margin-marker[data-lf-kinds~="comment"])
     ) > main:where(:has(> aside.sidebar)) {
     --claim-map: var(--thread-margin);
     --lf-thread-beside: 1;
@@ -1721,7 +1721,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   }
 }
 @media screen and (max-width: 899px) {
-  .lf-living-margin, .lf-margin-marker.lf-margin-button { display: none; }
+  .lf-living-margin, .lf-margin-marker.lf-margin-element { display: none; }
 }
 /* A file cannot dock. The runtime's packing pass measured the rail once, at the width
  * the page was exported at, and left with the scripts; the record a copy keeps stands
@@ -1729,7 +1729,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * under the floor above, and on paper — that seat is off the page box: an 800px window
  * put the record 115px past its own edge and grew the document to reach it, and a
  * sheet narrower than the export simply loses it. So a copy takes the shape the
- * runtime gives a margin too narrow to stand in (.lf-margin-item.lf-docked above),
+ * runtime gives a margin too narrow to stand in (.lf-margin-cluster.lf-docked above),
  * on the medium's terms rather than on a measurement it can no longer make.
  *
  * Not the rows the same pass withheld. `lf-waiting` says the target is not shown — a
@@ -1740,15 +1740,15 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * cannot rerun the packing pass; changing the serialized `lf-waiting` reading belongs
  * to the live and copied layouts together, not to this export override. */
 @media screen and (max-width: 899px), print {
-  html.lf-copy .lf-margin-item:not(.lf-waiting) { position: static; display: flex;
+  html.lf-copy .lf-margin-cluster:not(.lf-waiting) { position: static; display: flex;
       width: fit-content;
       max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
 }
 @media (pointer: coarse) {
-  .lf-margin-item { margin-left: 10px; }
+  .lf-margin-cluster { margin-left: 10px; }
 }
 @media print {
-  .lf-living-margin, .lf-margin-marker.lf-margin-button { display: none !important; }
+  .lf-living-margin, .lf-margin-marker.lf-margin-element { display: none !important; }
 }
 /* lf-shadow:start */
 @media print {
@@ -1768,11 +1768,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   details > summary::-webkit-details-marker { display: none; }
 }
 /* lf-shadow:end */
-/* A page that can grow a page-edge Button reserves this strip at load. The runtime says
+/* A page that can grow a page-edge margin element reserves this strip at load. The runtime says
  * so on the root (data-lf-rail) and never takes it back, so durable apparatus never hangs
  * in accidental leftover space and the reader never buys the room for it with a gesture.
  * The claim's width is the widest stable width the shared layout has measured, over a
- * floor of the generated marker's own fitting, and it is monotonic for the page's life:
+ * floor of the generated marker's own margin element, and it is monotonic for the page's life:
  * neither settling an action nor taking it back moves the column under the reader.
  * Temporary reaction choices borrow the available RHS and dock the complete item if they
  * do not fit; they do not enlarge this claim. Below the breakpoint the whole item docks
@@ -1844,7 +1844,7 @@ html.lf-versioning::view-transition-new(root) {
 }
 
 /* Ordinary action buttons share their face across document and shadow trees.
- * Packages may adjust placement and density; margin Buttons and reaction chips
+ * Packages may adjust placement and density; margin elements and reaction chips
  * retain their separate forms. */
 /* lf-shadow:start */
 .lf-btn { padding: 4px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }

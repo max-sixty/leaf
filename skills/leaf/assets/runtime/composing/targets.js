@@ -3,7 +3,7 @@ import { aimTargets, anchoringIsReady, sameAnchor, scrollToRange } from "../anch
 import { bindings } from "../keyboard/bindings.js";
 import { el } from "../widget-elements.js";
 import { banner } from "../banner.js";
-import { keylineEl } from "../keyboard/keyline.js";
+import { shortcutBarEl } from "../keyboard/shortcut-bar.js";
 import {
   blockAt,
   contextAround,
@@ -102,7 +102,7 @@ const rect = (left, top, right, bottom, sourceTop = top) =>
       }
     : null;
 // The largest visible rectangle left after viewport chrome is subtracted. The banner
-// spans the window and clips one edge. The key line is a bottom band in one horizontal
+// spans the window and clips one edge. The shortcut bar is a bottom band in one horizontal
 // lane, so a target crossing that lane keeps the larger of the space above, before, or
 // after it. Treating the line's top as a scalar dropped a target merely because some
 // other part of its box stood behind unrelated chrome on the left.
@@ -120,7 +120,7 @@ function visibleRect(box, sourceTop = box?.top) {
     sourceTop,
   );
   if (!shown) return null;
-  const line = keylineEl.getBoundingClientRect();
+  const line = shortcutBarEl.getBoundingClientRect();
   const band = {
     left: line.left,
     top: line.top,
@@ -490,12 +490,12 @@ export function paintTargets() {
       }
   }
   if (!refreshed && heard && !drawnTargets.has(heard)) hintActive = -1;
-  // The key line was painted before geometry retired the browsed hint.
+  // The shortcut bar was painted before geometry retired the browsed hint.
   if (wasActive && hintActive < 0) paintHere();
   selectionLayer.replaceChildren(...drawn);
   if (!searching)
     spreadHints(hints, {
-      lineBox: keylineEl.getBoundingClientRect(),
+      lineBox: shortcutBarEl.getBoundingClientRect(),
       viewportTop: covered(),
     });
 }

@@ -1,11 +1,11 @@
-/* The go-to chord: `g` opens one destination mode, and this owner holds its vocabulary.
+/* The go-to sequence: `g` opens one destination mode, and this owner holds its vocabulary.
 
    Visible, visually discovered targets share one generated-letter namespace. Links,
-   tabs, folds, the presses a widget built, and visible Page-map Buttons are read together
+   tabs, folds, the presses a widget built, and visible margin controls and status indicators are read together
    in screen order and receive short prefix-free labels. Most cost one letter; only the
    tail branches when the scene contains more targets than the available alphabet. The
    lowercase kind mnemonics are separate commands that filter that map: `g h` shows hyperlinks,
-   `g t` tabs, `g f` folds, `g m` Page-map Buttons, and `g a` actions. A filtered map gets
+   `g t` tabs, `g f` folds, `g m` margin controls and status indicators, and `g a` actions. A filtered map gets
    its own shorter codes. The mapping is local to the
    visible scene: scrolling refreshes it once motion settles, while a partly typed label
    freezes it until the reader completes or backs out of that prefix. Routine repaints do
@@ -21,7 +21,7 @@
    the panel open. Uppercase mnemonics remain named
    global destinations: `g T` Threads, `g A` Asks, `g L` All leaves, `g M` the searchable
    Page map, `g V` Versions, and `g D` the unsent draft the composer put away. Completing
-   one exchanges the transient chord for a return
+   one exchanges the transient sequence for a return
    frame which restores the standing and workspace captured before `g` armed.
 
    `BUILTIN_DIRECT_DESTINATIONS` declares the uppercase destinations this owner implements;
@@ -32,17 +32,17 @@
 
    Arming paints `data-lf-goto` on the body and puts the same overlay hint shape on named
    banner destinations and visible page targets. Named destinations show the complete
-   chord. Generated targets show only their suffix; the key line and reference retain
+   sequence. Generated targets show only their suffix; the shortcut bar and reference retain
    that shared prefix.
    Generated hints are opaque routes, so none may be dropped for a collision; the shared
-   hint placement pass spreads them around the key line and one another. Escape removes
+   hint placement pass spreads them around the shortcut bar and one another. Escape removes
    one typed letter, then a filter, then closes the mode. A letter from the hint alphabet is consumed
    even when a scene refresh made it invalid, with explicit feedback instead of an
    unrelated page action; another unrelated key closes the mode and is redispatched with
    its ordinary meaning.
 
    A press may deliberately leave layers standing while moving focus outside them. That is
-   not an Escape rung, because it gives no layer back. The address chord states what
+   not an Escape rung, because it gives no layer back. The address sequence states what
    remains open: beside the document, `g p` returns from the thread panel to the document
    and keeps both the panel and its narrowing. A panel covering the document cannot make
    that promise, so its ordinary Escape rung remains the route back.
@@ -60,7 +60,7 @@
 import { bindings, labelOf, live, spell, word } from "./bindings.js";
 import { addressPlacement } from "./address-placement.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "./hints.js";
-import { keylineEl } from "./keyline.js";
+import { shortcutBarEl } from "./shortcut-bar.js";
 import { keySequence, progressStates } from "./presentation.js";
 import { banner, toggleBtn } from "../banner.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
@@ -102,9 +102,9 @@ import {
   enterPageMap,
   activeInlineThread,
   leavePageMap,
-  openPageMapButton,
+  openPageMapMarginElement,
   pageMapIsActive,
-  pageMapButtons,
+  pageMapMarginElements,
   mapButton,
 } from "../living-margin.js";
 import { showThread } from "../conversation/landing.js";
@@ -117,17 +117,17 @@ import { glideTo, placeThreadEdge, seenScroller, stopGlide } from "../navigation
 export const addressLayer = el("div", "lf-ui lf-targets lf-goto-targets");
 addressLayer.setAttribute("aria-hidden", "true");
 
-// Asked when the chord is built: CHOOSER is version.js's and KEPT_DRAFT the selection
+// Asked when the sequence is built: CHOOSER is version.js's and KEPT_DRAFT the selection
 // composer's, both modules in the cycle.
 const directDestinations = () => [CHOOSER, KEPT_DRAFT];
 
-// How a destination in this chord is written where the chord itself is not on screen —
+// How a destination in this sequence is written where the sequence itself is not on screen —
 // a notice naming the way back to a draft that has just gone down, say. Spelled off the
 // row's own binding, so a rebinding cannot leave a sentence promising the old press.
 export const goAddress = (row) =>
-  [...chordPrefix(), labelOf(row)].filter(Boolean).join(" ");
+  [...sequencePrefix(), labelOf(row)].filter(Boolean).join(" ");
 
-// ---------- the g chord: visible page targets ----------
+// ---------- the g sequence: visible page targets ----------
 // These queries declare which page actions join the generated namespace. A link belongs
 // to the page when it is inside main, including link apparatus a page widget generated:
 // lf-toc's roomy map is chrome so passage capture ignores its repeated heading words, but
@@ -164,7 +164,7 @@ const pageDisclosures = () => pageParts("details > summary");
 // copy, and the render gate together, so it is its own change rather than a clause here.
 const pageControls = () => pageParts(PRESSABLE);
 
-// A link keeps the platform activation that its author wrote. The chord adds only the
+// A link keeps the platform activation that its author wrote. The sequence adds only the
 // arrival it otherwise lacks: a local fragment hands focus to the place the browser just
 // revealed, while an external link names the new tab that Leaf opens. A cancelled click
 // does neither, because its handler has replaced the link's trip with one of its own.
@@ -287,12 +287,12 @@ function press(control) {
 
 const TARGET_KINDS = [
   {
-    filterId: "page-map-buttons",
-    kind: "Page-map Button",
+    filterId: "margin-elements",
+    kind: "Margin control or status indicator",
     filterKey: "m",
-    filterWord: "Page-map Buttons",
-    list: pageMapButtons,
-    go: (...args) => openPageMapButton(...args),
+    filterWord: "margin controls and status indicators",
+    list: pageMapMarginElements,
+    go: (...args) => openPageMapMarginElement(...args),
     exposure: "self",
   },
   {
@@ -400,18 +400,18 @@ function visibleCandidates(filter = null) {
 }
 
 // Every complete route starts with the same stable prefix. A partial generated hint is
-// added to the live chord so the key line and chips can paint how far it has advanced.
-const chordPrefix = () => [labelOf(GOTO)].filter(Boolean);
-const chordKeys = () =>
-  [...chordPrefix(), targetFilter?.filterKey, ...prefix].filter(Boolean);
+// added to the live sequence so the shortcut bar and chips can paint how far it has advanced.
+const sequencePrefix = () => [labelOf(GOTO)].filter(Boolean);
+const sequenceKeys = () =>
+  [...sequencePrefix(), targetFilter?.filterKey, ...prefix].filter(Boolean);
 const addressChip = (candidate) => {
   const steps = [...candidate.code];
-  const chip = el("span", "lf-address lf-target-hint lf-chord-address");
+  const chip = el("span", "lf-address lf-target-hint lf-sequence-address");
   chip.dataset.lfAddress = candidate.code;
   chip.dataset.lfAddressKind = candidate.kind;
   const source = candidate.member.lfForwardedControl ?? candidate.member;
-  const buttonKey = source.dataset?.lfButtonKey;
-  if (buttonKey) chip.dataset.lfAddressButton = buttonKey;
+  const marginElementKey = source.dataset?.lfMarginElementKey;
+  if (marginElementKey) chip.dataset.lfAddressMarginElement = marginElementKey;
   const targetId =
     closestAcross(candidate.member, "[data-lf-margin-for]")?.dataset.lfMarginFor ||
     candidate.member.id ||
@@ -439,11 +439,11 @@ const controlAddress = (row) => {
     return null;
   const box = control.getBoundingClientRect();
   if (!box.width || !box.height) return null;
-  const steps = [...chordPrefix(), labelOf(row)].filter(Boolean);
-  const chip = el("span", "lf-address lf-target-hint lf-chord-address");
+  const steps = [...sequencePrefix(), labelOf(row)].filter(Boolean);
+  const chip = el("span", "lf-address lf-target-hint lf-sequence-address");
   chip.dataset.lfAddressCommand = row.id;
-  chip.dataset.lfAddressChord = steps.join(" ");
-  chip.append(keySequence(steps, progressStates(steps, chordKeys())));
+  chip.dataset.lfAddressSequence = steps.join(" ");
+  chip.append(keySequence(steps, progressStates(steps, sequenceKeys())));
   chip.style.left = `${box.left}px`;
   chip.style.top = `${box.top}px`;
   return { chip, target: box, belowTarget: true };
@@ -457,7 +457,7 @@ const paintAddressChips = (controlPlaced, chips = []) => {
 // The armed window owns every key wherever focus sits. Generated candidates stay stable
 // through ordinary repaints, refresh after viewport motion settles, and freeze after the
 // first hint letter.
-let chordArmed = false;
+let sequenceActive = false;
 let targetFilter = null;
 let prefix = "";
 let candidates = [];
@@ -466,12 +466,12 @@ let scrolling = false;
 let scrollTimer = 0;
 let refreshCandidates = false;
 
-export function setChord(on) {
+export function setSequence(on) {
   // Armed over a control that has claimed Escape, one press would have two owners — the
-  // control's rung and the chord's cancel — so the chord refuses to arm there at all.
-  if (on && !chordArmed && claimsEsc(focused())) return;
+  // control's rung and the sequence's cancel — so the sequence refuses to arm there at all.
+  if (on && !sequenceActive && claimsEsc(focused())) return;
   if (on) stopGlide(seenScroller());
-  chordArmed = on;
+  sequenceActive = on;
   // The mode itself reveals page navigation such as a roomy contents map. Publish that
   // state before taking the visible-scene reading so those routes enter the same map as
   // links that were already standing in the document.
@@ -523,7 +523,7 @@ function activateCandidate(candidate) {
     announce("That target is no longer visible. The hints are reset.");
     return paintHere();
   }
-  setChord(false);
+  setSequence(false);
   candidate.go(candidate.member);
 }
 
@@ -559,7 +559,7 @@ const chooseHint = () => activateCandidate(hinted()[hintActive]);
 // must not become a span the passage walk then has to understand. Candidates are measured
 // together, attached once, and then spread without dropping any opaque route.
 export function paintAddresses() {
-  if (!chordArmed) {
+  if (!sequenceActive) {
     addressLayer.replaceChildren();
     return;
   }
@@ -614,7 +614,7 @@ export function paintAddresses() {
   const controlBoxes = paintAddressChips(controlPlaced, chips);
   spreadHints(placed, {
     barriers: controlBoxes,
-    lineBox: keylineEl.getBoundingClientRect(),
+    lineBox: shortcutBarEl.getBoundingClientRect(),
     viewportTop: banner.getBoundingClientRect().bottom,
   });
   if (wasActive && hintActive < 0) paintHere();
@@ -624,8 +624,8 @@ export function paintAddresses() {
 // panel's list and a board's own overflow scroll in boxes of their own and a scroll event
 // does not bubble.
 //
-// Only while the chord is armed, which is why this is a listener of its own rather than a
-// line in the page's own repaint door (pageShifted): what the line says about the chord
+// Only while the sequence is armed, which is why this is a listener of its own rather than a
+// line in the page's own repaint door (pageShifted): what the line says about the sequence
 // holds at every scroll position, no list's membership moving with the page, so the door
 // that repaints on every scroll of every page would be repainting for nobody. Armed, the
 // paint is the whole of paintHere — the ring and the line are cheap beside the chips, and
@@ -633,12 +633,12 @@ export function paintAddresses() {
 addEventListener(
   "scroll",
   () => {
-    if (!chordArmed) return;
+    if (!sequenceActive) return;
     scrolling = true;
     refreshCandidates = true;
     clearTimeout(scrollTimer);
     scrollTimer = setTimeout(() => {
-      if (!chordArmed || !scrolling) return;
+      if (!sequenceActive || !scrolling) return;
       scrolling = false;
       paintHere();
     }, 80);
@@ -649,7 +649,7 @@ addEventListener(
 addEventListener(
   "scrollend",
   () => {
-    if (!chordArmed || !scrolling) return;
+    if (!sequenceActive || !scrolling) return;
     clearTimeout(scrollTimer);
     scrolling = false;
     paintHere();
@@ -657,14 +657,14 @@ addEventListener(
   { capture: true, passive: true },
 );
 addEventListener("resize", () => {
-  if (!chordArmed) return;
+  if (!sequenceActive) return;
   clearTimeout(scrollTimer);
   scrolling = false;
   refreshCandidates = true;
   paintHere();
 });
 
-// The chord is one scope: generated visible targets, named global destinations, structural
+// The sequence is one scope: generated visible targets, named global destinations, structural
 // placements, and its own way out. Structural and named rows stand only before a hint
 // prefix; once a generated route has begun, only valid continuations, audible browsing,
 // activation, and backing remain.
@@ -672,10 +672,10 @@ let goRows = null;
 export const GO = {
   title: "Go to",
   reach: "with g armed",
-  chord: chordKeys,
-  chordPrefix,
+  sequence: sequenceKeys,
+  sequencePrefix,
   liveInReference: true,
-  at: () => chordArmed,
+  at: () => sequenceActive,
   claims: allButTheReference,
   // Built on first use: the version chooser's row is version.js's, a module in the cycle,
   // so it is read once every module has evaluated.
@@ -683,12 +683,12 @@ export const GO = {
     return (goRows ??= [
       {
         id: "navigation.thread.edge",
-        // A focused thread is one place, so its two placements complete the chord
+        // A focused thread is one place, so its two placements complete the sequence
         // without naming a list or taking a digit. This is the thread-local counterpart
         // to the page edges below: k/j place the card inside its panel rather than moving
         // the document to the passage the card is about. It leads while live because it
         // is the one offer specific to where the reader stands; list members wear their
-        // address chips directly when the chord arms.
+        // address chips directly when the sequence arms.
         keys: THREAD_EDGE_KEYS,
         routes: [
           {
@@ -707,7 +707,7 @@ export const GO = {
         when: () => atTargetMenu() && Boolean(focusedThread()),
         run: (binding) => {
           const thread = focusedThread();
-          setChord(false);
+          setSequence(false);
           placeThreadEdge(thread, binding === "k" ? "start" : "end");
         },
       },
@@ -723,7 +723,7 @@ export const GO = {
         line: "page — threads kept",
         when: () => atTargetMenu() && inPanel() && !panelCovers(),
         run: () => {
-          setChord(false);
+          setSequence(false);
           letGo();
         },
       },
@@ -735,11 +735,11 @@ export const GO = {
         // through to an unrelated page shortcut such as `d`.
         keys: () => (prefix ? HINT_KEYS : ADDRESS_KEYS),
         label: "letters",
-        chordSteps: () => [
+        sequenceSteps: () => [
           ...(targetFilter ? [targetFilter.filterKey] : []),
           ...(prefix ? [...prefix, "…"] : ["letters"]),
         ],
-        completeChordSteps: () => [
+        completeSequenceSteps: () => [
           ...(targetFilter ? [targetFilter.filterKey] : []),
           "letters",
         ],
@@ -748,7 +748,7 @@ export const GO = {
         // Once armed, keep the alphabet claimed even when a filter has no members. A key
         // then reports the miss inside this mode rather than falling through to a page
         // command whose letter happened to match it.
-        when: () => (chordArmed ? true : targetCapability()),
+        when: () => (sequenceActive ? true : targetCapability()),
         run: typeHint,
       },
       {
@@ -760,7 +760,7 @@ export const GO = {
           does: `Show only visible ${filterWord}`,
         })),
         label: FILTER_KEYS.join(" / "),
-        chordSteps: ["kind"],
+        sequenceSteps: ["kind"],
         does: "Filter visible targets by kind",
         line: "filter by kind",
         when: () => atTargetMenu() && targetCapability(),
@@ -784,7 +784,7 @@ export const GO = {
         does: "Hear the next / previous visible target",
         line: "browse hints",
         repeat: true,
-        when: () => (chordArmed ? candidates.length > 0 : targetCapability()),
+        when: () => (sequenceActive ? candidates.length > 0 : targetCapability()),
         run: (binding) => moveHint(binding === "Tab" ? 1 : -1),
       },
       {
@@ -816,19 +816,19 @@ export const GO = {
           };
         },
         run: () => {
-          setChord(false);
+          setSequence(false);
           destination.go();
         },
       })),
       // A destination whose control belongs to another runtime owner joins this one
-      // vocabulary as its complete row. The address layer contributes only the chord's
+      // vocabulary as its complete row. The address layer contributes only the sequence's
       // progress and cancellation; liveness, words, landing, and return remain with the
       // owner that can keep them true.
       ...directDestinations().map((destination) => ({
         ...destination,
         when: () => atTargetMenu() && live(destination),
         run: (binding) => {
-          setChord(false);
+          setSequence(false);
           destination.run(binding);
         },
       })),
@@ -851,7 +851,7 @@ export const GO = {
         line: "top / bottom",
         when: atTargetMenu,
         run: (binding) => {
-          setChord(false); // before the travel, so the arrival's own scrolling paints nothing
+          setSequence(false); // before the travel, so the arrival's own scrolling paints nothing
           const box = seenScroller();
           glideTo(box, binding === "g" ? 0 : box.scrollHeight);
         },
@@ -859,13 +859,13 @@ export const GO = {
       {
         id: "navigation.address.back",
         keys: ["Escape"],
-        chordControl: true,
+        sequenceControl: true,
         does: () =>
           prefix
             ? "Remove the last hint letter"
             : targetFilter
               ? "Show all visible targets"
-              : "Cancel the chord",
+              : "Cancel the sequence",
         line: () =>
           prefix ? "back one letter" : targetFilter ? "all targets" : "cancel",
         run: () => {
@@ -882,7 +882,7 @@ export const GO = {
             announce("All go-to targets.");
             return paintHere();
           }
-          setChord(false);
+          setSequence(false);
           announce("Go to cancelled");
         },
       },
@@ -890,7 +890,7 @@ export const GO = {
   },
 };
 
-// The way in to the chord. Its row supplies the same leader every painted address uses,
+// The way in to the sequence. Its row supplies the same leader every painted address uses,
 // so the letter the reader presses and the letter the page prints cannot diverge.
 //
 // The page-level row promises the mode rather than any particular ephemeral hint.
@@ -900,7 +900,7 @@ export const GOTO = {
   does: "Go to a visible target, panel, page, or edge",
   line: "go to",
   // No `when`: the window this press stands up always holds at least the page's edges.
-  run: () => setChord(true),
+  run: () => setSequence(true),
 };
 
-export const isChordArmed = () => chordArmed;
+export const isSequenceActive = () => sequenceActive;

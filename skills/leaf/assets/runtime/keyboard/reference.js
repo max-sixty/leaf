@@ -1,13 +1,13 @@
 /* The keyboard reference: the complete listing behind `?` and the mode that owns the
    keyboard while it stands.
 
-   A true mode may own the keyboard. An armed address chord and the open reference claim
+   A true mode may own the keyboard. An armed address sequence and the open reference claim
    the relevant keys through their scope. A longer-lived menu keeps the reference
    available through `allButTheReference`. Closing the reference restores the shared
-   captured `helpOrigin`, so the reader returns to the control or reading place that
+   captured `shortcutReferenceOrigin`, so the reader returns to the control or reading place that
    opened it. A modal dialog clears the top layer's auto popovers on its way in, so the
    reference notes the ones it was opened over and stands them back up before that restore
-   — the overlay that says what a menu's keys are cannot be what takes the menu away. It
+   — the dialog that says what a menu's keys are cannot be what takes the menu away. It
    stands each one back up from that layer's own invoker — `lfInvoker`, the link a layer
    declares because the platform's own runs one way only — so the layer's way out survives
    the round trip too.
@@ -26,13 +26,13 @@
    The reference is a complete keyboard layer. Its registered Tab row cycles through the
    close control, search field, and actual overflow regions without letting focus enter
    the page behind it. Escape and the close control share one registered row. Closing
-   restores the element that opened it and keeps an already expanded shortcut shelf open.
+   restores the element that opened it and keeps an already expanded shortcut bar open.
    Restoration waits one frame only when that element is the temporarily removed More
    control.
 
-   An overlay may become stale while open. If a row goes dead, its dispatch no longer
+   The dialog may become stale while open. If a row goes dead, its dispatch no longer
    runs. A newly live row may wait until the reference is reopened. Do not rebuild a
-   focused help surface under the reader merely to keep it live to the latest poll. */
+   focused shortcut reference dialog under the reader merely to keep it live to the latest poll. */
 import {
   bindings,
   clampedRow,
@@ -62,16 +62,20 @@ import { readingBlock } from "../version.js";
 import { availableCommands, executeCommand, readerIn } from "./dispatch.js";
 import { reachScrollers } from "../reach.js";
 
-export const helpEl = document.createElement("dialog");
-helpEl.id = "lf-help";
-helpEl.className = "lf-ui lf-help";
-helpEl.setAttribute("aria-label", "All keyboard shortcuts");
-helpEl.setAttribute("aria-modal", "true");
-helpEl.tabIndex = -1; // focused on open, so the dialog isn't silent to a screen reader
-export const helpClose = el("button", "lf-btn lf-help-close", "Close");
-helpClose.type = "button";
-helpClose.title = "Close the shortcuts";
-helpClose.setAttribute("aria-label", "Close the shortcuts");
+export const shortcutReferenceDialog = document.createElement("dialog");
+shortcutReferenceDialog.id = "lf-shortcut-reference";
+shortcutReferenceDialog.className = "lf-ui lf-shortcut-reference";
+shortcutReferenceDialog.setAttribute("aria-label", "All keyboard shortcuts");
+shortcutReferenceDialog.setAttribute("aria-modal", "true");
+shortcutReferenceDialog.tabIndex = -1; // focused on open, so the dialog isn't silent to a screen reader
+export const shortcutReferenceClose = el(
+  "button",
+  "lf-btn lf-shortcut-reference-close",
+  "Close",
+);
+shortcutReferenceClose.type = "button";
+shortcutReferenceClose.title = "Close the shortcuts";
+shortcutReferenceClose.setAttribute("aria-label", "Close the shortcuts");
 
 // Every scope the page has, gathered by title, for the reference. Not the stack: the
 // reference answers "what could I do here", so it names a card grip's keys whether or not
@@ -79,8 +83,8 @@ helpClose.setAttribute("aria-label", "Close the shortcuts");
 // the rows' own liveness.
 //
 // The runtime's own modes come through the same door as a widget's, and the reference was
-// blind to them while they did not: the sharpest case was the overlay never saying how to
-// close the overlay, and a quiet page naming no Escape at all. So a section is its title
+// blind to them while they did not: the sharpest case was the dialog never saying how to
+// close the dialog, and a quiet page naming no Escape at all. So a section is its title
 // wherever the title comes from — the box a reply is typed into declares its send key from
 // wireInput and its way out from the typing mode, and they are one heading.
 //
@@ -90,19 +94,21 @@ helpClose.setAttribute("aria-label", "Close the shortcuts");
 function declaredStack(origin) {
   pruneScopedElements();
   const sections = new Map();
-  // Capture this before the overlay takes focus. Repeated widgets share command ids, but
+  // Capture this before the dialog takes focus. Repeated widgets share command ids, but
   // their words can name the particular thing in front of the reader; the active
   // contributors therefore get the last word in their section.
   const activeScopes = scopesFor(origin);
   const named = (section) => activeScopes.some((s) => s.title === section.title);
-  // Carry a scope's chord down to each of its rows before sections with the same title
+  // Carry a scope's sequence down to each of its rows before sections with the same title
   // merge. The prefix belongs only to the rows that scope contributed; putting it on the
   // merged section would also put it in front of an unrelated widget that chose the same
   // heading.
   const referenceRows = (scope) =>
     byCommand(scope.rows).map(([id, row]) => [
       id,
-      scope.chord ? { ...row, chord: scope.chordPrefix ?? scope.chord } : row,
+      scope.sequence
+        ? { ...row, sequence: scope.sequencePrefix ?? scope.sequence }
+        : row,
     ]);
   for (const scope of pageScopes().toReversed()) {
     if (scope !== ELEMENTS) {
@@ -153,7 +159,7 @@ function declaredStack(origin) {
 // cost differently, both acceptably: a row going dead under it cannot be pressed, since
 // the overlay claims the keyboard and the page stands down beneath it, and a key going live under it
 // is merely unlisted until the next open, one press away.
-let helpOpen = false;
+let shortcutReferenceOpen = false;
 let commandsAtOpen = new Set();
 // Where the reference was opened from, so closing it hands the reader back. Any dialog that
 // takes focus owes that; what makes it structural here is that a scope is *where focus is*,
@@ -168,7 +174,7 @@ let commandsAtOpen = new Set();
 // nothing: focusing `body` resets the browser's sequential focus navigation starting
 // point, so the reader's next Tab began at the top of the document rather than beside
 // the words they had been reading.
-let helpOrigin = null;
+let shortcutReferenceOrigin = null;
 // The shared return-place primitive records a control or the current reading block. A
 // block is focused and then let go of, moving the browser's sequential starting point
 // without turning prose into a standing item.
@@ -178,8 +184,8 @@ let helpOrigin = null;
 // the stored control then pointed into a layer that was no longer painted: the restore reached a
 // row in a hidden popover and focus fell to the body. Note what stood, put it back before
 // the restore, and the exemption costs the reader nothing again.
-let helpLayers = [];
-const helpWords = (value) =>
+let shortcutReferenceLayers = [];
+const shortcutReferenceWords = (value) =>
   String(value ?? "")
     .toLocaleLowerCase()
     .replace(/\s+/g, " ")
@@ -187,20 +193,20 @@ const helpWords = (value) =>
 // A binding query retains a trailing separator: `g ` means the routes below the `g`
 // prefix, while prose matching still treats it as the word `g`. Case is retained for the
 // first rank so `g t` and `g T` can put the actual requested face first.
-const helpBinding = (value) =>
+const referenceBinding = (value) =>
   String(value ?? "")
     .replace(/^\s+/, "")
     .replace(/\s+/g, " ");
-helpEl.addEventListener("cancel", (event) => {
+shortcutReferenceDialog.addEventListener("cancel", (event) => {
   event.preventDefault();
-  showHelp(false);
+  showShortcutReference(false);
 });
 // A modal dialog's backdrop reports the dialog itself as the click target. Compare
 // the pointer with the painted box so the backdrop remains a light-dismiss surface
 // without turning the dialog's own padding into one.
-helpEl.addEventListener("mousedown", (event) => {
-  if (event.target !== helpEl) return;
-  const box = helpEl.getBoundingClientRect();
+shortcutReferenceDialog.addEventListener("mousedown", (event) => {
+  if (event.target !== shortcutReferenceDialog) return;
+  const box = shortcutReferenceDialog.getBoundingClientRect();
   if (
     event.clientX < box.left ||
     event.clientX > box.right ||
@@ -210,32 +216,35 @@ helpEl.addEventListener("mousedown", (event) => {
     // Closing returns focus to the door. Consume the backdrop press so the dialog's
     // default mousedown focus does not immediately replace that deliberate return.
     event.preventDefault();
-    showHelp(false);
+    showShortcutReference(false);
   }
 });
-function showHelp(open, restoreFocus = true) {
+function showShortcutReference(open, restoreFocus = true) {
   // Focusing a text input replaces the document selection. Keep a passage the reader has
   // in hand when `?` opens the reference, while an ordinary open lands directly in search.
   // The dialog itself remains a focus stop, so either route keeps the page suspended.
   const preserveSelection = open && Boolean(pageSelection());
-  const handBack = !open && restoreFocus && helpEl.contains(focused());
-  const origin = handBack ? helpOrigin : null;
+  const handBack = !open && restoreFocus && shortcutReferenceDialog.contains(focused());
+  const origin = handBack ? shortcutReferenceOrigin : null;
   const restore = origin?.control ?? null;
-  const closing = !open && helpEl.open;
-  if (open && !helpOpen) {
-    helpOrigin = captureReturnPlace({ focused, readingBlock });
-    helpLayers = [...document.querySelectorAll(":popover-open")];
+  const closing = !open && shortcutReferenceDialog.open;
+  if (open && !shortcutReferenceOpen) {
+    shortcutReferenceOrigin = captureReturnPlace({ focused, readingBlock });
+    shortcutReferenceLayers = [...document.querySelectorAll(":popover-open")];
     commandsAtOpen = availableCommands();
   }
-  helpOpen = open;
+  shortcutReferenceOpen = open;
   if (open) {
-    helpEl.textContent = "";
-    const head = el("div", "lf-help-head");
-    head.append(el("div", "lf-help-title", "All keyboard shortcuts"), helpClose);
-    helpEl.append(head);
+    shortcutReferenceDialog.textContent = "";
+    const head = el("div", "lf-shortcut-reference-head");
+    head.append(
+      el("div", "lf-shortcut-reference-title", "All keyboard shortcuts"),
+      shortcutReferenceClose,
+    );
+    shortcutReferenceDialog.append(head);
     const search = document.createElement("input");
     search.type = "search";
-    search.className = "lf-help-search";
+    search.className = "lf-shortcut-reference-search";
     search.placeholder = "Find a key or action";
     search.setAttribute("aria-label", "Search keyboard shortcuts");
     search.setAttribute("role", "combobox");
@@ -244,25 +253,25 @@ function showHelp(open, restoreFocus = true) {
     search.setAttribute("aria-haspopup", "grid");
     search.autocomplete = "off";
     search.spellcheck = false;
-    const meta = el("div", "lf-help-meta");
+    const meta = el("div", "lf-shortcut-reference-meta");
     meta.setAttribute("aria-live", "polite");
-    const results = el("div", "lf-help-results");
-    results.id = "lf-help-results";
+    const results = el("div", "lf-shortcut-reference-results");
+    results.id = "lf-shortcut-reference-results";
     results.setAttribute("role", "grid");
     results.setAttribute("aria-label", "All keyboard shortcuts");
     search.setAttribute("aria-controls", results.id);
     const emptyRow = document.createElement("div");
     emptyRow.setAttribute("role", "row");
-    const empty = el("div", "lf-help-empty", "No matching commands");
+    const empty = el("div", "lf-shortcut-reference-empty", "No matching commands");
     empty.setAttribute("role", "gridcell");
     emptyRow.append(empty);
     emptyRow.hidden = true;
     const sections = [];
     let total = 0;
-    // A chord row is reached from the standing page, so its cell shows the complete route.
+    // A sequence row is reached from the standing page, so its cell shows the complete route.
     // Each physical press keeps its own keycap; an ordinary row remains one compact step.
     const referenceSteps = (row, route) => [
-      ...(word(row.chord) ?? []),
+      ...(word(row.sequence) ?? []),
       ...completeRowSteps(row, route),
     ];
     const spokenReferenceSteps = (row, route, steps) => {
@@ -297,9 +306,9 @@ function showHelp(open, restoreFocus = true) {
           const does = route?.does ?? word(row.does);
           const tr = document.createElement("tr");
           tr.dataset.lfCommand = id;
-          tr.id = `lf-help-row-${total + entries.length}`;
+          tr.id = `lf-shortcut-reference-row-${total + entries.length}`;
           tr.setAttribute("role", "row");
-          if (row.chordControl) tr.classList.add("lf-chord-control");
+          if (row.sequenceControl) tr.classList.add("lf-sequence-control");
           const steps = referenceSteps(row, route);
           const label = steps.join(" ");
           const sequence = keySequence(
@@ -309,17 +318,17 @@ function showHelp(open, restoreFocus = true) {
           );
           if (!declaredBindings(row).length && row.decision !== undefined)
             sequence.classList.add("lf-key-label");
-          sequence.id = `lf-help-key-${total + entries.length}`;
+          sequence.id = `lf-shortcut-reference-key-${total + entries.length}`;
           const keyCell = document.createElement("td");
           keyCell.setAttribute("role", "gridcell");
           keyCell.append(sequence);
           const actionCell = document.createElement("td");
           actionCell.setAttribute("role", "gridcell");
-          const action = el("div", "lf-help-action");
-          const scopeLabel = el("span", "lf-help-scope", scopeTitle);
+          const action = el("div", "lf-shortcut-reference-action");
+          const scopeLabel = el("span", "lf-shortcut-reference-scope", scopeTitle);
           const available = commandsAtOpen.has(id);
           if (row.run && row.runFromReference !== false) {
-            const command = el("button", "lf-help-command", word(does));
+            const command = el("button", "lf-shortcut-reference-command", word(does));
             command.type = "button";
             command.tabIndex = -1;
             command.dataset.lfCommand = id;
@@ -338,13 +347,14 @@ function showHelp(open, restoreFocus = true) {
               // the click finishes. The command's origin is the place the reference
               // displaced, not that transient implementation node. Run after the close's
               // focus restoration too, so the command's own destination wins the frame.
-              const origin = helpOrigin;
-              showHelp(false);
+              const origin = shortcutReferenceOrigin;
+              showShortcutReference(false);
               requestAnimationFrame(() => {
                 if (!executeCommand(id, origin)) {
-                  showHelp(true);
-                  helpEl.querySelector(".lf-help-meta").textContent =
-                    "That command is no longer available";
+                  showShortcutReference(true);
+                  shortcutReferenceDialog.querySelector(
+                    ".lf-shortcut-reference-meta",
+                  ).textContent = "That command is no longer available";
                 }
               });
             };
@@ -354,7 +364,7 @@ function showHelp(open, restoreFocus = true) {
           actionCell.append(action);
           tr.append(keyCell, actionCell);
           t.append(tr);
-          const prefix = word(row.chord) ?? [];
+          const prefix = word(row.sequence) ?? [];
           const alternatives = route ? [route.binding] : bindings(row);
           entries.push({
             el: tr,
@@ -365,10 +375,10 @@ function showHelp(open, restoreFocus = true) {
               display: [...prefix, spell(binding)].join(" "),
               spoken: [...prefix, spokenBinding(binding)].join(" "),
             })),
-            directWords: helpWords(
+            directWords: shortcutReferenceWords(
               `${id} ${scopeTitle} ${label} ${word(does)} ${word(route?.line ?? row.line)}`,
             ),
-            familyWords: helpWords(
+            familyWords: shortcutReferenceWords(
               `${row.id} ${referenceSteps(row).join(" ")} ${word(row.does)}`,
             ),
           });
@@ -377,7 +387,7 @@ function showHelp(open, restoreFocus = true) {
       total += entries.length;
       return { el: t, entries };
     };
-    for (const scope of declaredStack(helpOrigin?.control)) {
+    for (const scope of declaredStack(shortcutReferenceOrigin?.control)) {
       // A scope the reader is standing in is filtered by each row's own liveness, because
       // they can see which state they are in and a row that would refuse the press must
       // not be on screen. A scope they are merely near is listed whole: a row's `when`
@@ -406,10 +416,10 @@ function showHelp(open, restoreFocus = true) {
       if (!rows.length) continue;
       const title = scope.title ?? "On this page";
       const section = document.createElement("section");
-      section.className = "lf-help-section";
+      section.className = "lf-shortcut-reference-section";
       section.setAttribute("role", "rowgroup");
       const heading = el("h3", "", title);
-      heading.id = `lf-help-section-${sections.length}`;
+      heading.id = `lf-shortcut-reference-section-${sections.length}`;
       section.setAttribute("aria-labelledby", heading.id);
       const headingRow = document.createElement("div");
       headingRow.setAttribute("role", "row");
@@ -425,15 +435,16 @@ function showHelp(open, restoreFocus = true) {
         order: sections.length,
         heading,
         table: body.el,
-        words: helpWords(title),
+        words: shortcutReferenceWords(title),
         entries: body.entries,
       });
     }
     const bindingSection = document.createElement("section");
-    bindingSection.className = "lf-help-section lf-help-binding-matches";
+    bindingSection.className =
+      "lf-shortcut-reference-section lf-shortcut-reference-binding-matches";
     bindingSection.setAttribute("role", "rowgroup");
     const bindingHeading = el("h3", "", "Binding matches");
-    bindingHeading.id = "lf-help-binding-matches";
+    bindingHeading.id = "lf-shortcut-reference-binding-matches";
     bindingSection.setAttribute("aria-labelledby", bindingHeading.id);
     const bindingHeadingRow = document.createElement("div");
     bindingHeadingRow.setAttribute("role", "row");
@@ -447,7 +458,7 @@ function showHelp(open, restoreFocus = true) {
     bindingSection.hidden = true;
     results.append(emptyRow);
     const visibleCommands = () =>
-      [...results.querySelectorAll(".lf-help-command")].filter(
+      [...results.querySelectorAll(".lf-shortcut-reference-command")].filter(
         (button) => !button.closest("tr").hidden && !button.closest("section").hidden,
       );
     const keepOneCommandReachable = () => {
@@ -465,8 +476,8 @@ function showHelp(open, restoreFocus = true) {
       else search.removeAttribute("aria-activedescendant");
     };
     const filter = () => {
-      const query = helpWords(search.value);
-      const bindingQuery = helpBinding(search.value);
+      const query = shortcutReferenceWords(search.value);
+      const bindingQuery = referenceBinding(search.value);
       const foldedBindingQuery = bindingQuery.toLocaleLowerCase();
       const directMatch =
         query &&
@@ -559,8 +570,8 @@ function showHelp(open, restoreFocus = true) {
         emptyRow,
       );
       emptyRow.hidden = shown !== 0;
-      // The hint's verbs are the rows' (HELP in leaf.js: "choose next", "run"), since the
-      // short key line has no slot for the arrow rows and this head is where a reader
+      // The hint's verbs are the rows' (SHORTCUT_REFERENCE in page.js: "choose next", "run"), since the
+      // short shortcut bar has no slot for the arrow rows and this head is where a reader
       // in the search box learns them. Two spellings of one press — "choose" here,
       // "next command" on the line — were two registers.
       meta.textContent = query
@@ -570,16 +581,16 @@ function showHelp(open, restoreFocus = true) {
     };
     search.addEventListener("input", filter);
     filter();
-    helpEl.append(search, meta, results);
+    shortcutReferenceDialog.append(search, meta, results);
   }
-  helpEl.classList.toggle("open", open);
-  if (open && !helpEl.open) helpEl.showModal();
-  else if (!open && helpEl.open) helpEl.close();
+  shortcutReferenceDialog.classList.toggle("open", open);
+  if (open && !shortcutReferenceDialog.open) shortcutReferenceDialog.showModal();
+  else if (!open && shortcutReferenceDialog.open) shortcutReferenceDialog.close();
   // Back in the same order they were in: the dialog is out of the top layer by here, so a
   // popover that is still on the page can stand again, and the restore below then reaches
   // a control that is painted.
   if (closing) {
-    for (const layer of helpLayers) {
+    for (const layer of shortcutReferenceLayers) {
       if (!layer.isConnected || layer.matches(":popover-open")) continue;
       // A popover hands focus back to whatever had it when it was shown, and what the
       // closing dialog leaves focused is the body — so a layer stood back up from here
@@ -591,7 +602,7 @@ function showHelp(open, restoreFocus = true) {
         layer.lfInvoker?.focus({ preventScroll: true });
       layer.showPopover();
     }
-    helpLayers = [];
+    shortcutReferenceLayers = [];
   }
   // The reference is a list long enough to scroll, and anything a mouse can scroll a
   // keyboard has to reach. `reachScrollers` is the runtime's one answer to that and had
@@ -599,10 +610,14 @@ function showHelp(open, restoreFocus = true) {
   // so a reader working from the keyboard could read the first screenful of the key
   // reference and had no way to the rest of it. Called with the overlay open, because the
   // sweep reads computed overflow and a hidden box has none.
-  if (open) reachScrollers(helpEl);
+  if (open) reachScrollers(shortcutReferenceDialog);
   if (open)
-    helpEl
-      .querySelector(preserveSelection ? ".lf-help-close" : ".lf-help-search")
+    shortcutReferenceDialog
+      .querySelector(
+        preserveSelection
+          ? ".lf-shortcut-reference-close"
+          : ".lf-shortcut-reference-search",
+      )
       .focus({ preventScroll: true });
   // Only from inside the overlay: a mousedown somewhere else closes it (standDown), and the
   // press's own focus is the browser's default action, still to come — a restore made from
@@ -611,13 +626,15 @@ function showHelp(open, restoreFocus = true) {
   if (!open && origin) restoreReturnPlace(origin);
 }
 
-const helpStops = () =>
-  [...helpEl.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])')].filter(
-    (node) => node.tabIndex >= 0 && node.checkVisibility(),
-  );
+const referenceStops = () =>
+  [
+    ...shortcutReferenceDialog.querySelectorAll(
+      'button, input, [tabindex]:not([tabindex="-1"])',
+    ),
+  ].filter((node) => node.tabIndex >= 0 && node.checkVisibility());
 export function moveReference(dir) {
-  const stops = helpStops();
-  if (!stops.length) return helpEl.focus({ preventScroll: true });
+  const stops = referenceStops();
+  if (!stops.length) return shortcutReferenceDialog.focus({ preventScroll: true });
   const at = stops.indexOf(focused());
   const next =
     at < 0
@@ -628,16 +645,21 @@ export function moveReference(dir) {
   next.focus({ preventScroll: true });
 }
 const commandStops = () =>
-  [...helpEl.querySelectorAll(".lf-help-command")].filter((node) =>
-    node.checkVisibility(),
-  );
+  [
+    ...shortcutReferenceDialog.querySelectorAll(".lf-shortcut-reference-command"),
+  ].filter((node) => node.checkVisibility());
 export const onCommandRail = () =>
   commandStops().length > 0 &&
-  (focused()?.matches?.(".lf-help-search, .lf-help-command") ?? false);
+  (focused()?.matches?.(
+    ".lf-shortcut-reference-search, .lf-shortcut-reference-command",
+  ) ??
+    false);
 export function moveCommand(dir) {
   const stops = commandStops();
   if (!stops.length) return;
-  const focusedCommand = focused()?.matches?.(".lf-help-command") ? focused() : null;
+  const focusedCommand = focused()?.matches?.(".lf-shortcut-reference-command")
+    ? focused()
+    : null;
   const selected =
     focusedCommand ?? stops.find((stop) => stop.dataset.lfSelected === "true");
   const next = clampedRow(stops, selected, dir);
@@ -647,17 +669,17 @@ export function moveCommand(dir) {
     stop.dataset.lfSelected = String(on);
     stop.closest("tr").setAttribute("aria-selected", String(on));
   }
-  const search = helpEl.querySelector(".lf-help-search");
+  const search = shortcutReferenceDialog.querySelector(".lf-shortcut-reference-search");
   search.setAttribute("aria-activedescendant", next.closest("tr").id);
   if (focusedCommand) next.focus({ preventScroll: true });
   next.closest("tr").scrollIntoView({ block: "nearest" });
   const key = next.closest("tr").querySelector("kbd").textContent;
-  helpEl.querySelector(".lf-help-meta").textContent =
+  shortcutReferenceDialog.querySelector(".lf-shortcut-reference-meta").textContent =
     `${next.textContent} · ${key} · ⏎ run`;
 }
 export function runSelected() {
   if (!onCommandRail()) return false;
-  const command = focused().matches(".lf-help-command")
+  const command = focused().matches(".lf-shortcut-reference-command")
     ? focused()
     : (commandStops().find((stop) => stop.dataset.lfSelected === "true") ??
       commandStops()[0]);
@@ -665,7 +687,7 @@ export function runSelected() {
   command.click();
   return true;
 }
-helpClose.onclick = () => showHelp(false);
+shortcutReferenceClose.onclick = () => showShortcutReference(false);
 
-export const referenceOpen = () => helpOpen;
-export { showHelp as showReference };
+export const referenceOpen = () => shortcutReferenceOpen;
+export { showShortcutReference as showReference };

@@ -39,7 +39,7 @@ and stores each declaration unread, and the first repaint after boot evaluates i
 there;
 `runtime/standing.js` owns the one repaint of where the reader stands, in the order
 the geometry demands;
-`runtime/walk-position.js` owns the transient ordinal the keyline reads for an active
+`runtime/walk-position.js` owns the transient ordinal the shortcut bar reads for an active
 Ask or Thread keyboard walk;
 `runtime/icons.js` owns the layer's icon table;
 `runtime/context.js` owns the mutable facts shared across the browser layers and
@@ -74,7 +74,7 @@ and tray panels, landing a new width through `chrome-layout.js`'s `landEdge`;
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
 `runtime/living-margin.js` owns the page map, compact map sheet, anchored margin threads,
-the design-mode exclusion of its top-layer preview, and the one aggregated Button cluster
+the design-mode exclusion of its top-layer preview, and the one aggregated margin element cluster
 for each page target;
 content modules contribute live controls and semantics through its registration seam but
 never place their own RHS rows;
@@ -90,11 +90,11 @@ subscriptions;
 `bindings.js` the spelling, parsing, row fields, and checks; `scopes.js` where a group
 of rows applies; `dispatch.js` which scope answers a press and what it owes the
 platform; `return-stack.js` what a keyboard entry owes on the way back out;
-`keyline.js` the status and short help at the foot of the page and its More control;
-`reference.js` the complete listing behind `?`; `address.js` the go-to chord;
+`shortcut-bar.js` the status and short help at the foot of the page and its More control;
+`reference.js` the complete listing behind `?`; `address.js` the go-to sequence;
 `address-placement.js` shared address visibility and the numeric Ask placement pass;
 `hints.js` prefix-free transient labels and their no-drop placement pass;
-`presentation.js` how a chord row's presses are shown;
+`presentation.js` how a sequence row's presses are shown;
 `runtime/keyboard/disclosure.js` owns the shared disclosure bindings and the
 disclosure watch; `runtime/keyboard/page.js` owns the page's own scopes and rows;
 `runtime/notifications.js` owns visual and assistive announcements and the notice
@@ -359,7 +359,7 @@ textual view while the owner exists in the current document. A declared
 projected datum. The widget owns only the outlet's layout and visibility; core owns the
 messages, replies, reactions, settlement, receipts, focus, and fallback. The living
 margin carries a thread while no widget claims it, and the Threads panel remains the
-complete index. With the panel closed, a Thread Button and the `t`/`T` walk use that
+complete index. With the panel closed, a thread margin element and the `t`/`T` walk use that
 inline seat; with it open, they use its indexed cards. A press on a marked passage or its
 accessible comment-count note follows the same rule. Opening Threads while an inline
 thread holds focus carries that thread into the panel and keeps focus on its card.
@@ -421,7 +421,7 @@ The extension keys describe general behavior:
 | `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for an Ask |
 | `x-conversation` | the condition under which the widget owns a conversation seat, and whether its root requires a version response |
 | `x-thread-surface` | the upgraded widget may provide local outlets for complete Threads anchored to its exact projected data |
-| `x-work` | admits local agent work without a pending reader move, through a content or conversation seat and optional condition; an admitted page-widget claim then appears at the page edge through its Target Button |
+| `x-work` | admits local agent work without a pending reader move, through a content or conversation seat and optional condition; an admitted page-widget claim then appears at the page edge through its target margin element |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
 | `x-wide` | whether width follows a box or a drawing |
 
@@ -526,18 +526,18 @@ nothing at all.
 One register defines every runtime and widget key. A row binds keys, states what
 the press does, decides when it is live, and runs it. A scope says where a group
 of rows applies and which platform keys that context claims. The dispatcher,
-key line, `?` reference, control tooltips, and announcements are projections of
+shortcut bar, `?` reference, control tooltips, and announcements are projections of
 those objects.
 
 Treat that register as a product grammar, not a collection of locally convenient
 shortcuts. Before adding or changing a binding, survey the complete register for
 meaning, scope, native overlap, entry and exit symmetry, and focus restoration.
 Each generated hint names the exact visible control it activates. An aggregate location
-may expose each of its visible Buttons or focus itself; it never selects a descendant
+may expose each of its visible margin elements or focus itself; it never selects a descendant
 action for the reader. A press a widget built is one of those controls too, read off the
 value `offer` and `selectableOffer` write: the tag for a button, the role for a selectable
 offer. That is what lets a capability decline a page letter without becoming unreachable —
-the row states the capability, and the chord reaches each control that routes to one. The
+the row states the capability, and the sequence reaches each control that routes to one. The
 reading stops where the theme's hand stops, because it is the same reading. A widget that
 builds its press as some other native control gets the empty string, the value naming the
 tag rather than pressability, and still spends a binding to make that press reachable.
@@ -550,11 +550,11 @@ enough to read as one route. In an active mode, only the longest leading sequenc
 matches presses the mode accepted wears the pressed face; another route's next key stays
 neutral. A visible control's transient destination uses the same detached overlay shape as
 a generated target hint. The placement pass centers it in the open space immediately below
-and keeps it clear of its control if it must use another side. It stands only while its chord
+and keeps it clear of its control if it must use another side. It stands only while its sequence
 is active; the complete reference and control tooltip keep the route available at rest.
 
 The complete reference gives each distinct filter or destination its own command row.
-Search preserves a typed trailing separator and case: a query such as `g ` asks for chord
+Search preserves a typed trailing separator and case: a query such as `g ` asks for sequence
 continuations, and `g t` ranks the lowercase filter ahead of `g T`. Every declared
 alternative is indexed from the register even when its rendered cell compacts alternatives
 into one face. All binding-prefix matches lead the result list across scopes; prose and
@@ -568,7 +568,7 @@ control is a route to a capability rather than a capability of its own, so a
 second route needs no second row. A run heading in the thread panel presses the
 page to where that run is about. That travel is a capability, just as `w` and `/`
 are capabilities nothing else reaches, and each earns a row. A capability with
-no row is one the key line never advertises,
+no row is one the shortcut bar never advertises,
 the reference never lists, and a reader working from the keyboard never finds,
 because those three are projections of the register. Add the row in the change
 that adds the capability.
@@ -581,9 +581,9 @@ uses inline thread roots while Threads is closed and panel cards while it is ope
 thread with no page or widget-local inline address opens the complete index as a fallback.
 While the reader stands anywhere in an Ask, its widget's
 ordered actions keep a canonical binding where they declare one and otherwise take the
-next free `1`–`9`. Core projects that exact list into the key line and visible control
+next free `1`–`9`. Core projects that exact list into the shortcut bar and visible control
 chips. Each action is a command route; that route is the one
-binding-to-control identity used by dispatch, the reference, the key line, its address,
+binding-to-control identity used by dispatch, the reference, the shortcut bar, its address,
 and `aria-keyshortcuts`; core does not mint a second identity for the projection. Tab
 walks the real controls without replacing that action map;
 a control's scope adds only its native or local mechanics. `j`/`k` scroll
@@ -591,13 +591,13 @@ down/up by 60 pixels; `d`/`u` move 60% of
 the reading page. Both follow the active region, share a quick glide, and jump under
 reduced motion. Native Space stays with the platform and focused controls. Other letters come
 from words the surface says: `w` narrows to threads waiting on the reader while focus is
-in that panel, and enters Draw mode from the page. The Go-to chord
+in that panel, and enters Draw mode from the page. The Go-to sequence
 (`keyboard/address.js`) uses uppercase letters for named destinations and lowercase
 letters for target-kind filters and generated hints. A key spelling something nothing on
 screen says is a key nobody reaches for twice.
 Approval spends no fixed page letter: its visible button stays in the Tab order and takes
 native Enter or Space, while the Ask-local list gives it a contextual binding. In particular,
-a conditional chord mnemonic must not share its final key
+a conditional sequence mnemonic must not share its final key
 with a page action, or a dead destination can fall through into a different operation.
 
 `c` is reserved for commenting. Enter keeps native activation or text editing, and the
@@ -633,7 +633,7 @@ between two meanings for `c`.
 Each composition box's placeholder — the general box, each per-thread reply, the compact
 anchored composer, and composition boxes contributed by widgets — adds the live key that
 enters that exact box when one exists. Once focused, it adds the box's registered
-submission chord. The accessible name states the box's purpose without either key, and
+submission sequence. The accessible name states the box's purpose without either key, and
 placeholder text uses the theme's muted text color at full opacity.
 
 That the page row reaches into Threads is not an exception. Page scope already crosses
@@ -646,7 +646,7 @@ The destination is the anchor the 💬 carries, then the open thread the reader 
 in or the single inline thread held by a pressed Page-map marker, then the item they are
 standing in, and, when none of those is in hand, the page-comment box.
 `commentDestination` decides it once and states the
-sentence, return frame, key line and press together, so the reference, the line,
+sentence, return frame, shortcut bar and press together, so the reference, the line,
 what happens, and the way back cannot come to spell it differently. The pointer's answers outrank
 the standing: a selection or a raised 💬 is the more recent thing the reader
 said. `standingItem` and `standingConversation` are what "standing" means here,

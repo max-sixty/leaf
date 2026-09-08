@@ -1,26 +1,30 @@
-/* The living margin: the thread card and Page map sheet that open from a target's
-   Buttons, and the map's own way back out.
+/* The living margin: each page target's margin element cluster, the thread card and Page map
+   sheet those margin elements open, and each surface's way back out.
 
-   The right margin has one projected cluster per page target. Leaf calls its repeated
-   fitting a Button: like a coat button, it is one consistent piece attached to the
-   passage, not a synonym for every HTML `<button>` on the page. The cluster is the single
-   place for controls the reader can use on the target, communications they can start
-   about it, and standing information such as comment threads, Asks, changes, or
-   agent activity.
+   A margin element is one stable circular unit attached to a page target. Its behavior
+   may be `action`, `disclosure`, or `status`: action and disclosure margin elements are controls,
+   while a status margin element is an indicator with no press. Behavior may change without
+   changing the margin element's identity or moving its seat. The target's cluster is the single
+   place for its controls, communications, and standing information such as comment
+   threads, Asks, changes, or agent activity.
 
-   At rest a cluster has a two-Button budget: the primary and one peer, or the primary and
-   `…` when there are at least two peers. Hiding one peer costs the same fitting as
+   `marginElement` is the implementation's neutral container name. Reader-facing labels and
+   guidance name the current semantic role: action control, disclosure control, or status
+   indicator.
+
+   At rest a cluster has a two-margin element budget: the primary and one peer, or the primary and
+   `…` when there are at least two peers. Hiding one peer costs the same margin element as
    showing it and adds a press, so it is not overflow. With no contributed control,
-   standing information supplies the primary Button in the fitting declared by its face.
+   standing information supplies the primary margin element using the face its reading declares.
 
    Durable state provenance is the one standing fact kept in Page map without a target
-   Button. It explains whether effective state came from the reader, a provisional
+   margin element. It explains whether effective state came from the reader, a provisional
    report, or a version restatement; unlike an action it must not change target geometry,
    control density, or keyboard order. Its Page-map row travels back to the target.
 
-   The expanded budget is six fittings, including the primary or visible reading marker
+   The expanded budget is six margin elements, including the primary or visible reading marker
    where one exists; a target made only of peer choices uses all six. A larger set shows
-   the Buttons that fit and a final Page-map Button whose label gives the remaining count.
+   the margin elements that fit and a final overflow margin element whose label gives the remaining count.
    That opens the existing Page map at the first excess action; every excess control has
    its own named row which performs that exact action. Do not grow another popover for
    overflow. The same limit and exact-action route apply when the cluster docks on a
@@ -31,43 +35,43 @@
    Cancel exposed until either action ends the edit, even if focus moves within the
    document. An unsettled reader action engages the whole target in the same way, keeping
    its delivery lifecycle visible until the handoff settles. An engaged set has no `…`;
-   completion and escape actions take the first fittings, so the density limit cannot hide
+   completion and escape actions take the first margin elements, so the density limit cannot hide
    the way to finish or leave the active interaction.
 
    An explicit owner-focused mode temporarily derives the rail from one contribution
    alone, while Page map retains the target's complete inventory. This is how a mode with
-   six declared choices uses six direct fittings even when the target already carries a
+   six declared choices uses six direct margin elements even when the target already carries a
    reading or unrelated action; closing it restores the ordinary cluster.
 
-   Keyboard arrival unfolds that same cluster immediately: Tab into any of its Buttons
-   replaces `…` with the expanded set, and Left/Right wrap through those visible Buttons.
+   Keyboard arrival unfolds that same cluster immediately: Tab into any of its margin elements
+   replaces `…` with the expanded set, and Left/Right wrap through those visible margin elements.
    A pointer press on `…` makes the same replacement and lands on the first revealed
-   Button. Escape folds that temporary expansion, restores `…`, and returns focus to it;
+   margin element. Escape folds that temporary expansion, restores `…`, and returns focus to it;
    moving focus or the pointer outside folds without taking focus. None of those routes
    folds peers required by an engaged contribution, and moving into a modal or thread
    surface the cluster opened does not count as leaving it. The cluster uses one temporary
    expansion state for both keyboard and pointer routes; focus does not create a parallel
-   presentation. A category walk that lands on a Button does not unfold its peers: it is
+   presentation. A category walk that lands on a margin element does not unfold its peers: it is
    navigation rather than Tab arrival, so one Escape still lets go of the destination the
    walk put down. A generated Page-map hint arrives the same way and then presses that
-   Button, so anything unfolded there is the press's own result rather than the arrival's,
+   margin element, so anything unfolded there is the press's own result rather than the arrival's,
    and Escape still lets go of where the press left the reader.
 
-   An unsettled reader action reuses that same Button rather than growing a status row
+   An unsettled reader action reuses that same margin element rather than growing a status row
    inside authored content. Its server-projected information face advances from Sent or
    Waiting for pickup to Queued or Picked up, then to Active only when a typed local
    claim exists; an acknowledgment keeps the same retained target cluster throughout
-   that live handoff. The delivery phases report a move already made, so the Button
+   that live handoff. The delivery phases report a move already made, so the margin element
    wears the flat `status` behavior below. Active raises it back into a disclosure.
    Once no receipt or claim is live, the
-   generated Button disappears; the widget and action projection carry the durable state.
-   A thread's existing Thread Button remains the page-edge route to the exact receipt in
+   generated margin element disappears; the widget and action projection carry the durable state.
+   A thread's existing thread margin element remains the page-edge route to the exact receipt in
    the full conversation; an Active claim joins that engaged cluster as an exposed peer. A
-   standalone page-widget claim gets an Active Button directly. When no page edge
+   standalone page-widget claim gets an Active margin element directly. When no page edge
    exists—inside the full thread panel or a widget frozen into conversation chrome—the
    compact `.lf-receipt` remains the local fallback.
 
-   Content modules contribute through `registerMarginItem({key, target, controls, subject,
+   Content modules contribute through `registerMarginContribution({key, target, controls, subject,
    state, ...})`; they own their verbs and events, never placement or control styling.
    `key` is stable within a target. Optional `subject` is a string or live reading of the
    concise semantic subject used to name that target away from its own paint. Supply it
@@ -77,19 +81,19 @@
    keeps the owner's peers exposed. A contribution item that sets `represents` and
    names its `kind` is also the visible reading of that state, so the margin suppresses a
    generated reading of the same kind at that exact target rather than showing the fact
-   twice. Every fitting in a contribution is built with `marginButton(control, {key, icon,
+   twice. Every margin element in a contribution is built with `marginElement(control, {key, icon,
    label, context, behavior, tone, role, state, writesRelation, writesSeat})`; an
    authored reaction can supply `glyph` instead of `icon`, never both. That is the one RHS control type: it owns the circle,
    size, type, focus, state paint, and glyph/word anatomy shared by Asks, editing,
-   communications, and information triggers. Its behavior states what the fitting
+   communications, and information triggers. Its behavior states what the margin element
    promises. Behavior, tone, and state are independent axes: never use a heavier border to
    mean positive, busy, selected, or complete.
 
-   `marginButton` also establishes the canonical Button record: key, face, label, context,
+   `marginElement` also establishes the canonical margin element record: key, face, label, context,
    behavior, tone, role, lifecycle state, and the relation writer the call declared. The
-   record carries that last one because the options group rebuilds a proxy Button from
+   record carries that last one because the options group rebuilds a proxy margin element from
    it, and a proxy that re-inferred the default would write a relation its source has no
-   writer for. Registration assigns its stable owner and rejects duplicate Button keys
+   writer for. Registration assigns its stable owner and rejects duplicate margin element keys
    within that owner. The compact rail and complete Page map
    both render from this record; neither infers semantics by scraping the contributor's
    painted DOM. Transient native state such as disabled and `aria-expanded` is mirrored
@@ -100,7 +104,7 @@
      verb, and performs its effect immediately;
    - `disclosure` has a firmer single ring than status and the same paper surface. It
      carries `aria-expanded`, reveals or hides context without settling it, and includes
-     the generated More Button whose ellipsis is its whole face. `marginButton` writes
+     the generated More margin element whose ellipsis is its whole face. `marginElement` writes
      that attribute's default unless the call says `writesRelation: false`, which
      declares that another writer decides the disclosure's relation — the margin's own
      readings, whose `aria-controls` and `aria-expanded` are settled together from
@@ -113,12 +117,12 @@
      options, which stand outside the rail's walk and own their own seat while another
      writer owns their relation;
    - `status` reports a move already made and offers no press. It keeps its icon and its
-     circular Button silhouette and seat in the cluster on the page surface with a ghost
-     keyline, but gives up its raised edge, hover response, pointer, and tab stop. It
+     circular margin element silhouette and seat in the cluster on the page surface with a
+     ghost hairline, but gives up its raised edge, hover response, pointer, and tab stop. It
      remains a `status` in the accessibility tree so the Page map can still land there and
      name the phase. Status is live-session information, so a copy drops it.
 
-   A generated reading wears more than one of those over its life — a Thread Button while
+   A generated reading wears more than one of those over its life — a thread margin element while
    there is something to open, a status once the move is reported — and one element has to
    carry both, or the seat moves under a reader standing in it. Such a control is
    therefore a span, since a `<button>` cannot stop being one, and the activation the
@@ -130,10 +134,10 @@
    Action is raised, Open is outlined, and a read-only report stays flat behind the palest
    ring. Their resting interiors all use the page surface, so fill does not imply that a
    status is selected or pressed. The shape stays shared, with no added mark. A lone
-   non-thread informational Button reveals its target directly. Each additional non-thread
-   reading gets its own peer Button under `…`; pressing one reveals that reading directly
+   non-thread informational margin element reveals its target directly. Each additional non-thread
+   reading gets its own peer margin element under `…`; pressing one reveals that reading directly
    rather than collecting readings in a card. All threads at one target share one Thread
-   Button and one conversation card. That card opens only on a press, never merely on
+   margin element and one conversation card. That card opens only on a press, never merely on
    focus or hover. It stands beside the source where the document leaves room and covers
    the page where it does not; only an already-open Threads panel redirects the press to
    the complete index. The thread card is the only generated contextual pane, not a
@@ -142,17 +146,17 @@
    Tone is `neutral`, `positive`, or `negative`, expressed through icon color only; rings,
    fills, and the busy mark keep their shared neutral treatment. `busy` is the one state
    that paints: a small open moving ring at the corner (static under reduced motion). It
-   paints because it is the only state nothing else on the page states — a busy Button
+   paints because it is the only state nothing else on the page states — a busy margin element
    stays at full opacity and keeps its pointer, so with no ring an in-flight press looks
    idle — and because a moving outline is the one mark this size a reader can still
    resolve. Busy also sets `aria-busy="true"`. The other states carry the same ordering
    and fold-open weight while painting nothing, because each already has words beside it:
    a failure keeps visible words beside the controls that can repair it, and an engaged
-   Button stands next to the open interaction it belongs to. A status's phase is its
+   margin element stands next to the open interaction it belongs to. A status's phase is its
    transient hover or focus label. Reaction toggles retain their vocabulary labels and
    `aria-pressed`, which is what their palette fill reads; a standing reaction mark exists
    only while its reaction stands, so its presence is the whole of what it has to say.
-   `marginButtonState(control, state)` changes that axis without changing the verb, ring,
+   `marginElementState(control, state)` changes that axis without changing the verb, ring,
    or tone. Built-in faces use the shared monochrome SVG vocabulary with `currentColor`;
    emoji and font-dependent symbols are not structural icons. Reaction glyphs are content
    declared by the layer and retain their declared vocabulary order.
@@ -163,7 +167,7 @@
    contributor and control keys break ties. The primary is the first available contributed
    control; generated readings follow direct controls, and a temporary communication
    palette keeps its own keyed order after those readings. Reordering a module's setup
-   must not move an unrelated action into the primary fitting.
+   must not move an unrelated action into the primary margin element.
 
    A failed mutation leaves Failed · Retry · Cancel at its target. Retry makes a new
    attempt only after a definitive refusal; an ambiguous transport result stays busy while
@@ -174,23 +178,23 @@
    pending-delivery guards as keyboard Undo. Confirmation is for a genuinely irreversible
    effect, not routine Save or Accept. The layer-wide submission lifecycle in CLAUDE.md
    governs feedback; a settled cluster keeps only the actions still available there, such
-   as Undo, and never leaves an inert Button-shaped status.
+   as Undo, and never leaves an inert margin element-shaped status.
 
    The Page-map keyboard scope owns the cluster's way back out. When a thread card stands
    over an unfolded `…` group, Escape closes the card first and folds the secondary
-   Buttons on the next press; each rung is named on the key line before it runs.
+   margin elements on the next press; each rung is named on the shortcut bar before it runs.
 
    A gesture that unfolds a cluster for its own use puts that fold back, and only that
    one: putting the reaction choices away folds back the cluster the raise unfolded, so a
    disarm over a reply strip or over a fold the reader opened themselves takes away no
    layer the gesture put on. That put-down folds without claiming the focus — it runs from
    wherever the reader is standing, so taking the focus would throw them onto a cluster
-   they may have left, and would send a press already on its way to a Button they were not
+   they may have left, and would send a press already on its way to a margin element they were not
    standing on.
 
-   Every Button-shaped fitting keeps one circle. Its label appears as transient chrome on
+   Every margin element-shaped margin element keeps one circle. Its label appears as transient chrome on
    hover or keyboard focus without changing the cluster's geometry. An open disclosure
-   suppresses the label because the context it opened now names the Button's result. A
+   suppresses the label because the context it opened now names the margin element's result. A
    disclosure label ends in an ellipsis because it opens something; action and status
    labels do not. A status may add a quieter context line, such as how long ago its phase
    began. The complete label remains in the DOM, and its accessible name tracks the
@@ -201,17 +205,17 @@
    belongs to the name alone. Painted beside the phase, the same words read as progress
    rather than position.
 
-   Hover or focus on any interactive fitting connects it to its exact target with the same
+   Hover or focus on any interactive margin element connects it to its exact target with the same
    quiet neutral trace, including when packing displaced the cluster. The trace is
    correspondence, not keyboard focus, so it never borrows the accent ring that promises
-   interaction. Hovering a status also shows its label without lifting the fitting. A
-   generated Page-map arrival may still focus a fitting and trace its target deliberately.
-   Labels stay inside the viewport without moving the fitting. Dense and narrow-screen
+   interaction. Hovering a status also shows its label without lifting the margin element. A
+   generated Page-map arrival may still focus a margin element and trace its target deliberately.
+   Labels stay inside the viewport without moving the margin element. Dense and narrow-screen
    tests must exercise that association and activate an excess action through Page map;
    counting hidden DOM nodes is not evidence of reachability.
 
    The living margin groups contributions and state readings by exact target identity,
-   chooses the primary, and owns the generated disclosure and `…` Buttons plus the
+   chooses the primary, and owns the generated disclosure and `…` margin elements plus the
    cluster's accessible group name. At wide widths it hoists that host into the main
    positioning context, preserving source and tab order when several targets share a
    top-level block. At compact widths it returns the host to flow immediately after the
@@ -227,19 +231,19 @@
    where the box is `display: none` is not a measurement.
 
    That ordered target collection is the Page map's complete location count and the source
-   for the generated `g` target list. A location's disclosure Button announces its
-   position in the complete collection. The chord exposes every actionable location in
+   for the generated `g` target list. A location's disclosure margin element announces its
+   position in the complete collection. The sequence exposes every actionable location in
    the visible window. `g M` and the banner's Map control open the complete sheet,
    which projects the same currently available contributed controls in owner and role
    order, plus readings that have no direct control. An offered reading that merely
    describes its owner's controls is omitted there rather than becoming a parallel “open
    action” beside the real verbs. Ordinary entry focuses the sheet's filter, so a large
-   map is searchable by Button name, concise target name, or the visible passage
+   map is searchable by margin element name, concise target name, or the visible passage
    containing that target without tabbing through every preceding action. A spill opens
    this complete sheet focused on the first control the compact cluster omitted; it does
    not make a smaller overflow-only menu.
 
-   Live reconciliation retains the DOM identity of each surviving Button and each of its
+   Live reconciliation retains the DOM identity of each surviving margin element and each of its
    hit-tested descendants, including a count badge. State-feed refreshes can arrive
    between pointerdown and pointerup, so rebuilding an unchanged face would cancel the
    browser's click even if its replacement had identical markup. The open Page map follows
@@ -248,8 +252,8 @@
 
    A thread card names the target without offering a second route to the panel the banner
    already opens. It is the conversation itself, measured eight pixels beside the pressed
-   Thread Button when the page leaves that room; at narrower postures it covers the page.
-   While that Button keeps focus, `c` enters the card's one reply box; several roots leave
+   thread margin element when the page leaves that room; at narrower postures it covers the page.
+   While that margin element keeps focus, `c` enters the card's one reply box; several roots leave
    the destination ambiguous and preserve the page's ordinary comment route. Replacing an
    open panel waits for the column's workspace motion before choosing the card posture.
 
@@ -374,9 +378,9 @@ const KINDS = {
 // those controls stand and joins them to every other reading of the same target. The
 // store is module-level because widgets upgrade after the margin is composed and may
 // reconnect while a live version replaces the authored document.
-const offeredItems = new Set();
-const offerListeners = new Set();
-export const BUTTON_GRAMMAR = Object.freeze({
+const marginContributions = new Set();
+const contributionListeners = new Set();
+export const MARGIN_ELEMENT_SCHEMA = Object.freeze({
   tones: Object.freeze(["neutral", "positive", "negative"]),
   behaviors: Object.freeze(["action", "disclosure", "status"]),
   states: Object.freeze(["idle", "engaged", "busy", "failed"]),
@@ -389,10 +393,10 @@ export const BUTTON_GRAMMAR = Object.freeze({
     "overflow",
   ]),
 });
-const BUTTON_TONES = new Set(BUTTON_GRAMMAR.tones);
-const BUTTON_BEHAVIORS = new Set(BUTTON_GRAMMAR.behaviors);
-const BUTTON_STATES = new Set(BUTTON_GRAMMAR.states);
-const BUTTON_ROLES = new Set(BUTTON_GRAMMAR.roles);
+const MARGIN_ELEMENT_TONES = new Set(MARGIN_ELEMENT_SCHEMA.tones);
+const MARGIN_ELEMENT_BEHAVIORS = new Set(MARGIN_ELEMENT_SCHEMA.behaviors);
+const MARGIN_ELEMENT_STATES = new Set(MARGIN_ELEMENT_SCHEMA.states);
+const MARGIN_ELEMENT_ROLES = new Set(MARGIN_ELEMENT_SCHEMA.roles);
 const STATE_PRIORITY = new Map([
   ["failed", 0],
   ["busy", 1],
@@ -407,10 +411,10 @@ const ROLE_PRIORITY = new Map([
   ["reading", 4],
   ["overflow", 5],
 ]);
-const RESTING_BUTTON_BUDGET = 2;
-const EXPANDED_BUTTON_BUDGET = 6;
-const BUTTON_RECORD = Symbol("Leaf Button record");
-const FORWARDED_BUTTON_ATTRIBUTES = [
+const RESTING_MARGIN_ELEMENT_BUDGET = 2;
+const EXPANDED_MARGIN_ELEMENT_BUDGET = 6;
+const MARGIN_ELEMENT_RECORD = Symbol("Leaf margin element record");
+const FORWARDED_MARGIN_ELEMENT_ATTRIBUTES = [
   "aria-busy",
   "aria-controls",
   "aria-disabled",
@@ -419,63 +423,64 @@ const FORWARDED_BUTTON_ATTRIBUTES = [
   "aria-pressed",
 ];
 
-const changedOffers = () => {
-  for (const listener of offerListeners) listener();
+const changedContributions = () => {
+  for (const listener of contributionListeners) listener();
 };
 
-const visibleButtonLabel = ({ behavior, label }) =>
+const visibleMarginElementLabel = ({ behavior, label }) =>
   behavior !== "disclosure" || label.endsWith("…") ? label : `${label}…`;
 
-function buttonRecord(control) {
-  const record = control?.[BUTTON_RECORD];
-  if (!record) throw new TypeError("A contributed Button must use marginButton");
+function marginElementRecord(control) {
+  const record = control?.[MARGIN_ELEMENT_RECORD];
+  if (!record)
+    throw new TypeError("A contributed margin element must use marginElement");
   return record;
 }
 
-function marginControls(controls) {
+function marginElements(controls) {
   if (!(controls instanceof Element)) return [];
-  if (controls.matches(".lf-margin-button")) return [controls];
-  return [...controls.querySelectorAll(".lf-margin-button")];
+  if (controls.matches(".lf-margin-element")) return [controls];
+  return [...controls.querySelectorAll(".lf-margin-element")];
 }
 
-function validateMarginControls(offered) {
+function validateMarginElements(offered) {
   const keys = new Set();
-  for (const control of marginControls(offered.controls)) {
-    const record = buttonRecord(control);
+  for (const control of marginElements(offered.controls)) {
+    const record = marginElementRecord(control);
     if (keys.has(record.key))
       throw new TypeError(
-        `Duplicate Button key "${record.key}" in margin item "${offered.key}"`,
+        `Duplicate margin element key "${record.key}" in margin contribution "${offered.key}"`,
       );
     if (record.owner && record.owner !== offered.key)
       throw new TypeError(
-        `Button "${record.key}" already belongs to margin item "${record.owner}"`,
+        `margin element "${record.key}" already belongs to margin contribution "${record.owner}"`,
       );
     keys.add(record.key);
     record.owner = offered.key;
-    control.dataset.lfButtonOwner = offered.key;
+    control.dataset.lfMarginElementOwner = offered.key;
   }
 }
 
-function syncForwardedButtonState(projection, source) {
+function syncForwardedMarginElementState(projection, source) {
   const label = source.getAttribute("aria-label");
   if (label == null) projection.removeAttribute("aria-label");
   else keeps(projection, "aria-label", label);
   const disabled = source.disabled || source.getAttribute("aria-disabled") === "true";
   if (projection.disabled !== disabled) projection.disabled = disabled;
-  for (const attribute of FORWARDED_BUTTON_ATTRIBUTES) {
+  for (const attribute of FORWARDED_MARGIN_ELEMENT_ATTRIBUTES) {
     const value = source.getAttribute(attribute);
     if (value == null) projection.removeAttribute(attribute);
     else keeps(projection, attribute, value);
   }
 }
 
-// One Button grammar for every gesture in a target's RHS cluster. Contributors keep
+// One margin element grammar for every gesture in a target's RHS cluster. Contributors keep
 // their verbs and events; the margin owns the behavior and anatomy that make the
 // controls one family. The visible word stays in the DOM as a transient label, so
-// every Button-shaped fitting keeps one stable accessible name. Native `title`
+// every margin element-shaped margin element keeps one stable accessible name. Native `title`
 // bubbles would repeat the word on a different timer and with a different face, so
 // this anatomy owns its only visual presentation too.
-export function marginButton(
+export function marginElement(
   control,
   {
     glyph = null,
@@ -493,10 +498,10 @@ export function marginButton(
     // `aria-expanded` `syncReadingRelation` decides together from whether the reading
     // opens a thread, or holds what its own item declares, and takes off together when
     // it holds neither. The declaration names
-    // the writer rather than the role, because `marginButton` is published through the
+    // the writer rather than the role, because `marginElement` is published through the
     // widget API and a module reaching it brings no second writer with it.
     writesRelation = true,
-    // Whether this call seats the control. True for every fitting that owns its own tab
+    // Whether this call seats the control. True for every margin element that owns its own tab
     // stop, including the reading options, which stand in a group the rail's walk does
     // not reach. False says the rail's roving stop owns the seat: `holdTabStop` writes
     // every row's `tabindex` on the frame after each pass, so a seat written here is a
@@ -508,16 +513,19 @@ export function marginButton(
   },
 ) {
   if (!(control instanceof Element))
-    throw new TypeError("A margin Button needs an Element control");
-  if (!String(key ?? "").trim()) throw new TypeError("A margin Button needs a key");
+    throw new TypeError("A margin element needs an Element control");
+  if (!String(key ?? "").trim()) throw new TypeError("A margin element needs a key");
   if (Boolean(String(glyph ?? "").trim()) === Boolean(icon))
-    throw new TypeError("A margin Button needs exactly one glyph or icon");
-  if (!String(label ?? "").trim()) throw new TypeError("A margin Button needs a label");
-  if (!BUTTON_TONES.has(tone)) throw new TypeError(`Unknown Button tone: ${tone}`);
-  if (!BUTTON_BEHAVIORS.has(behavior))
-    throw new TypeError(`Unknown Button behavior: ${behavior}`);
-  if (!BUTTON_ROLES.has(role)) throw new TypeError(`Unknown Button role: ${role}`);
-  const record = control[BUTTON_RECORD] ?? {};
+    throw new TypeError("A margin element needs exactly one glyph or icon");
+  if (!String(label ?? "").trim())
+    throw new TypeError("A margin element needs a label");
+  if (!MARGIN_ELEMENT_TONES.has(tone))
+    throw new TypeError(`Unknown margin element tone: ${tone}`);
+  if (!MARGIN_ELEMENT_BEHAVIORS.has(behavior))
+    throw new TypeError(`Unknown margin element behavior: ${behavior}`);
+  if (!MARGIN_ELEMENT_ROLES.has(role))
+    throw new TypeError(`Unknown margin element role: ${role}`);
+  const record = control[MARGIN_ELEMENT_RECORD] ?? {};
   Object.assign(record, {
     key: String(key),
     glyph: glyph == null ? null : String(glyph),
@@ -528,24 +536,24 @@ export function marginButton(
     tone,
     role,
     state,
-    // Carried on the record because `optionControlNode` rebuilds a Button from one: a
+    // Carried on the record because `optionControlNode` rebuilds a margin element from one: a
     // proxy that re-inferred the default would write the disclosure relation its source
-    // has no writer for, and `syncForwardedButtonState` would strip it again the same
+    // has no writer for, and `syncForwardedMarginElementState` would strip it again the same
     // pass. The seat is not carried — a proxy is a native button standing outside the
     // rail, so it always owns its own.
     writesRelation,
   });
-  control[BUTTON_RECORD] = record;
+  control[MARGIN_ELEMENT_RECORD] = record;
 
-  if (!control.classList.contains("lf-margin-button"))
-    control.classList.add("lf-margin-button");
+  if (!control.classList.contains("lf-margin-element"))
+    control.classList.add("lf-margin-element");
   control.removeAttribute("title");
-  keeps(control, "data-lf-button-key", record.key);
+  keeps(control, "data-lf-margin-element-key", record.key);
   keeps(control, "data-lf-behavior", record.behavior);
   keeps(control, "data-lf-tone", record.tone);
   keeps(control, "data-lf-role", record.role);
   keeps(control, "data-lf-offer", behavior === "status" ? "" : "button");
-  marginButtonState(control, state);
+  marginElementState(control, state);
   const opens = behavior === "disclosure";
   // A default written where another writer owns the relation is a second writer the
   // same pass then strips — an add and a remove per heartbeat, and the remove reads as
@@ -568,18 +576,18 @@ export function marginButton(
     if (writesSeat) control.removeAttribute("tabindex");
   }
   let glyphNode = control.querySelector(
-    ":scope > :is(.lf-margin-button-glyph, .lf-margin-button-icon)",
+    ":scope > :is(.lf-margin-element-glyph, .lf-margin-element-icon)",
   );
-  let spaceNode = control.querySelector(":scope > .lf-margin-button-space");
-  let labelNode = control.querySelector(":scope > .lf-margin-button-label");
+  let spaceNode = control.querySelector(":scope > .lf-margin-element-space");
+  let labelNode = control.querySelector(":scope > .lf-margin-element-label");
   if (icon) {
     if (!(glyphNode instanceof SVGSVGElement) || glyphNode.dataset.lfIcon !== icon)
       glyphNode = iconElement(icon);
   } else {
     if (!(glyphNode instanceof HTMLSpanElement))
       glyphNode = document.createElement("span");
-    if (glyphNode.className !== "lf-margin-button-glyph")
-      glyphNode.className = "lf-margin-button-glyph";
+    if (glyphNode.className !== "lf-margin-element-glyph")
+      glyphNode.className = "lf-margin-element-glyph";
     if (glyphNode.hasAttribute("data-lf-icon"))
       glyphNode.removeAttribute("data-lf-icon");
     if (glyphNode.textContent !== glyph) glyphNode.textContent = glyph;
@@ -588,21 +596,21 @@ export function marginButton(
   if (!labelNode) labelNode = document.createElement("span");
   if (glyphNode.getAttribute("aria-hidden") !== "true")
     glyphNode.setAttribute("aria-hidden", "true");
-  if (spaceNode.className !== "lf-margin-button-space")
-    spaceNode.className = "lf-margin-button-space";
+  if (spaceNode.className !== "lf-margin-element-space")
+    spaceNode.className = "lf-margin-element-space";
   if (spaceNode.getAttribute("aria-hidden") !== "true")
     spaceNode.setAttribute("aria-hidden", "true");
   if (spaceNode.textContent !== " ") spaceNode.textContent = " ";
-  if (labelNode.className !== "lf-margin-button-label")
-    labelNode.className = "lf-margin-button-label";
+  if (labelNode.className !== "lf-margin-element-label")
+    labelNode.className = "lf-margin-element-label";
   if (labelNode.getAttribute("aria-hidden") !== "true")
     labelNode.setAttribute("aria-hidden", "true");
-  const visibleLabel = visibleButtonLabel(record);
-  let labelWord = labelNode.querySelector(":scope > .lf-margin-button-label-word");
-  let contextNode = labelNode.querySelector(":scope > .lf-margin-button-context");
+  const visibleLabel = visibleMarginElementLabel(record);
+  let labelWord = labelNode.querySelector(":scope > .lf-margin-element-label-word");
+  let contextNode = labelNode.querySelector(":scope > .lf-margin-element-context");
   if (!labelWord) labelWord = document.createElement("span");
-  if (labelWord.className !== "lf-margin-button-label-word")
-    labelWord.className = "lf-margin-button-label-word";
+  if (labelWord.className !== "lf-margin-element-label-word")
+    labelWord.className = "lf-margin-element-label-word";
   if (labelWord.textContent !== visibleLabel) labelWord.textContent = visibleLabel;
   if (record.context && !contextNode) contextNode = document.createElement("span");
   if (!record.context) {
@@ -610,8 +618,8 @@ export function marginButton(
     contextNode = null;
   }
   if (contextNode) {
-    if (contextNode.className !== "lf-margin-button-context")
-      contextNode.className = "lf-margin-button-context";
+    if (contextNode.className !== "lf-margin-element-context")
+      contextNode.className = "lf-margin-element-context";
     if (contextNode.textContent !== record.context)
       contextNode.textContent = record.context;
   }
@@ -636,7 +644,7 @@ export function marginButton(
   return control;
 }
 
-function syncButtonCount(control, count) {
+function syncMarginElementCount(control, count) {
   let badge = control.querySelector(":scope > .lf-margin-count");
   if (count <= 1) {
     badge?.remove();
@@ -650,18 +658,19 @@ function syncButtonCount(control, count) {
   if (control.lastChild !== badge) control.append(badge);
 }
 
-export function marginButtonState(control, state) {
-  if (!(control instanceof Element) || !control.classList.contains("lf-margin-button"))
-    throw new TypeError("A Button state needs a margin Button");
-  if (!BUTTON_STATES.has(state)) throw new TypeError(`Unknown Button state: ${state}`);
-  buttonRecord(control).state = state;
+export function marginElementState(control, state) {
+  if (!(control instanceof Element) || !control.classList.contains("lf-margin-element"))
+    throw new TypeError("A margin element state needs a margin element");
+  if (!MARGIN_ELEMENT_STATES.has(state))
+    throw new TypeError(`Unknown margin element state: ${state}`);
+  marginElementRecord(control).state = state;
   keeps(control, "data-lf-state", state);
   if (state === "busy") keeps(control, "aria-busy", "true");
   else control.removeAttribute("aria-busy");
   return control;
 }
 
-export function registerMarginItem({
+export function registerMarginContribution({
   key,
   target,
   controls,
@@ -672,15 +681,16 @@ export function registerMarginItem({
   claim = true,
   reserve = 0,
 }) {
-  if (!String(key ?? "").trim()) throw new TypeError("A margin item needs a key");
+  if (!String(key ?? "").trim())
+    throw new TypeError("A margin contribution needs a key");
   if (!new Set(["before", "after"]).has(side))
-    throw new TypeError(`Unknown margin-item side: ${side}`);
+    throw new TypeError(`Unknown margin contribution side: ${side}`);
   if (typeof state !== "string" && typeof state !== "function")
-    throw new TypeError("A margin item's state must be a string or function");
+    throw new TypeError("A margin contribution's state must be a string or function");
   if (subject != null && typeof subject !== "string" && typeof subject !== "function")
-    throw new TypeError("A margin item's subject must be a string or function");
-  if (typeof state === "string" && !BUTTON_STATES.has(state))
-    throw new TypeError(`Unknown margin-item state: ${state}`);
+    throw new TypeError("A margin contribution's subject must be a string or function");
+  if (typeof state === "string" && !MARGIN_ELEMENT_STATES.has(state))
+    throw new TypeError(`Unknown margin contribution state: ${state}`);
   if (controls instanceof Element) controls.classList.add("lf-margin-contribution");
   const offered = {
     key: String(key),
@@ -693,25 +703,25 @@ export function registerMarginItem({
     claim,
     reserve,
   };
-  validateMarginControls(offered);
-  offeredItems.add(offered);
-  changedOffers();
+  validateMarginElements(offered);
+  marginContributions.add(offered);
+  changedContributions();
   return {
     update({ immediate = false } = {}) {
-      validateMarginControls(offered);
-      changedOffers();
+      validateMarginElements(offered);
+      changedContributions();
       if (immediate) layoutMarginRows();
     },
     unregister() {
-      if (!offeredItems.delete(offered)) return;
+      if (!marginContributions.delete(offered)) return;
       // Let the projection detach a focused contribution while its focus-settling
       // guard is active. Removing it first can synchronously fire focusout, whose
       // fold render moves that same node before Element.remove completes.
-      changedOffers();
-      for (const control of marginControls(controls)) {
-        const record = buttonRecord(control);
+      changedContributions();
+      for (const control of marginElements(controls)) {
+        const record = marginElementRecord(control);
         if (record.owner === offered.key) delete record.owner;
-        control.removeAttribute("data-lf-button-owner");
+        control.removeAttribute("data-lf-margin-element-owner");
       }
       controls?.remove();
     },
@@ -793,8 +803,9 @@ function comesBefore(left, right) {
 
 const acknowledgments = () => runtime.activity?.interactions ?? [];
 export const renderMargin = clocked(document.body, renderNow);
-// The Button the reader is standing on, or null off one: the press row's words read it.
-const focusedButtonBehavior = () => focused()?.[BUTTON_RECORD]?.behavior ?? null;
+// The margin element the reader is standing on, or null off one: the press row's words read it.
+const focusedMarginElementBehavior = () =>
+  focused()?.[MARGIN_ELEMENT_RECORD]?.behavior ?? null;
 
 const nav = el("nav", "lf-ui lf-living-margin");
 // Every live page can gain an anchored comment, including one made entirely of prose.
@@ -997,33 +1008,40 @@ sheetClose.onclick = () => sheet.close();
 sheetHead.append(sheetClose);
 const sheetSearch = el("input", "lf-page-map-search");
 sheetSearch.type = "search";
-sheetSearch.placeholder = "Find a Button or location";
-sheetSearch.setAttribute("aria-label", "Find a Button or location in Page map");
+sheetSearch.placeholder = "Find an action, status, or location";
+sheetSearch.setAttribute(
+  "aria-label",
+  "Find an action, status, or location in Page map",
+);
 const sheetList = el("div", "lf-page-map-list");
-const sheetEmpty = el("p", "lf-page-map-empty", "No matching Buttons or locations");
+const sheetEmpty = el(
+  "p",
+  "lf-page-map-empty",
+  "No matching actions, statuses, or locations",
+);
 sheetEmpty.hidden = true;
 sheetEmpty.setAttribute("role", "status");
 sheet.append(sheetHead, sheetSearch, sheetList, sheetEmpty);
 
 const rows = new Map();
-const moreButtons = new Map();
-const spillButtons = new Map();
+const moreMarginElements = new Map();
+const spillMarginElements = new Map();
 const optionGroups = new Map();
 const controlProxies = new WeakMap();
-const readingButtons = new Map();
+const readingMarginElements = new Map();
 const hosts = new Map();
 const inlineHosts = new Map();
 let optionsOrdinal = 0;
 let pageMapEntries = [];
 let previewEntry = null;
-let previewButton = null;
+let previewMarginElement = null;
 let transferThreadFocus = false;
 let previewShowing = false;
 let pinnedKey = null;
 let forcedInlineKey = null;
 let expandedOptionsKey = null;
 // An explicit mode can focus one contribution inside the target's existing cluster.
-// The rail then shows that owner's complete control set without spending fittings on
+// The rail then shows that owner's complete control set without spending margin elements on
 // standing readings or unrelated actions; Page map still reads the whole entry.
 let expandedOptionsOwner = null;
 let hoveredHost = null;
@@ -1034,15 +1052,15 @@ let rovingFrame = 0;
 let sheetCloseOwnsFocus = false;
 let sheetFrom = null;
 let sheetTarget = null;
-const controlsOf = (offered) => marginControls(offered.controls);
+const controlsOf = (offered) => marginElements(offered.controls);
 const offerReadings = (offered) => {
   const items = typeof offered.items === "function" ? offered.items() : offered.items;
   return items ?? [];
 };
 const offerState = (offered) => {
   const state = typeof offered.state === "function" ? offered.state() : offered.state;
-  if (!BUTTON_STATES.has(state))
-    throw new TypeError(`Unknown margin-item state: ${state}`);
+  if (!MARGIN_ELEMENT_STATES.has(state))
+    throw new TypeError(`Unknown margin contribution state: ${state}`);
   return state;
 };
 // One target has one lifecycle reading. Failure outranks work in flight, which
@@ -1067,7 +1085,7 @@ const entryState = (entry) => {
 const entryEngaged = (entry) => entryState(entry) !== "idle";
 // A modal or contextual thread surface temporarily owns focus without ending the
 // document interaction beneath it. Preserve that context so its commands remain
-// true and its owning Button can receive focus when the surface closes.
+// true and its owning margin element can receive focus when the surface closes.
 const inRetainedContext = (node) =>
   node instanceof Element &&
   (Boolean(node.closest("dialog[open]")) ||
@@ -1093,12 +1111,14 @@ const compareControlRecords = (left, right) => {
     STATE_PRIORITY.get(offerState(right.offered));
   if (state) return state;
   const role =
-    ROLE_PRIORITY.get(buttonRecord(left.control).role) -
-    ROLE_PRIORITY.get(buttonRecord(right.control).role);
+    ROLE_PRIORITY.get(marginElementRecord(left.control).role) -
+    ROLE_PRIORITY.get(marginElementRecord(right.control).role);
   if (role) return role;
   const offer = left.offered.key.localeCompare(right.offered.key);
   if (offer) return offer;
-  return buttonRecord(left.control).key.localeCompare(buttonRecord(right.control).key);
+  return marginElementRecord(left.control).key.localeCompare(
+    marginElementRecord(right.control).key,
+  );
 };
 const directControlRecords = (entry) =>
   directOffers(entry)
@@ -1110,17 +1130,17 @@ const controlsShownByOwner = (controls) => {
   // The margin hides non-primary controls with `display: none`, so ask how this
   // batch paints while exempt from that rule. Write every exemption before the first
   // style read: alternating an attribute write and getComputedStyle would recalculate
-  // the whole page once per Button. Contributor-owned `display` and `visibility`
+  // the whole page once per margin element. Contributor-owned `display` and `visibility`
   // still apply — including the retired half of a settled pair.
   const wasPrimary = controls.map((control) =>
-    control.hasAttribute("data-lf-button-primary"),
+    control.hasAttribute("data-lf-margin-element-primary"),
   );
   const wasOverflow = controls.map((control) =>
-    control.hasAttribute("data-lf-button-overflow"),
+    control.hasAttribute("data-lf-margin-element-overflow"),
   );
   for (const control of controls) {
-    control.toggleAttribute("data-lf-button-primary", true);
-    control.removeAttribute("data-lf-button-overflow");
+    control.toggleAttribute("data-lf-margin-element-primary", true);
+    control.removeAttribute("data-lf-margin-element-overflow");
   }
   let shown;
   try {
@@ -1132,8 +1152,8 @@ const controlsShownByOwner = (controls) => {
     });
   } finally {
     controls.forEach((control, index) => {
-      control.toggleAttribute("data-lf-button-primary", wasPrimary[index]);
-      control.toggleAttribute("data-lf-button-overflow", wasOverflow[index]);
+      control.toggleAttribute("data-lf-margin-element-primary", wasPrimary[index]);
+      control.toggleAttribute("data-lf-margin-element-overflow", wasOverflow[index]);
     });
   }
   return shown;
@@ -1147,7 +1167,7 @@ function choosePrimary(entry) {
 function syncControlRoles(entry) {
   const primary = choosePrimary(entry);
   for (const control of directControls(entry))
-    control.toggleAttribute("data-lf-button-primary", control === primary);
+    control.toggleAttribute("data-lf-margin-element-primary", control === primary);
   return primary;
 }
 const markerItems = (entry) => entry.items.filter((item) => item.marker !== false);
@@ -1169,7 +1189,7 @@ const readingChoices = (entry) => {
   }
   if (threadList.length)
     choices.push({
-      // One target owns one Thread Button. Membership changes repaint its badge and
+      // One target owns one thread margin element. Membership changes repaint its badge and
       // card without replacing the control that owns an open conversation.
       key: "threadList",
       kind: "comment",
@@ -1188,12 +1208,12 @@ const threadReading = (entry) =>
 const secondaryReadings = (entry, primaryControl) =>
   readingChoices(entry).slice(primaryControl ? 0 : 1);
 
-function threadButton(entry) {
+function threadMarginElement(entry) {
   const marker = rows.get(entry.key);
   if (marker && !marker.hidden && primaryReading(entry)?.kind === "comment")
     return marker;
   const choice = threadReading(entry);
-  return choice ? (readingButtons.get(readingKey(entry, choice)) ?? null) : null;
+  return choice ? (readingMarginElements.get(readingKey(entry, choice)) ?? null) : null;
 }
 const secondaryControls = (entry, primary) =>
   directControls(entry).filter(
@@ -1223,9 +1243,9 @@ const secondaryCount = (entry, primary, { claimedOnly = false } = {}) => {
 };
 // One peer is not overflow. It costs the same second circle as `…`, but the peer says
 // what it does and is immediately usable. Ellipsis earns its place only from the third
-// Button onward.
+// margin element onward.
 const optionsOffered = (entry, primary, options = {}) =>
-  secondaryCount(entry, primary, options) > RESTING_BUTTON_BUDGET - 1;
+  secondaryCount(entry, primary, options) > RESTING_MARGIN_ELEMENT_BUDGET - 1;
 
 function markerFace(entry) {
   const kinds = kindsIn(entry, { markerOnly: true });
@@ -1236,8 +1256,8 @@ function markerFace(entry) {
     kinds,
     face,
     label: faceCount > 1 ? `${face.label}s` : face.label,
-    // The badge describes this Button's result. Other readings live behind `…`
-    // and must not make a Thread Button appear to open more threadList than it does.
+    // The badge describes this margin element's result. Other readings live behind `…`
+    // and must not make a thread margin element appear to open more threadList than it does.
     count: faceCount,
   };
 }
@@ -1266,10 +1286,10 @@ function readingContext(choice) {
   return choice.items[0].context ?? null;
 }
 
-// A reading wears two promises over its life — a Button while there is something to
+// A reading wears two promises over its life — a margin element while there is something to
 // open, a status once the move is made — and only one element may carry both, or the
 // seat moves under a reader standing in it. A <button> cannot stop being one, so the
-// seat is a span and `marginButton` writes whichever promise the reading now makes.
+// seat is a span and `marginElement` writes whichever promise the reading now makes.
 // What the platform then does not supply is the press, which the margin's own scope
 // declares (margin.press) rather than a listener here: a key the register does not
 // hold is a key no surface can promise.
@@ -1277,18 +1297,18 @@ const readingControl = (className) => offer("span", className);
 
 // The one writer over a reading's disclosure relation, settling `aria-controls` and
 // `aria-expanded` together because a control that says it opens something has to say
-// whether it is open. Two shapes reach it. A Thread Button opens the local card while the
+// whether it is open. Two shapes reach it. A thread margin element opens the local card while the
 // panel is closed and the matching panel card while it is open. Any other reading is
 // asked what it discloses, and a single item
 // that answers has named the node and said which way it stands — the Change reading's
 // earlier words, folded into the block itself. An item answering nothing promises
-// nothing, which is what leaves a Change Button over a block the comparison holds no
+// nothing, which is what leaves a Change margin element over a block the comparison holds no
 // earlier reading for the plain travel it always was.
 function syncReadingRelation(control, choice) {
   if (choice?.kind === "comment") {
     const opensInline = !panelIsOpen();
     keeps(control, "aria-controls", opensInline ? preview.id : panel.id);
-    if (opensInline) keeps(control, "aria-expanded", previewButton === control);
+    if (opensInline) keeps(control, "aria-expanded", previewMarginElement === control);
     else control.removeAttribute("aria-expanded");
     return;
   }
@@ -1314,10 +1334,10 @@ function placeThreadPreview() {
   if (
     !preview.matches(":popover-open") ||
     !preview.hasAttribute("data-lf-thread") ||
-    !previewButton?.isConnected
+    !previewMarginElement?.isConnected
   )
     return;
-  const marker = previewButton.getBoundingClientRect();
+  const marker = previewMarginElement.getBoundingClientRect();
   // The stylesheet gives the card the room left to the right of this edge, so a marker
   // standing near the window's own edge would leave a conversation too narrow to read
   // or answer in. --thread-card-floor is where that room stops being a margin: past it
@@ -1352,7 +1372,7 @@ function scheduleThreadPreviewPosition() {
 // own focus and popover bookkeeping before that node changes shape. Panel and tray
 // changes notify this runtime directly through their owners.
 
-// A margin item is hoisted away from the page target it belongs to, so ancestry
+// A margin cluster is hoisted away from the page target it belongs to, so ancestry
 // cannot answer what a press on one of its controls is about. Keep that relationship
 // behind the owner that performs the hoist. Design mode uses it to turn the press into
 // a comment on the target and the named control instead of letting the action fire.
@@ -1467,7 +1487,7 @@ function collectEntries() {
     add(groups, target, {
       kind: origin.origin,
       id: `state-origin:${origin.origin}:${origin.unit}`,
-      // Durable provenance belongs in Page map rather than another target fitting:
+      // Durable provenance belongs in Page map rather than another target margin element:
       // it remains explicit without changing the page's action density or geometry.
       marker: false,
       text: trimmed(
@@ -1513,16 +1533,16 @@ function collectEntries() {
       id: `change:${targetPath(target)}:${index}`,
       text: trimmed(`${account} · ${itemSays(target)}`),
       // A disclosure has to say what it holds, or its one word reports a fact and
-      // promises nothing. The Button's quieter line carries it, and a block the
-      // comparison holds nothing for has none, so no Button offers a press it has
+      // promises nothing. The margin element's quieter line carries it, and a block the
+      // comparison holds nothing for has none, so no margin element offers a press it has
       // not got.
       ...(earlier ? { context: earlier.offer } : {}),
       // What a Change reading holds, where the comparison kept the base version's
       // words for this block: pressing it folds them open under the block and says
       // them, so the reader learns what changed without travelling to the other
       // version and back. Where it kept none, the press is the travel it always was,
-      // and `discloses` answering null is what says so — to the Button's relation, to
-      // the key line's word for the press, and to the reference.
+      // and `discloses` answering null is what says so — to the margin element's relation, to
+      // the shortcut bar's word for the press, and to the reference.
       discloses: () => comparisonEarlier(target),
       activate: () => {
         const said = toggleEarlier(target);
@@ -1561,14 +1581,14 @@ function collectEntries() {
       });
     }
 
-  for (const offered of offeredItems) {
+  for (const offered of marginContributions) {
     const target =
       typeof offered.target === "function" ? offered.target() : offered.target;
     if (!target?.isConnected || inChrome(target)) continue;
     const group = groupFor(groups, target);
     if (group.offers.some((candidate) => candidate.key === offered.key))
       throw new TypeError(
-        `Duplicate margin-item key for ${target.id || targetPath(target)}: ${offered.key}`,
+        `Duplicate margin contribution key for ${target.id || targetPath(target)}: ${offered.key}`,
       );
     group.offers.push(offered);
     const subject =
@@ -1576,14 +1596,14 @@ function collectEntries() {
     if (String(subject ?? "").trim()) {
       if (group.subject && group.subject !== String(subject).trim())
         throw new TypeError(
-          `Conflicting margin-item subjects for ${target.id || targetPath(target)}`,
+          `Conflicting margin contribution subjects for ${target.id || targetPath(target)}`,
         );
       group.subject = String(subject).trim();
     }
     const items = typeof offered.items === "function" ? offered.items() : offered.items;
     for (const item of items ?? []) {
       const kind = item.kind ?? "action";
-      if (!KINDS[kind]) throw new TypeError(`Unknown margin-item kind: ${kind}`);
+      if (!KINDS[kind]) throw new TypeError(`Unknown margin reading kind: ${kind}`);
       group.items.push({ marker: false, ...item, owner: offered.key, kind });
     }
   }
@@ -1627,7 +1647,7 @@ function revealTarget(target, account) {
   if (!target?.isConnected) return;
   scrollToElement(target, scrollBehavior(), "nearest");
   // The account goes to the banner's notice slot rather than to the live region alone:
-  // a Change Button's target is usually already on screen, so the scroll moves nothing
+  // a Change margin element's target is usually already on screen, so the scroll moves nothing
   // and a press that only announced was, to a sighted reader, a press that did nothing.
   notice(account);
 }
@@ -1646,7 +1666,7 @@ function markerOptions(row) {
         stable.push(primary);
       const marker = rows.get(entry.key);
       if (!primary && marker && !marker.hidden) stable.push(marker);
-      const more = moreButtons.get(entry.key);
+      const more = moreMarginElements.get(entry.key);
       if (more && optionsOffered(entry, primary, { claimedOnly: true }))
         stable.push(more);
       const options = optionGroups.get(entry.key);
@@ -1655,7 +1675,7 @@ function markerOptions(row) {
         !optionsOffered(entry, primary, { claimedOnly: true }) &&
         secondaryCount(entry, primary, { claimedOnly: true }) > 0
       )
-        stable.push(...clusterButtons(options));
+        stable.push(...clusterMarginElements(options));
       const widths = stable
         .map((part) => part.getBoundingClientRect().width)
         .filter(Boolean);
@@ -1739,9 +1759,9 @@ function visibleRows() {
   });
 }
 
-function clusterButtons(host) {
+function clusterMarginElements(host) {
   if (!host) return [];
-  return [...host.querySelectorAll(".lf-margin-button")].filter(
+  return [...host.querySelectorAll(".lf-margin-element")].filter(
     (button) =>
       !button.disabled &&
       button.getAttribute("aria-disabled") !== "true" &&
@@ -1749,20 +1769,20 @@ function clusterButtons(host) {
   );
 }
 
-const buttonHost = (target) =>
+const marginElementHost = (target) =>
   [...hosts.values()].find((host) => host.lfTarget === target) ?? null;
 
-export function buttonContextContains(target, node) {
+export function marginElementContextContains(target, node) {
   return (
-    Boolean(buttonHost(target)?.contains(node)) ||
+    Boolean(marginElementHost(target)?.contains(node)) ||
     (sheet.open && sheetTarget === target && sheet.contains(node))
   );
 }
 
-function stepClusterButtons(binding) {
+function stepClusterMarginElements(binding) {
   const active = focused();
   const host = closestAcross(active, "[data-lf-margin-for]");
-  const buttons = clusterButtons(host);
+  const buttons = clusterMarginElements(host);
   const at = buttons.indexOf(active);
   if (at < 0 || buttons.length < 2) return;
   const direction = binding === "ArrowRight" ? 1 : -1;
@@ -1788,11 +1808,11 @@ function setOptionsOpen(
   try {
     renderMargin();
     if (returnFocus && previousKey) {
-      const more = moreButtons.get(previousKey);
+      const more = moreMarginElements.get(previousKey);
       if (more?.isConnected && !more.hidden) more.focus({ preventScroll: true });
     } else if (focusOption && nextKey) {
-      const choices = clusterButtons(optionGroups.get(nextKey));
-      const fallback = clusterButtons(hosts.get(nextKey));
+      const choices = clusterMarginElements(optionGroups.get(nextKey));
+      const fallback = clusterMarginElements(hosts.get(nextKey));
       const next =
         (focusOption === "last" ? choices.at(-1) : choices[0]) ??
         (focusOption === "last" ? fallback.at(-1) : fallback[0]);
@@ -1802,7 +1822,7 @@ function setOptionsOpen(
     settlingOptionsFocus = false;
   }
   if (previousGroup?.querySelector(".lf-margin-reactions"))
-    document.dispatchEvent(new CustomEvent("lf-button-options-closed"));
+    document.dispatchEvent(new CustomEvent("lf-margin-element-options-closed"));
 }
 
 export function focusForNavigation(control) {
@@ -1824,10 +1844,10 @@ export function presentedControl(control) {
   return proxy?.checkVisibility() ? proxy : control;
 }
 
-export function openButtonOptions(target, { owner = null } = {}) {
+export function openMarginElementOptions(target, { owner = null } = {}) {
   renderMargin();
   const entry = pageMapEntries.find((candidate) => candidate.target === target);
-  const more = entry && moreButtons.get(entry.key);
+  const more = entry && moreMarginElements.get(entry.key);
   const focusedOffer = owner && entry?.offers.find((offered) => offered.key === owner);
   if (!entry || !more || (owner && !focusedOffer)) return false;
   if (expandedOptionsKey === entry.key && expandedOptionsOwner === owner) {
@@ -1846,23 +1866,23 @@ export function openButtonOptions(target, { owner = null } = {}) {
   return true;
 }
 
-export function pageMapButtons() {
-  return pageMapEntries.flatMap((entry) => clusterButtons(hosts.get(entry.key)));
+export function pageMapMarginElements() {
+  return pageMapEntries.flatMap((entry) => clusterMarginElements(hosts.get(entry.key)));
 }
 
-export function openPageMapButton(control) {
+export function openPageMapMarginElement(control) {
   const item = closestAcross(control, "[data-lf-margin-for]");
   const entry = item?.lfEntry;
   if (!entry?.target || !control) return false;
   scrollToElement(entry.target, undefined, "nearest");
-  // Arrive before activation, then use the exact visible Button's own press. A generated
+  // Arrive before activation, then use the exact visible margin element's own press. A generated
   // route never chooses among the cluster's actions on the reader's behalf.
   focusForNavigation(control);
   control.click();
   return true;
 }
 
-// The direct destination opens the complete map. Its visible Buttons also join the page's
+// The direct destination opens the complete map. Its visible margin elements also join the page's
 // transient generated-hint namespace without claiming the sheet ends there.
 export function enterPageMap() {
   openSheet();
@@ -1976,47 +1996,50 @@ const marginKeys = [
   // it. Declared here rather than answered by a listener on the control: this is the
   // register's whole bargain — the line and the reference draw the key off the same row
   // the press is matched against, so neither can promise what the other does not do.
-  // Only the span-shaped readings, because a native Button in this cluster answers its
+  // Only the span-shaped readings, because a native margin element in this cluster answers its
   // own press and a second answer here would be two meanings for one key.
   {
     id: "margin.press",
     keys: PRESS,
-    // Said for the Button under the reader, not for Buttons in general: "work this
-    // Button" over a Change reading promised something, and Enter there scrolls to a
+    // Said for the margin element under the reader, not for margin elements in general: "work this
+    // margin element" over a Change reading promised something, and Enter there scrolls to a
     // paragraph already on screen. A reading's press goes to what it points at; a
     // disclosure's opens or closes it; an action's does the verb on its face.
-    // Read off the standing Button, and only where there is one: the reference
+    // Read off the standing margin element, and only where there is one: the reference
     // lists this row's sentence from anywhere on the page.
     does: () => {
-      const behavior = focusedButtonBehavior();
+      const behavior = focusedMarginElementBehavior();
       if (behavior === "disclosure")
-        return "Open or close what the focused Button holds";
-      if (behavior === "action") return "Press the focused Button";
-      if (behavior) return "Go to what the focused Button points at";
-      return "Work the focused Button";
+        return "Open or close what the focused margin element holds";
+      if (behavior === "action") return "Press the focused margin element";
+      if (behavior) return "Go to what the focused margin element points at";
+      return "Work the focused margin element";
     },
     line: () => {
-      const behavior = focusedButtonBehavior();
+      const behavior = focusedMarginElementBehavior();
       if (behavior === "disclosure") return "open / close";
       if (behavior === "action") return "press";
       if (behavior) return "go to it";
-      return "work this Button";
+      return "work this margin element";
     },
-    when: () => focused()?.matches?.('.lf-margin-button[role="button"]'),
+    when: () => focused()?.matches?.('.lf-margin-element[role="button"]'),
     run: () => focused().click(),
   },
   {
-    id: "margin.buttons",
+    id: "margin.controls",
     keys: ["ArrowLeft", "ArrowRight"],
-    does: "Move through the Buttons on this target",
-    line: "move through Buttons",
+    does: "Move through the margin elements on this target",
+    line: "move through margin elements",
     repeat: true,
     when: () => {
       const active = focused();
       const host = closestAcross(active, "[data-lf-margin-for]");
-      return active?.matches?.(".lf-margin-button") && clusterButtons(host).length > 1;
+      return (
+        active?.matches?.(".lf-margin-element") &&
+        clusterMarginElements(host).length > 1
+      );
     },
-    run: stepClusterButtons,
+    run: stepClusterMarginElements,
   },
   {
     id: "margin.walk",
@@ -2063,7 +2086,7 @@ function paintMarker(row, entry, primary, { suppressed = false } = {}) {
   row.lfEntry = entry;
   keepsHidden(row, suppressed || markerKinds.length === 0 || Boolean(primary));
   keeps(row, "data-lf-kinds", markerKinds.map(({ kind }) => kind).join(" "));
-  marginButton(row, {
+  marginElement(row, {
     key: `reading:${choice?.key ?? "none"}`,
     icon: face.icon,
     label,
@@ -2077,7 +2100,7 @@ function paintMarker(row, entry, primary, { suppressed = false } = {}) {
   row.onclick = behavior === "status" ? null : pressMarker;
   syncReadingRelation(row, choice);
   row.removeAttribute("aria-pressed");
-  syncButtonCount(row, markerCount);
+  syncMarginElementCount(row, markerCount);
   if (row.lfTakeFocus) {
     delete row.lfTakeFocus;
     (row.hidden ? document.body : row).focus({ preventScroll: true });
@@ -2128,8 +2151,8 @@ function optionControlNode(control, entry) {
     node.type = "button";
     controlProxies.set(control, node);
   }
-  const record = buttonRecord(control);
-  marginButton(node, {
+  const record = marginElementRecord(control);
+  marginElement(node, {
     key: `${record.key}:proxy`,
     ...(record.icon ? { icon: record.icon } : { glyph: record.glyph }),
     label: record.label,
@@ -2140,11 +2163,11 @@ function optionControlNode(control, entry) {
     state: record.state,
     writesRelation: record.writesRelation,
   });
-  syncForwardedButtonState(node, control);
+  syncForwardedMarginElementState(node, control);
   node.lfForwardedControl = control;
   // The proxy carries the control's press, so it carries where that control stands.
   standsWith(node, control);
-  keeps(node, "data-lf-button-owner", record.owner);
+  keeps(node, "data-lf-margin-element-owner", record.owner);
   node.onclick = () => {
     control.click();
   };
@@ -2153,16 +2176,16 @@ function optionControlNode(control, entry) {
 
 function readingOptionNode(entry, choice) {
   const key = readingKey(entry, choice);
-  let node = readingButtons.get(key);
+  let node = readingMarginElements.get(key);
   if (!node) {
     node = readingControl("lf-margin-reading-option");
-    readingButtons.set(key, node);
+    readingMarginElements.set(key, node);
   }
   const face = readingFace(choice);
   const behavior = readingBehavior(face);
   const count = choice.items.length;
   const label = count > 1 ? `${face.label}s` : face.label;
-  marginButton(node, {
+  marginElement(node, {
     key: `reading:${choice.key}`,
     icon: face.icon,
     label,
@@ -2181,7 +2204,7 @@ function readingOptionNode(entry, choice) {
     "aria-label",
     `${label} for ${entry.title}${count > 1 ? `, ${count} items` : ""}`,
   );
-  syncButtonCount(node, count);
+  syncMarginElementCount(node, count);
   node.onclick =
     behavior === "status"
       ? null
@@ -2230,17 +2253,17 @@ function optionNodes(entry, primary, focusedOffer = null) {
 function syncOptionGroup(group, entry, primary, optionsOpen, focusedOffer = null) {
   const allNodes = optionNodes(entry, primary, focusedOffer);
   const unique = [...new Set(allNodes)];
-  // Peers may use the whole cluster budget only when no fitting stands outside this
+  // Peers may use the whole cluster budget only when no margin element stands outside this
   // group. Reaction mode is the common case: it has neither a primary nor a reading
   // marker, so its six declared choices fit exactly. A reading-only target keeps its
-  // marker visible, and that fitting counts just as a contributed primary would.
+  // marker visible, and that margin element counts just as a contributed primary would.
   const peerCapacity = Math.max(
     0,
-    EXPANDED_BUTTON_BUDGET -
+    EXPANDED_MARGIN_ELEMENT_BUDGET -
       (!focusedOffer && (primary || markerFace(entry).kinds.length) ? 1 : 0),
   );
   const needsSpill = unique.length > peerCapacity;
-  // The spill route consumes the last visible fitting; it does not increase the
+  // The spill route consumes the last visible margin element; it does not increase the
   // cluster beyond its budget. A fully expanded cluster is therefore either one
   // primary plus five peers, or one primary plus four peers plus the Page map route.
   const visibleCapacity = needsSpill ? peerCapacity - 1 : peerCapacity;
@@ -2254,25 +2277,25 @@ function syncOptionGroup(group, entry, primary, optionsOpen, focusedOffer = null
   const afterControls = new Set(after.flatMap(controlsOf));
   const wanted = unique.filter((node) => visible.has(node) && !afterControls.has(node));
   // Keep contributor-owned groups intact: their keyboard scopes and event handlers
-  // belong to the real controls. Overflow hides individual fittings, not the owner.
+  // belong to the real controls. Overflow hides individual margin elements, not the owner.
   for (const offered of after) {
     const controls = controlsOf(offered);
     for (const control of controls)
-      control.toggleAttribute("data-lf-button-overflow", !visible.has(control));
+      control.toggleAttribute("data-lf-margin-element-overflow", !visible.has(control));
     offered.controls.toggleAttribute(
-      "data-lf-button-overflow",
+      "data-lf-margin-element-overflow",
       !controls.some((control) => visible.has(control)),
     );
     wanted.push(offered.controls);
   }
-  let spill = spillButtons.get(entry.key);
+  let spill = spillMarginElements.get(entry.key);
   if (needsSpill) {
     if (!spill) {
       spill = offer("button", "lf-margin-spill");
       spill.type = "button";
-      spillButtons.set(entry.key, spill);
+      spillMarginElements.set(entry.key, spill);
     }
-    marginButton(spill, {
+    marginElement(spill, {
       key: "all-options",
       icon: "all",
       label: `Show ${hidden} more in Page map`,
@@ -2287,7 +2310,7 @@ function syncOptionGroup(group, entry, primary, optionsOpen, focusedOffer = null
     wanted.push(spill);
   } else if (spill) {
     spill.remove();
-    spillButtons.delete(entry.key);
+    spillMarginElements.delete(entry.key);
   }
   for (const child of [...group.children]) if (!wanted.includes(child)) child.remove();
   wanted.forEach((child, position) => {
@@ -2311,7 +2334,7 @@ function syncControls(host, marker, more, options, entry) {
   const primary = focusedOffer ? null : syncControlRoles(entry);
   if (focusedOffer)
     for (const control of directControls(entry))
-      control.removeAttribute("data-lf-button-primary");
+      control.removeAttribute("data-lf-margin-element-primary");
   const controls = focusedOffer
     ? []
     : directOffers(entry)
@@ -2363,8 +2386,8 @@ function syncControls(host, marker, more, options, entry) {
     const next =
       (forwardedControl?.checkVisibility() ? forwardedControl : null) ??
       primary ??
-      clusterButtons(options)[0] ??
-      clusterButtons(host)[0];
+      clusterMarginElements(options)[0] ??
+      clusterMarginElements(host)[0];
     (next ?? document.body).focus({ preventScroll: true });
   }
   return primary;
@@ -2376,7 +2399,7 @@ function syncControls(host, marker, more, options, entry) {
 // claim or a second placement model in the widget module.
 function syncInlineOffers() {
   const grouped = new Map();
-  for (const offered of offeredItems) {
+  for (const offered of marginContributions) {
     const target =
       typeof offered.target === "function" ? offered.target() : offered.target;
     if (!target?.isConnected || !inChrome(target) || !offered.controls) continue;
@@ -2457,33 +2480,41 @@ const rectsOverlap = (left, right) =>
   left.top < right.bottom &&
   left.bottom > right.top;
 
-function placeButtonLabel(control) {
-  const label = control.querySelector(":scope > .lf-margin-button-label");
+function placeMarginElementLabel(control) {
+  const label = control.querySelector(":scope > .lf-margin-element-label");
   if (!label || !control.checkVisibility()) return;
-  const buttonBox = control.getBoundingClientRect();
+  const marginElementBox = control.getBoundingClientRect();
   const labelBox = label.getBoundingClientRect();
   const edgeAligned = Math.max(
     4,
-    Math.min(buttonBox.right - labelBox.width, innerWidth - 4 - labelBox.width),
+    Math.min(marginElementBox.right - labelBox.width, innerWidth - 4 - labelBox.width),
   );
-  const cluster = control.closest(".lf-margin-item") ?? control.parentElement;
-  const clusterButtons = [...(cluster?.querySelectorAll(".lf-margin-button") ?? [])]
+  const cluster = control.closest(".lf-margin-cluster") ?? control.parentElement;
+  const clusterMarginElements = [
+    ...(cluster?.querySelectorAll(".lf-margin-element") ?? []),
+  ]
     .filter((candidate) => candidate.checkVisibility())
     .map((candidate) => candidate.getBoundingClientRect());
-  const clusterLeft = Math.min(...clusterButtons.map((box) => box.left));
-  const clusterRight = Math.max(...clusterButtons.map((box) => box.right));
-  const centered = (buttonBox.top + buttonBox.bottom - labelBox.height) / 2;
+  const clusterLeft = Math.min(...clusterMarginElements.map((box) => box.left));
+  const clusterRight = Math.max(...clusterMarginElements.map((box) => box.right));
+  const centered =
+    (marginElementBox.top + marginElementBox.bottom - labelBox.height) / 2;
   const candidates = [
-    labelRect("below", edgeAligned, buttonBox.bottom + 6, labelBox),
-    labelRect("above", edgeAligned, buttonBox.top - 6 - labelBox.height, labelBox),
+    labelRect("below", edgeAligned, marginElementBox.bottom + 6, labelBox),
+    labelRect(
+      "above",
+      edgeAligned,
+      marginElementBox.top - 6 - labelBox.height,
+      labelBox,
+    ),
     labelRect("after", clusterRight + 6, centered, labelBox),
     labelRect("before", clusterLeft - 6 - labelBox.width, centered, labelBox),
   ];
   const blockers = [
-    ...[...document.querySelectorAll(".lf-margin-button")].filter(
+    ...[...document.querySelectorAll(".lf-margin-element")].filter(
       (candidate) => candidate !== control && candidate.checkVisibility(),
     ),
-    ...document.querySelectorAll(".lf-banner, .lf-keyline"),
+    ...document.querySelectorAll(".lf-banner, .lf-shortcut-bar"),
   ].map((candidate) => candidate.getBoundingClientRect());
   const fits = ({ rect }) =>
     rect.left >= 4 &&
@@ -2499,19 +2530,25 @@ function placeButtonLabel(control) {
     candidates.find(fits) ??
     candidates[0];
   control.dataset.lfLabelSide = choice.name;
-  label.style.setProperty("--lf-label-x", `${choice.rect.left - buttonBox.left}px`);
-  label.style.setProperty("--lf-label-y", `${choice.rect.top - buttonBox.top}px`);
+  label.style.setProperty(
+    "--lf-label-x",
+    `${choice.rect.left - marginElementBox.left}px`,
+  );
+  label.style.setProperty(
+    "--lf-label-y",
+    `${choice.rect.top - marginElementBox.top}px`,
+  );
 }
 
 let labelPlacementFrame = 0;
-function scheduleButtonLabels() {
+function scheduleMarginElementLabels() {
   if (labelPlacementFrame) return;
   labelPlacementFrame = requestAnimationFrame(() => {
     labelPlacementFrame = 0;
     for (const control of document.querySelectorAll(
-      '.lf-margin-button:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])',
+      '.lf-margin-element:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])',
     ))
-      placeButtonLabel(control);
+      placeMarginElementLabel(control);
   });
 }
 
@@ -2522,17 +2559,17 @@ function unfoldOpenThreadOwner(entry) {
   expandedOptionsOwner = null;
   renderMargin();
   if (previousGroup?.querySelector(".lf-margin-reactions"))
-    document.dispatchEvent(new CustomEvent("lf-button-options-closed"));
+    document.dispatchEvent(new CustomEvent("lf-margin-element-options-closed"));
 }
 
 function transferThreadCard(
   button,
-  { returnFocus = document.activeElement === previewButton } = {},
+  { returnFocus = document.activeElement === previewMarginElement } = {},
 ) {
-  if (previewButton === button) return;
-  const previous = previewButton;
+  if (previewMarginElement === button) return;
+  const previous = previewMarginElement;
   previous?.style.removeProperty("anchor-name");
-  previewButton = button;
+  previewMarginElement = button;
   button.style.setProperty("anchor-name", "--lf-margin-preview");
   if (returnFocus) button.focus({ preventScroll: true });
 }
@@ -2554,7 +2591,7 @@ onPaper.addEventListener("change", () => {
 function renderNow() {
   if (onPaper.matches) return;
   const threadOwnerHeld =
-    transferThreadFocus || document.activeElement === previewButton;
+    transferThreadFocus || document.activeElement === previewMarginElement;
   transferThreadFocus = false;
   const main = document.querySelector("main");
   if (!nav.isConnected) chromeRoot.append(nav);
@@ -2579,8 +2616,8 @@ function renderNow() {
       readingChoices(entry).map((choice) => readingKey(entry, choice)),
     ),
   );
-  for (const key of readingButtons.keys())
-    if (!liveReadingKeys.has(key)) readingButtons.delete(key);
+  for (const key of readingMarginElements.keys())
+    if (!liveReadingKeys.has(key)) readingMarginElements.delete(key);
   if (expandedOptionsKey && !liveHosts.has(expandedOptionsKey)) {
     expandedOptionsKey = null;
     expandedOptionsOwner = null;
@@ -2591,8 +2628,8 @@ function renderNow() {
       unregisterMarginRow(host);
       host?.remove();
       rows.delete(key);
-      moreButtons.delete(key);
-      spillButtons.delete(key);
+      moreMarginElements.delete(key);
+      spillMarginElements.delete(key);
       optionGroups.delete(key);
       hosts.delete(key);
     }
@@ -2601,15 +2638,15 @@ function renderNow() {
   pageMapEntries.forEach((entry) => {
     if (!entryHasMarginHost(entry)) return;
     let marker = rows.get(entry.key);
-    let more = moreButtons.get(entry.key);
+    let more = moreMarginElements.get(entry.key);
     let options = optionGroups.get(entry.key);
     let host = hosts.get(entry.key);
     if (host) host.lfEntry = entry;
     if (!marker) {
-      host = el("div", "lf-ui lf-margin-item");
+      host = el("div", "lf-ui lf-margin-cluster");
       host.dataset.lfGen = "1";
       host.setAttribute("role", "group");
-      marker = marginButton(readingControl("lf-margin-marker"), {
+      marker = marginElement(readingControl("lf-margin-marker"), {
         key: "reading",
         icon: "dot",
         label: "Open page details",
@@ -2621,7 +2658,7 @@ function renderNow() {
       keys(host, "In the page map", marginKeys, () => marginKeysAvailable);
       host.lfEntry = entry;
       rows.set(entry.key, marker);
-      more = marginButton(offer("button", "lf-margin-more"), {
+      more = marginElement(offer("button", "lf-margin-more"), {
         key: "options",
         icon: "more",
         label: "More options",
@@ -2640,7 +2677,7 @@ function renderNow() {
         });
       };
       host.addEventListener("focusin", (event) => {
-        const control = event.target.closest?.(".lf-margin-button");
+        const control = event.target.closest?.(".lf-margin-element");
         if (
           settlingOptionsFocus ||
           suppressingOptionsArrival ||
@@ -2668,7 +2705,7 @@ function renderNow() {
       const takePointerOwnership = (event) => {
         const control = document
           .elementFromPoint(event.clientX, event.clientY)
-          ?.closest?.(".lf-margin-button");
+          ?.closest?.(".lf-margin-element");
         hoveredHost = control && host.contains(control) ? host : null;
         refreshHighlight();
       };
@@ -2698,12 +2735,12 @@ function renderNow() {
         "click",
         (event) => {
           if (!expandedOptionsKey || entryEngaged(host.lfEntry)) return;
-          const primary = event.target.closest?.("[data-lf-button-primary]");
+          const primary = event.target.closest?.("[data-lf-margin-element-primary]");
           if (primary && host.contains(primary)) setOptionsOpen(host.lfEntry, false);
         },
         { capture: true },
       );
-      moreButtons.set(entry.key, more);
+      moreMarginElements.set(entry.key, more);
       optionGroups.set(entry.key, options);
       hosts.set(entry.key, host);
       registerMarginRow(host, markerOptions(host));
@@ -2765,13 +2802,13 @@ function renderNow() {
       closePreview(preview.contains(document.activeElement));
     else {
       previewEntry = fresh;
-      const owner = threadButton(fresh);
+      const owner = threadMarginElement(fresh);
       if (
         owner &&
         !owner.checkVisibility() &&
         forcedInlineKey !== fresh.key &&
         expandedOptionsKey !== fresh.key &&
-        !moreButtons.get(fresh.key)?.hidden
+        !moreMarginElements.get(fresh.key)?.hidden
       ) {
         transferThreadFocus = threadOwnerHeld;
         unfoldOpenThreadOwner(fresh);
@@ -2784,7 +2821,7 @@ function renderNow() {
         buildThreadCard(fresh);
         for (const row of rows.values())
           syncReadingRelation(row, primaryReading(row.lfEntry));
-        for (const reading of readingButtons.values())
+        for (const reading of readingMarginElements.values())
           syncReadingRelation(reading, reading.lfChoice);
       }
     }
@@ -2792,7 +2829,7 @@ function renderNow() {
   refreshHighlight();
   scheduleMarginLayout();
   scheduleRoving();
-  scheduleButtonLabels();
+  scheduleMarginElementLabels();
   // Every Page-map host contributes the same keyboard section. Its capability is the
   // map's existence; each row already asks the narrower question of whether its press
   // works from the current focus. Repeating live geometry in every scope's `when`
@@ -2803,9 +2840,9 @@ function renderNow() {
 
 function buildThreadCard(entry) {
   const focusedNode = preview.contains(document.activeElement)
-    ? document.activeElement.closest?.("[data-lf-margin-item]")
+    ? document.activeElement.closest?.("[data-lf-margin-element]")
     : null;
-  const focusedItem = focusedNode?.dataset.lfMarginItem ?? null;
+  const focusedItem = focusedNode?.dataset.lfMarginElement ?? null;
   const threadItems = entry.items.filter((item) => item.kind === "comment");
   const targetHeading = entry.target?.querySelector(":scope > strong")?.textContent;
   // A target with a heading is named by it. One without — an aside, a paragraph —
@@ -2829,9 +2866,9 @@ function buildThreadCard(entry) {
     else previewList.insertBefore(node, cursor);
   }
   if (focusedItem && !focusedNode?.isConnected) {
-    const replacement = [...previewList.querySelectorAll("[data-lf-margin-item]")].find(
-      (candidate) => candidate.dataset.lfMarginItem === focusedItem,
-    );
+    const replacement = [
+      ...previewList.querySelectorAll("[data-lf-margin-element]"),
+    ].find((candidate) => candidate.dataset.lfMarginElement === focusedItem);
     const destination = replacement?.matches("button, textarea:not([disabled])")
       ? replacement
       : (replacement?.querySelector("textarea:not([disabled])") ??
@@ -2844,7 +2881,7 @@ function buildThreadCard(entry) {
 
 function previewItemNode(item) {
   let node = [...previewList.children].find(
-    (candidate) => candidate.dataset.lfMarginItem === item.id,
+    (candidate) => candidate.dataset.lfMarginElement === item.id,
   );
   if (!node?.classList.contains("lf-margin-thread")) {
     node?.remove();
@@ -2856,7 +2893,7 @@ function previewItemNode(item) {
     node.querySelector(":scope > .lf-margin-thread-body"),
     item.thread,
   );
-  node.dataset.lfMarginItem = item.id;
+  node.dataset.lfMarginElement = item.id;
   return node;
 }
 
@@ -2901,7 +2938,7 @@ function showPreview(entry, button, retry = true) {
   if (!preview.matches(":popover-open") && !previewShowing) {
     previewShowing = true;
     try {
-      // The pressed Thread Button owns the card's position through the anchor name
+      // The pressed thread margin element owns the card's position through the anchor name
       // above. The card remains an ordinary popover rather than an implicit invoker
       // target so its close control and conversation keep their established order in
       // the shared chrome layer.
@@ -2915,7 +2952,7 @@ function showPreview(entry, button, retry = true) {
         throw error;
       if (retry)
         requestAnimationFrame(() => {
-          if (previewButton === button && button.isConnected)
+          if (previewMarginElement === button && button.isConnected)
             showPreview(entry, button, false);
         });
     } finally {
@@ -2926,13 +2963,13 @@ function showPreview(entry, button, retry = true) {
   refreshHighlight();
   for (const row of rows.values())
     syncReadingRelation(row, primaryReading(row.lfEntry));
-  for (const button of readingButtons.values())
+  for (const button of readingMarginElements.values())
     syncReadingRelation(button, button.lfChoice);
   paintKeys();
 }
 
 function togglePinned(entry, button) {
-  if (pinnedKey === entry.key && previewButton === button) {
+  if (pinnedKey === entry.key && previewMarginElement === button) {
     pinnedKey = null;
     closePreview();
     return;
@@ -2945,17 +2982,17 @@ function togglePinned(entry, button) {
 
 export function closePreview(returnFocus = false) {
   clearThreadTransition();
-  const button = previewButton;
+  const button = previewMarginElement;
   pinnedKey = null;
   forcedInlineKey = null;
   previewEntry = null;
-  previewButton = null;
+  previewMarginElement = null;
   button?.style.removeProperty("anchor-name");
   if (preview.matches(":popover-open")) preview.hidePopover();
   refreshHighlight();
   for (const row of rows.values())
     syncReadingRelation(row, primaryReading(row.lfEntry));
-  for (const reading of readingButtons.values())
+  for (const reading of readingMarginElements.values())
     syncReadingRelation(reading, reading.lfChoice);
   if (returnFocus) {
     if (button?.isConnected && button.checkVisibility())
@@ -2965,7 +3002,7 @@ export function closePreview(returnFocus = false) {
   paintKeys();
 }
 
-// The card and its owning Button cluster are one page-map stack even though the card
+// The card and its owning margin element cluster are one page-map stack even though the card
 // is hoisted into the chrome. Expose the current rung to the one keyboard register so
 // it can stand ahead of reaction and navigation modes, preserving the local surface's
 // old order without another keydown listener. One press closes only the deepest rung.
@@ -2976,7 +3013,7 @@ export function keyboardRung({ atFocus = true } = {}) {
     preview.matches(":popover-open") &&
     (!atFocus ||
       preview.contains(active) ||
-      (previewButton && host?.contains(previewButton)))
+      (previewMarginElement && host?.contains(previewMarginElement)))
   )
     return {
       does: "Close the thread card",
@@ -3030,17 +3067,17 @@ export function openInlineThread(id, transition = null) {
   if (!entry || designOn || panelIsOpen()) return null;
   const choice = threadReading(entry);
   if (!choice) return null;
-  let button = threadButton(entry);
+  let button = threadMarginElement(entry);
   if (!button?.checkVisibility()) {
     setOptionsOpen(entry, true);
-    button = threadButton(entry);
+    button = threadMarginElement(entry);
   }
   if (!button) return null;
   pinnedKey = entry.key;
   forcedInlineKey = entry.key;
   showPreview(entry, button);
   const item = [...previewList.children].find(
-    (candidate) => candidate.dataset.lfMarginItem === itemId,
+    (candidate) => candidate.dataset.lfMarginElement === itemId,
   );
   item?.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
   if (transition) scheduleThreadTransition(transition, entry);
@@ -3096,7 +3133,7 @@ function sheetItemKey(entry, item) {
 }
 
 function sheetControlKey(entry, control) {
-  const record = buttonRecord(control);
+  const record = marginElementRecord(control);
   return `${entry.key}:${record.owner}:${record.key}`;
 }
 
@@ -3129,7 +3166,7 @@ function syncSheetItem(button, entry, item) {
   button.lfMapItem = item;
   delete button.lfMapControl;
   button.dataset.lfMapItem = item.id;
-  delete button.dataset.lfMapButton;
+  delete button.dataset.lfMapMarginElement;
   const label = item.text || entry.title;
   syncSheetFace(button, {
     icon: KINDS[item.kind].icon,
@@ -3144,8 +3181,8 @@ function syncSheetControl(button, entry, control) {
   button.lfMapControl = control;
   delete button.lfMapItem;
   delete button.dataset.lfMapItem;
-  button.dataset.lfMapButton = sheetControlKey(entry, control);
-  const record = buttonRecord(control);
+  button.dataset.lfMapMarginElement = sheetControlKey(entry, control);
+  const record = marginElementRecord(control);
   button.dataset.lfBehavior = record.behavior;
   button.dataset.lfTone = record.tone;
   button.dataset.lfRole = record.role;
@@ -3153,9 +3190,9 @@ function syncSheetControl(button, entry, control) {
   syncSheetFace(button, {
     ...(record.icon ? { icon: record.icon } : { glyph: record.glyph }),
     label: record.label,
-    visibleLabel: visibleButtonLabel(record),
+    visibleLabel: visibleMarginElementLabel(record),
   });
-  syncForwardedButtonState(button, control);
+  syncForwardedMarginElementState(button, control);
 }
 
 function makeSheetAction(key) {
@@ -3203,7 +3240,7 @@ function renderSheet() {
     );
     const controls = sheetControls(entry);
     const controlOwners = new Set(
-      controls.map((control) => buttonRecord(control).owner),
+      controls.map((control) => marginElementRecord(control).owner),
     );
     const items = entry.items.filter(
       (item) => !item.owner || !controlOwners.has(item.owner),
@@ -3230,7 +3267,7 @@ function renderSheet() {
     // A rewrite's own label says `old → new`, but the location a reader remembers
     // is usually the sentence around it. Index the same text block the passage runtime
     // uses for anchoring, alongside the visible Page-map labels, so a search for either
-    // the Button or its surrounding document words reaches this one group.
+    // the margin element or its surrounding document words reaches this one group.
     const passage = blockAt(entry.target);
     group.lfMapSearch = [group.textContent, passage ? says(passage) : ""]
       .filter(Boolean)
@@ -3259,8 +3296,8 @@ function filterSheet() {
     if (matches) shown += 1;
   }
   sheetEmpty.textContent = query
-    ? "No matching Buttons or locations"
-    : "No Buttons or locations yet";
+    ? "No matching actions, statuses, or locations"
+    : "No margin controls, status indicators, or locations yet";
   sheetEmpty.hidden = shown !== 0;
 }
 
@@ -3268,7 +3305,7 @@ function openSheet(entry = null, { invoker = null, focusSpill = false } = {}) {
   const from = invoker ?? pageMapInvoker();
   sheetTarget = entry?.target ?? null;
   // The command's door owns the return route, not incidental keyboard focus. Page
-  // addresses and the map chord use the Map toggle; overflow names its exact Button.
+  // addresses and the map sequence use the Map toggle; overflow names its exact margin element.
   if (!sheet.open) {
     sheetFrom = from;
     sheetSearch.value = "";
@@ -3305,10 +3342,10 @@ sheet.addEventListener("close", () => {
   const focusOwned = sheetCloseOwnsFocus;
   sheetCloseOwnsFocus = false;
   // A dialog delivers `close` in a task of its own, so a reader who reopens the sheet
-  // in the same breath — Esc off the overflow route and straight back onto the Button
+  // in the same breath — Esc off the overflow route and straight back onto the margin element
   // that named it — is standing in the next opening by the time this arrives. That
   // opening owns the return route and the target the retained context is read from
-  // (buttonContextContains), so a late close must not take either with it: cleared,
+  // (marginElementContextContains), so a late close must not take either with it: cleared,
   // the reopened sheet stops counting as its target's own surface and the next press
   // inside it stands the reaction down instead of sending it.
   if (sheet.open) return;
@@ -3324,16 +3361,16 @@ preview.addEventListener("toggle", (event) => {
   if (event.newState !== "closed") return;
   clearThreadTransition();
   if (!previewEntry) return;
-  const button = previewButton;
+  const button = previewMarginElement;
   pinnedKey = null;
   forcedInlineKey = null;
   previewEntry = null;
-  previewButton = null;
+  previewMarginElement = null;
   button?.style.removeProperty("anchor-name");
   refreshHighlight();
   for (const row of rows.values())
     syncReadingRelation(row, primaryReading(row.lfEntry));
-  for (const reading of readingButtons.values())
+  for (const reading of readingMarginElements.values())
     syncReadingRelation(reading, reading.lfChoice);
   paintKeys();
 });
@@ -3355,10 +3392,10 @@ document.addEventListener("lf-comparison", renderMargin);
 // sees it standing beside where its marker used to be.
 document.addEventListener("lf-margin-layout", () => {
   placeThreadPreview();
-  scheduleButtonLabels();
+  scheduleMarginElementLabels();
 });
 for (const event of ["pointerover", "focusin"])
-  document.addEventListener(event, scheduleButtonLabels, { capture: true });
+  document.addEventListener(event, scheduleMarginElementLabels, { capture: true });
 document.addEventListener(
   "pointerdown",
   (event) => {
@@ -3374,7 +3411,7 @@ document.addEventListener(
   },
   { capture: true },
 );
-offerListeners.add(renderMargin);
+contributionListeners.add(renderMargin);
 document.addEventListener(
   "scroll",
   () => {
@@ -3388,10 +3425,11 @@ window.addEventListener("resize", () => {
   schedulePostureRender();
 });
 
-export const buttonChoices = (target) => clusterButtons(buttonHost(target));
-export const unfoldedButtons = () =>
+export const marginElementChoices = (target) =>
+  clusterMarginElements(marginElementHost(target));
+export const unfoldedMarginElements = () =>
   expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null;
-export const foldButtonOptions = () => setOptionsOpen(null, false);
+export const foldMarginElementOptions = () => setOptionsOpen(null, false);
 export const activeInlineThread = () => {
   const active = focused();
   const direct = active?.closest?.(".lf-conversation-thread[data-thread]");
@@ -3407,7 +3445,7 @@ export const activeInlineThread = () => {
     ? active.closest?.(".lf-conversation-thread")
     : null;
   if (held) return held;
-  if (active !== previewButton) return null;
+  if (active !== previewMarginElement) return null;
   const conversations = previewList.querySelectorAll(
     ".lf-margin-thread .lf-conversation-thread",
   );

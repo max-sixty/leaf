@@ -21,7 +21,7 @@ and requests another reading at its next deadline; it does not run a second fold
 Delivery acceptance is a different fact from authored work, but it is exact agent
 activity. Pickup never rewrites `status.json`. The server projects one interaction
 per subject and unit, for the newest unsettled reader move on it (a tick and the Done
-press that followed are one), on the subject's existing Target Button or a compact
+press that followed are one), on the subject's existing target margin element or a compact
 local row: append is **Sent**, then **Waiting for pickup** after the short grace;
 Codex acceptance is **Queued**; entry into a named open turn is **Picked up**; a
 later `status … --on` claim on the same subject is **Active**. That same evidence
@@ -38,7 +38,7 @@ not elapsed time, decides whether opened delivery belongs to the turn now runnin
 
 A work declaration has to be renewed, and `leaf status` renews it. `--on` names the thread
 or widget the work is about, so one check-in moves the banner, the Target
-Button, and the local receipt under the reader's words; those stand until the
+margin element, and the local receipt under the reader's words; those stand until the
 agent's next word in that thread. Nothing in a session touches `status.json`
 while its turn is over, so work handed to a delegate is renewed from the
 delegate's own hands or not at all.

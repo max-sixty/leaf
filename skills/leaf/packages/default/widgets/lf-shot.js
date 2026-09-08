@@ -1,11 +1,11 @@
 /* lf-shot: registered before/after screenshots in one fixed frame.
  *
- * The target's shared Button shows a split circle: left filled for before, right for after.
- * Enter, Space, and clicks flip the comparison without moving the Button.
+ * The target's shared margin element shows a split circle: left filled for before, right for after.
+ * Enter, Space, and clicks flip the comparison without moving the margin element.
  * Clicking the image works a transparent native checkbox directly, keeping focus at
  * the clicked frame even when a tall comparison extends beyond the viewport. Both
  * doors change that checkbox; CSS alone chooses the visible image. Export removes the
- * scripted Button and keeps the native image control, so a standalone copy still
+ * scripted margin element and keeps the native image control, so a standalone copy still
  * flips with a click or Space. Print stacks both frames and drops the controls.
  *
  * One two-ended rail stays fixed above the frames while CSS moves its active rule. Its
@@ -18,9 +18,9 @@ import {
   offer,
   failSoft,
   commands,
-  marginButton,
+  marginElement,
   paintKeys,
-  registerMarginItem,
+  registerMarginContribution,
   settle,
 } from "/runtime/widget-api.js";
 
@@ -73,7 +73,7 @@ customElements.define(
       const paint = () => {
         const label = `Show ${box.checked ? "before" : "after"}`;
         this.#button.ariaLabel = `${label} — ${alt}`;
-        marginButton(this.#button, {
+        marginElement(this.#button, {
           key: "toggle",
           icon: box.checked ? "compare-after" : "compare-before",
           label,
@@ -109,7 +109,7 @@ customElements.define(
 
     #offer() {
       if (!this.#button || this.#margin) return;
-      this.#margin = registerMarginItem({
+      this.#margin = registerMarginContribution({
         key: `shot:${this.id}`,
         target: () => this,
         controls: this.#button,

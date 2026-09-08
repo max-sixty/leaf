@@ -6,8 +6,8 @@
    Comment gestures. They pass a stable target from `aimTargetAt` or the visual provider
    into this surface. A whole item or picture names its authored id, while a visual part
    adds its declared token. Comment opens the compact field; Tab or its ellipsis extends
-   that field with the other response Buttons. Tab, Shift-Tab, and the arrow keys then
-   wrap through the visible Buttons. Escape folds the extension; Escape from the field
+   that field with the other response margin elements. Tab, Shift-Tab, and the arrow keys then
+   wrap through the visible margin elements. Escape folds the extension; Escape from the field
    hides the draft.
    The same anchor resolves both states against the target's geometry.
 
@@ -81,7 +81,7 @@ import {
 import { panelCovers } from "../chrome-layout.js";
 import { panel, threadsBox } from "../conversation/panel.js";
 import { banner } from "../banner.js";
-import { keylineEl, less } from "../keyboard/keyline.js";
+import { shortcutBarEl, less } from "../keyboard/shortcut-bar.js";
 import { blockAt, inChrome, pageRange, pageText, pageWords } from "../passages.js";
 import {
   leftThePage,
@@ -122,13 +122,15 @@ const topEdge = () => Math.max(BANNER_CLEAR, banner.getBoundingClientRect().bott
 const leftEdge = (node, left) =>
   Math.max(8, Math.min(left, rightEdge() - node.offsetWidth));
 const bottomEdge = (left, width) => {
-  const keyline = keylineEl.getBoundingClientRect();
-  return keyline.height && left < keyline.right && left + width > keyline.left
-    ? keyline.top - 8
+  const shortcutBar = shortcutBarEl.getBoundingClientRect();
+  return shortcutBar.height &&
+    left < shortcutBar.right &&
+    left + width > shortcutBar.left
+    ? shortcutBar.top - 8
     : innerHeight - 8;
 };
 // So the one writer of their position is where the coordinates change space: clamp in
-// the viewport and above any key line it would cross, then store in the document.
+// the viewport and above any shortcut bar it would cross, then store in the document.
 // The chosen band also caps the float's height. Width is stated before band selection,
 // because wrapping determines how much height the contents need.
 function place(node, left, top, height) {
@@ -612,7 +614,7 @@ export function wireFabInput() {
   });
 }
 let primaryPointerPressed = false;
-// Whether the page's own words stood selected when the key line was last painted for
+// Whether the page's own words stood selected when the shortcut bar was last painted for
 // this press. The bar waits for the release; the Escape rung cannot, because from the
 // first glyph a drag takes, Escape clears the selection rather than letting go of the
 // control the reader is standing on, and until now nothing repainted the line inside a
@@ -796,8 +798,8 @@ export function standDown(target) {
     // The armed react press goes with the bar it was armed on.
     setReact(false);
   }
-  if (referenceOpen() && !target.closest?.(".lf-help")) hideReference();
-  if (!target.closest?.(".lf-help, .lf-keyline")) less();
+  if (referenceOpen() && !target.closest?.(".lf-shortcut-reference")) hideReference();
+  if (!target.closest?.(".lf-shortcut-reference, .lf-shortcut-bar")) less();
   // The press on the button itself is its own toggle, so it is not an outside click;
   // without that the open and this close would both run and the menu could never open.
   if (versionMenuIsOpen() && !target.closest?.(".lf-version-menu, .lf-version"))

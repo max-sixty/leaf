@@ -49,7 +49,7 @@
    resulting `toggle`, `cancel`, or `close` event. Register Escape only when Leaf adds a
    distinct inner step, such as leaving a text box before closing its dialog or collapsing
    the keyboard reference's expanded shelf — or, as a `native: true` row, to name the
-   platform's own press on the key line where nothing else does (the versions menu opened
+   platform's own press on the shortcut bar where nothing else does (the versions menu opened
    by pointer): the row runs the same close, leaves the platform's half alone, and a
    return frame standing nearer names the key first.
 
@@ -76,7 +76,7 @@ import {
   spell,
   word,
 } from "./bindings.js";
-import { keylineExpanded, less } from "./keyline.js";
+import { shortcutBarExpanded, less } from "./shortcut-bar.js";
 import { referenceOpen } from "./reference.js";
 import {
   ELEMENTS,
@@ -94,13 +94,13 @@ import {
   scopesFor,
 } from "./scopes.js";
 import { RETURN, invoke } from "./return-stack.js";
-import { isChordArmed, setChord } from "./address.js";
+import { isSequenceActive, setSequence } from "./address.js";
 import { REACT, setReact } from "../reactions.js";
 import { runtime } from "../context.js";
 
 const beforeCommand = (row) => {
   if (
-    keylineExpanded() &&
+    shortcutBarExpanded() &&
     !referenceOpen() &&
     row !== REFERENCE &&
     row !== LESS_SHORTCUTS
@@ -120,7 +120,7 @@ export const readerIn = (scope) => !scope.at || scope.at();
 // the scopes it is already standing in. That is the rule the dispatcher's row loop already
 // keeps and the control scope's own comment already claims ("`at` is asked first and answers
 // false wherever this could be in doubt, so a paint never reaches it"), and the scope walk
-// was the one place it was not true. The chord is what made it bite: its `when` reaches the
+// was the one place it was not true. The sequence is what made it bite: its `when` reaches the
 // decisions fold and then every link on the page, once per keydown, from the first keystroke of
 // the first comment.
 const standing = (scope) => readerIn(scope) && pageHas(scope);
@@ -176,15 +176,15 @@ export const shadow = () => {
 document.addEventListener("keydown", (ev) => {
   if (ev.isComposing) return;
   if (run(ev)) return;
-  // Any other key disarms the chord and keeps its ordinary meaning, so a mistyped g costs
+  // Any other key disarms the sequence and keeps its ordinary meaning, so a mistyped g costs
   // nothing: g T is a panel trip and g g re-arms. A key naming no destination disarms the
   // same way. Spelled as walking
   // again rather than as a rule, so the meaning a key keeps is the meaning the register
   // gives it. A modifier alone is half a press rather than a key: the Shift that
   // capitalizes G arrives as a keydown of its own ahead of it, and disarming on that
   // took the window down before the G it was armed for.
-  if ((isChordArmed() || standing(REACT)) && !MODIFIER_KEYS.includes(ev.key)) {
-    setChord(false);
+  if ((isSequenceActive() || standing(REACT)) && !MODIFIER_KEYS.includes(ev.key)) {
+    setSequence(false);
     setReact(false);
     run(ev);
   }
@@ -291,7 +291,7 @@ export function executeCommand(id, origin = null) {
 // A focus move is the one change in where the reader is standing that no state writer
 // sees, so it asks for the paint itself — the ring and the line both, which is why one
 // call answers for it. Focus entering a box, or a control that claims Escape, also disarms
-// the chord — a digit typed in a box is text, and a chip left blooming would promise a
+// the sequence — a digit typed in a box is text, and a chip left blooming would promise a
 // cancel the control would consume.
 //
 // Not for a placement, which emits the same pair around a focus that never left: the
@@ -303,13 +303,13 @@ export function executeCommand(id, origin = null) {
 // is nothing here to paint.
 document.addEventListener("focusin", () => {
   if (runtime.placingChrome) return;
-  // The same question `setChord` asks before arming, so it takes the same answer: two
+  // The same question `setSequence` asks before arming, so it takes the same answer: two
   // readings of where the reader is standing would refuse to arm somewhere they then
   // failed to disarm.
   const active = focused();
   if (standing(REACT) && (takesLetters(active) || claimsEsc(active))) setReact(false);
-  if (isChordArmed() && (takesLetters(active) || claimsEsc(active))) {
-    setChord(false);
+  if (isSequenceActive() && (takesLetters(active) || claimsEsc(active))) {
+    setSequence(false);
   }
   paintHere();
 });

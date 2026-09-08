@@ -415,7 +415,7 @@ async function drainOutbox() {
       // panel with it. An accepted one needs no render here: the state the answer
       // carried has already painted the message the log now holds.
       if (entry.message && !answer) void renderPanel();
-      // The list is an input to the key line and no focus/mouse event accompanies
+      // The list is an input to the shortcut bar and no focus/mouse event accompanies
       // either edge. Repaint before resolving the caller, whose own settlement may
       // move a second row on the same frame.
       paintKeys();

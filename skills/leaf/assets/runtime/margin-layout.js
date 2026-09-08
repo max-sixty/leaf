@@ -1,32 +1,32 @@
 /* One geometry owner for controls and readings that hang in the document margin.
 
    `margin-layout` places, packs, docks, and measures the complete host. Its rail claim is
-   the widest stable contribution seen over a floor of the generated marker's own fitting,
+   the widest stable contribution seen over a floor of the generated marker's own margin element,
    and is monotonic for the document's lifetime, so neither settling an action nor taking
    one back shifts the readable column. A first contribution wider than that floor still
    widens the claim once; `reserve` is how a contribution declares that width in advance.
    A temporary contribution registers with `claim: false`: it borrows available RHS room
    and docks the complete host when it cannot fit, without moving the column on first open
    or leaving blank room after close. A stable contribution whose future primary and `…`
-   fitting is wider than its resting one declares that pixel width with `reserve`; the
+   margin element is wider than its resting one declares that pixel width with `reserve`; the
    claim includes it before the control changes. Below the margin breakpoint the complete
    host docks into flow. Visibility and vertical placement read `shownParts` and
    `shownBox`, not the target's raw client rect: a project may set `display: contents`
    while its rendered descendants remain usable, and a collapsed target has no rendered
    part to offer.
 
-   Every live page may grow a page-edge Button — an anchored comment can arrive on one
+   Every live page may grow a page-edge margin element — an anchored comment can arrive on one
    made entirely of prose — so the living margin reserves the rail as it is built and
    never gives it back. The runtime states that reservation as `data-lf-rail` on the root,
    and the cascade spends it there; neither reads what is standing in the margin, because
    a row's placement depends on the strip it would be answering about. A copy takes no
-   gestures, so the bake drops the reservation unless a margin item survived into the
+   gestures, so the bake drops the reservation unless a margin contribution survived into the
    file.
 
-   Where a durable margin item stands is the same question in every medium, and a file
+   Where a durable margin contribution stands is the same question in every medium, and a file
    cannot dock: the packing pass measured the rail at the width the page was exported at
    and left with the scripts. So under that floor and on paper, where no rail is drawn, a
-   copy's remaining margin items take the docked shape rather than the absolute seat they
+   copy's remaining margin contributions take the docked shape rather than the absolute seat they
    were exported into, which hangs off the page box. Not the rows that same pass withheld:
    an item whose target is not shown wears `lf-waiting` into the file, and a shape taken
    on the medium's terms would be the only thing standing a record beside a passage the
@@ -53,7 +53,7 @@ const marginColumn = () => document.querySelector("main") || document.body;
 // Whether the page takes a margin strip at all, as distinct from how wide the strip is.
 // The width is `--rail` below and only ever grows; this says the page has taken the
 // strip, and once taken it is never given back. Claimed only while something stands in
-// it, the strip arrived with the gesture that raised the first Button and left again
+// it, the strip arrived with the gesture that raised the first margin element and left again
 // with the undo, and each of those moved the readable column under the reader. The
 // cascade reads this attribute rather than asking whether a row is standing, because a
 // row's own placement depends on the strip and a live question about it would feed the

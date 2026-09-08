@@ -713,7 +713,7 @@ NEIGHBOUR = (
 PRESS = "[data-lf-offer], [role=tab], [role=button], .lf-btn, .lf-pick, button, summary"
 
 # The controls a press is aimed *past*: the ones sharing its row, standing on the same
-# line, and on screen at both ends of the gesture. A target Button's row is its cluster;
+# line, and on screen at both ends of the gesture. A target margin element's row is its cluster;
 # contribution and options wrappers do not split the visible row. Other controls use
 # their parent. Held in a JS array rather than looked up afterwards, because identity
 # has to survive a press that adds or removes a sibling; measured with offset*, which
@@ -741,7 +741,7 @@ NEIGHBOURHOOD = f"""(el, sel) => {{
     return Math.min(r.bottom, band.bottom) - Math.max(r.top, band.top) > 1;
   }};
   window.__lfOnScreen = {ON_SCREEN};
-  const cluster = el.closest('.lf-margin-item');
+  const cluster = el.closest('.lf-margin-cluster');
   const candidates = cluster ? [...cluster.querySelectorAll(sel)]
       : [...el.parentElement.children]
           .filter((n) => n !== el && !n.contains(el))
@@ -768,7 +768,7 @@ DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
 
 
 def unfolded_button(control):
-    """Return a secondary Button, opening `…` only for a larger peer set.
+    """Return a secondary margin element, opening `…` only for a larger peer set.
 
     A single peer is already visible. In either posture the contribution's real
     control stays with its owner and the visible proxy forwards the reader's press.
@@ -776,7 +776,7 @@ def unfolded_button(control):
     """
     item = control.locator(
         "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '),"
-        " ' lf-margin-item ')][1]"
+        " ' lf-margin-cluster ')][1]"
     )
     more = item.locator(":scope > .lf-margin-more")
     if more.is_visible():
@@ -1025,7 +1025,7 @@ def token_colour(page, name):
 
 
 def button_radius(page):
-    """Resolve the shared Button corner through the page's own theme token."""
+    """Resolve the shared margin element corner through the page's own theme token."""
     return page.evaluate(
         """() => {
         const probe = document.createElement('span');
@@ -1837,7 +1837,7 @@ RINGS_DRAWN = f"""async () => {{
     // That is sound while the control's own surface takes hits, because then the ring's
     // sample either lands on the control's line or lands somewhere the line does not
     // reach. It stops being sound inside a surface declaring `pointer-events: none`: the
-    // key line stands over the page at z-index 8940 and takes no hits, so its More button
+    // shortcut bar stands over the page at z-index 8940 and takes no hits, so its More button
     // is topmost where it lives and every line of code under the ring's top run read as
     // standing over it. `cuts` is geometry and still answers for these; this half says
     // nothing rather than saying the opposite of what the page shows.

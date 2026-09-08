@@ -138,7 +138,7 @@ export function bake() {
   //
   // Two ways one says so, because it has two seats. A thread's own line is built as
   // `.lf-receipt`. A margin reading becomes a status in place, keeping the seat it held
-  // as a Button, so what names it is the behavior `marginButton` writes rather than the
+  // as a margin element, so what names it is the behavior `marginElement` writes rather than the
   // tag or the class it kept. The marker value cannot answer for either: neither is a
   // press, so `offer` writes the empty one there to stand the pointer hand and the lift
   // down on the live page, and the press removal below reads that same value to mean "a
@@ -175,7 +175,7 @@ export function bake() {
   // read by the next thing that asks.
   //
   // Named, and the names are the point. What goes is a measurement whose subject
-  // this file no longer has: the panel, tray, and keyline leave with the chrome
+  // this file no longer has: the panel, tray, and shortcut bar leave with the chrome
   // above. A copy drops what it hasn't got. Page room is not in this list: CSS resolves
   // it from the copy's own shell.
   //
@@ -190,7 +190,7 @@ export function bake() {
   // them but simply gone. `test_a_copy_keeps_the_rail_a_decided_change_left` is
   // that, and it is what a sweep of every inline custom property on the root ran
   // into: read as a stale number, the rail is the one that is not.
-  for (const stale of ["--lf-panel-w", "--lf-tray-w", "--lf-keyline-clear"])
+  for (const stale of ["--lf-panel-w", "--lf-tray-w", "--lf-shortcut-bar-clear"])
     document.documentElement.style.removeProperty(stale);
   // The tab icon is the third seat of the banner's status (paintTab), and a file has
   // no session behind it — a copy keeping the tone it was exported under would claim
@@ -375,28 +375,30 @@ export function bake() {
   });
   // Target items are generated containers rather than offers themselves. A pending
   // action leaves the container empty when its inert controls are stripped above; take
-  // that shell too, or :has(.lf-margin-item) reserves the live page's rail in a copy
+  // that shell too, or :has(.lf-margin-cluster) reserves the live page's rail in a copy
   // that kept nothing in it. Standing reaction marks remain as children and therefore
   // retain both their shared item and its rail.
   //
   // The fold `…` unfolds is a container of the same kind, and it stands in every item
-  // whether or not anything is folded into it. Emptied of its stand-in Buttons, it is a
+  // whether or not anything is folded into it. Emptied of its stand-in margin elements, it is a
   // child the item still has, so an item holding nothing else is no longer `:empty` and
   // kept the rail open on the strength of a shell. Take the emptied fold first, then ask
   // the item.
   document
     .querySelectorAll(".lf-margin-options:empty")
     .forEach((fold) => fold.remove());
-  document.querySelectorAll(".lf-margin-item:empty").forEach((item) => item.remove());
+  document
+    .querySelectorAll(".lf-margin-cluster:empty")
+    .forEach((item) => item.remove());
   // And the reservation the live page wrote on the root goes the same way, asked after
   // the shells above are gone so the question is about what survived. The reservation
-  // exists because a Button can arrive on a gesture and the reader must not pay a reflow
+  // exists because a margin element can arrive on a gesture and the reader must not pay a reflow
   // for it; a file takes no gestures, so what it has when it is written is all it will
   // ever have. Kept regardless, a copy of a page with no durable margin content opened
   // with its column pushed off-centre by a strip holding nothing. The width above is not
   // on this list and must not join it: a standing reaction keeps its mark and the room
   // that mark was reserved for, and that room is the rail it was exported with.
-  if (!document.querySelector("main .lf-margin-item"))
+  if (!document.querySelector("main .lf-margin-cluster"))
     document.documentElement.removeAttribute("data-lf-rail");
   // What the runtime painted, as against what a widget built, goes the same way. An
   // element-anchored comment's mark is a class the kept stylesheet answers with a

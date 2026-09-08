@@ -2,7 +2,7 @@
    reference.
 
    The line leads with transient navigation context when an Ask or Thread walk is active,
-   then gives short help rather than reproducing the keyboard reference. It walks
+   then gives compact hints rather than reproducing the keyboard reference. It walks
    outward from the reader's innermost scope and drops bindings shadowed there. The
    ordinary shortlist is the first live row, then a promotable Escape or the next row.
    At rest on the page that
@@ -11,13 +11,13 @@
    the short line. Search and reading-page movement remain ordinary rows named by the shelf
    and the reference; scrolling is the one capability no page has to advertise. Ranking
    is a row's place in its scope, so moving the row is how the
-   line's order changes. An active chord instead shows every live row in its scope, so
+   line's order changes. An active sequence instead shows every live row in its scope, so
    computed bindings, ranges, and capability filtering are the same ones dispatch and the
-   reference use. Each destination row keeps its complete chord: its leading steps that
+   reference use. Each destination row keeps its complete sequence: its leading steps that
    match accepted presses take the accent face, while a branch the reader has not taken
    keeps the ordinary face. Changing progress changes only those faces, not the sequence's
    keys or geometry. A mode's Escape or back row remains a
-   separate control rather than appearing as a destination chord. `lineWhen` may hide only
+   separate control rather than appearing as a destination sequence. `lineWhen` may hide only
    an ordinary hint without changing the command's liveness or its place in the reference.
    Hint chips are `aria-hidden` because placeholders and live announcements carry the same
    facts for assistive technology.
@@ -27,8 +27,8 @@
    widths and for attached-keyboard walks on coarse-pointer devices, and avoid another
    floating surface.
 
-   The compact line wraps when chord rows need the room. Ordinary hints yield from the end
-   on a window too narrow for them, but active chord rows do not; More is the one control
+   The compact line wraps when sequence rows need the room. Ordinary hints yield from the end
+   on a window too narrow for them, but active sequence rows do not; More is the one control
    that always survives. Navigation context survives too. At a narrow width it takes the
    first row and the surviving hints share the second.
 
@@ -75,28 +75,28 @@ import { LESS_SHORTCUTS, REFERENCE } from "./page.js";
 import { referenceOpen, showReference } from "./reference.js";
 import { announce } from "../notifications.js";
 import { paintHere } from "./scopes.js";
-import { setChord } from "./address.js";
+import { setSequence } from "./address.js";
 import { setReact } from "../reactions.js";
 import { walkPosition } from "../walk-position.js";
 
-// The key line — the register's short rendering. Its fact chips are aria-hidden (the spoken
+// The shortcut bar — the register's short rendering. Its fact chips are aria-hidden (the spoken
 // copies are placeholders, announcements, and the reference); More is a real button because
 // a visible door to the complete list should be a door every reader can work.
-export const keylineEl = el("div", "lf-ui lf-keyline");
-keylineEl.id = "lf-keyline";
+export const shortcutBarEl = el("div", "lf-ui lf-shortcut-bar");
+shortcutBarEl.id = "lf-shortcut-bar";
 export const walkPositionEl = el("span", "lf-walk-position");
 walkPositionEl.hidden = true;
 walkPositionEl.setAttribute("aria-hidden", "true");
-export const keylineMore = el("button", "lf-key-more");
-keylineMore.type = "button";
-keylineMore.title = "More keyboard shortcuts";
-keylineMore.setAttribute("aria-label", "? more");
-export const keylineMoreKey = document.createElement("kbd");
-export const keylineMoreText = el("span", "", "more");
-keylineMore.append(keylineMoreKey, keylineMoreText);
-keylineEl.append(walkPositionEl);
+export const shortcutBarMore = el("button", "lf-key-more");
+shortcutBarMore.type = "button";
+shortcutBarMore.title = "More keyboard shortcuts";
+shortcutBarMore.setAttribute("aria-label", "? more");
+export const shortcutBarMoreKey = document.createElement("kbd");
+export const shortcutBarMoreText = el("span", "", "more");
+shortcutBarMore.append(shortcutBarMoreKey, shortcutBarMoreText);
+shortcutBarEl.append(walkPositionEl);
 
-// ---------- the key line ----------
+// ---------- the shortcut bar ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each
 // keeps only bindings no nearer scope has named, so an inner meaning wins while a grouped
 // row's other presses remain visible — for example, an Ask's numbered pick replaces the
@@ -132,7 +132,7 @@ function lineRows(scopes) {
     // dead row names nothing, so it shadows nothing either. Keep all unshadowed rows in
     // the batch so activeRows still rejects two live meanings inside this reachable scope.
     const reachable = scope.rows.flatMap((row) => {
-      if (!row.line || (!scope.chord && word(row.lineWhen) === false)) return [];
+      if (!row.line || (!scope.sequence && word(row.lineWhen) === false)) return [];
       const bound = bindings(row);
       const active = bound.filter((k) => !named.has(k) && !nearer.takes(k));
       return active.length ? [effectiveRow(row, bound, active)] : [];
@@ -169,12 +169,12 @@ const arrange = (rows) => {
   return { candidates, reference, short, tail };
 };
 const completeLine = (scopes, candidates) => {
-  const scope = scopes.find((candidate) => candidate.chord);
+  const scope = scopes.find((candidate) => candidate.sequence);
   if (!scope) return null;
   const owned = new Set(scope.rows);
   const rows = new Set(candidates.filter((row) => owned.has(sourceRow(row))));
-  // A nearer modal scope can shadow the chord wholesale while keeping it armed beneath.
-  // In that state its own way out is the line, not an empty menu for the suspended chord.
+  // A nearer modal scope can shadow the sequence wholesale while keeping it armed beneath.
+  // In that state its own way out is the line, not an empty menu for the suspended sequence.
   if (!rows.size) return null;
   return {
     scope,
@@ -217,16 +217,18 @@ export function renderLine() {
     walkPositionEl.dataset.kind = position.kind;
     walkPositionEl.textContent = position.text;
     walkPositionEl.hidden = false;
-    keylineEl.dataset.lfWalk = position.kind;
+    shortcutBarEl.dataset.lfWalk = position.kind;
   } else {
     walkPositionEl.hidden = true;
     walkPositionEl.removeAttribute("data-kind");
-    keylineEl.removeAttribute("data-lf-walk");
+    shortcutBarEl.removeAttribute("data-lf-walk");
   }
-  keylineEl.dataset.lfExpanded = String(shelf);
-  keylineEl.dataset.lfWrap = String(shelf || Boolean(complete) || Boolean(position));
+  shortcutBarEl.dataset.lfExpanded = String(shelf);
+  shortcutBarEl.dataset.lfWrap = String(
+    shelf || Boolean(complete) || Boolean(position),
+  );
   // Keep the two contextual hints together at the front of the ordinary line.
-  // The shelf and a chord retain registry order because each is a fuller reading of one
+  // The shelf and a sequence retain registry order because each is a fuller reading of one
   // scene rather than a ranked shortlist.
   const projected =
     shelf || complete
@@ -246,24 +248,27 @@ export function renderLine() {
   const referenceBinding = reference ? bindings(reference)[0] : null;
   const referenceDoes = word(REFERENCE.does);
   const referenceLine = word(REFERENCE.line);
-  keylineMoreKey.hidden = !referenceBinding;
-  if (referenceBinding) keylineMoreKey.textContent = spell(referenceBinding);
-  keylineMoreText.textContent = referenceLine;
-  keylineMore.title = referenceDoes;
-  keylineMore.setAttribute("aria-expanded", String(shelf));
-  keylineMore.setAttribute(
+  shortcutBarMoreKey.hidden = !referenceBinding;
+  if (referenceBinding) shortcutBarMoreKey.textContent = spell(referenceBinding);
+  shortcutBarMoreText.textContent = referenceLine;
+  shortcutBarMore.title = referenceDoes;
+  shortcutBarMore.setAttribute("aria-expanded", String(shelf));
+  shortcutBarMore.setAttribute(
     "aria-label",
     referenceBinding ? `${spell(referenceBinding)} ${referenceLine}` : referenceDoes,
   );
   if (referenceBinding)
-    keylineMore.setAttribute("aria-keyshortcuts", ariaShortcuts([reference], false));
-  else keylineMore.removeAttribute("aria-keyshortcuts");
+    shortcutBarMore.setAttribute(
+      "aria-keyshortcuts",
+      ariaShortcuts([reference], false),
+    );
+  else shortcutBarMore.removeAttribute("aria-keyshortcuts");
   // Read where it is painted, like every other cell. Every destination keeps its complete
-  // chord while the reader advances through it: completed keys change face, but no key is
-  // added, removed, or moved. A chord control such as Escape is a way out of the mode, not
+  // sequence while the reader advances through it: completed keys change face, but no key is
+  // added, removed, or moved. A sequence control such as Escape is a way out of the mode, not
   // another destination, so it keeps its ordinary one-step face.
-  const chordScope = complete?.scope;
-  const chord = word(chordScope?.chord) ?? [];
+  const sequenceScope = complete?.scope;
+  const sequence = word(sequenceScope?.sequence) ?? [];
   // Everything but More, which the reader may be standing on. `textContent = ""` takes
   // it out of the document, and removing a focused element blurs it: it returns on the
   // same line as the same node, connected again, with the reader dropped to `body`. That
@@ -271,10 +276,10 @@ export function renderLine() {
   // so the walk is whole at synthetic speed and broken at every human one, which is the
   // way round that hides from a suite. The line is cleared around the same seated node
   // instead, and the chips are drawn around it.
-  for (const node of [...keylineEl.childNodes])
-    if (node !== keylineMore && node !== walkPositionEl) node.remove();
-  keylineEl.prepend(walkPositionEl);
-  const seated = keylineMore.parentElement === keylineEl;
+  for (const node of [...shortcutBarEl.childNodes])
+    if (node !== shortcutBarMore && node !== walkPositionEl) node.remove();
+  shortcutBarEl.prepend(walkPositionEl);
+  const seated = shortcutBarMore.parentElement === shortcutBarEl;
   const chip = (steps, said, states, afterMore = false, row = null) => {
     const span = el("span", "lf-key");
     span.setAttribute("aria-hidden", "true");
@@ -282,18 +287,18 @@ export function renderLine() {
       const active = bindings(row);
       const commands = commandPresentations(row, active).map(({ id }) => id);
       span.dataset.lfCommands = commands.join(" ");
-      if (row.chordControl) span.classList.add("lf-chord-control");
+      if (row.sequenceControl) span.classList.add("lf-sequence-control");
     }
     span.append(keySequence(steps, states));
     if (said) span.append(el("span", "", said));
-    if (afterMore && seated) keylineEl.append(span);
-    else keylineEl.insertBefore(span, seated ? keylineMore : null);
+    if (afterMore && seated) shortcutBarEl.append(span);
+    else shortcutBarEl.insertBefore(span, seated ? shortcutBarMore : null);
     return span;
   };
   const drawn = ordered.map((row) => {
-    const inChord = chord.length && !row.chordControl;
-    const steps = inChord ? [chord[0], ...rowSteps(row)] : rowSteps(row);
-    const states = inChord ? progressStates(steps, chord) : neutralStates(steps);
+    const inSequence = sequence.length && !row.sequenceControl;
+    const steps = inSequence ? [sequence[0], ...rowSteps(row)] : rowSteps(row);
+    const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
     const span = chip(steps, word(row.line), states, false, row);
     span.hidden = sourceRow(row) === REFERENCE || (!shelf && !shown.has(row));
     return { row, span };
@@ -301,9 +306,9 @@ export function renderLine() {
   // The door is not useful behind the room it opens. While the reference stands, its
   // own Escape row is the short line and More leaves the focus order with the page. This
   // is the one removal that is meant: a reader standing on the door when the room opens
-  // is a state change rather than a repaint, and the help takes the focus anyway.
-  if (referenceOpen()) keylineMore.remove();
-  else if (!seated) keylineEl.append(keylineMore);
+  // is a state change rather than a repaint, and the shortcut reference takes focus anyway.
+  if (referenceOpen()) shortcutBarMore.remove();
+  else if (!seated) shortcutBarEl.append(shortcutBarMore);
 
   if (shelf && tail) {
     const steps = rowSteps(tail);
@@ -311,7 +316,9 @@ export function renderLine() {
   }
 
   const visible = () =>
-    [...keylineEl.children].filter((node) => !node.hidden && node.checkVisibility());
+    [...shortcutBarEl.children].filter(
+      (node) => !node.hidden && node.checkVisibility(),
+    );
   const rowsUsed = () => {
     const items = visible();
     const tolerance = Math.min(...items.map((node) => node.offsetHeight)) / 2;
@@ -324,7 +331,7 @@ export function renderLine() {
 
   // The shelf and ordinary line have two-row ceilings rather than permission to clip. The
   // shelf yields its lowest-ranked current commands until both disclosure controls fit;
-  // hidden rows remain available to inspection and the reference. Active chords return
+  // hidden rows remain available to inspection and the reference. Active sequences return
   // below before any row can yield.
   if (shelf) {
     const removable = drawn
@@ -334,7 +341,7 @@ export function renderLine() {
     while (rowsUsed() > 2 && removable.length) removable.shift().hidden = true;
     return;
   }
-  // A chord is the complete menu of the mode it names. Its live rows wrap rather than
+  // A sequence is the complete menu of the mode it names. Its live rows wrap rather than
   // disappearing, even where the ordinary shortlist would yield a lower-ranked hint.
   if (complete) return;
   // At a narrow width the navigation context takes the first row. Keep the ordinary
@@ -355,7 +362,7 @@ export function renderLine() {
     .filter(({ span }) => !span.hidden)
     .map(({ span }) => span)
     .toReversed()) {
-    if (keylineEl.scrollWidth <= keylineEl.clientWidth) break;
+    if (shortcutBarEl.scrollWidth <= shortcutBarEl.clientWidth) break;
     span.hidden = true;
   }
 }
@@ -365,10 +372,10 @@ paintHere();
 // selection until they next moved focus, and the CSS clip did the cutting instead.
 addEventListener("resize", paintHere);
 
-export const keylineExpanded = () => expanded && shortcutAvailable();
+export const shortcutBarExpanded = () => expanded && shortcutAvailable();
 
-keylineMore.onclick = () => {
-  setChord(false);
+shortcutBarMore.onclick = () => {
+  setSequence(false);
   setReact(false);
   more();
 };

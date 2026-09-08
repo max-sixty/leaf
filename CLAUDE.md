@@ -167,7 +167,7 @@ Layer-wide facts live under `$` keys; each tag entry is one complete schema.
 Before finishing a feature:
 
 - Keep the implementation, tests, and any owning protocol or reference aligned.
-- Give every action a keyboard route. Chords keep actions reachable without spending a
+- Give every action a keyboard route. Keyboard shortcuts keep actions reachable without spending a
   page-level binding on each one.
 - Follow `examples/CLAUDE.md`'s page-fixture rules when adding or changing a feature,
   and regenerate the derived corpus.

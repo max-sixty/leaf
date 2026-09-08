@@ -27,27 +27,33 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
 
     hints = page.locator(".lf-target-hint")
     expect(hints).to_have_count(3)  # heading, paragraph, and figure
-    expect(page.locator(".lf-keyline")).to_contain_text("choose hint")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("choose hint")
     page.keyboard.press("Tab")
     expect(page.locator(".lf-target-hint.lf-current")).to_have_count(1)
     expect(page.locator(".lf-live")).to_contain_text("Hint a: heading: Targets")
     page.keyboard.press("?")
-    expect(page.locator(".lf-keyline")).to_have_attribute("data-lf-expanded", "true")
-    expect(page.locator(".lf-help")).to_be_hidden()
+    expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
+        "data-lf-expanded", "true"
+    )
+    expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
     expect(page.locator(".lf-live")).to_contain_text(
         "More keyboard shortcuts shown. Press question mark again for all shortcuts"
     )
     page.keyboard.press("?")
     expect(
-        page.locator(".lf-help").get_by_role(
+        page.locator(".lf-shortcut-reference").get_by_role(
             "heading", name="Selecting an item", exact=True
         )
     ).to_be_visible()
     page.keyboard.press("Escape")
     expect(hints).to_have_count(3)  # help was a layer over the chooser, not its end
-    expect(page.locator(".lf-keyline")).to_have_attribute("data-lf-expanded", "true")
+    expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
+        "data-lf-expanded", "true"
+    )
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-keyline")).to_have_attribute("data-lf-expanded", "false")
+    expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
+        "data-lf-expanded", "false"
+    )
     expect(hints).to_have_count(3)
     prose_code = page.evaluate(
         """() => {
@@ -67,7 +73,7 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     expect(hints).to_have_count(0)
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    shown = page.locator(".lf-keyline .lf-key:not([hidden])")
+    shown = page.locator(".lf-shortcut-bar .lf-key:not([hidden])")
     expect(shown).to_have_count(2)
     expect(shown.nth(0).locator("kbd")).to_have_text(re.compile(r"^(⌘⏎|Ctrl\+⏎)$"))
     expect(shown.nth(0)).to_contain_text("comment")
@@ -144,7 +150,7 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
     expect(bar).to_be_visible()
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to "))
     expect(page.locator(".lf-fab-input")).to_be_focused()
-    shown = page.locator(".lf-keyline .lf-key:not([hidden])")
+    shown = page.locator(".lf-shortcut-bar .lf-key:not([hidden])")
     expect(shown).to_have_count(2)
     expect(shown.nth(1).locator("kbd")).to_have_text("esc")
     expect(bar.get_by_role("button", name="Show other responses")).to_be_hidden()
@@ -226,7 +232,7 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     page.keyboard.press(last[1])
     expect(hints).to_have_count(0)
     expect(page.locator(".lf-fab-input")).to_be_focused()
-    expect(page.locator(".lf-keyline")).to_contain_text("comment")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("comment")
     geometry = page.evaluate(
         """() => {
           const figure = document.querySelector('#visual-59').getBoundingClientRect();
@@ -445,7 +451,7 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     # `to_contain_text` on the line would read hidden register rows as well.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    help_el = page.locator(".lf-help")
+    help_el = page.locator(".lf-shortcut-reference")
     search_command = help_el.locator('tr[data-lf-command="page.search.open"]')
     select_command = help_el.locator('tr[data-lf-command="selection.open"]')
     expect(search_command.locator("kbd")).to_have_text("/")
@@ -469,7 +475,7 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     search.fill("button the key")
     expect(status).to_have_text("1 of 1")
     expect(page.locator(".lf-target-match")).not_to_have_count(0)
-    expect(page.locator(".lf-keyline")).to_contain_text("select match")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("select match")
     page.keyboard.press("Tab")
     expect(page.locator(".lf-live")).to_contain_text(
         "raises the button the key then presses"
@@ -551,7 +557,7 @@ def test_empty_thread_scope_keeps_slash_in_its_search(browser, serve):
     page.keyboard.press("Shift+t")
     threads = page.locator(".lf-threads")
     expect(threads).to_be_focused()
-    expect(page.locator(".lf-keyline")).not_to_contain_text("search page")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("search page")
     page.keyboard.press("/")
     expect(page.get_by_role("searchbox", name="Find in threads")).to_be_focused()
     expect(page.locator(".lf-target-search")).to_be_hidden()
@@ -653,8 +659,8 @@ def test_selection_search_scrolls_to_the_match_inside_a_tall_text_block(browser,
         }"""
     )
     assert mark is not None
-    keyline_top = page.locator(".lf-keyline").bounding_box()["y"]
-    assert mark["y"] > 42 and mark["y"] + mark["height"] < keyline_top
+    shortcut_bar_top = page.locator(".lf-shortcut-bar").bounding_box()["y"]
+    assert mark["y"] > 42 and mark["y"] + mark["height"] < shortcut_bar_top
 
     page.keyboard.press("Enter")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
@@ -684,7 +690,7 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
 
     page.evaluate("() => { document.scrollingElement.scrollTop = 1050; }")
     expect(page.locator(".lf-target-hint.lf-current")).to_have_count(0)
-    expect(page.locator(".lf-keyline")).not_to_contain_text("select target")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("select target")
     page.keyboard.press("Enter")
     assert page.evaluate("() => getSelection().toString()") == ""
     assert errors == []
@@ -758,8 +764,8 @@ def test_cancelling_page_search_restores_the_control_that_opened_it(browser, ser
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
     page.locator("main p").click()
     page.keyboard.press("/")
-    expect(page.locator(".lf-keyline")).to_contain_text("close search")
-    expect(page.locator(".lf-keyline")).not_to_contain_text("back to hints")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close search")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("back to hints")
     page.keyboard.press("Escape")
     expect(opener).to_be_focused()
     assert errors == []
@@ -785,7 +791,7 @@ def test_cancelling_selection_restores_an_opener_inside_shadow_dom(browser, serv
     page.keyboard.press("s")
     page.keyboard.press("/")
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
-    expect(page.locator(".lf-keyline")).to_contain_text("back to hints")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to hints")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     assert (
@@ -817,8 +823,8 @@ def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, s
 
     page.keyboard.press("s")
     expect(page.locator(".lf-target-hint")).to_have_count(0)
-    expect(page.locator(".lf-keyline")).to_contain_text("search page")
-    expect(page.locator(".lf-keyline")).not_to_contain_text("choose hint")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("search page")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("choose hint")
     page.keyboard.press("/")
     page.keyboard.type("phrase only appears")
     expect(page.locator(".lf-target-search-status")).to_have_text("1 of 1")
@@ -872,33 +878,33 @@ def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
           const text = document.querySelector('#edge').firstChild;
           const range = document.createRange();
           range.selectNodeContents(text);
-          const keyline = document.querySelector('.lf-keyline').getBoundingClientRect();
-          document.scrollingElement.scrollTop += range.getBoundingClientRect().top - (keyline.top - 5);
+          const shortcut_bar = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
+          document.scrollingElement.scrollTop += range.getBoundingClientRect().top - (shortcut_bar.top - 5);
         }"""
     )
     page.keyboard.press("s")
     expect(page.locator(".lf-target-hint")).to_have_count(1)
     geometry = page.evaluate(
         """() => ({
-          keylineTop: document.querySelector('.lf-keyline').getBoundingClientRect().top,
+          shortcutBarTop: document.querySelector('.lf-shortcut-bar').getBoundingClientRect().top,
           hintBottom: document.querySelector('.lf-target-hint').getBoundingClientRect().bottom,
         })"""
     )
-    assert geometry["hintBottom"] <= geometry["keylineTop"], geometry
+    assert geometry["hintBottom"] <= geometry["shortcutBarTop"], geometry
     assert errors == []
     page.close()
 
 
-def test_the_key_line_only_hides_targets_in_the_lane_it_paints(browser, serve):
+def test_the_shortcut_bar_text_only_hides_targets_in_the_lane_it_paints(browser, serve):
     """Bottom chrome is a rectangle, not a full-width cutoff.
 
-    Fixed nested targets can remain visible below the top of the left-hand key line while
+    Fixed nested targets can remain visible below the top of the left-hand shortcut bar while
     crossing its right edge. The selector must keep their uncovered parts reachable and
     spread both hints inside the viewport but outside the band; the old scalar boundary
     dropped both targets, while a center left on their covered corner put replacement
-    hints on the key line or below the viewport."""
+    hints on the shortcut bar or below the viewport."""
     html = leaf_page(
-        "target beside the key line",
+        "target beside the shortcut bar",
         """
 <section id="right-edge"
   style="position: fixed; left: 250px; bottom: 4px; width: 500px; padding-bottom: 1px">
@@ -916,7 +922,7 @@ def test_the_key_line_only_hides_targets_in_the_lane_it_paints(browser, serve):
     target, line, hints = page.evaluate(
         """() => [
           document.querySelector('#right-edge').getBoundingClientRect().toJSON(),
-          document.querySelector('.lf-keyline').getBoundingClientRect().toJSON(),
+          document.querySelector('.lf-shortcut-bar').getBoundingClientRect().toJSON(),
           [...document.querySelectorAll('.lf-target-hint')].map(
             hint => hint.getBoundingClientRect().toJSON()
           ),
@@ -951,7 +957,7 @@ def test_the_key_line_only_hides_targets_in_the_lane_it_paints(browser, serve):
     expect(page.locator(".lf-target-search-status")).to_have_text("1 of 1")
     expect(page.locator(".lf-target-match")).to_have_count(1)
     line, mark = page.evaluate(
-        """() => ['.lf-keyline', '.lf-target-match'].map(
+        """() => ['.lf-shortcut-bar', '.lf-target-match'].map(
           selector => document.querySelector(selector).getBoundingClientRect().toJSON()
         )"""
     )

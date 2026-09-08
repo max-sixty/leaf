@@ -72,7 +72,7 @@ def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
         {"kind": "resolve", "author": "claude", "agent": "A", "parent": comments[1]},
     )
     told(page)
-    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
 
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
     round_trip(page)
@@ -92,7 +92,7 @@ def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
     }
     assert [e["kind"] for e in log if e["kind"] == "unresolve"] == []
     # The undo is not itself a gesture to take back, so the offer goes with it.
-    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
     assert errors == []
     page.close()
 
@@ -106,14 +106,14 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     threads = page.locator(".lf-threads > .lf-thread")
     threads.nth(0).locator(".lf-resolve").click()
     round_trip(page)
-    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     sent = _traffic(page).sends
     threads.nth(0).locator(".lf-resolve").click()
     holding(page, held, 1, "the second resolution")
-    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
     page.keyboard.press("z")
     assert _traffic(page).sends == sent + 1
 
@@ -183,7 +183,7 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
     round_trip(page)
-    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
 
     d = serve.page_dir
     carried = BOARD_PAGE.replace(
@@ -196,7 +196,7 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     stamp_page(d, carried, "carried")
     wait_for_revision(page, 2)
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
-    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
     page.keyboard.press("z")
     told(page)
     # An undo posts no action, so counting actions says nothing about whether the
@@ -223,7 +223,7 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     for key in move:
         page.keyboard.press(key)
     round_trip(page)
-    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
 
     held = []
 
@@ -240,7 +240,7 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     for key in move:
         page.keyboard.press(key)
     holding(page, held, 1, "the move it was asked for")
-    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
     page.keyboard.press("z")
     assert _traffic(page).sends == 2, (
         "the press took back a gesture read off a log missing the one before it"
@@ -282,7 +282,7 @@ def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
     page.wait_for_function("() => document.body.dataset.lfApplied === '2'")
 
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
-    # The key line has only two contextual slots, and the focused grip's nearer commands
+    # The shortcut bar has only two contextual slots, and the focused grip's nearer commands
     # may occupy both; waiting for the word "undo" there observes a transient repaint, not
     # liveness.
     # The withdrawal entering the wire is the durable edge that proves the press worked.
@@ -372,7 +372,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
 
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     round_trip(page)
-    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
 
     requests = []
     first_attempt = []
@@ -424,11 +424,11 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     # adopted. The stale response must not release the hold merely because the failed
     # application assigned an event list containing the attempt before it threw.
     assert first_attempt[0] not in _traffic(page).pending
-    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
     sent = _traffic(page).sends
     page.keyboard.press("z")
     assert _traffic(page).sends == sent
-    # The local Button shares the keyboard's guard; it cannot post around an
+    # The local margin element shares the keyboard's guard; it cannot post around an
     # accepted event whose authoritative state is still incomplete.
     first_item = page.locator('[data-lf-margin-for="sug-refill"]')
     first_item.get_by_role("button", name=re.compile(r"^Undo accepting")).click()
@@ -446,14 +446,14 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     expect(page.locator("#sug-in-card")).not_to_have_attribute(
         "data-lf-state", "accept"
     )
-    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
 
     # A complete poll accounts for the older acceptance and the refused correction.
     # The re-offered action can then send under a fresh attempt, whose valid answer
     # includes both accepted gestures and makes the newest one safe to undo.
     lifted = True
     told(page)
-    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
     page.locator("[data-lf-for='sug-in-card']").get_by_role(
         "button", name="Retry", exact=True
     ).click()
@@ -533,7 +533,7 @@ def test_a_failed_background_read_cannot_aim_undo_at_its_partial_history(
             },
         )
 
-    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
     with page.expect_response(
         lambda response: (
             "/api/event" in response.url
@@ -1147,7 +1147,7 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
     assert page.eval_on_selector_all(
         "#col-done > lf-card", "cards => cards.map(card => card.id)"
     ) == ["card-baffle", "card-heater"]
-    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
     cut.cut()
 
     with page.expect_response(lambda response: "/api/event" in response.url):
@@ -1157,7 +1157,7 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
     assert page.eval_on_selector_all(
         "#col-done > lf-card", "cards => cards.map(card => card.id)"
     ) == ["card-baffle", "card-heater"]
-    expect(page.locator(".lf-keyline")).to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
     assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
         "card-heater",
         "card-baffle",
@@ -1202,7 +1202,7 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
     cut.cut()
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(0)
-    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
     assert errors == []
     held[0].fulfill(response=accepted_answer)
     page.unroute("**/api/event")
@@ -1250,7 +1250,7 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
     cut.cut()
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(0)
-    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
     assert errors == []
     held[0].fulfill(response=accepted_answer)
     page.unroute("**/api/event")
@@ -1297,7 +1297,7 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
     expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
     expect(page.locator("#sug-refill")).not_to_have_attribute("data-lf-state", "accept")
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
-    expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
     assert errors == []
     held[0].fulfill(response=accepted_answer)
     page.wait_for_timeout(100)
@@ -1841,7 +1841,7 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
     # what it sends can never come back to it. The offer the helper waits on first is
     # the part that still applies — the line and the dispatcher ask one predicate, so
     # a press made before it stands is one the dispatcher refuses.
-    expect(stale.locator(".lf-keyline")).to_contain_text("undo")
+    expect(stale.locator(".lf-shortcut-bar")).to_contain_text("undo")
     stale.keyboard.press("z")
     # The server answering the post is the fact this wait consumes.
     _until(stale, lambda t: t.acked >= 2, "heard the server take the undo")

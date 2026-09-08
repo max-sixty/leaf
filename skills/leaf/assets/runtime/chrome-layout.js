@@ -30,8 +30,8 @@
 // inline size already reflects the margins a beside panel or tray takes. `--strip-l`, `--strip-r`,
 // `--lf-room`, and `--lf-sidebar-posture` are CSS-owned readings resolved on `main`, which is
 // the named `lf-page` style container a margin resident asks for them; `--lf-shell-inset-left`
-// carries the left workspace offset to viewport-fixed page furniture, and `--lf-keyline-clear`
-// carries the key line's band to whatever has to end above it; `--lf-claim-right` is the
+// carries the left workspace offset to viewport-fixed page furniture, and `--lf-shortcut-bar-clear`
+// carries the shortcut bar's band to whatever has to end above it; `--lf-claim-right` is the
 // project-layer extension claim. A script-free copy therefore answers the same layout
 // from its own viewport without exporting session geometry.
 
@@ -50,7 +50,7 @@ import {
 import { focused, paintHere } from "./keyboard/scopes.js";
 import { currentTray, reserveListClearance, showTray, traysEdge } from "./trays.js";
 import { foldBannerRow, toggleBtn } from "./banner.js";
-import { keylineEl } from "./keyboard/keyline.js";
+import { shortcutBarEl } from "./keyboard/shortcut-bar.js";
 import { chromeRoot } from "./chrome.js";
 import { dockSeats, pageShifted, refreshHover } from "./anchors.js";
 import { refreshFab } from "./composing/surface.js";
@@ -172,27 +172,27 @@ export function syncLayout() {
   // long computed hint cross into the general comment box. A covering panel leaves the
   // line its natural width: unlike a standing strip, it may leave a complete lane beside
   // its foot, and whether it does is a fact of the two rendered boxes below.
-  keylineEl.style.setProperty(
-    "--lf-keyline-right",
+  shortcutBarEl.style.setProperty(
+    "--lf-shortcut-bar-right",
     (panelBeside ? commentsEdge.width() : 0) + "px",
   );
   // Start at the line's ordinary foot. A covering sheet lifts it only where the sheet's
   // own foot actually occupies the same pixels. The old posture-level answer lifted the
   // line by every covering footer's height even when the footer stood wholly to its
   // right — a two-dimensional collision inferred from one viewport breakpoint.
-  keylineEl.style.bottom = "calc(14px + var(--lf-safe-bottom))";
+  shortcutBarEl.style.bottom = "calc(14px + var(--lf-safe-bottom))";
   const overlapsAcross = (one, other) =>
     one.left < other.right && other.left < one.right;
   const overlaps = (one, other) =>
     overlapsAcross(one, other) && one.top < other.bottom && other.top < one.bottom;
   const foot = panelFoot.getBoundingClientRect();
-  let line = keylineEl.getBoundingClientRect();
+  let line = shortcutBarEl.getBoundingClientRect();
   if (panelCovers() && line.height && overlaps(line, foot)) {
     // The foot is the complete fixed region: composer plus the page's reaction strip
     // when one is offered. offsetHeight retains the safe-area arithmetic owned by the
     // stylesheet and follows a draft as its textarea grows.
-    keylineEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
-    line = keylineEl.getBoundingClientRect();
+    shortcutBarEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
+    line = shortcutBarEl.getBoundingClientRect();
   }
   // What a scroll region gives up is the part of the line that stands over it: the band
   // from the line's top down to that region's own foot, plus the air above the line.
@@ -237,7 +237,7 @@ export function syncLayout() {
   // reaches it, and it runs under the line at every width. It does not take the band
   // today, deliberately: `lf-toc`'s own rule in the default theme carries the reasoning
   // and the TODO, which is that the line has to be a hover or a foot and not both.
-  document.documentElement.style.setProperty("--lf-keyline-clear", clear);
+  document.documentElement.style.setProperty("--lf-shortcut-bar-clear", clear);
   // A tray's list is the page's other scroll region, in the corner the line is
   // written into. Its foot is the window's, the tray being held to `bottom: 0`, so the
   // document's band is its band — and it states it twice, because it reaches
@@ -379,7 +379,7 @@ const scheduleLayout = (shellChanged = false, chromeChanged = false) => {
     chromeMoved = false;
     syncLayout();
     if (repaintPage) pageShifted();
-    // A settled key-line or panel-foot size can change both the line's final box and
+    // A settled shortcut-bar or panel-foot size can change both the line's final box and
     // the part of a target or search match it covers. Re-enter the shared paint after
     // the chrome writer has placed that box, so every consumer reads the same geometry.
     // `paintHere` is frame-coalesced, and a same-sized line emits no further resize.
@@ -454,7 +454,7 @@ export function mountLayout() {
   });
   layoutSizes.observe(document.body);
   layoutSizes.observe(panelFoot);
-  layoutSizes.observe(keylineEl);
+  layoutSizes.observe(shortcutBarEl);
 }
 
 let shellFrame = 0;

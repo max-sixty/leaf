@@ -1,7 +1,7 @@
-/* A fixed developer exhibit of the complete Button grammar. It deliberately uses the
- * public marginButton factory rather than reproducing any Button anatomy or state paint;
+/* A fixed developer exhibit of the complete margin element schema. It deliberately uses the
+ * public marginElement factory rather than reproducing any margin element anatomy or state paint;
  * the only local rendering is the comparison grid and the words that name each cell. */
-import { marginButton, once, offer, relabel } from "/runtime/widget-api.js";
+import { marginElement, once, offer, relabel } from "/runtime/widget-api.js";
 
 const GROUPS = [
   {
@@ -106,13 +106,13 @@ function generated(tag, className, words = null) {
 }
 
 function specimenNode(specimen, groupIndex, specimenIndex) {
-  const item = generated("div", "button-atlas-item");
-  item.dataset.buttonSpecimen = specimen.name.toLowerCase();
+  const item = generated("div", "margin-element-gallery-item");
+  item.dataset.marginElementSpecimen = specimen.name.toLowerCase();
   const behavior = specimen.behavior ?? "action";
-  const control = marginButton(
-    offer(behavior === "status" ? "span" : "button", "button-atlas-button"),
+  const control = marginElement(
+    offer(behavior === "status" ? "span" : "button", "margin-element-gallery-face"),
     {
-      key: `atlas-${groupIndex}-${specimenIndex}`,
+      key: `gallery-${groupIndex}-${specimenIndex}`,
       label: specimen.name,
       icon: specimen.icon,
       behavior,
@@ -124,23 +124,23 @@ function specimenNode(specimen, groupIndex, specimenIndex) {
   if (control instanceof HTMLButtonElement) control.disabled = true;
   if (behavior !== "status") control.setAttribute("aria-disabled", "true");
 
-  const copy = generated("span", "button-atlas-copy");
+  const copy = generated("span", "margin-element-gallery-copy");
   copy.append(
-    generated("span", "button-atlas-name", specimen.name),
-    generated("span", "button-atlas-detail", specimen.detail),
+    generated("span", "margin-element-gallery-name", specimen.name),
+    generated("span", "margin-element-gallery-detail", specimen.detail),
   );
   item.append(control, copy);
   return item;
 }
 
 function groupNode(group, groupIndex) {
-  const row = generated("div", "button-atlas-group");
-  const introduction = generated("div", "button-atlas-introduction");
+  const row = generated("div", "margin-element-gallery-group");
+  const introduction = generated("div", "margin-element-gallery-introduction");
   introduction.append(
-    generated("strong", "button-atlas-heading", group.heading),
-    generated("span", "button-atlas-summary", group.summary),
+    generated("strong", "margin-element-gallery-heading", group.heading),
+    generated("span", "margin-element-gallery-summary", group.summary),
   );
-  const items = generated("div", "button-atlas-items");
+  const items = generated("div", "margin-element-gallery-items");
   items.append(
     ...group.specimens.map((specimen, specimenIndex) =>
       specimenNode(specimen, groupIndex, specimenIndex),
@@ -151,7 +151,7 @@ function groupNode(group, groupIndex) {
 }
 
 customElements.define(
-  "lf-button-atlas",
+  "lf-margin-element-gallery",
   class extends HTMLElement {
     connectedCallback() {
       if (!once(this)) return;

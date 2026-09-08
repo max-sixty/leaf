@@ -9,7 +9,7 @@
    into that frame as its first boot step. */
 import { markHere } from "./asks/view.js";
 import { paintStanding } from "./anchors.js";
-import { renderLine } from "./keyboard/keyline.js";
+import { renderLine } from "./keyboard/shortcut-bar.js";
 import { syncLayout } from "./chrome-layout.js";
 import { paintAddresses } from "./keyboard/address.js";
 import { paintTargets } from "./composing/targets.js";
@@ -20,7 +20,7 @@ import { paintInputs } from "./composing/input.js";
 export function paintStandingChrome() {
   markHere();
   paintStanding();
-  // The key line is geometry for every address and target painted around it. Render
+  // The shortcut bar is geometry for every address and target painted around it. Render
   // its new words first, then let chrome-layout.js place that resulting
   // box before any consumer reads it. ResizeObserver remains the door for font, window,
   // and other size changes; state-driven content changes complete in this frame rather

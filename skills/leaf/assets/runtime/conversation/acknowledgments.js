@@ -1,6 +1,6 @@
 /* Server-projected interaction receipts and explicit work claims.
 
-   `.lf-receipt` is transient runtime chrome for a subject with no page-edge Button.
+   `.lf-receipt` is transient runtime chrome for a subject with no page-edge margin element.
    `paintAcknowledgmentsNow` is its one writer. An unsettled reader message paints after
    that exact message in the full thread panel, and an event-backed widget frozen into
    conversation chrome paints beneath its owner. Inline page conversations and page
@@ -120,7 +120,7 @@ export function paintAcknowledgmentsNow() {
     const owner = elementById(id);
     // Frozen widgets sent in a message have no page edge of their own, so their
     // event-backed receipt remains local to the conversation. A page widget uses
-    // its existing Target Button instead of growing another row inside authored
+    // its existing target margin element instead of growing another row inside authored
     // content; standalone claims in chrome remain unsupported claim subjects.
     if (owner && receipt.event && inChrome(owner))
       paintReceipt(owner, receipt, null, wanted);

@@ -1246,7 +1246,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     expect(body).to_have_text(corrected)
     # And the user is told, rather than left to notice: their edit is gone, which
     # without a reading looks exactly like a draft they never touched. The draft's
-    # existing controls keep their compact fitting; Page map states the provenance,
+    # existing controls keep their compact form; Page map states the provenance,
     # and the target keeps the local quiet word.
     expect(page.locator("#draft-ops[data-lf-restated]")).to_have_count(1)
     page.evaluate(
@@ -2164,23 +2164,29 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     )
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_be_visible()
-    expect(page.locator(".lf-help h3", has_text="On a draft")).to_have_count(1)
+    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
     expect(
-        page.locator(".lf-help", has_text="a project widget using the same heading")
+        page.locator(".lf-shortcut-reference h3", has_text="On a draft")
+    ).to_have_count(1)
+    expect(
+        page.locator(
+            ".lf-shortcut-reference", has_text="a project widget using the same heading"
+        )
     ).to_be_visible()
-    expect(page.locator(".lf-help", has_text="Edit the text in place")).to_be_visible()
+    expect(
+        page.locator(".lf-shortcut-reference", has_text="Edit the text in place")
+    ).to_be_visible()
     # Help is a scope: the table stands down behind it, so c must not work the
     # panel under the sheet.
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_hidden()
-    expect(page.locator(".lf-help")).to_be_visible()
+    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-help")).to_be_hidden()
+    expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_be_visible()
+    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
     page.mouse.click(300, 600)
-    expect(page.locator(".lf-help")).to_be_hidden()
+    expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -3183,7 +3189,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     page.keyboard.press("Escape")
     # A retired thread lands on the surface the reader's own gesture reaches. With the
     # widget still on the page its passages keep a page-local address, so the margin's
-    # Thread Button and each passage's comment count open the fallback card and Threads
+    # thread margin element and each passage's comment count open the fallback card and Threads
     # stays shut; a disconnected widget leaves no such address and the panel answers.
     if failure == "disconnect":
         expect(markers).to_have_count(0)

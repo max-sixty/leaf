@@ -1,4 +1,4 @@
-/* The page's own keys: the scopes core declares — the reference, the key line's shelf, the
+/* The page's own keys: the scopes core declares — the reference, the shortcut bar's shelf, the
    page map, the composer, a text box, the thread panel, a focused thread, a link, a
    disclosure, design mode, and the page itself — and what a press from each of them
    does. A row's fields are stated once, in bindings.js; a scope's `at`/`when` pair in
@@ -76,14 +76,14 @@ import {
   word,
 } from "./bindings.js";
 import {
-  helpClose,
+  shortcutReferenceClose,
   moveReference,
   moveCommand,
   onCommandRail,
   referenceOpen,
   runSelected,
 } from "./reference.js";
-import { keylineExpanded, keylineMore, less } from "./keyline.js";
+import { shortcutBarExpanded, shortcutBarMore, less } from "./shortcut-bar.js";
 import { pagePresented } from "../presentation.js";
 import { runtime } from "../context.js";
 import { DISCLOSE } from "./disclosure.js";
@@ -438,7 +438,7 @@ export function letGo() {
 
 // Auto popovers and modal dialogs already put Escape in the platform contract. When one
 // stands, let the browser dismiss the topmost layer and let that layer's toggle/close
-// event update Leaf state. Product modes with a nearer Escape row (the composer, help's
+// event update Leaf state. Product modes with a nearer Escape row (the composer, the shortcut reference's
 // two-step shelf, a text box) still own their deliberate unwind step.
 function browserDismissesTopLayer() {
   return Boolean(document.querySelector(":popover-open, dialog:modal"));
@@ -550,10 +550,10 @@ export function EVERYTHING() {
 }
 
 // A character key belongs to the box with any modifier: Shift changes its case, Alt may
-// compose it, and Mod chords copy, select, or undo. The editing keys below stay the box's
+// compose it, and Mod sequences copy, select, or undo. The editing keys below stay the box's
 // with modifiers too, so Shift+Arrow can extend a selection and Mod+Backspace can delete a
 // word without an ancestor widget turning either into its own action. An exact element
-// scope still stands nearer and can specialise a chord such as Mod+Enter for send.
+// scope still stands nearer and can specialise a sequence such as Mod+Enter for send.
 function CHARACTER(binding) {
   return [...parsed(binding).key].length === 1;
 }
@@ -585,7 +585,7 @@ function TEXT_ENTRY(binding) {
 // A `function`, so the row it reads can be the one the page's own table declares: the modes
 // are built beside the controls they belong to, further up than that table, and a claim is
 // only ever called at a press. A blanket suits a mode that cannot outlive a keystroke — the
-// chord disarms on any key and runs it again, so `?` still reaches the page behind it — and
+// sequence disarms on any key and runs it again, so `?` still reaches the page behind it — and
 // the versions menu is the other kind, standing until the reader closes it.
 export function allButTheReference(binding) {
   return !bindings(REFERENCE).includes(binding);
@@ -603,7 +603,7 @@ const resolutionControl = (thread) =>
       ":scope > .lf-conversation-resolved .lf-reopen",
   ) ?? null;
 
-const HELP = {
+const SHORTCUT_REFERENCE = {
   title: "In this reference",
   at: () => referenceOpen(),
   claims: EVERYTHING,
@@ -655,17 +655,20 @@ const HELP = {
       id: "reference.close",
       keys: ["Escape"],
       does: () =>
-        keylineExpanded() ? "Back to more keyboard shortcuts" : "Close this reference",
-      line: () => (keylineExpanded() ? "back to more shortcuts" : "close help"),
-      control: () => helpClose,
+        shortcutBarExpanded()
+          ? "Back to more keyboard shortcuts"
+          : "Close this reference",
+      line: () =>
+        shortcutBarExpanded() ? "back to more shortcuts" : "close shortcut reference",
+      control: () => shortcutReferenceClose,
       runFromReference: false,
-      run: () => helpClose.click(),
+      run: () => shortcutReferenceClose.click(),
     },
   ],
 };
 
 export const LESS_SHORTCUTS = {
-  id: "keyline.less",
+  id: "shortcuts.less",
   keys: ["Escape"],
   does: "Show fewer keyboard shortcuts",
   line: "less",
@@ -676,11 +679,11 @@ export const LESS_SHORTCUTS = {
 
 const SHORTCUT_SHELF = {
   title: "With more keyboard shortcuts",
-  at: () => Boolean(keylineExpanded()),
+  at: () => Boolean(shortcutBarExpanded()),
   rows: [LESS_SHORTCUTS],
 };
 
-// A Thread card and the unfolded Button cluster that owns it are one page-map stack,
+// A thread card and the unfolded margin element cluster that owns it are one page-map stack,
 // though the card itself is hoisted into the chrome. This registered rung precedes the
 // reaction and navigation modes just as the surface's old local listener did: Escape
 // closes the card first, then folds the cluster on a second press.
@@ -1113,10 +1116,10 @@ export const REFERENCE = {
   runFromReference: false,
   keys: ["?"],
   does: () =>
-    keylineExpanded() ? "All keyboard shortcuts" : "More keyboard shortcuts",
-  line: () => (keylineExpanded() ? "all shortcuts" : "more"),
-  control: () => keylineMore,
-  run: () => keylineMore.click(),
+    shortcutBarExpanded() ? "All keyboard shortcuts" : "More keyboard shortcuts",
+  line: () => (shortcutBarExpanded() ? "all shortcuts" : "more"),
+  control: () => shortcutBarMore,
+  run: () => shortcutBarMore.click(),
 };
 
 // The stack, innermost first, and the whole of what the runtime says about the order. The
@@ -1128,7 +1131,7 @@ export const REFERENCE = {
 // backwards, so a mode this list leaves out is one the reference never names.
 export const ELEMENTS = Symbol("the scopes of the focused element");
 // The list is assembled on first use rather than as this module evaluates: several of its
-// members — the g chord, reactions, the selection chooser, the return stack, the version
+// members — the g sequence, reactions, the selection chooser, the return stack, the version
 // chooser, the aim, an Ask's action row — are declared by the owners that answer their
 // keys, and those owners import this module for what a page press means. Asking after
 // every module has evaluated is what keeps the order of that cycle from mattering.
@@ -1378,7 +1381,7 @@ export function pageScopes() {
       // modes. Below it, the line drops chips a window at a time, and this is the one that
       // says how to undo the press that put them there.
       BACK_OUT,
-      // And the chord below it, having sat among the walks and pushed it off the end of a
+      // And the sequence below it, having sat among the walks and pushed it off the end of a
       // 1280px line — the reader standing on an Ask, which is the one place the way out was
       // written for. What it costs to yield is small and what it buys is not: `g` opens a
       // door to three lists the walks above already reach one at a time, so a narrow window
@@ -1415,7 +1418,7 @@ export function pageScopes() {
     ],
   };
   scopes = [
-    HELP,
+    SHORTCUT_REFERENCE,
     SHORTCUT_SHELF,
     PAGE_MAP,
     GO,
@@ -1450,7 +1453,7 @@ function coreScopes() {
 // row says which control it duplicates; its projection follows liveness too, so a disabled
 // Ask does not advertise a shortcut the dispatcher has withdrawn. The latest-version
 // chip's route spans two rows, so it is composed from both. The address owner paints
-// sequential chord overlays while its mode stands; this projection keeps the complete
+// sequential sequence overlays while its mode stands; this projection keeps the complete
 // route in the tooltip at rest.
 //
 // The pass runs in the standing chrome's frame, which the `lf-actions` heartbeat asks for
@@ -1460,20 +1463,21 @@ function coreScopes() {
 // rebuilds its buffer from — and these controls stand on the banner the living margin
 // watches.
 export function paintCoreControls() {
-  const returningToMore = Boolean(keylineExpanded());
+  const returningToMore = Boolean(shortcutBarExpanded());
   const closeSays = returningToMore ? "Back to more shortcuts" : "Close";
   const closeTitle = returningToMore ? "Back to more shortcuts" : "Close the shortcuts";
-  if (helpClose.textContent !== closeSays) helpClose.textContent = closeSays;
-  if (helpClose.dataset.lfKeyTitle !== closeTitle)
-    helpClose.dataset.lfKeyTitle = closeTitle;
-  keeps(helpClose, "aria-label", closeTitle);
+  if (shortcutReferenceClose.textContent !== closeSays)
+    shortcutReferenceClose.textContent = closeSays;
+  if (shortcutReferenceClose.dataset.lfKeyTitle !== closeTitle)
+    shortcutReferenceClose.dataset.lfKeyTitle = closeTitle;
+  keeps(shortcutReferenceClose, "aria-label", closeTitle);
   const controlShortcut = (scope, row) =>
-    [...(word(scope.chordPrefix ?? scope.chord) ?? []), labelOf(row)]
+    [...(word(scope.sequencePrefix ?? scope.sequence) ?? []), labelOf(row)]
       .filter(Boolean)
       .join(" ");
   for (const scope of coreScopes())
     for (const row of scope.rows) {
-      // The key line owns the permanent More control because its binding must first pass
+      // The shortcut bar owns the permanent More control because its binding must first pass
       // through the same contextual shadowing as the line's ordinary rows.
       if (row === REFERENCE) continue;
       const control = word(row.control);
@@ -1488,9 +1492,9 @@ export function paintCoreControls() {
           control.dataset.lfKeyTitle + (active ? ` (${shortcut})` : ""),
         );
         // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
-        // alternatives. The complete chord remains in the overlay, tooltip, and
+        // alternatives. The complete sequence remains in the overlay, tooltip, and
         // accessible keyboard reference instead of claiming its final press works alone.
-        if (active && !scope.chord)
+        if (active && !scope.sequence)
           keeps(control, "aria-keyshortcuts", ariaShortcuts([row], false));
         else control.removeAttribute("aria-keyshortcuts");
       }
@@ -1561,7 +1565,7 @@ export const PANEL_SAY = {
   // row, being the innermost, would have taken the press and spent it on the general
   // box, collapsing the selection as the box took focus. A gesture the reader made
   // outranks the room they happen to be standing in, so the row stands down and the
-  // page's own c answers, on the passage, saying so on the key line first.
+  // page's own c answers, on the passage, saying so on the shortcut bar first.
   //
   // Dead inside a conversation for the same reason read the other way. This scope is
   // live wherever focus is in the panel, a card the reader has walked to included, and

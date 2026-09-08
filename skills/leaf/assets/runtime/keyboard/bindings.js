@@ -14,7 +14,7 @@
    - `keys` is a binding or computed list of bindings: "a", "Escape", "Mod+Enter",
      "Shift+a", "d"; a function where the set is the page's (an option group's 1–N).
    - `routes` are optional stable subcommands when those bindings mean different things.
-     The key line keeps the compact row; the reference presents each route separately. A
+     The shortcut bar keeps the compact row; the reference presents each route separately. A
      route may override `line` and `label` for the case where a nearer scope shadows only
      its sibling binding.
    - `label` optionally overrides the compact keycap in the command's own scope. A keyless
@@ -29,7 +29,7 @@
      family of controls.
    - `does` is the sentence for the press, or a function when the current state changes
      the sentence.
-   - `line` is the key line's word: a row carrying one stands on the key line, and a row
+   - `line` is the shortcut bar's word: a row carrying one stands on the shortcut bar, and a row
      that has a `run` must carry one. That is the failure this register was built for, at
      its smallest — page travel worked, and no always-visible surface named it, because
      the field was optional and its absence read exactly like a decision. A row with no
@@ -37,9 +37,9 @@
      being the runtime's: Enter opens the focused leaf because the row is a link. What
      carries no word is reference, named in the "?" overlay and never promised as the
      next press — F7, ⌥ click, a press on a draft's own box.
-   - `lineWhen` is optional projection-only visibility on the key line. Unlike `when`, it
+   - `lineWhen` is optional projection-only visibility on the shortcut bar. Unlike `when`, it
      never changes whether the command dispatches or appears in the reference, and an
-     active chord shows every live row regardless of it.
+     active sequence shows every live row regardless of it.
    - `promoteEscape` says whether an Escape row takes the line's second visible slot. On
      by default; a local action that happens to clear state can leave the slot to the
      next action on that state.
@@ -68,7 +68,7 @@
 
    `live` answers the declared liveness once for every projection. Do not repeat a guard
    inside `run` if the guard changes whether the key should be shown. When the reference
-   needs to describe a page capability while the key line needs to promise an immediate
+   needs to describe a page capability while the shortcut bar needs to promise an immediate
    press, keep `pageHas` and `readerIn` separate.
 
    `checked` validates declarations when they enter the register. `activeRows` also
@@ -91,12 +91,12 @@
    `aria-keyshortcuts` is another projection of the register. Element scopes expose their
    currently available rows, including the scope's capability gate, and a row's `control`
    exposes the key that duplicates it. `Mod` expands to both Meta and Control because the
-   dispatcher accepts both. The attribute cannot express a sequential chord: spaces
-   separate alternatives. An associated `control` in a chord scope therefore omits
+   dispatcher accepts both. The attribute cannot express a sequential sequence: spaces
+   separate alternatives. An associated `control` in a sequence scope therefore omits
    `aria-keyshortcuts` and exposes the complete route through its title and the keyboard
    reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
-// Which platform's spelling, and which modifier is the chord's. Up here rather than beside
+// Which platform's spelling, and which modifier is the sequence's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
@@ -127,7 +127,7 @@ const GLYPH = {
 // dispatcher does — a fourth name would have to be taught to both.
 const MODIFIERS = ["Mod", "Alt", "Shift"];
 // The same modifiers as the platform's own keydowns: what `ev.key` says when a modifier
-// goes down alone, ahead of the key it modifies. The dispatcher's chord asks this to tell
+// goes down alone, ahead of the key it modifies. The dispatcher's sequence asks this to tell
 // half a press from a key of its own.
 export const MODIFIER_KEYS = ["Shift", "Alt", "Control", "Meta"];
 // One reading of a binding's syntax, for the three questions asked of it: how it is
@@ -170,7 +170,7 @@ export const spokenBinding = (binding) => {
 export const word = (cell) => (typeof cell === "function" ? cell() : cell);
 export const declaredBindings = (row) => word(row.keys) ?? [];
 export const commandRoutes = (row) => word(row.routes) ?? [];
-// TODO(2026-09-07): Let people and host agents configure character shortcuts through a
+// TODO(2026-09-07): Let people and host agents configure character key shortcuts through a
 // reader-configuration surface. Apply that setting here so dispatch and every projection
 // continue to consume one binding vocabulary.
 export const bindings = declaredBindings;
@@ -186,7 +186,7 @@ export const commandEntries = (row, active = bindings(row)) => {
 };
 // The command identities a visual presentation gives one row. Rows whose bindings are
 // distinct commands expand into routes; a compact row and one deliberately unavailable
-// from the reference keep their own identity. The reference and key line both consume this
+// from the reference keep their own identity. The reference and shortcut bar both consume this
 // projection so route additions cannot reach one surface without the other.
 export const commandPresentations = (row, active = bindings(row)) => {
   if (row.runFromReference === false) return [{ id: row.id, route: null }];
@@ -339,7 +339,7 @@ export function decisionControls(commands, where = "an Ask") {
 
 // The register's machine-readable spelling for assistive technology. `Mod` is the one
 // visual key the platform chooses, while the dispatcher deliberately accepts either
-// Control or Meta; aria-keyshortcuts therefore states both working chords. Native Space
+// Control or Meta; aria-keyshortcuts therefore states both working sequences. Native Space
 // uses the named key ARIA expects rather than a literal blank token.
 const ariaBindings = (binding) => {
   const { key, mods } = parsed(binding);
@@ -360,7 +360,7 @@ export const ariaShortcuts = (rows, current = true, where) =>
   ].join(" ");
 
 // Does this press answer this binding? Modifiers are matched exactly, so ⌘D is the
-// browser's bookmark rather than a page command, and ⌥ stays the aim chord's alone.
+// browser's bookmark rather than a page command, and ⌥ stays the aim sequence's alone.
 //
 // A letter matches on its lowercase with Shift asked for separately, because caps lock
 // writes an uppercase key out of an unshifted press and reads an unshifted one out of a
@@ -483,11 +483,11 @@ export function checked(rows, where) {
     }
     if (row.run && !row.line)
       throw new Error(
-        `leaf: row ${i} of ${where} presses with no word for the key line`,
+        `leaf: row ${i} of ${where} presses with no word for the shortcut bar`,
       );
-    if (row.chordControl != null && row.chordControl !== true)
+    if (row.sequenceControl != null && row.sequenceControl !== true)
       throw new Error(
-        `leaf: row ${i} of ${where} has invalid chord-control presentation ${String(row.chordControl)}`,
+        `leaf: row ${i} of ${where} has invalid sequence-control presentation ${String(row.sequenceControl)}`,
       );
     for (const binding of declared) {
       for (const mod of parsed(binding).mods)

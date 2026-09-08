@@ -30,7 +30,7 @@ import { renderMargin } from "./living-margin.js";
 // A handle lives inside the region it draws, so a drawn region must not be its own scroll
 // container: a scroller clips a handle straddling its border and carries it away with the
 // content. A tray is a shell holding a `.lf-tray-list`, and every tray list reserves the
-// key line's room where their horizontal spans meet. Wide content reads the shell's CSS
+// shortcut bar's room where their horizontal spans meet. Wide content reads the shell's CSS
 // value directly; there is no observed measurement loop or second number system to
 // reconcile during a transition.
 
@@ -73,7 +73,7 @@ const beforeOpen = ({ remember = true } = {}) => {
 // The rows' own box, one per tray. Collected privately as they are made, because what
 // the layout reserves at the foot of one it reserves at the foot of every one — and a
 // second place to remember that is exactly where the Asks tray was left out of it: its
-// walk parked the last row 47px under the key line, on the one tray nothing had ever
+// walk parked the last row 47px under the shortcut bar, on the one tray nothing had ever
 // walked to the end of. Callers state the clearance; this owner decides which lists it
 // reaches and how each one spends it.
 const trayLists = [];

@@ -248,7 +248,7 @@ lf-diff:not(.lf-rendered) > pre {
   .lf-diff-filtered { display: block !important; }
   /* Paper wraps whether or not the switch was on, because a clipped line on screen is a
      scroll away and a clipped line on paper is gone: forty rows of the walkthrough's
-     patch came out cut, the worst by 744px, and one of them was the key line a reader
+     patch came out cut, the worst by 744px, and one of them was the shortcut bar a reader
      would have been reading the page to learn. The switch is not on the sheet to press,
      so the sheet cannot be left holding its answer. */
   [data-line] { white-space: pre-wrap !important; overflow-wrap: anywhere !important; }

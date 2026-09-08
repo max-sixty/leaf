@@ -321,7 +321,7 @@ export function offer(tag, cls, label) {
 
 // Put the reader on an element that may not be a tab stop: focus it, and where it will
 // not take focus, lend it the tab stop a control has for exactly as long as it holds it —
-// the lend leaves with the first blur, so a paragraph the address chord landed on is a
+// the lend leaves with the first blur, so a paragraph the address sequence landed on is a
 // paragraph again once the reader moves off it, and `tabindex` never becomes a thing the
 // runtime leaves behind on an author's element. An element that already declares a stop
 // keeps its own. Four arrivals want this and none owns the element: a go-to hint
@@ -480,7 +480,7 @@ export function relabel(node, label, { says } = {}) {
 // Measured in place: text-only controls, swapped and restored synchronously, so no
 // frame paints mid-swap. Stood out of flow for the moment — absolute, hidden — so a
 // control whose news hasn't arrived yet (display: none) measures all the same and
-// its neighbours don't feel the fitting. Sized by its words alone while it stands
+// its neighbours don't feel the measurement. Sized by its words alone while it stands
 // there, its own width cleared along with its place: a stated width can mean "and grow
 // past this" in flow — a table cell laid out at `width: 0` takes what its content
 // needs — where out of flow it is simply obeyed, and the widest word then measures as
@@ -495,7 +495,7 @@ export function relabel(node, label, { says } = {}) {
 export function reserve(control, labels) {
   // Standing the control out of flow hides it, and hiding a focused element takes the
   // focus off it — onto body, silently, a frame after the reader put it here. The
-  // fitting is synchronous and invisible, and losing the reader's place is not part of
+  // measurement is synchronous and invisible, and losing the reader's place is not part of
   // what it was asked to do. Renewing the banner's reservations across a breakpoint is
   // where this shows: a reader holding one address crosses 900px and is standing on
   // nothing.
@@ -522,7 +522,7 @@ export function reserve(control, labels) {
 
 // The anchored response bar has one control grammar of its own. Its buttons share the
 // field's type, border, height, and floating elevation without claiming to be target-
-// margin Buttons. The repeated anatomy lets Comment, Suggest, and package reactions
+// margin elements. The repeated anatomy lets Comment, Suggest, and package reactions
 // change vocabulary without each inventing a button shape.
 export function responseAction(
   control,

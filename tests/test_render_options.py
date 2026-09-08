@@ -43,7 +43,6 @@ from render_support import (
     flip_point,
     hold_selection,
     holding,
-    key_line,
     leaf_page,
     live_url,
     open_page,
@@ -51,6 +50,7 @@ from render_support import (
     round_trip,
     sending,
     sent_events,
+    shortcut_bar_text,
     stamp_page,
     stamp_version_file,
     told,
@@ -376,7 +376,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
 
     page.keyboard.press("a")
     mark = page.locator("#storage-evict .lf-pick")
-    line = key_line(page)
+    line = shortcut_bar_text(page)
     assert "Drop the oldest documents / Pause offline editing" in line, line
     option_hints = page.locator("#storage-options > lf-option > .lf-address")
     expect(option_hints).to_have_text(["1", "2"])
@@ -396,14 +396,14 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(
         page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_text(["1", "2"])
-    assert key_line(page) == line
+    assert shortcut_bar_text(page) == line
     page.keyboard.press("Enter")
     expect(mark).to_be_focused()
     expect(box).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
     # The controls remain in document order: the other mark, then the text box. It keeps
-    # native newlines on both forms of Enter and exposes the shared submit chord.
+    # native newlines on both forms of Enter and exposes the shared submit sequence.
     page.keyboard.press("Tab")
     expect(page.locator("#storage-stop .lf-pick")).to_be_focused()
     page.keyboard.press("Tab")
@@ -418,7 +418,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     )
     expect(box).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
     expect(page.locator("#storage-options > lf-option[data-lf-added]")).to_have_count(0)
-    assert "add option" in key_line(page)
+    assert "add option" in shortcut_bar_text(page)
     page.keyboard.press("ControlOrMeta+Enter")
     added = page.locator("#storage-options > lf-option[data-lf-added]")
     expect(added).to_contain_text("Keep both layers")
@@ -443,7 +443,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     assert errors == []
     page.close()
 
-    # Native focus scrolling reads the fixed key line as part of the root scrollport's
+    # Native focus scrolling reads the fixed shortcut bar as part of the root scrollport's
     # unavailable foot. In a phone window the field otherwise lands underneath that line:
     # geometrically in the viewport, but neither visible nor operable as the next stop.
     #
@@ -454,7 +454,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     # so rather than leaving it to the window's height to be right.
     page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     resized(page, 390, 640)
-    clearance = """() => document.querySelector('.lf-keyline').getBoundingClientRect().top
+    clearance = """() => document.querySelector('.lf-shortcut-bar').getBoundingClientRect().top
       - document.querySelector('#storage-options > .lf-another')
         .getBoundingClientRect().bottom"""
     # An unframed page ask arrives in two document scrolls, an instant one to reveal it
@@ -472,7 +472,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     box = page.locator("#storage-options > .lf-another textarea")
     expect(box).to_be_focused()
     landed = page.evaluate(clearance)
-    assert landed >= 20, f"the key line covers the add field by {-landed}px"
+    assert landed >= 20, f"the shortcut bar covers the add field by {-landed}px"
     assert errors == []
     page.close()
 
@@ -1259,7 +1259,7 @@ def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve
 
     The outer Ask must therefore expose only its two choices. Otherwise both numbered
     command sets collide when the reader navigates there, and the inner question either
-    breaks the key line or lends its answers to the wrong Ask.
+    breaks the shortcut bar or lends its answers to the wrong Ask.
     """
     page, errors = open_page(browser, serve(NESTED_ASK_PAGE))
     page.keyboard.press("a")
@@ -1339,7 +1339,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
 
     words = page.locator("#ro-column-p")
     # The expanded editor can leave this paragraph geometrically in the viewport but
-    # underneath the fixed key line. Centre the actual selection target before deriving
+    # underneath the fixed shortcut bar. Centre the actual selection target before deriving
     # viewport coordinates; scroll_into_view_if_needed cannot see that occlusion.
     words.evaluate("el => el.scrollIntoView({block: 'center'})")
     start, end = words.evaluate("""el => {
@@ -1655,9 +1655,9 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
 ):
     """A widget needs no x-work declaration to acknowledge the reader's move.
 
-    The owner's existing page-edge Button keeps its DOM identity while durable transport
+    The owner's existing page-edge margin element keeps its DOM identity while durable transport
     acceptance advances Sent to Picked up and a real claim makes it Active. Once authored
-    markup records the choice and completes the claim, the Button disappears; the widget
+    markup records the choice and completes the claim, the margin element disappears; the widget
     carries the chosen state itself.
     """
     url = serve(ASK_PAGE)
@@ -1676,7 +1676,7 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     )
     receipt = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
     expect(receipt).to_have_attribute("data-lf-kinds", "sent")
-    expect(receipt.locator(".lf-margin-button-icon")).to_have_attribute(
+    expect(receipt.locator(".lf-margin-element-icon")).to_have_attribute(
         "data-lf-icon", "sent"
     )
     expect(receipt).to_have_attribute("aria-label", re.compile(r"^Sent, "))
@@ -1698,21 +1698,21 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     assert active.exit_code == 0, active.output
     told(page)
     expect(receipt).to_have_attribute("data-lf-kinds", "activity")
-    expect(receipt.locator(".lf-margin-button-icon")).to_have_attribute(
+    expect(receipt.locator(".lf-margin-element-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
     expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
     expect(receipt).to_have_attribute("data-identity-probe", "kept")
 
     # The receipt admitted this claim without an x-work declaration. Its page-edge
-    # Target Button is still a local seat, so an unrelated revision cannot wedge the
+    # target margin element is still a local seat, so an unrelated revision cannot wedge the
     # authoring loop merely because the widget has no content or conversation seat.
     unrelated = ASK_PAGE.replace(
         '<h1 id="h">Three jobs</h1>', '<h1 id="h">Three jobs, checked</h1>'
     )
     stamp_page(d, unrelated, "Checked the surrounding plan")
     wait_for_revision(page, 2)
-    expect(receipt.locator(".lf-margin-button-icon")).to_have_attribute(
+    expect(receipt.locator(".lf-margin-element-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
     expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
@@ -1847,7 +1847,7 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
 def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     """A page widget is a first-class work subject even before anybody comments.
 
-    A board card declares a local work seat and receives its page-edge Button without
+    A board card declares a local work seat and receives its page-edge margin element without
     inventing a comment thread. An options group deliberately has no such seat: adding
     an option changes decision state, and any discussion starts as a separate thread
     once that option exists. Unrelated versions leave the board claim standing, while
@@ -1886,7 +1886,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         '[data-lf-margin-for="card-migration"] > .lf-margin-marker'
     )
     expect(card_button).to_have_attribute("data-lf-kinds", "activity")
-    expect(card_button.locator(".lf-margin-button-icon")).to_have_attribute(
+    expect(card_button.locator(".lf-margin-element-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
     expect(card_button).to_have_attribute(
@@ -1897,7 +1897,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     expect(page.locator(".lf-thread")).to_have_count(0)
     expect(page.locator(".lf-panel .lf-receipt")).to_have_count(0)
     expect(page.locator("#card-migration > .lf-receipt")).to_have_count(0)
-    expect(card_button).to_have_class(re.compile(r"\blf-margin-button\b"))
+    expect(card_button).to_have_class(re.compile(r"\blf-margin-element\b"))
 
     # An unrelated version leaves the card coordinate standing.
     stamp_page(d, work_page, "Elsewhere")
@@ -1930,7 +1930,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
 
 def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_path):
     """A customization may deliberately give a container member a content seat.
-    The runtime's generated Button is still apparatus rather than that member's own
+    The runtime's generated margin element is still apparatus rather than that member's own
     gesture: clicking status about an option must not choose the option."""
     option = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
         "lf-option"

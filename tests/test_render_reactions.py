@@ -21,7 +21,6 @@ from render_support import (
     SUGGESTION_PAGE,
     TARGETS_PAGE,
     button_radius,
-    key_line,
     open_page,
     panel_comment,
     panel_settled,
@@ -29,6 +28,7 @@ from render_support import (
     round_trip,
     select,
     sending,
+    shortcut_bar_text,
     told,
     watched,
 )
@@ -46,7 +46,7 @@ PAINTED = """() => ({
     .map(el => el.id || el.dataset.id),
 })"""
 
-# The marker a Button paints for its lifecycle state. Since #371 `busy` is the only
+# The marker a margin element paints for its lifecycle state. Since #371 `busy` is the only
 # state that paints one, anything else should report its absence.
 PAINTS_LIFECYCLE_MARK = """el => {
   const mark = getComputedStyle(el, '::after');
@@ -233,7 +233,7 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
         """() => {
           const p = document.querySelector('#how-store').getBoundingClientRect();
           const receipt = document.querySelector('.lf-reacts');
-          const item = receipt.closest('.lf-margin-item');
+          const item = receipt.closest('.lf-margin-cluster');
           const g = item.getBoundingClientRect();
           return { dy: g.top - p.top, right: g.left - p.right,
                    target: item.dataset.lfMarginFor, parent: receipt.parentElement === item };
@@ -255,7 +255,7 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     # remains the margin receipt and eraser.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, open=False)
-    receipt_item = page.locator('.lf-margin-item[data-lf-margin-for="how-store"]')
+    receipt_item = page.locator('.lf-margin-cluster[data-lf-margin-for="how-store"]')
     expect(receipt_item).not_to_have_class(re.compile("lf-docked"))
     select_paragraph(page, "#how-store")
     expect(bar).to_be_visible()
@@ -296,8 +296,8 @@ def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     with sending(page, "the withdrawal the gallery opens on"):
         settled.click()
     # The withdrawal applied, and not merely delivered, before the raise below stands its
-    # choices inside the target's Buttons. A state that lands after that fold is open
-    # re-renders the cluster, and the margin says so on `lf-button-options-closed`, which
+    # choices inside the target's margin elements. A state that lands after that fold is open
+    # re-renders the cluster, and the margin says so on `lf-margin-element-options-closed`, which
     # is exactly what disarms the response mode the digit below is pressed into: the
     # press then reaches nothing, and the read finds the withdrawal still last in the log.
     told(page)
@@ -309,7 +309,7 @@ def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     expect(surface).to_have_class(re.compile(r"\blf-response-open\b"))
     expect(surface.locator(":scope > .lf-response-more:visible")).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
-    assert "1–6" in key_line(page)
+    assert "1–6" in shortcut_bar_text(page)
 
     # The digit's own gesture in the wire before the log is read; without it the read
     # answers with whatever stood last — here the withdrawal above, which reads as the
@@ -336,7 +336,7 @@ def test_comment_reaction_digits_stop_at_nine_for_a_larger_vocabulary(browser, s
 
     bar = page.locator(".lf-fab-bar")
     expect(bar.locator(".lf-react:visible")).to_have_count(11)
-    line = key_line(page)
+    line = shortcut_bar_text(page)
     assert "1–9" in line and "1–11" not in line, line
     with sending(page, "the ninth reaction shortcut"):
         page.keyboard.press("9")
@@ -374,7 +374,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     # The press applied, and not merely delivered, before the reopen below asks for the row
     # again. `round_trip` ends on what the page has heard back, and the margin renders that
     # state after it; a render taken over an open options row says so on
-    # `lf-button-options-closed`, which is what takes the row away. A reopen placed in that
+    # `lf-margin-element-options-closed`, which is what takes the row away. A reopen placed in that
     # gap presses `r` at a cluster the arriving state is about to rebuild, so the row either
     # never opens or is closed under the press. The wait on the wire comes first because a
     # post the browser has not reported yet is not pending, and a trip that ends before the
@@ -415,7 +415,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         assert reaction.evaluate(read) == resting
         assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
 
-    item = page.locator('.lf-margin-item[data-lf-margin-for="draft"]')
+    item = page.locator('.lf-margin-cluster[data-lf-margin-for="draft"]')
 
     def open_margin_reactions():
         item.get_by_role("button", name="Edit draft", exact=True).focus()
@@ -433,7 +433,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
 def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     """Tab adds reactions after the compact field without moving or replacing it.
 
-    Each declared emoji is its own Button, with its token in the accessible name.
+    Each declared emoji is its own margin element, with its token in the accessible name.
     Digits remain optional accelerators in declaration order. Once the surface has been
     dismissed, `r` is no longer a live page command; page-wide reactions remain explicit
     in Threads.
@@ -445,7 +445,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     expect(bar.locator(".lf-fab-input")).not_to_be_focused()
     page.keyboard.press("c")
     page.keyboard.press("Tab")
-    line = key_line(page)
+    line = shortcut_bar_text(page)
     assert "1–6" in line and "react" in line, line
     surface = bar.locator(":scope > .lf-response-options")
     expect(surface).to_be_visible()
@@ -487,11 +487,11 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     # token and the passage it stands on, where it promised a generic take-back before.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_be_visible()
-    rows = page.locator(".lf-help").inner_text()
+    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
+    rows = page.locator(".lf-shortcut-reference").inner_text()
     assert "Take back: shorten on “The store is capped" in rows, rows
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-help")).to_be_hidden()
+    expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
 
     # Nothing selected: React is not a command, so the key opens no surface or notice.
     page.keyboard.press("Escape")
@@ -499,7 +499,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     page.mouse.move(0, 0)
     page.evaluate("() => document.body.focus()")
     expect(
-        page.locator('.lf-keyline [data-lf-commands~="reaction.open"]')
+        page.locator('.lf-shortcut-bar [data-lf-commands~="reaction.open"]')
     ).to_have_count(0)
     page.keyboard.press("r")
     expect(page.locator(".lf-notice")).not_to_have_text("Select something to react to")
@@ -540,7 +540,7 @@ def test_an_item_hint_opens_comment_and_a_token_outlines_the_item(browser, serve
 def test_reactions_keep_all_six_buttons_on_an_occupied_target(
     browser, serve, width, opener
 ):
-    """Explicit reaction mode spends every fitting on feedback, at either posture.
+    """Explicit reaction mode spends every margin element on feedback, at either posture.
 
     Existing suggestion actions stay in the complete Page-map inventory instead of
     displacing tokens or adding an overflow detour. Pointer and keyboard activation
@@ -593,7 +593,7 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(
     page.locator(".lf-page-map-toggle").evaluate("button => button.click()")
     sheet = page.get_by_role("dialog", name="Page map", exact=True)
     decision = sheet.locator(
-        f'[data-lf-map-button="id:{target}:suggestion:{target}:{action}"]'
+        f'[data-lf-map-margin-element="id:{target}:suggestion:{target}:{action}"]'
     )
     decision.focus()
     expect(decision).to_be_focused()
@@ -651,7 +651,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     expect(item).to_have_attribute("data-lf-options-open", "")
 
     # Nor does the raise that finds the fold already open: standing the choices in a
-    # cluster the reader unfolded for themselves borrows it, and `openButtonOptions` is
+    # cluster the reader unfolded for themselves borrows it, and `openMarginElementOptions` is
     # a no-op there, so putting them down leaves the fold where the press found it.
     item.locator(".lf-sug-accept").focus()
     page.keyboard.press("r")
@@ -662,7 +662,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     expect(item).to_have_attribute("data-lf-options-open", "")
 
     # The raise that does unfold a cluster to stand its choices in still folds it back.
-    option = item.locator(".lf-margin-options .lf-margin-button:visible").first
+    option = item.locator(".lf-margin-options .lf-margin-element:visible").first
     option.focus()
     expect(option).to_be_focused()
     page.keyboard.press("Escape")
@@ -1416,12 +1416,12 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-pending\b"))
     assert page.evaluate("() => getSelection().toString().trim()") == ""
     whole_bar = page.locator(".lf-fab-bar").bounding_box()
-    keyline = page.locator(".lf-keyline").bounding_box()
+    shortcut_bar = page.locator(".lf-shortcut-bar").bounding_box()
     assert (
-        whole_bar["x"] + whole_bar["width"] <= keyline["x"]
-        or keyline["x"] + keyline["width"] <= whole_bar["x"]
-        or whole_bar["y"] + whole_bar["height"] <= keyline["y"] - 6
-    ), (whole_bar, keyline)
+        whole_bar["x"] + whole_bar["width"] <= shortcut_bar["x"]
+        or shortcut_bar["x"] + shortcut_bar["width"] <= whole_bar["x"]
+        or whole_bar["y"] + whole_bar["height"] <= shortcut_bar["y"] - 6
+    ), (whole_bar, shortcut_bar)
 
     control = page.locator(".lf-visual-action").filter(
         has_text=re.compile(r"^Respond to Start request$")
@@ -1434,7 +1434,7 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     expect(page.locator(".lf-fab-input")).to_be_focused()
     # The captured target spends the short line's two contextual slots on immediate
     # comment entry and the route to its other responses.
-    line = key_line(page)
+    line = shortcut_bar_text(page)
     assert "comment" in line and "other responses" in line
     assert "unselect" not in line
 
@@ -2060,7 +2060,7 @@ def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, r
     page.keyboard.press("1")
     page.wait_for_timeout(100)
     assert len(events_model.read_events(serve.page_dir)) == count
-    assert "1–6" not in key_line(page)
+    assert "1–6" not in shortcut_bar_text(page)
     assert errors == []
     page.close()
 
@@ -2154,7 +2154,7 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
         """() => ({
           washed: [...document.querySelectorAll('mark.lf-react')].map(m => m.textContent),
           glyph: [...document.querySelectorAll(
-            '.lf-margin-item[data-lf-margin-for="how-store"] .lf-react-mark'
+            '.lf-margin-cluster[data-lf-margin-for="how-store"] .lf-react-mark'
           )]
             .map(m => [m.innerText, m.getAttribute('role'),
                        m.getAttribute('aria-label'), m.getAttribute('tabindex')]),
@@ -2169,7 +2169,7 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
     # pointer rather than standing on the page is invisible to it. A lifecycle marker
     # in a file would state a state that nothing in the file can leave.
     mark = page.locator(
-        '.lf-margin-item[data-lf-margin-for="how-store"] .lf-react-mark'
+        '.lf-margin-cluster[data-lf-margin-for="how-store"] .lf-react-mark'
     )
     resting = mark.evaluate("el => getComputedStyle(el).backgroundColor")
     assert mark.evaluate(PAINTS_LIFECYCLE_MARK) is False

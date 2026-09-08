@@ -69,8 +69,8 @@ technical backlog deck; `playground` adds declarative controls, presets, CSS-bou
 previews, and one typed configuration action; `command-hub` adds multi-agent
 orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
 description and compact checks table, plus a data-backed unified call diff. `gallery`
-adds the static Button atlas used only by the developer feature gallery, so ordinary
-pages do not select it:
+adds the static gallery of page-edge action controls, disclosure controls, and status
+indicators used only by the developer feature gallery, so ordinary pages do not select it:
 
 ```bash
 leaf page init --package diagram PAGE
@@ -284,8 +284,8 @@ module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
 
-A widget contributes each capability once with `commands(source, title, rows, options)`.
-The dispatcher, key line, `?` reference, `aria-keyshortcuts`, and Ask projection all
+A widget contributes each command once with `commands(source, title, rows, options)`.
+The dispatcher, shortcut bar, `?` reference, `aria-keyshortcuts`, and Ask projection all
 consume those same live rows. Set a row or route's `decision` to its concise, non-empty
 action-name string—or a function returning one—and give it `control` when that control
 answers, advances, or revises the Ask containing `source`. The action name is separate
@@ -295,9 +295,8 @@ showing a blank keycap. The Ask projection always spells the binding it resolved
 the `decision` action name, so its inline hint says what the reader actually presses. A
 row may have zero or one live binding in the Decision role: zero receives the Ask's next
 free contextual `1` through `9`, while one keeps its canonical binding, such as
-`ArrowLeft`. Each action keeps its command id as an exact route; that route is the one
-binding-to-control identity used by dispatch, the reference, the key line, its address,
-and `aria-keyshortcuts`. `address` may name an empty face a widget already positions; core
+`ArrowLeft`. Each action keeps one command id. Dispatch, the reference, the shortcut bar,
+its address, and `aria-keyshortcuts` all use that id. `address` may name an empty face a widget already positions; core
 writes the resolved binding there, so the package does not keep a second key map. Do
 not maintain a second Ask-control list.
 Otherwise core paints the binding at the visible control. Routes let one parameterized
@@ -308,10 +307,10 @@ When the scope belongs to an Ask, `options.answer` may read its concise current 
 the answered row in the Asks tray. Leaf normalizes whitespace and bounds the displayed
 answer; the package owns its meaning and words. Attach the answer reader to one stable scope
 owned by the Ask, even when several descendant scopes contribute controls. Answer metadata
-stays readable after a scope's capability gate closes, while the command rows remain gated.
+stays readable after a scope's availability condition closes, while the command rows remain gated.
 
-Register the semantic capability, not every nearby button. Evidence nested inside an
-option is not an answer, and a shared-margin Button may sit outside the Ask source. When
+Register the command once, not every nearby button. Evidence nested inside an
+option is not an answer, and a shared-margin element may sit outside the Ask source. When
 controls or availability change, keep the row fields computed and call `paintKeys()`;
 every command projection then updates together. A package that needs the page-wide open
 Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)`
@@ -346,7 +345,7 @@ Every row passed to `commands()` has a stable dotted `id`, such as `draft.save`.
 identity when its key or wording changes: the command browser and repeated widget
 instances use it instead of display prose. If one compact row binds keys with different
 meanings, add `routes` with an `id`, `binding`, and action sentence for each meaning. The
-key line stays compact, while the complete reference lists and runs each route on its own.
+shortcut bar stays compact, while the complete reference lists and runs each route on its own.
 Use `runFromReference: false` only for a parameterized step that cannot be run without a
 choice the reference does not have, such as a generated hint tied to the live viewport. An
 optional `reach` on a row or scope supplies the short place phrase shown when a command
@@ -713,7 +712,7 @@ The reader's design mode (`l` in the browser) posts a comment about the layer ra
 than the page: `"about": "layer"`, anchored on the element they clicked or the words they
 selected. The anchor's `section` is a widget's id, or the id of a runtime part —
 `lf-banner`, `lf-threads-toggle` (the panel), `lf-leaves` (the leaves panel), `lf-versions`,
-`lf-composer`, `lf-comment-button` (the margin's Comment Button), `lf-keyline`, `lf-help` — and
+`lf-composer`, `lf-comment-button` (the margin's Comment control), `lf-shortcut-bar`, `lf-shortcut-reference` — and
 `part` names the control the click landed on, where it landed on one (`Accept`,
 `Threads (2)`).
 

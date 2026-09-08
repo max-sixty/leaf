@@ -174,7 +174,7 @@ const showStatus = (kind, tone, ...parts) => {
 // two of the four lines it had to say. On the row it keeps its words and folds whole,
 // ahead of every address, which is the right order for the one control here a reader
 // never needs.
-let previewButton = null;
+let previewMarginElement = null;
 // A checkout goes dirty and clean again while a developer works, so the chip holds the
 // wider of its two spellings for the page's life rather than growing a character under
 // the reader's pointer. Renewed with the row's other reservations at a breakpoint.
@@ -205,11 +205,11 @@ function renderPreview(state) {
     `event sequence: ${state.events.at(-1)?.seq ?? 0}`,
     `url: ${safeUrl}`,
   ].join("\n");
-  if (!previewButton) {
-    previewButton = el("button", "lf-btn lf-preview", label);
-    previewButton.type = "button";
-    previewButton.setAttribute("aria-label", "Copy preview diagnostics");
-    previewButton.addEventListener("click", async () => {
+  if (!previewMarginElement) {
+    previewMarginElement = el("button", "lf-btn lf-preview", label);
+    previewMarginElement.type = "button";
+    previewMarginElement.setAttribute("aria-label", "Copy preview diagnostics");
+    previewMarginElement.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(previewDiagnostics);
         notice("Copied preview diagnostics");
@@ -227,11 +227,11 @@ function renderPreview(state) {
     // same call for the same reason.
     arrangeBannerControls();
     unfoldShelf();
-    reserve(previewButton, previewLabels);
+    reserve(previewMarginElement, previewLabels);
     foldShelf();
   }
-  previewButton.textContent = label;
-  previewButton.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
+  previewMarginElement.textContent = label;
+  previewMarginElement.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
 }
 // The two lines the page cannot reach through its own state, said here because the
 // reservation below has to know them as well as the reading does.
@@ -536,7 +536,7 @@ export const isSignoffDeclared = () => signoffDeclared;
 // the reader was standing on.
 function arrangeBannerControls() {
   const focused = document.activeElement;
-  const edges = new Set([toggleBtn, approveBtn, othersBtn, previewButton]);
+  const edges = new Set([toggleBtn, approveBtn, othersBtn, previewMarginElement]);
   // Registry-declared blanket answers can join the middle of this row after boot, and a
   // folded address is still on it. Preserve every such control in its standing relative
   // order while moving only the edge-owned addresses.
@@ -544,7 +544,7 @@ function arrangeBannerControls() {
     (control) => control !== overflowBtn && !edges.has(control),
   );
   const controls = [
-    ...(previewButton ? [previewButton] : []),
+    ...(previewMarginElement ? [previewMarginElement] : []),
     othersBtn,
     ...middle,
     ...(signoff ? [approveBtn] : []),
@@ -613,7 +613,7 @@ let reservedCovering = null;
 export function reserveBannerControls() {
   unfoldShelf();
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
-  if (previewButton) reserve(previewButton, previewLabels);
+  if (previewMarginElement) reserve(previewMarginElement, previewLabels);
   // News keeps one readable address while it changes words. The row folds rather than
   // clips, so no control has to collapse into an illegible pressure release.
   reserve(latestChip, [

@@ -27,12 +27,12 @@ def test_ship_review_asks_are_directly_answerable(browser, serve):
     expect(page.locator("#off-workaround-approve .lf-pick")).to_have_attribute(
         "aria-checked", "true"
     )
-    # A key line with no rows in it is silent: the chrome paints, the console stays
+    # A shortcut bar with no rows in it is silent: the chrome paints, the console stays
     # clean, and every other everyday assertion holds while no reader can see a key.
     # The boot's own failure is loud and covered by `errors` below, so what is asked
     # for here is the rows — the More control's keycap is static and would show
     # whatever happened. At rest a page shows `c` and `r`.
-    expect(page.locator(".lf-keyline .lf-key:not([hidden])")).not_to_have_count(0)
+    expect(page.locator(".lf-shortcut-bar .lf-key:not([hidden])")).not_to_have_count(0)
 
     assert errors == []
     page.close()

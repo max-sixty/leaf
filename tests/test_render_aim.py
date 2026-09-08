@@ -134,7 +134,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     note.click()
     page.keyboard.up("Alt")
 
-    # The chord already names Comment, so the durable composer is the focused field
+    # The sequence already names Comment, so the durable composer is the focused field
     # beside the note. It grows in place, Enter adds a line, and Mod+Enter submits it.
     field = open_compact_comment(page, "why here")
     assert page.evaluate(DRAFT_MARK) == "logout-frequency"
@@ -813,7 +813,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
     marker.hover()
-    label = marker.locator(":scope > .lf-margin-button-label")
+    label = marker.locator(":scope > .lf-margin-element-label")
     trace = page.locator('.lf-target-trace[data-for="jobs"]')
     expect(label).to_be_visible()
     expect(trace).to_be_visible()
@@ -1008,7 +1008,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
             expect(bar).to_be_hidden()
             expect(composer).to_be_hidden()
         else:
-            # The chord promised Comment, so the press focuses its compact field.
+            # The sequence promised Comment, so the press focuses its compact field.
             open_compact_comment(page)
             mark = page.evaluate(DRAFT_MARK)
             # A box a standing thread already outlines keeps the posted colour and takes
@@ -1241,7 +1241,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
 
     page.keyboard.press("?")
     page.keyboard.press("?")
-    reference = page.locator(".lf-help")
+    reference = page.locator(".lf-shortcut-reference")
     expect(reference).to_be_visible()
     expect(reference.locator('tr[data-lf-command="aim.comment"]')).to_have_count(0)
     page.keyboard.press("Escape")
@@ -1395,21 +1395,21 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
         re.compile(r"^layer · Accept .* · lf-suggestion · sug-refill$")
     )
     assert page.locator("#sug-refill").get_attribute("aria-busy") is None, (
-        "the margin Button action started while Design mode was opening its comment"
+        "the margin element action started while Design mode was opening its comment"
     )
     round_trip(page)
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action" and event["widget"] == "sug-refill"
-    ], "the margin Button action reached the durable log despite Design mode"
+    ], "the margin element action reached the durable log despite Design mode"
     assert errors == []
     page.close()
 
     # The same hoist exists inside frozen markup in a conversation. Its target belongs
     # to that conversation document, so the margin owner hands Design mode the exact
     # element rather than making it reconstruct ownership from a diagnostic id or path.
-    url = serve(leaf_page("inline margin Button action", '<h1 id="h">Review</h1>'))
+    url = serve(leaf_page("inline margin element action", '<h1 id="h">Review</h1>'))
     events_model.append_event(
         serve.page_dir,
         {
@@ -1453,7 +1453,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
         event
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action" and event["widget"] == "reply-suggestion"
-    ], "the inline margin Button action reached the durable log despite Design mode"
+    ], "the inline margin element action reached the durable log despite Design mode"
     assert errors == []
     page.close()
 
@@ -2530,7 +2530,7 @@ def test_the_chrome_keeps_its_presses_while_the_page_is_armed(browser, serve):
 
 
 def test_the_armed_cursor_says_whether_a_press_would_take_anything(browser, serve):
-    """The chord's cost is that it is invisible, and the cursor pays part of it.
+    """The sequence's cost is that it is invisible, and the cursor pays part of it.
 
     Holding ⌥ used to draw a plain arrow over the whole page: it said "not a text
     selection" and nothing else, which leaves the one question the outline can't answer

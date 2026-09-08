@@ -164,10 +164,10 @@ CONTROL_ARCHETYPES = (
         "target": ".lf-signoff",
     },
     {
-        # Accept and Reject share the resting row. A thread adds the third Button that
+        # Accept and Reject share the resting row. A thread adds the third margin element that
         # puts the secondary choices behind `…`; opening it must leave Accept still.
-        "name": "margin-button",
-        "coverage": ".lf-margin-button",
+        "name": "margin-element",
+        "coverage": ".lf-margin-element",
         "target": '[data-lf-margin-for="stable-suggestion"] > .lf-margin-more',
     },
     {
@@ -316,13 +316,13 @@ def test_an_approval_can_be_taken_back_like_any_other_reader_gesture(browser, se
     A reader who meant Threads and hit the button beside it had approved the work, and
     nothing on the page or in the log would take it back: `done` was outside
     UNDOABLE_KINDS, so the append door refused the undo and the offer never reached the
-    key line. It is a mark rather than speech, the way a reaction is — the agent is told
+    shortcut bar. It is a mark rather than speech, the way a reaction is — the agent is told
     the version is approved, not told something — so the withdrawal is the whole of the
     correction, and it goes through the outbox and the `z` row every other reader gesture
     uses.
 
     Read at all three levels the fault sat in, because two of them were separately wrong:
-    the key line has to offer the press, the log has to take the undo, and the projection
+    the shortcut bar has to offer the press, the log has to take the undo, and the projection
     the button reads has to stop counting an approval a reader withdrew — `done` was a
     raw filter over the whole log, so an accepted undo would have left the button reading
     "✓ Version approved" for ever.
@@ -1561,7 +1561,7 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
     door.focus()
     page.keyboard.press("?")
     page.keyboard.press("?")
-    reference = page.locator(".lf-help")
+    reference = page.locator(".lf-shortcut-reference")
     expect(reference).to_be_visible()
     assert reference.evaluate("el => el.matches(':modal')"), (
         "the keyboard reference looked modal but left the page interactive behind it"
@@ -1653,12 +1653,12 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
 
         page.locator(".lf-threads-toggle").tap()
         panel_settled(page)
-        # The key line is not among them: a touch device has no keyboard to advertise, so
+        # The shortcut bar is not among them: a touch device has no keyboard to advertise, so
         # the whole line stands down and takes its More control with it. That control used
         # to be half of what this counted, and the sheet's own foot is the honest other
         # half — a Send a finger presses, where More was a keyboard's way into a keyboard
         # reference.
-        expect(page.locator(".lf-keyline")).to_be_hidden()
+        expect(page.locator(".lf-shortcut-bar")).to_be_hidden()
         compact = page.locator(
             ".lf-panel .lf-react:visible, .lf-panel-head .lf-btn:visible, "
             ".lf-panel-foot .lf-btn:visible"
@@ -2013,7 +2013,7 @@ def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, 
 def test_each_control_archetype_holds_its_neighbours_still(browser, serve, archetype):
     """Each row mechanism holds its other controls still across its causal transition."""
     # The synthetic page composes every mechanism a page can author, and carries the
-    # standing comment the margin Button's row is made of. An archetype naming an example
+    # standing comment the margin element's row is made of. An archetype naming an example
     # is one no page can compose, so its proof runs where the mechanism lives.
     example = archetype.get("example")
     page, errors = open_page(
@@ -2935,10 +2935,10 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     # The open panel remains a destination after its last link leaves. Its own nav is
     # the fallback landing, and it promises no row walk while there is nothing to walk.
     page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).to_contain_text("All leaves panel")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("All leaves panel")
     page.keyboard.press("Shift+l")
     expect(page.locator(".lf-others-panel")).to_be_focused()
-    expect(page.locator(".lf-keyline")).not_to_contain_text("walk the leaves")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("walk the leaves")
     assert page.locator(".lf-others-panel").get_attribute("aria-keyshortcuts") is None
     # Two presses in, two Escapes out. The second `g L` entered a tray that was already
     # standing, so its own Escape gives that press back and leaves the workspace it
@@ -2960,7 +2960,7 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_reade
     opens it and lands on the first neighbour, up and down step between them and clamp
     at the ends, Enter opens the focused one in its own tab, and Esc gives that press
     back — the reader is returned to the reading place they pressed `g L` from, not left
-    holding the button that names the tray. The go-to menu names the panel, and the key line names
+    holding the button that names the tray. The go-to menu names the panel, and the shortcut bar names
     the tray's own keys once focus is inside it — the promise and the press being one
     scene — and the "?" reference carries the same rows."""
     live_leaf("second", "A second leaf")
@@ -2974,17 +2974,17 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_reade
         "aria-keyshortcuts", "Enter"
     )
     expect(btn).to_have_text("All leaves (3)")
-    keyline = page.locator(".lf-keyline")
+    shortcut_bar = page.locator(".lf-shortcut-bar")
     # The go-to menu carries the panel only while there is another leaf to show.
     page.keyboard.press("g")
-    expect(keyline).to_contain_text("All leaves panel")
+    expect(shortcut_bar).to_contain_text("All leaves panel")
     page.keyboard.press("Shift+l")
     rows = page.locator("a.lf-others-row")
     # Titles order the tray, so the walk has a stated first row to start from.
     expect(rows.first.locator(".lf-others-title")).to_have_text("A second leaf")
     expect(rows.first).to_be_focused()
-    expect(keyline).to_contain_text("walk the leaves")
-    expect(keyline).to_contain_text("open it in a tab")
+    expect(shortcut_bar).to_contain_text("walk the leaves")
+    expect(shortcut_bar).to_contain_text("open it in a tab")
     page.keyboard.press("ArrowUp")
     expect(rows.first).to_be_focused()
     page.keyboard.press("ArrowDown")
@@ -3009,7 +3009,7 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_reade
     assert page.evaluate("() => document.activeElement === document.body")
     page.keyboard.press("?")
     page.keyboard.press("?")
-    help_el = page.locator(".lf-help")
+    help_el = page.locator(".lf-shortcut-reference")
     expect(help_el).to_contain_text("In the leaves tray")
     expect(help_el).to_contain_text("Previous leaf")
     expect(help_el).to_contain_text("Next leaf")
@@ -3105,7 +3105,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     page.keyboard.press("Escape")
 
     # The rung, and what it is worth: off the chrome, and Space is the page's again.
-    expect(page.locator(".lf-keyline")).to_contain_text("back to the page")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to the page")
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
     assert not page.evaluate(ringed)
@@ -3192,8 +3192,10 @@ def test_workspaces_replace_each_other_and_name_the_open_one(
     page.close()
 
 
-def test_a_walk_down_the_tray_stops_clear_of_the_key_line(browser, serve, live_leaf):
-    """The tray is the page's other scroll region and the key line stands over its
+def test_a_walk_down_the_tray_stops_clear_of_the_shortcut_bar_text(
+    browser, serve, live_leaf
+):
+    """The tray is the page's other scroll region and the shortcut bar stands over its
     bottom-left corner, so the tray reserves the line's room — for the walk, which
     scrolls no further than it must, and for the wheel, which runs to the end. Both
     are asserted because they take their room from different places, and the walk's
@@ -3219,9 +3221,9 @@ def test_a_walk_down_the_tray_stops_clear_of_the_key_line(browser, serve, live_l
         "        return b.scrollHeight > b.clientHeight; }"
     ), "the tray never overflowed, so the walk had nothing to scroll and proves nothing"
     last = rows.last.bounding_box()
-    line = page.locator(".lf-keyline").bounding_box()
+    line = page.locator(".lf-shortcut-bar").bounding_box()
     assert last["y"] + last["height"] <= line["y"], (
-        f"the walk parked the last row at {last} under the key line at {line}"
+        f"the walk parked the last row at {last} under the shortcut bar at {line}"
     )
     # And a reader who scrolls the tray to its end by hand lands in the same place:
     # scroll-padding answers the walk, the padding under it answers the wheel.
@@ -3235,9 +3237,9 @@ def test_a_walk_down_the_tray_stops_clear_of_the_key_line(browser, serve, live_l
     page.close()
 
 
-def test_a_walk_down_the_asks_tray_stops_clear_of_the_key_line(browser, serve):
+def test_a_walk_down_the_asks_tray_stops_clear_of_the_shortcut_bar_text(browser, serve):
     """The leaves tray's reading above, made of the tray beside it. The room is one
-    fact — the key line stands in the corner both lists reach — and it was written to one
+    fact — the shortcut bar stands in the corner both lists reach — and it was written to one
     list, so the Asks tray's walk parked its last row 47px under the line. Nothing said
     so, because no example ships enough Asks to fill a tray and the walk that would have
     shown it had only ever been made down the other one.
@@ -3262,9 +3264,9 @@ def test_a_walk_down_the_asks_tray_stops_clear_of_the_key_line(browser, serve):
         "        return b.scrollHeight > b.clientHeight; }"
     ), "the tray never overflowed, so the walk had nothing to scroll and proves nothing"
     last = rows.last.bounding_box()
-    line = page.locator(".lf-keyline").bounding_box()
+    line = page.locator(".lf-shortcut-bar").bounding_box()
     assert last["y"] + last["height"] <= line["y"], (
-        f"the walk parked the last row at {last} under the key line at {line}"
+        f"the walk parked the last row at {last} under the shortcut bar at {line}"
     )
     # And a reader who scrolls the tray to its end by hand lands in the same place:
     # scroll-padding answers the walk, the padding under it answers the wheel.
@@ -3454,7 +3456,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 ):
     """The corpus sweep above reads every example, and reads all of them with the chrome
     shut: it never presses a key, so the thread panel, its box, the trays, the versions
-    menu, the keyboard reference and the chord's chips are surfaces forty readings pass
+    menu, the keyboard reference and the sequence's chips are surfaces forty readings pass
     straight over. A `role="list"` whose children are run headings and threads shipped
     through it, green every time.
 
@@ -3512,16 +3514,18 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     # The keyboard reference, which is a dialog and owes the most of any of them.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_be_visible()
+    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
     sweep("in the keyboard reference")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-help")).to_be_hidden()
+    expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
 
-    # And the chord's generated target hints, painted over the visible page rather than
+    # And the sequence's generated target hints, painted over the visible page rather than
     # inserted into it.
     page.keyboard.press("g")
-    expect(page.locator(".lf-goto-targets > .lf-chord-address").first).to_be_visible()
-    sweep("with the visible-target chord armed")
+    expect(
+        page.locator(".lf-goto-targets > .lf-sequence-address").first
+    ).to_be_visible()
+    sweep("with the visible-target sequence armed")
     page.keyboard.press("Escape")
     assert errors == []
     page.close()
@@ -3644,16 +3648,16 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     page.close()
 
 
-def test_a_sheet_lifts_the_key_line_only_when_its_foot_reaches_the_same_lane(
+def test_a_sheet_lifts_the_shortcut_bar_text_only_when_its_foot_reaches_the_same_lane(
     browser, serve
 ):
-    """The key line clears the panel foot when their rendered rectangles meet.
+    """The shortcut bar clears the panel foot when their rendered rectangles meet.
 
     A covering panel is not itself a collision: at the screenshot's 783px width its
-    footer occupies the right lane while a focused composer's shorter key line fits in
+    footer occupies the right lane while a focused composer's shorter shortcut bar fits in
     the left. The old breakpoint proxy still lifted the line by the footer's full height,
     marooning it over unrelated page content. The list reserves room on the same actual
-    overlap reading, and a wider chord proves that the decision follows changing content
+    overlap reading, and a wider sequence proves that the decision follows changing content
     rather than one hand-picked width."""
     page, errors = open_page(browser, serve(ADDRESSED_PAGE, comments=1))
     resized(page, 420, 900)
@@ -3670,7 +3674,7 @@ def test_a_sheet_lifts_the_key_line_only_when_its_foot_reaches_the_same_lane(
             };
             const list = document.querySelector(".lf-threads");
             const style = getComputedStyle(list);
-            return {keyline: rect(".lf-keyline"), foot: rect(".lf-panel-foot"),
+            return {shortcut_bar: rect(".lf-shortcut-bar"), foot: rect(".lf-panel-foot"),
                     list: rect(".lf-threads"),
                     viewportHeight: innerHeight,
                     listInlinePad: list.style.paddingBottom,
@@ -3679,22 +3683,22 @@ def test_a_sheet_lifts_the_key_line_only_when_its_foot_reaches_the_same_lane(
         }""")
 
     covering = boxes()
-    assert covering["keyline"]["bottom"] <= covering["foot"]["top"], (
-        f"the key line stood on the sheet's foot: {covering}"
+    assert covering["shortcut_bar"]["bottom"] <= covering["foot"]["top"], (
+        f"the shortcut bar stood on the sheet's foot: {covering}"
     )
     # The line reaches back over the list, so the list reserves at least as much of its
     # own end as the line stands on — spent the wheel's way and the walk's way both.
-    covered = covering["list"]["bottom"] - covering["keyline"]["top"]
+    covered = covering["list"]["bottom"] - covering["shortcut_bar"]["top"]
     assert covered > 0, f"the line no longer reaches the list at all: {covering}"
     assert covering["listPad"] >= covered, (
-        f"the sheet's list left its last thread under the key line: {covering}"
+        f"the sheet's list left its last thread under the shortcut bar: {covering}"
     )
     assert covering["listScrollPad"] >= covered, (
-        f"a walk to the last thread would stop under the key line: {covering}"
+        f"a walk to the last thread would stop under the shortcut bar: {covering}"
     )
 
     # At the reported width the panel still has covering posture, but its footer and the
-    # focused composer's key line occupy separate horizontal lanes. Posture alone used to
+    # focused composer's shortcut bar occupy separate horizontal lanes. Posture alone used to
     # leave the line floating a whole footer-height above its ordinary position.
     resized(page, 783, 1004)
     page.locator(".lf-general textarea").focus()
@@ -3703,10 +3707,10 @@ def test_a_sheet_lifts_the_key_line_only_when_its_foot_reaches_the_same_lane(
         "() => getComputedStyle(document.scrollingElement).overflowY === 'hidden'"
     ), "the screenshot-width panel no longer has covering posture"
     separate = boxes()
-    assert separate["keyline"]["right"] < separate["foot"]["left"], separate
-    assert abs(separate["keyline"]["bottom"] - (separate["viewportHeight"] - 14)) < 1, (
-        f"a disjoint footer still lifted the key line: {separate}"
-    )
+    assert separate["shortcut_bar"]["right"] < separate["foot"]["left"], separate
+    assert (
+        abs(separate["shortcut_bar"]["bottom"] - (separate["viewportHeight"] - 14)) < 1
+    ), f"a disjoint footer still lifted the shortcut bar: {separate}"
     assert separate["listPad"] < 20 and separate["listScrollPad"] < 20, (
         f"the panel list reserved room for a line in another lane: {separate}"
     )
@@ -3714,19 +3718,19 @@ def test_a_sheet_lifts_the_key_line_only_when_its_foot_reaches_the_same_lane(
         f"the disjoint line overrode the panel list's own inset: {separate}"
     )
 
-    # The g chord is wider in this same viewport. Once it reaches across the footer's
+    # The g sequence is wider in this same viewport. Once it reaches across the footer's
     # lane, the line lifts and the list reserves the band it really covers.
     page.locator("body").focus()
     page.keyboard.press("g")
     page.evaluate(RENDERED)
-    chord = boxes()
-    assert chord["keyline"]["right"] > chord["foot"]["left"], chord
-    assert chord["keyline"]["bottom"] <= chord["foot"]["top"], (
-        f"the intersecting chord stood on the panel foot: {chord}"
+    sequence = boxes()
+    assert sequence["shortcut_bar"]["right"] > sequence["foot"]["left"], sequence
+    assert sequence["shortcut_bar"]["bottom"] <= sequence["foot"]["top"], (
+        f"the intersecting sequence stood on the panel foot: {sequence}"
     )
-    chord_cover = chord["list"]["bottom"] - chord["keyline"]["top"]
-    assert chord_cover > 0 and chord["listPad"] >= chord_cover, chord
-    assert chord["listScrollPad"] >= chord_cover, chord
+    sequence_cover = sequence["list"]["bottom"] - sequence["shortcut_bar"]["top"]
+    assert sequence_cover > 0 and sequence["listPad"] >= sequence_cover, sequence
+    assert sequence["listScrollPad"] >= sequence_cover, sequence
     page.keyboard.press("Escape")
 
     # Beside the page the line is capped left of the panel, so the list keeps the inset
@@ -3738,7 +3742,7 @@ def test_a_sheet_lifts_the_key_line_only_when_its_foot_reaches_the_same_lane(
         ) < 20"""
     )
     beside = boxes()
-    assert beside["keyline"]["right"] <= beside["foot"]["left"] + 1, (
+    assert beside["shortcut_bar"]["right"] <= beside["foot"]["left"] + 1, (
         f"the line crossed into the panel it stands beside: {beside}"
     )
     assert errors == []
@@ -3759,10 +3763,10 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-keyline")).to_be_visible()
+    expect(page.locator(".lf-shortcut-bar")).to_be_visible()
     page.wait_for_function(
         """insets => Math.abs(
-          document.querySelector('.lf-keyline').getBoundingClientRect().left
+          document.querySelector('.lf-shortcut-bar').getBoundingClientRect().left
           - (18 + insets.left)
         ) < 1""",
         arg=insets,
@@ -3773,20 +3777,20 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
             const r = document.querySelector(selector).getBoundingClientRect();
             return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
           };
-              return {keyline: rect('.lf-keyline'), footer: rect('.lf-panel-foot'),
+              return {shortcut_bar: rect('.lf-shortcut-bar'), footer: rect('.lf-panel-foot'),
                       width: innerWidth, height: innerHeight};
         }"""
     )
     footer_height = boxes["footer"]["bottom"] - boxes["footer"]["top"]
     assert (
         abs(
-            boxes["keyline"]["bottom"]
+            boxes["shortcut_bar"]["bottom"]
             - (boxes["height"] - footer_height - 14 - insets["bottom"])
         )
         < 1
     )
-    assert abs(boxes["keyline"]["left"] - (18 + insets["left"])) < 1
-    assert boxes["keyline"]["right"] <= boxes["width"] - insets["right"] + 1
+    assert abs(boxes["shortcut_bar"]["left"] - (18 + insets["left"])) < 1
+    assert boxes["shortcut_bar"]["right"] <= boxes["width"] - insets["right"] + 1
     assert errors == []
     page.close()
 
@@ -4365,7 +4369,7 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     outline is painted by its control at its control's level while an outline's pixels
     are not hit-testable — so a sample outside the control's box returns whatever is
     beneath. That is sound while the control's surface takes hits and unsound inside one
-    that does not, where the answer comes back inverted: the key line stands over the
+    that does not, where the answer comes back inverted: the shortcut bar stands over the
     page at z-index 8940 with `pointer-events: none`, and the code under its More button
     read as standing over it.
 
@@ -4776,7 +4780,7 @@ RING_WALKS = (
     ("the reference", ("?", "?"), ("corpus",)),
     ("design mode", ("l",), ("corpus",)),
     # A Thread card and the compact Page-map sheet are the two layers a Tab walk of the
-    # page cannot open for itself. The card is a press on a Thread Button; the sheet is a
+    # page cannot open for itself. The card is a press on a thread margin element; the sheet is a
     # press on a Map control the wide posture does not draw at all, so its walk asks for
     # the narrow window the control lives in.
     ("a thread card", (), ("ship-review",)),
@@ -4828,7 +4832,7 @@ RING_SCOPE_SURFACE = {
     "the Asks tray": (".lf-asks-panel.open", ".lf-asks"),
     "the leaves tray": (".lf-others-panel.open", ".lf-others"),
     "the versions menu": (".lf-version-menu:popover-open", None),
-    "the reference": (".lf-help.open", None),
+    "the reference": (".lf-shortcut-reference.open", None),
     "design mode": ("body.lf-design", None),
     "a reaction palette": (".lf-react-strip.lf-react-open", None),
 }
@@ -5167,7 +5171,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     source.locator(":scope > summary").click()
             page.evaluate(RING_WALK_START)
             # Threads and a target's own Thread card are one surface offered two ways:
-            # with the panel standing, a Thread Button sends the reader there instead of
+            # with the panel standing, a thread margin element sends the reader there instead of
             # building the card, so the card's walk is the one scope that starts with the
             # panel shut. Every other scope starts from the same open-panel page.
             if scope in RING_SCOPES_WITHOUT_PANEL:
@@ -5184,7 +5188,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 page_at_rest(page)
             if control := RING_SCOPE_CONTROL.get(scope):
                 opener, arrival = control
-                # The first, because a page map has one Thread Button per commented
+                # The first, because a page map has one thread margin element per commented
                 # target and the walk wants a card rather than a particular one.
                 if opener:
                     page.locator(opener).first.click()
@@ -5240,14 +5244,14 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     # On the settled page, not merely on a rendered frame. Standing on a
                     # control scrolls the page to it, and the living margin answers that
                     # scroll by re-placing its clusters — which moves the page's own
-                    # Buttons, since a widget's Button is contributed to a cluster rather
+                    # margin elements, since a widget's margin element is contributed to a cluster rather
                     # than left where the widget built it. A Tab pressed while that is in
                     # flight is answered in the order the previous frame had, so the
                     # walk's next stop is read off one arrangement and its next press
                     # made against another: measured under the suite's own load, the
                     # order stepped over the whole of lf-shot — its transparent flip and
                     # the keyboard proxy beside it — and the walk stood on the shot's
-                    # Button instead, leaving the `shot` ring painted nowhere the corpus
+                    # margin element instead, leaving the `shot` ring painted nowhere the corpus
                     # could be walked to while every control involved was focusable
                     # before the press and after it.
                     page_at_rest(page)
@@ -5539,7 +5543,7 @@ AIM_SURFACES = (
     ".lf-preview",
     ".lf-chip",
     ".lf-version-diff",
-    ".lf-help-command",
+    ".lf-shortcut-reference-command",
     ".lf-quote",
     ".lf-tab-btn",
     ".lf-grip",
@@ -5574,7 +5578,7 @@ def _each_aim_surface(page, page_dir):
     # Twice: the first press unfolds the shelf, the second opens the reference.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-help-command").first).to_be_visible()
+    expect(page.locator(".lf-shortcut-reference-command").first).to_be_visible()
     yield
 
 

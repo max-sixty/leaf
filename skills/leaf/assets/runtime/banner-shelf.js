@@ -193,6 +193,8 @@ const passive = () =>
   [...bannerActions.children].filter((control) =>
     control.classList.contains("lf-passive"),
   );
+const yielded = () =>
+  [...bannerActions.children].filter((control) => control.dataset.lfYielded);
 
 // A low-priority diagnostic can belong to this address order without spending the
 // banner's resting row. It is still moved, not copied, and unfoldShelf still seats it
@@ -263,10 +265,13 @@ function refold() {
     overflowBtn.hidden = overflowMenu.children.length === 0;
     return bannerActions.scrollWidth <= bannerActions.clientWidth;
   };
-  // Restore quiet orientation before each measurement. It remains on the row whenever
-  // the reading loop leaves room for it, and gives up its ink entirely when even the
-  // actionable row cannot fit; it never becomes an unreachable menu entry.
-  for (const control of passive()) control.style.removeProperty("display");
+  // Restore quiet orientation before each measurement. Remember the controls the
+  // previous fold yielded independently of whether they are still passive: a version
+  // can become a chooser while hidden, and its new capability must bring it back.
+  for (const control of yielded()) {
+    control.style.removeProperty("display");
+    delete control.dataset.lfYielded;
+  }
   // Permanent overflow keeps the same front-to-back order as the complete address
   // run. Put it at the menu's front before considering which other addresses fit.
   overflowMenu.prepend(...alwaysFolded());
@@ -295,6 +300,7 @@ function refold() {
   if (!fits()) {
     for (const control of passive()) {
       control.style.display = "none";
+      control.dataset.lfYielded = "1";
       if (fits()) break;
     }
   }

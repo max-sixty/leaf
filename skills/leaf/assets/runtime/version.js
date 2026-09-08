@@ -146,11 +146,10 @@ import {
   focusDestination,
   layoutChanged,
   quoted,
-  reserve,
   reveal,
 } from "./widget-elements.js";
 import { settle, settling } from "./widget-upgrade.js";
-import { foldShelf, reserveNewsSlot, showNews, unfoldShelf } from "./banner-shelf.js";
+import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
 import { allButTheReference, midComposition } from "./keyboard/page.js";
 import { readAndApply } from "./state-feed.js";
 import { reportPageError, sameDelivery } from "./layer-client.js";
@@ -249,33 +248,14 @@ const stamped = (version) =>
 // changed since they last looked, which is as far back as they were away. The base is
 // the menu's to say, so every version older than this one offers itself as one.
 //
-// Which version this is, is the live document's answer, so the
-// press says it now rather than standing empty until the first poll answers, and the
-// only word it ever rewrites is the Δ that says a comparison is standing — enumerable,
-// so the room for it is taken from the words themselves at load (reserve) and the
-// control still cannot move the row. It is a word rather than the accent alone because
-// a reader who leaves a comparison on and scrolls into a stretch that changed nothing
-// has only this control to read it back off, and a colour is not a thing a screen
-// reader announces.
 // The closed control is an address, not the menu's account of the working document.
-// Keep it to the stable version token (or Draft); the full "Draft after vN" context
-// remains in the menu row and the control's title. `versionLabels` is every compact
-// token the control can wear, for the banner to reserve the widest of without
-// reintroducing that account as dead width.
+// Keep it to one stable version token (or Draft) through disclosure and comparison;
+// those states remain in the menu, class, title, and accessible name. A state arriving
+// on the poll therefore cannot resize this control and displace addresses to its left.
+// `versionLabels` names the compact token range the banner reserves once at load.
 const currentVersionToken = () =>
   runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`;
-const versionLabel = (
-  comparing,
-  label = currentVersionToken(),
-  disclosure = versionsOffered(),
-) => (comparing ? "Δ " : "") + label + (disclosure ? " ▾" : "");
-export const versionLabels = () =>
-  versionsOffered()
-    ? [undefined, "Draft", "v999"].flatMap((label) => [
-        versionLabel(false, label, true),
-        versionLabel(true, label, true),
-      ])
-    : [currentVersionToken()];
+export const versionLabels = () => ["Draft", "v999"];
 export const versionBtn = el("button", "lf-btn lf-version", "Draft");
 export const versionMenu = el("div", "lf-ui lf-version-menu");
 versionMenu.id = "lf-versions";
@@ -296,7 +276,7 @@ const draftRevisions = () => {
 const versionCount = () => runtime.versions.length + draftRevisions().size;
 const versionsOffered = () => versionCount() > 1;
 const versionsToWalk = () => versionCount() > 1;
-let reservedDisclosure = null;
+let offeredBefore = null;
 // The walk is the versions, not every press in the menu.
 const versionRows = () => [...versionMenu.querySelectorAll(".lf-version-row")];
 const versionStops = () =>
@@ -700,14 +680,8 @@ export function renderVersions(state) {
   }
   renderVersionMenu();
   paintDiff(); // the label may change even when an open menu defers its new rows
-  // A lone version is shorter because it is orientation rather than a disclosure.
-  // Retake its word-derived reservation only when that capability changes, with the
-  // control on the row where it has a measurable box. The banner continues to renew
-  // the same dynamic label set when its responsive padding changes.
-  if (state !== null && offered !== reservedDisclosure) {
-    unfoldShelf();
-    reserve(versionBtn, versionLabels());
-    reservedDisclosure = offered;
+  if (state !== null && offered !== offeredBefore) {
+    offeredBefore = offered;
     foldShelf();
   }
   // The keyboard reaches the chip through the chooser rather than past it — g V opens the
@@ -1071,7 +1045,7 @@ const comparable = (version) => {
 // where what the chooser says it will do is written from the start rather than
 // standing as a second copy of these sentences up where the control is built.
 function paintDiff() {
-  versionBtn.textContent = versionLabel(diffOn);
+  versionBtn.textContent = currentVersionToken();
   versionBtn.classList.toggle("on", diffOn);
   const currentLabel = runtime.currentLabel ?? "Draft";
   // Rewritten on every diff change, so the key it names is taken from the row each time

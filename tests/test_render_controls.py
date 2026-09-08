@@ -1330,6 +1330,34 @@ def test_one_version_is_a_passive_label(browser, serve):
     page.close()
 
 
+def test_a_yielded_version_returns_when_it_becomes_a_choice(browser, serve):
+    """A quiet label hidden for room can become an active destination later."""
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    url = serve(html)
+    page, errors = open_page(browser, url)
+    version = page.locator(".lf-version")
+
+    resized(page, 320, 844)
+    expect(version).to_be_hidden()
+    expect(version).to_have_attribute("data-lf-yielded", "1")
+
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
+    stamp_version_file(serve.page_dir, 2, "two")
+    expect(version).to_be_enabled()
+    expect(version).to_have_attribute("aria-haspopup", "menu")
+    expect(version).not_to_have_attribute("data-lf-yielded", re.compile(r".+"))
+    expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
+
+    resized(page, 1200, 844)
+    expect(version).to_be_visible()
+    expect(version).not_to_have_attribute("data-lf-yielded", re.compile(r".+"))
+    assert errors == []
+    page.close()
+
+
 def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
     """An open versions menu keeps the two edges its anchor names, and no others.
 

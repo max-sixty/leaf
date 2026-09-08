@@ -52,10 +52,12 @@ fi
 
 docker build "${build[@]}" -t "$tag" -f "$HERE/linux-suite.Dockerfile" "$HERE"
 
-# --shm-size, because Chrome's default 64MB there is where a tab dies mid-suite. The
-# named volumes hold uv's packages and Playwright's browser. The first run fills them,
-# and a container thrown away after every run still resolves against warm caches.
+# --shm-size, because Chrome's default 64MB there is where a tab dies mid-suite.
+# Python's bytecode cache stays container-local so concurrent host and Linux runs never
+# rewrite the same pytest assertion cache. The named volumes hold uv's packages and
+# Playwright's browser; later containers resolve against those warm caches.
 exec docker run --rm "${run[@]}" --shm-size=2g --workdir "$ROOT" \
+  -e PYTHONPYCACHEPREFIX=/tmp/pycache \
   -v "$ROOT:$ROOT" -v "$git_common_dir:$git_common_dir:ro" \
   --mount "type=volume,dst=$ROOT/.venv,volume-nocopy" \
   -v "$tag-uv:/root/.cache/uv" \

@@ -111,17 +111,16 @@ element shown as one line in a code block. It names the `$leaf` skill and its `p
 points to the persisted delivery. Read that file and process every entry in `batches`; each
 carries its `page`, current `url`, `threads`, `handling`, and exact `events`, the
 same readings a direct wait prints. Do not wait or acknowledge: the adapter owns
-both. If a retry arrives after that path was completed, read the same filename
-under its sibling `history/`. The same delivery id may return after an uncertain
-queue response, so treat a page-and-sequence pair already handled in this task as a
-retry. Queue acceptance records **Queued** activity. The adapter owns `leaf wait`
-and `leaf ack`; the task owns replies, revisions, page status, and the handoff back
-to `waiting` or `idle`.
+both. The payload path is permanent. The same delivery id may return after an
+uncertain queue response, so treat a page-and-sequence pair already handled in this
+task as a retry. Queue acceptance records **Queued** activity. The adapter owns
+`leaf wait` and `leaf ack`; the task owns replies, revisions, page status, and the
+handoff back to `waiting` or `idle`.
 
-Once a delivery is accepted and fully receipted, the adapter moves it into the
-delivery directory's `history/` subdirectory. This retains the durable record without
-reparsing completed batch contents on every idle watch pass. A duplicate queued
-pointer resolves its id there after the original turn has completed.
+The immutable payload and mutable queue record are separate files. Once a delivery
+is accepted and fully receipted, the adapter moves only its queue record into the
+delivery directory's `history/` subdirectory. The path already handed to Codex keeps
+naming the immutable payload, while completed transport state leaves the hot scan.
 
 If `leaf codex start` refuses to start, do not finish over a live page. Follow its
 diagnostic: an existing foreground `leaf wait` must be stopped before the adapter

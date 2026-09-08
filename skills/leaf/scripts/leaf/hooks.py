@@ -23,9 +23,9 @@ from .session import record_pickup
 def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
     """The pages this session owes something, each with what to do about it.
     Two invariants hold between turns. A page is watched or idle, so anything
-    else has quietly stopped listening. And every comment the session has taken
-    delivery of has an answer under it, since acknowledging is what takes one
-    off the batch and nothing delivers it again."""
+    else has quietly stopped listening. And every comment delivered into this
+    turn has an answer under it. A queued Codex comment belongs to its later turn
+    even though queue acceptance has advanced the page cursor."""
     reasons = []
     for page_dir in owned_pages(session_id):
         page_reasons = []
@@ -42,7 +42,7 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
         stale = [
             obligation
             for obligation in state["activity"]["obligations"]
-            if obligation["seq"] <= state["cursor"]
+            if obligation["seq"] <= state["cursor"] and obligation["phase"] != "queued"
         ]
         if stale:
             ids = ", ".join(

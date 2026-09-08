@@ -37,6 +37,7 @@ from .session import Watch, acknowledge, batch_data, read_watch_pass, record_pic
 QUEUE_TIMEOUT = 20
 START_TIMEOUT = 20
 DELIVERY_FORMAT = "leaf-codex-delivery-v2"
+QUEUE_FORMAT = "leaf-codex-queue-v1"
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
 STREAM_UPDATE_INTERVAL = 0.2
 STREAM_TEXT_METHODS = {
@@ -413,23 +414,23 @@ def delivery_lock_path(session_id: str) -> Path:
     return state_home() / "sessions" / f"{_session_key(session_id)}.delivery.lock"
 
 
-def delivery_path(session_id: str, delivery_id: str) -> Path:
+def queue_path(session_id: str, delivery_id: str) -> Path:
     return delivery_dir(session_id) / f"{delivery_id}.json"
 
 
-def _archive_delivery(path: Path, delivery: dict) -> None:
-    """Move finished history out of the adapter's hot scan."""
-    if delivery["state"] == "accepted" and all(
-        batch["receipted"] for batch in delivery["batches"]
+def _archive_queue(path: Path, queue: dict) -> None:
+    """Move completed queue state out of the adapter's hot scan."""
+    if queue["state"] == "accepted" and all(
+        batch["receipted"] for batch in queue["batches"]
     ):
         history_path = path.parent / "history" / path.name
         history_path.parent.mkdir(parents=True, exist_ok=True)
         path.replace(history_path)
 
 
-def _write_delivery(path: Path, delivery: dict) -> None:
-    write_json(path, delivery)
-    _archive_delivery(path, delivery)
+def _write_queue(path: Path, queue: dict) -> None:
+    write_json(path, queue)
+    _archive_queue(path, queue)
 
 
 def adapter_start_lock_path(session_id: str) -> Path:
@@ -445,41 +446,67 @@ def _prompt(path: Path) -> str:
     return f"```xml\n{pointer}\n```"
 
 
-def _offer_delivery(path: Path, delivery: dict) -> str:
-    """Persist one current URL per page before offering a delivery pointer."""
+def _offer_delivery(path: Path, queue: dict) -> str:
+    """Freeze one payload before offering its permanent pointer."""
+    if queue["state"] == "offering":
+        return _prompt(Path(queue["payload"]))
+
     urls = {}
-    for batch in delivery["batches"]:
+    for batch in queue["batches"]:
         page = batch["page"]
         if page not in urls:
             server = running_server(Path(page))
             urls[page] = server["url"] if server else None
         batch["url"] = urls[page]
-    _write_delivery(path, delivery)
-    return _prompt(path)
+
+    payload_path = path.parent / "payloads" / path.name
+    payload = {
+        "format": DELIVERY_FORMAT,
+        "created_at": queue["created_at"],
+        "batches": [
+            {key: value for key, value in batch.items() if key != "receipted"}
+            for batch in queue["batches"]
+        ],
+    }
+    payload_path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(payload_path, payload)
+    queue["batches"] = [
+        {
+            "page": batch["page"],
+            "session": batch["session"],
+            "events": [
+                {"seq": event["seq"], "id": event["id"]} for event in batch["events"]
+            ],
+            "receipted": False,
+        }
+        for batch in queue["batches"]
+    ]
+    queue["payload"] = str(payload_path)
+    queue["state"] = "offering"
+    _write_queue(path, queue)
+    return _prompt(payload_path)
 
 
-def _deliveries(session_id: str) -> list[tuple[Path, dict]]:
+def _queues(session_id: str) -> list[tuple[Path, dict]]:
     directory = delivery_dir(session_id)
     if not directory.is_dir():
         return []
     records = [
-        (path, delivery)
+        (path, queue)
         for path in directory.glob("*.json")
-        if (delivery := read_json(path)) is not None
-        and delivery.get("format") == DELIVERY_FORMAT
+        if (queue := read_json(path)) is not None
+        and queue.get("format") == QUEUE_FORMAT
     ]
     return sorted(records, key=lambda item: (item[1]["created_at"], item[0].name))
 
 
-def _collecting_delivery(
+def _collecting_queue(
     session_id: str,
-    deliveries: list[tuple[Path, dict]] | None = None,
+    queues: list[tuple[Path, dict]] | None = None,
 ) -> tuple[Path, dict] | None:
-    records = _deliveries(session_id) if deliveries is None else deliveries
+    records = _queues(session_id) if queues is None else queues
     current = [
-        (path, delivery)
-        for path, delivery in records
-        if delivery["state"] == "collecting"
+        (path, queue) for path, queue in records if queue["state"] == "collecting"
     ]
     if len(current) > 1:
         raise RuntimeError(
@@ -494,23 +521,23 @@ def _append_batch(
     transaction: PageTransaction,
     batch: list[dict],
 ) -> tuple[Path, int, dict] | None:
-    """Append fresh events to the task's one mutable delivery."""
-    current = _collecting_delivery(session_id)
+    """Append fresh events to the task's one collecting queue."""
+    current = _collecting_queue(session_id)
     if current is None:
-        path = delivery_path(session_id, str(uuid.uuid4()))
+        path = queue_path(session_id, str(uuid.uuid4()))
         path.parent.mkdir(parents=True, exist_ok=True)
-        delivery = {
-            "format": DELIVERY_FORMAT,
+        queue = {
+            "format": QUEUE_FORMAT,
             "state": "collecting",
             "created_at": time.time(),
             "batches": [],
         }
     else:
-        path, delivery = current
+        path, queue = current
 
     delivered = {
         (entry["page"], event["seq"], event["id"])
-        for entry in delivery["batches"]
+        for entry in queue["batches"]
         for event in entry["events"]
     }
     fresh = [
@@ -533,13 +560,13 @@ def _append_batch(
         "events": data["events"],
         "receipted": False,
     }
-    delivery["batches"].append(entry)
-    _write_delivery(path, delivery)
-    return path, len(delivery["batches"]) - 1, entry
+    queue["batches"].append(entry)
+    _write_queue(path, queue)
+    return path, len(queue["batches"]) - 1, entry
 
 
 def capture_batch(session_id: str, reading) -> bool:
-    """Persist one watcher batch in the session's collecting delivery."""
+    """Persist one watcher batch in the session's collecting queue."""
     lock = delivery_lock_path(session_id)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
@@ -587,24 +614,24 @@ def _page_acknowledged(batch: dict) -> bool:
     return read_cursor(page_dir) >= max(event["seq"] for event in batch["events"])
 
 
-def _sync_receipts(path: Path, delivery: dict) -> None:
-    """Preserve page receipts in history before their paths can be reused."""
+def _sync_receipts(path: Path, queue: dict) -> None:
+    """Persist page receipts before archiving completed queue state."""
     changed = False
-    for batch in delivery["batches"]:
+    for batch in queue["batches"]:
         if not batch["receipted"] and _page_acknowledged(batch):
             batch["receipted"] = True
             changed = True
     if changed:
-        _write_delivery(path, delivery)
+        _write_queue(path, queue)
     else:
-        _archive_delivery(path, delivery)
+        _archive_queue(path, queue)
 
 
 def _record_receipt(path: Path, batch_index: int) -> None:
-    delivery = read_json(path)
-    if delivery is not None and not delivery["batches"][batch_index]["receipted"]:
-        delivery["batches"][batch_index]["receipted"] = True
-        _write_delivery(path, delivery)
+    queue = read_json(path)
+    if queue is not None and not queue["batches"][batch_index]["receipted"]:
+        queue["batches"][batch_index]["receipted"] = True
+        _write_queue(path, queue)
 
 
 def _recover_delivery(
@@ -616,22 +643,21 @@ def _recover_delivery(
     lock = delivery_lock_path(session_id)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
-        deliveries = _deliveries(session_id)
-        for path, delivery in deliveries:
-            _sync_receipts(path, delivery)
+        queues = _queues(session_id)
+        for path, queue in queues:
+            _sync_receipts(path, queue)
         unoffered = next(
             (
-                (path, delivery)
-                for path, delivery in deliveries
-                if delivery["state"] in {"collecting", "offering"}
+                (path, queue)
+                for path, queue in queues
+                if queue["state"] in {"collecting", "offering"}
             ),
             None,
         )
         queued = None
         if unoffered is not None:
-            path, delivery = unoffered
-            delivery["state"] = "offering"
-            queued = path, _offer_delivery(path, delivery)
+            path, queue = unoffered
+            queued = path, _offer_delivery(path, queue)
     if queued is not None:
         path, prompt = queued
         if app_server is None:
@@ -639,19 +665,19 @@ def _recover_delivery(
         else:
             queue_delivery(codex_path, session_id, prompt, app_server)
         with flocked(lock):
-            delivery = read_json(path)
-            if delivery is not None and delivery["state"] == "offering":
-                delivery["state"] = "accepted"
-                _write_delivery(path, delivery)
+            queue = read_json(path)
+            if queue is not None and queue["state"] == "offering":
+                queue["state"] = "accepted"
+                _write_queue(path, queue)
         return True
 
     with flocked(lock):
         pending = min(
             (
                 (path, index, dict(batch))
-                for path, delivery in _deliveries(session_id)
-                if delivery["state"] == "accepted"
-                for index, batch in enumerate(delivery["batches"])
+                for path, queue in _queues(session_id)
+                if queue["state"] == "accepted"
+                for index, batch in enumerate(queue["batches"])
                 if not batch["receipted"]
             ),
             key=lambda pending: (
@@ -672,9 +698,9 @@ def _recover_delivery(
 def _has_delivery_work(session_id: str) -> bool:
     with flocked(delivery_lock_path(session_id)):
         return any(
-            delivery["state"] != "accepted"
-            or any(not batch["receipted"] for batch in delivery["batches"])
-            for _, delivery in _deliveries(session_id)
+            queue["state"] != "accepted"
+            or any(not batch["receipted"] for batch in queue["batches"])
+            for _, queue in _queues(session_id)
         )
 
 

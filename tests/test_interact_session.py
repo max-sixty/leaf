@@ -242,27 +242,21 @@ def codex_app_server():
     worker.join(timeout=5)
 
 
-def codex_deliveries(session_id: str) -> list[tuple[Path, dict]]:
+def codex_queues(session_id: str) -> list[tuple[Path, dict]]:
     directory = codex_model.delivery_dir(session_id)
     return [
         (path, files_model.read_json(path)) for path in sorted(directory.glob("*.json"))
     ]
 
 
-def current_codex_delivery(session_id: str) -> tuple[Path, dict]:
+def current_codex_queue(session_id: str) -> tuple[Path, dict]:
     current = [
         (path, epoch)
-        for path, epoch in codex_deliveries(session_id)
+        for path, epoch in codex_queues(session_id)
         if epoch["state"] == "collecting"
     ]
     assert len(current) == 1
     return current[0]
-
-
-def resolved_codex_delivery(path: Path) -> dict:
-    if path.exists():
-        return files_model.read_json(path)
-    return files_model.read_json(path.parent / "history" / path.name)
 
 
 def test_an_active_receipt_says_which_thread_the_agent_is_on(
@@ -2779,7 +2773,7 @@ def test_codex_receipt_advances_after_page_ownership_transfers(page_dir):
             page,
         )
         assert codex_model.capture_batch("original", reading)
-    epoch_path, epoch = current_codex_delivery("original")
+    epoch_path, epoch = current_codex_queue("original")
     epoch["state"] = "accepted"
     files_model.write_json(epoch_path, epoch)
     batch = epoch["batches"][0]
@@ -2834,7 +2828,7 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
 
     def epoch(event, *, created_at):
         return {
-            "format": codex_model.DELIVERY_FORMAT,
+            "format": codex_model.QUEUE_FORMAT,
             "state": "accepted",
             "created_at": created_at,
             "batches": [
@@ -2885,7 +2879,9 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
                 transaction,
             )
             assert codex_model.capture_batch("codex-thread", reading)
-    epoch_path, epoch = current_codex_delivery("codex-thread")
+    epoch_path, epoch = current_codex_queue("codex-thread")
+    codex_model._offer_delivery(epoch_path, epoch)
+    epoch = files_model.read_json(epoch_path)
     epoch["state"] = "accepted"
     files_model.write_json(epoch_path, epoch)
 
@@ -2949,7 +2945,9 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
                 transaction,
             )
             assert codex_model.capture_batch("codex-thread", reading)
-    epoch_path, epoch = current_codex_delivery("codex-thread")
+    epoch_path, epoch = current_codex_queue("codex-thread")
+    codex_model._offer_delivery(epoch_path, epoch)
+    epoch = files_model.read_json(epoch_path)
     epoch["state"] = "accepted"
     files_model.write_json(epoch_path, epoch)
 
@@ -3012,7 +3010,7 @@ def test_codex_refreshes_every_page_url_before_offering_a_delivery(
                 {**service, "port": second_port},
             )
 
-    epoch_path, before = current_codex_delivery("codex-thread")
+    epoch_path, before = current_codex_queue("codex-thread")
     assert len({batch["url"] for batch in before["batches"]}) == 2
     queued = []
     monkeypatch.setattr(
@@ -3025,9 +3023,9 @@ def test_codex_refreshes_every_page_url_before_offering_a_delivery(
 
     assert len(queued) == 1 and epoch_path.stem in queued[0]
     current_url = server_model.running_server(page)["url"]
-    assert {batch["url"] for batch in files_model.read_json(epoch_path)["batches"]} == {
-        current_url
-    }
+    pointer = ElementTree.fromstring(queued[0].splitlines()[1])
+    payload = files_model.read_json(Path(pointer.attrib["path"]))
+    assert {batch["url"] for batch in payload["batches"]} == {current_url}
 
 
 def test_codex_serializes_later_input_behind_the_offered_delivery(
@@ -3050,7 +3048,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
             transaction,
         )
         assert codex_model.capture_batch("codex-thread", reading)
-    first_path, _ = current_codex_delivery("codex-thread")
+    first_path, _ = current_codex_queue("codex-thread")
 
     queue_started = threading.Event()
     release_queue = threading.Event()
@@ -3073,11 +3071,11 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
     release_queue.set()
     offering.join(timeout=5)
     assert not offering.is_alive()
-    assert files_model.read_json(first_path)["state"] == "accepted"
+    first_delivery = files_model.read_json(first_path)
+    assert first_delivery["state"] == "accepted"
+    payload = files_model.read_json(Path(first_delivery["payload"]))
     assert [
-        event["id"]
-        for batch in files_model.read_json(first_path)["batches"]
-        for event in batch["events"]
+        event["id"] for batch in payload["batches"] for event in batch["events"]
     ] == ["first"]
 
     assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
@@ -3093,7 +3091,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
             transaction,
         )
         assert codex_model.capture_batch("codex-thread", reading)
-    second_path, second_delivery = current_codex_delivery("codex-thread")
+    second_path, second_delivery = current_codex_queue("codex-thread")
     assert second_path != first_path
     assert second_delivery["state"] == "collecting"
     assert [
@@ -3126,9 +3124,11 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
             transaction,
         )
         assert codex_model.capture_batch("codex-thread", reading)
-    epoch_path, epoch = current_codex_delivery("codex-thread")
-    epoch["state"] = "accepted"
-    files_model.write_json(epoch_path, epoch)
+    queue_path, queue = current_codex_queue("codex-thread")
+    codex_model._offer_delivery(queue_path, queue)
+    queue = files_model.read_json(queue_path)
+    queue["state"] = "accepted"
+    files_model.write_json(queue_path, queue)
     launcher = PLUGIN_ROOT / "bin" / "leaf"
     started = under_codex(
         shlex.join(
@@ -3185,7 +3185,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
     ids=["steady", "uncertain-queue-retry"],
 )
 def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
-    codex_claimed_page, under_codex, codex_env, tmp_path, delivery_fault
+    codex_claimed_page, under_codex, codex_env, tmp_path, delivery_fault, capsys
 ):
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
@@ -3249,7 +3249,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
                 break
             time.sleep(0.05)
         else:
-            deliveries = codex_deliveries("codex-thread")
+            deliveries = codex_queues("codex-thread")
             log_text = codex_model.adapter_log_path("codex-thread").read_text(
                 encoding="utf-8"
             )
@@ -3257,6 +3257,9 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
                 "the adapter did not acknowledge its batch: "
                 f"deliveries={deliveries!r}; log={log_text!r}"
             )
+
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+        assert capsys.readouterr().out == ""
 
         for text in ("second click", "third click"):
             events_model.append_event(
@@ -3288,13 +3291,18 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             assert delivery.attrib["skill"] == "$leaf"
             payload_path = Path(delivery.attrib["path"])
             assert delivery.attrib["id"] == payload_path.stem
-            payload = resolved_codex_delivery(payload_path)
-            assert payload["state"] == "accepted"
-            assert all(batch["receipted"] for batch in payload["batches"])
+            assert payload_path.exists()
+            payload = files_model.read_json(payload_path)
+            assert payload["format"] == codex_model.DELIVERY_FORMAT
+            assert all("receipted" not in batch for batch in payload["batches"])
             assert all(
                 batch["url"] == server_model.running_server(page)["url"]
                 for batch in payload["batches"]
             )
+            queue_history = payload_path.parent.parent / "history" / payload_path.name
+            queue = files_model.read_json(queue_history)
+            assert queue["state"] == "accepted"
+            assert all(batch["receipted"] for batch in queue["batches"])
             payloads.append(payload)
             assert len(prompt.encode()) < 1024
         assert [

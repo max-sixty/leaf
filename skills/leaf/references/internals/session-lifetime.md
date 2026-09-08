@@ -17,7 +17,8 @@ and requests another reading at its next deadline; it does not run a second fold
 | pickup transition | a `pickup` event in `events.jsonl` | the carrier records `queued` when Codex accepts a batch; direct delivery records `opened` with session and turn identity | never; each event/phase/session/turn transition is idempotent |
 | page claim | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on (the pid, or the background job's directory) is gone |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
-| Codex delivery | the host state home's session records | the detached adapter | accepted and every batch receipted, then moved under `history/` |
+| Codex queue state | the host state home's session records | the detached adapter | accepted and every batch receipted, then moved under `history/` |
+| Codex delivery payload | the host state home's session records | the detached adapter freezes it before queueing | never; the queued pointer remains valid |
 
 Delivery acceptance is a different fact from authored work, but it is exact agent
 activity. Pickup never rewrites `status.json`. The server projects one interaction
@@ -99,9 +100,11 @@ Input collected after that boundary belongs to a later delivery. A failed or
 uncertain queue call retries the same frozen pointer; a successful call marks only
 that delivery accepted.
 
-Each delivery file is one transport authority: its collecting, offering, or
-accepted state and its exact batches. Once a cursor advances, its batch records
-that receipt so
+Each delivery has one immutable payload and one mutable queue record. The payload
+contains the exact frozen batches at the permanent path handed to Codex. The queue
+record carries collecting, offering, or accepted state; after the freeze it retains
+only the event identities needed for page receipts. Once a cursor advances, the
+queue record records that receipt so
 reinitializing the same page path cannot revive old transport work; a
 reinitialized page whose events no longer match retires its old batch. The
 adapter has a second lease because a generic wait lease cannot prove its output
@@ -112,6 +115,8 @@ durable local task queue. The observer's second connection resumes the task only
 subscribe to notifications. That subscription keeps the task loaded, so the App
 Server dispatches queued input when the task is idle or its active turn completes.
 The CLI remains the interactive client for every approval and user-input request.
+Once every batch is receipted, only the queue record moves under `history/`; the
+payload remains where the queued XML points.
 
 `server start` spawns the service into a session of its own and hands back the
 URL that process printed and the lifetime it recorded, so a killed carrier costs

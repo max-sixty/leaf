@@ -5,7 +5,8 @@
 # failed on the runner from the day CI landed and none of them could be reproduced.
 #
 #   scripts/linux-suite.sh
-#   scripts/linux-suite.sh tests/test_render_aim.py -k aimed_press --run-nightly
+#   scripts/linux-suite.sh tests -m nightly --splits 4 --group 2 \
+#     --splitting-algorithm least_duration --durations-path .test_durations
 #
 # Needs a Docker daemon that can run linux/amd64 (linux-suite.Dockerfile says why). On
 # Apple silicon that is `colima start --vm-type vz --vz-rosetta`.
@@ -32,9 +33,9 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 
-# The default is CI's own command, `--run-nightly` and all, because reproducing what CI
-# saw is the whole point of running here.
-if [ $# -eq 0 ]; then set -- tests --run-nightly; fi
+# The default reproduces CI's everyday job. A nightly failure's group number and the
+# remaining split arguments above reproduce that job's exact selection and parallelism.
+if [ $# -eq 0 ]; then set -- tests; fi
 
 # Separate tags and caches per build, so switching between them neither rebuilds the
 # other nor runs one image's browser against the other's libraries.

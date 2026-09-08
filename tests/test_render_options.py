@@ -1705,7 +1705,7 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     expect(receipt).to_have_attribute("data-identity-probe", "kept")
 
     # The receipt admitted this claim without an x-work declaration. Its page-edge
-    # Target margin element is still a local seat, so an unrelated revision cannot wedge the
+    # target margin element is still a local seat, so an unrelated revision cannot wedge the
     # authoring loop merely because the widget has no content or conversation seat.
     unrelated = ASK_PAGE.replace(
         '<h1 id="h">Three jobs</h1>', '<h1 id="h">Three jobs, checked</h1>'

@@ -824,7 +824,7 @@ def test_an_unchanged_repaint_cannot_cancel_a_margin_element_press(browser, serv
         "kind": "comment",
         "author": "user",
         "revision": 1,
-        "text": "Hold this Thread margin element across a state repaint.",
+        "text": "Hold this thread margin element across a state repaint.",
         "anchor": {"section": "how-cap"},
     }
     another = {
@@ -3170,7 +3170,7 @@ def test_a_spilled_thread_opens_the_full_conversation_without_a_hidden_anchor(
 def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     browser, serve
 ):
-    """The semantic Thread margin element owns its open card as a cluster reconfigures."""
+    """The semantic thread margin element owns its open card as a cluster reconfigures."""
     comment = {
         "kind": "comment",
         "author": "user",
@@ -4792,7 +4792,7 @@ def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serv
         )
         landed = marker.bounding_box()["x"]
         assert landed == pytest.approx(rest, abs=1), (
-            f"after {close}: the Thread margin element stands at {landed}, the column's rest is {rest}"
+            f"after {close}: the thread margin element stands at {landed}, the column's rest is {rest}"
         )
     assert errors == []
     page.close()

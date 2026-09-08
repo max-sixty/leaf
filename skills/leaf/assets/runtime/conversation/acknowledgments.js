@@ -120,7 +120,7 @@ export function paintAcknowledgmentsNow() {
     const owner = elementById(id);
     // Frozen widgets sent in a message have no page edge of their own, so their
     // event-backed receipt remains local to the conversation. A page widget uses
-    // its existing Target margin element instead of growing another row inside authored
+    // its existing target margin element instead of growing another row inside authored
     // content; standalone claims in chrome remain unsupported claim subjects.
     if (owner && receipt.event && inChrome(owner))
       paintReceipt(owner, receipt, null, wanted);

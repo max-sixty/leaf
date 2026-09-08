@@ -3189,7 +3189,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     page.keyboard.press("Escape")
     # A retired thread lands on the surface the reader's own gesture reaches. With the
     # widget still on the page its passages keep a page-local address, so the margin's
-    # Thread margin element and each passage's comment count open the fallback card and Threads
+    # thread margin element and each passage's comment count open the fallback card and Threads
     # stays shut; a disconnected widget leaves no such address and the panel answers.
     if failure == "disconnect":
         expect(markers).to_have_count(0)

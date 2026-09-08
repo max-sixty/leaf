@@ -4780,7 +4780,7 @@ RING_WALKS = (
     ("the reference", ("?", "?"), ("corpus",)),
     ("design mode", ("l",), ("corpus",)),
     # A Thread card and the compact Page-map sheet are the two layers a Tab walk of the
-    # page cannot open for itself. The card is a press on a Thread margin element; the sheet is a
+    # page cannot open for itself. The card is a press on a thread margin element; the sheet is a
     # press on a Map control the wide posture does not draw at all, so its walk asks for
     # the narrow window the control lives in.
     ("a thread card", (), ("ship-review",)),
@@ -5171,7 +5171,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     source.locator(":scope > summary").click()
             page.evaluate(RING_WALK_START)
             # Threads and a target's own Thread card are one surface offered two ways:
-            # with the panel standing, a Thread margin element sends the reader there instead of
+            # with the panel standing, a thread margin element sends the reader there instead of
             # building the card, so the card's walk is the one scope that starts with the
             # panel shut. Every other scope starts from the same open-panel page.
             if scope in RING_SCOPES_WITHOUT_PANEL:
@@ -5188,7 +5188,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 page_at_rest(page)
             if control := RING_SCOPE_CONTROL.get(scope):
                 opener, arrival = control
-                # The first, because a page map has one Thread margin element per commented
+                # The first, because a page map has one thread margin element per commented
                 # target and the walk wants a card rather than a particular one.
                 if opener:
                     page.locator(opener).first.click()

@@ -89,7 +89,7 @@ def widget_work_without_targets(
     registry: dict,
     ignored=(),
 ) -> list[str]:
-    """Standing widget work with no live page target for its Target margin element."""
+    """Standing widget work with no live page target for its target margin element."""
     ignored = set(ignored)
     decided = retirement_outcomes(projection.actions, registry)
     passages = page_passages(

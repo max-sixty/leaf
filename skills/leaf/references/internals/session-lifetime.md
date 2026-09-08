@@ -21,7 +21,7 @@ and requests another reading at its next deadline; it does not run a second fold
 Delivery acceptance is a different fact from authored work, but it is exact agent
 activity. Pickup never rewrites `status.json`. The server projects one interaction
 per subject and unit, for the newest unsettled reader move on it (a tick and the Done
-press that followed are one), on the subject's existing Target margin element or a compact
+press that followed are one), on the subject's existing target margin element or a compact
 local row: append is **Sent**, then **Waiting for pickup** after the short grace;
 Codex acceptance is **Queued**; entry into a named open turn is **Picked up**; a
 later `status … --on` claim on the same subject is **Active**. That same evidence

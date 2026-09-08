@@ -69,7 +69,7 @@ export function commentOnItem(item) {
   commentOnTarget({ anchor: { section: item.id }, element: item });
 }
 // t/T walk open threads in page order. A closed panel keeps the walk at the thread's
-// inline address: a declared widget outlet first, then the Thread margin element's card. A thread
+// inline address: a declared widget outlet first, then the thread margin element's card. A thread
 // with no page address is indexed only by Threads, so that destination opens the panel.
 // Once the panel is open, the walk stays in its list. Both paths are clamped, not wrapped.
 export function stepThread(dir) {

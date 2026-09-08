@@ -65,7 +65,7 @@
    wears the flat `status` behavior below. Active raises it back into a disclosure.
    Once no receipt or claim is live, the
    generated margin element disappears; the widget and action projection carry the durable state.
-   A thread's existing Thread margin element remains the page-edge route to the exact receipt in
+   A thread's existing thread margin element remains the page-edge route to the exact receipt in
    the full conversation; an Active claim joins that engaged cluster as an exposed peer. A
    standalone page-widget claim gets an Active margin element directly. When no page edge
    exists—inside the full thread panel or a widget frozen into conversation chrome—the
@@ -122,7 +122,7 @@
      remains a `status` in the accessibility tree so the Page map can still land there and
      name the phase. Status is live-session information, so a copy drops it.
 
-   A generated reading wears more than one of those over its life — a Thread margin element while
+   A generated reading wears more than one of those over its life — a thread margin element while
    there is something to open, a status once the move is reported — and one element has to
    carry both, or the seat moves under a reader standing in it. Such a control is
    therefore a span, since a `<button>` cannot stop being one, and the activation the
@@ -252,7 +252,7 @@
 
    A thread card names the target without offering a second route to the panel the banner
    already opens. It is the conversation itself, measured eight pixels beside the pressed
-   Thread margin element when the page leaves that room; at narrower postures it covers the page.
+   thread margin element when the page leaves that room; at narrower postures it covers the page.
    While that margin element keeps focus, `c` enters the card's one reply box; several roots leave
    the destination ambiguous and preserve the page's ordinary comment route. Replacing an
    open panel waits for the column's workspace motion before choosing the card posture.
@@ -1189,7 +1189,7 @@ const readingChoices = (entry) => {
   }
   if (threadList.length)
     choices.push({
-      // One target owns one Thread margin element. Membership changes repaint its badge and
+      // One target owns one thread margin element. Membership changes repaint its badge and
       // card without replacing the control that owns an open conversation.
       key: "threadList",
       kind: "comment",
@@ -1257,7 +1257,7 @@ function markerFace(entry) {
     face,
     label: faceCount > 1 ? `${face.label}s` : face.label,
     // The badge describes this margin element's result. Other readings live behind `…`
-    // and must not make a Thread margin element appear to open more threadList than it does.
+    // and must not make a thread margin element appear to open more threadList than it does.
     count: faceCount,
   };
 }
@@ -1297,7 +1297,7 @@ const readingControl = (className) => offer("span", className);
 
 // The one writer over a reading's disclosure relation, settling `aria-controls` and
 // `aria-expanded` together because a control that says it opens something has to say
-// whether it is open. Two shapes reach it. A Thread margin element opens the local card while the
+// whether it is open. Two shapes reach it. A thread margin element opens the local card while the
 // panel is closed and the matching panel card while it is open. Any other reading is
 // asked what it discloses, and a single item
 // that answers has named the node and said which way it stands — the Change reading's
@@ -2938,7 +2938,7 @@ function showPreview(entry, button, retry = true) {
   if (!preview.matches(":popover-open") && !previewShowing) {
     previewShowing = true;
     try {
-      // The pressed Thread margin element owns the card's position through the anchor name
+      // The pressed thread margin element owns the card's position through the anchor name
       // above. The card remains an ordinary popover rather than an implicit invoker
       // target so its close control and conversation keep their established order in
       // the shared chrome layer.

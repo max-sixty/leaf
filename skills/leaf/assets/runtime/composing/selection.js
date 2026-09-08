@@ -209,8 +209,8 @@ let composerEpoch = 0;
 // hiding box says about what became of the words, and the word Escape's row shows. They
 // had a spelling each, and the one over the textarea alone read a box holding a picture
 // and nothing else as empty.
-const holdsWords = (draft) => Boolean(draft.trim() || pendingDrawing);
-export const composerHolds = () => holdsWords(syncComposer.value());
+const holdsContent = (draft) => Boolean(draft || pendingDrawing);
+export const composerHolds = () => holdsContent(syncComposer.value());
 syncComposer = wireInput(composerInput, {
   hint: () =>
     suggestCheck.checked
@@ -221,10 +221,10 @@ syncComposer = wireInput(composerInput, {
   sends: () => (suggestCheck.checked ? "suggest" : "comment"),
   sendBtn: composerSend,
   allowsMedia: () => !suggestCheck.checked,
-  hasContent: holdsWords,
+  hasContent: holdsContent,
   save: saveComposerDraft,
   layout: refreshFab,
-  send: async (text, raw, owns, visible) => {
+  send: async (_text, raw, owns, visible) => {
     const anchor = structuredClone(pendingAnchor);
     const ctx = composerCtx(anchor);
     const suggestion = suggestCheck.checked;
@@ -245,7 +245,7 @@ syncComposer = wireInput(composerInput, {
           anchor,
           attempt,
         };
-        if (text) event.text = text;
+        if (raw) event.text = raw;
         if (suggestion) event.suggestion = true;
         if (about) event.about = about;
         if (drawing) event.drawing = drawing;
@@ -309,7 +309,7 @@ export function setSuggestionMode(suggest) {
     return;
   }
   // Entering suggestion mode seeds the box with the passage to edit in place.
-  if (suggestCheck.checked && !syncComposer.value().trim() && pendingAnchor?.quote)
+  if (suggestCheck.checked && !syncComposer.value() && pendingAnchor?.quote)
     syncComposer.load((seededQuote = pendingAnchor.quote));
   syncSuggestMode();
   saveComposerDraft();

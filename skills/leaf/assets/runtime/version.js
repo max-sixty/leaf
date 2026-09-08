@@ -146,10 +146,11 @@ import {
   focusDestination,
   layoutChanged,
   quoted,
+  reserve,
   reveal,
 } from "./widget-elements.js";
 import { settle, settling } from "./widget-upgrade.js";
-import { reserveNewsSlot, showNews } from "./banner-shelf.js";
+import { foldShelf, reserveNewsSlot, showNews, unfoldShelf } from "./banner-shelf.js";
 import { allButTheReference, midComposition } from "./keyboard/page.js";
 import { readAndApply } from "./state-feed.js";
 import { reportPageError, sameDelivery } from "./layer-client.js";
@@ -269,10 +270,12 @@ const versionLabel = (
   disclosure = versionsOffered(),
 ) => (comparing ? "Δ " : "") + label + (disclosure ? " ▾" : "");
 export const versionLabels = () =>
-  [undefined, "Draft", "v999"].flatMap((label) => [
-    versionLabel(false, label, true),
-    versionLabel(true, label, true),
-  ]);
+  versionsOffered()
+    ? [undefined, "Draft", "v999"].flatMap((label) => [
+        versionLabel(false, label, true),
+        versionLabel(true, label, true),
+      ])
+    : [currentVersionToken()];
 export const versionBtn = el("button", "lf-btn lf-version", "Draft");
 export const versionMenu = el("div", "lf-ui lf-version-menu");
 versionMenu.id = "lf-versions";
@@ -293,6 +296,7 @@ const draftRevisions = () => {
 const versionCount = () => runtime.versions.length + draftRevisions().size;
 const versionsOffered = () => versionCount() > 1;
 const versionsToWalk = () => versionCount() > 1;
+let reservedDisclosure = null;
 // The walk is the versions, not every press in the menu.
 const versionRows = () => [...versionMenu.querySelectorAll(".lf-version-row")];
 const versionStops = () =>
@@ -696,6 +700,16 @@ export function renderVersions(state) {
   }
   renderVersionMenu();
   paintDiff(); // the label may change even when an open menu defers its new rows
+  // A lone version is shorter because it is orientation rather than a disclosure.
+  // Retake its word-derived reservation only when that capability changes, with the
+  // control on the row where it has a measurable box. The banner continues to renew
+  // the same dynamic label set when its responsive padding changes.
+  if (state !== null && offered !== reservedDisclosure) {
+    unfoldShelf();
+    reserve(versionBtn, versionLabels());
+    reservedDisclosure = offered;
+    foldShelf();
+  }
   // The keyboard reaches the chip through the chooser rather than past it — g V opens the
   // menu, and its local v takes the current page; the banner spells that motion
   // onto this title.

@@ -2,7 +2,6 @@
 
 import json
 
-from . import codex as codex_delivery
 from .event_log import read_events
 from .leases import adapter_is_live
 from .schema import (
@@ -24,9 +23,9 @@ from .session import record_pickup
 def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
     """The pages this session owes something, each with what to do about it.
     Two invariants hold between turns. A page is watched or idle, so anything
-    else has quietly stopped listening. And every comment the session has taken
-    delivery of has an answer under it, since acknowledging is what takes one
-    off the batch and nothing delivers it again."""
+    else has quietly stopped listening. And every comment delivered into this
+    turn has an answer under it. A queued Codex comment belongs to its later turn
+    even though queue acceptance has advanced the page cursor."""
     reasons = []
     for page_dir in owned_pages(session_id):
         page_reasons = []
@@ -40,10 +39,16 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
         # Asked of every page, watched or not, and ahead of the watch question
         # below: a watcher cannot deliver a comment the cursor has already
         # passed, so a live wait is no answer to this one.
-        stale = [
+        acknowledged = [
             obligation
             for obligation in state["activity"]["obligations"]
             if obligation["seq"] <= state["cursor"]
+        ]
+        # Queue acceptance belongs to the originating turn, so it is not debt
+        # there. The later UserPromptSubmit still opens it below; from that
+        # point its ordinary unanswered debt is enforced again.
+        stale = [
+            obligation for obligation in acknowledged if obligation["phase"] != "queued"
         ]
         if stale:
             ids = ", ".join(
@@ -125,13 +130,13 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
             with PageTransaction(page_dir) as page:
                 claim = page.active_claim
                 if claim and claim["id"] == session_id:
-                    if prompt_open and stale:
+                    if prompt_open and acknowledged:
                         by_id = {event["id"]: event for event in page.events}
                         record_pickup(
                             page,
                             [
                                 by_id[obligation["event"]]
-                                for obligation in stale
+                                for obligation in acknowledged
                                 if obligation["event"] in by_id
                             ],
                             phase="opened",
@@ -161,34 +166,19 @@ def cmd_hook(payload: dict) -> None:
                 continue
         return
     if event == "UserPromptSubmit":
-        codex, delivery = codex_delivery.open_turn(sid)
-        if not codex:
-            open_session_turn(sid)
+        open_session_turn(sid)
         reasons = unattended_pages(sid, prompt_open=True)
-        if delivery is not None:
-            reasons.insert(
-                0,
-                "new Leaf input joined this turn. Process every batch in:\n" + delivery,
-            )
     elif event == "Stop":
         reasons = unattended_pages(sid)
-        codex_reasons = codex_delivery.finish_turn(
-            sid,
-            reasons,
-            bool(payload.get("stop_hook_active")),
-        )
-        if codex_reasons is not None:
-            reasons = codex_reasons
-        else:
-            # A first Stop blocked on outstanding Leaf work does not end the
-            # turn: Claude continues in the same turn with this reason as new
-            # context. Stamp only a turn the hook allows to end (cleanly or on
-            # the repeated stop that deliberately fails open).
-            if not reasons or payload.get("stop_hook_active"):
-                close_session_turn(sid)
-            # A repeated ordinary debt is the same Stop hook asking again.
-            if payload.get("stop_hook_active"):
-                return
+        # A first Stop blocked on outstanding Leaf work does not end the
+        # turn: Claude continues in the same turn with this reason as new
+        # context. Stamp only a turn the hook allows to end (cleanly or on
+        # the repeated stop that deliberately fails open).
+        if not reasons or payload.get("stop_hook_active"):
+            close_session_turn(sid)
+        # A repeated ordinary debt is the same Stop hook asking again.
+        if payload.get("stop_hook_active"):
+            return
     else:
         reasons = unattended_pages(sid)
     if not reasons:

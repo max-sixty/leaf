@@ -1379,6 +1379,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
     render_checks_model.prepare_standalone_probes(page)
     page.goto(out.as_uri(), wait_until="load")
     state = page.evaluate("""() => ({
+        live: document.documentElement.hasAttribute('data-lf-live'),
         scripts: document.querySelectorAll('script').length,
         chrome: document.querySelectorAll('.lf-chrome').length,
         toServer: [...document.querySelectorAll('[src^="/"], [href^="/"]')]
@@ -1502,6 +1503,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
     axe_violations, axe_report = serious_axe_violations(page)
     page.close()
 
+    assert not state["live"], "a copy kept the live server shell"
     assert state["scripts"] == 0, "a copy with no server behind it keeps no script"
     assert state["chrome"] == 0, (
         "the runtime's layer came along — a comment box that swallows what you type"

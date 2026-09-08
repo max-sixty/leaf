@@ -25,24 +25,13 @@ const isRootWorkspace = (owner) => {
 };
 
 const furniture = (owner) => {
-  const nodes = [":scope > header", ":scope > footer"]
-    .map((selector) => owner.querySelector(selector))
-    .filter(Boolean);
+  const nodes = [...owner.querySelectorAll(":scope > .lf-arranged-furniture")];
   return {
     height: nodes.reduce(
       (height, node) => height + node.getBoundingClientRect().height,
       0,
     ),
   };
-};
-
-const outerHeight = (node) => {
-  const style = getComputedStyle(node);
-  return (
-    node.getBoundingClientRect().height +
-    (Number.parseFloat(style.marginTop) || 0) +
-    (Number.parseFloat(style.marginBottom) || 0)
-  );
 };
 
 const lengths = (node, names) => {
@@ -68,33 +57,30 @@ const frameSize = (node) => ({
   ]),
 });
 
-const margins = (node) => ({
-  height: lengths(node, ["marginTop", "marginBottom"]),
-  width: lengths(node, ["marginLeft", "marginRight"]),
-});
-
 const ARRANGED = ".lf-workspace-arranged, .lf-pane-arranged, .lf-split-arranged";
 
-const bridgeFor = (owner, content) => {
-  if (!owner.classList.contains("lf-workspace-arranged")) return null;
-  const bridge = content.children.length === 1 ? content.firstElementChild : null;
-  return bridge?.matches("lf-ask") &&
-    bridge.firstElementChild?.matches("h1, h2, h3, h4, h5, h6")
-    ? bridge
-    : null;
-};
-
 const arrangedChildren = (owner, content) => {
-  const direct = [...content.children].filter((child) => child.matches(ARRANGED));
-  if (direct.length || !owner.classList.contains("lf-workspace-arranged"))
-    return direct;
-  const bridge = bridgeFor(owner, content);
-  if (!bridge) return [];
-  const arranged = bridge.lastElementChild;
-  return arranged?.matches(ARRANGED) ? [arranged] : [];
+  const nodes = [...content.childNodes].filter(
+    (node) =>
+      node.nodeType === Node.ELEMENT_NODE ||
+      (node.nodeType === Node.TEXT_NODE && node.textContent.trim()),
+  );
+  if (
+    nodes.some(
+      (node) => node.nodeType !== Node.ELEMENT_NODE || !node.matches(ARRANGED),
+    ) ||
+    nodes.length !== (owner.classList.contains("lf-split-arranged") ? 2 : 1)
+  )
+    return null;
+  return nodes;
 };
 
 const minimumSize = (owner) => {
+  if (
+    !owner.hasAttribute("data-lf-root-workspace") &&
+    owner.dataset.lfPosture === "flow"
+  )
+    return null;
   const frame = frameSize(owner);
   if (owner.classList.contains("lf-pane-arranged")) {
     const furnitureSize = furniture(owner);
@@ -103,11 +89,9 @@ const minimumSize = (owner) => {
       width: frame.width + MIN_PANE_WIDTH,
     };
   }
-  const content = owner.querySelector(
-    `:scope > .lf-${owner.classList.contains("lf-split-arranged") ? "split" : "workspace"}-content`,
-  );
+  const content = owner.querySelector(":scope > .lf-arranged-content");
   const children = content ? arrangedChildren(owner, content) : [];
-  if (!children.length) return null;
+  if (!children?.length) return null;
   const minima = children.map(minimumSize);
   if (minima.some((size) => size === null)) return null;
   let size;
@@ -141,12 +125,6 @@ const minimumSize = (owner) => {
   if (owner.classList.contains("lf-workspace-arranged")) {
     size.height += furniture(owner).height + frame.height;
     size.width += frame.width;
-    const bridge = bridgeFor(owner, content);
-    if (bridge) {
-      const childMargins = margins(children[0]);
-      size.height += outerHeight(bridge.firstElementChild) + childMargins.height;
-      size.width += childMargins.width;
-    }
   }
   return size;
 };

@@ -100,6 +100,10 @@ disclosure watch; `runtime/keyboard/page.js` owns the page's own scopes and rows
 `runtime/notifications.js` owns visual and assistive announcements and the notice
 element the banner seats;
 `runtime/arrangements.js` owns the browser-state arrangements the arrival gate exercises;
+`runtime/reading-regions.js` owns reading-region identities, effective scrollers,
+allocation and bounded/flow posture transitions;
+`runtime/reading-layout.js` owns shared arrangement construction and furniture slots
+used by structural and compound widgets;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
 `runtime/presence.js` owns the calibrated server clock, relative-time wording,
 and the deadline at which canonical activity asks for another server read;

@@ -134,6 +134,13 @@ def layout_errors(lf_elements: list, registry: dict) -> list:
                 errors.append(f"{where}: x-layout {role} direct <header> must be first")
             if footers and footers[0] != len(direct) - 1:
                 errors.append(f"{where}: x-layout {role} direct <footer> must be last")
+            if role == "workspace":
+                body = [child for child in direct if child not in {"header", "footer"}]
+                if len(body) != 1 or body[0] == "#text":
+                    errors.append(
+                        f"{where}: x-layout workspace must contain exactly one direct "
+                        f"body element, found {body or 'nothing'}"
+                    )
             continue
 
         direct_widgets = [

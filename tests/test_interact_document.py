@@ -914,6 +914,28 @@ def test_layout_grammar_rejects_invalid_slots_and_split_content(page_dir):
     )
 
 
+def test_workspace_requires_one_element_body(page_dir):
+    version = page_dir / ".fixture-versions" / "v1.html"
+    invalid_bodies = {
+        "bare text": "Loose text",
+        "multiple elements": "<p>First</p><p>Second</p>",
+        "empty body": "",
+    }
+
+    for name, body in invalid_bodies.items():
+        version.write_text(
+            PAGE.replace(
+                "<h2>Plan</h2>",
+                f'<lf-workspace id="review-space">{body}</lf-workspace>',
+            )
+        )
+        result = check(page_dir)
+        assert result.exit_code == 1, f"{name} passed workspace validation"
+        assert "x-layout workspace must contain exactly one direct body element" in (
+            result.output
+        )
+
+
 def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_dir):
     """A layer that names none colors none, so a page declaring one is asking for
     something it cannot get. The list is therefore read and indexed, never tested for

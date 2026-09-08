@@ -9,7 +9,7 @@
 /* Structural workspaces use one light-DOM arrangement in bounded and flow posture.
  * The posture changes allocation only; authored order remains header, body, footer. */
 .lf-arranged,
-.lf-workspace-content,
+.lf-arranged-content,
 .lf-pane-content,
 .lf-pane-body,
 .lf-split-content {
@@ -19,46 +19,39 @@
 .lf-arranged {
   display: block;
 }
-.lf-workspace-content,
+.lf-arranged-content,
 .lf-pane-content,
 .lf-pane-body,
 .lf-split-content {
   min-height: 0;
 }
 
-.lf-workspace-arranged,
-.lf-pane-arranged {
+.lf-workspace-arranged[data-lf-posture="bounded"],
+.lf-pane-arranged[data-lf-posture="bounded"] {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
-.lf-workspace-arranged > :is(header, footer),
-.lf-pane-arranged > :is(header, footer) {
-  margin: 0;
-}
-.lf-workspace-arranged > :is(header, footer),
-.lf-workspace-content
-  > lf-ask:only-child:has(> :is(h1, h2, h3, h4, h5, h6):first-child) {
-  --lf-frame: 1;
-}
-.lf-workspace-arranged > header,
-.lf-pane-arranged > header {
+.lf-arranged-before {
   grid-row: 1;
 }
-.lf-workspace-content,
-.lf-pane-content {
+.lf-workspace-arranged > .lf-arranged-content,
+.lf-pane-arranged > .lf-arranged-content {
   grid-row: 2;
 }
-.lf-workspace-arranged > footer,
-.lf-pane-arranged > footer {
+.lf-workspace-arranged > .lf-arranged-content > .lf-arranged-body,
+.lf-pane-arranged > .lf-arranged-content > .lf-arranged-body {
+  grid-row: 2;
+}
+.lf-arranged-after {
   grid-row: 3;
 }
-.lf-pane-arranged > header {
+.lf-pane-arranged > .lf-arranged-before {
   padding: 10px 14px;
   border-bottom: 1px solid var(--rule);
   font: 600 var(--t-5)/1.4 var(--sans);
   --lf-frame: 1;
 }
-.lf-pane-arranged > footer {
+.lf-pane-arranged > .lf-arranged-after {
   padding: 10px 14px;
   border-top: 1px solid var(--rule);
   --lf-frame: 1;
@@ -106,6 +99,15 @@
     height: 100%;
   }
   @container style(--lf-reading-posture: bounded) {
+    :is(.lf-workspace-arranged, .lf-pane-arranged):not([data-lf-posture]) {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+    :is(.lf-workspace-arranged, .lf-pane-arranged)
+      > .lf-arranged-furniture {
+      margin: 0;
+      --lf-frame: 1;
+    }
     .lf-split-arranged[data-lf-direction="columns"] > .lf-split-content {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -114,27 +116,7 @@
       display: grid;
       grid-template-rows: repeat(2, minmax(0, 1fr));
     }
-    .lf-workspace-content
-      > lf-ask:only-child:has(> :is(h1, h2, h3, h4, h5, h6):first-child) {
-      display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
-      height: 100%;
-      min-height: 0;
-      overflow: hidden;
-    }
-    .lf-workspace-content
-      > lf-ask:only-child:has(> :is(h1, h2, h3, h4, h5, h6):first-child)
-      > :last-child {
-      min-height: 0;
-      height: 100%;
-      margin-block: 0;
-    }
-    :is(
-      .lf-workspace-content,
-      .lf-split-content,
-      .lf-split-arranged,
-      .lf-pane-arranged
-    ) {
+    :is(.lf-split-content, .lf-arranged) {
       min-height: 0;
       height: 100%;
     }
@@ -146,8 +128,14 @@
   }
 }
 
+:is(.lf-workspace-arranged, .lf-pane-arranged)[data-lf-posture="bounded"]
+  > .lf-arranged-furniture {
+  margin: 0;
+  --lf-frame: 1;
+}
+
 html.lf-copy :is(.lf-workspace-arranged, .lf-pane-arranged, .lf-split-arranged),
-html.lf-copy :is(.lf-workspace-content, .lf-pane-content, .lf-split-content) {
+html.lf-copy :is(.lf-arranged-content, .lf-pane-content, .lf-split-content) {
   display: block;
   height: auto;
 }
@@ -161,7 +149,7 @@ html.lf-copy body > main:has(> [data-lf-root-workspace]) {
 }
 @media print {
   :is(.lf-workspace-arranged, .lf-pane-arranged, .lf-split-arranged),
-  :is(.lf-workspace-content, .lf-pane-content, .lf-split-content) {
+  :is(.lf-arranged-content, .lf-pane-content, .lf-split-content) {
     display: block !important;
     height: auto !important;
   }

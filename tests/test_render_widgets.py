@@ -162,6 +162,133 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     page.close()
 
 
+def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_content(
+    browser, serve
+):
+    page, errors = open_page(browser, serve(WORKSPACE_PAGE))
+    workspace = page.locator("#review-workspace")
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+
+    page.evaluate(
+        """async () => {
+          const leaf = await import('/runtime/widget-api.js');
+          const workspace = document.querySelector('#review-workspace');
+          const content = workspace.querySelector(':scope > .lf-workspace-content');
+          const split = content.firstElementChild;
+          const owner = document.createElement('section');
+          owner.id = 'package-surface';
+          const heading = document.createElement('h2');
+          heading.textContent = 'Package-owned furniture';
+          heading.style.height = '120px';
+          owner.append(heading, split);
+          content.replaceChildren(owner);
+          leaf.layoutChanged(owner);
+        }"""
+    )
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+
+    page.evaluate(
+        """async () => {
+          const leaf = await import('/runtime/widget-api.js');
+          await new Promise(resolve => setTimeout(resolve, 30));
+          const owner = document.querySelector('#package-surface');
+          leaf.arrangeReadingElement({
+            owner,
+            kind: 'workspace',
+            header: owner.firstElementChild,
+          });
+        }"""
+    )
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    surface = page.locator("#package-surface")
+    expect(surface.locator(":scope > .lf-arranged-before")).to_have_text(
+        "Package-owned furniture"
+    )
+    expect(
+        surface.locator(":scope > .lf-arranged-content > #review-regions")
+    ).to_have_count(1)
+
+    surface.locator(":scope > .lf-arranged-content").evaluate(
+        "content => content.append('Unsupported loose prose')"
+    )
+    surface.evaluate(
+        "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
+    )
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    surface.locator(":scope > .lf-arranged-content").evaluate(
+        "content => content.lastChild.remove()"
+    )
+    surface.evaluate(
+        "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
+    )
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+
+    page.set_viewport_size({"width": 1100, "height": 420})
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    surface.locator(":scope > .lf-arranged-before").evaluate(
+        "heading => heading.style.display = 'none'"
+    )
+    surface.evaluate(
+        "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
+    )
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    assert errors == []
+    page.close()
+
+
+def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
+    source = SWIPE_PAGE.replace(
+        "  <p>Pass removes an item from this design; Keep carries it into implementation.</p>\n",
+        "",
+    )
+    page, errors = open_page(browser, serve(source))
+    ask = page.locator("#session-triage-decision")
+    assert ask.evaluate("node => getComputedStyle(node).display") == "block"
+    assert (
+        ask.locator(":scope > .lf-arranged-before").evaluate(
+            "heading => getComputedStyle(heading).marginTop"
+        )
+        != "0px"
+    )
+    assert ask.evaluate(
+        """async node => {
+          const leaf = await import('/runtime/widget-api.js');
+          return leaf.readingPosture(node) === 'flow'
+            && leaf.effectiveScroller(node) === document.scrollingElement;
+        }"""
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_direct_embedded_workspace_keeps_the_root_in_document_flow(browser, serve):
+    source = leaf_page(
+        "embedded workspace",
+        """
+<lf-workspace id="outer-workspace">
+  <header><h1>Outer workspace</h1></header>
+  <lf-workspace id="embedded-workspace">
+    <lf-pane id="embedded-pane" label="Long reading">
+      <p>Start</p><div style="height: 900px"></div><p>End</p>
+    </lf-pane>
+  </lf-workspace>
+</lf-workspace>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    expect(page.locator("#embedded-workspace")).to_have_attribute(
+        "data-lf-posture", "flow"
+    )
+    expect(page.locator("#outer-workspace")).to_have_attribute(
+        "data-lf-posture", "flow"
+    )
+    assert page.evaluate(
+        "document.documentElement.scrollHeight > document.documentElement.clientHeight"
+    )
+    assert errors == []
+    page.close()
+
+
 SWIPE_PAGE = leaf_page(
     "session backlog triage",
     """
@@ -2258,10 +2385,10 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
             controlsScrolls: controls.scrollHeight > controls.clientHeight,
             controlsSize: [controls.clientHeight, controls.scrollHeight],
             playgroundHeight: playground.getBoundingClientRect().height,
-            askHeight: playground.parentElement.getBoundingClientRect().height,
+            askHeight: document.querySelector('#notification-ask').getBoundingClientRect().height,
             controlsScroller: leaf.effectiveScroller(controls) === controls,
             previewScroller: leaf.effectiveScroller(preview) === preview,
-            askDisplay: getComputedStyle(playground.parentElement).display,
+            askDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
             furnitureEdgesTrimmed: [
               getComputedStyle(document.querySelector(
                 '#notification-workspace > header > :first-child')).marginTop,
@@ -2345,7 +2472,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
             previewIsDocument:
               leaf.effectiveScroller(preview) === document.scrollingElement,
             stacked: previewBox.top >= controlsBox.bottom - 1,
-            askDisplay: getComputedStyle(playground.parentElement).display,
+            askDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
           };
         }"""
     )
@@ -4339,19 +4466,10 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         expect(page.locator(STANDING_ASK)).to_have_count(1)
         # Walking changes the ring and not the durable progress count.
         expect(decisions).to_have_text("Asks 1/5")
-        walked.append(
-            page.evaluate(
-                "() => document.activeElement.tagName.toLowerCase()"
-                "      + ' ' + document.activeElement.className"
-            )
-        )
-    assert walked == [
-        "lf-ask ",  # the question's own region, its picks a Tab away
-        "lf-suggestion ",  # the suggestion itself, its ✓ Accept hoisted into the margin
-        "lf-ask ",  # the task's nested review question
-        "lf-ask ",
-        "lf-ask ",
-    ], f"the walk landed on something else: {walked}"
+        walked.append(page.evaluate("document.activeElement.id"))
+    assert walked == [*ASKS_IN_ORDER, ASKS_IN_ORDER[-1]], (
+        f"the walk landed on something else: {walked}"
+    )
 
     # And back, including one press past the first edge. The step off a suggestion is
     # measured from the suggestion rather than from the ✓ Accept holding the focus —

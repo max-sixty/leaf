@@ -1,7 +1,7 @@
 /* The one helper surface behavior modules import. Every capability is reexported from
    its domain owner; owners import one another, and leaf.js only boots. */
 export { ARRANGEMENTS } from "./arrangements.js";
-export { arrangeReadingElement, registerArrangedElement } from "./arrangement.js";
+export { arrangeReadingElement, registerArrangedElement } from "./reading-layout.js";
 export { itemWord, navigateToDatum } from "./anchors.js";
 export { shownBand, shownBox, shownParts } from "./geometry.js";
 export { inUi, uiInside } from "./shadow.js";

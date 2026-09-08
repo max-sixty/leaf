@@ -79,15 +79,19 @@ preview or a queue beside its detail. Both use the same widgets, Asks, comments,
 and revisions; packages supply the vocabulary and guidance for the task.
 
 For a workspace, make `lf-workspace` the sole content element directly inside
-`main`, with the page title in its direct native `header`. Compose named
-`lf-pane` regions with `lf-split`: each split takes two panes or splits, in
-`columns` or `rows`. A pane's direct `header` and `footer` frame its reading body;
-put existing action widgets in the footer when they should stay available while
-the body scrolls. Query the registry entries for their complete markup contracts.
+`main`, with the page title in its optional direct native `header`. Its body is
+exactly one element. Put prose in an `lf-pane`; compose multiple named panes with
+one `lf-split`, where each split takes two panes or splits in `columns` or `rows`.
+The workspace's optional direct native `footer` follows its body. A pane's direct
+`header` and `footer` frame its reading body; put existing action widgets in the
+footer when they should stay available while the body scrolls. Query the registry
+entries for their complete markup contracts.
 
 Keep a compound widget's authoring grammar and state ownership together. A
 playground supplies its own controls and preview regions; its Ask still surrounds
-the playground. An embedded workspace stays within its containing content.
+the playground. Structural and compound owners register their arrangements so the
+workspace can allocate them directly; a plain wrapper does not carry allocation to
+an arranged descendant. An embedded workspace stays within its containing content.
 Constrained windows and standalone copies expose regions in authored order, so
 choose an order that remains useful when stacked. Let Leaf allocate the space;
 page-specific positioning should not be needed to keep a pane or footer reachable.

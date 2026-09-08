@@ -201,13 +201,23 @@ package contract without adding their tags or vocabulary to Leaf.
 
 A structural widget declares `x-layout` as `workspace`, `pane`, or `split` and keeps
 `x-content: prose`. Every role requires `id`; a pane also requires a string `label`, and
-a split requires `direction` with the complete `columns`/`rows` enum. A workspace or
+a split requires `direction` with the complete `columns`/`rows` enum. A workspace has
+exactly one direct body element between its optional native `header` and `footer`. A
 pane may have one direct native `header` first and one direct native `footer` last. A
 split contains exactly two direct widgets whose own entries declare pane or split. The
 validator reads roles rather than tag names, so a package may supply a differently named
 member without changing Leaf or joining an `x-parent` list.
 
-Behavior modules bind these reading areas through the public widget API.
+Behavior modules compose these reading areas with
+`arrangeReadingElement({owner, kind, header, footer, regions})` from the public widget
+API. It returns `{body, content, arrangement}`; `kind` selects workspace, pane, or split.
+The optional header and footer are elements the caller identifies, including generated
+elements; shared slot classes carry their geometry. The helper groups the remaining
+children into the content body and registers any declared reading regions. On reconnect,
+`registerArrangedElement({owner, content, body, regions})` rebinds that existing DOM.
+For bounded allocation, the workspace body is itself an arranged structural or compound
+owner. A plain wrapper keeps its descendants in document flow.
+
 `registerReadingRegion({id, host, body})` binds identity separately from the current
 scroller, while `registerArrangement({owner, content, regions})` returns
 `setPosture("bounded"|"flow")` and `cleanup()`. Nested arrangements inherit the nearest

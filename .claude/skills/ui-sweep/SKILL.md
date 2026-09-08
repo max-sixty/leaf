@@ -50,11 +50,17 @@ stands on words being read or written about, nothing renders below legibility, n
 runs out of room while the screen has some, floats track what they point at. A finding
 is a reproduced number or screenshot, not an impression.
 
+Avoid AI-slop visual patterns. Do not use rounded one-sided borders, and do not
+reflexively wrap sections in rounded cards, tints, gradients, or soft shadows. Start
+from the page's content and hierarchy; use a visual treatment only when it communicates
+a real relationship or state.
+
 ## Fix and pin
 
-Fix each finding, then pin it where the gate and the suite share it: a fact about
-a rendered page goes in render_version, a fact about a gesture becomes a test in
-whichever test_render_*.py module owns it. Put the bug back once and watch the new
-check fail. A judgment call — removing a control, redesigning a flow — goes in the
-report with its screenshot, not in the diff. The run ends as a green branch and a
-report, and landing waits for the go-ahead.
+Fix each finding. Pin only behavior that a check can decide without reproducing the
+design judgment: a measurable page defect goes in render_version, and a gesture defect
+becomes a test in whichever test_render_*.py module owns it. Put the bug back once and
+watch the new check fail. Keep visual grammar in this skill and the browser review,
+rather than writing detectors for particular CSS treatments. When a treatment causes a
+concrete failure such as covered content, test that failure. The run ends as a green
+branch and a report, and landing waits for the go-ahead.

@@ -2268,17 +2268,23 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     stranded = page.locator(".lf-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
-    # The projected mark stays above the figure's own paint and combines a quiet wash
-    # with the rail that distinguishes "has a thread" from a focus ring.
+    # The projected contour stays above the figure's own paint without putting any
+    # paint over its contents.
     figure = page.locator("#fig")
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     figure.scroll_into_view_if_needed()
     expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
     mark = page.locator('.lf-visual-mark[data-for="fig"]')
     expect(mark).to_be_visible()
-    assert "linear-gradient" in mark.evaluate(
-        "node => getComputedStyle(node).backgroundImage"
+    look = mark.evaluate(
+        """node => { const style = getComputedStyle(node); return {
+          background: style.backgroundImage,
+          borders: [style.borderTopWidth, style.borderRightWidth,
+                    style.borderBottomWidth, style.borderLeftWidth],
+        }; }"""
     )
+    assert look["background"] == "none", look
+    assert len(set(look["borders"])) == 1 and look["borders"][0] != "0px", look
     assert errors == []
     page.close()
 
@@ -4988,7 +4994,7 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
     The wash cannot be that notice, and no alpha can make it one: --mark composites to
     1.13:1 over the light paper, and its hue does not reach 1.5:1 against that paper at
     any alpha at all — opaque it stands at 1.38:1. So the layer marks words the way it
-    marks elements, with a line: an element anchor wears a --mark-ink rail at 9:1
+    marks elements, with a line: an element anchor wears a --mark-ink contour at 9:1
     (.lf-visual-mark), and a passage wears the same ink as an underline.
 
     A reaction had the element half of that pair (.lf-react-el, dashed) and not the text

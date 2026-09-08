@@ -2238,12 +2238,23 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
 def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     browser, serve
 ):
-    """Kind prefixes narrow the current generated map instead of replacing it.
+    """Semantic prefixes narrow the current generated map instead of replacing it.
 
     A filtered map preserves the codes its members had in the complete map. Its chips
     show only those generated suffixes; the complete route remains in the shortcut bar.
     """
-    page, errors = open_page(browser, serve(ADDRESSED_PAGE))
+    url = serve(ADDRESSED_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "A visible thread.",
+            "anchor": {"section": "opts-decision"},
+        },
+    )
+    page, errors = open_page(browser, url)
     resized(page, 1280, 800)
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
 
@@ -2266,14 +2277,14 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
             "action": "Show only visible margin controls and status indicators",
         },
         {
-            "command": "navigation.target.filter.tabs",
+            "command": "navigation.target.filter.threads",
             "keys": ["g", "t"],
-            "action": "Show only visible tabs",
+            "action": "Show only visible Thread controls",
         },
         {
-            "command": "navigation.target.filter.actions",
+            "command": "navigation.target.filter.asks",
             "keys": ["g", "a"],
-            "action": "Show only visible actions",
+            "action": "Show only visible Ask controls",
         },
         {
             "command": "navigation.target.filter.hyperlinks",
@@ -2304,33 +2315,46 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         "els => els.every(el => el.textContent === el.dataset.lfAddress)"
     ), "an inline hint repeated the sequence context"
 
-    control_codes = page.locator(
-        f'{CHIPS}[data-lf-address-kind="Control"]'
-    ).evaluate_all("els => els.map(el => el.dataset.lfAddress)")
-    assert len(control_codes) >= 2, control_codes
-    page.keyboard.press("a")
+    mixed = page.locator(
+        f'{CHIPS}[data-lf-address-kind="Margin control or status indicator"]'
+        '[data-lf-address-for="opts-decision"]'
+    )
+    expect(mixed).to_have_count(2)
+    mixed_codes = mixed.evaluate_all(
+        "els => Object.fromEntries(els.map(el => "
+        "[el.dataset.lfAddressMarginElement, el.dataset.lfAddress]))"
+    )
+    thread_code = mixed_codes["reading:threadList"]
+    ask_key = next(key for key in mixed_codes if key != "reading:threadList")
+    ask_code = mixed_codes[ask_key]
+
+    page.keyboard.press("m")
     filtered = page.locator(CHIPS)
-    expect(filtered).to_have_count(len(control_codes))
-    assert set(
-        filtered.evaluate_all("els => els.map(el => el.dataset.lfAddressKind)")
-    ) == {"Control"}
-    filtered_codes = address_codes(page)
-    assert filtered_codes == control_codes, {
-        "before": control_codes,
-        "filtered": filtered_codes,
-    }
+    expect(filtered).to_have_count(2)
+    assert address_codes(page) == list(mixed_codes.values())
+    page.keyboard.press("Escape")
+    shortcut_bar_text(page)
+
+    page.keyboard.press("t")
+    expect(filtered).to_have_count(1)
+    assert address_codes(page) == [thread_code]
     target_route = page.locator(
         '.lf-shortcut-bar .lf-key[data-lf-commands~="navigation.target"]'
     )
     assert target_route.locator("kbd").evaluate_all(
         "keys => keys.map(key => key.textContent)"
-    ) == ["g", "a", "letters"]
+    ) == ["g", "t", "letters"]
     assert target_route.locator("kbd").evaluate_all(
         "keys => keys.map(key => key.dataset.lfKeyState)"
     ) == ["pressed", "pressed", "neutral"]
     expect(target_route).not_to_contain_text("filter")
 
+    page.keyboard.type(thread_code)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-margin-thread")).to_have_count(1)
     page.keyboard.press("Escape")
+
+    page.keyboard.press("g")
     shortcut_bar_text(page)
     expect(page.locator("body")).to_have_attribute("data-lf-goto", "")
     assert (
@@ -2342,11 +2366,26 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         == initial_kinds
     )
 
+    page.keyboard.press("a")
+    expect(filtered).to_have_count(1)
+    assert address_codes(page) == [ask_code]
+    expect(page.locator(".lf-live")).to_have_text(
+        "1 visible Ask controls; type a hint or press Tab to hear them."
+    )
+    page.keyboard.type(ask_code)
+    expect(page.locator("#opts-decision")).to_be_focused()
+    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-ask", "1")
+
     # A filter with no members stays empty through the same resize refresh that
     # regenerates a populated map. Escape still restores the complete map.
-    page.keyboard.press("t")
+    page.locator("#opt-a").click()
+    round_trip(page)
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="ask"]')).to_have_count(0)
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("g")
+    page.keyboard.press("a")
     expect(page.locator(CHIPS)).to_have_count(0)
-    expect(page.locator(".lf-live")).to_have_text("No visible tabs.")
+    expect(page.locator(".lf-live")).to_have_text("No visible Ask controls.")
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("d")
     expect(page.locator("body")).to_have_attribute("data-lf-goto", "")
@@ -2553,7 +2592,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
             "visible target",
         ),
         (
-            "navigation.target.filter.tabs",
+            "navigation.target.filter.threads",
             ["g", "kind"],
             ["pressed", "neutral"],
             "filter by kind",
@@ -3487,7 +3526,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
         help_el.locator("tr[data-lf-command]:visible").first.get_attribute(
             "data-lf-command"
         )
-        == "navigation.target.filter.tabs"
+        == "navigation.target.filter.threads"
     )
     search.fill("g T")
     assert (
@@ -3808,12 +3847,10 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     expect(tabs).to_have_count(2)
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
-    # The old tab mnemonic now narrows the generated map to that kind; its fresh
-    # codes retain the same activation and focus behavior as the unfiltered map.
+    # Tabs need no separate kind mnemonic to remain directly reachable: the complete
+    # generated map keeps their activation and focus behavior.
     page.keyboard.press("g")
-    page.keyboard.press("t")
     expect(page.locator(f'{CHIPS}[data-lf-address-kind="Tab"]')).to_have_count(2)
-    expect(page.locator(f'{CHIPS}:not([data-lf-address-kind="Tab"])')).to_have_count(0)
     page.keyboard.type(address_code(page, "Tab", "tab-bath"))
 
     expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")

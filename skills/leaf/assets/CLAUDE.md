@@ -593,8 +593,10 @@ reduced motion. Native Space stays with the platform and focused controls. Other
 from words the surface says: `w` narrows to threads waiting on the reader while focus is
 in that panel, and enters Draw mode from the page. The Go-to sequence
 (`keyboard/address.js`) uses uppercase letters for named destinations and lowercase
-letters for target-kind filters and generated hints. A key spelling something nothing on
-screen says is a key nobody reaches for twice.
+letters for target-kind filters and generated hints. `g t` and `g a` filter to visible
+Thread and Ask controls; their uppercase counterparts open the complete panels. `g m`
+contains every visible margin control and status indicator. A key spelling something
+nothing on screen says is a key nobody reaches for twice.
 Approval spends no fixed page letter: its visible button stays in the Tab order and takes
 native Enter or Space, while the Ask-local list gives it a contextual binding. In particular,
 a conditional sequence mnemonic must not share its final key

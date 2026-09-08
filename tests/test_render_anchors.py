@@ -708,7 +708,7 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     # The standing paint can replace the hint layer between browser round trips. Read
     # the one rendered face in one task so geometry and emphasis cannot come from two
     # successive hint elements.
-    hint_face = faces(page, ".lf-target-hint")[0]
+    hint_face = faces(page, ".lf-target-hint kbd")[0]
     assert hint_face["key"] == option["key"]
     assert hint_face["emphasis"] == option["emphasis"]
     assert errors == []

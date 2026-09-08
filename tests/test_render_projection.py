@@ -3898,7 +3898,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     page.close()
 
 
-def test_a_message_reference_travels_or_says_it_cant(browser, serve):
+def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_reader):
     """A message can point at the page with a fragment link, and the platform is what
     carries the reader: collapsed content wears hidden="until-found", so the jump
     fires beforematch and the tab holding the target opens itself. That half is
@@ -3922,7 +3922,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve):
             "text": "See [the bath](#p-bath), not [the old note](#gone).",
         },
     )
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, url, context=one_reader)
     page.locator(".lf-threads-toggle").click()
 
     live = page.locator('.lf-msg-body a[href="#p-bath"]')
@@ -3943,9 +3943,13 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve):
     # (landArrival). Nothing of this tab travels with it; the new one starts empty.
     # Which chord opens that tab is the platform's answer rather than one this suite
     # holds — ⌘ where it was written, ⌃ where CI runs it — so the press names the
-    # gesture and lets Playwright spell it. Named outright, the Linux press opened
-    # nothing at all and the wait for the tab ran its full 30s before saying so.
-    tab = opened_tab(page, lambda: live.click(modifiers=["ControlOrMeta"]))
+    # gesture and the browser's target record proves where it opened.
+    destination = live.evaluate("link => link.href")
+    tab = opened_tab(
+        page,
+        destination,
+        lambda: live.click(modifiers=["ControlOrMeta"]),
+    )
     tab.wait_for_function(BOTH_STAMPS)
     tab.wait_for_function(
         """() => { const r = document.getElementById('p-bath').getBoundingClientRect();

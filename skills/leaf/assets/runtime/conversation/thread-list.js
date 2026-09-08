@@ -188,6 +188,8 @@ export function mountThreadList() {
 // to the next card without trying to recover its old position after the mutation.
 let activeHold = null;
 const contentTop = (card) => card.getBoundingClientRect().top + threadsBox.scrollTop;
+const maxScrollTop = () =>
+  Math.max(0, threadsBox.scrollHeight - threadsBox.clientHeight);
 // The box a card can hold the list's place by, or null where it can hold nothing: a
 // fold renames its node out of .lf-thread on the way out, a narrowing hides one, and
 // a closed disclosure leaves one connected with no box to measure. One
@@ -271,7 +273,11 @@ function takeScrollHold() {
     threadsBox.style.removeProperty("overflow-anchor");
     return null;
   }
-  activeHold = { references };
+  activeHold = {
+    references,
+    scrollTop: threadsBox.scrollTop,
+    maxScrollTop: maxScrollTop(),
+  };
   // This hold is the sole scroll-anchor authority for its mutation. Leaving the
   // browser's independent anchor enabled can compensate the same reflow twice.
   threadsBox.style.setProperty("overflow-anchor", "none");
@@ -297,7 +303,19 @@ function correctScrollHold(hold) {
   // never fights a wheel, keyboard landing, narrowing reset, or scrollIntoView.
   const nextContentTop = box.top + threadsBox.scrollTop;
   const delta = nextContentTop - reference.contentTop;
-  if (delta) threadsBox.scrollTop += delta;
+  // Shrinking content can lower the scroll limit before this frame gets to correct
+  // the hold. Chromium clamps the list to that new limit first; treating that forced
+  // scroll as part of the reflow pays for it twice and moves the held card. Remove only
+  // a clamp identified by both the falling limit and the list standing exactly on it.
+  // Other scroll movement remains the reader's and is left intact.
+  const limit = maxScrollTop();
+  const clamped =
+    limit < hold.maxScrollTop &&
+    hold.scrollTop > limit &&
+    threadsBox.scrollTop === limit
+      ? threadsBox.scrollTop - hold.scrollTop
+      : 0;
+  if (delta || clamped) threadsBox.scrollTop += delta - clamped;
   // Every fallback observed this frame's reflow too. Refresh all live baselines after
   // the correction, or handing off later would apply movement already paid for while
   // the primary stood.
@@ -305,6 +323,8 @@ function correctScrollHold(hold) {
     const candidateBox = heldBox(candidate.card);
     if (candidateBox) candidate.contentTop = candidateBox.top + threadsBox.scrollTop;
   }
+  hold.scrollTop = threadsBox.scrollTop;
+  hold.maxScrollTop = maxScrollTop();
   return true;
 }
 

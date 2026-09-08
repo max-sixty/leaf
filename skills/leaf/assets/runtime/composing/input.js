@@ -65,7 +65,7 @@ export function wireInput(
     // `true` to take a pasted image; otherwise the sentence the reader is told instead.
     allowsMedia = () => true,
     busy = () => false,
-    hasContent = (raw) => Boolean(raw.trim()),
+    hasContent = (raw) => Boolean(raw),
     layout = () => {},
   },
 ) {

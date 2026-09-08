@@ -168,12 +168,9 @@ const showStatus = (kind, tone, ...parts) => {
   if (changed) announce(statusText.textContent);
 };
 // The developer preview's identity: which checkout is serving this page, and a press to
-// copy the whole diagnostic. It is an address on the row rather than a chip inside the
-// status, because the status's room is the sentence's floor and a chip standing in it
-// spends that floor first — 240 pixels of it, which left the line twelve characters and
-// two of the four lines it had to say. On the row it keeps its words and folds whole,
-// ahead of every address, which is the right order for the one control here a reader
-// never needs.
+// copy the whole diagnostic. It is the banner's least-used address, so it stays behind
+// the address door at every width instead of adding a permanent chip to the reading row.
+// The shelf still owns and measures it with every other address.
 let previewMarginElement = null;
 // A checkout goes dirty and clean again while a developer works, so the chip holds the
 // wider of its two spellings for the page's life rather than growing a character under
@@ -208,6 +205,7 @@ function renderPreview(state) {
   if (!previewMarginElement) {
     previewMarginElement = el("button", "lf-btn lf-preview", label);
     previewMarginElement.type = "button";
+    previewMarginElement.dataset.lfAlwaysFold = "1";
     previewMarginElement.setAttribute("aria-label", "Copy preview diagnostics");
     previewMarginElement.addEventListener("click", async () => {
       try {
@@ -525,10 +523,8 @@ export const isSignoffDeclared = () => signoffDeclared;
 // narrow window changes now is how many of these addresses stand on the row at once; the
 // rest fold into the row's own menu, in this same order (`foldShelf`).
 //
-// A developer preview's identity chip stands ahead of the addresses rather than among
-// them, which is the same statement read for folding: the fold takes the row's first
-// control first, and what a crowded row should give up before any address is which
-// checkout is serving the page. It is absent on a reader's page (renderPreview).
+// A developer preview's identity stands first in the complete address order and always
+// behind its door. It is absent on a reader's page (renderPreview).
 //
 // This is DOM order rather than CSS `order`, so the tab route says the same thing the row
 // draws. Reordering existing nodes can briefly drop native focus; put it back without

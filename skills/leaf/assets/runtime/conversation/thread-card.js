@@ -13,8 +13,23 @@ import { settlementControl } from "./folding.js";
 import { retainPanelLanding, showThread } from "./landing.js";
 import { openThreads, threadList } from "./reconcile.js";
 import { focusSurface } from "./surfaces.js";
+import { groupFor, pageOutline } from "./placement.js";
 
 const hasDestination = (id) => isMarked(id) || Boolean(placedAt(id));
+const threadAnchorLabel = (t, outline = pageOutline()) => {
+  const group = groupFor(t, outline);
+  const segments = placedAt(t.root.id)?.segments ?? [];
+  // The group heading already says these exact words immediately above the thread.
+  // Decide that from the resolved nodes, not from a text comparison: identical words
+  // elsewhere in the section remain a real quote and keep their label.
+  if (
+    group.target &&
+    segments.length &&
+    segments.every(({ node }) => group.target.contains(node))
+  )
+    return "";
+  return anchorLabel(t.anchor, t.root.about, group.target);
+};
 
 // A thread's node is found where it already stands — the open list or the resolved
 // disclosure — and kept: the log is append-only, so a kept node only ever gains
@@ -67,7 +82,7 @@ export function threadNode(t, grow) {
   div.dataset.id = t.root.id;
   if (t.root.attempt) div.dataset.attempt = t.root.attempt;
   if (grow) div.classList.add("grow");
-  const label = anchorLabel(t.anchor, t.root.about);
+  const label = threadAnchorLabel(t);
   if (label) {
     const quote = el("blockquote", "lf-quote");
     quote.append(el("span", "lf-quote-label", label));
@@ -100,22 +115,16 @@ export function threadNode(t, grow) {
     ]);
     div.append(quote);
   }
-  turns(t).forEach((m) => div.append(msgNode(m)));
-  paintReactStrips(div, t);
+  let resolve = null;
   if (!t.resolved) {
-    const row = el("div", "lf-compose");
-    const input = document.createElement("textarea");
-    input.name = "reply";
-    const send = el("button", "lf-btn primary lf-thread-send", "Send");
-    // Resolving takes this node out of the open list and focus with it — the blind
-    // drive fell to body here. Land where t would have gone: the thread that now
-    // holds this one's place, else the previous, else the list. Which is read after
-    // the trip, off the list the fold has already left (foldOut renames the node the
-    // frame the log settles it), so the landing is a thread rather than the room the
-    // pressed one is still giving back.
-    const resolve = settlementControl(t, {
+    // Resolve belongs to the whole thread. Keep it beside the thread's quoted address,
+    // before any message controls in the keyboard order; a message head says only who
+    // wrote that message and when.
+    resolve = settlementControl(t, {
       liveId,
       prepareLanding: () => {
+        // Resolving removes this card and its focus. Land on the thread that takes its
+        // place, or the previous thread when this one was last in the list.
         const mayLand = retainPanelLanding(div);
         const at = openThreads().indexOf(div);
         return () => {
@@ -125,7 +134,15 @@ export function threadNode(t, grow) {
         };
       },
     });
-    div.querySelector(":scope > .lf-msg:first-of-type > .lf-msg-head")?.append(resolve);
+    div.append(resolve);
+  }
+  turns(t).forEach((m) => div.append(msgNode(m)));
+  paintReactStrips(div, t);
+  if (!t.resolved) {
+    const row = el("div", "lf-compose");
+    const input = document.createElement("textarea");
+    input.name = "reply";
+    const send = el("button", "lf-btn primary lf-thread-send", "Send");
     row.append(input, send);
     wireReply(t, input, send, liveId);
     div.append(row);
@@ -162,9 +179,8 @@ export function threadNode(t, grow) {
 // the record, and again by a narrowing that rebuilt the nodes the record was painted on.
 export function paintThreadQuotes() {
   const threads = new Map(threadList().map((t) => [t.root.id, t]));
+  const outline = pageOutline();
   for (const div of threadsBox.querySelectorAll(".lf-thread")) {
-    const quote = div.querySelector(".lf-quote");
-    if (!quote) continue;
     // The words too, for the same reason the class below is repainted here rather than
     // written where the node was built. An element anchor is labelled with its item's
     // own opening words, and the item may be a widget an agent sent — built by this
@@ -174,7 +190,16 @@ export function paintThreadQuotes() {
     // `§ off-slip` stood where `§ options · If their release comes and goes…` belonged,
     // for the life of the tab.
     const thread = threads.get(div.dataset.id);
-    const said = thread && anchorLabel(thread.anchor, thread.root.about);
+    const said = thread && threadAnchorLabel(thread, outline);
+    const quote = div.querySelector(".lf-quote");
+    // A quote selected from the run heading can be built before the final grouping
+    // pass has omitted that heading. Reconcile absence as well as changed words so the
+    // temporary duplicate does not become a kept node for the life of the tab.
+    if (thread && !said) {
+      quote?.remove();
+      continue;
+    }
+    if (!quote) continue;
     const label = quote.querySelector(":scope > .lf-quote-label");
     if (said && label.textContent !== said) label.textContent = said;
     const outdated = placedAt(div.dataset.id)?.status === "outdated";

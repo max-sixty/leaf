@@ -1379,6 +1379,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
     render_checks_model.prepare_standalone_probes(page)
     page.goto(out.as_uri(), wait_until="load")
     state = page.evaluate("""() => ({
+        live: document.documentElement.hasAttribute('data-lf-live'),
         scripts: document.querySelectorAll('script').length,
         chrome: document.querySelectorAll('.lf-chrome').length,
         toServer: [...document.querySelectorAll('[src^="/"], [href^="/"]')]
@@ -1502,6 +1503,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
     axe_violations, axe_report = serious_axe_violations(page)
     page.close()
 
+    assert not state["live"], "a copy kept the live server shell"
     assert state["scripts"] == 0, "a copy with no server behind it keeps no script"
     assert state["chrome"] == 0, (
         "the runtime's layer came along — a comment box that swallows what you type"
@@ -1679,3 +1681,38 @@ def test_a_copy_wears_the_mark_and_claims_no_session(browser, serve, tmp_path):
         f"has — {icon['toned']} stylesheets on a mark authored with one"
     )
     assert icon["rest"] is None, "the handover attribute rode along into the copy"
+
+
+def test_a_copy_drops_live_element_projection_state(browser, serve, tmp_path):
+    """The projection belongs to runtime chrome and must leave with that chrome."""
+    source = leaf_page(
+        "projected comment",
+        '<h1>Review</h1><figure id="fig"><p>Annotated figure.</p></figure>',
+    )
+    url = serve(source)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Check this figure.",
+            "anchor": {"section": "fig"},
+        },
+    )
+
+    live, errors = open_page(browser, url)
+    figure = live.locator("#fig")
+    expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
+    expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    live.close()
+
+    out = tmp_path / "projected-comment.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    copy = browser.new_page()
+    copy.goto(out.as_uri(), wait_until="load")
+    expect(copy.locator("#fig")).not_to_have_class(
+        re.compile(r"\blf-(?:mark-el|projected-mark)\b")
+    )
+    assert errors == []
+    copy.close()

@@ -202,6 +202,8 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         expect(badge).to_have_text("Preview · fb77@26499ea1abcd+")
         expect(badge).to_have_attribute("aria-label", "Copy preview diagnostics")
 
+        page.get_by_role("button", name="More page addresses", exact=True).click()
+        expect(badge).to_be_visible()
         badge.click()
         expect(page.locator(".lf-live")).to_have_text("Copied preview diagnostics")
         expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")
@@ -232,10 +234,19 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         context.close()
 
 
-def test_authored_html_paints_while_runtime_startup_is_held(browser, serve):
+@pytest.mark.parametrize(
+    ("width", "has_touch", "banner_height"),
+    [(800, False, 88), (1200, True, 53), (1724, False, 42)],
+)
+def test_authored_html_paints_while_runtime_startup_is_held(
+    browser, serve, width, has_touch, banner_height
+):
     """Immediate authored paint is the contract for every page, not an example mode."""
     boot = []
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    context = browser.new_context(
+        viewport={"width": width, "height": 900}, has_touch=has_touch
+    )
+    page = context.new_page()
     errors = watched(page)
     page.route("**/leaf.js", lambda route: boot.append(route))
 
@@ -252,7 +263,10 @@ def test_authored_html_paints_while_runtime_startup_is_held(browser, serve):
         ), "authored words occupied a box but did not paint"
 
         assert boot, "the positive control did not hold the preview boot module"
+        expect(page.locator("html")).to_have_attribute("data-lf-live", "")
         expect(page.locator("body > main")).to_have_css("pointer-events", "auto")
+        initial = page.locator("body > main").bounding_box()
+        assert initial["y"] == pytest.approx(banner_height, abs=1)
         assert (
             page.evaluate("() => getComputedStyle(document.body, '::after').content")
             == "none"
@@ -260,12 +274,83 @@ def test_authored_html_paints_while_runtime_startup_is_held(browser, serve):
 
         boot.pop().continue_()
         page.wait_for_function(BOTH_STAMPS)
+        page.wait_for_function(
+            "() => document.querySelector('body > main').getAnimations()"
+            ".every(animation => animation.playState !== 'running')"
+        )
+        presented = page.locator("body > main").bounding_box()
+        assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
+            {key: initial[key] for key in ("x", "y", "width")}, abs=1
+        ), f"runtime startup moved the {width}px shell"
         assert errors == []
     finally:
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-        page.close()
+        context.close()
+
+
+@pytest.mark.parametrize(
+    ("saved", "root_attribute", "body_attribute"),
+    [
+        (
+            {"lf-panel-open": "1", "lf-panel-width": "500"},
+            "data-lf-restore-panel",
+            "data-lf-panel",
+        ),
+        (
+            {"lf-tray-up": "asks", "lf-tray-width": "280"},
+            "data-lf-restore-tray",
+            "data-lf-tray",
+        ),
+    ],
+)
+def test_a_restored_workspace_has_its_final_geometry_before_runtime_loads(
+    browser, serve, saved, root_attribute, body_attribute
+):
+    """Returning readers do not watch their saved workspace move the document."""
+    url = serve(leaf_page("Restored workspace", "<h1>Restored workspace</h1>"))
+    context = browser.new_context(viewport={"width": 1600, "height": 900})
+    priming = context.new_page()
+    priming.goto(url, wait_until="load")
+    priming.evaluate(
+        "saved => { for (const [key, value] of Object.entries(saved)) "
+        "localStorage.setItem(key, value); }",
+        saved,
+    )
+    priming.close()
+
+    held = []
+    page = context.new_page()
+    errors = watched(page)
+    page.route("**/leaf.js", lambda route: held.append(route))
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(url, wait_until="commit")
+        expect(page.locator("h1")).to_be_visible()
+        expect(page.locator("html")).to_have_attribute(root_attribute, re.compile(".*"))
+        initial = page.locator("body > main").bounding_box()
+
+        held.pop().continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        page.wait_for_function(
+            "() => document.querySelector('body > main').getAnimations()"
+            ".every(animation => animation.playState !== 'running')"
+        )
+        expect(page.locator("html")).not_to_have_attribute(
+            root_attribute, re.compile(".*")
+        )
+        expect(page.locator("body")).to_have_attribute(body_attribute, re.compile(".*"))
+        presented = page.locator("body > main").bounding_box()
+        assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
+            {key: initial[key] for key in ("x", "y", "width")}, abs=1
+        ), f"restoring {body_attribute} moved the shell"
+        assert errors == []
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        context.close()
 
 
 def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve):
@@ -593,10 +678,10 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     """Paint readiness and semantic-interaction readiness are separate facts.
 
     The authored document is useful while the first state response is held: its text,
-    link, structure, and shadow-rendered diff paint. Generated interface in light and
-    shadow DOM reserves its room without painting. A choice based on that not-yet-
-    reconciled document cannot mutate or post, and authored top-layer UI stays withheld.
-    Releasing the response applies the standing decision and opens interaction once."""
+    link, structure, and generated interface in light and shadow DOM all paint after
+    upgrade. A durable choice based on that not-yet-reconciled document cannot mutate or
+    post, and authored top-layer UI stays withheld. Releasing the response applies the
+    standing decision and opens semantic interaction once."""
     url = serve(
         SHORT_SUGGESTION.replace(
             "<lf-old>",
@@ -658,7 +743,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
         assert held, "the positive control did not hold the first state response"
         choice = page.locator("#startup-choice .lf-pick").first
         expect(choice).to_have_attribute("aria-disabled", "true")
-        expect(choice).not_to_be_visible()
+        expect(choice).to_be_visible()
         choice.dispatch_event("click")
         expect(page.locator("#startup-a")).not_to_have_attribute("chosen", "")
         suggestion_accept = page.locator(
@@ -737,9 +822,9 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             """() => {
               const ui = document.querySelector('#shadowed').shadowRoot
                 .querySelector('.lf-ui');
-              return ui && !ui.checkVisibility({visibilityProperty: true});
+              return ui?.checkVisibility({visibilityProperty: true});
             }"""
-        ), "generated shadow interface painted before replay"
+        ), "generated shadow interface remained withheld after upgrade"
         assert not page.locator("#stale-dialog").is_visible(), (
             "authored top-layer content painted before replay"
         )
@@ -872,11 +957,12 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 
 def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
-    """An opt-in runtime surface is part of the page's first stable UI.
+    """Page visuals paint after upgrade while agent and durable state still wait.
 
-    The interaction gallery loads its own module and inserts controls. Holding replay
-    proves that work completes by the widget-upgrade stamp, with its reserved controls
-    withheld until presentation instead of appearing in a later frame."""
+    The feature gallery's optional interface and playground both generate controls.
+    Holding replay proves they finish and paint by the widget-upgrade stamp. Page-local
+    playground changes work immediately, while its durable submit and the agent-derived
+    banner remain unavailable until the authoritative projection arrives."""
     url = serve(FEATURE_GALLERY)
     held = []
     page = browser.new_page(viewport={"width": 1440, "height": 900})
@@ -890,11 +976,36 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
         expect(gallery).to_have_attribute("data-interaction-installed", "1")
         controls = gallery.locator(".interaction-controls")
         expect(controls).to_have_count(1)
-        expect(controls).not_to_be_visible()
+        expect(controls).to_be_visible()
+        playground = page.locator("#bg-card-playground")
+        expect(playground.locator(".lf-playground-controls")).to_be_visible()
+        expect(playground.locator(".lf-playground-presets")).to_be_visible()
+        expect(playground.locator(".lf-playground-actions")).to_be_visible()
+        submit = playground.get_by_role("button", name="Apply card")
+        expect(submit).to_be_disabled()
+        expect(page.locator(".lf-status-text")).to_have_text(re.compile(r"^Connecting"))
+
+        playground.get_by_role("button", name="Evening invite").click()
+        expect(playground.locator("input[aria-label='Card title']")).to_have_value(
+            "Evening walk"
+        )
+        assert (
+            page.locator("#bg-playground-card-title").evaluate(
+                "element => getComputedStyle(element, '::before').content"
+            )
+            == '"Evening walk"'
+        )
 
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(controls).to_be_visible()
+        expect(submit).to_be_enabled()
+        expect(playground.locator("input[aria-label='Card title']")).to_have_value(
+            "Evening walk"
+        )
+        expect(page.locator(".lf-status-text")).not_to_have_text(
+            re.compile(r"^Connecting")
+        )
         assert errors == []
     finally:
         page.close()

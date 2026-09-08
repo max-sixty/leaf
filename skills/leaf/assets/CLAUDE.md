@@ -142,14 +142,14 @@ anatomy (`responseAction`), labels, gesture guards, deferred measurement, layout
 `runtime/scrolling.js` owns the document scroller identity, relative scroller moves,
 fixed-surface wheel forwarding, and the gutter its bar takes;
 `runtime/chrome.css` is the comment layer's private stylesheet, a CSS module the boot
-module adopts, and keeps the root, body's layout shell, and the chrome's paint hosts out
-of the containing-block chain for document-positioned chrome. It also keeps page-attached
-paint below covering workspaces and paint for chrome targets above them.
+module adopts, and keeps the chrome's paint hosts out of the containing-block chain for
+document-positioned chrome. It also keeps page-attached paint below covering workspaces
+and paint for chrome targets above them.
 `runtime/marks.css` is the marks' sheet, adopted by the document and by every shadow
 stage;
-`theme.css` is the default theme: tokens, element styles, class idioms, and the
-element-widgets CSS alone renders, with the shadow slice widgets adopt; a package's
-`theme.css` is appended after it;
+`theme.css` is the render-blocking default theme: the live shell's final page claims,
+tokens, element styles, class idioms, and the element-widgets CSS alone renders, with the
+shadow slice widgets adopt; a package's `theme.css` is appended after it;
 `runtime/resolved-target.js` owns the canonical result of resolving a durable anchor
 into the current document;
 `runtime/target-paint.js` owns element-target paint in the chrome layer;
@@ -273,11 +273,21 @@ Startup order is load-bearing:
 11. Start the state feed; its first answer is applied, reconciled, and presents the
     page.
 
-Authored HTML paints immediately on every page. Its prose, ordinary links, scrolling,
-and layout remain usable while widgets upgrade and the first state read is pending.
-Generated interface inside the page participates in layout but stays invisible until
-`data-lf-presented` releases it with recorded widget actions and authored top-layer UI.
-Fixed status and unanchored discussion chrome remain usable while a live page waits.
+Authored HTML paints immediately on every page. The prepaint bootstrap marks the root
+`data-lf-live`, and the render-blocking theme uses that fact to reserve the fixed banner
+and the reader's restored workspace, so mounting the runtime does not move the document.
+The same bootstrap projects that stored arrangement before the theme paints; runtime
+restoration replaces the provisional root state with live body state.
+Prose, ordinary links, scrolling, and layout remain usable while widgets upgrade and the
+first state read is pending.
+Generated interface constructed from authored markup participates in layout while it
+settles, then `data-lf-upgraded` releases it from authored and tab-local state without
+waiting for the first server reading. Durable controls remain unavailable until
+`data-lf-presented`, and authored top-layer UI stays withheld until that same semantic
+interaction boundary. A data-backed widget whose authored element has no content takes its
+source-dependent space when that data arrives; stable geometry for that content requires
+an authored reserve or a fixed rendering posture. Fixed status and unanchored discussion
+chrome remain usable while a live page waits.
 An optional page-interface failure reports itself without withholding presentation.
 Modules must consult `actionAvailable` or `requestAvailable` before optimistic mutation
 as well as before sending; their common send doors repeat the check. Selecting a passage
@@ -487,11 +497,13 @@ arriving without a gesture must not move any chrome control. A content change
 the reader requested may reflow the content it replaces, provided the change is
 shown as trackable motion rather than an unexplained jump.
 
-During startup, generated interface first appears in its authoritative position. An
-asynchronous producer joins the applicable widget, data, or page-interface settlement
-before presentation. Apparatus that derives its position from final boxes takes one
-synchronous reading on `PRESENTATION`, then uses `ResizeObserver` or the shared layout
-signal for later changes. Provisional defaults may reserve space, but they do not paint.
+During startup, generated interface first appears in its settled upgrade position, from
+authored and tab-local state. An asynchronous producer joins the applicable widget, data,
+or page-interface settlement before `data-lf-upgraded` releases that interface. Apparatus
+that also depends on authoritative replay takes one synchronous reading on `PRESENTATION`,
+then uses `ResizeObserver` or the shared layout signal for later changes. An asynchronous
+producer's default may reserve space without painting; a box-derived reading taken before
+replay does paint, and `PRESENTATION` replaces it.
 
 Control state is paint: ink, fill, border, or an inset ring. Do not express it by
 changing font weight, size, padding, border width, or another metric. Reserve

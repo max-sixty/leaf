@@ -394,7 +394,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     ]
     page, errors = open_page(browser, url)
     try:
-        expect(page.locator(".lf-version")).to_have_text("v2 ▾")
+        expect(page.locator(".lf-version")).to_have_text("v2")
         current = page.evaluate("() => fetch('api/state').then(r => r.json())")
         assert current["active"]["revision"] == mappings[2]
         assert current["active"]["version"] == 2
@@ -416,7 +416,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
         )
         page.wait_for_function(BOTH_STAMPS)
 
-        expect(page.locator(".lf-version")).to_have_text("v1 ▾")
+        expect(page.locator(".lf-version")).to_have_text("v1")
         expect(page.locator("#ret-cost-keep")).to_have_count(0)
         markup = page.evaluate(
             "() => fetch('../versions/v1.html').then(response => response.text())"
@@ -632,6 +632,35 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
     assert "expected exactly one external <script src> tag, found 0" in str(
         stopped.value
     )
+
+
+def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
+    hosted, browser
+):
+    """The catalog is useful HTML first; mounting its shared Leaf layer must not move it."""
+    boot = []
+    page = browser.new_page(viewport={"width": 1724, "height": 1036})
+    errors = watched(page)
+    page.route("**/examples/leaf.js", lambda route: boot.append(route))
+    try:
+        with page.expect_request("**/examples/leaf.js"):
+            page.goto(f"{hosted}/examples/", wait_until="commit")
+        expect(page.locator("h1")).to_be_visible()
+        assert boot, "the positive control did not hold the catalog boot module"
+        initial = page.locator("main").bounding_box()
+
+        boot.pop().continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        final = page.locator("main").bounding_box()
+        assert {key: final[key] for key in ("x", "y", "width")} == pytest.approx(
+            {key: initial[key] for key in ("x", "y", "width")}, abs=1
+        )
+        assert errors == []
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        page.close()
 
 
 def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
@@ -1204,7 +1233,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
                 _, url = served_example(source.stem)
                 opened(page, errors, url)
             newest = len(example_versions(source))
-            expect(page.locator(".lf-banner .lf-version")).to_have_text(f"v{newest} ▾")
+            expect(page.locator(".lf-banner .lf-version")).to_have_text(f"v{newest}")
             expect(page.locator(".lf-status-text")).to_have_text(
                 "This is an example on the Leaf website. Leaf guide replies here, "
                 "but cannot edit this page. Install Leaf"
@@ -1224,15 +1253,16 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
 ):
     """Authored HTML paints before JavaScript or server state is ready.
 
-    Holding /leaf.js proves widget upgrade cannot be what made the document visible.
-    The waiting pseudo-element's computed content proves the loading sheet does not
-    exist, without waiting for an animation threshold. Once JavaScript starts, holding
-    /api/state proves the data-bound diff waits for the backend's canonical projection.
+    Holding /leaf.js proves widget upgrade cannot be what made the document visible or
+    placed its shell. The waiting pseudo-element's computed content proves the loading
+    sheet does not exist, without waiting for an animation threshold. Once JavaScript
+    starts, holding /api/state proves the data-bound diff waits for the backend's
+    canonical projection and that presentation keeps the initial shell in place.
     """
     boot = []
     state = []
     _, url = served_example("pr-walkthrough")
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page = browser.new_page(viewport={"width": 1724, "height": 900})
     errors = watched(page)
     page.route("**/leaf.js", lambda route: boot.append(route))
     page.route("**/api/state*", lambda route: state.append(route))
@@ -1245,6 +1275,10 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
 
         assert boot, "the positive control did not hold the site boot module"
         expect(page.locator("body > main")).to_have_css("pointer-events", "auto")
+        initial_shell = {
+            key: page.locator("body > main").bounding_box()[key]
+            for key in ("x", "y", "width")
+        }
         assert (
             page.evaluate("() => getComputedStyle(document.body, '::after').content")
             == "none"
@@ -1255,6 +1289,14 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
 
         assert page.locator("body").get_attribute("data-lf-presented") is None
         assert state, "the canonical state request was not still in flight"
+        mounted_shell = {
+            key: page.locator("body > main").bounding_box()[key]
+            for key in initial_shell
+        }
+        assert mounted_shell == pytest.approx(initial_shell, abs=1), (
+            f"mounting Leaf moved the initial shell from {initial_shell} to "
+            f"{mounted_shell}"
+        )
         expect(page.locator("#pr-exact-patch")).not_to_have_class(
             re.compile(r"\blf-rendered\b")
         )
@@ -1269,6 +1311,14 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
         )
         expect(page.locator("#pr-exact-patch details").first).to_be_visible()
         page.wait_for_function(BOTH_STAMPS)
+        presented_shell = {
+            key: page.locator("body > main").bounding_box()[key]
+            for key in initial_shell
+        }
+        assert presented_shell == pytest.approx(initial_shell, abs=1), (
+            f"presenting Leaf moved the initial shell from {initial_shell} to "
+            f"{presented_shell}"
+        )
         assert errors == []
     finally:
         for route in boot:

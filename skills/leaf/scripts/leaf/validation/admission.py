@@ -30,9 +30,8 @@ def read_text_arg(page_dir: Path, text) -> str:
     given; this asks it of the link and image destinations beside it, which is where
     the runtime resolves one — a path quoted in a sentence stays the author's words."""
     body = text if text is not None else sys.stdin.read()
-    if not body.strip():
+    if not body:
         sys.exit("empty text (pass --text or pipe via stdin)")
-    body = body.strip()
     if errs := text_media_errors(body, page_dir):
         sys.exit(
             "text names media the page directory hasn't got:\n"

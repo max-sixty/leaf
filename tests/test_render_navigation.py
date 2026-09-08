@@ -416,15 +416,13 @@ def test_the_feature_gallery_exercises_an_inline_diff_thread(browser, serve):
         """button => {
           const style = getComputedStyle(button);
           const face = getComputedStyle(button, '::before');
-          const row = getComputedStyle(button.closest('.lf-diff-thread-outlet'));
           return {
             background: face.backgroundColor,
             opacity: style.opacity,
-            row: row.backgroundColor,
           };
         }"""
     )
-    assert disabled_palette["background"] == disabled_palette["row"]
+    assert disabled_palette["background"] == "rgba(0, 0, 0, 0)"
     assert disabled_palette["opacity"] == "1"
     send.hover()
     assert (
@@ -1073,10 +1071,10 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     # figure in the posted mark's own ink, pointer cursor and all, over no thread to open.
     page.keyboard.press("Escape")
     assert page.locator("#fig.lf-pending").count() == 0, (
-        "the outline outlived its composer"
+        "the mark outlived its composer"
     )
     assert page.locator("#fig.lf-mark-el").count() == 0, (
-        "the figure kept a thread's outline over no thread"
+        "the figure kept a thread's mark over no thread"
     )
 
     # A drag across the caption remains a native selection, so the composer carries the
@@ -1090,7 +1088,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         "the visual containing the drag replaced its selected passage"
     )
     assert page.locator("#fig.lf-pending").count() == 0, (
-        "the figure got the element outline over a live selection"
+        "the figure got the element mark over a live selection"
     )
     page.keyboard.press("Escape")
     assert errors == []
@@ -1493,6 +1491,34 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
     )
     assert frame["borderTop"] == "0px", (
         f"a sibling separator remained inside the current region: {frame}"
+    )
+
+    separator = thread.evaluate(
+        """el => { const s = getComputedStyle(el, '::before'); return {
+          content: s.content, borderTop: s.borderTopWidth,
+        }; }"""
+    )
+    assert separator == {"content": '""', "borderTop": "1px"}, (
+        f"the gap between inline threads lost its separator: {separator}"
+    )
+
+    resolve = thread.locator(":scope > .lf-resolve")
+    expect(resolve).to_have_css("position", "absolute")
+    placement = thread.evaluate(
+        """el => {
+          const own = el.getBoundingClientRect();
+          const inset = parseFloat(getComputedStyle(el).paddingTop);
+          const control = el.querySelector(':scope > .lf-resolve').getBoundingClientRect();
+          const head = el.querySelector(
+            ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-head'
+          ).getBoundingClientRect();
+          return {controlTop: control.top, expectedTop: own.top + inset,
+                  controlBottom: control.bottom, headBottom: head.bottom};
+        }"""
+    )
+    assert placement["controlTop"] == pytest.approx(placement["expectedTop"], abs=1)
+    assert placement["controlBottom"] <= placement["headBottom"], (
+        f"Resolve took a row above the first inline message: {placement}"
     )
 
     clearances = thread.evaluate(
@@ -1955,21 +1981,22 @@ def test_the_pointer_over_a_comment_lights_the_passage_it_is_about(browser, serv
     page.mouse.move(*card_body(page, "on the second"))
     wait_hovered(page, "neighbouring block")
 
-    # An element anchor answers too, in the property it has. ::highlight paints glyphs and
-    # a box has none, so the wash lands on nothing there and the middle step is said in
-    # the outline instead — the same rank, one weight up from the posted hairline. Without
-    # it the pointer over an element-anchored card did nothing at all, which from the
-    # panel reads as a broken hover rather than as a passage with no words.
+    # An element anchor answers too, in the chrome projection above its descendants.
+    # ::highlight paints glyphs and a box has none, so the projected wash carries the
+    # middle step. Without it the pointer over an element-anchored card did nothing at
+    # all, which from the panel reads as a broken hover rather than as a passage with no
+    # words.
     page.mouse.move(*card_body(page, "on the figure"))
     wait_hovered(page, "")
     hovered_el = page.locator("#fig")
     expect(hovered_el).to_have_class(re.compile(r"\blf-mark-hover\b"))
+    hovered_wash = hovered_el.evaluate("el => getComputedStyle(el).backgroundImage")
+    page.mouse.move(*card_body(page, "on the second"))
+    wait_hovered(page, "neighbouring block")
     assert (
-        page.evaluate(
-            "() => getComputedStyle(document.querySelector('#fig')).outlineWidth"
-        )
-        == "2px"
-    ), "the pointer on an element-anchored card left its box unchanged"
+        hovered_el.evaluate("el => getComputedStyle(el).backgroundImage")
+        != hovered_wash
+    )
 
     # Standing in one comment while pointing at another says both, because they answer
     # different questions and rank apart: the standing mark keeps its ink above the wash.
@@ -3064,7 +3091,9 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
     prints what the rows say, and inventing a difference here would be this projection
     disagreeing with the reference and the announcements.
     """
-    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+    url = serve(LONG_PAGE, comments=2)
+    _publish(serve.page_dir, 2, LONG_PAGE, "two")
+    page, errors = open_page(browser, url)
 
     # The shelf, because the ordinary shortlist shows the first live row and little else:
     # what this is about is two words a reader can see at one time, and the shelf is where
@@ -3077,12 +3106,12 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
     }, f"the line no longer offers both the comments and the thread walk: {standing}"
 
     # The registered return frame is nearer than the menu's native Tab handoffs, so the
-    # shortlist contains the actual Escape return and one directional handoff.
+    # shortlist contains the actual Escape return and the version walk.
     page.keyboard.press("Escape")
     open_versions(page)
     page.evaluate(RENDERED)
     versions = page.evaluate(KEY_LINE_HINTS)
-    assert {"navigation.return", "version.leave-forward"} <= {
+    assert {"navigation.return", "version.previous version.next"} <= {
         hint["commands"] for hint in versions
     }, f"the versions menu no longer offers its two visible ways out: {versions}"
 
@@ -4409,7 +4438,9 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
     The focused element's own rows remain nearer so a draft can keep its specific Escape
     and a wired composer can send with Mod+Enter. The text-entry scope then claims the
     characters and editing keys before an ancestor widget can see them."""
-    page, errors = open_page(browser, serve(NOTED_PAGE))
+    url = serve(NOTED_PAGE)
+    _publish(serve.page_dir, 2, NOTED_PAGE, "two")
+    page, errors = open_page(browser, url)
     page.evaluate(
         """async () => {
           const { commands } = await import('/runtime/widget-api.js');
@@ -4810,7 +4841,6 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     banner_destinations = {
         "navigation.panel.threads": (page.locator(".lf-threads-toggle"), "T"),
         "navigation.panel.asks": (page.locator(".lf-asks"), "A"),
-        "version.open": (version, "V"),
     }
     for control, suffix in banner_destinations.values():
         expect(control).to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
@@ -4818,6 +4848,8 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     expect(page.locator(".lf-goto-targets > [data-lf-address-command]")).to_have_count(
         0
     )
+    expect(version).to_be_disabled()
+    expect(version).to_have_attribute("title", "v1")
     expect(page.locator(".lf-latest-chip")).to_have_attribute(
         "title", re.compile(r"\(g V v\)$")
     )
@@ -4898,7 +4930,6 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     resized(page, 390, 800)
     for command, control in (
         ("navigation.panel.threads", page.locator(".lf-threads-toggle")),
-        ("version.open", page.locator(".lf-version")),
     ):
         hint = page.locator(
             f'.lf-goto-targets > .lf-target-hint[data-lf-address-command="{command}"]'
@@ -6345,7 +6376,9 @@ def test_the_key_line_names_the_selected_comment_and_its_other_responses(
 
 def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
     """Once Comment focuses a selected passage's field, shortcut letters are text."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    url = serve(TARGETS_PAGE)
+    _publish(serve.page_dir, 2, TARGETS_PAGE, "two")
+    page, errors = open_page(browser, url)
 
     box = page.locator("#prose").bounding_box()
     select(
@@ -6493,11 +6526,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(
         help_el.locator("tr", has_text="bottom of the page").locator(".lf-key-sequence")
     ).to_have_attribute("aria-label", "g then Shift+g")
-    versions_route = help_el.locator(
-        'tr[data-lf-command="version.open"] .lf-key-sequence'
-    )
-    expect(versions_route.locator("kbd")).to_have_text(["g", "V"])
-    expect(versions_route).to_have_attribute("aria-label", "g then Shift+v")
+    expect(help_el.locator('tr[data-lf-command="version.open"]')).to_have_count(0)
     sequence_control = help_el.locator('tr[data-lf-command="navigation.address.back"]')
     expect(sequence_control).to_have_class(re.compile(r"\blf-sequence-control\b"))
     expect(sequence_control.locator("td").first).to_have_css(
@@ -6511,12 +6540,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Previous open thread")
     expect(help_el).not_to_contain_text("On a focused thread")
     expect(help_el).not_to_contain_text("waiting on you for")
-    # A first version has a useful chooser but no neighbouring version to walk. Escape is
-    # the popover's native dismissal, and the menu's row names it so the line can print
-    # the way out of a pointer-opened menu (a keyboard entry's return frame names it
-    # "back" first).
-    expect(help_el).to_contain_text("The versions, and what each one changed")
-    expect(help_el).to_contain_text("Close the versions menu")
+    # A first version is passive orientation, so neither a chooser nor a walk is offered.
+    expect(help_el).not_to_contain_text("The versions, and what each one changed")
+    expect(help_el).not_to_contain_text("Close the versions menu")
     expect(help_el).not_to_contain_text("Previous version")
     expect(help_el).not_to_contain_text("Next version")
     page.keyboard.press("Escape")
@@ -6562,9 +6588,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         help_el.locator("tr", has_text="Previous open thread").locator("kbd")
     ).to_have_text("T")
     expect(help_el).to_contain_text("On a focused thread")
-    # Still one version, so there is no version walk to advertise; the menu's own
-    # Escape row stands whatever the count.
-    expect(help_el).to_contain_text("Close the versions menu")
+    # Still one version, so neither the chooser nor its walk is advertised.
+    expect(help_el).not_to_contain_text("Close the versions menu")
     expect(help_el).not_to_contain_text("Previous version")
     expect(help_el).not_to_contain_text("Next version")
     page.keyboard.press("Escape")

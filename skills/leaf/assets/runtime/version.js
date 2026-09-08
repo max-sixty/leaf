@@ -149,7 +149,7 @@ import {
   reveal,
 } from "./widget-elements.js";
 import { settle, settling } from "./widget-upgrade.js";
-import { reserveNewsSlot, showNews } from "./banner-shelf.js";
+import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
 import { allButTheReference, midComposition } from "./keyboard/page.js";
 import { readAndApply } from "./state-feed.js";
 import { reportPageError, sameDelivery } from "./layer-client.js";
@@ -248,41 +248,24 @@ const stamped = (version) =>
 // changed since they last looked, which is as far back as they were away. The base is
 // the menu's to say, so every version older than this one offers itself as one.
 //
-// Which version this is, is the live document's answer, so the
-// press says it now rather than standing empty until the first poll answers, and the
-// only word it ever rewrites is the Δ that says a comparison is standing — enumerable,
-// so the room for it is taken from the words themselves at load (reserve) and the
-// control still cannot move the row. It is a word rather than the accent alone because
-// a reader who leaves a comparison on and scrolls into a stretch that changed nothing
-// has only this control to read it back off, and a colour is not a thing a screen
-// reader announces.
 // The closed control is an address, not the menu's account of the working document.
-// Keep it to the stable version token (or Draft); the full "Draft after vN" context
-// remains in the menu row and the control's title. `versionLabels` is every compact
-// token the control can wear, for the banner to reserve the widest of without
-// reintroducing that account as dead width.
-const versionLabel = (
-  comparing,
-  label = runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`,
-) => (comparing ? "Δ " : "") + `${label} ▾`;
-export const versionLabels = () =>
-  [undefined, "Draft", "v999"].flatMap((label) => [
-    versionLabel(false, label),
-    versionLabel(true, label),
-  ]);
-export const versionBtn = el("button", "lf-btn lf-version", versionLabel(false));
-versionBtn.setAttribute("aria-haspopup", "menu");
-versionBtn.setAttribute("aria-expanded", "false");
+// Keep it to one stable version token (or Draft) through disclosure and comparison;
+// those states remain in the menu, class, title, and accessible name. A state arriving
+// on the poll therefore cannot resize this control and displace addresses to its left.
+// `versionLabels` names the compact token range the banner reserves once at load.
+const currentVersionToken = () =>
+  runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`;
+export const versionLabels = () => ["Draft", "v999"];
+export const versionBtn = el("button", "lf-btn lf-version", "Draft");
 export const versionMenu = el("div", "lf-ui lf-version-menu");
 versionMenu.id = "lf-versions";
 versionMenu.setAttribute("popover", "auto");
 versionMenu.setAttribute("role", "menu");
 versionMenu.setAttribute("aria-label", "Versions");
 export const versionMenuIsOpen = () => versionMenu.matches(":popover-open");
-// Whether there is a menu to open is not whether there is anything in it to walk: a
-// first version has no neighbour, but its menu still explains that version. The
-// browser owns dismissal; Leaf only enables its version-walk bindings when a
-// neighbouring destination exists.
+// One version is a label, not a choice. The chooser and its key become active only when
+// there is a neighbouring destination; the current token remains on the banner as quiet
+// orientation.
 const draftRevisions = () => {
   const revisions = new Set();
   if (runtime.currentStamp === null && runtime.currentRevision !== null)
@@ -291,8 +274,9 @@ const draftRevisions = () => {
   return revisions;
 };
 const versionCount = () => runtime.versions.length + draftRevisions().size;
-const versionsOffered = () => versionCount() > 0;
+const versionsOffered = () => versionCount() > 1;
 const versionsToWalk = () => versionCount() > 1;
+let offeredBefore = null;
 // The walk is the versions, not every press in the menu.
 const versionRows = () => [...versionMenu.querySelectorAll(".lf-version-row")];
 const versionStops = () =>
@@ -678,7 +662,17 @@ export function renderVersions(state) {
   // answers nothing is a way in painted where there is no layer behind it — the same
   // reason the page's own approve button waits for the page. `versionsOffered` is what
   // the key and the menu already read; this is the pointer's half of it.
-  versionBtn.disabled = state === null || !versionsOffered();
+  const offered = state !== null && versionsOffered();
+  if (!offered) closeVersionMenu();
+  versionBtn.disabled = !offered;
+  versionBtn.classList.toggle("lf-passive", !offered);
+  if (offered) {
+    versionBtn.setAttribute("aria-haspopup", "menu");
+    versionBtn.setAttribute("aria-expanded", String(versionMenuIsOpen()));
+  } else {
+    versionBtn.removeAttribute("aria-haspopup");
+    versionBtn.removeAttribute("aria-expanded");
+  }
   const walkable = versionsToWalk();
   if (walkable !== versionsWalkable) {
     versionsWalkable = walkable;
@@ -686,6 +680,10 @@ export function renderVersions(state) {
   }
   renderVersionMenu();
   paintDiff(); // the label may change even when an open menu defers its new rows
+  if (state !== null && offered !== offeredBefore) {
+    offeredBefore = offered;
+    foldShelf();
+  }
   // The keyboard reaches the chip through the chooser rather than past it — g V opens the
   // menu, and its local v takes the current page; the banner spells that motion
   // onto this title.
@@ -1047,21 +1045,25 @@ const comparable = (version) => {
 // where what the chooser says it will do is written from the start rather than
 // standing as a second copy of these sentences up where the control is built.
 function paintDiff() {
-  versionBtn.textContent = versionLabel(diffOn);
+  versionBtn.textContent = currentVersionToken();
   versionBtn.classList.toggle("on", diffOn);
   const currentLabel = runtime.currentLabel ?? "Draft";
   // Rewritten on every diff change, so the key it names is taken from the row each time
   // rather than typed into one of the two branches and forgotten in the other. The
   // closed face is deliberately compact, so its hover and accessible name keep the
   // full draft-after-version context that the open menu also spells out.
-  versionBtn.dataset.lfKeyTitle = diffOn
-    ? `${currentLabel}: showing what changed since v${diffBase} — pick a version, or press its Δ again to stop`
-    : `${currentLabel}: versions; read one, or mark what changed since it`;
+  versionBtn.dataset.lfKeyTitle = versionsOffered()
+    ? diffOn
+      ? `${currentLabel}: showing what changed since v${diffBase} — pick a version, or press its Δ again to stop`
+      : `${currentLabel}: versions; read one, or mark what changed since it`
+    : currentLabel;
   versionBtn.setAttribute(
     "aria-label",
-    diffOn
-      ? `${currentLabel}: comparing with v${diffBase}; open versions`
-      : `${currentLabel}: open versions`,
+    versionsOffered()
+      ? diffOn
+        ? `${currentLabel}: comparing with v${diffBase}; open versions`
+        : `${currentLabel}: open versions`
+      : currentLabel,
   );
   // paintCoreControls adds the complete route. Keeping the base title here lets the
   // keyboard register project a sequence without this owner reconstructing one.

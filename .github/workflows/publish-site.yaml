@@ -68,6 +68,11 @@ jobs:
       - run: npm test
         working-directory: worker
 
+      # Exercise the bundled graph through the same Worker and container boundary
+      # before a deployment can make it public.
+      - name: Verify the bundled release locally in Chrome
+        run: scripts/verify-site-local.sh
+
       - name: Build and push the exact container image
         working-directory: worker
         env:

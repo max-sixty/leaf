@@ -128,6 +128,7 @@ export function bake() {
     document.head.append(link);
   }
   document.adoptedStyleSheets = [];
+  document.documentElement.removeAttribute("data-lf-live");
   document.documentElement.removeAttribute("data-lf-traffic");
   // The reading identifies one live server response. It is neither stable across
   // exports nor meaningful once the scripts and server are gone.
@@ -405,7 +406,9 @@ export function bake() {
   // ring and a pointer hand, and the panel that hand promised left with the chrome —
   // while a text-anchored mark, painted through the highlight registry by script, is
   // already gone. One fact — a comment is anchored here — leaves the copy whole.
-  all(".lf-mark-el").forEach((el) => el.classList.remove("lf-mark-el"));
+  all(".lf-mark-el, .lf-projected-mark").forEach((el) =>
+    el.classList.remove("lf-mark-el", "lf-projected-mark"),
+  );
   // A tab stop still standing on a widget element is module paint — the registry's
   // schemas admit no authored tabindex on one — promising focus to chrome whose
   // handler left with the scripts: a tabs panel's roving stop, a decision-lend. Asked

@@ -2235,13 +2235,13 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
     page.close()
 
 
-def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact(
+def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     browser, serve
 ):
     """Kind prefixes narrow the current generated map instead of replacing it.
 
-    A filtered map assigns short codes from its own members. Its chips show only those
-    generated suffixes; the complete route remains in the shortcut bar.
+    A filtered map preserves the codes its members had in the complete map. Its chips
+    show only those generated suffixes; the complete route remains in the shortcut bar.
     """
     page, errors = open_page(browser, serve(ADDRESSED_PAGE))
     resized(page, 1280, 800)
@@ -2315,8 +2315,7 @@ def test_target_mnemonics_filter_the_generated_map_and_inline_hints_stay_compact
         filtered.evaluate_all("els => els.map(el => el.dataset.lfAddressKind)")
     ) == {"Control"}
     filtered_codes = address_codes(page)
-    assert all(len(code) == 1 for code in filtered_codes), filtered_codes
-    assert filtered_codes != control_codes, {
+    assert filtered_codes == control_codes, {
         "before": control_codes,
         "filtered": filtered_codes,
     }

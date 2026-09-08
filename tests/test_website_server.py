@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import os
 import shutil
 import threading
 import urllib.error
@@ -9,7 +10,7 @@ import urllib.request
 from pathlib import Path
 
 import pytest
-from leaf.event_log import read_events
+from leaf.event_log import append_event, read_events
 from leaf.hosting import server_at
 
 ROOT = Path(__file__).parent.parent
@@ -190,7 +191,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
             },
         )
     ]
-    assert accepted == [("hosted-thread", "initial-turn")]
+    assert accepted == [("hosted-thread",)]
 
 
 def test_the_website_task_preserves_a_delivery_the_app_server_rejects(
@@ -211,6 +212,47 @@ def test_the_website_task_preserves_a_delivery_the_app_server_rejects(
         host._start_turn(
             "socket", page_dir, "hosted-thread", type("Process", (), {"pid": 41})()
         )
+
+
+def test_the_website_host_keeps_its_claim_listening_through_the_agent_turn(
+    page_dir, monkeypatch
+):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(
+        host,
+        "_send",
+        lambda *args: {"turn": {"id": "app-server-turn"}},
+    )
+
+    try:
+        host._start_turn(
+            "socket",
+            page_dir,
+            "hosted-thread",
+            type("Process", (), {"pid": os.getpid()})(),
+        )
+        state = website_server.full_state(page_dir, read_events(page_dir))
+
+        assert state["listening"] is True
+        assert state["activity"]["kind"] == "handling"
+        assert state["activity"]["obligations"][0]["event"] == comment["id"]
+
+        website_server._set_stream_activity(
+            "hosted-thread", "app-server-turn", "Editing index.html"
+        )
+        working = website_server.full_state(page_dir, read_events(page_dir))
+        assert working["activity"]["kind"] == "working"
+        assert working["activity"]["detail"] == "Editing index.html"
+    finally:
+        host.close()
+
+    assert (
+        website_server.full_state(page_dir, read_events(page_dir))["listening"] is False
+    )
 
 
 def test_the_starting_connection_projects_codex_activity(monkeypatch):
@@ -469,21 +511,27 @@ def test_a_product_route_uses_the_same_real_page_server(
         thread.join(timeout=2)
 
 
-def test_a_retried_agent_start_returns_the_accepted_task(
-    page_dir, tmp_path, monkeypatch
-):
+def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
     site = tmp_path / "site"
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
     (site / "sitenote.js").write_text("export {};")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
-    monkeypatch.setattr(website_server, "agent_event_pending", lambda *args: True)
-    monkeypatch.setattr(
-        website_server,
-        "agent_event_thread",
-        lambda *args: "already-started-thread",
+    comment = append_event(
+        published,
+        {"kind": "comment", "author": "user", "text": "edit this"},
     )
+    website_server.prepare_codex_delivery(
+        published,
+        {
+            "id": "already-started-thread",
+            "host": "codex",
+            "agent": "Leaf guide",
+        },
+        {"pid": os.getpid()},
+    )
+    website_server.accept_codex_delivery("already-started-thread")
     agent_host = FakeCodexHost()
     httpd = server_at("127.0.0.1", 0, website_server.handler_for(site, agent_host))
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
@@ -492,7 +540,7 @@ def test_a_retried_agent_start_returns_the_accepted_task(
     try:
         answer, _ = post(
             f"{root}/examples/decision/_leaf/agent/start",
-            {"event": "reader-event"},
+            {"event": comment["id"]},
         )
 
         assert answer == {"status": "started", "thread": "already-started-thread"}

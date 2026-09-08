@@ -137,7 +137,7 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
         )
         == prompt
     )
-    codex_model.accept_codex_delivery("hosted-thread", "initial-turn")
+    codex_model.accept_codex_delivery("hosted-thread")
 
     assert prompt.startswith("```xml\n<leaf-delivery ")
     claim = service_model.page_claim(page_dir)
@@ -150,6 +150,11 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     assert claim["turn_closed"] is None
     assert claim["turn"] is not None
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    activity = page_state(page_dir)["activity"]
+    assert activity["kind"] == "handling"
+    assert activity["dropped"] is False
+    assert activity["counts"]["handling"] == 1
+    assert activity["obligations"][0]["delivery_turn"] == claim["turn"]
     [history] = (codex_model.delivery_dir("hosted-thread") / "history").glob("*.json")
     queue = files_model.read_json(history)
     assert queue["state"] == "accepted"

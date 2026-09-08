@@ -352,24 +352,12 @@ class AppServerObserver:
                 },
             )
             socket.send(json.dumps({"method": "initialized", "params": {}}))
-            result = self._send(
+            self._send(
                 socket,
                 "thread/resume",
                 1,
                 {"threadId": self.thread_id, "excludeTurns": True},
             )
-            resumed = result.get("thread", {})
-            if resumed.get("status", {}).get("type") == "active":
-                active = next(
-                    (
-                        turn["id"]
-                        for turn in reversed(resumed.get("turns", []))
-                        if turn.get("status") == "inProgress"
-                    ),
-                    "active",
-                )
-                self.events.turn_id = active
-                _set_stream_activity(self.thread_id, active, "Working in Codex")
             self.available.set()
             if not self.started:
                 self.started = True
@@ -973,7 +961,7 @@ def prepare_codex_delivery(
         raise
 
 
-def accept_codex_delivery(session_id: str, turn_id: str) -> None:
+def accept_codex_delivery(session_id: str) -> None:
     """Record that an embedded host put the current delivery in one Codex turn."""
     lock = delivery_lock_path(session_id)
     with flocked(lock):
@@ -1004,13 +992,13 @@ def accept_codex_delivery(session_id: str, turn_id: str) -> None:
                 for seq, event_id in expected.items()
             ):
                 raise RuntimeError("the Codex delivery no longer matches its page log")
-            page.open_turn(session_id)
+            claim_turn = page.open_turn(session_id)
             record_pickup(
                 page,
                 [delivered[seq] for seq in expected],
                 phase="opened",
                 session=session_id,
-                turn=turn_id,
+                turn=claim_turn,
             )
             acknowledge(page, max(expected))
 

@@ -126,8 +126,11 @@ payload remains where the queued XML points.
 An embedded host that already controls App Server can deliver the same immutable
 delivery directly
 with `turn/start` instead of launching the detached queue adapter. After App Server
-accepts the turn, the host records the delivery's actual task and turn, advances its
-page cursor, and keeps the initiating connection for activity notifications. A retry
+accepts the turn, the host records the delivery against its Leaf claim turn, advances
+its page cursor, holds that task's wait lease for the container host's lifetime, and
+keeps the initiating connection for activity notifications. The pickup names Leaf's
+claim turn, while streamed activity names App Server's task and turn; each projection
+therefore reads the identity its own fold compares. A retry
 therefore reads the durable pickup instead of starting the event again. A later event
 creates the next delivery and resumes the same task; when a turn is already active, App
 Server treats the additional `turn/start` input as steering for that turn. This is a

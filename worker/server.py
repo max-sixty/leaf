@@ -33,6 +33,7 @@ from leaf.codex import (
 from leaf.conversation import cmd_reply
 from leaf.hosting import server_at
 from leaf.http import Handler, canonical_script_offset, scope_page_urls
+from leaf.leases import take_waiter_lease, waiter_lease_path
 from leaf.registry.storage import layer_metadata
 from leaf.revisioning import activate_source
 from leaf.served_state.page import full_state
@@ -153,6 +154,23 @@ class WebsiteCodexHost:
         self.process: subprocess.Popen | None = None
         self.lock = threading.Lock()
         self.next_request_id = 0
+        self.waiter_leases = {}
+
+    def _hold_waiter(self, page_dir: Path, thread_id: str) -> None:
+        if thread_id in self.waiter_leases:
+            return
+        path = waiter_lease_path(page_dir, {"id": thread_id})
+        lease = take_waiter_lease(path)
+        if lease is None:
+            raise RuntimeError("another Leaf waiter already owns this Codex task")
+        self.waiter_leases[thread_id] = lease
+
+    def close(self) -> None:
+        """Release the listening proof held for this container host's tasks."""
+        with self.lock:
+            for lease in self.waiter_leases.values():
+                lease.close()
+            self.waiter_leases.clear()
 
     def _ensure_server(self) -> subprocess.Popen:
         if self.codex_path is None:
@@ -263,6 +281,7 @@ class WebsiteCodexHost:
             if page.status["state"] == "idle":
                 page.set_status("waiting", "")
         identity = {"id": thread_id, "host": "codex", "agent": WEBSITE_AGENT}
+        self._hold_waiter(page_dir, thread_id)
         prompt = prepare_codex_delivery(page_dir, identity, {"pid": process.pid})
         turn = self._send(
             socket,
@@ -272,7 +291,7 @@ class WebsiteCodexHost:
                 "input": [{"type": "text", "text": prompt}],
             },
         )["turn"]
-        accept_codex_delivery(thread_id, turn["id"])
+        accept_codex_delivery(thread_id)
         return thread_id, turn["id"]
 
     def _start_thread(self, page_dir: Path, process: subprocess.Popen) -> str:
@@ -550,11 +569,13 @@ def initial_state(
 def main() -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
-    httpd = server_at("0.0.0.0", PORT, handler_for(site_root))
+    agent_host = website_codex_host()
+    httpd = server_at("0.0.0.0", PORT, handler_for(site_root, agent_host))
     try:
         httpd.serve_forever()
     finally:
         httpd.server_close()
+        agent_host.close()
 
 
 if __name__ == "__main__":

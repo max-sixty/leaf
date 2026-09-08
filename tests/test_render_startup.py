@@ -983,17 +983,18 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
         expect(playground.locator(".lf-playground-actions")).to_be_visible()
         submit = playground.get_by_role("button", name="Apply card")
         expect(submit).to_be_disabled()
-        expect(page.locator(".lf-status-text")).to_have_text(
-            re.compile(r"^Connecting")
-        )
+        expect(page.locator(".lf-status-text")).to_have_text(re.compile(r"^Connecting"))
 
         playground.get_by_role("button", name="Evening invite").click()
         expect(playground.locator("input[aria-label='Card title']")).to_have_value(
             "Evening walk"
         )
-        assert page.locator("#bg-playground-card-title").evaluate(
-            "element => getComputedStyle(element, '::before').content"
-        ) == '"Evening walk"'
+        assert (
+            page.locator("#bg-playground-card-title").evaluate(
+                "element => getComputedStyle(element, '::before').content"
+            )
+            == '"Evening walk"'
+        )
 
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
@@ -2654,9 +2655,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # The move's state is metadata on the exact outgoing message rather than a
     # full-width row of its own. Resolve remains the thread-level action.
     expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
-    assert held_receipt.evaluate(
-        "node => node.parentElement.matches('.lf-msg-head')"
-    )
+    assert held_receipt.evaluate("node => node.parentElement.matches('.lf-msg-head')")
     expect(held_thread.locator(":scope > .lf-resolve")).to_have_count(1)
 
     # A later claim about the page as a whole is not an answer to the thread, so the

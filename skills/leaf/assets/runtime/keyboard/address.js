@@ -376,6 +376,8 @@ function exposed(member, box, exposure) {
 }
 
 const visibleWords = (member) => member.innerText?.replace(/\s+/g, " ").trim();
+const nativeLabelWords = (member) =>
+  [...(member.labels ?? [])].map(visibleWords).filter(Boolean).join(" ");
 
 function visibleCandidates(filter = null) {
   const placement = addressPlacement();
@@ -398,6 +400,7 @@ function visibleCandidates(filter = null) {
       seen.add(member);
       const says =
         member.getAttribute("aria-label")?.trim() ||
+        nativeLabelWords(member) ||
         itemSays(member) ||
         visibleWords(member) ||
         entry.kind;

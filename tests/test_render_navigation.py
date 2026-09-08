@@ -3922,7 +3922,19 @@ def test_the_g_chord_reaches_a_checkbox_a_widget_built(browser, serve):
     checkbox.evaluate("node => { node.id = 'soft-wrap'; }")
 
     page.keyboard.press("g")
-    page.keyboard.type(address_code(page, "Control", "soft-wrap"))
+    chip = page.locator(f'{CHIPS}[data-lf-address-for="soft-wrap"]')
+    code = address_code(page, "Control", "soft-wrap")
+    index = chip.evaluate(
+        "node => [...node.parentElement.children]"
+        ".filter(candidate => candidate.dataset.lfAddress).indexOf(node)"
+    )
+    assert index >= 0
+    for _ in range(index + 1):
+        page.keyboard.press("Tab")
+    expect(page.locator(".lf-live")).to_have_text(
+        f"Hint {code}: Control, Soft wrap. Press Enter to go there."
+    )
+    page.keyboard.press("Enter")
 
     expect(checkbox).to_be_checked()
     expect(checkbox).to_be_focused()

@@ -306,12 +306,15 @@ function showHelp(open, restoreFocus = true) {
             neutralStates(steps),
             spokenReferenceSteps(row, route, steps),
           );
+          if (!declaredBindings(row).length && row.decision !== undefined)
+            sequence.classList.add("lf-key-label");
           sequence.id = `lf-help-key-${total + entries.length}`;
           const keyCell = document.createElement("td");
           keyCell.setAttribute("role", "gridcell");
           keyCell.append(sequence);
           const actionCell = document.createElement("td");
           actionCell.setAttribute("role", "gridcell");
+          const action = el("div", "lf-help-action");
           const scopeLabel = el("span", "lf-help-scope", scopeTitle);
           const available = commandsAtOpen.has(id);
           if (row.run && row.runFromReference !== false) {
@@ -344,9 +347,10 @@ function showHelp(open, restoreFocus = true) {
                 }
               });
             };
-            actionCell.append(command);
+            action.append(command);
             commandButtons.push(command);
-          } else actionCell.textContent = word(does);
+          } else action.textContent = word(does);
+          actionCell.append(action);
           tr.append(keyCell, actionCell);
           t.append(tr);
           const prefix = word(row.chord) ?? [];
@@ -354,7 +358,7 @@ function showHelp(open, restoreFocus = true) {
           entries.push({
             el: tr,
             order: entries.length,
-            actionCell,
+            action,
             scopeLabel,
             bindingForms: alternatives.map((binding) => ({
               display: [...prefix, spell(binding)].join(" "),
@@ -521,7 +525,7 @@ function showHelp(open, restoreFocus = true) {
         : [];
       bindingTable.replaceChildren(
         ...bindingMatches.map(({ entry }) => {
-          entry.actionCell.append(entry.scopeLabel);
+          entry.action.append(entry.scopeLabel);
           return entry.el;
         }),
       );

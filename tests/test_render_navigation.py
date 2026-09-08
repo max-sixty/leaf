@@ -408,7 +408,57 @@ def test_the_feature_gallery_exercises_an_inline_diff_thread(browser, serve):
     page.close()
 
 
-def test_an_external_link_says_and_opens_where_it_goes(browser, serve, other_leaf):
+def test_opened_tab_replaces_the_native_target_with_one_it_can_control(
+    browser, one_reader
+):
+    """One native target proves the press, then leaves no unreachable tab behind."""
+    page = one_reader.new_page()
+    destination = "about:blank#expected"
+    page.set_content(f'<a id="open" target="_blank" href="{destination}">open</a>')
+    browser_session = browser.new_browser_cdp_session()
+
+    def targets():
+        return {
+            target["targetId"]: target["url"]
+            for target in browser_session.send("Target.getTargets")["targetInfos"]
+            if target["type"] == "page"
+        }
+
+    before = targets()
+    presses = 0
+    native = {}
+
+    def press():
+        nonlocal presses
+        presses += 1
+        page.locator("#open").click()
+        native.update(
+            {
+                target_id: url
+                for target_id, url in targets().items()
+                if target_id not in before
+            }
+        )
+
+    tab = opened_tab(page, destination, press)
+    assert presses == 1
+    assert len(native) == 1
+    assert tab.context is one_reader
+    assert tab.url == destination
+    after = targets()
+    assert not (native.keys() & after.keys())
+    assert [url for target_id, url in after.items() if target_id not in before] == [
+        destination
+    ]
+    tab.close()
+    assert targets() == before
+    browser_session.detach()
+    page.close()
+
+
+def test_an_external_link_says_and_opens_where_it_goes(
+    browser, serve, other_leaf, one_reader
+):
     other_url, _ = other_leaf
     destination = f"{other_url}/?t={TOKEN}"
     url = serve(
@@ -426,7 +476,7 @@ def test_an_external_link_says_and_opens_where_it_goes(browser, serve, other_lea
 """,
         )
     )
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, url, context=one_reader)
     external = page.locator("#external")
     mark = external.locator(":scope > .lf-external-mark")
 
@@ -444,7 +494,7 @@ def test_an_external_link_says_and_opens_where_it_goes(browser, serve, other_lea
     expect(page.locator("#svg-external > .lf-external-mark")).to_have_count(0)
     expect(page.locator("#svg-external")).not_to_have_attribute("target", "_blank")
 
-    tab = opened_tab(page, external.click)
+    tab = opened_tab(page, destination, external.click)
     expect(tab).to_have_url(destination)
     expect(page).to_have_url(url)
     tab.close()
@@ -453,7 +503,7 @@ def test_an_external_link_says_and_opens_where_it_goes(browser, serve, other_lea
 
 
 def test_an_addressed_link_leaves_the_reader_at_its_destination(
-    browser, serve, other_leaf
+    browser, serve, other_leaf, one_reader
 ):
     """A generated link hint completes the trip it names.
 
@@ -476,6 +526,7 @@ def test_an_addressed_link_leaves_the_reader_at_its_destination(
 """,
             )
         ),
+        context=one_reader,
     )
 
     go_to_address(page, "Link", "internal")
@@ -484,7 +535,7 @@ def test_an_addressed_link_leaves_the_reader_at_its_destination(
 
     page.keyboard.press("g")
     external_code = address_code(page, "Link", "external")
-    tab = opened_tab(page, lambda: page.keyboard.type(external_code))
+    tab = opened_tab(page, destination, lambda: page.keyboard.type(external_code))
     expect(tab).to_have_url(destination)
     expect(page.locator(".lf-live")).to_have_text("Opened Leaf guide in a new tab")
     tab.close()

@@ -533,10 +533,9 @@ Register the route before the gesture whose request it must catch. For initial
 navigation, attach it through `primed` so no request is already in flight.
 
 That rule is about the page. A fact the driver loses on its way out of the
-browser is not a page state any route can arrange: `opened_tab` makes the press
-again because Chromium made the tab every time and Playwright reported none of
-the lost ones. Reach for a repeat only with the browser's own record showing the
-subject did its part, and say so where the repeat is written.
+browser is not a page state any route can arrange: `opened_tab` observes the
+browser's target list because Playwright can lose the Page for a tab Chromium
+opened. Observe the browser's own record rather than repeating the gesture.
 
 Install a hold on the page's first POST before navigation: `held_events`
 supplies this for event requests, and `primed` lets a test prepare other routes.

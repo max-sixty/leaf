@@ -1871,6 +1871,16 @@ export function pageMapMarginElements() {
   return pageMapEntries.flatMap((entry) => clusterMarginElements(hosts.get(entry.key)));
 }
 
+// A generated reading control has one exact meaning even when its target holds other
+// readings behind More. Contributed action controls have no core reading kind.
+export function pageMapMarginElementKind(control) {
+  const host = closestAcross(control, "[data-lf-margin-for]");
+  const entry = host?.lfEntry;
+  if (!entry) return null;
+  if (control.lfChoice) return control.lfChoice.kind;
+  return control === rows.get(entry.key) ? (primaryReading(entry)?.kind ?? null) : null;
+}
+
 export function openPageMapMarginElement(control) {
   const item = closestAcross(control, "[data-lf-margin-for]");
   const entry = item?.lfEntry;

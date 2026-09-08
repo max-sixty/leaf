@@ -4,9 +4,10 @@
    tabs, folds, the presses a widget built, and visible margin controls and status indicators are read together
    in screen order and receive short prefix-free labels. Most cost one letter; only the
    tail branches when the scene contains more targets than the available alphabet. The
-   lowercase kind mnemonics are separate commands that filter that map: `g h` shows hyperlinks,
-   `g t` tabs, `g f` folds, `g m` margin controls and status indicators, and `g a` actions. A filtered map
-   keeps each member's code from the complete map. The mapping is local to the
+   lowercase kind mnemonics are separate commands that filter that map: `g h` shows
+   hyperlinks, `g f` folds, `g m` margin controls and status indicators, `g t` Thread
+   controls, and `g a` Ask controls. A filtered map keeps each member's code from the
+   complete map. The mapping is local to the
    visible scene: scrolling refreshes it once motion settles, while a partly typed label
    freezes it until the reader completes or backs out of that prefix. Routine repaints do
    not regenerate a standing map. A candidate is revalidated before activation, so a
@@ -26,9 +27,10 @@
 
    `BUILTIN_DIRECT_DESTINATIONS` declares the uppercase destinations this owner implements;
    another owner contributes a complete row through `directDestinations`. `TARGET_KINDS`
-   declares the semantic members, label, exposure rule, and activation for each visible
-   target family. Exact duplicate activation elements collapse to one candidate, while
-   distinct overlapping actions remain distinct.
+   declares the members, label, exposure rule, and activation for each visible target
+   family. `TARGET_FILTERS` declares semantic subsets of that complete map. Exact duplicate
+   activation elements collapse to one candidate, while distinct overlapping actions remain
+   distinct.
 
    Arming paints `data-lf-goto` on the body and puts the same overlay hint shape on named
    banner destinations and visible page targets. Named destinations show the complete
@@ -102,6 +104,7 @@ import {
   enterPageMap,
   activeInlineThread,
   leavePageMap,
+  pageMapMarginElementKind,
   openPageMapMarginElement,
   pageMapIsActive,
   pageMapMarginElements,
@@ -285,49 +288,35 @@ function press(control) {
   control.click();
 }
 
+const MARGIN_TARGET_KIND = "Margin control or status indicator";
 const TARGET_KINDS = [
   {
-    filterId: "margin-elements",
-    kind: "Margin control or status indicator",
-    filterKey: "m",
-    filterWord: "margin controls and status indicators",
+    kind: MARGIN_TARGET_KIND,
     list: pageMapMarginElements,
     go: (...args) => openPageMapMarginElement(...args),
     exposure: "self",
   },
   {
-    filterId: "tabs",
     kind: "Tab",
-    filterKey: "t",
-    filterWord: "tabs",
     list: pageTabs,
     go: press,
   },
   // After Tab, because a tab a widget built answers both queries and the tab is the
   // nearer meaning. The collapse above keeps whichever kind is read first.
   {
-    filterId: "actions",
     kind: "Control",
-    filterKey: "a",
-    filterWord: "actions",
     list: pageControls,
     go: press,
   },
   {
-    filterId: "hyperlinks",
     kind: "Link",
-    filterKey: "h",
-    filterWord: "hyperlinks",
     list: pageLinks,
     // Use the platform click method so authored handlers, cancellation, fragments,
     // targets, and downloads keep their anchor semantics.
     go: followLink,
   },
   {
-    filterId: "folds",
     kind: "Fold",
-    filterKey: "f",
-    filterWord: "folds",
     list: pageDisclosures,
     // Opening is the arrival. Scroll the disclosure rather than its summary so a section
     // taller than the viewport starts at its start, then leave focus on the summary for
@@ -338,10 +327,44 @@ const TARGET_KINDS = [
     },
   },
 ];
+const TARGET_FILTERS = [
+  {
+    id: "margin-elements",
+    key: "m",
+    word: "margin controls and status indicators",
+    matches: ({ kind }) => kind === MARGIN_TARGET_KIND,
+  },
+  {
+    id: "threads",
+    key: "t",
+    word: "Thread controls",
+    matches: ({ kind, member }) =>
+      kind === MARGIN_TARGET_KIND && pageMapMarginElementKind(member) === "comment",
+  },
+  {
+    id: "asks",
+    key: "a",
+    word: "Ask controls",
+    matches: ({ kind, member }) =>
+      kind === MARGIN_TARGET_KIND && pageMapMarginElementKind(member) === "ask",
+  },
+  {
+    id: "hyperlinks",
+    key: "h",
+    word: "hyperlinks",
+    matches: ({ kind }) => kind === "Link",
+  },
+  {
+    id: "folds",
+    key: "f",
+    word: "folds",
+    matches: ({ kind }) => kind === "Fold",
+  },
+];
 const THREAD_EDGE_KEYS = ["k", "j"];
 const PAGE_RETURN_KEYS = ["p"];
 const PAGE_EDGE_KEYS = ["g", "Shift+g"];
-const FILTER_KEYS = TARGET_KINDS.map(({ filterKey }) => filterKey);
+const FILTER_KEYS = TARGET_FILTERS.map(({ key }) => key);
 const STRUCTURAL_KEYS = new Set(
   [...THREAD_EDGE_KEYS, ...PAGE_RETURN_KEYS, ...PAGE_EDGE_KEYS, ...FILTER_KEYS].filter(
     (key) => /^[a-z]$/.test(key),
@@ -396,14 +419,14 @@ function visibleCandidates(filter = null) {
   );
   const codes = hintCodes(found.length, ADDRESS_KEYS);
   const coded = found.map((candidate, index) => ({ ...candidate, code: codes[index] }));
-  return filter ? coded.filter(({ kind }) => kind === filter.kind) : coded;
+  return filter ? coded.filter(filter.matches) : coded;
 }
 
 // Every complete route starts with the same stable prefix. A partial generated hint is
 // added to the live sequence so the shortcut bar and chips can paint how far it has advanced.
 const sequencePrefix = () => [labelOf(GOTO)].filter(Boolean);
 const sequenceKeys = () =>
-  [...sequencePrefix(), targetFilter?.filterKey, ...prefix].filter(Boolean);
+  [...sequencePrefix(), targetFilter?.key, ...prefix].filter(Boolean);
 const addressChip = (candidate) => {
   const steps = [...candidate.code];
   const chip = el("span", "lf-address lf-target-hint lf-sequence-address");
@@ -503,14 +526,14 @@ function candidateIsCurrent(candidate) {
 }
 
 function filterTargets(binding) {
-  targetFilter = TARGET_KINDS.find(({ filterKey }) => filterKey === binding);
+  targetFilter = TARGET_FILTERS.find(({ key }) => key === binding);
   prefix = "";
   candidates = visibleCandidates(targetFilter);
   hintActive = -1;
   announce(
     candidates.length
-      ? `${candidates.length} visible ${targetFilter.filterWord}; type a hint or press Tab to hear them.`
-      : `No visible ${targetFilter.filterWord}.`,
+      ? `${candidates.length} visible ${targetFilter.word}; type a hint or press Tab to hear them.`
+      : `No visible ${targetFilter.word}.`,
   );
   paintHere();
 }
@@ -736,11 +759,11 @@ export const GO = {
         keys: () => (prefix ? HINT_KEYS : ADDRESS_KEYS),
         label: "letters",
         sequenceSteps: () => [
-          ...(targetFilter ? [targetFilter.filterKey] : []),
+          ...(targetFilter ? [targetFilter.key] : []),
           ...(prefix ? [...prefix, "…"] : ["letters"]),
         ],
         completeSequenceSteps: () => [
-          ...(targetFilter ? [targetFilter.filterKey] : []),
+          ...(targetFilter ? [targetFilter.key] : []),
           "letters",
         ],
         does: "Type a visible target's hint",
@@ -754,10 +777,10 @@ export const GO = {
       {
         id: "navigation.target.filter",
         keys: FILTER_KEYS,
-        routes: TARGET_KINDS.map(({ filterId, filterKey, filterWord }) => ({
-          id: `navigation.target.filter.${filterId}`,
-          binding: filterKey,
-          does: `Show only visible ${filterWord}`,
+        routes: TARGET_FILTERS.map(({ id, key, word }) => ({
+          id: `navigation.target.filter.${id}`,
+          binding: key,
+          does: `Show only visible ${word}`,
         })),
         label: FILTER_KEYS.join(" / "),
         sequenceSteps: ["kind"],

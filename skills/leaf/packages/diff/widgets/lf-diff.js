@@ -231,8 +231,7 @@ function reviewButton(entry, changed) {
 // addressed from without naming a widget or hoisting the state onto the host.
 function wrapSwitch() {
   const label = offer("label", "lf-diff-wrap-label");
-  const box = offer("input", "lf-diff-wrap");
-  box.type = "checkbox";
+  const box = offer("input", "lf-diff-wrap", undefined, "checkbox");
   box.name = "soft-wrap";
   // The words beside the control are its accessible name (WCAG Label in Name); the
   // label element supplies them, so nothing here restates them as an aria-label.

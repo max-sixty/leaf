@@ -306,7 +306,7 @@ export function bake() {
     "a[href]:not([data-lf-offer]), button:not([data-lf-offer]), summary:not([data-lf-offer])";
   const scriptedOffer =
     "[data-lf-offer]:not([data-lf-said]):is(" +
-    ":not([data-lf-offer='']), :not(:has(*)):not(input, select, textarea, a[href], summary))";
+    ":not([data-lf-offer=''], input), :not(:has(*)):not(input, select, textarea, a[href], summary))";
   const keepsBrowserControl = (container) =>
     container.querySelector(browserControl) ||
     [...container.querySelectorAll("label")].some(

@@ -6695,8 +6695,9 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     shape has to remember to say it again.
 
     So the layer says it once, against `data-lf-offer`, and the value is what it reads:
-    `offer` writes the tag or role for a thing to press and the empty string for the rest
-    of the chrome it builds — a controls row, a history disclosure, an edit box. A badge
+    `offer` writes the tag, input type, or role for a thing to press and the empty string
+    for the rest of the chrome it builds — a controls row, a history disclosure, an edit
+    box. A badge
     the page wrote carries no marker at all and needs no exclusion, which is the half
     worth pinning: the rule stays off it because the marker means what it says, not
     because a list of static classes is kept beside the rule.

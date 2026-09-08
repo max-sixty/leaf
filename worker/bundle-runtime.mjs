@@ -13,6 +13,12 @@ function browserPath(path) {
   return path.replaceAll("\\", "/");
 }
 
+function layerPath(path, assetRoot) {
+  const scopedPrefix = `${assetRoot}/`;
+  if (path.startsWith(scopedPrefix)) return path.slice(scopedPrefix.length);
+  return /^\/(?:runtime|vendor|widgets)\/(.+)$/.exec(path)?.[0].slice(1);
+}
+
 export async function bundleLayer(layerRoot, assetRoot, outputRoot = layerRoot) {
   const entries = {
     leaf: join(layerRoot, "leaf.js"),
@@ -21,6 +27,8 @@ export async function bundleLayer(layerRoot, assetRoot, outputRoot = layerRoot) 
       "runtime",
       "interaction-gallery-frame.js",
     ),
+    "runtime/layer-client": join(layerRoot, "runtime", "layer-client.js"),
+    "runtime/media": join(layerRoot, "runtime", "media.js"),
     "runtime/widget-api": join(layerRoot, "runtime", "widget-api.js"),
   };
   for (const file of await readdir(join(layerRoot, "widgets"))) {
@@ -33,17 +41,20 @@ export async function bundleLayer(layerRoot, assetRoot, outputRoot = layerRoot) 
     name: "preserve-module-urls",
     setup(builder) {
       builder.onResolve({ filter: /\.css$/ }, ({ importer, path }) => {
+        if (path.startsWith("/")) {
+          const local = layerPath(path, assetRoot);
+          return {
+            external: true,
+            path: local ? `${assetRoot}/${local}` : path,
+          };
+        }
         const resolved = resolve(dirname(importer), path);
         const publicPath = `${assetRoot}/${browserPath(relative(layerRoot, resolved))}`;
         return { external: true, path: publicPath };
       });
       builder.onResolve({ filter: /^\// }, ({ kind, path }) => {
         if (kind === "entry-point") return null;
-        const scopedPrefix = `${assetRoot}/`;
-        const canonical = /^\/(?:runtime|vendor|widgets)\/(.+)$/.exec(path);
-        const local = path.startsWith(scopedPrefix)
-          ? path.slice(scopedPrefix.length)
-          : canonical?.[0].slice(1);
+        const local = layerPath(path, assetRoot);
         return local && !local.startsWith("vendor/")
           ? { path: join(layerRoot, local) }
           : { external: true, path };

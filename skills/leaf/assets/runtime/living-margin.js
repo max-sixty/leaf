@@ -12,10 +12,15 @@
    guidance name the current semantic role: action control, disclosure control, or status
    indicator.
 
-   At rest a cluster has a two-margin-element budget: the primary and one peer, or the primary and
+   At rest a cluster has a two-margin element budget: the primary and one peer, or the primary and
    `…` when there are at least two peers. Hiding one peer costs the same margin element as
    showing it and adds a press, so it is not overflow. With no contributed control,
    standing information supplies the primary margin element using the face its reading declares.
+
+   Durable state provenance is the one standing fact kept in Page map without a target
+   margin element. It explains whether effective state came from the reader, a provisional
+   report, or a version restatement; unlike an action it must not change target geometry,
+   control density, or keyboard order. Its Page-map row travels back to the target.
 
    The expanded budget is six margin elements, including the primary or visible reading marker
    where one exists; a target made only of peer choices uses all six. A larger set shows
@@ -60,15 +65,14 @@
    wears the flat `status` behavior below. Active raises it back into a disclosure.
    Once no receipt or claim is live, the
    generated margin element disappears; the widget and action projection carry the durable state.
-   A thread's existing thread margin element remains the page-edge route to the exact receipt in
+   A thread's existing Thread margin element remains the page-edge route to the exact receipt in
    the full conversation; an Active claim joins that engaged cluster as an exposed peer. A
    standalone page-widget claim gets an Active margin element directly. When no page edge
    exists—inside the full thread panel or a widget frozen into conversation chrome—the
    compact `.lf-receipt` remains the local fallback.
 
-   Content modules contribute through
-   `registerMarginContribution({key, target, controls, subject, state, ...})`; they own
-   their verbs and events, never placement or control styling.
+   Content modules contribute through `registerMarginContribution({key, target, controls, subject,
+   state, ...})`; they own their verbs and events, never placement or control styling.
    `key` is stable within a target. Optional `subject` is a string or live reading of the
    concise semantic subject used to name that target away from its own paint. Supply it
    only when plain text concatenation loses a relation the widget paints visually, such as
@@ -79,9 +83,8 @@
    generated reading of the same kind at that exact target rather than showing the fact
    twice. Every margin element in a contribution is built with `marginElement(control, {key, icon,
    label, context, behavior, tone, role, state, writesRelation, writesSeat})`; an
-   authored reaction can supply `glyph` instead of `icon`, never both. That is the one
-   RHS margin element type: it owns the circle, size, type, focus, state paint, and glyph/word
-   anatomy shared by Asks, editing,
+   authored reaction can supply `glyph` instead of `icon`, never both. That is the one RHS control type: it owns the circle,
+   size, type, focus, state paint, and glyph/word anatomy shared by Asks, editing,
    communications, and information triggers. Its behavior states what the margin element
    promises. Behavior, tone, and state are independent axes: never use a heavier border to
    mean positive, busy, selected, or complete.
@@ -101,7 +104,7 @@
      verb, and performs its effect immediately;
    - `disclosure` has a firmer single ring than status and the same paper surface. It
      carries `aria-expanded`, reveals or hides context without settling it, and includes
-     the generated overflow margin element whose ellipsis is its whole face. `marginElement` writes
+     the generated More margin element whose ellipsis is its whole face. `marginElement` writes
      that attribute's default unless the call says `writesRelation: false`, which
      declares that another writer decides the disclosure's relation — the margin's own
      readings, whose `aria-controls` and `aria-expanded` are settled together from
@@ -114,12 +117,12 @@
      options, which stand outside the rail's walk and own their own seat while another
      writer owns their relation;
    - `status` reports a move already made and offers no press. It keeps its icon and its
-   circular margin element silhouette and seat in the cluster on the page surface without a
-     shortcut hint, but gives up its raised edge, hover response, pointer, and tab stop. It
+     circular margin element silhouette and seat in the cluster on the page surface with a ghost
+     shortcut bar, but gives up its raised edge, hover response, pointer, and tab stop. It
      remains a `status` in the accessibility tree so the Page map can still land there and
      name the phase. Status is live-session information, so a copy drops it.
 
-   A generated reading wears more than one of those over its life — a thread margin element while
+   A generated reading wears more than one of those over its life — a Thread margin element while
    there is something to open, a status once the move is reported — and one element has to
    carry both, or the seat moves under a reader standing in it. Such a control is
    therefore a span, since a `<button>` cannot stop being one, and the activation the
@@ -175,7 +178,7 @@
    pending-delivery guards as keyboard Undo. Confirmation is for a genuinely irreversible
    effect, not routine Save or Accept. The layer-wide submission lifecycle in CLAUDE.md
    governs feedback; a settled cluster keeps only the actions still available there, such
-   as Undo, and never leaves an inert status indicator in a control shape.
+   as Undo, and never leaves an inert margin element-shaped status.
 
    The Page-map keyboard scope owns the cluster's way back out. When a thread card stands
    over an unfolded `…` group, Escape closes the card first and folds the secondary
@@ -189,7 +192,7 @@
    they may have left, and would send a press already on its way to a margin element they were not
    standing on.
 
-   Every margin element keeps one circle. Its label appears as transient chrome on
+   Every margin element-shaped margin element keeps one circle. Its label appears as transient chrome on
    hover or keyboard focus without changing the cluster's geometry. An open disclosure
    suppresses the label because the context it opened now names the margin element's result. A
    disclosure label ends in an ellipsis because it opens something; action and status
@@ -249,7 +252,7 @@
 
    A thread card names the target without offering a second route to the panel the banner
    already opens. It is the conversation itself, measured eight pixels beside the pressed
-   thread margin element when the page leaves that room; at narrower postures it covers the page.
+   Thread margin element when the page leaves that room; at narrower postures it covers the page.
    While that margin element keeps focus, `c` enters the card's one reply box; several roots leave
    the destination ambiguous and preserve the page's ordinary comment route. Replacing an
    open panel waits for the column's workspace motion before choosing the card posture.
@@ -284,11 +287,10 @@ import {
   updateMarginRow,
 } from "./margin-layout.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
-import { keeps, keepsHidden, offer } from "./widget-elements.js";
+import { el, focusDestination, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { landInConversation, showThread } from "./conversation/landing.js";
 import { ago, clocked } from "./presence.js";
-import { el } from "./widget-elements.js";
 import { runtime } from "./context.js";
 import { commentsEdge, panelIsOpen } from "./chrome-layout.js";
 import { designOn } from "./design.js";
@@ -318,7 +320,7 @@ import { threadList } from "./conversation/reconcile.js";
 import { threadKey } from "./conversation/model.js";
 import { openAsks } from "./asks/model.js";
 import { goToAsk, standsWith } from "./asks/view.js";
-import { stateProjection } from "./projection/fold.js";
+import { stateOrigins, stateProjection } from "./projection/fold.js";
 import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
 import { claimed, focusSurface } from "./conversation/surfaces.js";
@@ -328,6 +330,12 @@ import { renderMarginThread } from "./conversation/inline.js";
 const KINDS = {
   action: { label: "Action", icon: "dot", priority: -1 },
   change: { label: "Change", icon: "change", priority: 0 },
+  restated: {
+    label: "Rewritten",
+    icon: "change",
+    priority: 0,
+    indication: true,
+  },
   comment: { label: "Thread", icon: "comment", priority: 1 },
   ask: { label: "Ask", icon: "question", priority: 2 },
   sent: {
@@ -350,6 +358,18 @@ const KINDS = {
     priority: 3,
     indication: true,
     state: "busy",
+  },
+  reader: {
+    label: "Your change",
+    icon: "change",
+    priority: 4,
+    indication: true,
+  },
+  reported: {
+    label: "Reported update",
+    icon: "activity",
+    priority: 4,
+    indication: true,
   },
   activity: { label: "Active", icon: "activity", priority: 4, state: "busy" },
 };
@@ -412,8 +432,7 @@ const visibleMarginElementLabel = ({ behavior, label }) =>
 
 function marginElementRecord(control) {
   const record = control?.[MARGIN_ELEMENT_RECORD];
-  if (!record)
-    throw new TypeError("A contributed margin element must use marginElement");
+  if (!record) throw new TypeError("A contributed margin element must use marginElement");
   return record;
 }
 
@@ -429,11 +448,11 @@ function validateMarginElements(offered) {
     const record = marginElementRecord(control);
     if (keys.has(record.key))
       throw new TypeError(
-        `Duplicate margin element key "${record.key}" in margin contribution "${offered.key}"`,
+        `Duplicate margin element key "${record.key}" in margin cluster "${offered.key}"`,
       );
     if (record.owner && record.owner !== offered.key)
       throw new TypeError(
-        `MarginElement "${record.key}" already belongs to margin contribution "${record.owner}"`,
+        `margin element "${record.key}" already belongs to margin cluster "${record.owner}"`,
       );
     keys.add(record.key);
     record.owner = offered.key;
@@ -454,10 +473,10 @@ function syncForwardedMarginElementState(projection, source) {
   }
 }
 
-// One margin element schema for every gesture in a target's RHS cluster. Contributors keep
+// One margin element grammar for every gesture in a target's RHS cluster. Contributors keep
 // their verbs and events; the margin owns the behavior and anatomy that make the
 // controls one family. The visible word stays in the DOM as a transient label, so
-// every margin element keeps one stable accessible name. Native `title`
+// every margin element-shaped margin element keeps one stable accessible name. Native `title`
 // bubbles would repeat the word on a different timer and with a different face, so
 // this anatomy owns its only visual presentation too.
 export function marginElement(
@@ -493,18 +512,15 @@ export function marginElement(
   },
 ) {
   if (!(control instanceof Element))
-    throw new TypeError("A margin element needs an Element control");
-  if (!String(key ?? "").trim()) throw new TypeError("A margin element needs a key");
+    throw new TypeError("A margin margin element needs an Element control");
+  if (!String(key ?? "").trim()) throw new TypeError("A margin margin element needs a key");
   if (Boolean(String(glyph ?? "").trim()) === Boolean(icon))
-    throw new TypeError("A margin element needs exactly one glyph or icon");
-  if (!String(label ?? "").trim())
-    throw new TypeError("A margin element needs a label");
-  if (!MARGIN_ELEMENT_TONES.has(tone))
-    throw new TypeError(`Unknown margin element tone: ${tone}`);
+    throw new TypeError("A margin margin element needs exactly one glyph or icon");
+  if (!String(label ?? "").trim()) throw new TypeError("A margin margin element needs a label");
+  if (!MARGIN_ELEMENT_TONES.has(tone)) throw new TypeError(`Unknown margin element tone: ${tone}`);
   if (!MARGIN_ELEMENT_BEHAVIORS.has(behavior))
     throw new TypeError(`Unknown margin element behavior: ${behavior}`);
-  if (!MARGIN_ELEMENT_ROLES.has(role))
-    throw new TypeError(`Unknown margin element role: ${role}`);
+  if (!MARGIN_ELEMENT_ROLES.has(role)) throw new TypeError(`Unknown margin element role: ${role}`);
   const record = control[MARGIN_ELEMENT_RECORD] ?? {};
   Object.assign(record, {
     key: String(key),
@@ -640,9 +656,8 @@ function syncMarginElementCount(control, count) {
 
 export function marginElementState(control, state) {
   if (!(control instanceof Element) || !control.classList.contains("lf-margin-element"))
-    throw new TypeError("A margin element state needs a margin element");
-  if (!MARGIN_ELEMENT_STATES.has(state))
-    throw new TypeError(`Unknown margin element state: ${state}`);
+    throw new TypeError("A margin element state needs a margin margin element");
+  if (!MARGIN_ELEMENT_STATES.has(state)) throw new TypeError(`Unknown margin element state: ${state}`);
   marginElementRecord(control).state = state;
   keeps(control, "data-lf-state", state);
   if (state === "busy") keeps(control, "aria-busy", "true");
@@ -661,16 +676,15 @@ export function registerMarginContribution({
   claim = true,
   reserve = 0,
 }) {
-  if (!String(key ?? "").trim())
-    throw new TypeError("A margin contribution needs a key");
+  if (!String(key ?? "").trim()) throw new TypeError("A margin cluster needs a key");
   if (!new Set(["before", "after"]).has(side))
-    throw new TypeError(`Unknown margin-contribution side: ${side}`);
+    throw new TypeError(`Unknown margin-item side: ${side}`);
   if (typeof state !== "string" && typeof state !== "function")
-    throw new TypeError("A margin contribution's state must be a string or function");
+    throw new TypeError("A margin cluster's state must be a string or function");
   if (subject != null && typeof subject !== "string" && typeof subject !== "function")
-    throw new TypeError("A margin contribution's subject must be a string or function");
+    throw new TypeError("A margin cluster's subject must be a string or function");
   if (typeof state === "string" && !MARGIN_ELEMENT_STATES.has(state))
-    throw new TypeError(`Unknown margin-contribution state: ${state}`);
+    throw new TypeError(`Unknown margin-item state: ${state}`);
   if (controls instanceof Element) controls.classList.add("lf-margin-contribution");
   const offered = {
     key: String(key),
@@ -784,8 +798,7 @@ function comesBefore(left, right) {
 const acknowledgments = () => runtime.activity?.interactions ?? [];
 export const renderMargin = clocked(document.body, renderNow);
 // The margin element the reader is standing on, or null off one: the press row's words read it.
-const focusedMarginElementBehavior = () =>
-  focused()?.[MARGIN_ELEMENT_RECORD]?.behavior ?? null;
+const focusedMarginElementBehavior = () => focused()?.[MARGIN_ELEMENT_RECORD]?.behavior ?? null;
 
 const nav = el("nav", "lf-ui lf-living-margin");
 // Every live page can gain an anchored comment, including one made entirely of prose.
@@ -989,16 +1002,9 @@ sheetHead.append(sheetClose);
 const sheetSearch = el("input", "lf-page-map-search");
 sheetSearch.type = "search";
 sheetSearch.placeholder = "Find an action, status, or location";
-sheetSearch.setAttribute(
-  "aria-label",
-  "Find an action, status, or location in Page map",
-);
+sheetSearch.setAttribute("aria-label", "Find an action, status, or location in Page map");
 const sheetList = el("div", "lf-page-map-list");
-const sheetEmpty = el(
-  "p",
-  "lf-page-map-empty",
-  "No matching actions, statuses, or locations",
-);
+const sheetEmpty = el("p", "lf-page-map-empty", "No matching actions, statuses, or locations");
 sheetEmpty.hidden = true;
 sheetEmpty.setAttribute("role", "status");
 sheet.append(sheetHead, sheetSearch, sheetList, sheetEmpty);
@@ -1040,7 +1046,7 @@ const offerReadings = (offered) => {
 const offerState = (offered) => {
   const state = typeof offered.state === "function" ? offered.state() : offered.state;
   if (!MARGIN_ELEMENT_STATES.has(state))
-    throw new TypeError(`Unknown margin-contribution state: ${state}`);
+    throw new TypeError(`Unknown margin-item state: ${state}`);
   return state;
 };
 // One target has one lifecycle reading. Failure outranks work in flight, which
@@ -1096,9 +1102,7 @@ const compareControlRecords = (left, right) => {
   if (role) return role;
   const offer = left.offered.key.localeCompare(right.offered.key);
   if (offer) return offer;
-  return marginElementRecord(left.control).key.localeCompare(
-    marginElementRecord(right.control).key,
-  );
+  return marginElementRecord(left.control).key.localeCompare(marginElementRecord(right.control).key);
 };
 const directControlRecords = (entry) =>
   directOffers(entry)
@@ -1151,6 +1155,8 @@ function syncControlRoles(entry) {
   return primary;
 }
 const markerItems = (entry) => entry.items.filter((item) => item.marker !== false);
+const entryHasMarginHost = (entry) =>
+  entry.offers.length > 0 || markerItems(entry).length > 0;
 const readingKey = (entry, choice) => `${entry.key}:${choice.key}`;
 const readingChoices = (entry) => {
   const threadList = [];
@@ -1350,7 +1356,7 @@ function scheduleThreadPreviewPosition() {
 // own focus and popover bookkeeping before that node changes shape. Panel and tray
 // changes notify this runtime directly through their owners.
 
-// A margin contribution is hoisted away from the page target it belongs to, so ancestry
+// A margin cluster is hoisted away from the page target it belongs to, so ancestry
 // cannot answer what a press on one of its controls is about. Keep that relationship
 // behind the owner that performs the hoist. Design mode uses it to turn the press into
 // a comment on the target and the named control instead of letting the action fire.
@@ -1458,6 +1464,22 @@ function collectEntries() {
   }
 
   const projection = stateProjection();
+  for (const origin of stateOrigins(projection)) {
+    const target = elementById(origin.unit);
+    if (!target) continue;
+    const face = KINDS[origin.origin];
+    add(groups, target, {
+      kind: origin.origin,
+      id: `state-origin:${origin.origin}:${origin.unit}`,
+      // Durable provenance belongs in Page map rather than another target margin element:
+      // it remains explicit without changing the page's action density or geometry.
+      marker: false,
+      text: trimmed(
+        [face.label, itemWord(target), itemSays(target)].filter(Boolean).join(" · "),
+      ),
+      activate: () => revealTarget(target, `${face.label}: ${itemSays(target)}`),
+    });
+  }
   const claimActivity = new Map(
     acknowledgments()
       .filter((item) => item.phase === "active")
@@ -1550,7 +1572,7 @@ function collectEntries() {
     const group = groupFor(groups, target);
     if (group.offers.some((candidate) => candidate.key === offered.key))
       throw new TypeError(
-        `Duplicate margin-contribution key for ${target.id || targetPath(target)}: ${offered.key}`,
+        `Duplicate margin-item key for ${target.id || targetPath(target)}: ${offered.key}`,
       );
     group.offers.push(offered);
     const subject =
@@ -1558,23 +1580,23 @@ function collectEntries() {
     if (String(subject ?? "").trim()) {
       if (group.subject && group.subject !== String(subject).trim())
         throw new TypeError(
-          `Conflicting margin-contribution subjects for ${target.id || targetPath(target)}`,
+          `Conflicting margin-item subjects for ${target.id || targetPath(target)}`,
         );
       group.subject = String(subject).trim();
     }
     const items = typeof offered.items === "function" ? offered.items() : offered.items;
     for (const item of items ?? []) {
       const kind = item.kind ?? "action";
-      if (!KINDS[kind])
-        throw new TypeError(`Unknown margin-contribution kind: ${kind}`);
+      if (!KINDS[kind]) throw new TypeError(`Unknown margin-item kind: ${kind}`);
       group.items.push({ marker: false, ...item, owner: offered.key, kind });
     }
   }
 
   return [...groups.values()]
     .map((group) => {
+      const items = group.items;
       const represented = new Set(
-        group.items
+        items
           .filter((item) => item.marker === false && item.represents)
           .map((item) => item.kind),
       );
@@ -1586,7 +1608,7 @@ function collectEntries() {
             .join(" · "),
           72,
         ),
-        items: group.items
+        items: items
           .filter(
             (item) =>
               item.marker === false ||
@@ -1724,10 +1746,10 @@ function visibleRows() {
 function clusterMarginElements(host) {
   if (!host) return [];
   return [...host.querySelectorAll(".lf-margin-element")].filter(
-    (item) =>
-      !item.disabled &&
-      item.getAttribute("aria-disabled") !== "true" &&
-      item.checkVisibility(),
+    (button) =>
+      !button.disabled &&
+      button.getAttribute("aria-disabled") !== "true" &&
+      button.checkVisibility(),
   );
 }
 
@@ -1744,11 +1766,11 @@ export function marginElementContextContains(target, node) {
 function stepClusterMarginElements(binding) {
   const active = focused();
   const host = closestAcross(active, "[data-lf-margin-for]");
-  const items = clusterMarginElements(host);
-  const at = items.indexOf(active);
-  if (at < 0 || items.length < 2) return;
+  const buttons = clusterMarginElements(host);
+  const at = buttons.indexOf(active);
+  if (at < 0 || buttons.length < 2) return;
   const direction = binding === "ArrowRight" ? 1 : -1;
-  items[(at + direction + items.length) % items.length].focus({
+  buttons[(at + direction + buttons.length) % buttons.length].focus({
     preventScroll: true,
   });
 }
@@ -1972,17 +1994,17 @@ const marginKeys = [
     does: () => {
       const behavior = focusedMarginElementBehavior();
       if (behavior === "disclosure")
-        return "Open or close what the focused margin control holds";
-      if (behavior === "action") return "Press the focused margin control";
-      if (behavior) return "Go to what the focused margin control points at";
-      return "Use the focused margin control";
+        return "Open or close what the focused margin element holds";
+      if (behavior === "action") return "Press the focused margin element";
+      if (behavior) return "Go to what the focused margin element points at";
+      return "Work the focused margin element";
     },
     line: () => {
       const behavior = focusedMarginElementBehavior();
       if (behavior === "disclosure") return "open / close";
       if (behavior === "action") return "press";
       if (behavior) return "go to it";
-      return "use this margin control";
+      return "work this margin element";
     },
     when: () => focused()?.matches?.('.lf-margin-element[role="button"]'),
     run: () => focused().click(),
@@ -1990,16 +2012,13 @@ const marginKeys = [
   {
     id: "margin.controls",
     keys: ["ArrowLeft", "ArrowRight"],
-    does: "Move through the margin controls on this target",
-    line: "move through margin controls",
+    does: "Move through the margin elements on this target",
+    line: "move through margin elements",
     repeat: true,
     when: () => {
       const active = focused();
       const host = closestAcross(active, "[data-lf-margin-for]");
-      return (
-        active?.matches?.(".lf-margin-element") &&
-        clusterMarginElements(host).length > 1
-      );
+      return active?.matches?.(".lf-margin-element") && clusterMarginElements(host).length > 1;
     },
     run: stepClusterMarginElements,
   },
@@ -2445,24 +2464,22 @@ const rectsOverlap = (left, right) =>
 function placeMarginElementLabel(control) {
   const label = control.querySelector(":scope > .lf-margin-element-label");
   if (!label || !control.checkVisibility()) return;
-  const buttonBox = control.getBoundingClientRect();
+  const marginElementBox = control.getBoundingClientRect();
   const labelBox = label.getBoundingClientRect();
   const edgeAligned = Math.max(
     4,
-    Math.min(buttonBox.right - labelBox.width, innerWidth - 4 - labelBox.width),
+    Math.min(marginElementBox.right - labelBox.width, innerWidth - 4 - labelBox.width),
   );
   const cluster = control.closest(".lf-margin-cluster") ?? control.parentElement;
-  const clusterMarginElements = [
-    ...(cluster?.querySelectorAll(".lf-margin-element") ?? []),
-  ]
+  const clusterMarginElements = [...(cluster?.querySelectorAll(".lf-margin-element") ?? [])]
     .filter((candidate) => candidate.checkVisibility())
     .map((candidate) => candidate.getBoundingClientRect());
   const clusterLeft = Math.min(...clusterMarginElements.map((box) => box.left));
   const clusterRight = Math.max(...clusterMarginElements.map((box) => box.right));
-  const centered = (buttonBox.top + buttonBox.bottom - labelBox.height) / 2;
+  const centered = (marginElementBox.top + marginElementBox.bottom - labelBox.height) / 2;
   const candidates = [
-    labelRect("below", edgeAligned, buttonBox.bottom + 6, labelBox),
-    labelRect("above", edgeAligned, buttonBox.top - 6 - labelBox.height, labelBox),
+    labelRect("below", edgeAligned, marginElementBox.bottom + 6, labelBox),
+    labelRect("above", edgeAligned, marginElementBox.top - 6 - labelBox.height, labelBox),
     labelRect("after", clusterRight + 6, centered, labelBox),
     labelRect("before", clusterLeft - 6 - labelBox.width, centered, labelBox),
   ];
@@ -2486,8 +2503,8 @@ function placeMarginElementLabel(control) {
     candidates.find(fits) ??
     candidates[0];
   control.dataset.lfLabelSide = choice.name;
-  label.style.setProperty("--lf-label-x", `${choice.rect.left - buttonBox.left}px`);
-  label.style.setProperty("--lf-label-y", `${choice.rect.top - buttonBox.top}px`);
+  label.style.setProperty("--lf-label-x", `${choice.rect.left - marginElementBox.left}px`);
+  label.style.setProperty("--lf-label-y", `${choice.rect.top - marginElementBox.top}px`);
 }
 
 let labelPlacementFrame = 0;
@@ -2513,15 +2530,15 @@ function unfoldOpenThreadOwner(entry) {
 }
 
 function transferThreadCard(
-  item,
+  button,
   { returnFocus = document.activeElement === previewMarginElement } = {},
 ) {
-  if (previewMarginElement === item) return;
+  if (previewMarginElement === button) return;
   const previous = previewMarginElement;
   previous?.style.removeProperty("anchor-name");
-  previewMarginElement = item;
-  item.style.setProperty("anchor-name", "--lf-margin-preview");
-  if (returnFocus) item.focus({ preventScroll: true });
+  previewMarginElement = button;
+  button.style.setProperty("anchor-name", "--lf-margin-preview");
+  if (returnFocus) button.focus({ preventScroll: true });
 }
 
 // Paper is not a posture this can be read in. Print hides every injected control
@@ -2558,7 +2575,9 @@ function renderNow() {
     ]),
   );
   for (const entry of pageMapEntries) entry.shownControls = shownControls;
-  const live = new Set(pageMapEntries.map((entry) => entry.key));
+  const liveHosts = new Set(
+    pageMapEntries.filter(entryHasMarginHost).map((entry) => entry.key),
+  );
   const liveReadingKeys = new Set(
     pageMapEntries.flatMap((entry) =>
       readingChoices(entry).map((choice) => readingKey(entry, choice)),
@@ -2566,12 +2585,12 @@ function renderNow() {
   );
   for (const key of readingMarginElements.keys())
     if (!liveReadingKeys.has(key)) readingMarginElements.delete(key);
-  if (expandedOptionsKey && !live.has(expandedOptionsKey)) {
+  if (expandedOptionsKey && !liveHosts.has(expandedOptionsKey)) {
     expandedOptionsKey = null;
     expandedOptionsOwner = null;
   }
   for (const [key, marker] of rows)
-    if (!live.has(key)) {
+    if (!liveHosts.has(key)) {
       const host = hosts.get(key);
       unregisterMarginRow(host);
       host?.remove();
@@ -2584,6 +2603,7 @@ function renderNow() {
   const externalDocks = new Map();
   let corePosition = 0;
   pageMapEntries.forEach((entry) => {
+    if (!entryHasMarginHost(entry)) return;
     let marker = rows.get(entry.key);
     let more = moreMarginElements.get(entry.key);
     let options = optionGroups.get(entry.key);
@@ -2729,9 +2749,12 @@ function renderNow() {
         )
       : null,
   );
-  pageMapEntries.forEach((entry, index) => {
+  const walked = pageMapEntries
+    .map((entry, index) => ({ entry, position: positions[index] }))
+    .filter(({ entry }) => entryHasMarginHost(entry));
+  walked.forEach(({ entry, position }, index) => {
     const marker = rows.get(entry.key);
-    const name = markerName(entry, index, pageMapEntries.length, positions[index]);
+    const name = markerName(entry, index, walked.length, position);
     keeps(marker, "aria-label", name);
   });
   const mapSays = `Map (${pageMapEntries.length})`;
@@ -2810,9 +2833,9 @@ function buildThreadCard(entry) {
     else previewList.insertBefore(node, cursor);
   }
   if (focusedItem && !focusedNode?.isConnected) {
-    const replacement = [
-      ...previewList.querySelectorAll("[data-lf-margin-element]"),
-    ].find((candidate) => candidate.dataset.lfMarginElement === focusedItem);
+    const replacement = [...previewList.querySelectorAll("[data-lf-margin-element]")].find(
+      (candidate) => candidate.dataset.lfMarginElement === focusedItem,
+    );
     const destination = replacement?.matches("button, textarea:not([disabled])")
       ? replacement
       : (replacement?.querySelector("textarea:not([disabled])") ??
@@ -2870,12 +2893,12 @@ function refreshHighlight() {
   highlight(drawingOnly ? null : (entry?.target ?? null));
 }
 
-function showPreview(entry, item, retry = true) {
+function showPreview(entry, button, retry = true) {
   if (!entry || designOn) return;
   if (forcedInlineKey && forcedInlineKey !== entry.key) forcedInlineKey = null;
   if (previewEntry && previewEntry.key !== entry.key) clearThreadTransition();
   previewEntry = entry;
-  transferThreadCard(item);
+  transferThreadCard(button);
   buildThreadCard(entry);
   // The open pseudo-class is not observable until the browser's show operation
   // completes, and another auto popover may still be closing in this rendering turn.
@@ -2896,8 +2919,8 @@ function showPreview(entry, item, retry = true) {
         throw error;
       if (retry)
         requestAnimationFrame(() => {
-          if (previewMarginElement === item && item.isConnected)
-            showPreview(entry, item, false);
+          if (previewMarginElement === button && button.isConnected)
+            showPreview(entry, button, false);
         });
     } finally {
       previewShowing = false;
@@ -2907,31 +2930,31 @@ function showPreview(entry, item, retry = true) {
   refreshHighlight();
   for (const row of rows.values())
     syncReadingRelation(row, primaryReading(row.lfEntry));
-  for (const item of readingMarginElements.values())
-    syncReadingRelation(item, item.lfChoice);
+  for (const button of readingMarginElements.values())
+    syncReadingRelation(button, button.lfChoice);
   paintKeys();
 }
 
-function togglePinned(entry, item) {
-  if (pinnedKey === entry.key && previewMarginElement === item) {
+function togglePinned(entry, button) {
+  if (pinnedKey === entry.key && previewMarginElement === button) {
     pinnedKey = null;
     closePreview();
     return;
   }
   pinnedKey = entry.key;
-  showPreview(entry, item);
+  showPreview(entry, button);
   const reply = previewList.querySelector("textarea");
   if (reply) landInConversation(reply);
 }
 
 export function closePreview(returnFocus = false) {
   clearThreadTransition();
-  const item = previewMarginElement;
+  const button = previewMarginElement;
   pinnedKey = null;
   forcedInlineKey = null;
   previewEntry = null;
   previewMarginElement = null;
-  item?.style.removeProperty("anchor-name");
+  button?.style.removeProperty("anchor-name");
   if (preview.matches(":popover-open")) preview.hidePopover();
   refreshHighlight();
   for (const row of rows.values())
@@ -2939,9 +2962,9 @@ export function closePreview(returnFocus = false) {
   for (const reading of readingMarginElements.values())
     syncReadingRelation(reading, reading.lfChoice);
   if (returnFocus) {
-    if (item?.isConnected && item.checkVisibility())
-      item.focus({ preventScroll: true });
-    else if (item?.lfEntry) focusMapControl(item.lfEntry);
+    if (button?.isConnected && button.checkVisibility())
+      button.focus({ preventScroll: true });
+    else if (button?.lfEntry) focusMapControl(button.lfEntry);
   }
   paintKeys();
 }
@@ -2982,11 +3005,16 @@ function activate(item, entry, { focusMap = true } = {}) {
     sheetCloseOwnsFocus = true;
     sheet.close();
   }
-  if (focusMap) focusMapControl(entry);
+  const landsOnTarget = focusMap && !entryHasMarginHost(entry);
+  if (focusMap && !landsOnTarget) focusMapControl(entry);
   item.activate();
+  // A Page-map-only location has no margin control to receive the handoff. Reveal its
+  // target first, then lend that authored element a programmatic tab stop so keyboard
+  // focus and the visible arrival name the same place.
+  if (landsOnTarget && entry.target?.isConnected) focusDestination(entry.target);
 }
 
-function openThreadChoice(entry, control) {
+function openThreadChoice(entry, button) {
   const choice = threadReading(entry);
   if (!choice) return;
   if (panelIsOpen()) {
@@ -2995,7 +3023,7 @@ function openThreadChoice(entry, control) {
   }
   if (expandedOptionsKey && expandedOptionsKey !== entry.key)
     setOptionsOpen(entry, false);
-  togglePinned(entry, control);
+  togglePinned(entry, button);
 }
 
 export function openInlineThread(id, transition = null) {
@@ -3006,15 +3034,15 @@ export function openInlineThread(id, transition = null) {
   if (!entry || designOn || panelIsOpen()) return null;
   const choice = threadReading(entry);
   if (!choice) return null;
-  let control = threadMarginElement(entry);
-  if (!control?.checkVisibility()) {
+  let button = threadMarginElement(entry);
+  if (!button?.checkVisibility()) {
     setOptionsOpen(entry, true);
-    control = threadMarginElement(entry);
+    button = threadMarginElement(entry);
   }
-  if (!control) return null;
+  if (!button) return null;
   pinnedKey = entry.key;
   forcedInlineKey = entry.key;
-  showPreview(entry, control);
+  showPreview(entry, button);
   const item = [...previewList.children].find(
     (candidate) => candidate.dataset.lfMarginElement === itemId,
   );
@@ -3300,12 +3328,12 @@ preview.addEventListener("toggle", (event) => {
   if (event.newState !== "closed") return;
   clearThreadTransition();
   if (!previewEntry) return;
-  const item = previewMarginElement;
+  const button = previewMarginElement;
   pinnedKey = null;
   forcedInlineKey = null;
   previewEntry = null;
   previewMarginElement = null;
-  item?.style.removeProperty("anchor-name");
+  button?.style.removeProperty("anchor-name");
   refreshHighlight();
   for (const row of rows.values())
     syncReadingRelation(row, primaryReading(row.lfEntry));
@@ -3364,8 +3392,7 @@ window.addEventListener("resize", () => {
   schedulePostureRender();
 });
 
-export const marginElementChoices = (target) =>
-  clusterMarginElements(marginElementHost(target));
+export const marginElementChoices = (target) => clusterMarginElements(marginElementHost(target));
 export const unfoldedMarginElements = () =>
   expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null;
 export const foldMarginElementOptions = () => setOptionsOpen(null, false);

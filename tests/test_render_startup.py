@@ -1214,7 +1214,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     version cannot revise a draft the user has rewritten — replay would paint
     their words straight back over it, and Claude's correction would reach nobody.
     `restated` is the one way markup wins: it retracts what came before it, so
-    the new words render and the user sees the widget marked as one whose
+    the new words render and the user sees the widget identified as one whose
     decision this version undid.
 
     It costs a word, where losing a decision used to cost nothing, which is the
@@ -1244,12 +1244,23 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
     body = page.locator("#draft-ops .lf-draft-body")
     expect(body).to_have_text(corrected)
-    # And the user is told, rather than left to notice: their edit is gone,
-    # which without a mark reads exactly like a draft they never touched. Told in
-    # words as well as in ink — the mark is an outline, which is the whole of what a
-    # reader listening was getting, and this is the one paint on the page that says
-    # something was taken away from them.
+    # And the user is told, rather than left to notice: their edit is gone, which
+    # without a reading looks exactly like a draft they never touched. The draft's
+    # existing controls keep their compact form; Page map states the provenance,
+    # and the target keeps the local quiet word.
     expect(page.locator("#draft-ops[data-lf-restated]")).to_have_count(1)
+    page.evaluate(
+        "async () => (await import('/runtime/living-margin.js')).enterPageMap()"
+    )
+    rewritten = page.get_by_role(
+        "button", name=re.compile(r"^Open rewritten: Rewritten")
+    )
+    expect(rewritten).to_be_visible()
+    page.keyboard.press("Escape")
+    assert (
+        page.locator("#draft-ops").evaluate("el => getComputedStyle(el).outlineStyle")
+        == "none"
+    )
     assert "rewritten since your decision" in page.locator("#draft-ops").aria_snapshot()
     assert errors == []
     page.close()
@@ -1303,7 +1314,7 @@ def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
     browser, serve
 ):
     """Moves and edits retain their reader origin across unrelated revisions.
-    Incorporating that state into source clears the override outline, and the
+    Incorporating that state into source clears the override reading, and the
     diff stays quiet about the reader's own move."""
     page, errors = open_page(browser, live_url(serve(JOURNEY_V1)))
 

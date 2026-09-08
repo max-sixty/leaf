@@ -705,12 +705,16 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     # keys. Closing the address sequence and opening selection must not reveal a fourth face.
     page.keyboard.press("Escape")
     page.keyboard.press("s")
-    hint = page.locator(".lf-target-hint").first
+    # An item hint spells its whole route as a key sequence, so the chip is the layer's
+    # positioned wrapper and the face belongs to the step box inside it — the same box
+    # the sequence's chips wear above. Read the step still to be pressed, as the sequence read
+    # does, so a hint that has already spent a letter names the same key face.
+    hint = page.locator(".lf-target-hint kbd").first
     expect(hint).to_be_visible()
     # The standing paint can replace the hint layer between browser round trips. Read
     # the one rendered face in one task so geometry and emphasis cannot come from two
     # successive hint elements.
-    hint_face = faces(page, ".lf-target-hint")[0]
+    hint_face = faces(page, ".lf-target-hint .lf-key-sequence > kbd:last-child")[0]
     assert hint_face["key"] == option["key"]
     assert hint_face["emphasis"] == option["emphasis"]
     assert errors == []

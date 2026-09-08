@@ -166,7 +166,7 @@ CONTROL_ARCHETYPES = (
     {
         # Accept and Reject share the resting row. A thread adds the third margin element that
         # puts the secondary choices behind `…`; opening it must leave Accept still.
-        "name": "margin-button",
+        "name": "margin-element",
         "coverage": ".lf-margin-element",
         "target": '[data-lf-margin-for="stable-suggestion"] > .lf-margin-more',
     },
@@ -2583,7 +2583,7 @@ def test_a_recorded_move_is_acknowledged_in_the_banner_and_nowhere_else(browser,
 
 
 def test_the_banner_opens_a_panel_of_the_machines_leaves(
-    browser, serve, other_leaf, tmp_path
+    browser, serve, other_leaf, one_reader, tmp_path
 ):
     """The leaves panel, end to end: the banner counts the machine's live pages,
     this one included, a press slides out a left tray headed by this page's own
@@ -2601,7 +2601,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
         id="s-self",
         cwd=str(tmp_path / "self-work"),
     )
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, url, context=one_reader)
     btn = page.locator(".lf-others")
     expect(btn).to_have_text("All leaves (2)")
     btn.click()
@@ -2632,11 +2632,12 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
         f"The other leaf\n{tmp_path / 'other-work'}\nWorking — running the suite",
     )
     destination = link.get_attribute("href")
-    tab = opened_tab(page, link.click)
     # The new tab keeps the other page's live root, authorized by the key its link
     # carried, rather than being redirected onto one stamped version.
     assert destination is not None and destination.startswith(f"{other_url}/?t=")
+    tab = opened_tab(page, destination, link.click)
     expect(tab).to_have_url(destination)
+    tab.close()
     # The press left this tab alone, tray still standing.
     expect(others_panel).to_be_visible()
     page.keyboard.press("Escape")
@@ -2954,7 +2955,7 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     page.close()
 
 
-def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
+def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_reader):
     """The tray is a list, and a reader walks it without reaching for the mouse: g L
     opens it and lands on the first neighbour, up and down step between them and clamp
     at the ends, Enter opens the focused one in its own tab, and Esc gives that press
@@ -2964,7 +2965,7 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     scene — and the "?" reference carries the same rows."""
     live_leaf("second", "A second leaf")
     other_url, _ = live_leaf("other", "The other leaf")
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page, errors = open_page(browser, serve(LONG_PAGE), context=one_reader)
     btn = page.locator(".lf-others")
     expect(page.locator(".lf-others-panel")).to_have_attribute(
         "aria-keyshortcuts", "ArrowUp ArrowDown"
@@ -2995,9 +2996,10 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     # Enter is the browser's own on a link, which is why the row is one.
     page.keyboard.press("ArrowDown")
     destination = rows.nth(1).get_attribute("href")
-    tab = opened_tab(page, lambda: page.keyboard.press("Enter"))
     assert destination is not None and destination.startswith(f"{other_url}/?t=")
+    tab = opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
     expect(tab).to_have_url(destination)
+    tab.close()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_be_visible()
     # One press in, one Escape out, and what the Escape gives back is exactly what the
@@ -4184,17 +4186,15 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     page.close()
 
 
-def test_the_ring_reading_tells_a_ring_from_the_layers_other_outlines(browser, serve):
+def test_the_ring_reading_tells_a_ring_from_the_layers_other_outline(browser, serve):
     """The reading sweeps for boxes painting the ring, so it has to know one on sight.
 
-    Style and width do not say. The layer draws three other outlines at exactly the
-    ring's weight: `[data-lf-restated]` and `[data-lf-reader-override]` are 2px solid over a
-    `color-mix`, and a mark under the pointer takes the ring's own width while keeping
-    the mark's hue. A sweep asking style and width alone claims all three and then
+    Style and width do not say. A mark under the pointer takes the ring's own width while
+    keeping the mark's hue. A sweep asking style and width alone claims it and then
     reports the page painting a ring no rule named — a complaint with no answer, since
-    naming them puts them in a population the keyboard can never light.
+    naming it puts the mark in a population the keyboard can never light.
 
-    Nothing in the corpus paints one of the three during the walk today, so the walk
+    Nothing in the corpus paints one during the walk today, so the walk
     going green says nothing about this. What it turns on is which example is written
     next and where the walk last left the pointer, and neither is a decision anybody
     would make knowing it decided this.
@@ -4204,7 +4204,7 @@ def test_the_ring_reading_tells_a_ring_from_the_layers_other_outlines(browser, s
     writing `color-mix()` for its accent once left every rule in the layer uncredited.
 
     The real ring goes last, as the control: without it a reading that claimed nothing at
-    all would pass the three cases above and prove only that it was silent."""
+    all would pass the case above and prove only that it was silent."""
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
     url = serve(example, comments=2, seed_log=False)
     page, errors = open_page(browser, url)
@@ -4213,12 +4213,8 @@ def test_the_ring_reading_tells_a_ring_from_the_layers_other_outlines(browser, s
     plant = """(how) => {
       const box = document.querySelector('main p');
       box.classList.add('probe-target');
-      box.removeAttribute('data-lf-restated');
-      box.removeAttribute('data-lf-reader-override');
       box.classList.remove('lf-mark-el', 'lf-mark-hover');
       box.style.outline = '';
-      if (how === 'restated') box.setAttribute('data-lf-restated', '');
-      if (how === 'pending') box.setAttribute('data-lf-reader-override', '');
       if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
       if (how === 'the ring itself') box.style.outline = 'var(--here-ring)';
       const cs = getComputedStyle(box);
@@ -4246,7 +4242,7 @@ def test_the_ring_reading_tells_a_ring_from_the_layers_other_outlines(browser, s
         "here and would pass this test however it behaved"
     )
 
-    for how in ("restated", "pending", "mark"):
+    for how in ("mark",):
         style, width, colour = page.evaluate(plant, how)
         # Non-vacuity: the lookalike has to actually be painted, at the ring's own
         # weight, or the reading was never given the chance to mistake it for one.
@@ -4261,7 +4257,7 @@ def test_the_ring_reading_tells_a_ring_from_the_layers_other_outlines(browser, s
     style, width, colour = page.evaluate(plant, "the ring itself")
     assert claimed(), (
         f"a box wearing the layer's own ring ({colour}) was not counted, so the three "
-        "cases above prove only that this reading is silent"
+        "case above proves only that this reading is silent"
     )
 
     assert errors == []
@@ -5407,7 +5403,7 @@ ELEVATION_SHADOWS = """() => {
     try { list = sheet.cssRules; } catch { return; }  // a sheet from another origin
     const walk = (from) => {
       for (const rule of from) {
-        for (const property of ['box-shadow', '--lf-lift', '--lf-ring']) {
+        for (const property of ['box-shadow', '--lf-lift']) {
           const value = rule.style?.getPropertyValue(property)?.trim();
           if (!value || value === 'none') continue;
           // The blur, which is the third length of a layer, past the two offsets. A ring

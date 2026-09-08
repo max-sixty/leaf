@@ -358,6 +358,13 @@ def test_selection_hints_name_only_items_shown_by_a_disclosure(browser, serve):
     tail = next(code for code in codes if len(code) > 1)
     page.keyboard.press(tail[0])
     expect(hints).to_have_count(sum(code.startswith(tail[0]) for code in codes))
+    continued = page.locator(
+        f'.lf-target-hint[data-lf-target="{tail}"] .lf-key-sequence'
+    )
+    assert continued.locator("kbd").evaluate_all(
+        "keys => keys.map(key => [key.textContent, key.dataset.lfKeyState])"
+    ) == [[tail[0], "pressed"], [tail[1], "neutral"]]
+    expect(continued).to_have_css("gap", "1px")
     page.locator("summary").click()
     expect(hints).to_have_count(0)
 

@@ -1,4 +1,4 @@
-/* The page's own keys: the scopes core declares — the reference, the expanded shortcut bar, the
+/* The page's own keys: the scopes core declares — the reference, the shortcut bar's shelf, the
    page map, the composer, a text box, the thread panel, a focused thread, a link, a
    disclosure, design mode, and the page itself — and what a press from each of them
    does. A row's fields are stated once, in bindings.js; a scope's `at`/`when` pair in
@@ -438,9 +438,8 @@ export function letGo() {
 
 // Auto popovers and modal dialogs already put Escape in the platform contract. When one
 // stands, let the browser dismiss the topmost layer and let that layer's toggle/close
-// event update Leaf state. Product modes with a nearer Escape row (the composer, the
-// shortcut reference's
-// two-step shortcut expansion, a text box) still own their deliberate unwind step.
+// event update Leaf state. Product modes with a nearer Escape row (the composer, the shortcut reference's
+// two-step shelf, a text box) still own their deliberate unwind step.
 function browserDismissesTopLayer() {
   return Boolean(document.querySelector(":popover-open, dialog:modal"));
 }
@@ -554,7 +553,7 @@ export function EVERYTHING() {
 // compose it, and Mod sequences copy, select, or undo. The editing keys below stay the box's
 // with modifiers too, so Shift+Arrow can extend a selection and Mod+Backspace can delete a
 // word without an ancestor widget turning either into its own action. An exact element
-// scope still stands nearer and can specialise a key combination such as Mod+Enter for send.
+// scope still stands nearer and can specialise a sequence such as Mod+Enter for send.
 function CHARACTER(binding) {
   return [...parsed(binding).key].length === 1;
 }
@@ -656,9 +655,7 @@ const SHORTCUT_REFERENCE = {
       id: "reference.close",
       keys: ["Escape"],
       does: () =>
-        shortcutBarExpanded()
-          ? "Back to more keyboard shortcuts"
-          : "Close this reference",
+        shortcutBarExpanded() ? "Back to more keyboard shortcuts" : "Close this reference",
       line: () =>
         shortcutBarExpanded() ? "back to more shortcuts" : "close shortcut reference",
       control: () => shortcutReferenceClose,
@@ -684,7 +681,7 @@ const SHORTCUT_SHELF = {
   rows: [LESS_SHORTCUTS],
 };
 
-// A Thread card and the unfolded margin element cluster that owns it are one page-map stack,
+// A thread card and the unfolded margin element cluster that owns it are one page-map stack,
 // though the card itself is hoisted into the chrome. This registered rung precedes the
 // reaction and navigation modes just as the surface's old local listener did: Escape
 // closes the card first, then folds the cluster on a second press.
@@ -1218,7 +1215,7 @@ export function pageScopes() {
         },
       },
       // Last, because `w` and `/` are the list's own operations while this is a contextual
-      // route through it. The latest return frame already owns the first shortcut-bar slot; the
+      // route through it. The latest return frame already owns the first key-line slot; the
       // remaining one should say what the list can do. The page-comment box advertises `c`
       // in its own placeholder, and the complete reference retains this row.
       PANEL_SAY,
@@ -1269,7 +1266,7 @@ export function pageScopes() {
           else setReact(true);
         },
       },
-      // Search remains one press from the expanded shortcut bar and named in full by the reference.
+      // Search remains one press from the shelf and named in full by the reference.
       PAGE_SEARCH,
       {
         id: "thread.walk",
@@ -1330,7 +1327,7 @@ export function pageScopes() {
         // the runtime, which spent a third of the resting line restating what every reader
         // already does with a wheel, a trackpad or the space bar — and spent it on every
         // page, in every scope, beside whatever the reader was actually doing. Scrolling is
-        // the one capability no page has to advertise. The expanded bar and the reference still
+        // the one capability no page has to advertise. The shelf and the reference still
         // name it, which is where a key the reader has not asked after belongs.
         repeat: true,
         run: (binding) => stepReading(binding === "d" ? 0.6 : -0.6, "page"),
@@ -1453,19 +1450,21 @@ function coreScopes() {
 // A control the keyboard reaches names its shortcut from the row. `control` is where a
 // row says which control it duplicates; its projection follows liveness too, so a disabled
 // Ask does not advertise a shortcut the dispatcher has withdrawn. The latest-version
-// chip's route spans two rows, so it is composed from both.
+// chip's route spans two rows, so it is composed from both. The address owner paints
+// sequential sequence overlays while its mode stands; this projection keeps the complete
+// route in the tooltip at rest.
 //
 // The pass runs in the standing chrome's frame, which the `lf-actions` heartbeat asks for
 // every two seconds on a page nobody has touched, so every name it writes goes through
-// `keeps` and says nothing where the control already says it. A restated title or sequence
-// is news to whatever is reading the page — the mutation stream a screen reader rebuilds
-// its buffer from — and these controls stand on the banner the living margin watches.
+// `keeps` and says nothing where the control already says it. Restated title or shortcut
+// metadata is news to whatever is reading the page — the mutation stream a screen reader
+// rebuilds its buffer from — and these controls stand on the banner the living margin
+// watches.
 export function paintCoreControls() {
   const returningToMore = Boolean(shortcutBarExpanded());
   const closeSays = returningToMore ? "Back to more shortcuts" : "Close";
   const closeTitle = returningToMore ? "Back to more shortcuts" : "Close the shortcuts";
-  if (shortcutReferenceClose.textContent !== closeSays)
-    shortcutReferenceClose.textContent = closeSays;
+  if (shortcutReferenceClose.textContent !== closeSays) shortcutReferenceClose.textContent = closeSays;
   if (shortcutReferenceClose.dataset.lfKeyTitle !== closeTitle)
     shortcutReferenceClose.dataset.lfKeyTitle = closeTitle;
   keeps(shortcutReferenceClose, "aria-label", closeTitle);
@@ -1489,11 +1488,9 @@ export function paintCoreControls() {
           "title",
           control.dataset.lfKeyTitle + (active ? ` (${shortcut})` : ""),
         );
-        if (active && scope.sequence) keeps(control, "data-lf-shortcut", shortcut);
-        else delete control.dataset.lfShortcut;
         // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
-        // alternatives. The complete shortcut remains in the visible hint and accessible
-        // keyboard reference instead of claiming its final press works alone.
+        // alternatives. The complete sequence remains in the overlay, tooltip, and
+        // accessible keyboard reference instead of claiming its final press works alone.
         if (active && !scope.sequence)
           keeps(control, "aria-keyshortcuts", ariaShortcuts([row], false));
         else control.removeAttribute("aria-keyshortcuts");

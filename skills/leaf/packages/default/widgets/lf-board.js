@@ -14,11 +14,11 @@
  *
  * The board also says what it is non-visually: columns are labeled lists and
  * cards their items (#structure), and each grip is named for the column its
- * card now sits in and whether its move awaits a version (#names). Both are
- * attributes on authored elements — the light DOM stays verbatim, which is
- * what the anchor pass and the version diff walk. The theme's column heading
- * is CSS generated content with empty alt text, so the label reaches the tree
- * once, as the list's name, rather than twice. */
+ * card now sits in (#names). Both are attributes on authored elements — the
+ * light DOM stays verbatim, which is what the anchor pass and the version diff
+ * walk. The theme's column heading is CSS generated content with empty alt
+ * text, so the label reaches the tree once, as the list's name, rather than
+ * twice. */
 import Sortable from "/vendor/sortable.esm.js";
 import {
   actionAvailable,
@@ -91,12 +91,11 @@ customElements.define(
       this.#stopActions ??= watchActions(this, null, this.#paintAvailability);
       this.#observeMotion();
       this.#names();
-      // Grip names come from where their cards sit and whether the runtime has
-      // marked the placement as their move, so mutations of those two inputs
-      // restate them — not the four paths that move a card (arrow step, drag,
-      // cancel, replay) plus the origin pass, any of which would eventually
-      // forget. Only the origin attribute is observed, so #names writing an
-      // aria-label cannot feed the pass back into itself.
+      // Grip names come from where their cards sit, so column child-list mutations
+      // restate them — not the four paths that move a card (arrow step, drag, cancel,
+      // replay), any of which would eventually forget. #names writes an aria-label on
+      // the grip, which is not a child-list mutation and cannot feed this pass back
+      // into itself.
       this.#observeNames();
     }
 
@@ -138,16 +137,13 @@ customElements.define(
 
     // Every grip's name, in the idiom the live region already announces moves in
     // ("card — column"): the user who lands on a grip by Tab hears where the
-    // card is without having read the list it sits in, and whether the placement comes
-    // from their move after its transient announcement has faded.
+    // card is without having read the list it sits in. State provenance is the runtime's
+    // one shared reading on the card rather than another suffix in this control's name.
     #names() {
       for (const col of this.querySelectorAll(":scope > lf-column")) {
         const where = col.getAttribute("label");
         for (const card of this.#cards(col)) {
-          const origin = card.hasAttribute("data-lf-reader-override")
-            ? " — your move"
-            : "";
-          const name = `Move: ${this.#title(card)} — ${where}${origin}`;
+          const name = `Move: ${this.#title(card)} — ${where}`;
           const grip = card.querySelector(":scope > .lf-grip");
           if (grip && grip.getAttribute("aria-label") !== name)
             grip.setAttribute("aria-label", name);
@@ -202,14 +198,8 @@ customElements.define(
       )
         return;
       this.#namesObserver = new MutationObserver(() => this.#names());
-      for (const col of this.querySelectorAll(":scope > lf-column")) {
+      for (const col of this.querySelectorAll(":scope > lf-column"))
         this.#namesObserver.observe(col, { childList: true });
-        for (const card of this.#cards(col))
-          this.#namesObserver.observe(card, {
-            attributes: true,
-            attributeFilter: ["data-lf-reader-override"],
-          });
-      }
     }
 
     #title(card) {

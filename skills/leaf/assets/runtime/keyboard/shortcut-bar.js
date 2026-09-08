@@ -8,15 +8,15 @@
    At rest on the page that
    is `c` for the page itself and `s` to select a more particular target, beside the More
    control. Once a target is selected, its Comment and React actions replace selection on
-   the short line. Search and reading-page movement remain ordinary rows named when the
-   shortcut bar is expanded
+   the short line. Search and reading-page movement remain ordinary rows named by the shelf
    and the reference; scrolling is the one capability no page has to advertise. Ranking
    is a row's place in its scope, so moving the row is how the
    line's order changes. An active sequence instead shows every live row in its scope, so
    computed bindings, ranges, and capability filtering are the same ones dispatch and the
-   reference use. Each destination row keeps its complete sequence: already pressed keys take
-   the accent face and pending keys keep the ordinary face. Changing progress changes only
-   those faces, not the sequence's keys or geometry. A mode's Escape or back row remains a
+   reference use. Each destination row keeps its complete sequence: its leading steps that
+   match accepted presses take the accent face, while a branch the reader has not taken
+   keeps the ordinary face. Changing progress changes only those faces, not the sequence's
+   keys or geometry. A mode's Escape or back row remains a
    separate control rather than appearing as a destination sequence. `lineWhen` may hide only
    an ordinary hint without changing the command's liveness or its place in the reference.
    Hint chips are `aria-hidden` because placeholders and live announcements carry the same
@@ -44,17 +44,15 @@
    and every hint would name a key the reader cannot press. An attached keyboard can still
    begin a walk, so its navigation context stands alone until that walk ends. The line and
    its chips take no pointer events; the More
-   control does, because it is the only pointer route to the reference and so to the
-   character key shortcut preference, which cannot be made to depend on the character key it
-   turns off.
+   control does, because it is the pointer route to the reference.
 
    The accessible More control and its `?` binding share one progressive route. The first
-   activation expands the current shortcuts into at most two lines; the
+   activation unfolds additional current-scene rows into a shelf capped at two lines; the
    second opens the complete reference. Escape returns through those layers, and another
-   command collapses those hints before it runs. Expansion and contraction are announced because
+   command folds the shelf before it runs. Expansion and contraction are announced because
    the revealed hint chips themselves remain visual. When there is no additional current
    row, the first activation opens the reference directly. The native control also opens
-   it directly when character key shortcuts are off. */
+   it directly. */
 import {
   activeRows,
   ariaShortcuts,
@@ -206,9 +204,9 @@ export function renderLine() {
   const scopes = stack();
   const rows = lineRows(scopes);
   if (!shortcutAvailable()) expanded = false;
-  const expandedHints = expanded && !referenceOpen();
+  const shelf = expanded && !referenceOpen();
   // `?` has its own permanent More control, so its ordinary row remains in the DOM only as
-  // the register's hidden projection. In the expanded hints, the current Escape is drawn after that
+  // the register's hidden projection. In the shelf, the current Escape is drawn after that
   // control so both disclosure choices finish the second row.
   const { candidates, reference, short, tail } = arrange(rows);
   const complete = completeLine(scopes, candidates);
@@ -224,18 +222,16 @@ export function renderLine() {
     walkPositionEl.removeAttribute("data-kind");
     shortcutBarEl.removeAttribute("data-lf-walk");
   }
-  shortcutBarEl.dataset.lfExpanded = String(expandedHints);
-  shortcutBarEl.dataset.lfWrap = String(
-    expandedHints || Boolean(complete) || Boolean(position),
-  );
+  shortcutBarEl.dataset.lfExpanded = String(shelf);
+  shortcutBarEl.dataset.lfWrap = String(shelf || Boolean(complete) || Boolean(position));
   // Keep the two contextual hints together at the front of the ordinary line.
-  // Expanded hints and a sequence retain registry order because each is a fuller reading of one
+  // The shelf and a sequence retain registry order because each is a fuller reading of one
   // scene rather than a ranked shortlist.
   const projected =
-    expandedHints || complete
+    shelf || complete
       ? candidates
       : [...shown, ...candidates.filter((row) => !shown.has(row))];
-  const projectedRows = projected.filter((row) => !expandedHints || row !== tail);
+  const projectedRows = projected.filter((row) => !shelf || row !== tail);
   const referenceRows = reference ? [reference] : [];
   // The interactive disclosure stays with the contextual shortlist. A wider system
   // font must not push More onto a lower row beside a page or panel control, where two
@@ -253,16 +249,13 @@ export function renderLine() {
   if (referenceBinding) shortcutBarMoreKey.textContent = spell(referenceBinding);
   shortcutBarMoreText.textContent = referenceLine;
   shortcutBarMore.title = referenceDoes;
-  shortcutBarMore.setAttribute("aria-expanded", String(expandedHints));
+  shortcutBarMore.setAttribute("aria-expanded", String(shelf));
   shortcutBarMore.setAttribute(
     "aria-label",
     referenceBinding ? `${spell(referenceBinding)} ${referenceLine}` : referenceDoes,
   );
   if (referenceBinding)
-    shortcutBarMore.setAttribute(
-      "aria-keyshortcuts",
-      ariaShortcuts([reference], false),
-    );
+    shortcutBarMore.setAttribute("aria-keyshortcuts", ariaShortcuts([reference], false));
   else shortcutBarMore.removeAttribute("aria-keyshortcuts");
   // Read where it is painted, like every other cell. Every destination keeps its complete
   // sequence while the reader advances through it: completed keys change face, but no key is
@@ -298,12 +291,10 @@ export function renderLine() {
   };
   const drawn = ordered.map((row) => {
     const inSequence = sequence.length && !row.sequenceControl;
-    const steps = inSequence ? [sequence[0], ...completeRowSteps(row)] : rowSteps(row);
-    const states = inSequence
-      ? progressStates(steps, sequence.length)
-      : neutralStates(steps);
+    const steps = inSequence ? [sequence[0], ...rowSteps(row)] : rowSteps(row);
+    const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
     const span = chip(steps, word(row.line), states, false, row);
-    span.hidden = sourceRow(row) === REFERENCE || (!expandedHints && !shown.has(row));
+    span.hidden = sourceRow(row) === REFERENCE || (!shelf && !shown.has(row));
     return { row, span };
   });
   // The door is not useful behind the room it opens. While the reference stands, its
@@ -313,15 +304,13 @@ export function renderLine() {
   if (referenceOpen()) shortcutBarMore.remove();
   else if (!seated) shortcutBarEl.append(shortcutBarMore);
 
-  if (expandedHints && tail) {
+  if (shelf && tail) {
     const steps = rowSteps(tail);
     chip(steps, word(tail.line), neutralStates(steps), true);
   }
 
   const visible = () =>
-    [...shortcutBarEl.children].filter(
-      (node) => !node.hidden && node.checkVisibility(),
-    );
+    [...shortcutBarEl.children].filter((node) => !node.hidden && node.checkVisibility());
   const rowsUsed = () => {
     const items = visible();
     const tolerance = Math.min(...items.map((node) => node.offsetHeight)) / 2;
@@ -332,11 +321,11 @@ export function renderLine() {
     return tops.length;
   };
 
-  // The expanded hints and ordinary line have two-row ceilings rather than permission to clip.
-  // The expanded list yields its lowest-ranked current commands until both disclosure controls fit;
+  // The shelf and ordinary line have two-row ceilings rather than permission to clip. The
+  // shelf yields its lowest-ranked current commands until both disclosure controls fit;
   // hidden rows remain available to inspection and the reference. Active sequences return
   // below before any row can yield.
-  if (expandedHints) {
+  if (shelf) {
     const removable = drawn
       .filter(({ span }) => !span.hidden)
       .map(({ span }) => span)

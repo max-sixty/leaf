@@ -48,7 +48,7 @@
    layer, the page rung stands down and browser Escape closes it; Leaf updates from the
    resulting `toggle`, `cancel`, or `close` event. Register Escape only when Leaf adds a
    distinct inner step, such as leaving a text box before closing its dialog or collapsing
-   the expanded shortcut bar — or, as a `native: true` row, to name the
+   the keyboard reference's expanded shelf — or, as a `native: true` row, to name the
    platform's own press on the shortcut bar where nothing else does (the versions menu opened
    by pointer): the row runs the same close, leaves the platform's half alone, and a
    return frame standing nearer names the key first.
@@ -177,8 +177,8 @@ document.addEventListener("keydown", (ev) => {
   if (ev.isComposing) return;
   if (run(ev)) return;
   // Any other key disarms the sequence and keeps its ordinary meaning, so a mistyped g costs
-  // nothing: g T is a panel trip and g g re-arms. A letter naming no list disarms the same
-  // way, and so does a digit past the end of the list a letter named. Spelled as walking
+  // nothing: g T is a panel trip and g g re-arms. A key naming no destination disarms the
+  // same way. Spelled as walking
   // again rather than as a rule, so the meaning a key keeps is the meaning the register
   // gives it. A modifier alone is half a press rather than a key: the Shift that
   // capitalizes G arrives as a keydown of its own ahead of it, and disarming on that

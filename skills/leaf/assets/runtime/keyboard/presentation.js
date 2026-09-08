@@ -1,6 +1,6 @@
 /* This module owns how a binding is drawn: the steps a row's sequence or label breaks
- * into, their pressed states, and the key-sequence element every surface renders them
- * as. */
+ * into, which leading steps match presses the active mode has accepted, and the
+ * key-sequence element every surface renders them as. */
 import { labelOf, spell, word } from "./bindings.js";
 
 const STATES = new Set(["neutral", "pressed"]);
@@ -20,8 +20,17 @@ export const completeRowSteps = (row, route = null) => {
 
 export const neutralStates = (steps) => steps.map(() => "neutral");
 
-export const progressStates = (steps, pressed) =>
-  steps.map((_, i) => (i < pressed ? "pressed" : "neutral"));
+// A pressed face means this exact step was accepted on the way to this route. Counting
+// accepted presses paints an unrelated continuation when routes branch: after `g n`, a
+// static `g Tab` route has one matching step, not two. Stop at the first divergence because
+// a sequence is ordered; a later coincidental letter is not part of the route taken.
+export const progressStates = (steps, pressed) => {
+  let matching = true;
+  return steps.map((step, i) => {
+    matching = matching && pressed[i] === step;
+    return matching ? "pressed" : "neutral";
+  });
+};
 
 export function keySequence(steps, states = neutralStates(steps), spokenSteps = steps) {
   if (

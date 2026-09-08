@@ -1,38 +1,69 @@
 name: ci
 
-# Pull requests repeat the local landing gate where `wt merge` does not run.
-# Pushes to main add the nightly browser and published-site integration suites.
-
+# Pull requests keep the landing signal narrow. Main adds the nightly surface in
+# four isolated groups, and the scheduled run guarantees one uncancelled daily
+# checkpoint even when main is moving continuously.
 on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "47 10 * * *"
+  workflow_dispatch:
 
-# One main run at a time, but never a cancelled one: the nightly suite outlasts
-# main's commit cadence, so a run cancelled by the next push leaves most commits
-# with no verdict. Queueing keeps the one-run ceiling — GitHub drops a superseded
-# *pending* run, so the queue never grows past the newest head — and lets each run
-# finish, which is also what makes the timeouts below reachable.
+# A newer revision replaces obsolete work for the same pull request or main.
+# Schedule and manual runs have distinct groups and are allowed to finish.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref || github.run_id }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 jobs:
-  test:
+  changes:
     runs-on: ubuntu-24.04
-    timeout-minutes: 105
-    env:
-      # Keep a human-readable slow-test census in the log. JUnit below carries the
-      # complete per-test outcomes and durations for comparisons across runs.
-      PYTEST_ADDOPTS: --durations=25 --durations-min=1
+    timeout-minutes: 5
+    outputs:
+      full: ${{ steps.select.outputs.full }}
+      has-test-modules: ${{ steps.select.outputs.has-test-modules }}
+      test-modules: ${{ steps.select.outputs.test-modules }}
 
     steps:
-      # Two commits, so a pull request's merge commit has its base parent and
-      # the touched-module step below can diff against it.
+      # Two commits give a pull request's merge commit its base parent.
       - name: 📂 Checkout code
         uses: actions/checkout@v7
         with:
           fetch-depth: 2
+
+      - name: Choose test surface
+        id: select
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" != pull_request ]; then
+            {
+              echo "full=true"
+              echo "has-test-modules=false"
+              echo "test-modules=[]"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          selection=$(git diff --name-only -z HEAD^1 HEAD | python3 tests/ci_selection.py)
+          echo "Changed-path selection: $selection"
+          {
+            echo "full=$(jq -r .full <<< "$selection")"
+            echo "has-test-modules=$(jq -r '.test_modules | length > 0' <<< "$selection")"
+            echo "test-modules=$(jq -c .test_modules <<< "$selection")"
+          } >> "$GITHUB_OUTPUT"
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PYTEST_ADDOPTS: --durations=25 --durations-min=1
+
+    steps:
+      - name: 📂 Checkout code
+        uses: actions/checkout@v7
 
       - uses: astral-sh/setup-uv@v7
 
@@ -42,53 +73,98 @@ jobs:
         run: uv run playwright install --with-deps chromium --only-shell
 
       - name: 🧪 Everyday suite
-        if: github.event_name == 'pull_request'
-        timeout-minutes: 45
         run: uv run pytest tests -v --junitxml=.tmp/test-results/everyday.xml
-
-      # The everyday suite deselects the nightly-marked modules, so a pull request
-      # whose whole diff is one of them goes green having run none of it: that is
-      # how #336 rewrote two render modules under a green gate and reddened main
-      # on the next push. Name the touched ones back. An explicit file selection
-      # runs what it names, `-m nightly` leaves the everyday cases in a mixed
-      # module to the step above rather than running them twice, and pytest's
-      # exit 5 is what a pull request that touches no nightly case gets. A change
-      # to the runtime the modules drive is still the nightly run's to catch;
-      # this reaches the modules themselves.
-      - name: 🧪 Nightly cases this pull request touches
-        if: github.event_name == 'pull_request'
-        timeout-minutes: 45
-        run: |
-          touched=()
-          while IFS= read -r module; do
-            if [ -f "$module" ]; then
-              touched+=("$module")
-            fi
-          done < <(git diff --name-only HEAD^1 HEAD -- 'tests/test_*.py')
-          if [ ${#touched[@]} -eq 0 ]; then
-            echo "No test module touched."
-            exit 0
-          fi
-          echo "Touched test modules: ${touched[*]}"
-          uv run pytest "${touched[@]}" -m nightly -v \
-            --junitxml=.tmp/test-results/touched-nightly.xml || [ $? -eq 5 ]
-
-      # `-v` names a stalled test. The step timeout makes a wedge a failure that
-      # `tend-ci-fix` can act on.
-      - name: 🧪 Nightly suite
-        if: github.event_name == 'push'
-        timeout-minutes: 90
-        run: |
-          uv run pytest tests --run-nightly -v \
-            --junitxml=.tmp/test-results/nightly.xml
 
       - name: Upload pytest results
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: pytest-results-${{ github.event_name }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .tmp/test-results/*.xml
-          if-no-files-found: ignore
+          name: pytest-results-everyday-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .tmp/test-results/everyday.xml
+          if-no-files-found: error
+          retention-days: 30
+
+  touched-nightly:
+    if: github.event_name == 'pull_request' && needs.changes.outputs.full == 'false' && needs.changes.outputs.has-test-modules == 'true'
+    needs: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3, 4]
+    env:
+      PYTEST_ADDOPTS: --durations=25 --durations-min=1
+      TEST_GROUP: ${{ matrix.group }}
+      TEST_MODULES_JSON: ${{ needs.changes.outputs.test-modules }}
+
+    steps:
+      - name: 📂 Checkout code
+        uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Install Chromium headless shell
+        run: uv run playwright install --with-deps chromium --only-shell
+
+      - name: 🧪 Touched nightly cases · group ${{ matrix.group }}
+        run: |
+          test_modules=()
+          while IFS= read -r module; do
+            test_modules+=("$module")
+          done < <(jq -r '.[]' <<< "$TEST_MODULES_JSON")
+          echo "Touched test modules: ${test_modules[*]}"
+          uv run pytest "${test_modules[@]}" -m nightly -v \
+            --splits 4 --group "$TEST_GROUP" --splitting-algorithm least_duration \
+            --durations-path .test_durations \
+            --junitxml=".tmp/test-results/touched-nightly-$TEST_GROUP.xml" \
+            || [ $? -eq 5 ]
+
+      - name: Upload pytest results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-results-touched-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .tmp/test-results/touched-nightly-${{ matrix.group }}.xml
+          if-no-files-found: error
+          retention-days: 30
+
+  nightly:
+    if: needs.changes.outputs.full == 'true'
+    needs: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3, 4]
+    env:
+      PYTEST_ADDOPTS: --durations=25 --durations-min=1
+      TEST_GROUP: ${{ matrix.group }}
+
+    steps:
+      - name: 📂 Checkout code
+        uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Install Chromium headless shell
+        run: uv run playwright install --with-deps chromium --only-shell
+
+      - name: 🧪 Nightly suite · group ${{ matrix.group }}
+        run: |
+          uv run pytest tests -m nightly -v \
+            --splits 4 --group "$TEST_GROUP" --splitting-algorithm least_duration \
+            --durations-path .test_durations \
+            --junitxml=".tmp/test-results/nightly-$TEST_GROUP.xml"
+
+      - name: Upload pytest results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-results-nightly-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .tmp/test-results/nightly-${{ matrix.group }}.xml
+          if-no-files-found: error
           retention-days: 30
 
   lint:

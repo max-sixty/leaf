@@ -47,15 +47,25 @@ uv run pytest --lf --lfnf=none -x -n0
 
 Before handing over a browser-facing change, run its complete browser file and
 the everyday suite. `wt merge` runs pre-commit and the everyday suite after
-rebasing. CI runs the everyday suite on a pull request and, after it, the nightly
-cases in the test modules that pull request touches, so a change confined to a
-nightly module is gated before it lands rather than by the run after it. A change
-to the runtime those modules drive is still the nightly run's to catch: CI adds
-`--run-nightly` after main moves.
+rebasing. Every pull request runs the everyday suite. A product or shared test
+harness change also runs the complete suite; a change confined to test modules
+runs those modules' nightly cases; Markdown prose and other workflow changes stop
+at the everyday suite. The extended cases use four isolated CI jobs, while the
+two-worker pytest default still caps the browser load inside each job.
+
+Main runs those same four groups without blocking a merge. A newer main commit
+cancels obsolete groups, while a separate daily run always finishes a complete
+checkpoint. Pytest-split balances both surfaces from `.test_durations`; refresh
+that file when the four job times diverge materially:
+
+```sh
+uv run pytest tests -m nightly -n 0 --store-durations --clean-durations
+```
 
 `scripts/linux-suite.sh` supplies the pinned headless shell, installed Chrome,
-and CI fonts. It accepts pytest arguments and needs a Docker daemon that can run
-`linux/amd64`.
+and CI fonts. Its default reproduces the everyday job; pass a failed nightly
+job's group and split arguments to reproduce that job's exact selection. It
+needs a Docker daemon that can run `linux/amd64`.
 
 The developer environment comes from the one `pyproject.toml` and `uv.lock` at
 the repo root, which is also the payload project: `uv sync` installs `leaf`
@@ -523,10 +533,9 @@ Register the route before the gesture whose request it must catch. For initial
 navigation, attach it through `primed` so no request is already in flight.
 
 That rule is about the page. A fact the driver loses on its way out of the
-browser is not a page state any route can arrange: `opened_tab` makes the press
-again because Chromium made the tab every time and Playwright reported none of
-the lost ones. Reach for a repeat only with the browser's own record showing the
-subject did its part, and say so where the repeat is written.
+browser is not a page state any route can arrange: `opened_tab` observes the
+browser's target list because Playwright can lose the Page for a tab Chromium
+opened. Observe the browser's own record rather than repeating the gesture.
 
 Install a hold on the page's first POST before navigation: `held_events`
 supplies this for event requests, and `primed` lets a test prepare other routes.

@@ -593,9 +593,9 @@ const availableActions = () => {
   const reserved = new Set(
     actions.map(({ binding }) => binding).filter((binding) => binding !== null),
   );
-  // Generated addresses are bindings too. Read them through the same preference filter
-  // as declared package keys; otherwise a non-character action can keep the row live
-  // while its words still name contextual actions the dispatcher has removed.
+  // Generated addresses are bindings too. Read them through the same projection as
+  // declared package keys so their words cannot name contextual actions the dispatcher
+  // has removed.
   const contextual = bindings({
     keys: Array.from({ length: MAX_ASK_ACTIONS }, (_, index) => String(index + 1)),
   }).filter((binding) => !reserved.has(binding));

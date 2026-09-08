@@ -2,7 +2,7 @@
    parsed, what a row's fields mean, and the checks a declaration passes on its way in.
 
    Binding spelling is canonical: modifiers are ordered `Mod`, `Alt`, `Shift`, and
-   character keys are lowercase. A produced punctuation glyph carries no Shift prefix
+   single-letter keys are lowercase. A produced punctuation glyph carries no Shift prefix
    because the keyboard layout owns that modifier. Validate that form when a scope enters
    the register and compare canonical identities when checking ownership; modifier order
    and letter case do not make distinct presses in the dispatcher.
@@ -35,7 +35,7 @@
      the field was optional and its absence read exactly like a decision. A row with no
      `run` may carry one all the same, since a press can be real and immediate without
      being the runtime's: Enter opens the focused leaf because the row is a link. What
-     carries no word is reference, named in the "?" dialog and never promised as the
+     carries no word is reference, named in the "?" overlay and never promised as the
      next press — F7, ⌥ click, a press on a draft's own box.
    - `lineWhen` is optional projection-only visibility on the shortcut bar. Unlike `when`, it
      never changes whether the command dispatches or appears in the reference, and an
@@ -86,23 +86,21 @@
    liveness predicate changes.
 
    A run-less row may still project a native press when that meaning is worth naming in
-   the shortcut reference, but it never reimplements the press.
+   help, but it never reimplements the press.
 
    `aria-keyshortcuts` is another projection of the register. Element scopes expose their
    currently available rows, including the scope's capability gate, and a row's `control`
    exposes the key that duplicates it. `Mod` expands to both Meta and Control because the
-   dispatcher accepts both. The attribute cannot express a multi-step key sequence: spaces
+   dispatcher accepts both. The attribute cannot express a sequential sequence: spaces
    separate alternatives. An associated `control` in a sequence scope therefore omits
    `aria-keyshortcuts` and exposes the complete route through its title and the keyboard
    reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
-// Which platform's spelling, and which modifier a shortcut uses. Up here rather than beside
+// Which platform's spelling, and which modifier is the sequence's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
-import { readerStore } from "../storage.js";
-
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
-// How a key is spelled, in one column. The line said "esc" where the dialog said "Esc"
+// How a key is spelled, in one column. The line said "esc" where the overlay said "Esc"
 // for the same binding, and lf-options declared one pair of arrows twice, as "↑ / ↓" and
 // "↑ ↓" — which is what a spelling kept per surface costs.
 const GLYPH = {
@@ -170,31 +168,12 @@ export const spokenBinding = (binding) => {
 // of the page. That is what lets a key whose meaning moves say the meaning it has: the
 // surfaces render this press rather than the set of presses the key could be.
 export const word = (cell) => (typeof cell === "function" ? cell() : cell);
-// Readers who use speech input or are prone to stray presses must be able to turn off
-// character-only shortcuts. Keep that preference inside the binding vocabulary so the
-// dispatcher and every projection lose the same keys together. Shift still produces a
-// character and does not exempt a shortcut; Mod and Alt make it a modified command.
-// A reader preference, not page state: it follows them across Leaf pages, while the
-// visible More button keeps the setting reachable when its own `?` shortcut is off.
-export const CHARACTER_KEY_SHORTCUTS_KEY = "lf-character-key-shortcuts";
-let characterKeyShortcutsOn = readerStore.get(CHARACTER_KEY_SHORTCUTS_KEY) !== "0";
-export const characterKeyShortcuts = () => characterKeyShortcutsOn;
-export function setCharacterKeyShortcuts(on) {
-  characterKeyShortcutsOn = on;
-  readerStore.set(CHARACTER_KEY_SHORTCUTS_KEY, on ? null : "0");
-}
-const characterBinding = (binding) => {
-  const { key, mods } = parsed(binding);
-  // Space activates native and offered buttons; it is not the letter/number/punctuation
-  // shortcut the preference promises to silence.
-  return key !== " " && [...key].length === 1 && mods.every((mod) => mod === "Shift");
-};
 export const declaredBindings = (row) => word(row.keys) ?? [];
 export const commandRoutes = (row) => word(row.routes) ?? [];
-export const bindings = (row) =>
-  declaredBindings(row).filter(
-    (binding) => characterKeyShortcuts() || !characterBinding(binding),
-  );
+// TODO(2026-09-07): Let people and host agents configure character key shortcuts through a
+// reader-configuration surface. Apply that setting here so dispatch and every projection
+// continue to consume one binding vocabulary.
+export const bindings = declaredBindings;
 // The command identities under one row. Equivalent bindings keep the row's identity
 // and share its implementation; distinct results are routes and expose only those exact
 // identities. Dispatch and every command-facing projection consume this split.
@@ -234,7 +213,7 @@ export const labelOf = (row) => {
   return row.decision !== undefined ? decisionName(row) : "";
 };
 // Whether a row is live right now, asked through one predicate by the dispatcher, the line
-// and the dialog alike, so no surface can promise a press the dispatcher refuses. A guard
+// and the overlay alike, so no surface can promise a press the dispatcher refuses. A guard
 // inside `run` instead is a liveness no surface can see.
 export const live = (row) => !row.when || row.when();
 
@@ -283,9 +262,9 @@ function validateActive(active, where, bindingOf) {
   return active;
 }
 
-// A scope's own validation, run when its first paint reads the rows, deliberately ignores
-// the reader's character key shortcut preference. A saved preference must not let an ambiguous
-// register stand and then fail halfway through turning the commands back on.
+// A scope's own validation, run when its first paint reads the rows, checks the declared
+// vocabulary rather than a projection of it. A projection must not conceal an ambiguous
+// register and let it fail only after the projection changes.
 export const validateRows = (rows, where = "a scope") =>
   validateActive(rows.filter(live), where, declaredBindings);
 
@@ -360,7 +339,7 @@ export function decisionControls(commands, where = "an Ask") {
 
 // The register's machine-readable spelling for assistive technology. `Mod` is the one
 // visual key the platform chooses, while the dispatcher deliberately accepts either
-// Control or Meta; aria-keyshortcuts therefore states both working shortcuts. Native Space
+// Control or Meta; aria-keyshortcuts therefore states both working sequences. Native Space
 // uses the named key ARIA expects rather than a literal blank token.
 const ariaBindings = (binding) => {
   const { key, mods } = parsed(binding);
@@ -381,7 +360,7 @@ export const ariaShortcuts = (rows, current = true, where) =>
   ].join(" ");
 
 // Does this press answer this binding? Modifiers are matched exactly, so ⌘D is the
-// browser's bookmark rather than a page command, and ⌥ stays modifier aim's alone.
+// browser's bookmark rather than a page command, and ⌥ stays the aim sequence's alone.
 //
 // A letter matches on its lowercase with Shift asked for separately, because caps lock
 // writes an uppercase key out of an unshifted press and reads an unshifted one out of a

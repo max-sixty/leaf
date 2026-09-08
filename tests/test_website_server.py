@@ -189,6 +189,7 @@ def test_a_product_route_uses_the_same_real_page_server(
         document, _ = get(f"{root}{page_root}/")
         assert b"data-lf-site" not in document
         assert f'data-lf-entry="{page_root}/leaf.js"'.encode() in document
+        assert get(f"{root}{page_root}/sitenote.js")[0] == b"export {};"
         state = json.loads(get(f"{root}{page_root}/api/state")[0])
         assert state["publication"] == {
             "kind": "product",

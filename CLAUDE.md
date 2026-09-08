@@ -185,9 +185,9 @@ uv run pytest tests
 
 `tests/CLAUDE.md` owns environment setup, focused runs, nightly selection, and
 the Linux suite. `wt merge` runs pre-commit and the everyday suite on the rebased
-tree. Pull requests run the same gate in CI, and add the nightly cases in the
-test modules the pull request touches. CI adds the complete nightly suite after
-main moves.
+tree. Pull requests run the same gate in CI and add the extended surface selected
+by `tests/CLAUDE.md`. Main and its daily checkpoint run the everyday suite once
+and the nightly surface in four isolated groups.
 
 That suite reads one file under `worker/`: `tests/test_website_server.py` loads
 `worker/server.py` and drives the route adapter, and pre-commit's ruff hooks

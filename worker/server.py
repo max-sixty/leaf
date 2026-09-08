@@ -47,7 +47,7 @@ PRODUCT_ROUTES = {
 }
 PAGE_RESOURCE = re.compile(
     r"^/(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:/|$)"
-    r"|^/(?:icon\.svg|leaf\.js|registry\.json|theme\.css)$"
+    r"|^/(?:icon\.svg|leaf\.js|registry\.json|sitenote\.js|theme\.css)$"
 )
 AGENT_EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 AGENT_TURN_PATH = "/_leaf/agent/turn"

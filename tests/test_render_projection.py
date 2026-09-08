@@ -1160,6 +1160,10 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
         assert held[0].request.headers.get("leaf-view-revision") == "1", (
             "the held read was not the one taken on the first revision"
         )
+        generation = json.loads((serve.page_dir / "registry.json").read_text())[
+            "$layer"
+        ]["generation"]
+        assert held[0].request.headers.get("leaf-layer") == generation
         heard = _traffic(page).heard
         release_the_held_read()
         _until(page, lambda t: t.heard > heard, "a state answer came back")
@@ -1714,8 +1718,8 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
 ):
     """The agent channel, end to end in the browser: a `leaf report` reaches
     the open page on the next poll and paints as provisional news — the status
-    attribute moves, the parent's done-fraction recounts, the element wears
-    data-lf-reported rather than the reader-origin mark. Task status remains work
+    attribute moves, the parent's done-fraction recounts, and Page map identifies a
+    Reported update rather than the reader's change. Task status remains work
     state and never creates a reader request. Then the version that answers the report
     by id takes the page back: replay skips a report the note named, so the overruling
     version's own state is what renders, with no provisional mark left on it. Last, the
@@ -1738,6 +1742,15 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     expect(task).to_have_attribute("status", "review")
     expect(task).to_have_attribute("data-lf-reported", "1")
     expect(task).not_to_have_attribute("data-lf-reader-override", "1")
+    page.evaluate(
+        "async () => (await import('/runtime/living-margin.js')).enterPageMap()"
+    )
+    report_reading = page.get_by_role(
+        "button", name=re.compile(r"^Open reported update: Reported update")
+    )
+    expect(report_reading).to_be_visible()
+    page.keyboard.press("Escape")
+    assert task.evaluate("el => getComputedStyle(el).outlineStyle") == "none"
     # The marker is paint, so the word beside it (x-paints) has to move with the
     # attribute or a reader listening is told what the page said a poll ago.
     assert "review" in task.aria_snapshot()
@@ -2664,6 +2677,45 @@ customElements.define("lf-tally", class extends HTMLElement {
     page.close()
 
 
+def test_state_origin_readings_compose_on_one_target(browser, serve):
+    """Each provenance channel gets one standing reading on a target.
+
+    Independent reader facets collapse to one Page-map reading, while reader, report,
+    and restatement origins remain separate. An outline property could only show the
+    last of these; the projection handed to the margin must preserve all three.
+    """
+    page, errors = open_page(browser, serve(REPORT_PAGE))
+    origins = page.evaluate(
+        """async () => {
+          const {stateOrigins} = await import('/runtime/projection/fold.js');
+          const entry = (id, kind, facet) => ({
+            unit: 't-parser',
+            e: {id, kind},
+            spec: {facet, record: null},
+            value: null,
+          });
+          const projection = {
+            classified: new Map([
+              ['old-reader', {e: {id: 'old-reader'}, restated: ['t-parser']}],
+            ]),
+            desired: new Map([
+              ['reader-status', entry('reader-status', 'action', 'status')],
+              ['reader-owner', entry('reader-owner', 'action', 'owner')],
+              ['report-progress', entry('report-progress', 'report', 'progress')],
+            ]),
+          };
+          return stateOrigins(projection);
+        }"""
+    )
+    assert origins == [
+        {"origin": "restated", "unit": "t-parser"},
+        {"origin": "reader", "unit": "t-parser"},
+        {"origin": "reported", "unit": "t-parser"},
+    ]
+    assert errors == []
+    page.close()
+
+
 def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
     browser, serve, tmp_path, monkeypatch
 ):
@@ -3262,10 +3314,11 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
 
 
 def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
-    """A move outlives its notice: the card the user moved stays visibly
-    marked as overriding authored placement and its grip says so, in the tab that moved
-    it and in a fresh replay alike, because the runtime compares the page's state
-    against the version's own snapshot rather than remembering who wrote what.
+    """A move outlives its notice: the card the user moved stays explicitly
+    identified as overriding authored placement in the tab that moved it and in a fresh
+    replay alike, because the runtime compares the page's state against the version's
+    own snapshot rather than remembering who wrote what. The runtime's quiet word and
+    Page-map entry carry that origin while the grip names the move and its destination.
     The card the move displaced stays unmarked — the log named one card, not its
     neighbours. The honoring version says the state itself, so on it the
     disagreement and both renderings are gone."""
@@ -3287,29 +3340,38 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     expect(
         page.get_by_role(
             "button",
-            name="Move: Wire the importer — Done — your move",
+            name="Move: Wire the importer — Done",
             exact=True,
         )
     ).to_be_visible()
 
-    # A fresh tab reads the same fact from replay alone, and paints both its
-    # visible outline and its durable spoken state.
+    # A fresh tab reads the same fact from replay alone, and paints both its Page-map
+    # reading and its durable spoken state.
     second, second_errors = open_page(browser, url)
     expect(second.locator("#card-importer")).to_have_attribute(
         "data-lf-reader-override", "1"
     )
+    expect(second.locator("#card-importer > .lf-quiet")).to_have_text("your change")
     expect(
         second.get_by_role(
             "button",
-            name="Move: Wire the importer — Done — your move",
+            name="Move: Wire the importer — Done",
             exact=True,
         )
     ).to_be_visible()
+    second.evaluate(
+        "async () => (await import('/runtime/living-margin.js')).enterPageMap()"
+    )
+    reader_origin = second.get_by_role(
+        "button", name=re.compile(r"^Open your change: Your change")
+    )
+    expect(reader_origin).to_be_visible()
+    second.keyboard.press("Escape")
     assert (
         second.locator("#card-importer").evaluate(
             "el => getComputedStyle(el).outlineStyle"
         )
-        == "solid"
+        == "none"
     )
     second.evaluate("""() => {
         window.__originWrites = [];
@@ -3340,6 +3402,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     expect(third.locator("#card-importer")).not_to_have_attribute(
         "data-lf-reader-override", "1"
     )
+    expect(third.locator("#card-importer > .lf-quiet")).to_have_count(0)
     expect(
         third.get_by_role("button", name="Move: Wire the importer — Done", exact=True)
     ).to_be_visible()
@@ -3839,7 +3902,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     page.close()
 
 
-def test_a_message_reference_travels_or_says_it_cant(browser, serve):
+def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_reader):
     """A message can point at the page with a fragment link, and the platform is what
     carries the reader: collapsed content wears hidden="until-found", so the jump
     fires beforematch and the tab holding the target opens itself. That half is
@@ -3863,7 +3926,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve):
             "text": "See [the bath](#p-bath), not [the old note](#gone).",
         },
     )
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, url, context=one_reader)
     page.locator(".lf-threads-toggle").click()
 
     live = page.locator('.lf-msg-body a[href="#p-bath"]')
@@ -3884,9 +3947,13 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve):
     # (landArrival). Nothing of this tab travels with it; the new one starts empty.
     # Which sequence opens that tab is the platform's answer rather than one this suite
     # holds — ⌘ where it was written, ⌃ where CI runs it — so the press names the
-    # gesture and lets Playwright spell it. Named outright, the Linux press opened
-    # nothing at all and the wait for the tab ran its full 30s before saying so.
-    tab = opened_tab(page, lambda: live.click(modifiers=["ControlOrMeta"]))
+    # gesture and the browser's target record proves where it opened.
+    destination = live.evaluate("link => link.href")
+    tab = opened_tab(
+        page,
+        destination,
+        lambda: live.click(modifiers=["ControlOrMeta"]),
+    )
     tab.wait_for_function(BOTH_STAMPS)
     tab.wait_for_function(
         """() => { const r = document.getElementById('p-bath').getBoundingClientRect();

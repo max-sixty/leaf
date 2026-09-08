@@ -2,6 +2,8 @@
 
 export const SESSION_COOKIE = "__Host-leaf-page";
 export const HTTP_SESSION_COOKIE = "leaf-page-local";
+export const CONTAINER_COOKIE = "__Host-leaf-container";
+export const HTTP_CONTAINER_COOKIE = "leaf-container-local";
 
 export interface PageRoute {
   root: string;
@@ -12,7 +14,7 @@ export interface PageRoute {
 const PRODUCT_ROOTS = ["/examples", "/how-it-works", "/packages", "/registry"];
 const PRODUCT_ROOT_SET = new Set(["/", ...PRODUCT_ROOTS]);
 const PAGE_RESOURCE =
-  /^(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:\/|$)|^(?:icon\.svg|leaf\.js|registry\.json|theme\.css)$/;
+  /^(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:\/|$)|^(?:icon\.svg|leaf\.js|registry\.json|sitenote\.js|theme\.css)$/;
 const EXAMPLE_ROUTE = /^\/examples\/([a-z0-9-]+)(?:\/(.*))?$/;
 const EXAMPLE_WITHOUT_SLASH = /^\/examples\/[a-z0-9-]+$/;
 const SESSION_ID = /^[0-9a-f]{32}$/;
@@ -94,6 +96,17 @@ export function sessionFromCookie(
   return null;
 }
 
+export function containerFromCookie(
+  cookie: string | null,
+  secure: boolean,
+): boolean {
+  if (cookie === null) return false;
+  const expected = secure ? CONTAINER_COOKIE : HTTP_CONTAINER_COOKIE;
+  return cookie
+    .split(";")
+    .some((item) => item.trim() === `${expected}=1`);
+}
+
 export function newSessionId(random: Uint8Array): string {
   if (random.byteLength !== 16) {
     throw new Error("a Leaf website session id needs exactly 16 random bytes");
@@ -106,4 +119,16 @@ export function sessionCookie(sessionId: string, secure: boolean): string {
   const name = secure ? SESSION_COOKIE : HTTP_SESSION_COOKIE;
   const security = secure ? "; Secure" : "";
   return `${name}=${sessionId}; Path=/${security}; HttpOnly; SameSite=Lax`;
+}
+
+export function containerCookie(secure: boolean): string {
+  const name = secure ? CONTAINER_COOKIE : HTTP_CONTAINER_COOKIE;
+  const security = secure ? "; Secure" : "";
+  return `${name}=1; Path=/${security}; HttpOnly; SameSite=Lax`;
+}
+
+export function clearContainerCookie(secure: boolean): string {
+  const name = secure ? CONTAINER_COOKIE : HTTP_CONTAINER_COOKIE;
+  const security = secure ? "; Secure" : "";
+  return `${name}=; Path=/; Max-Age=0${security}; HttpOnly; SameSite=Lax`;
 }

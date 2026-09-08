@@ -64,6 +64,7 @@ from render_support import (
     banner_address,
     compare_with,
     holding,
+    shortcut_bar_text,
     leaf_page,
     live_url,
     open_page,
@@ -75,7 +76,6 @@ from render_support import (
     select,
     sending,
     sent_events,
-    shortcut_bar_text,
     stamp_page,
     stamp_version_file,
     told,
@@ -1432,7 +1432,15 @@ def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser,
     assert markers[-1] <= nav_box["y"] + nav_box["height"]
 
     page.mouse.move(nav_box["x"] + 30, nav_box["y"] + 100)
-    page.wait_for_timeout(300)
+    page.wait_for_function(
+        """nav => {
+          const hovered = nav.querySelector('li:hover a');
+          return hovered
+            && getComputedStyle(hovered).opacity === '1'
+            && hovered.getAnimations().every(m => m.playState === 'finished');
+        }""",
+        arg=nav.element_handle(),
+    )
     shown = nav.locator(".lf-toc-start a, li a").evaluate_all(
         "links => links.filter(link => getComputedStyle(link).opacity === '1')"
         ".map(link => link.textContent || link.getAttribute('aria-label'))"
@@ -1689,7 +1697,8 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
     generated content, so the name reaching the tree once (as the list's) rather
     than twice depends on its alt text. Then a card moves, and the assertion is
     the second snapshot — a name set where the move happens goes stale on
-    whichever path forgets to restate its location or durable pending state."""
+    whichever path forgets to restate its location. The runtime's one quiet origin word
+    remains on the card rather than being repeated in the Move control's name."""
     page, errors = open_page(browser, serve(BOARD_PAGE))
     board = page.locator("#sprint")
 
@@ -1713,10 +1722,11 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
     expect(
         board.get_by_role(
             "button",
-            name="Move: Squirrel baffle — Done — your move",
+            name="Move: Squirrel baffle — Done",
             exact=True,
         )
     ).to_be_visible()
+    expect(page.locator("#card-baffle > .lf-quiet")).to_have_text("your change")
 
     assert board.aria_snapshot() == (
         '- list "Todo":\n'
@@ -1726,7 +1736,8 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         '- list "Done":\n'
         "  - listitem:\n"
         "    - strong: Squirrel baffle\n"
-        "    - 'button \"Move: Squirrel baffle — Done — your move\"': ⠿"
+        "    - text: your change\n"
+        "    - 'button \"Move: Squirrel baffle — Done\"': ⠿"
     )
     assert errors == []
     page.close()
@@ -2086,9 +2097,7 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     # the Decision action name is not a keycap override.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    pass_reference = page.locator(
-        '.lf-shortcut-reference tr[data-lf-command="swipe.pass"]'
-    )
+    pass_reference = page.locator('.lf-shortcut-reference tr[data-lf-command="swipe.pass"]')
     expect(pass_reference.locator("kbd")).to_have_text("←")
     expect(pass_reference.locator(".lf-key-sequence")).to_have_attribute(
         "aria-label", "ArrowLeft"
@@ -2113,16 +2122,14 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     # The reference exposes the same exact routes as their inline bindings.
     page.keyboard.press("?")
     page.keyboard.press("?")
+    expect(page.locator('.lf-shortcut-reference-command[data-lf-command="swipe.pass"]')).to_have_text(
+        "Activate the “Pass” action"
+    )
+    expect(page.locator('.lf-shortcut-reference-command[data-lf-command="swipe.keep"]')).to_have_text(
+        "Activate the “Keep” action"
+    )
     expect(
-        page.locator('.lf-shortcut-reference-command[data-lf-command="swipe.pass"]')
-    ).to_have_text("Activate the “Pass” action")
-    expect(
-        page.locator('.lf-shortcut-reference-command[data-lf-command="swipe.keep"]')
-    ).to_have_text("Activate the “Keep” action")
-    expect(
-        page.locator(
-            '.lf-shortcut-reference-command[data-lf-command="ask.activate-nth"]'
-        )
+        page.locator('.lf-shortcut-reference-command[data-lf-command="ask.activate-nth"]')
     ).to_have_count(0)
     page.keyboard.press("Escape")
 
@@ -2161,51 +2168,6 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     page.keyboard.press("a")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-    assert errors == []
-    page.close()
-
-
-def test_character_key_shortcuts_off_removes_a_contextual_ask_digit(browser, serve):
-    """A live arrow cannot keep filtered contextual actions on the shortcut bar."""
-    page, errors = open_page(
-        browser,
-        serve(SHORT_SUGGESTION),
-        init_script="localStorage.setItem('lf-character-key-shortcuts', '0')",
-    )
-    page.evaluate(
-        """async () => {
-          const {commands} = await import('/runtime/widget-api.js');
-          const suggestion = document.getElementById('sug');
-          const inspect = document.createElement('button');
-          inspect.textContent = 'Inspect';
-          inspect.onclick = () => { inspect.dataset.activated = '1'; };
-          suggestion.append(inspect);
-          commands(inspect, 'Explicit non-character action', [{
-            id: 'test.inspect-left',
-            keys: ['ArrowLeft'],
-            control: inspect,
-            decision: 'Inspect',
-            does: 'Inspect this suggestion',
-            line: 'Inspect',
-            run: () => inspect.click(),
-          }]);
-        }"""
-    )
-
-    page.locator(".lf-asks").click()
-    page.locator("button.lf-asks-row").click()
-    expect(page.locator("#sug")).to_be_focused()
-    assert "←\nInspect" in shortcut_bar_text(page)
-    assert "Accept / Reject" not in shortcut_bar_text(page)
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text("←")
-
-    before = len(actions(serve.page_dir))
-    page.keyboard.press("1")
-    assert len(actions(serve.page_dir)) == before
-    page.keyboard.press("ArrowLeft")
-    expect(page.get_by_role("button", name="Inspect", exact=True)).to_have_attribute(
-        "data-activated", "1"
-    )
     assert errors == []
     page.close()
 
@@ -4038,9 +4000,7 @@ def test_ask_contextual_addresses_skip_explicit_numeric_bindings(browser, serve)
     # reader enters the Ask, that projection presents the binding it actually resolves.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    inspect_reference = page.locator(
-        '.lf-shortcut-reference tr[data-lf-command="test.inspect"]'
-    )
+    inspect_reference = page.locator('.lf-shortcut-reference tr[data-lf-command="test.inspect"]')
     expect(inspect_reference.locator("kbd")).to_have_text("I")
     expect(inspect_reference.locator(".lf-key-sequence")).to_have_attribute(
         "aria-label", "I"
@@ -4198,7 +4158,7 @@ def test_ask_option_addresses_stay_one_projection_when_focus_enters_a_card(
     page.close()
 
 
-def test_ask_addresses_do_not_cover_their_shortcut_bar_text(browser, serve):
+def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
     """A row address that reaches the shortcut bar yields to the legend naming its digit."""
     page, errors = open_page(browser, serve(ADDRESS_PAGE))
     resized(page, 900, 520)
@@ -5138,10 +5098,7 @@ def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(
 
     page.keyboard.press("Enter")
     expect(page.locator("#storage-decision")).to_be_focused()
-    assert (
-        "1–2\nDrop the oldest documents / Pause offline editing"
-        in shortcut_bar_text(page)
-    )
+    assert "1–2\nDrop the oldest documents / Pause offline editing" in shortcut_bar_text(page)
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#storage-evict")).to_have_attribute("chosen", "")
@@ -5209,9 +5166,7 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     expect(row.locator(".lf-asks-answer")).to_have_text("Accepted")
     row.click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
-    undo = page.locator(
-        '[data-lf-for="sug-delete"] [data-lf-margin-element-key="undo"]'
-    )
+    undo = page.locator('[data-lf-for="sug-delete"] [data-lf-margin-element-key="undo"]')
     expect(undo).to_be_focused()
     assert "1\nUndo" in shortcut_bar_text(page)
 

@@ -110,7 +110,7 @@ subscriptions;
 `bindings.js` the spelling, parsing, row fields, and checks; `scopes.js` where a group
 of rows applies; `dispatch.js` which scope answers a press and what it owes the
 platform; `return-stack.js` what a keyboard entry owes on the way back out;
-`shortcut-bar.js` the contextual shortcuts at the foot of the page and its More control;
+`shortcut-bar.js` the status and short help at the foot of the page and its More control;
 `reference.js` the complete listing behind `?`; `address.js` the go-to sequence;
 `address-placement.js` shared address visibility and the numeric Ask placement pass;
 `hints.js` prefix-free transient labels and their no-drop placement pass;
@@ -379,7 +379,7 @@ textual view while the owner exists in the current document. A declared
 projected datum. The widget owns only the outlet's layout and visibility; core owns the
 messages, replies, reactions, settlement, receipts, focus, and fallback. The living
 margin carries a thread while no widget claims it, and the Threads panel remains the
-complete index. With the panel closed, a Thread margin element and the `t`/`T` walk use that
+complete index. With the panel closed, a thread margin element and the `t`/`T` walk use that
 inline seat; with it open, they use its indexed cards. A press on a marked passage or its
 accessible comment-count note follows the same rule. Opening Threads while an inline
 thread holds focus carries that thread into the panel and keeps focus on its card.
@@ -441,7 +441,7 @@ The extension keys describe general behavior:
 | `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for an Ask |
 | `x-conversation` | the condition under which the widget owns a conversation seat, and whether its root requires a version response |
 | `x-thread-surface` | the upgraded widget may provide local outlets for complete Threads anchored to its exact projected data |
-| `x-work` | admits local agent work without a pending reader move, through a content or conversation seat and optional condition; an admitted page-widget claim then appears at the page edge through its Target margin element |
+| `x-work` | admits local agent work without a pending reader move, through a content or conversation seat and optional condition; an admitted page-widget claim then appears at the page edge through its target margin element |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
 | `x-wide` | whether width follows a box or a drawing |
 
@@ -549,10 +549,6 @@ of rows applies and which platform keys that context claims. The dispatcher,
 shortcut bar, `?` reference, control tooltips, and announcements are projections of
 those objects.
 
-Use **keyboard shortcut** for any keyboard invocation, **key combination** for keys
-pressed together (`Mod+Enter`), and **key sequence** for presses in order (`g`, then
-`t`). The footer is the **shortcut bar**; `?` opens the **shortcut reference dialog**.
-
 Treat that register as a product grammar, not a collection of locally convenient
 shortcuts. Before adding or changing a binding, survey the complete register for
 meaning, scope, native overlap, entry and exit symmetry, and focus restoration.
@@ -560,8 +556,8 @@ Each generated hint names the exact visible control it activates. An aggregate l
 may expose each of its visible margin elements or focus itself; it never selects a descendant
 action for the reader. A press a widget built is one of those controls too, read off the
 value `offer` and `selectableOffer` write: the tag for a button, the role for a selectable
-offer. That lets a command omit a page-level letter without becoming unreachable: the row
-describes the command, and the sequence reaches each control that invokes it. The
+offer. That is what lets a capability decline a page letter without becoming unreachable —
+the row states the capability, and the sequence reaches each control that routes to one. The
 reading stops where the theme's hand stops, because it is the same reading. A widget that
 builds its press as some other native control gets the empty string, the value naming the
 tag rather than pressability, and still spends a binding to make that press reachable.
@@ -569,17 +565,33 @@ Document every inconsistency the survey exposes in the task handoff. If the rule
 here do not settle one, escalate it to the user before choosing locally; the
 absence of a dispatch conflict does not make a binding precise.
 
+A sequential key route is rendered as one box per physical step. The boxes stay close
+enough to read as one route. In an active mode, only the longest leading sequence that
+matches presses the mode accepted wears the pressed face; another route's next key stays
+neutral. A visible control's transient destination uses the same detached overlay shape as
+a generated target hint. The placement pass centers it in the open space immediately below
+and keeps it clear of its control if it must use another side. It stands only while its sequence
+is active; the complete reference and control tooltip keep the route available at rest.
+
+The complete reference gives each distinct filter or destination its own command row.
+Search preserves a typed trailing separator and case: a query such as `g ` asks for sequence
+continuations, and `g t` ranks the lowercase filter ahead of `g T`. Every declared
+alternative is indexed from the register even when its rendered cell compacts alternatives
+into one face. All binding-prefix matches lead the result list across scopes; prose and
+scope matches follow them. The visible row order is the keyboard command-rail order too.
+
 ### Page scope rows (keyboard/page.js)
 
-The register owns commands, not controls. Every command the chrome offers has a row,
-and each control that invokes one is named by `control`; a second control that invokes
-the same command needs no second row. A run heading in the thread panel moves the
-page to where that run is about. That navigation is a command, just as `w` and `/`
-are commands no control invokes, and each earns a row. A command with
+The register owns capabilities, not controls. Every capability the chrome offers
+has a row, and each control that reaches one is named by `control`; a
+control is a route to a capability rather than a capability of its own, so a
+second route needs no second row. A run heading in the thread panel presses the
+page to where that run is about. That travel is a capability, just as `w` and `/`
+are capabilities nothing else reaches, and each earns a row. A capability with
 no row is one the shortcut bar never advertises,
 the reference never lists, and a reader working from the keyboard never finds,
 because those three are projections of the register. Add the row in the change
-that adds the command.
+that adds the capability.
 
 Directional category walks use the category's letter, with case stating direction:
 lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
@@ -590,9 +602,9 @@ thread with no page or widget-local inline address opens the complete index as a
 While the reader stands anywhere in an Ask, its widget's
 ordered actions keep a canonical binding where they declare one and otherwise take the
 next free `1`–`9`. Core projects that exact list into the shortcut bar and visible control
-chips. Each action has one command id. Dispatch, the reference, the shortcut bar, its
-address, and `aria-keyshortcuts` all use that id; core does not mint a second identity for
-the projection. Tab
+chips. Each action is a command route; that route is the one
+binding-to-control identity used by dispatch, the reference, the shortcut bar, its address,
+and `aria-keyshortcuts`; core does not mint a second identity for the projection. Tab
 walks the real controls without replacing that action map;
 a control's scope adds only its native or local mechanics. `j`/`k` scroll
 down/up by 60 pixels; `d`/`u` move 60% of
@@ -600,8 +612,9 @@ the reading page. Both follow the active region, share a quick glide, and jump u
 reduced motion. Native Space stays with the platform and focused controls. Other letters come
 from words the surface says: `w` narrows to threads waiting on the reader while focus is
 in that panel, and enters Draw mode from the page. The Go-to sequence
-(`keyboard/address.js`) uses case to separate complete destinations from numbered
-lists. A key spelling something nothing on screen says is a key nobody reaches for twice.
+(`keyboard/address.js`) uses uppercase letters for named destinations and lowercase
+letters for target-kind filters and generated hints. A key spelling something nothing on
+screen says is a key nobody reaches for twice.
 Approval spends no fixed page letter: its visible button stays in the Tab order and takes
 native Enter or Space, while the Ask-local list gives it a contextual binding. In particular,
 a conditional sequence mnemonic must not share its final key
@@ -640,7 +653,7 @@ between two meanings for `c`.
 Each composition box's placeholder — the general box, each per-thread reply, the compact
 anchored composer, and composition boxes contributed by widgets — adds the live key that
 enters that exact box when one exists. Once focused, it adds the box's registered
-submission shortcut. The accessible name states the box's purpose without either key, and
+submission sequence. The accessible name states the box's purpose without either key, and
 placeholder text uses the theme's muted text color at full opacity.
 
 That the page row reaches into Threads is not an exception. Page scope already crosses

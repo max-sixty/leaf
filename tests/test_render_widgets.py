@@ -1020,12 +1020,15 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
           const box = item.getBoundingClientRect();
           return {content: style.content, width: style.width, height: style.height,
                   color: style.backgroundColor, x: box.x + parseFloat(style.left),
-                  y: box.y + parseFloat(style.top)};
+                  y: box.y + parseFloat(style.top), rowY: box.y};
         })"""
     )
     assert markers[0]["content"] == '""' and markers[0]["width"] == "3px"
     assert markers[0]["color"] != "rgba(0, 0, 0, 0)"
     assert len({round(marker["x"]) for marker in markers}) == 1
+    assert all(
+        marker["y"] == pytest.approx(marker["rowY"] + 7, abs=1) for marker in markers
+    )
     assert markers[-1]["y"] > nav_box["y"] + nav_box["height"] * 0.68
     assert markers[4]["y"] - markers[3]["y"] > markers[3]["y"] - markers[2]["y"]
 

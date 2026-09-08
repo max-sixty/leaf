@@ -11,8 +11,8 @@
  * In the roomy margin the outline becomes a reading map. Each row receives the length
  * of the section it leads as its flex share, so the quiet spine describes the document
  * before its labels appear. Labels pack without changing those rows, and each row's
- * marker follows its label so the association stays visible. The darker lens is the
- * part of the document in the viewport.
+ * marker follows its label while the label is revealed so the association stays visible.
+ * The darker lens is the part of the document in the viewport.
  * ResizeObserver hears late diagrams, images, disclosures, and width changes in the
  * document, and the height of the track the rows are laid into, which the page's chrome
  * can shorten without the document moving at all; a widget whose view rearranges

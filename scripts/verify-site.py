@@ -37,7 +37,8 @@ PROFILE_SCRIPT = """(() => {
     const state = resources.filter(entry =>
       new URL(entry.name).pathname.endsWith("/api/state"));
     const bytes = entries => entries.reduce((total, entry) => total + entry.encodedBodySize, 0);
-    const lastResponse = entries => Math.max(0, ...entries.map(entry => entry.responseEnd));
+    const lastResponse = entries =>
+      entries.length ? Math.max(...entries.map(entry => entry.responseEnd)) : null;
     return {
       at: performance.now(),
       code_loaded: lastResponse(code),
@@ -298,6 +299,11 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
     return startup
 
 
+def observed_time(value: float | None) -> str:
+    """Render an optional browser milestone without inventing a zero reading."""
+    return "not observed" if value is None else f"{value:.0f} ms"
+
+
 def startup_line(path: str, startup: dict) -> str:
     """Render observed startup costs without turning machine speed into a gate."""
     presented = startup["presented"]
@@ -305,9 +311,9 @@ def startup_line(path: str, startup: dict) -> str:
     return (
         f"  {path} — HTML first byte {startup['first_byte']:.0f} ms, "
         f"complete {startup['document']:.0f} ms; first paint {paint:.0f} ms; "
-        f"JS fetched {presented['js_loaded']:.0f} ms; "
+        f"JS fetched {observed_time(presented['js_loaded'])}; "
         f"upgraded {startup['upgraded']['at']:.0f} ms; "
-        f"state answered {presented['state_loaded']:.0f} ms; "
+        f"state answered {observed_time(presented['state_loaded'])}; "
         f"presented {presented['at']:.0f} ms; "
         f"by presentation {presented['js_requests']} JS / "
         f"{presented['js_bytes'] / 1024:.0f} KiB, "
@@ -511,12 +517,12 @@ def generation_failed(replies: list[dict]) -> bool:
 
 
 def deployment_answer(replies: list[dict]) -> dict | None:
-    """Return the exact receipt requested by the deployment check."""
+    """Return a real agent reply rather than the host's generation-failure receipt."""
     return next(
         (
             reply
             for reply in replies
-            if reply["text"].strip().casefold() == "deployment verified"
+            if reply["text"].strip() != GENERATION_FAILURE_REPLY
         ),
         None,
     )

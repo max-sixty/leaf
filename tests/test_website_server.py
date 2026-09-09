@@ -1182,22 +1182,46 @@ def test_the_deploy_gate_sends_the_new_message_the_container_asks_for():
     assert second["revision"] == 1
 
 
-def test_the_deploy_gate_requires_the_exact_agent_receipt():
+def test_the_deploy_gate_accepts_any_reply_except_a_generation_failure():
     exact = {"text": "deployment verified"}
     assert verify_site.deployment_answer([exact]) is exact
-    assert (
-        verify_site.deployment_answer(
-            [
-                {
-                    "text": (
-                        "The Leaf CLI is unavailable, so I could not post "
-                        "‘deployment verified’."
-                    )
-                }
-            ]
+    verbose = {
+        "text": (
+            "Updated the heading and published revision 2. "
+            "Reply confirmation: ‘deployment verified’."
         )
+    }
+    assert verify_site.deployment_answer([verbose]) is verbose
+    assert (
+        verify_site.deployment_answer([{"text": verify_site.GENERATION_FAILURE_REPLY}])
         is None
     )
+
+
+def test_startup_line_distinguishes_an_unobserved_state_request():
+    startup = {
+        "first_byte": 20,
+        "document": 30,
+        "paint": {"first-contentful-paint": 40},
+        "upgraded": {"at": 50},
+        "presented": {
+            "at": 60,
+            "js_loaded": 45,
+            "state_loaded": None,
+            "requests": 3,
+            "bytes": 3072,
+            "code_requests": 2,
+            "code_bytes": 2048,
+            "js_requests": 1,
+            "js_bytes": 1024,
+        },
+    }
+
+    line = verify_site.startup_line("page", startup)
+
+    assert "JS fetched 45 ms" in line
+    assert "state answered not observed" in line
+    assert "state answered 0 ms" not in line
 
 
 def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed():

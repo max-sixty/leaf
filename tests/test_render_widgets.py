@@ -565,14 +565,119 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_decision(
     expect(log).to_contain_text("co_18427 remains quarantined")
 
     current = (serve.page_dir / "index.html").read_text(encoding="utf-8")
+    incorporated = current
+    revisions = (
+        (
+            "while one finance-export exception needs a containment decision.",
+            "while one finance-export exception is contained and Ledger rebuilds its fixture.",
+        ),
+        (
+            "traffic; finance export remains isolated from the customer path.",
+            "traffic; ordinary finance exports continue while co_18427 stays quarantined.",
+        ),
+        (
+            '<lf-metric id="lp-k-running" value="0">running now</lf-metric>',
+            '<lf-metric id="lp-k-running" value="1">running now</lf-metric>',
+        ),
+        (
+            '<lf-metric id="lp-k-blocked" value="1">needs decision</lf-metric>',
+            '<lf-metric id="lp-k-blocked" value="0">blocked checks</lf-metric>',
+        ),
+        (
+            (
+                '<lf-agent id="lp-agent-ledger" state="blocked">\n'
+                "                <strong>ledger</strong> Waiting on the finance containment choice.\n"
+                "              </lf-agent>"
+            ),
+            (
+                '<lf-agent id="lp-agent-ledger" state="working" overruled>\n'
+                "                <strong>ledger</strong> Rebuilding the partial-refund fixture;\n"
+                "                <code>co_18427</code> is quarantined.\n"
+                "              </lf-agent>"
+            ),
+        ),
+        (
+            (
+                '<lf-agent id="lp-agent-scribe" state="idle">\n'
+                "                <strong>scribe</strong> Ready to record the containment decision.\n"
+                "              </lf-agent>"
+            ),
+            (
+                '<lf-agent id="lp-agent-scribe" state="done">\n'
+                "                <strong>scribe</strong> Recorded the quarantine decision for the handoff.\n"
+                "              </lf-agent>"
+            ),
+        ),
+        (
+            (
+                '<lf-milestone id="lp-finance-gate" status="blocked" when="now">\n'
+                "                <strong>Resume the finance export</strong> Waiting on safeguards for the\n"
+                "                missing partial refund.\n"
+                "              </lf-milestone>"
+            ),
+            (
+                '<lf-milestone id="lp-finance-gate" status="active" when="rebuilding">\n'
+                "                <strong>Repair the partial-refund export</strong> The order is\n"
+                "                quarantined while Ledger rebuilds the fixture.\n"
+                "              </lf-milestone>"
+            ),
+        ),
+        (
+            (
+                "and not in the finance file. The export stays isolated until this choice\n"
+                "              is recorded."
+            ),
+            (
+                "and not in the finance file. The reader quarantined this order; ordinary\n"
+                "              exports continue while the partial-refund path stays isolated."
+            ),
+        ),
+        (
+            '<lf-options id="lp-finance-cases" choose multiple>',
+            '<lf-options id="lp-finance-cases" choose multiple settled>',
+        ),
+        (
+            '<lf-option id="lp-quarantine-order">',
+            '<lf-option id="lp-quarantine-order" chosen>',
+        ),
+    )
+    for before, after in revisions:
+        assert before in incorporated
+        incorporated = incorporated.replace(before, after, 1)
     stamp = stamp_page(
         serve.page_dir,
-        current.replace('value="17 of 18"', 'value="18 of 19"'),
-        "Record the next completed rehearsal check",
+        incorporated,
+        "Quarantine co_18427 and rebuild the partial-refund fixture",
     )
     wait_for_revision(page, stamp["version"])
-    expect(page.locator("#lp-k-done")).to_have_attribute("value", "18 of 19")
+    expect(page.locator("#lp-lede")).to_contain_text("exception is contained")
+    expect(page.locator("#lp-active")).to_contain_text(
+        "ordinary finance exports continue"
+    )
+    expect(page.locator("#lp-k-running")).to_have_attribute("value", "1")
+    expect(page.locator("#lp-k-blocked")).to_have_attribute("value", "0")
+    expect(page.locator("#lp-k-blocked")).to_contain_text("blocked checks")
+    expect(page.locator("#lp-agent-ledger")).to_have_attribute("state", "working")
+    expect(page.locator("#lp-agent-ledger")).to_have_attribute("overruled", "")
+    expect(page.locator("#lp-agent-ledger")).to_contain_text(
+        "Rebuilding the partial-refund fixture"
+    )
+    expect(page.locator("#lp-agent-scribe")).to_have_attribute("state", "done")
+    expect(page.locator("#lp-agent-scribe")).to_contain_text(
+        "Recorded the quarantine decision"
+    )
+    expect(page.locator("#lp-finance-gate")).to_have_attribute("status", "active")
+    expect(page.locator("#lp-finance-gate")).to_contain_text(
+        "quarantined while Ledger rebuilds"
+    )
+    expect(page.locator("#lp-finance-note")).to_contain_text(
+        "reader quarantined this order"
+    )
+    settled = page.locator("#lp-finance-cases")
+    expect(settled).to_have_attribute("settled", "")
+    expect(settled.locator(".lf-settled")).to_contain_text("Quarantine this order")
     expect(page.locator("#lp-quarantine-order")).to_have_attribute("chosen", "")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/0")
     expect(page.locator("#lp-live-log")).to_contain_text("co_18427 remains quarantined")
     assert errors == []
     page.close()

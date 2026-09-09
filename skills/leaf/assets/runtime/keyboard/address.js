@@ -101,15 +101,12 @@ import {
 } from "../trays.js";
 import { leavesOffered, othersLinks } from "../live-leaves.js";
 import {
-  enterPageMap,
+  activateMarginElement,
   activeInlineThread,
-  leavePageMap,
-  pageMapMarginElementKind,
-  openPageMapMarginElement,
-  pageMapIsActive,
-  pageMapMarginElements,
-  mapButton,
+  marginElementKind,
+  visibleMarginElements,
 } from "../living-margin.js";
+import { enterPageMap, leavePageMap, mapButton, pageMapIsActive } from "../page-map.js";
 import { showThread } from "../conversation/landing.js";
 
 import { claimsEsc, focused, paintHere, saying } from "./scopes.js";
@@ -267,7 +264,7 @@ const BUILTIN_DIRECT_DESTINATIONS = [
     control: () => mapButton,
     when: () => true,
     go: (...args) => enterPageMap(...args),
-    active: (...args) => pageMapIsActive(...args),
+    active: pageMapIsActive,
     close: (...args) => leavePageMap(...args),
   },
 ];
@@ -284,8 +281,8 @@ const MARGIN_TARGET_KIND = "Margin control or status indicator";
 const TARGET_KINDS = [
   {
     kind: MARGIN_TARGET_KIND,
-    list: pageMapMarginElements,
-    go: (...args) => openPageMapMarginElement(...args),
+    list: visibleMarginElements,
+    go: (...args) => activateMarginElement(...args),
     exposure: "self",
   },
   {
@@ -331,14 +328,14 @@ const TARGET_FILTERS = [
     key: "t",
     word: "Thread controls",
     matches: ({ kind, member }) =>
-      kind === MARGIN_TARGET_KIND && pageMapMarginElementKind(member) === "comment",
+      kind === MARGIN_TARGET_KIND && marginElementKind(member) === "comment",
   },
   {
     id: "asks",
     key: "a",
     word: "Ask controls",
     matches: ({ kind, member }) =>
-      kind === MARGIN_TARGET_KIND && pageMapMarginElementKind(member) === "ask",
+      kind === MARGIN_TARGET_KIND && marginElementKind(member) === "ask",
   },
   {
     id: "hyperlinks",

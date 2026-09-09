@@ -1634,9 +1634,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     # existing controls keep their compact form; Page map states the provenance,
     # and the target keeps the local quiet word.
     expect(page.locator("#draft-ops[data-lf-restated]")).to_have_count(1)
-    page.evaluate(
-        "async () => (await import('/runtime/living-margin.js')).enterPageMap()"
-    )
+    page.evaluate("async () => (await import('/runtime/page-map.js')).enterPageMap()")
     rewritten = page.get_by_role(
         "button", name=re.compile(r"^Open rewritten: Rewritten")
     )

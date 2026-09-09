@@ -281,10 +281,8 @@ HEARTBEAT_PAGES = (
     # run for those are watched nowhere else: a reading option under an entry holding
     # several readings, and the readings whose move is made, which wear the `status`
     # behavior on a span seat rather than a button. Two of its rows stand where they
-    # would overlap, so the push measurement is read here and nowhere else. All but one
-    # of its rows hang: the swipe specimen sits inside an unselected tab, so its row is
-    # withheld and the posture clear runs for that one. The rail is not re-read, which
-    # the corpus is here for.
+    # would overlap, so the push measurement is read here and nowhere else. Its
+    # withheld and docked rows exercise the posture clear and rail re-read too.
     pytest.param(
         FEATURE_GALLERY,
         {
@@ -292,7 +290,7 @@ HEARTBEAT_PAGES = (
             ".lf-margin-reading-option": 1,
             '.lf-margin-element[data-lf-behavior="status"]': 2,
         },
-        {"row posture", "row push", "fold rule"},
+        {"row posture", "row push", "rail width", "fold rule"},
         id="gallery",
     ),
 )
@@ -2547,9 +2545,7 @@ def test_page_map_only_origins_do_not_count_as_margin_elements(browser, serve):
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, 1 of 1,"))
     expect(page.locator('[data-lf-margin-for="t-mounts"]')).to_have_count(0)
     expect(page.get_by_role("navigation", name="Page map, 2 locations")).to_be_visible()
-    page.evaluate(
-        "async () => (await import('/runtime/living-margin.js')).enterPageMap()"
-    )
+    page.evaluate("async () => (await import('/runtime/page-map.js')).enterPageMap()")
     origin = page.get_by_role(
         "button", name=re.compile(r"^Open reported update: Reported update")
     )
@@ -3455,8 +3451,8 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
     page, errors = open_page(browser, serve(PANEL_PAGE))
     readings = page.evaluate(
         """async () => {
-          const { marginElement, registerMarginContribution } =
-            await import('/runtime/living-margin.js');
+              const { marginElement, registerMarginContribution } =
+                await import('/runtime/widget-api.js');
           const makeRecord = label => {
             const shell = document.createElement('div');
             const root = shell.attachShadow({mode: 'open'});
@@ -3592,8 +3588,8 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     resized(page, 1280, 720)
     page.evaluate(
         """async () => {
-          const {marginElement, registerMarginContribution} =
-            await import('/runtime/living-margin.js');
+              const {marginElement, registerMarginContribution} =
+                await import('/runtime/widget-api.js');
           const status = marginElement(document.createElement('span'), {
             key: 'shape-status', icon: 'pickup', label: 'Picked up', behavior: 'status'
           });

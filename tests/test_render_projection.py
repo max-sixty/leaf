@@ -1742,9 +1742,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     expect(task).to_have_attribute("status", "review")
     expect(task).to_have_attribute("data-lf-reported", "1")
     expect(task).not_to_have_attribute("data-lf-reader-override", "1")
-    page.evaluate(
-        "async () => (await import('/runtime/living-margin.js')).enterPageMap()"
-    )
+    page.evaluate("async () => (await import('/runtime/page-map.js')).enterPageMap()")
     report_reading = page.get_by_role(
         "button", name=re.compile(r"^Open reported update: Reported update")
     )
@@ -3360,9 +3358,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
             exact=True,
         )
     ).to_be_visible()
-    second.evaluate(
-        "async () => (await import('/runtime/living-margin.js')).enterPageMap()"
-    )
+    second.evaluate("async () => (await import('/runtime/page-map.js')).enterPageMap()")
     reader_origin = second.get_by_role(
         "button", name=re.compile(r"^Open your change: Your change")
     )

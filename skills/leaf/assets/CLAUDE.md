@@ -75,13 +75,17 @@ and tray panels, landing a new width through `chrome-layout.js`'s `landEdge`;
 `runtime/trays.js` owns the left tray edge, active tray, registration, restore, and
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
-`runtime/living-margin.js` owns the page map, compact map sheet, anchored margin threads,
-the design-mode exclusion of its top-layer preview, and the one aggregated margin element cluster
-for each page target;
-content modules contribute live controls and semantics through its registration seam but
-never place their own RHS rows;
+`runtime/margin-elements.js` owns the public margin-element grammar and contribution
+registry; content modules contribute live controls and semantics there but never place
+their own RHS rows;
+`runtime/page-map.js` owns the complete searchable Page Map sheet, its retained action
+proxies, filtering, modal lifecycle, and focus return;
+`runtime/living-margin.js` projects those contributions with page readings into the page
+margin, supplies the Page Map entries, and owns anchored margin threads, the design-mode
+exclusion of its top-layer preview, and one aggregated cluster for each page target;
 `runtime/margin-layout.js` owns margin-row measurement, rail claims, responsive docking,
-vertical packing, and collision bands for wide page content;
+vertical packing, collision bands for wide page content, and transient margin-element
+label placement;
 `runtime/reactions.js` owns reaction vocabulary, lists and their standing paint,
 sending, keyboard mode, and reaction-specific undo wording;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;

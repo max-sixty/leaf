@@ -75,6 +75,7 @@ from render_support import (
     holding,
     leaf_page,
     live_url,
+    nudge,
     open_page,
     opened_tab,
     page_registry,
@@ -1116,6 +1117,14 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
     general = page.locator(".lf-general textarea")
     general.fill("Do not replace the page under these words.")
 
+    # Let the page learn that the second revision exists before holding a read. The
+    # standing draft keeps the first revision shown and leaves the direct activation
+    # route available through the latest-version chip.
+    (serve.page_dir / "index.html").write_text(LIVE_V2)
+    told(page)
+    expect(page).to_have_title("Live first")
+    expect(page.locator(".lf-latest-chip")).to_be_visible()
+
     # One read, held open while it still names the first revision. Releasing it below is
     # what sends it, so the server answers it against the log and versions of that
     # moment while the request still asks for the revision the page has since left.
@@ -1139,21 +1148,18 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
 
     page.route("**/api/state*", hold_the_first_read)
     try:
-        (serve.page_dir / "index.html").write_text(LIVE_V2)
+        nudge(serve.page_dir)
+        holding(page, held, 1, "the read from revision 1")
 
-        # The chip's press moves the page to the second revision under that held read,
-        # and the reader goes on composing, so the third revision arrives as news the
-        # page holds.
-        told(page)
+        # The chip's own read remains independent of the background read held above. It
+        # moves the page to the second revision, then the third revision is written
+        # before the held request is released.
         page.locator(".lf-latest-chip").click()
         expect(page).to_have_title("Live second")
         general.focus()
         expect(general).to_be_focused()
         (serve.page_dir / "index.html").write_text(LIVE_V3)
-        told(page)
-        expect(page).to_have_title("Live second")
 
-        assert held, "the positive control held no read at all"
         # The premise of the whole arrangement, stated rather than inferred: a read the
         # page took while it still stood on the first revision. Held after the press it
         # would name the second, and the answer would carry the view the page wants.
@@ -1164,9 +1170,12 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
             "$layer"
         ]["generation"]
         assert held[0].request.headers.get("leaf-layer") == generation
-        heard = _traffic(page).heard
+        traffic = _traffic(page).read()
+        assert traffic.asked == traffic.heard + 1, (
+            "the held read ended before the test released it"
+        )
         release_the_held_read()
-        _until(page, lambda t: t.heard > heard, "a state answer came back")
+        _until(page, lambda t: t.heard > traffic.heard, "a state answer came back")
         # Not `ticked`: the heartbeat dispatches `lf-actions` on its own cadence, so the
         # page's next pass can be one this delivery had no part in. Wait instead until
         # the page holds the reading the server holds.

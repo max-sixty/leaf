@@ -227,6 +227,19 @@ CONTROL_ARCHETYPES = (
         "target": "#stable-playground .lf-playground-submit",
     },
     {
+        # The comparison rail: Before and After stand beside each other above the frames,
+        # and each caption chooses its own frame. Pressing After is the transition with
+        # something to prove — the caption the reader leaves and the one they arrive at
+        # both change their active paint, and a rule that spent width on the active word
+        # would move the other caption under the reader's pointer. `example` because a
+        # comparison needs two shot files, which a synthetic page composes nothing to
+        # point at.
+        "name": "shot-caption",
+        "example": FEATURE_GALLERY,
+        "coverage": ".lf-shotrail > .lf-shotcap",
+        "target": '#bg-shot .lf-shotcap[data-lf-state="after"]',
+    },
+    {
         # The gallery's playback row. The runtime injects Play/Pause and Replay beside
         # the authored demos and rewrites the toggle's own word as a demo runs, so what
         # the row has to prove is that the word costs the button no width. Replay is the

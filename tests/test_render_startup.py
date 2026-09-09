@@ -793,6 +793,16 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
           reclaim();
           occupied();
 
+          const detached = document.createElement('section');
+          detached.setAttribute('data-lf-root-workspace', '');
+          const detachedArrangement = leaf.arrangeReadingElement({
+            owner: detached,
+            kind: 'workspace',
+          }).arrangement;
+          const detachedMarkerCleared =
+            !detached.hasAttribute('data-lf-root-workspace');
+          detachedArrangement.cleanup();
+
           const {content, arrangement} = leaf.arrangeReadingElement({
             owner,
             kind: 'pane',
@@ -824,7 +834,7 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
           otherOwner.remove();
           occupiedHost.remove();
           return {message, ownerMessage, contentMessage, postureAfterReplacement,
-                  reclaimed, unchanged};
+                  reclaimed, unchanged, detachedMarkerCleared};
         }"""
     )
     assert result == {
@@ -834,6 +844,7 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
         "postureAfterReplacement": "bounded",
         "reclaimed": True,
         "unchanged": True,
+        "detachedMarkerCleared": True,
     }
     assert errors == []
     page.close()

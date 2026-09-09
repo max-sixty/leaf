@@ -20,7 +20,7 @@ const syncRootWorkspace = (owner) => {
     main?.matches("body > main") &&
     [...main.children].filter((child) => !child.matches("script, style, template"))
       .length === 1;
-  owner.toggleAttribute("data-lf-root-workspace", isRoot);
+  owner.toggleAttribute("data-lf-root-workspace", Boolean(isRoot));
 };
 
 export function arrangeReadingElement({

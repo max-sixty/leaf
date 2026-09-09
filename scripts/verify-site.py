@@ -66,6 +66,20 @@ PROFILE_SCRIPT = """(() => {
 })()"""
 
 
+# One hosted Codex turn runs at the model's pace, not this gate's. `TURN_PATIENCE`
+# is the budget a turn observed healthy has finished well inside; `TURN_LIMIT` is
+# what this step can add and still sit inside the job's thirty minutes beside the
+# release wait ahead of it. Between the two the page's own `activity` reading
+# decides, because a stopwatch cannot tell a turn that is still working from one
+# that has stopped.
+TURN_PATIENCE = 300
+TURN_LIMIT = 600
+# The activity readings that mean a turn is on this work. A page that reads away,
+# unheld, listening, stalled or closed is not going to answer, so its wait ends at
+# `TURN_PATIENCE` rather than running out the limit.
+ANSWERING = frozenset({"queued", "handling", "working"})
+
+
 class AgentSession(NamedTuple):
     """One reader session bound to a container serving the requested release."""
 
@@ -356,7 +370,7 @@ def agent_session(browser, release: str) -> AgentSession:
     state_url = urljoin(url, "api/state")
     # The release verification ahead of this pass already waited out most of the
     # rollout, so this is the tail of a drain rather than the drain, and the step's
-    # own budget still has to hold the turn's five minutes inside the job's thirty.
+    # own budget still has to hold the turn's `TURN_LIMIT` inside the job's thirty.
     deadline = time.monotonic() + 180
     while True:
         session = reader_session(browser, url, state_url, release)
@@ -370,6 +384,24 @@ def agent_session(browser, release: str) -> AgentSession:
         time.sleep(10)
 
 
+def still_answering(state: dict, event_id: str) -> bool:
+    """Whether the page itself says a live agent turn still owes this comment a reply.
+
+    `activity` is the one reading Leaf derives for every consumer of agent state, and
+    it answers the question a wall clock cannot: an obligation that is still standing
+    says nothing has answered the comment, and the reading beside it says whether
+    anything is going to. So the gate consumes it rather than deciding locally that a
+    turn past its budget has failed.
+    """
+    activity = state.get("activity") or {}
+    if activity.get("kind") not in ANSWERING:
+        return False
+    return any(
+        obligation.get("event") == event_id and not obligation.get("dropped")
+        for obligation in activity.get("obligations") or ()
+    )
+
+
 def verify_agent_turn(browser, release: str) -> None:
     """Require one deployed Codex turn to revise and answer a private page.
 
@@ -381,6 +413,12 @@ def verify_agent_turn(browser, release: str) -> None:
     that follow are containments for the same reason: the agent may quote the heading
     it was handed, and the runtime may add its own words to any text a reader can
     point at.
+
+    The wait's bound is the page rather than a stopwatch. One fixed budget has to be
+    long enough for the slowest healthy turn and short enough to report a dead one
+    promptly, and no single number is both — so `TURN_PATIENCE` ends the wait on a
+    page that says nothing is answering, while a page that says a turn is still on
+    this comment holds it open to `TURN_LIMIT`.
     """
     context, page, failures, url, state_url, state = agent_session(browser, release)
     initial_revision = state["active"]["revision"]
@@ -420,12 +458,12 @@ def verify_agent_turn(browser, release: str) -> None:
     )
     check(comment is not None, f"{url} did not return its deployment-check comment")
 
-    deadline = time.monotonic() + 300
+    started = time.monotonic()
     replies: list[dict] = []
     answer = None
     published = None
     current = state
-    while time.monotonic() < deadline:
+    while True:
         current_response = context.request.get(
             state_url,
             headers={"Leaf-Layer": layer, "Leaf-Release": release},
@@ -455,15 +493,24 @@ def verify_agent_turn(browser, release: str) -> None:
                 published = active
         if published is not None and answer is not None:
             break
+        waited = time.monotonic() - started
+        if waited >= TURN_LIMIT:
+            break
+        if waited >= TURN_PATIENCE and not still_answering(current, comment["id"]):
+            break
         time.sleep(2)
+    reading = (current.get("activity") or {}).get("kind") or "no activity"
     said = "; it replied: " + " / ".join(event["text"] for event in replies)
     check(
         published is not None,
         f"{url} agent did not publish ‘{heading}’; it reached revision "
-        f"{current['active']['revision']} from {initial_revision}"
-        + (said if replies else " and did not reply"),
+        f"{current['active']['revision']} from {initial_revision} with the page "
+        f"reading {reading}" + (said if replies else " and did not reply"),
     )
-    check(replies != [], f"{url} agent published but did not reply")
+    check(
+        replies != [],
+        f"{url} agent published but did not reply; the page read {reading}",
+    )
     check(answer is not None, f"{url} agent returned an unexpected reply{said}")
     page.reload(wait_until="load", timeout=120_000)
     await_presentation(page, url, failures)

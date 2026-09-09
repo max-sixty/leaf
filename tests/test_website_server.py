@@ -1226,8 +1226,14 @@ def test_startup_line_distinguishes_an_unobserved_state_request():
     assert "state answered 0 ms" not in line
 
 
-def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed():
-    """A settled generation failure is terminal, so the wait ends where it lands.
+@pytest.mark.parametrize(
+    "failure_reply",
+    [verify_site.GENERATION_FAILURE_REPLY, verify_site.MISSING_REPLY],
+)
+def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
+    failure_reply,
+):
+    """A host failure receipt is terminal, so the wait ends where it lands.
 
     Every other reading the wait takes is one a live turn can still be passing
     through, which is why they run to `TURN_PATIENCE`. This one is posted from where
@@ -1245,7 +1251,7 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed():
             {
                 "kind": "reply",
                 "parent": "comment-id",
-                "text": website_server.GENERATION_FAILURE_REPLY,
+                "text": failure_reply,
             }
         ],
     }
@@ -1271,7 +1277,7 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed():
     assert context.reads == 1
     assert verify_site.still_answering(working, "comment-id")
     assert turn.answer is None
-    assert verify_site.generation_failed(turn.replies)
+    assert verify_site.turn_failed(turn.replies)
 
 
 class _PresentationWait:

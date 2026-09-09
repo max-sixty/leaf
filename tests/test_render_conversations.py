@@ -751,10 +751,10 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
 
 @pytest.mark.parametrize("width", [320, 800])
 @pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_thread_keeps_submit_in_its_field_and_resolve_in_its_corner(
+def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
     browser, serve, width, scheme
 ):
-    """Submit belongs to the field while Resolve belongs to the thread.
+    """Submit belongs to the field while Resolve stands beside the quoted address.
 
     Growing the field carries Submit with it and leaves Resolve fixed. The textarea
     reserves the icon's whole horizontal band, so words and a scrollbar do not run
@@ -837,14 +837,10 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_in_its_corner(
         assert short["padding"] >= short["send"]["width"] + 10
         assert short["resolve"]["y"] == pytest.approx(short["quote"]["y"], abs=1)
         assert short["resolve"]["right"] == pytest.approx(
-            short["quote"]["right"], abs=1
+            short["thread"]["right"] - 9, abs=1
         )
-        # The minimum click target can be taller than a single quote line. Its
-        # center still belongs to that quote's band, above the message content.
-        assert (
-            short["resolve"]["y"] + short["resolve"]["height"] / 2
-            <= short["quote"]["bottom"]
-        )
+        assert short["resolve"]["x"] - short["quote"]["right"] >= 8
+        assert short["resolve"]["bottom"] <= short["quote"]["bottom"] + 1
         assert float(short["closeBorder"][:-2]) == 0
         assert float(short["resolveBorder"][:-2]) == 0
         assert float(short["sendBorder"][:-2]) == 0
@@ -2524,6 +2520,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-resolve",
         # Active buttons share the theme's existing .lf-btn.on state.
         "on",
+        # Primary buttons keep the authored theme's filled action face when they
+        # enter chrome rows whose quiet controls deliberately clear that paint.
+        "primary",
     }, "the authored-theme class surface changed: widen the exception on purpose"
     # Every one of these is worn by something the runtime puts inside the page rather than
     # inside its own container — or, for lf-address, on both sides of that line at once,

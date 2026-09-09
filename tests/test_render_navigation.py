@@ -1635,7 +1635,7 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_quote(browser, serve):
     panel_settled(page)
     first = page.locator(f'.lf-thread[data-id="{first_id}"]')
     second = page.locator(f'.lf-thread[data-id="{second_id}"]')
-    first_quote = first.locator(":scope > .lf-quote")
+    first_quote = first.locator(":scope > .lf-thread-head > .lf-quote")
     resting = first.evaluate("element => getComputedStyle(element).backgroundColor")
     quote_resting = first_quote.evaluate(
         "element => getComputedStyle(element).backgroundColor"
@@ -1701,7 +1701,7 @@ def test_a_page_mark_does_not_wash_a_long_thread_card(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
-    quote = thread.locator(":scope > .lf-quote")
+    quote = thread.locator(":scope > .lf-thread-head > .lf-quote")
     card_resting = thread.evaluate(
         "element => getComputedStyle(element).backgroundColor"
     )

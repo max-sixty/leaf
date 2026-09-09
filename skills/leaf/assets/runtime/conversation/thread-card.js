@@ -83,7 +83,9 @@ export function threadNode(t, grow) {
   if (t.root.attempt) div.dataset.attempt = t.root.attempt;
   if (grow) div.classList.add("grow");
   const label = threadAnchorLabel(t);
+  let threadHead = null;
   if (label) {
+    threadHead = el("div", "lf-thread-head");
     const quote = el("blockquote", "lf-quote");
     quote.append(el("span", "lf-quote-label", label));
     quote.tabIndex = 0;
@@ -113,7 +115,8 @@ export function threadNode(t, grow) {
         run: () => quote.click(),
       },
     ]);
-    div.append(quote);
+    threadHead.append(quote);
+    div.append(threadHead);
   }
   let resolve = null;
   if (!t.resolved) {
@@ -134,7 +137,7 @@ export function threadNode(t, grow) {
         };
       },
     });
-    div.append(resolve);
+    (threadHead ?? div).append(resolve);
   }
   turns(t).forEach((m) => div.append(msgNode(m)));
   paintReactStrips(div, t);
@@ -196,7 +199,11 @@ export function paintThreadQuotes() {
     // pass has omitted that heading. Reconcile absence as well as changed words so the
     // temporary duplicate does not become a kept node for the life of the tab.
     if (thread && !said) {
-      quote?.remove();
+      const head = quote?.closest(".lf-thread-head");
+      const resolve = head?.querySelector(":scope > .lf-resolve");
+      if (resolve) div.insertBefore(resolve, head);
+      if (head) head.remove();
+      else quote?.remove();
       continue;
     }
     if (!quote) continue;

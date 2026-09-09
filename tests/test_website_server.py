@@ -1194,3 +1194,55 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed():
     assert verify_site.still_answering(working, "comment-id")
     assert turn.answer is None
     assert verify_site.generation_failed(turn.replies)
+
+
+def test_the_page_a_turn_has_just_written_gets_more_than_an_edge_page_to_present():
+    """One bound cannot serve both pages this gate reads, so the caller states it.
+
+    `publish-site` deployed release `4ef93dd9…` and then failed on the reload after a
+    healthy turn: `never presented, reaching no startup milestone`. The pages the
+    release pass walks come from the edge and present in about a second, which is what
+    the default bound is for. The reloaded one is answered by a container that has just
+    run a hosted model turn, whose first `/api/state` read costs seconds rather than
+    milliseconds — measured against the live deployment, 123 ms before a turn and
+    2252-3918 ms after one, on the same session and page.
+    """
+
+    class Locator:
+        def __init__(self, seen):
+            self.seen = seen
+
+        def wait_for(self, timeout):
+            self.seen.append(timeout)
+            raise verify_site.PlaywrightTimeout("timed out")
+
+    class Page:
+        def __init__(self):
+            self.seen = []
+
+        def locator(self, selector):
+            assert selector == "body[data-lf-presented]"
+            return Locator(self.seen)
+
+        def evaluate(self, script):
+            return ["upgraded"]
+
+    edge = Page()
+    with pytest.raises(RuntimeError) as raised:
+        verify_site.await_presentation(edge, "https://leaf.page/", [])
+    assert edge.seen == [30_000]
+    # The milestone is in the message because the agent session records it too now: a
+    # page that upgraded and stalled on its first read is a different fault from one
+    # whose modules never arrived, and the gate could not tell them apart.
+    assert "upgraded" in str(raised.value)
+
+    reloaded = Page()
+    with pytest.raises(RuntimeError):
+        verify_site.await_presentation(
+            reloaded,
+            "https://leaf.page/examples/design-decision/",
+            [],
+            timeout=verify_site.TURN_PRESENTATION,
+        )
+    assert reloaded.seen == [verify_site.TURN_PRESENTATION]
+    assert verify_site.TURN_PRESENTATION > 30_000

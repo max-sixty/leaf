@@ -1202,6 +1202,17 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-thread-filter-group:has(> [data-filter-kind="gone"]) {
     flex-basis: 100%; border-left: 0; padding-left: 0; }
   .lf-thread-filter { padding: 2px 8px; font-size: var(--t-6); }
+  /* At the supported 320px floor, keep lifecycle and each facet pair on one line.
+     Three short rows leave the list as the sheet's main surface without shrinking the
+     controls' block size or bringing back a horizontal rail. */
+  @media (max-width: 360px) {
+    .lf-thread-filters { gap: 4px; padding-inline: 8px; }
+    .lf-thread-filter-facets { gap: 4px 6px; }
+    .lf-thread-filter-group { gap: 3px; }
+    .lf-thread-filter-facets > .lf-thread-filter-group + .lf-thread-filter-group {
+      padding-left: 6px; }
+    .lf-thread-filter { padding-inline: 6px; }
+  }
   /* contain: reaching the end of the thread list must not start scrolling the page
      behind it — one wheel gesture moves one region.
      The frame is declared because the inset is read at both ends of a scroll region:

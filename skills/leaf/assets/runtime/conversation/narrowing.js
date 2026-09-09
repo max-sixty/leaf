@@ -101,7 +101,7 @@ const setButton = (button, selected, amount) => {
 
 // Counts are faceted: each chip answers how many results switching that facet to its
 // value would show while every other standing filter remains. A static all-page count
-// on "Page-wide" would promise threads the selected Open/Resolved state then hid.
+// on "Page" would promise threads the selected Open/Resolved state then hid.
 export function paintNarrowing(threads, shown, groups = new Map()) {
   const rows = entries(threads, groups);
   const baseline =

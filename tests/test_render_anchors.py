@@ -4516,7 +4516,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator(".lf-conversation-msg").first).to_be_hidden()
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
-    page.locator('[data-filter-value="resolved"]').click()
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
     page.locator(".lf-thread:not([hidden]) .lf-quote").click()
     expect(summary).to_be_focused()
     summary.click()

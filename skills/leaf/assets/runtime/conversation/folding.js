@@ -159,7 +159,9 @@ export function foldOut(t) {
   // The pressed control states the outcome in the thread corner it already occupied.
   // Its checkmark changes from a quiet action to the green outcome without changing
   // the control's box, so the fold starts from the layout the reader was looking at.
-  const resolve = node.querySelector(":scope > .lf-resolve");
+  const resolve = node.querySelector(
+    ":scope > .lf-thread-head > .lf-resolve, :scope > .lf-resolve",
+  );
   resolve.setAttribute("aria-label", "Resolved");
   resolve.title = "Resolved";
   resolve.setAttribute("aria-busy", "false");

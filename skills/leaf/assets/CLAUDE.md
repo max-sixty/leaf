@@ -511,6 +511,10 @@ arriving without a gesture must not move any chrome control. A content change
 the reader requested may reflow the content it replaces, provided the change is
 shown as trackable motion rather than an unexplained jump.
 
+The parent laying out adjacent actions owns their complete allocations. Different
+actions have disjoint hit boxes, and a compact control's larger aim may not cover a
+sibling's visible surface.
+
 During startup, generated interface first appears in its settled upgrade position, from
 authored and tab-local state. An asynchronous producer joins the applicable widget, data,
 or page-interface settlement before `data-lf-upgraded` releases that interface. Apparatus

@@ -599,7 +599,8 @@ function landInThreadReply(thread) {
 
 const resolutionControl = (thread) =>
   thread?.querySelector(
-    ":scope > .lf-resolve, " +
+    ":scope > .lf-thread-head > .lf-resolve, " +
+      ":scope > .lf-resolve, " +
       ":scope > .lf-thread-actions > .lf-reopen, " +
       ":scope > .lf-conversation-resolved .lf-reopen",
   ) ?? null;

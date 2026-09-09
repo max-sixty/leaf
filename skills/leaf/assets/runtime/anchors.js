@@ -9,11 +9,8 @@ import {
   shownBox,
   shownRect,
 } from "./geometry.js";
-import {
-  marginElement,
-  openPageThread,
-  registerMarginContribution,
-} from "./living-margin.js";
+import { openPageThread } from "./living-margin.js";
+import { marginElement, registerMarginContribution } from "./margin-elements.js";
 import { scheduleMarginLayout } from "./margin-layout.js";
 import {
   resolvedElement,

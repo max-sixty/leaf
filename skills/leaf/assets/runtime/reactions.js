@@ -30,11 +30,10 @@ import {
   marginElementChoices,
   marginElementContextContains,
   foldMarginElementOptions,
-  marginElement,
   openMarginElementOptions,
-  registerMarginContribution,
   unfoldedMarginElements,
 } from "./living-margin.js";
+import { marginElement, registerMarginContribution } from "./margin-elements.js";
 import { runtime } from "./context.js";
 import { CONTROL_WORD_CAP, designOn } from "./design.js";
 import { registry } from "./registry.js";

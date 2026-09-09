@@ -71,7 +71,7 @@ import { restoreArrangements } from "./runtime/arrangements.js";
 import { captureAuthoredFacets } from "./runtime/projection/authored.js";
 import { layoutMarginRows } from "./runtime/margin-layout.js";
 import { shortcutReferenceDialog } from "./runtime/keyboard/reference.js";
-import { shortcutBarEl, walkPositionEl } from "./runtime/keyboard/shortcut-bar.js";
+import { bottomStatusEl, shortcutBarEl } from "./runtime/keyboard/shortcut-bar.js";
 import { offer } from "./runtime/widget-elements.js";
 import { focusDestination } from "./runtime/focus.js";
 import { inspectEl, legendRoot } from "./runtime/design.js";
@@ -157,8 +157,8 @@ function mountChrome() {
     liveEl,
     mediaViewer,
     shortcutReferenceDialog,
+    bottomStatusEl,
     shortcutBarEl,
-    walkPositionEl,
     inspectEl,
   );
   document.body.prepend(skipToChrome);
@@ -286,7 +286,7 @@ function presentPage() {
   layoutMarginRows();
   landArrival();
   if (savedView && savedView.revision < runtime.currentRevision)
-    notice(`Updated to ${runtime.currentLabel}`);
+    notice(`Updated to ${runtime.currentLabel}`, { background: true });
   openDraft(savedComposer);
   promoteDeferredModals();
   // The presented attribute and every write after it are one JavaScript task. Give

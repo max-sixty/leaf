@@ -17,17 +17,14 @@ import { COVERING, syncLayout } from "./chrome-layout.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { post } from "./outbox.js";
 import { repaint } from "./repaint.js";
-import { announce, notice, noticeEl } from "./notifications.js";
+import { announce, notice } from "./notifications.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
 export const dot = el("span", "lf-dot");
 const statusText = el("span", "lf-status-text", "Connecting…");
-// The line's momentary other words (notifications.js): a gesture recorded, a version
-// arrived, a send refused. Seated after the line it stands in for, so the row holds
-// one sentence at a time.
 const bannerStatus = el("div", "lf-banner-status");
-bannerStatus.append(dot, statusText, noticeEl);
+bannerStatus.append(dot, statusText);
 
 export const toggleBtn = el(
   "button",

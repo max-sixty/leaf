@@ -94,16 +94,19 @@ rest alone, so the comparison marks three blocks and both threads stay attached.
 decision or report standing in the seeded log that the next version contradicts.
 Write one when there is a page it makes sense on, not to fill the slot.
 
-A thread is the one thing no markup describes, so an example that wants to show
-one ships its events as `<stem>.jsonl` beside the page. Every place that builds a
-page directory out of an example lays the log in: `scripts/preview.py`,
+Event state is the one thing no markup describes, so an example that wants to show
+a thread or a reader decision ships its events as `<stem>.jsonl` beside the page.
+A thread-bearing log opens mid-conversation; an action-only log replays a page-owned
+decision without inventing a thread. Every place that builds a page directory out of
+an example lays the log in: `scripts/preview.py`,
 `publish_pages`, `test_page_fixtures_pass_check`, and `serve` in
 `tests/render_support.py`. `serve` seeds when handed an example rather than
 markup, and sets the cursor past the seed as `preview.py` does. The anchor sweep
 opts out, because it writes its own anchors and compares the whole painted mark
-against exactly those. `ship-review.jsonl` is the one such log today, and it
-reaches the browser on the published site through the session running in the
-reader's own tab, since published pages are served rather than exported.
+against exactly those. `ship-review.jsonl` carries a thread and
+`review-queue.jsonl` carries two page-owned decisions. Both reach the browser on
+the published site through the session running in the reader's own tab, since
+published pages are served rather than exported.
 
 External data is the other companion state. An example that binds a widget input
 to a source ships `<stem>.data.json`, mapping each page-owned source id to its
@@ -128,7 +131,7 @@ When a seeded event needs an anchor, capture it with `leaf comment --quote`
 against the file; do not write the `{section, quote, suffix}` out by hand. A
 hand-written anchor is a second capture with nothing holding it to the first, and
 it rots silently: rewrite the sentence and the thread stands detached with no
-error anywhere. `test_a_shipped_log_opens_its_example_on_a_live_thread` reads the
+error anywhere. `test_a_shipped_log_replays_its_example_state` reads the
 shipped anchor back through the browser and names that failure. The corpus's own
 anchor sweep cannot catch it, because that sweep writes its own anchors.
 
@@ -156,7 +159,7 @@ asking. The same log carries a screenshot in a message, which is the one place
 `.lf-media-open` — and the `media` ring on it — stands in the corpus at all; it
 hangs off an existing message rather than a new one, because the panel's thread
 lengths and its waiting-on-you count are both read by fixtures.
-`test_a_shipped_log_opens_its_example_on_a_live_thread` opens the panel and asks
+`test_a_shipped_log_replays_its_example_state` opens the panel and asks
 that each widget the log carries is drawn, that a widget the registry says awaits
 an answer has a control to answer with, and that the decided state differs from
 the same page under the same log with the decisions removed.

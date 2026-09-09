@@ -32,7 +32,8 @@ rules a new or changed example has to meet.
   needs a running Docker.
   `verify-site-local.sh` checks that built output through that boundary and prints the
   document, widget-upgrade, and presentation milestones with the requests and bytes
-  loaded by presentation. Pull requests run it for review evidence.
+  loaded by presentation. A failed check prints the Worker's log beside the browser's
+  own account of the page that stopped it. Pull requests run it for review evidence.
   `.github/workflows/publish-site.yaml` deploys both halves for relevant pushes to
   `main`; it runs the local check before the first public operation, then verifies the
   exact release again after deployment.

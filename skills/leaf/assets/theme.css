@@ -1531,17 +1531,17 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
   [data-lf-cut]:dir(rtl) { box-shadow: inset 22px 0 18px -22px var(--shade); }
   /* A registered reading region with more below it gets the same edge vocabulary on
    * its block end. This shadow is paint behind descendants rather than an overlay over
-   * their words or controls. The runtime removes it at the end and in flow posture;
-   * these selectors also make a stale exported mark inert in copy and print. */
-  html:not(.lf-copy) [data-lf-more-below] {
+   * their words or controls. The runtime removes it at the end and in flow posture,
+   * and the `@media screen` above already keeps it off a printed sheet. */
+  [data-lf-more-below] {
     box-shadow: inset 0 -8px 8px -8px var(--shade);
   }
-  html:not(.lf-copy) [data-lf-cut][data-lf-more-below] {
+  [data-lf-cut][data-lf-more-below] {
     box-shadow:
       inset -22px 0 18px -22px var(--shade),
       inset 0 -8px 8px -8px var(--shade);
   }
-  html:not(.lf-copy) [data-lf-cut][data-lf-more-below]:dir(rtl) {
+  [data-lf-cut][data-lf-more-below]:dir(rtl) {
     box-shadow:
       inset 22px 0 18px -22px var(--shade),
       inset 0 -8px 8px -8px var(--shade);

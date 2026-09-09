@@ -67,12 +67,27 @@ class FakeCodexHost:
         self.attached = []
         self.abandoned = []
 
-    def attach(self, page_dir: Path) -> str:
+    def attach(self, page_dir: Path, event_id: str) -> str:
         self.attached.append(page_dir)
         return "codex-thread"
 
     def abandon(self, page_dir: Path, event_id: str) -> None:
         self.abandoned.append((page_dir, event_id))
+
+
+def test_agent_logs_are_structured_and_content_free(capsys):
+    website_server.log_agent(
+        "container_start_completed",
+        eventId="reader-event",
+        durationMs=125,
+    )
+
+    assert json.loads(capsys.readouterr().out) == {
+        "component": "leaf-agent",
+        "event": "container_start_completed",
+        "eventId": "reader-event",
+        "durationMs": 125,
+    }
 
 
 def test_the_website_label_follows_the_script_contract_not_its_formatting():
@@ -135,7 +150,7 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
         lambda *args: closed.append(args),
     )
 
-    thread_id = host.attach(page_dir)
+    thread_id = host.attach(page_dir, "reader-event")
 
     assert thread_id == "hosted-thread"
     assert requests == [
@@ -193,9 +208,9 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
         ),
     )
 
-    assert host._start_thread(page_dir, type("Process", (), {"pid": 41})()) == (
-        "hosted-thread"
-    )
+    assert host._start_thread(
+        page_dir, type("Process", (), {"pid": 41})(), "reader-event"
+    ) == ("hosted-thread")
     assert requests == [
         (
             "thread/start",
@@ -260,6 +275,26 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     assert "$LEAF_SKILL_DIR/SKILL.md" in website_server.CODEX_INSTRUCTIONS
 
 
+def test_the_website_host_prewarms_app_server_in_the_background(monkeypatch):
+    host = website_server.WebsiteCodexHost("codex")
+    started = threading.Event()
+    release = threading.Event()
+
+    def ensure_server():
+        started.set()
+        release.wait(timeout=2)
+
+    monkeypatch.setattr(host, "_ensure_server", ensure_server)
+
+    thread = host.prewarm()
+
+    assert started.wait(timeout=2)
+    assert thread.is_alive()
+    release.set()
+    thread.join(timeout=2)
+    assert not thread.is_alive()
+
+
 def test_closing_the_website_host_stops_its_app_server(tmp_path):
     """The host adapter owns the process it starts, including during local runs."""
     host = website_server.WebsiteCodexHost(
@@ -308,8 +343,7 @@ def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
 
         def post(self, url, data, **options):
             self.posts.append((url, data))
-            status = "ready" if url.endswith("/turn") else "started"
-            return _Read({"status": status})
+            return _Read({"status": "started"})
 
     context = Requests()
     verify_site.start_direct_agent(
@@ -319,10 +353,6 @@ def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
     )
 
     assert context.posts == [
-        (
-            "http://127.0.0.1:8080/examples/design-decision/_leaf/agent/turn",
-            {"event": "comment-id"},
-        ),
         (
             "http://127.0.0.1:8080/examples/design-decision/_leaf/agent/start",
             {"event": "comment-id"},
@@ -742,11 +772,6 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             for obligation in answer["state"]["activity"]["obligations"]
         }
 
-        ready, _ = post(
-            f"{root}/examples/decision/_leaf/agent/turn",
-            {"event": comment["id"]},
-        )
-        assert ready == {"status": "ready"}
         started, _ = post(
             f"{root}/examples/decision/_leaf/agent/start",
             {"event": comment["id"]},
@@ -892,8 +917,6 @@ def test_a_product_route_uses_the_same_real_page_server(
             for event in answer["state"]["events"]
             if event.get("attempt") == posted["attempt"]
         )
-        ready, _ = post(f"{root}{page_root}/_leaf/agent/turn", {"event": comment["id"]})
-        assert ready == {"status": "ready"}
         started, _ = post(
             f"{root}{page_root}/_leaf/agent/start", {"event": comment["id"]}
         )

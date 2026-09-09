@@ -15,6 +15,7 @@ interface DeploymentConfig {
     bindings: Array<{ class_name: string }>;
   };
   migrations: Array<{ new_sqlite_classes?: string[] }>;
+  analytics_engine_datasets: Array<{ binding: string; dataset: string }>;
   ratelimits: Array<{
     name: string;
     simple: { limit: number; period: number };
@@ -63,6 +64,12 @@ describe("deployment configuration", () => {
         namespace_id: "34302",
         simple: { limit: 20, period: 60 },
       },
+    ]);
+  });
+
+  it("binds the website event dataset", () => {
+    expect(config.analytics_engine_datasets).toEqual([
+      { binding: "WEBSITE_EVENTS", dataset: "leaf_website_events" },
     ]);
   });
 

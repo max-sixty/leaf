@@ -2981,8 +2981,9 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     edited, and what a reader would see marked is whatever that edit happened to be.
     The shipped example is an authored pair — a proposal and the version that answered
     a comment on it — so what the comparison marks here is what a revision is: the
-    paragraph rewritten around the sentence the reader quoted, plus the paragraph and
-    the step it grew. Everything the revision left alone stays unmarked, including the
+    paragraph rewritten around the sentence the reader quoted, the paragraph and
+    step it grew, and the title and lede updated to state the exception. Everything
+    the revision left alone stays unmarked, including the
     section the other thread stands on, and both threads stay attached because both
     quotes survived.
 
@@ -2997,11 +2998,17 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     expect(page.locator(".lf-version-menu .lf-version-row")).to_have_count(2)
 
     compare_with(page, 1)
-    expect(page.locator("main .lf-ins-block")).to_have_count(3)
+    expect(page.locator("main .lf-ins-block")).to_have_count(5)
     marked = page.eval_on_selector_all(
         "main .lf-ins-block", "els => els.map(e => e.id).sort()"
     )
-    assert marked == ["ret-cost-body", "ret-cost-keep", "ret-steps-carve"], marked
+    assert marked == [
+        "ret-cost-body",
+        "ret-cost-keep",
+        "ret-lede",
+        "ret-steps-carve",
+        "ret-title",
+    ], marked
     # A Change margin element's press says what it reached, in the notice slot: its target is
     # usually on screen already, so the scroll moves nothing and a press that only spoke
     # to the live region was, to a sighted reader, a press that did nothing. What the

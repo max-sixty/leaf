@@ -47,6 +47,7 @@ import { prepareActivation } from "./version.js";
 async function readState() {
   countTraffic("asked");
   try {
+    const signal = globalThis.AbortSignal.timeout(STATE_READ_TIMEOUT_MS);
     let res;
     try {
       const revision = runtime.currentRevision;
@@ -58,7 +59,7 @@ async function readState() {
         }),
         // Coalescing bounds concurrency; this bounds its other dimension. A proxy that
         // never answers cannot own the page's single read slot forever.
-        signal: globalThis.AbortSignal.timeout(STATE_READ_TIMEOUT_MS),
+        signal,
       });
     } catch {
       // Network absence is a completed answer: there is no log to replay, so the
@@ -73,7 +74,12 @@ async function readState() {
     // at 403. A live server refusing the key and a dead one both leave the page
     // unreachable from here, and the terminal link is the recourse for both.
     if (!res?.ok) return null;
-    return await res.json();
+    try {
+      return await res.json();
+    } catch (error) {
+      if (signal.aborted) return null;
+      throw error;
+    }
   } finally {
     // Heard once the read has ended whichever way: the body in hand, or nothing.
     countTraffic("heard");

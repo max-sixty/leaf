@@ -2466,6 +2466,40 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     page.close()
 
 
+def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
+    delay_state_body_past_deadline = """
+      const nativeFetch = window.fetch.bind(window);
+      Object.defineProperty(AbortSignal, 'timeout', {
+        value: () => ({aborted: false}),
+      });
+      window.fetch = async (...args) => {
+        const input = args[0];
+        const url = typeof input === 'string' ? input : input.url;
+        if (new URL(url, location.href).pathname !== '/api/state')
+          return nativeFetch(...args);
+        const signal = args[1].signal;
+        const response = await nativeFetch(input, {...args[1], signal: undefined});
+        signal.aborted = true;
+        return {
+          ok: response.ok,
+          headers: response.headers,
+          json: async () => { throw new DOMException('timed out', 'TimeoutError'); },
+        };
+      };
+    """
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.add_init_script(delay_state_body_past_deadline)
+    try:
+        page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
+        expect(page.locator(".lf-status-text")).to_contain_text(
+            "Server offline — reconnecting"
+        )
+        assert errors == []
+    finally:
+        page.close()
+
+
 def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     """A wake-up the page could not act on is not lost. The stream says when the
     page has moved and cannot say it twice, so a read that failed — refused here, a

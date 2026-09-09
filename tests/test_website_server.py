@@ -1223,15 +1223,17 @@ class _DeployedPage:
         presented_at: float,
         reload_ok: bool = True,
         banner: str | None = None,
+        follows_revision: bool = False,
     ):
         self.heading = heading
         self.revision = revision
         self.presented_at = presented_at
         self.reload_ok = reload_ok
         self.banner = banner
+        self.follows_revision = follows_revision
         self.init_scripts: list[str] = []
         self.presentation_waits: list[int] = []
-        self.revision_waits: list[int] = []
+        self.revision_waits: list[tuple[int, int]] = []
 
     def add_init_script(self, script: str) -> None:
         self.init_scripts.append(script)
@@ -1247,17 +1249,15 @@ class _DeployedPage:
         answered.ok = self.reload_ok
         return answered
 
-    def wait_for_function(self, expression: str, arg=None, timeout: int = 0) -> None:
-        """The revision the page is standing on, waited for rather than sampled.
-
-        A page follows the published revision when its state read answers, so this
-        expires for a read that never came and returns for one that did — which is the
-        difference the gate's own patience is spent on.
-        """
+    def wait_for_function(self, expression: str, *, arg: int, timeout: int) -> None:
         assert "lf-revision" in expression
-        self.revision_waits.append(timeout)
-        if self.revision < arg:
-            raise verify_site.PlaywrightTimeout(f"waiting for revision {arg}")
+        self.revision_waits.append((arg, timeout))
+        if self.revision >= arg:
+            return
+        if self.follows_revision:
+            self.revision = arg
+            return
+        raise verify_site.PlaywrightTimeout("revision did not arrive")
 
     def locator(self, selector: str):
         if selector == "h1":
@@ -1310,7 +1310,7 @@ class _DeployedSite:
         return self.context
 
 
-def test_the_page_a_turn_has_just_written_gets_more_than_an_edge_page_to_present(
+def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentation(
     monkeypatch, capsys
 ):
     """One bound cannot serve both pages this gate reads, so the reload states its own.
@@ -1323,12 +1323,18 @@ def test_the_page_a_turn_has_just_written_gets_more_than_an_edge_page_to_present
     milliseconds — measured against the live deployment, 123 ms before a turn and
     2252-3918 ms after one, on the same session and page.
 
-    So the reading that decides this is which bound each of the two waits was given at
-    its own call site, not whether `await_presentation` forwards what it is handed.
+    The gate gives the reload that bound both to present and, after presentation, to
+    follow the revision its first read brings back. The second wait is required now that
+    presentation no longer implies the read has answered.
     """
     release = "4ef93dd9" + "0" * 56
     heading = f"Deployment {release[:8]} verified"
-    page = _DeployedPage(heading, revision=2, presented_at=28444.0)
+    page = _DeployedPage(
+        heading,
+        revision=1,
+        presented_at=28444.0,
+        follows_revision=True,
+    )
     container = _DeployedContainer(release, page)
     published = {"revision": 2, "url": "revisions/2.html"}
     monkeypatch.setattr(
@@ -1348,15 +1354,11 @@ def test_the_page_a_turn_has_just_written_gets_more_than_an_edge_page_to_present
 
     verify_site.verify_agent_turn(_DeployedSite(container), release)
 
-    # The session's first load is an ordinary read of that container, and the reload
-    # after the turn is not: dropping `TURN_PRESENTATION` from that call restores the
-    # failure this branch is named for, and leaves the first reading unchanged.
+    # The ordinary first load uses the edge-page presentation bound. The post-turn
+    # reload gets its own bound for both presentation and the later revision follow.
     assert page.presentation_waits == [30_000, verify_site.TURN_PRESENTATION]
+    assert page.revision_waits == [(2, verify_site.TURN_PRESENTATION)]
     assert verify_site.TURN_PRESENTATION > 30_000
-    # The reload presents at the runtime's own fixed wait whether or not its first read
-    # has answered, so the revision the turn published is waited for under the same
-    # budget rather than read the instant the page appears.
-    assert page.revision_waits == [verify_site.TURN_PRESENTATION]
     # The stamps the message needs to say which stall it was. Without them a page that
     # upgraded and stalled on its first state read reports the same "no startup
     # milestone" as one whose modules never arrived.
@@ -1422,7 +1424,7 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
     # Reported after the gate's own patience ran out, not at presentation: the banner is
     # quoted for a read that never answered rather than for one a second slower than the
     # runtime's wait.
-    assert offline.revision_waits == [verify_site.TURN_PRESENTATION]
+    assert offline.revision_waits == [(2, verify_site.TURN_PRESENTATION)]
 
     # A page whose read answered is standing under an ordinary activity line rather
     # than an empty banner — a presented page always has one — so the two causes are
@@ -1440,4 +1442,4 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
     assert "stands on revision 1" in str(named.value)
     assert "Claude is handling 1 update" in str(named.value)
     assert "Server offline" not in str(named.value)
-    assert told.revision_waits == [verify_site.TURN_PRESENTATION]
+    assert told.revision_waits == [(2, verify_site.TURN_PRESENTATION)]

@@ -434,9 +434,10 @@ const PRESENTATION_WAIT_MS = 10_000;
 // one — the wait above presents without it — so the bound frees the page's one read slot
 // rather than deciding when the page arrives, and is set outside what any live container
 // takes rather than inside it: the deploy gate gives every read of a container running a
-// hosted turn 120 seconds, and a runtime that abandoned one sooner would be aborting
-// answers the gate is still waiting for. A proxy that accepts the connection and never
-// answers is still bounded here.
+// hosted turn a 120-second revision wait after presentation. This read starts before
+// that wait, so abandoning it sooner would abort an answer while the gate is still
+// waiting; at this bound the gate observes the resulting offline state. A proxy that
+// accepts the connection and never answers is therefore still bounded here.
 const FIRST_READ_TIMEOUT_MS = 120_000;
 
 // How long every read after that may take. These have no wait beside them, and the

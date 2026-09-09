@@ -77,16 +77,14 @@ PROFILE_SCRIPT = """(() => {
 # stopped.
 TURN_PATIENCE = 300
 TURN_LIMIT = 600
-# How long the page reloaded after the turn may take to present, and then to follow the
-# revision the turn published. The release pass walks pages the edge serves, which present
-# in about a second, and `await_presentation`'s own bound is calibrated for those. This
-# reload is answered by a container that has just run a hosted model turn, and the two
-# waits it gets are the two halves the runtime separates: the page presents at the
-# runtime's own fixed ten-second wait whatever the container does, so this bound sits
-# outside that wait plus the reload's navigation, module load and widget upgrade for the
-# revision check below to be reached at all. Following the revision is then what the first
-# read buys, and the runtime bounds that read at 120 s, so this is the patience it is
-# spent under. A gate that gave up on either half would report a stall it caused itself.
+# How long the page reloaded after the turn gets to reach each of its two gates. It must
+# first present; the release pass's ordinary bound is calibrated for pages the edge
+# serves in about a second, while this container-backed reload may spend ten seconds at
+# the runtime's own presentation wait. Presentation does not mean that the first state
+# read has answered, so the same patience then lets that read activate the revision the
+# agent published. If it expires, the revision check reports what the page says about
+# the read. This second wait starts after presentation, so it outlasts the runtime's
+# first-read bound and samples only after that read has ended.
 TURN_PRESENTATION = 120_000
 # The activity readings that mean a turn is on this work. A page that reads away,
 # unheld, listening, stalled or closed is not going to answer, so its wait ends at

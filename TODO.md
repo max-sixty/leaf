@@ -15,6 +15,122 @@ the relevant design note or in git history.
   Threads, use the existing Map sheet on narrow pages, and never leave both margin
   presentations visible at once.
 
+## Workspace follow-ups
+
+The workspace research after [PR #455](https://github.com/max-sixty/leaf/pull/455)
+produced the following backlog. IDs match the research discussion, not GitHub issues.
+The [research briefs](notes/workspace-followups.md) retain evidence, completion
+criteria, dependencies, and Sol/Astra assignments. Items are ordered within each group.
+
+Start with **#2, #3 and #4**, alongside **#6 and #8**. Capture the **#19** authoring
+baseline before changing guidance, then complete real workflows in **#9 and #17**.
+Keep the current primitives; let the experiments establish demand for more.
+
+### Shared contracts
+
+- **#2 — [Make arrangement admission one
+  transaction](notes/workspace-followups.md#item-2).** Admit a single live arrangement
+  before changing its DOM, so failed registration cannot leave a half-arranged widget.
+
+- **#3 — [Check text honesty in dark mode](notes/workspace-followups.md#item-3).** Run
+  the scheme-sensitive text check in both color schemes.
+
+- **#4 — [Size custom workspace roots by their declared
+  role](notes/workspace-followups.md#item-4).** Remove the remaining default-tag
+  dependency from root workspace sizing.
+
+- **#1 — [Check anonymous preserving widgets](notes/workspace-followups.md#item-1).**
+  Extend the text-preservation check to widgets without an authored ID, retaining the
+  existing compositional contract.
+
+- **#5 — [Check projected prose after actions and
+  reports](notes/workspace-followups.md#item-5).** Replace whole-owner exemptions with
+  the narrower changes that the projected state actually permits.
+
+### Examples
+
+- **#6 — [Compact the notification example](notes/workspace-followups.md#item-6).**
+  Consolidate the title, explanation and question so the actual controls and preview
+  have useful height.
+
+- **#7 — [Keep playground presets within reach](notes/workspace-followups.md#item-7).**
+  Try placing the compact preset controls in the controls pane’s header, outside its
+  scrolling body.
+
+- **#8 — [Give the review queue one navigator](notes/workspace-followups.md#item-8).**
+  Remove the repeated worklist and tab-strip selection surfaces while preserving
+  independent queue and detail reading.
+
+- **#9 — [Make the queue’s blockers answerable](notes/workspace-followups.md#item-9).**
+  Turn the stated cache and billing blockers into real decisions and show the revision
+  that incorporates the answers.
+
+### Reader continuity
+
+- **#10 — [Make pane overflow discoverable](notes/workspace-followups.md#item-10).**
+  Test a subtle continuation cue for bounded panes with more content below the visible
+  edge.
+
+- **#11 — [Let newer navigation win over revision
+  restoration](notes/workspace-followups.md#item-11).** Use navigation intent to prevent
+  an old reading capture from overwriting input made during revision activation.
+
+- **#12 — [Compare Threads overlay with Keep
+  beside](notes/workspace-followups.md#item-12).** Try overlay as the quick-access
+  default, with an explicit Keep beside choice for sustained conversation.
+
+- **#13 — [Automate long local-comment
+  journeys](notes/workspace-followups.md#item-13).** Protect draft and focus continuity
+  when a long composer meets a short pane, a tall footer and a posture change.
+
+- **#14 — [Verify the complete keyboard and accessibility
+  route](notes/workspace-followups.md#item-14).** Exercise the workspace as one keyboard
+  task, including reading, pane furniture, local comments and Threads.
+
+- **#15 — [Name the region in ambiguous page-map
+  entries](notes/workspace-followups.md#item-15).** Test whether the compact page map
+  can distinguish identical subjects in different panes.
+
+### Complete workflows
+
+- **#16 — [Prove a current-versus-proposed
+  comparison](notes/workspace-followups.md#item-16).** Show two real alternatives
+  simultaneously and let the reader discuss each before committing one choice.
+
+- **#17 — [Complete a real configure-to-agent-to-revision
+  loop](notes/workspace-followups.md#item-17).** Make a committed playground
+  configuration produce an inspectable local artifact, then refine it through an
+  anchored comment.
+
+- **#18 — [Try an exception-driven monitoring
+  workspace](notes/workspace-followups.md#item-18).** Use the existing live-progress
+  example to test a stable overview beside changing evidence and an exception that needs
+  a decision.
+
+### Authoring and product boundary
+
+- **#19 — [Measure what Leaf saves an authoring
+  agent](notes/workspace-followups.md#item-19).** Run a small blind authoring comparison
+  against plain HTML, including the cost of the subsequent feedback cycle. Extend the
+  existing agent-usability evaluation plan with this comparison.
+
+- **#20 — [Teach the few compositions that earn their
+  place](notes/workspace-followups.md#item-20).** Put tested document, configuration and
+  queue/detail recipes into the existing package guidance.
+
+- **#21 — [Test whether custom roots need shared fitting
+  policy](notes/workspace-followups.md#item-21).** Use one genuinely different package
+  root to decide whether responsive fit ownership belongs in the shared API.
+
+- **#22 — [Verify workspaces at the experimental MCP
+  boundary](notes/workspace-followups.md#item-22).** Check the same workspace in a full
+  iframe, a constrained host and the existing snapshot/browser handoff.
+
+- **#23 — [Find out whether people return to a
+  workspace](notes/workspace-followups.md#item-23).** Run repeated real tasks to decide
+  how much persistence and workspace customization Leaf should own. Requires Max to
+  choose and participate in real recurring tasks.
+
 ## Later
 
 - **Add a foreground path for other agent hosts.** Document a blocking `leaf wait` flow

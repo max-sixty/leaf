@@ -2500,10 +2500,8 @@ def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
         page.close()
 
 
-def test_the_state_read_bound_sits_outside_the_readings_a_container_takes(
-    browser, serve
-):
-    """The bound frees the read slot; it is not a verdict on a container that is slow.
+def test_the_first_read_and_the_reader_s_later_ones_are_bounded_apart(browser, serve):
+    """Two reads, two deadlines, because they are answerable to different things.
 
     `publish-site` deployed release `5b6be522…`, ran a hosted agent turn on it, and
     then read the reloaded page standing on the revision from before the turn. A
@@ -2511,12 +2509,16 @@ def test_the_state_read_bound_sits_outside_the_readings_a_container_takes(
     than milliseconds — measured against a live deployment at 123 ms before a turn and
     2252-3918 ms after one. A bound inside that spread does not delay such a read, it
     ends it: an expiry is a completed offline answer, so the page takes the container
-    for gone while the answer it asked for is still on its way.
+    for gone while the answer it asked for is still on its way. Nothing waits on the
+    first read — the page presents at its own wait, tested below — so its bound can sit
+    outside every reading a live container takes. The deploy gate gives that container
+    120 seconds for each read it makes of it.
 
-    Nothing waits on this bound — the page presents at its own wait, tested below — so
-    it can be set where a live container's answers are all inside it. The deploy gate
-    gives every read of that container 120 seconds, and a runtime that abandons one
-    sooner aborts answers the gate is still waiting for.
+    Every read after presentation answers to the reader instead. The banner's one way
+    to say the server stopped answering runs through a read that *completed* with
+    nothing, and a read still in flight holds the page's one slot, so this bound is the
+    whole time a live page can go on showing a reading the server has abandoned. It
+    stays on a reader's timescale rather than the gate's.
     """
     record_read_bounds = """
       window.__leafReadBounds = [];
@@ -2531,12 +2533,17 @@ def test_the_state_read_bound_sits_outside_the_readings_a_container_takes(
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     errors = watched(page)
     page.add_init_script(record_read_bounds)
+    # A read that brings nothing is what puts the page back on the clock: a page holding
+    # an answer asks again only when its news moves, so refusing the reads is how a
+    # second one is reached without waiting on the server to say something new.
+    page.route("**/api/state*", refuse)
     try:
         page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
         expect(page.locator("body[data-lf-presented]")).to_have_count(1)
+        page.wait_for_function("() => window.__leafReadBounds.length >= 2")
         bounds = page.evaluate("() => window.__leafReadBounds")
-        assert bounds, "the page installed no bound on its state read"
-        assert min(bounds) >= 120_000, bounds
+        assert bounds[0] == 120_000, bounds
+        assert bounds[1] == 10_000, bounds
         assert errors == []
     finally:
         page.close()

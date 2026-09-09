@@ -1402,12 +1402,19 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
     assert "stands on revision 1" in str(reported.value)
     assert "Server offline — reconnecting" in str(reported.value)
 
-    # A page whose read answered has no banner to report, and the message says only
-    # what it knows rather than trailing an empty quotation.
-    told = _DeployedPage(heading, revision=1, presented_at=1_400.0)
+    # A page whose read answered is standing under an ordinary activity line rather
+    # than an empty banner — a presented page always has one — so the two causes are
+    # separated by what the message quotes rather than by whether it quotes anything.
+    told = _DeployedPage(
+        heading,
+        revision=1,
+        presented_at=1_400.0,
+        banner="Claude is handling 1 update",
+    )
     with pytest.raises(RuntimeError) as named:
         verify_site.verify_agent_turn(
             _DeployedSite(_DeployedContainer(release, told)), release
         )
     assert "stands on revision 1" in str(named.value)
-    assert "banner" not in str(named.value)
+    assert "Claude is handling 1 update" in str(named.value)
+    assert "Server offline" not in str(named.value)

@@ -689,18 +689,19 @@ def verify_agent_turn(browser, release: str) -> None:
         "() => document.querySelector('meta[name=\"lf-revision\"]')?.content ?? null"
     )
     # A page standing on the built document has two ways to get there, and the banner
-    # separates them: one whose first read answered was told revision 1, while one that
-    # presented offline was never told anything and is showing the authored page under a
-    # read that did not complete. The gate cannot see the read, so it reports what the
-    # page says about it.
+    # separates them: one whose first read answered was told revision 1 and stands under
+    # that reading's activity line, while one that presented offline was never told
+    # anything and stands under the offline line over the authored page. The gate cannot
+    # see the read, so it reports what the page says about it. A presented page always
+    # has this line — the chrome mounts it reading ‘Connecting…’ and every render
+    # replaces its words — so there is no third answer to guard for.
     banner = page.evaluate(
         "() => document.querySelector('.lf-status-text')?.textContent?.trim() || null"
     )
     check(
         (shown or "").isdigit() and int(shown) >= published["revision"],
         f"{url} stands on revision {shown} rather than following the published "
-        f"{published['revision']}"
-        + (f", with the banner reading ‘{banner}’" if banner else ""),
+        f"{published['revision']}, with the banner reading ‘{banner}’",
     )
     rendered = page.locator("h1").inner_text()
     check(

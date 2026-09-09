@@ -44,10 +44,10 @@ import { prepareActivation } from "./version.js";
 // waits on a frame and on whatever a module does during one — and an ear that waited
 // for that would stop hearing. The page would then go silent for a reason none of its
 // news is about, which is a wedge rather than a delay: nothing else would ever ask.
-async function readState() {
+async function readState(bound) {
   countTraffic("asked");
   try {
-    const signal = globalThis.AbortSignal.timeout(STATE_READ_TIMEOUT_MS);
+    const signal = globalThis.AbortSignal.timeout(bound);
     let res;
     try {
       const revision = runtime.currentRevision;
@@ -86,15 +86,22 @@ async function readState() {
   }
 }
 
-// Start a read without leaving a rejection unobserved while widget startup continues.
-// The result is still applied through readAndApply, at the boundary that has captured
-// the upgraded authored state. A malformed answer therefore remains a startup fault;
-// buffering changes when the network work runs, not what its answer means.
-export function beginRead() {
-  return readState().then(
+// A read whose rejection is observed here rather than wherever it is finally awaited.
+function buffer(bound) {
+  return readState(bound).then(
     (state) => ({ state }),
     (error) => ({ error }),
   );
+}
+
+// Start the page's first read without leaving a rejection unobserved while widget
+// startup continues. The result is still applied through readAndApply, at the boundary
+// that has captured the upgraded authored state. A malformed answer therefore remains a
+// startup fault; buffering changes when the network work runs, not what its answer
+// means. This is the one read nothing is waiting on — presentation ends at its own wait
+// — so it is the one that takes the long bound.
+export function beginRead() {
+  return buffer(FIRST_READ_TIMEOUT_MS);
 }
 
 // Failed reads retry on the clock: a news wake-up says that state changed, but
@@ -123,9 +130,11 @@ async function readNothing() {
 }
 
 // A read and its application together, for the callers that want to be told when the
-// page has taken the answer in: the first read, which presentation waits on, and a
-// version activation, which asks for the state it is about to show.
-export async function readAndApply(read = beginRead()) {
+// page has taken the answer in: the buffered first read, which presentation waits on
+// until its own deadline, and a version activation, which asks for the state it is
+// about to show. The activation opens its own read from a page a reader is already
+// using, so it takes an ordinary read's bound rather than the first read's.
+export async function readAndApply(read = buffer(STATE_READ_TIMEOUT_MS)) {
   const answer = await read;
   if ("error" in answer) throw answer.error;
   const { state } = answer;
@@ -241,7 +250,7 @@ export function startFeed(present, initialRead = beginRead()) {
   let readQueued = false;
   const askOnce = async () => {
     try {
-      const state = await readState();
+      const state = await readState(STATE_READ_TIMEOUT_MS);
       if (state)
         void receiveState(state)
           .then(
@@ -421,12 +430,21 @@ const SILENCE_MS = 30_000;
 // waiting on is still coming.
 const PRESENTATION_WAIT_MS = 10_000;
 
-// How long a state read itself may take before the page gives up on it. This bound frees
-// the page's one read slot rather than deciding when the page arrives — `startFeed`'s
-// wait above does that — so it is set outside what any live container takes rather than
-// inside it: the deploy gate gives every read of a container running a hosted turn 120
-// seconds, and a runtime that abandoned one sooner would be aborting answers the gate is
-// still waiting for. A proxy that accepts the connection and never answers is still
-// bounded here. On expiry readState produces the same offline answer as any lost
-// request, and the shared retry clock asks again.
-const STATE_READ_TIMEOUT_MS = 120_000;
+// How long the first read may take before the page gives up on it. Nothing waits on this
+// one — the wait above presents without it — so the bound frees the page's one read slot
+// rather than deciding when the page arrives, and is set outside what any live container
+// takes rather than inside it: the deploy gate gives every read of a container running a
+// hosted turn 120 seconds, and a runtime that abandoned one sooner would be aborting
+// answers the gate is still waiting for. A proxy that accepts the connection and never
+// answers is still bounded here.
+const FIRST_READ_TIMEOUT_MS = 120_000;
+
+// How long every read after that may take. These have no wait beside them, and the
+// banner's one honesty mechanism about the server runs through a read that *completed*
+// with nothing: `renderStatus(null)` is the only path to OFFLINE_LINE, and a read still
+// in flight holds the slot, so a stream word or a clock tick only queues a trailing read
+// behind it. This bound is therefore the whole time a reader watching a live page can be
+// shown a reading the server has stopped standing behind, which is a reader's timescale
+// rather than the gate's. On expiry readState produces the same offline answer as any
+// lost request, and the shared retry clock asks again.
+const STATE_READ_TIMEOUT_MS = 10_000;

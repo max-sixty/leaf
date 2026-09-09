@@ -2,7 +2,7 @@
  * Threads list. */
 import { landInConversation, SAY_BOX, showThread } from "./landing.js";
 import { ago } from "../presence.js";
-import { renderMessageMarkdown, syncEdited } from "./messages.js";
+import { renderMessageMarkdown, syncEdited, syncStreamState } from "./messages.js";
 import { markdownReady } from "../markdown.js";
 import { el, offer } from "../widget-elements.js";
 import { seatRoot, turns } from "./model.js";
@@ -32,7 +32,7 @@ function paintConversationBody(body, message) {
 // renderer had arrived when it was painted. A message the reader sends paints in their
 // gesture, before the lazy import it needs has necessarily landed.
 const inlineRevision = (message) =>
-  `${message.edited?.id ?? ""}:${markdownReady() ? "md" : "raw"}`;
+  `${message.edited?.id ?? ""}:${message.stream_state ? message.text : ""}:${markdownReady() ? "md" : "raw"}`;
 
 function conversationMessageNode(thread, message) {
   // By its event, or — while the log is still answering for words the reader just sent —
@@ -53,7 +53,9 @@ function conversationMessageNode(thread, message) {
     const time = node.querySelector("time");
     const when = ago(message.ts);
     if (time.textContent !== when) time.textContent = when;
-    syncEdited(node.querySelector(":scope > .lf-conversation-head"), message);
+    const head = node.querySelector(":scope > .lf-conversation-head");
+    syncEdited(head, message);
+    syncStreamState(node, head, message);
     const body = node.querySelector(":scope > .lf-conversation-body");
     const revision = inlineRevision(message);
     if (node.lfRevision !== revision) {
@@ -72,6 +74,7 @@ function conversationMessageNode(thread, message) {
     el("time", "", ago(message.ts)),
   );
   syncEdited(head, message);
+  syncStreamState(node, head, message);
   const body = el("div", "lf-conversation-body");
   paintConversationBody(body, message);
   node.lfRevision = inlineRevision(message);

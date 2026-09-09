@@ -59,7 +59,7 @@ def full_state(
         active = active_override
     else:
         active = active_descriptor(page_dir, events)
-    present, activity_stream = presence_with_activity(page_dir, events)
+    present, live_stream = presence_with_activity(page_dir, events)
     now = now_iso()
     browser = project_browser_state(
         page_dir,
@@ -69,10 +69,15 @@ def full_state(
         present,
         now,
         source_overrides=source_overrides,
-        activity_stream=activity_stream,
+        live_stream=live_stream,
     )
     activity = project_activity(
-        page_dir, events, present, now, browser, activity_stream
+        page_dir,
+        events,
+        present,
+        now,
+        browser,
+        (live_stream or {}).get("activity"),
     )
     try:
         registry = load_registry(page_dir)

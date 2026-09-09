@@ -22,7 +22,7 @@ def browser_state(
     active: dict,
     view_revisions: set[int],
     now: str,
-    activity_stream: dict | None = None,
+    live_stream: dict | None = None,
 ) -> dict:
     """The browser's derived reading of one transaction-consistent page snapshot.
 
@@ -37,7 +37,22 @@ def browser_state(
     withdrawn = taken_back(events)
     threads = build_threads(events, active_within, withdrawn=withdrawn)
     undo_reading = UndoReading(events, threads=threads, withdrawn=withdrawn)
-    conversation, conversation_reading = browser_conversation(events, registry, threads)
+    live_reply = (live_stream or {}).get("reply")
+    if (
+        live_reply is not None
+        and live_reply.get("state") == "active"
+        and (
+            live_reply.get("session") != present.get("claim_session")
+            or not present["listening"]
+        )
+    ):
+        live_reply = {**live_reply, "state": "disconnected"}
+    conversation, conversation_reading = browser_conversation(
+        events,
+        registry,
+        threads,
+        live_reply,
+    )
     conversation_projection = conversation_reading.projection
 
     views = {}
@@ -103,7 +118,7 @@ def browser_state(
         "views": views,
         "conversation": conversation,
         "activity": canonical_activity(
-            present, interaction_evidence, now, activity_stream
+            present, interaction_evidence, now, (live_stream or {}).get("activity")
         ),
         "receipts": [event for event in events if event.get("attempt")],
         "version_notes": {
@@ -124,7 +139,7 @@ def project_browser_state(
     source_overrides: dict[int, str] | None = None,
     *,
     include_active_view: bool = True,
-    activity_stream: dict | None = None,
+    live_stream: dict | None = None,
 ) -> dict | None:
     """Project only the documents one browser reading can consume.
 
@@ -164,5 +179,5 @@ def project_browser_state(
         active,
         wanted if include_active_view else {requested_revision},
         now,
-        activity_stream,
+        live_stream,
     )

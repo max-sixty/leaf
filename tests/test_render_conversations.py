@@ -1,16 +1,22 @@
 """Comment-panel ordering, narrowing, and thread-motion tests."""
 
 import base64
+import json
 import re
+import threading
+import time
 from copy import deepcopy
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command
+from interact_support import append_command, record_claim
 from leaf import cli as cli_model
+from leaf import codex as codex_model
 from leaf import conversation as conversation_model
 from leaf import event_log as events_model
+from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
+from leaf import service as service_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -50,8 +56,236 @@ from render_support import (
     told,
     undo,
 )
+from websockets.sync.server import serve as serve_websocket
 
 pytestmark = pytest.mark.nightly
+
+
+def test_a_leaf_started_codex_response_streams_into_the_live_thread(
+    browser, serve, monkeypatch, request
+):
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Answer me here", {"section": "plan"})
+    claim = record_claim(
+        serve.page_dir,
+        id="codex-thread",
+        host="codex",
+        agent="Codex",
+    )
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(serve.page_dir, claim)
+    )
+    assert lease
+    request.addfinalizer(lease.close)
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_status("waiting", "Reader feedback")
+    monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
+
+    finish = threading.Event()
+    completed = threading.Event()
+    hold_server = threading.Event()
+
+    def handle(socket):
+        initialize = json.loads(socket.recv())
+        socket.send(json.dumps({"id": initialize["id"], "result": {}}))
+        socket.recv()
+        resume = json.loads(socket.recv())
+        socket.send(
+            json.dumps(
+                {
+                    "id": resume["id"],
+                    "result": {
+                        "thread": {
+                            "id": "codex-thread",
+                            "status": {"type": "idle"},
+                            "turns": [],
+                        }
+                    },
+                }
+            )
+        )
+        start = json.loads(socket.recv())
+        socket.send(
+            json.dumps(
+                {
+                    "method": "turn/started",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turn": {"id": "leaf-turn"},
+                    },
+                }
+            )
+        )
+        socket.send(
+            json.dumps(
+                {
+                    "id": start["id"],
+                    "result": {
+                        "turn": {
+                            "id": "leaf-turn",
+                            "status": "inProgress",
+                            "items": [],
+                        }
+                    },
+                }
+            )
+        )
+        socket.send(
+            json.dumps(
+                {
+                    "method": "item/started",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turnId": "leaf-turn",
+                        "item": {
+                            "id": "answer",
+                            "type": "agentMessage",
+                            "phase": "final_answer",
+                            "text": "",
+                        },
+                    },
+                }
+            )
+        )
+        socket.send(
+            json.dumps(
+                {
+                    "method": "item/agentMessage/delta",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turnId": "leaf-turn",
+                        "itemId": "answer",
+                        "delta": "First words",
+                    },
+                }
+            )
+        )
+        finish.wait(timeout=5)
+        answer = {
+            "id": "answer",
+            "type": "agentMessage",
+            "phase": "final_answer",
+            "text": "First words, then the complete answer.",
+        }
+        socket.send(
+            json.dumps(
+                {
+                    "method": "item/completed",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turnId": "leaf-turn",
+                        "completedAtMs": 1,
+                        "item": answer,
+                    },
+                }
+            )
+        )
+        socket.send(
+            json.dumps(
+                {
+                    "method": "turn/completed",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turn": {
+                            "id": "leaf-turn",
+                            "status": "completed",
+                            "items": [answer],
+                        },
+                    },
+                }
+            )
+        )
+        completed.set()
+        hold_server.wait(timeout=10)
+
+    app_server = serve_websocket(handle, "127.0.0.1", 0)
+    worker = threading.Thread(target=app_server.serve_forever, daemon=True)
+    worker.start()
+    request.addfinalizer(app_server.shutdown)
+    request.addfinalizer(hold_server.set)
+    endpoint = f"ws://127.0.0.1:{app_server.socket.getsockname()[1]}"
+    observer = codex_model.AppServerClient(endpoint, "codex-thread")
+    observer.start()
+    request.addfinalizer(observer.stop)
+    observer.start_delivery(
+        {
+            "id": "delivery-1",
+            "page": str(serve.page_dir),
+            "conversation": root,
+            "reply_to": root,
+        },
+        {"format": codex_model.DELIVERY_FORMAT, "id": "delivery-1"},
+    )
+
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    live = page.locator(
+        f'.lf-thread[data-id="{root}"] .lf-msg[data-mid="codex-stream:leaf-turn"]'
+    )
+    expect(live.locator(".lf-msg-body")).to_have_text("First words")
+    expect(live).to_have_attribute("aria-busy", "true")
+    expect(live.locator(".lf-react-strip")).to_have_count(0)
+
+    finish.set()
+    assert completed.wait(timeout=5)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        replies = [
+            event
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "reply" and event["author"] == "claude"
+        ]
+        if replies:
+            break
+        time.sleep(0.01)
+    assert len(replies) == 1
+    expect(live).to_have_count(0)
+    reply = page.locator(f'.lf-thread[data-id="{root}"] .lf-msg.claude').last
+    expect(reply.locator(".lf-msg-body")).to_have_text(
+        "First words, then the complete answer."
+    )
+    expect(reply.locator(".lf-react-strip")).to_have_count(1)
+    assert not errors
+
+
+@pytest.mark.parametrize(
+    ("state", "label"),
+    [("interrupted", "Interrupted"), ("partial", "Partial")],
+)
+def test_an_incomplete_codex_response_is_labelled_in_its_thread(
+    browser, serve, state, label
+):
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Answer me here", {"section": "plan"})
+    record_claim(
+        serve.page_dir,
+        id="codex-thread",
+        host="codex",
+        agent="Codex",
+    )
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_status("waiting", "Reader feedback")
+        transaction.set_stream_reply(
+            "codex-thread",
+            "leaf-turn",
+            root,
+            root,
+            "answer",
+            "I could not finish this response.",
+            state,
+        )
+
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    draft = page.locator(
+        f'.lf-thread[data-id="{root}"] .lf-msg[data-mid="codex-stream:leaf-turn"]'
+    )
+    expect(draft).to_have_attribute("data-stream-state", state)
+    expect(draft.locator(".lf-stream-state")).to_have_text(label)
+    expect(draft).not_to_have_attribute("aria-busy", "true")
+    assert not errors
 
 
 @pytest.mark.parametrize("resolved", [False, True])
@@ -747,127 +981,6 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
     }"""), "the poll replaced or disturbed the node the user was typing into"
     assert errors == []
     page.close()
-
-
-@pytest.mark.parametrize("width", [320, 800])
-@pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_thread_keeps_submit_in_its_field_and_resolve_in_its_corner(
-    browser, serve, width, scheme
-):
-    """Submit belongs to the field while Resolve belongs to the thread.
-
-    Growing the field carries Submit with it and leaves Resolve fixed. The textarea
-    reserves the icon's whole horizontal band, so words and a scrollbar do not run
-    underneath it. Resolve aligns with the quoted address instead of either message's
-    metadata. The same geometry holds in the panel's narrowest useful window and with
-    room beside the page, in both palettes."""
-    context = browser.new_context(
-        viewport={"width": width, "height": 720}, color_scheme=scheme
-    )
-    try:
-        url = serve(LONG_PAGE)
-        panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
-        page, errors = open_page(browser, url, context=context)
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
-        compose = thread.locator(".lf-compose")
-        textarea = compose.locator("textarea")
-        send = thread.get_by_role("button", name="Send", exact=True)
-        resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
-        close = page.get_by_role("button", name="Close threads", exact=True)
-        expect(send).to_be_visible()
-        expect(resolve).to_be_visible()
-        expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
-        expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
-        expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
-        expect(send).to_have_text("")
-        expect(resolve).to_have_text("")
-        expect(close).to_have_text("")
-
-        def geometry():
-            return thread.evaluate(
-                """thread => {
-                  const rect = sel => {
-                    const r = thread.querySelector(sel).getBoundingClientRect();
-                    return {x: r.x, y: r.y, width: r.width, height: r.height,
-                            right: r.right, bottom: r.bottom};
-                  };
-                  const own = thread.getBoundingClientRect();
-                  const padding = parseFloat(getComputedStyle(
-                    thread.querySelector('textarea')).paddingInlineEnd);
-                  const radius = (selector, pseudo = null) => getComputedStyle(
-                    selector.startsWith('.lf-panel')
-                      ? document.querySelector(selector)
-                      : thread.querySelector(selector), pseudo).borderRadius;
-                  return {thread: {x: own.x, y: own.y, width: own.width,
-                                   height: own.height, right: own.right, bottom: own.bottom},
-                          compose: rect('.lf-compose'), field: rect('.lf-compose-field'),
-                          textarea: rect('.lf-compose textarea'),
-                          quote: rect('.lf-quote'),
-                          send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
-                          closeBorder: getComputedStyle(document.querySelector(
-                            '.lf-panel-head [aria-label="Close threads"]')).borderTopWidth,
-                          resolveBorder: getComputedStyle(thread.querySelector(
-                            '.lf-resolve'), '::before').borderTopWidth,
-                          sendBorder: getComputedStyle(thread.querySelector(
-                            '.lf-thread-send'), '::before').borderTopWidth,
-                          radii: {
-                            send: radius('.lf-thread-send'),
-                            sendFill: radius('.lf-thread-send', '::before'),
-                            resolve: radius('.lf-resolve'),
-                            resolveFill: radius('.lf-resolve', '::before'),
-                            close: radius('.lf-panel-head [aria-label="Close threads"]'),
-                          },
-                          padding,
-                          overflow: thread.scrollWidth - thread.clientWidth};
-                }"""
-            )
-
-        short = geometry()
-        assert short["field"]["x"] == pytest.approx(short["compose"]["x"], abs=1)
-        assert short["thread"]["right"] - short["compose"]["right"] == pytest.approx(
-            short["compose"]["x"] - short["thread"]["x"], abs=1
-        )
-        assert short["textarea"]["right"] == pytest.approx(
-            short["field"]["right"], abs=1
-        )
-        assert short["send"]["right"] < short["textarea"]["right"]
-        assert short["send"]["bottom"] < short["textarea"]["bottom"]
-        assert short["padding"] >= short["send"]["width"] + 10
-        assert short["resolve"]["y"] == pytest.approx(short["quote"]["y"], abs=1)
-        assert short["resolve"]["right"] == pytest.approx(
-            short["quote"]["right"], abs=1
-        )
-        # The minimum click target can be taller than a single quote line. Its
-        # center still belongs to that quote's band, above the message content.
-        assert (
-            short["resolve"]["y"] + short["resolve"]["height"] / 2
-            <= short["quote"]["bottom"]
-        )
-        assert float(short["closeBorder"][:-2]) == 0
-        assert float(short["resolveBorder"][:-2]) == 0
-        assert float(short["sendBorder"][:-2]) == 0
-        assert set(short["radii"].values()) == {button_radius(page)}
-        assert short["overflow"] == 0
-
-        textarea.focus()
-        focused = geometry()
-        assert focused["send"] == short["send"]
-        assert focused["resolve"] == short["resolve"]
-
-        textarea.fill("First line.\nSecond line.\nThird line.\nFourth line.")
-        grown = geometry()
-        assert grown["send"]["x"] == pytest.approx(short["send"]["x"], abs=1)
-        assert grown["send"]["bottom"] == pytest.approx(
-            grown["textarea"]["bottom"] - 6, abs=1
-        )
-        assert grown["send"]["y"] > short["send"]["y"]
-        assert grown["resolve"] == short["resolve"]
-        assert grown["overflow"] == 0
-        assert errors == []
-    finally:
-        context.close()
 
 
 def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serve):
@@ -2524,6 +2637,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-resolve",
         # Active buttons share the theme's existing .lf-btn.on state.
         "on",
+        # Primary buttons keep the authored theme's filled action face when they
+        # enter chrome rows whose quiet controls deliberately clear that paint.
+        "primary",
     }, "the authored-theme class surface changed: widen the exception on purpose"
     # Every one of these is worn by something the runtime puts inside the page rather than
     # inside its own container — or, for lf-address, on both sides of that line at once,

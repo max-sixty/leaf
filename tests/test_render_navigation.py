@@ -1635,7 +1635,7 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_quote(browser, serve):
     panel_settled(page)
     first = page.locator(f'.lf-thread[data-id="{first_id}"]')
     second = page.locator(f'.lf-thread[data-id="{second_id}"]')
-    first_quote = first.locator(":scope > .lf-quote")
+    first_quote = first.locator(":scope > .lf-thread-head > .lf-quote")
     resting = first.evaluate("element => getComputedStyle(element).backgroundColor")
     quote_resting = first_quote.evaluate(
         "element => getComputedStyle(element).backgroundColor"
@@ -1701,7 +1701,7 @@ def test_a_page_mark_does_not_wash_a_long_thread_card(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
-    quote = thread.locator(":scope > .lf-quote")
+    quote = thread.locator(":scope > .lf-thread-head > .lf-quote")
     card_resting = thread.evaluate(
         "element => getComputedStyle(element).backgroundColor"
     )
@@ -2143,7 +2143,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
 ):
     """Pointer arrival opens one layer directly in its reply box. A thread reached by
     t opens on its card, so c or Enter adds a second layer and Escape returns through
-    each one. The page mark follows both focus modes."""
+    each one. The Page-map fallback remains live at the same time: this proves declaration
+    order cannot move it ahead of the causal frame. The page mark follows both focus modes."""
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
     )
@@ -2194,6 +2195,13 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     page.keyboard.press("t")
     expect(thread).to_be_focused()
     assert "reply" in shortcut_bar_text(page)
+    # The walk itself made no return frame. Its Page-map fallback is still live, but a
+    # sequence armed afterwards is an inner mode and Escape cancels that mode first.
+    page.keyboard.press("g")
+    assert "cancel" in shortcut_bar_text(page)
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to thread")

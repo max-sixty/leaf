@@ -97,25 +97,25 @@ function repaintEmphasis() {
   }
 }
 
-// [from, to) offsets in a slot's concatenated text → Ranges over its text nodes.
+// [from, to) offsets in a slot's concatenated text → Ranges over its text nodes. One
+// range per segment keeps generated interface between authored segments out of the
+// paint: a DOM Range spanning both sides would include the excluded nodes between them.
 function toRanges(segments, spans) {
   const ranges = [];
   for (const [from, to] of spans) {
-    const range = document.createRange();
     let pos = 0;
-    let started = false;
     for (const seg of segments) {
       const len = seg.end - seg.start;
-      if (!started && from < pos + len) {
-        range.setStart(seg.node, seg.start + (from - pos));
-        started = true;
-      }
-      if (started && to <= pos + len) {
-        range.setEnd(seg.node, seg.start + (to - pos));
+      const start = Math.max(from - pos, 0);
+      const end = Math.min(to - pos, len);
+      if (start < end) {
+        const range = document.createRange();
+        range.setStart(seg.node, seg.start + start);
+        range.setEnd(seg.node, seg.start + end);
         ranges.push(range);
-        break;
       }
       pos += len;
+      if (pos >= to) break;
     }
   }
   return ranges;

@@ -1,5 +1,6 @@
 """Page claims, serialized transactions, status, and event admission."""
 
+import hashlib
 import os
 import secrets
 from pathlib import Path
@@ -23,6 +24,12 @@ from leaf.host import (
 )
 from leaf.locations import page_key, paths_same
 from leaf.schema import EVENTS_FILE, STATUS_FILE, WIDGET_KINDS
+
+
+def stream_reply_attempt(turn_id: str) -> str:
+    """Return a schema-valid idempotency key for one mirrored Codex reply."""
+    digest = hashlib.sha256(turn_id.encode()).hexdigest()[:32]
+    return f"codex-{digest}"
 
 
 def claim_path(page_dir: Path) -> Path:
@@ -140,7 +147,7 @@ class PageTransaction:
         if claim and claim["released"] is None:
             write_json(claim_path(self.page_dir), {**claim, "released": now_iso()})
 
-    def close_turn(self, session_id: str) -> None:
+    def close_turn(self, session_id: str, turn_id: str | None = None) -> None:
         """Record that the turn which could have renewed this page's claim has ended.
 
         A `working` claim is written by a model's turn rather than by a process,
@@ -155,10 +162,15 @@ class PageTransaction:
         behind those words stays the page's to judge from evidence.
         """
         claim = self.claim
-        if claim and claim["released"] is None and claim["id"] == session_id:
+        if (
+            claim
+            and claim["released"] is None
+            and claim["id"] == session_id
+            and (turn_id is None or claim.get("turn") == turn_id)
+        ):
             write_json(claim_path(self.page_dir), {**claim, "turn_closed": now_iso()})
 
-    def open_turn(self, session_id: str) -> str | None:
+    def open_turn(self, session_id: str, turn_id: str | None = None) -> str | None:
         """Record that a turn of this session's is running again.
 
         `close_turn` is stamped by the Stop hook, and until this it was stamped
@@ -186,7 +198,12 @@ class PageTransaction:
         claim = self.claim
         if not claim or claim["released"] is not None or claim["id"] != session_id:
             return None
-        if claim.get("turn_closed") is not None:
+        if turn_id is not None and (
+            claim.get("turn") != turn_id or claim.get("turn_closed") is not None
+        ):
+            claim = {**claim, "turn": turn_id, "turn_closed": None}
+            write_json(claim_path(self.page_dir), claim)
+        elif claim.get("turn_closed") is not None:
             claim = {
                 **claim,
                 "turn": secrets.token_hex(8),
@@ -254,7 +271,8 @@ class PageTransaction:
         status = dict(self.status)
         if status["state"] == "idle":
             return
-        stream = {
+        stream = dict(status.get("stream") or {})
+        stream["activity"] = {
             "session": session_id,
             "turn": turn_id,
             "detail": detail,
@@ -269,12 +287,67 @@ class PageTransaction:
     ) -> None:
         """Remove this task's live reading without changing its declaration."""
         status = dict(self.status)
-        stream = status.get("stream")
-        if not stream or stream.get("session") != session_id:
+        stream = dict(status.get("stream") or {})
+        activity = stream.get("activity")
+        if not activity or activity.get("session") != session_id:
             return
-        if turn_id is not None and stream.get("turn") != turn_id:
+        if turn_id is not None and activity.get("turn") != turn_id:
             return
-        status.pop("stream")
+        stream.pop("activity")
+        if stream:
+            status["stream"] = stream
+        else:
+            status.pop("stream", None)
+        write_json(self.page_dir / STATUS_FILE, status)
+
+    def set_stream_reply(
+        self,
+        session_id: str,
+        turn_id: str,
+        conversation: str,
+        reply_to: str,
+        item_id: str | None,
+        text: str,
+        state: str,
+    ) -> None:
+        """Replace the provisional reply mirrored from one Codex turn."""
+        status = dict(self.status)
+        stream = dict(status.get("stream") or {})
+        standing = stream.get("reply") or {}
+        timestamp = (
+            standing.get("ts")
+            if standing.get("session") == session_id and standing.get("turn") == turn_id
+            else None
+        )
+        stream["reply"] = {
+            "session": session_id,
+            "turn": turn_id,
+            "attempt": stream_reply_attempt(turn_id),
+            "conversation": conversation,
+            "reply_to": reply_to,
+            "item": item_id,
+            "text": text,
+            "state": state,
+            "agent": (self.claim or {}).get("agent", "Codex"),
+            "ts": timestamp or now_iso(),
+        }
+        status["stream"] = stream
+        write_json(self.page_dir / STATUS_FILE, status)
+
+    def clear_stream_reply(self, session_id: str, turn_id: str | None = None) -> None:
+        """Remove this task's provisional reply without changing conversation history."""
+        status = dict(self.status)
+        stream = dict(status.get("stream") or {})
+        reply = stream.get("reply")
+        if not reply or reply.get("session") != session_id:
+            return
+        if turn_id is not None and reply.get("turn") != turn_id:
+            return
+        stream.pop("reply")
+        if stream:
+            status["stream"] = stream
+        else:
+            status.pop("stream", None)
         write_json(self.page_dir / STATUS_FILE, status)
 
     @property

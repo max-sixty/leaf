@@ -1,6 +1,7 @@
 /* One geometry owner for controls and readings that hang in the document margin.
 
-   `margin-layout` places, packs, docks, and measures the complete host. Its rail claim is
+   `margin-layout` places, packs, docks, and measures the complete host and its transient
+   control labels. Its rail claim is
    the widest stable contribution seen over a floor of the generated marker's own margin element,
    and is monotonic for the document's lifetime, so neither settling an action nor taking
    one back shifts the readable column. A first contribution wider than that floor still
@@ -49,6 +50,94 @@ let claimedRail = 0;
 let railReserved = false;
 
 const marginColumn = () => document.querySelector("main") || document.body;
+
+const labelRect = (name, left, top, label) => ({
+  name,
+  rect: {
+    left,
+    right: left + label.width,
+    top,
+    bottom: top + label.height,
+  },
+});
+
+const rectsOverlap = (left, right) =>
+  left.left < right.right &&
+  left.right > right.left &&
+  left.top < right.bottom &&
+  left.bottom > right.top;
+
+function placeMarginElementLabel(control) {
+  const label = control.querySelector(":scope > .lf-margin-element-label");
+  if (!label || !control.checkVisibility()) return;
+  const marginElementBox = control.getBoundingClientRect();
+  const labelBox = label.getBoundingClientRect();
+  const edgeAligned = Math.max(
+    4,
+    Math.min(marginElementBox.right - labelBox.width, innerWidth - 4 - labelBox.width),
+  );
+  const cluster = control.closest(".lf-margin-cluster") ?? control.parentElement;
+  const clusterMarginElements = [
+    ...(cluster?.querySelectorAll(".lf-margin-element") ?? []),
+  ]
+    .filter((candidate) => candidate.checkVisibility())
+    .map((candidate) => candidate.getBoundingClientRect());
+  const clusterLeft = Math.min(...clusterMarginElements.map((box) => box.left));
+  const clusterRight = Math.max(...clusterMarginElements.map((box) => box.right));
+  const centered =
+    (marginElementBox.top + marginElementBox.bottom - labelBox.height) / 2;
+  const candidates = [
+    labelRect("below", edgeAligned, marginElementBox.bottom + 6, labelBox),
+    labelRect(
+      "above",
+      edgeAligned,
+      marginElementBox.top - 6 - labelBox.height,
+      labelBox,
+    ),
+    labelRect("after", clusterRight + 6, centered, labelBox),
+    labelRect("before", clusterLeft - 6 - labelBox.width, centered, labelBox),
+  ];
+  const blockers = [
+    ...[...document.querySelectorAll(".lf-margin-element")].filter(
+      (candidate) => candidate !== control && candidate.checkVisibility(),
+    ),
+    ...document.querySelectorAll(".lf-banner, .lf-shortcut-bar"),
+  ].map((candidate) => candidate.getBoundingClientRect());
+  const fits = ({ rect }) =>
+    rect.left >= 4 &&
+    rect.right <= innerWidth - 4 &&
+    rect.top >= 4 &&
+    rect.bottom <= innerHeight - 4;
+  const choice =
+    candidates.find(
+      (candidate) =>
+        fits(candidate) &&
+        !blockers.some((blocker) => rectsOverlap(candidate.rect, blocker)),
+    ) ??
+    candidates.find(fits) ??
+    candidates[0];
+  control.dataset.lfLabelSide = choice.name;
+  label.style.setProperty(
+    "--lf-label-x",
+    `${choice.rect.left - marginElementBox.left}px`,
+  );
+  label.style.setProperty(
+    "--lf-label-y",
+    `${choice.rect.top - marginElementBox.top}px`,
+  );
+}
+
+let labelPlacementFrame = 0;
+export function scheduleMarginElementLabels() {
+  if (labelPlacementFrame) return;
+  labelPlacementFrame = requestAnimationFrame(() => {
+    labelPlacementFrame = 0;
+    for (const control of document.querySelectorAll(
+      '.lf-margin-element:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])',
+    ))
+      placeMarginElementLabel(control);
+  });
+}
 
 // Whether the page takes a margin strip at all, as distinct from how wide the strip is.
 // The width is `--rail` below and only ever grows; this says the page has taken the

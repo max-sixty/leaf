@@ -8,7 +8,8 @@ import { openThreads } from "./conversation/reconcile.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { threadsBox } from "./conversation/panel.js";
 import { pageScroller } from "./scrolling.js";
-import { inChrome } from "./passages.js";
+import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
+import { containsAcross } from "./passages.js";
 import { activeInlineThread, openPageThread } from "./living-margin.js";
 import { announce } from "./notifications.js";
 import { beginWalk, walkPositionLabel } from "./walk-position.js";
@@ -156,13 +157,24 @@ export const seenScroller = () => (panelCovers() ? threadsBox : pageScroller);
 // Reading-page keys follow the region the reader is working in. Focus can put them in a
 // panel beside the page; a covering panel remains the only visible region even when
 // focus is still on the banner control that opened it.
-const stepScroller = () => (inPanel() || panelCovers() ? threadsBox : pageScroller);
+const stepScroller = () => {
+  if (panelCovers()) return threadsBox;
+  const region = readingRegionFor(document.activeElement);
+  return region ? effectiveScroller(region) : inPanel() ? threadsBox : pageScroller;
+};
 // Which box scrolls a given element, for anything that has to name its scroller rather
 // than search for one. The document's for everything the document holds — and the
 // panel's own list for a widget an agent put in a reply, which is scrolled by that and
 // by nothing else. A drag naming the wrong one sits at the edge waiting for a scroll
 // that never comes.
-export const scrollerFor = (el) => (inChrome(el) ? threadsBox : pageScroller);
+export const scrollerFor = (el) => {
+  let region = readingRegionFor(el);
+  while (region) {
+    if (containsAcross(region.body, el)) return effectiveScroller(region);
+    region = readingRegionFor(region.host.parentElement);
+  }
+  return pageScroller;
+};
 export function stepReading(amount, unit) {
   const box = stepScroller();
   if (unit === "page") {

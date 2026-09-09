@@ -6,6 +6,159 @@
 
 /* ---------- element-widgets ---------- */
 
+/* Structural workspaces use one light-DOM arrangement in bounded and flow posture.
+ * The posture changes allocation only; authored order remains header, body, footer. */
+.lf-arranged,
+.lf-arranged-content,
+.lf-pane-content,
+.lf-pane-body,
+.lf-split-content {
+  box-sizing: border-box;
+  min-width: 0;
+}
+.lf-arranged {
+  display: block;
+}
+.lf-arranged-content,
+.lf-pane-content,
+.lf-pane-body,
+.lf-split-content {
+  min-height: 0;
+}
+
+.lf-workspace-arranged[data-lf-posture="bounded"],
+.lf-pane-arranged[data-lf-posture="bounded"] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.lf-arranged-before {
+  grid-row: 1;
+}
+.lf-workspace-arranged > .lf-arranged-content,
+.lf-pane-arranged > .lf-arranged-content {
+  grid-row: 2;
+}
+.lf-workspace-arranged > .lf-arranged-content > .lf-arranged-body,
+.lf-pane-arranged > .lf-arranged-content > .lf-arranged-body {
+  grid-row: 2;
+}
+.lf-arranged-after {
+  grid-row: 3;
+}
+.lf-pane-arranged > .lf-arranged-before {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule);
+  font: 600 var(--t-5)/1.4 var(--sans);
+  --lf-frame: 1;
+}
+.lf-pane-arranged > .lf-arranged-after {
+  padding: 10px 14px;
+  border-top: 1px solid var(--rule);
+  --lf-frame: 1;
+}
+.lf-pane-content {
+  display: contents;
+}
+.lf-pane-body {
+  padding: 14px;
+  --lf-frame: 1;
+}
+
+.lf-split-content {
+  display: block;
+  gap: 1px;
+  background: var(--rule);
+}
+.lf-split-content > :is(.lf-pane-arranged, .lf-split-arranged) {
+  background: var(--paper);
+}
+
+[data-lf-posture="bounded"] {
+  --lf-reading-posture: bounded;
+}
+[data-lf-posture="flow"] {
+  --lf-reading-posture: flow;
+}
+
+@media screen {
+  html[data-lf-live]:has(
+      body > main > [data-lf-root-workspace][data-lf-posture="bounded"]
+    ) {
+    overflow-y: hidden;
+  }
+  body > main:has(> lf-workspace[data-lf-root-workspace][data-lf-posture="bounded"]) {
+    box-sizing: border-box;
+    width: 100cqi;
+    max-width: none;
+    height: calc(100vh - var(--lf-banner-h) - var(--lf-shortcut-bar-clear, 0px));
+    margin: 0;
+    padding: 0 var(--col-pad);
+    left: 0;
+  }
+  lf-workspace[data-lf-root-workspace][data-lf-posture="bounded"] {
+    height: 100%;
+  }
+  @container style(--lf-reading-posture: bounded) {
+    :is(.lf-workspace-arranged, .lf-pane-arranged):not([data-lf-posture]) {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+    :is(.lf-workspace-arranged, .lf-pane-arranged)
+      > .lf-arranged-furniture {
+      margin: 0;
+      --lf-frame: 1;
+    }
+    .lf-split-arranged[data-lf-direction="columns"] > .lf-split-content {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .lf-split-arranged[data-lf-direction="rows"] > .lf-split-content {
+      display: grid;
+      grid-template-rows: repeat(2, minmax(0, 1fr));
+    }
+    :is(.lf-split-content, .lf-arranged) {
+      min-height: 0;
+      height: 100%;
+    }
+    .lf-pane-body {
+      overflow: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
+  }
+}
+
+:is(.lf-workspace-arranged, .lf-pane-arranged)[data-lf-posture="bounded"]
+  > .lf-arranged-furniture {
+  margin: 0;
+  --lf-frame: 1;
+}
+
+html.lf-copy :is(.lf-workspace-arranged, .lf-pane-arranged, .lf-split-arranged),
+html.lf-copy :is(.lf-arranged-content, .lf-pane-content, .lf-split-content) {
+  display: block;
+  height: auto;
+}
+html.lf-copy .lf-pane-body {
+  overflow: visible;
+  height: auto;
+}
+html.lf-copy body > main:has(> [data-lf-root-workspace]) {
+  height: auto;
+  padding-block: 72px 96px;
+}
+@media print {
+  :is(.lf-workspace-arranged, .lf-pane-arranged, .lf-split-arranged),
+  :is(.lf-arranged-content, .lf-pane-content, .lf-split-content) {
+    display: block !important;
+    height: auto !important;
+  }
+  .lf-pane-body {
+    overflow: visible !important;
+    height: auto !important;
+  }
+}
+
 /* lf-gloss: the prose stays prose, and its dotted underline is the whole visible
  * affordance. The underline is deliberately quieter than a link — this phrase goes
  * nowhere — while the top-layer card uses the page's ordinary paper, ink, and rule

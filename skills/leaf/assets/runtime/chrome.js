@@ -4,7 +4,11 @@
 import { banner, mountBanner, reserveBannerControls } from "./banner.js";
 import { versionMenu } from "./version.js";
 import { asksPanel, othersPanel } from "./trays.js";
-import { panel, wireGeneralBox } from "./conversation/panel.js";
+import {
+  mountPanelReadingRegion,
+  panel,
+  wireGeneralBox,
+} from "./conversation/panel.js";
 import { composer, fab, fabBar } from "./composing/selection.js";
 import { shortcutReferenceDialog } from "./keyboard/reference.js";
 import { shortcutBarEl } from "./keyboard/shortcut-bar.js";
@@ -112,6 +116,7 @@ export function mountChrome() {
   document.body.prepend(skipToChrome);
 
   document.body.append(chromeRoot);
+  mountPanelReadingRegion();
   reserveBannerControls();
   // What the parts' owners could not do as they evaluated: measure what is now in the
   // document, observe it, wire another owner's element, and append into another owner's

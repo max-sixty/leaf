@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Configure a deployment notification</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    />
+    <link rel="stylesheet" href="/theme.css" />
+    <style>
+      #notification-card {
+        --lf-frame: 1;
+        max-width: 32rem;
+        padding: var(--sp-4);
+        border: 1px solid var(--border-2);
+        border-left: 5px solid var(--playground-accent);
+        border-radius: var(--playground-radius);
+        background: var(--card);
+      }
+
+      #notification-playground[data-playground-compact="true"] #notification-card {
+        padding: var(--sp-2) var(--sp-3);
+      }
+
+      #notification-playground[data-playground-tone="urgent"] #notification-card {
+        background: color-mix(in srgb, var(--playground-accent) 10%, var(--card));
+      }
+
+      #notification-playground[data-playground-show-owner="false"] #notification-owner {
+        display: none;
+      }
+
+      #notification-title::before {
+        content: var(--playground-title);
+      }
+    </style>
+    <script type="module" src="/leaf.js"></script>
+  </head>
+  <body>
+    <main>
+      <lf-workspace id="notification-workspace">
+        <header>
+          <p class="eyebrow">notification configuration · simulated preview</p>
+          <h1>Set the deployment notification</h1>
+          <p class="lede" id="notification-lede">
+            Tune the message the release room will see after a successful deployment.
+            The preview is an example; applying it records one complete configuration.
+          </p>
+        </header>
+
+        <lf-ask id="notification-ask">
+          <h2>How should the deployment notification read?</h2>
+          <lf-playground id="notification-playground" submit-label="Apply notification">
+            <lf-playground-control
+              name="radius"
+              label="Corner radius"
+              kind="range"
+              value="10"
+              min="0"
+              max="24"
+              step="1"
+              unit="px"
+            ></lf-playground-control>
+            <lf-playground-control
+              name="compact"
+              label="Compact spacing"
+              kind="toggle"
+              value="false"
+            ></lf-playground-control>
+            <lf-playground-control name="tone" label="Tone" kind="choice" value="calm">
+              <lf-playground-choice value="calm" label="Calm"></lf-playground-choice>
+              <lf-playground-choice
+                value="urgent"
+                label="Urgent"
+              ></lf-playground-choice>
+            </lf-playground-control>
+            <lf-playground-control
+              name="show-owner"
+              label="Show service owner"
+              kind="toggle"
+              value="true"
+            ></lf-playground-control>
+            <lf-playground-control
+              name="accent"
+              label="Accent"
+              kind="color"
+              value="#4f766f"
+            ></lf-playground-control>
+            <lf-playground-control
+              name="title"
+              label="Heading"
+              kind="text"
+              value="Checkout deployed"
+              placeholder="Notification heading"
+            ></lf-playground-control>
+
+            <lf-playground-preset label="Routine release">
+              <lf-playground-setting for="tone" value="calm"></lf-playground-setting>
+              <lf-playground-setting
+                for="compact"
+                value="false"
+              ></lf-playground-setting>
+              <lf-playground-setting
+                for="accent"
+                value="#4f766f"
+              ></lf-playground-setting>
+            </lf-playground-preset>
+            <lf-playground-preset label="Needs attention">
+              <lf-playground-setting for="tone" value="urgent"></lf-playground-setting>
+              <lf-playground-setting for="compact" value="true"></lf-playground-setting>
+              <lf-playground-setting
+                for="accent"
+                value="#b6533c"
+              ></lf-playground-setting>
+            </lf-playground-preset>
+
+            <lf-playground-preview id="notification-preview">
+              <article id="notification-card" aria-labelledby="notification-title">
+                <header>
+                  <p class="eyebrow">Deployment · example receipt</p>
+                  <h2 id="notification-title"></h2>
+                </header>
+                <p>
+                  Version 2.8.0 reached production. Error rate and checkout latency
+                  held.
+                </p>
+                <p id="notification-owner"><strong>Owner:</strong> Payments platform</p>
+                <footer>Finished at 14:32 · 18 checks passed</footer>
+              </article>
+            </lf-playground-preview>
+
+            <lf-playground-output id="notification-instruction">
+              Write a notification titled “<lf-playground-value
+                for="title"
+              ></lf-playground-value
+              >” with a <lf-playground-value for="tone"></lf-playground-value> tone,
+              <lf-playground-value for="radius"></lf-playground-value> corners, compact
+              spacing set to <lf-playground-value for="compact"></lf-playground-value>,
+              service owner visibility set to
+              <lf-playground-value for="show-owner"></lf-playground-value>, and
+              <lf-playground-value for="accent"></lf-playground-value> accents.
+            </lf-playground-output>
+          </lf-playground>
+        </lf-ask>
+      </lf-workspace>
+    </main>
+  </body>
+</html>

@@ -838,7 +838,12 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_in_its_corner(
         assert short["resolve"]["right"] == pytest.approx(
             short["quote"]["right"], abs=1
         )
-        assert short["resolve"]["bottom"] <= short["quote"]["bottom"]
+        # The minimum click target can be taller than a single quote line. Its
+        # center still belongs to that quote's band, above the message content.
+        assert (
+            short["resolve"]["y"] + short["resolve"]["height"] / 2
+            <= short["quote"]["bottom"]
+        )
         assert float(short["closeBorder"][:-2]) == 0
         assert float(short["resolveBorder"][:-2]) == 0
         assert float(short["sendBorder"][:-2]) == 0
@@ -2487,6 +2492,8 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-trigger",
         "lf-react-trigger-icon",
         "lf-resolve",
+        # Active buttons share the theme's existing .lf-btn.on state.
+        "on",
     }, "the authored-theme class surface changed: widen the exception on purpose"
     # Every one of these is worn by something the runtime puts inside the page rather than
     # inside its own container — or, for lf-address, on both sides of that line at once,

@@ -154,6 +154,7 @@
           <a href="#x-guidance"><code>x-guidance</code></a>
           <a href="#x-inline"><code>x-inline</code></a>
           <a href="#x-language"><code>x-language</code></a>
+          <a href="#x-layout"><code>x-layout</code></a>
           <a href="#x-lines"><code>x-lines</code></a>
           <a href="#x-measured"><code>x-measured</code></a>
           <a href="#x-outline"><code>x-outline</code></a>
@@ -398,6 +399,20 @@
                 The attribute that names a code language, held to
                 <code>$languages.names</code> — the one list this page colors from — so
                 a second tag taking a language costs a declaration and no new reader.
+              </p>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-layout">
+            <h3><code>x-layout</code></h3>
+            <div class="reference-copy">
+              <p>
+                The structural role an element supplies: workspace receives the page
+                allocation among optional header/footer slots and exactly one body
+                element, pane is one labeled reading region, and split divides exactly
+                two direct pane or split roles in columns or rows. Role-derived
+                validation reads this declaration rather than tag names. Every role
+                keeps prose content so packages may contribute differently named
+                structural elements without joining a closed parent-child vocabulary.
               </p>
             </div>
           </section>
@@ -724,12 +739,20 @@
             <h3><code>x-verbatim</code></h3>
             <div class="reference-copy">
               <p>
-                An upgraded element whose body reaches the reader as its own words — the
-                module leaves it in place — which is what makes it quotable; a body
-                without it is source the widget renders (a diagram's notation). The
-                render gate refuses an x-verbatim whose rendered words differ from the
-                file's.
+                An upgraded element that preserves its own authored words and the order
+                and identity of nested upgraded widget boundaries, which makes those
+                words quotable.
               </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-verbatim contract">Full contract</summary>
+                <p>
+                  Each nested upgraded widget keeps its own word and fence contract, so
+                  its generated rendering is not a claim by the wrapper. Without this
+                  promise the passage reader treats the widget as opaque, since its
+                  module may insert or replace words. The render gate refuses changed
+                  wrapper prose or removed and reordered nested ownership boundaries.
+                </p>
+              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-visual">

@@ -22,9 +22,10 @@
    Paint that promises a gesture — the pointer hand above all — hangs on how a press is
    spelled, never on a control class alone. Export takes the role off and leaves the
    class, so a hand hung on the class is a hand a file cannot answer. The layer's own
-   spelling is the value `offer` writes into `data-lf-offer`: the tag or role for a
-   press it built, the empty string for the rest of the chrome a widget makes. The
-   theme's one pressable rule reads that value, and the marker outlives the role — a
+   spelling is the value `offer` writes into `data-lf-offer`: the tag or input type for
+   a native press, the role for a selectable one, and the empty string for the rest of
+   the chrome a widget makes. The theme's one pressable rule reads that value, and the
+   marker outlives the role — a
    press carrying page words becomes a span in a copy and keeps its words — so the copy
    clears the value where it strips the role, and the promise leaves with the thing
    that could have answered it. A guard in the theme would not do: it would have to be
@@ -308,13 +309,23 @@ export function worksInside(node, container) {
 // Native controls are the ordinary case. A widget gets their activation, disabled state,
 // focus behavior, and platform accessibility contract without Leaf recreating any of it:
 // ordinary buttons and links need no Leaf activation binding, and a `selectableOffer`
-// registers its widget-specific keys.
-export function offer(tag, cls, label) {
+// registers its widget-specific keys. An input supplies its type here so the type and the
+// pressability marker cannot disagree.
+export function offer(tag, cls, label, inputType) {
   const node = document.createElement(tag);
   if (node instanceof HTMLButtonElement) node.type = "button";
+  if (inputType !== undefined) {
+    if (tag !== "input")
+      throw new TypeError("only an input offer can declare an input type");
+    node.type = inputType;
+  }
   node.className = cls ? `${cls} lf-ui` : "lf-ui";
   node.dataset.lfGen = "1";
-  node.dataset.lfOffer = tag === "button" ? "button" : "";
+  node.dataset.lfOffer =
+    node instanceof HTMLButtonElement ||
+    (tag === "input" && ["checkbox", "radio"].includes(node.type))
+      ? node.type
+      : "";
   if (label !== undefined) node.textContent = label;
   return node;
 }
@@ -363,8 +374,9 @@ export function selectableOffer(role, cls, label) {
   return node;
 }
 
-// What the value above names as a press: the tag for a button, the role for a selectable
-// offer, against the empty string the rest of a widget's chrome takes. The theme states
+// What the value above names as a press: the tag for a button, the type for a native
+// choice, or the role for a selectable offer, against the empty string the rest of a
+// widget's chrome takes. The theme states
 // the same reading in CSS for the hand and the here ring; this is it for the passes
 // written in JavaScript.
 export const PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';

@@ -477,6 +477,9 @@ widget whose module changes text in a way the file cannot reproduce is fenced.
 `rememberPassageParts` indexes these boundaries before upgrade, and browser
 capture clips context to the same declared boundary after upgrade. A selection
 crossing a fence is not captured as a quote the file cannot later confirm.
+Each preserving owner also receives its source and document-order occurrence before
+upgrade. The file reader derives that same provenance for page markup and each frozen
+thread event, so anonymous owners and their nested widget boundaries remain distinct.
 
 Do not broaden the Python reader by guessing a module's DOM. Declare modelable
 words with `x-says`, `x-paints`, or the appropriate content key. Keep the widget

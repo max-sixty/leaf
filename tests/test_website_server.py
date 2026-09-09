@@ -695,6 +695,49 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         thread.join(timeout=2)
 
 
+def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
+    page_dir, tmp_path
+):
+    """What a reader posting into a draining rollout gets back.
+
+    A container carries the layer of the image it runs, so a session allocated on a
+    previous image answers a newer generation with its own rather than with state.
+    The website deploy gate reads that answer, so it has to be the shape it names.
+    """
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    (site / "sitenote.js").write_text("export {};")
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+
+    httpd = server_at("127.0.0.1", 0, website_server.handler_for(site, FakeCodexHost()))
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    root = f"http://127.0.0.1:{httpd.server_address[1]}"
+    try:
+        state = json.loads(get(f"{root}/examples/decision/api/state")[0])
+        before = read_events(published)
+        answer, headers = post(
+            f"{root}/examples/decision/api/event",
+            {
+                "kind": "comment",
+                "revision": state["active"]["revision"],
+                "text": "Posted under a layer this container does not speak.",
+                "attempt": "stale-layer-01",
+            },
+            {"Leaf-Layer": "a-layer-from-another-release"},
+        )
+        generation = state["layer"]["generation"]
+        assert answer == {"layer": generation}
+        assert headers["Leaf-Layer"] == generation
+        assert read_events(published) == before
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+
+
 @pytest.mark.parametrize(
     ("page_root", "name"), [("", "index"), ("/examples", "examples")]
 )

@@ -813,9 +813,9 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      which reads overflow, would never fire; an address that cannot shrink is what
      hands the fold something to measure. */
   .lf-banner-actions > .lf-btn { flex: none; }
-  .lf-banner-actions > .lf-btn:not(.primary) { border-color: transparent;
+  .lf-banner-actions > .lf-btn:where(:not(.primary)) { border-color: transparent;
     border-radius: 0; background: transparent; }
-  .lf-banner-actions > .lf-btn:not(.primary):hover { background: var(--chip); }
+  .lf-banner-actions > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
   /* .lf-btn.on states a comparison or a narrowing with an accent border and a fill,
      and the resting rule above clears both at the same specificity — so on this row
      the class would paint ink alone. Restate the treatment the open workspace wears,
@@ -896,9 +896,9 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      and a rule here stating it for the whole menu would put a control the page has
      taken away — the map above 900, a chip with no news — into the list as a blank. */
   .lf-banner-menu > .lf-btn { width: 100%; text-align: left; }
-  .lf-banner-menu > .lf-btn:not(.primary) { border-color: transparent;
+  .lf-banner-menu > .lf-btn:where(:not(.primary)) { border-color: transparent;
     background: none; }
-  .lf-banner-menu > .lf-btn:not(.primary):hover { background: var(--chip); }
+  .lf-banner-menu > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
   /* The fold moves the row's own node, so an address folded while it is doing
      something has to go on saying so. The menu's resting rule clears the same two
      declarations the row's does, and for the same reason, so `.on` needs the same

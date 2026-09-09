@@ -188,6 +188,9 @@ def test_a_folded_address_keeps_the_paint_that_says_it_is_doing_something(
     assert folded == on_the_row, (
         f"the comparison changed face when it folded: row {on_the_row}, menu {folded}"
     )
+    door = page.locator(".lf-banner-more")
+    door.evaluate("el => el.toggleAttribute('data-lf-news', true)")
+    expect(door).to_have_css("border-top-color", token_colour(page, "--accent"))
     assert errors == []
     page.close()
 
@@ -261,5 +264,10 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         assert order[-1].startswith("Threads"), (
             f"the conversation no longer finishes the row at {width}px: {order}"
         )
+    resized(page, 500, 900)
+    workspace = banner_address(page, ".lf-others")
+    workspace.click()
+    expect(workspace).to_have_attribute("aria-expanded", "true")
+    expect(workspace).to_have_css("background-color", token_colour(page, "--chip"))
     assert errors == []
     page.close()

@@ -21,9 +21,11 @@ from websockets.exceptions import WebSocketException
 from websockets.sync.client import connect, unix_connect
 
 from .event_log import flocked, read_cursor
+from .events import build_threads, spoken_turns
 from .files import read_json, write_json
-from .host import host_identity, state_home
+from .host import host_identity, message_identity, state_home
 from .leases import adapter_is_live, adapter_lease_path, take_waiter_lease
+from .passages import active_enclosing
 from .schema import EVENTS_FILE
 from .served_state.page import full_state
 from .server import running_server
@@ -31,10 +33,17 @@ from .service import (
     PageTransaction,
     owned_pages,
     restore_page_claim,
+    stream_reply_attempt,
     take_page_claim,
     unacknowledged,
 )
 from .session import Watch, acknowledge, batch_data, read_watch_pass, record_pickup
+from .thread_context import (
+    thread_memberships,
+    thread_roots,
+    thread_structure,
+    thread_widgets,
+)
 
 QUEUE_TIMEOUT = 20
 START_TIMEOUT = 20
@@ -42,16 +51,16 @@ DELIVERY_FORMAT = "leaf-codex-delivery-v2"
 QUEUE_FORMAT = "leaf-codex-queue-v1"
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
 STREAM_UPDATE_INTERVAL = 0.2
-STREAM_TEXT_METHODS = {
-    "item/agentMessage/delta",
-    "item/reasoning/summaryTextDelta",
-}
+STREAM_TEXT_METHODS = {"item/reasoning/summaryTextDelta"}
+STREAM_REPLY_METHOD = "item/agentMessage/delta"
 STREAM_HEARTBEAT_METHODS = {
     "item/commandExecution/outputDelta",
     "item/fileChange/outputDelta",
     "item/mcpToolCall/progress",
 }
-STREAM_THROTTLED_METHODS = STREAM_TEXT_METHODS | STREAM_HEARTBEAT_METHODS
+STREAM_THROTTLED_METHODS = (
+    STREAM_TEXT_METHODS | STREAM_HEARTBEAT_METHODS | {STREAM_REPLY_METHOD}
+)
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -141,19 +150,18 @@ def _tail(text: str, limit: int = 240) -> str:
 
 
 class AppServerEvents:
-    """Fold one task's event notifications into its latest readable activity."""
-
-    # TODO(2026-09-08): Project agent-message deltas into a task-response reading
-    # outside the event log, and retain the final text until the next turn.
+    """Fold one task's notifications into separate activity and response readings."""
 
     def __init__(self, thread_id: str):
         self.thread_id = thread_id
         self.turn_id: str | None = None
         self.details: dict[str, str] = {}
         self.text: dict[str, str] = {}
+        self.message_phases: dict[str, str | None] = {}
+        self.message_order: list[str] = []
 
-    def read(self, message: dict) -> tuple[str, str | None] | None:
-        """Return (turn, detail); a None detail clears the completed turn."""
+    def read(self, message: dict) -> dict | None:
+        """Return one transient activity, reply, or turn-completion update."""
         method = message.get("method")
         params = message.get("params") or {}
         message_thread = params.get("threadId")
@@ -164,16 +172,23 @@ class AppServerEvents:
             self.turn_id = params["turn"]["id"]
             self.details.clear()
             self.text.clear()
-            return self.turn_id, "Starting"
+            self.message_phases.clear()
+            self.message_order.clear()
+            return {"turn": self.turn_id, "activity": "Starting"}
 
         turn_id = params.get("turnId") or self.turn_id
         if method == "turn/completed":
-            completed = params["turn"]["id"]
+            turn = params["turn"]
+            completed = turn["id"]
+            final = self._final_text(turn)
             if self.turn_id == completed:
                 self.turn_id = None
                 self.details.clear()
-                self.text.clear()
-            return completed, None
+            return {
+                "turn": completed,
+                "completed": turn.get("status", "completed"),
+                "text": final,
+            }
         if turn_id is None:
             return None
 
@@ -188,32 +203,55 @@ class AppServerEvents:
                     (step["step"] for step in steps if step["status"] == "pending"),
                     None,
                 )
-            return (turn_id, _head(current)) if current else None
+            return {"turn": turn_id, "activity": _head(current)} if current else None
 
         if method == "item/started":
             item = params["item"]
+            if item["type"] == "agentMessage":
+                self._record_message(item)
+                if item.get("text"):
+                    return {
+                        "turn": turn_id,
+                        "reply": self._reply_update(item["id"], complete=False),
+                    }
+                return None
             detail = self._item_detail(item)
             if detail:
                 self.details[item["id"]] = detail
-            return (turn_id, detail) if detail else None
+            return {"turn": turn_id, "activity": detail} if detail else None
 
         if method == "item/completed":
             item = params["item"]
             self.details.pop(item["id"], None)
-            if item["type"] == "agentMessage" and item.get("text"):
-                return turn_id, _tail(item["text"])
+            if item["type"] == "agentMessage":
+                self._record_message(item)
+                return {
+                    "turn": turn_id,
+                    "reply": self._reply_update(item["id"], complete=True),
+                }
             return None
+
+        if method == STREAM_REPLY_METHOD:
+            item_id = params["itemId"]
+            combined = self.text.get(item_id, "") + params["delta"]
+            self.text[item_id] = combined
+            if item_id not in self.message_order:
+                self.message_order.append(item_id)
+                self.message_phases[item_id] = None
+            return {
+                "turn": turn_id,
+                "reply": self._reply_update(item_id, complete=False),
+            }
 
         if method in STREAM_TEXT_METHODS:
             item_id = params["itemId"]
             combined = self.text.get(item_id, "") + params["delta"]
             self.text[item_id] = combined
-            prefix = "Thinking — " if method.endswith("summaryTextDelta") else ""
-            return turn_id, prefix + _tail(combined)
+            return {"turn": turn_id, "activity": "Thinking — " + _tail(combined)}
 
         if method in STREAM_HEARTBEAT_METHODS:
             detail = self.details.get(params["itemId"])
-            return (turn_id, detail) if detail else None
+            return {"turn": turn_id, "activity": detail} if detail else None
 
         if method in {
             "item/commandExecution/requestApproval",
@@ -221,13 +259,80 @@ class AppServerEvents:
             "item/permissions/requestApproval",
             "item/tool/requestUserInput",
         }:
-            return turn_id, "Waiting for input in Codex"
+            return {"turn": turn_id, "activity": "Waiting for input in Codex"}
 
         if method == "thread/status/changed":
             flags = params.get("status", {}).get("activeFlags", [])
             if "waitingOnApproval" in flags or "waitingOnUserInput" in flags:
-                return turn_id, "Waiting for input in Codex"
+                return {"turn": turn_id, "activity": "Waiting for input in Codex"}
         return None
+
+    def _record_message(self, item: dict) -> None:
+        item_id = item["id"]
+        if item_id not in self.message_order:
+            self.message_order.append(item_id)
+        self.message_phases[item_id] = item.get("phase")
+        self.text[item_id] = item.get("text", "")
+
+    def _visible_text(self) -> str:
+        final = [
+            self.text[item_id]
+            for item_id in self.message_order
+            if self.message_phases.get(item_id) == "final_answer"
+            and self.text.get(item_id)
+        ]
+        if final:
+            return "\n\n".join(final)
+        public = [
+            self.text[item_id]
+            for item_id in self.message_order
+            if self.message_phases.get(item_id) in {None, "commentary"}
+            and self.text.get(item_id)
+        ]
+        return public[-1] if public else ""
+
+    def _reply_update(self, item_id: str, *, complete: bool) -> dict:
+        return {
+            "item": item_id,
+            "phase": self.message_phases.get(item_id),
+            "text": self._visible_text(),
+            "complete": complete,
+        }
+
+    def _final_text(self, turn: dict) -> str:
+        items = [
+            item for item in turn.get("items", []) if item["type"] == "agentMessage"
+        ]
+        for item in items:
+            self._record_message(item)
+        final = [
+            item.get("text", "")
+            for item in items
+            if item.get("phase") == "final_answer" and item.get("text")
+        ]
+        if final:
+            return "\n\n".join(final)
+        unknown = [
+            item.get("text", "")
+            for item in items
+            if item.get("phase") is None and item.get("text")
+        ]
+        if unknown:
+            return unknown[-1]
+        stored = [
+            self.text[item_id]
+            for item_id in self.message_order
+            if self.message_phases.get(item_id) == "final_answer"
+            and self.text.get(item_id)
+        ]
+        if stored:
+            return "\n\n".join(stored)
+        unknown_stored = [
+            self.text[item_id]
+            for item_id in self.message_order
+            if self.message_phases.get(item_id) is None and self.text.get(item_id)
+        ]
+        return unknown_stored[-1] if unknown_stored else ""
 
     @staticmethod
     def _item_detail(item: dict) -> str | None:
@@ -271,9 +376,14 @@ def project_app_server_activity(
     update = events.read(message)
     if update is None:
         return last_stream_update
-    turn_id, detail = update
-    if detail is None:
+    turn_id = update["turn"]
+    if update.get("completed"):
         clear_activity(events.thread_id, turn_id)
+        return last_stream_update
+    detail = update.get("activity")
+    if detail is None and (reply := update.get("reply")):
+        detail = _tail(reply["text"])
+    if detail is None:
         return last_stream_update
     now = time.monotonic()
     if (
@@ -285,8 +395,8 @@ def project_app_server_activity(
     return now
 
 
-class AppServerObserver:
-    """Subscribe to one running Codex task without taking control of it."""
+class AppServerClient:
+    """Observe one Codex task and start turns for addressed Leaf feedback."""
 
     def __init__(self, endpoint: str, thread_id: str):
         check_app_server_endpoint(endpoint)
@@ -296,8 +406,14 @@ class AppServerObserver:
         self.stop_event = threading.Event()
         self.available = threading.Event()
         self.socket = None
-        self.last_stream_update = 0.0
+        self.last_activity_update = 0.0
+        self.last_reply_update = 0.0
         self.started = False
+        self.request_id = 2
+        self.requests: queue.Queue[tuple[dict, queue.Queue]] = queue.Queue()
+        self.bindings: dict[str, dict] = {}
+        self.pending_updates: dict[str, list[dict]] = {}
+        self.starting_delivery = False
         self.ready: queue.Queue[BaseException | None] = queue.Queue(maxsize=1)
         self.thread = threading.Thread(
             target=self._run,
@@ -323,6 +439,27 @@ class AppServerObserver:
             self.socket.close()
         self.thread.join(timeout=3)
         _clear_stream_activity(self.thread_id)
+        for turn_id in list(self.bindings):
+            _clear_stream_reply(self.thread_id, turn_id)
+
+    def start_delivery(self, delivery: dict, payload: dict) -> dict | None:
+        """Start or steer one Leaf-owned turn and bind its response stream."""
+        if not self.available.is_set():
+            return None
+        answer: queue.Queue[tuple[dict | None, Exception | None]] = queue.Queue(
+            maxsize=1
+        )
+        self.requests.put(({"delivery": delivery, "payload": payload}, answer))
+        try:
+            result = answer.get(timeout=START_TIMEOUT)
+        except queue.Empty as error:
+            raise RuntimeError(
+                "Codex App Server did not start the Leaf turn"
+            ) from error
+        result, error = result
+        if error is not None:
+            raise RuntimeError(str(error)) from error
+        return result
 
     def _send(self, socket, method: str, request_id: int, params: dict) -> dict:
         socket.send(json.dumps({"method": method, "id": request_id, "params": params}))
@@ -334,7 +471,7 @@ class AppServerObserver:
                     raise RuntimeError(error.get("message") or str(error))
                 return message.get("result") or {}
             self._read(message)
-        raise RuntimeError("Codex App Server observer stopped")
+        raise RuntimeError("Codex App Server client stopped")
 
     def _connect(self) -> None:
         with _app_server_connect(self.endpoint) as socket:
@@ -352,31 +489,220 @@ class AppServerObserver:
                 },
             )
             socket.send(json.dumps({"method": "initialized", "params": {}}))
-            self._send(
+            result = self._send(
                 socket,
                 "thread/resume",
                 1,
-                {"threadId": self.thread_id, "excludeTurns": True},
+                {"threadId": self.thread_id, "excludeTurns": False},
             )
+            resumed = result.get("thread", {})
+            self._restore_bindings(resumed)
+            if resumed.get("status", {}).get("type") == "active":
+                active = next(
+                    (
+                        turn["id"]
+                        for turn in reversed(resumed.get("turns", []))
+                        if turn.get("status") == "inProgress"
+                    ),
+                    "active",
+                )
+                self.events.turn_id = active
+                _set_stream_activity(self.thread_id, active, "Working in Codex")
             self.available.set()
             if not self.started:
                 self.started = True
                 self.ready.put(None)
             while not self.stop_event.is_set():
                 try:
-                    raw = socket.recv(timeout=1)
+                    request = self.requests.get_nowait()
+                except queue.Empty:
+                    request = None
+                if request is not None:
+                    self._start_delivery(socket, *request)
+                    continue
+                try:
+                    raw = socket.recv(timeout=0.1)
                 except TimeoutError:
                     continue
                 self._read(json.loads(raw))
 
-    def _read(self, message: dict) -> None:
-        self.last_stream_update = project_app_server_activity(
-            self.events,
-            message,
-            self.last_stream_update,
-            _set_stream_activity,
-            _clear_stream_activity,
+    def _start_delivery(self, socket, request: dict, answer: queue.Queue) -> None:
+        delivery = request["delivery"]
+        active = self.events.turn_id
+        standing = self.bindings.get(active) if active is not None else None
+        if active is not None and (
+            standing is None
+            or (standing["page"], standing["conversation"])
+            != (delivery["page"], delivery["conversation"])
+        ):
+            answer.put((None, None))
+            return
+        pending_before = set(self.pending_updates)
+        try:
+            self.starting_delivery = True
+            result = self._send(
+                socket,
+                "turn/start",
+                self.request_id,
+                {
+                    "threadId": self.thread_id,
+                    "input": [],
+                    "toolOutput": {
+                        "name": "leaf_feedback",
+                        "output": json.dumps(request["payload"], separators=(",", ":")),
+                    },
+                    "turnTrigger": "leaf",
+                },
+            )
+            self.request_id += 1
+            turn = result.get("turn") or {}
+            turn_id = turn.get("id")
+            if not turn_id:
+                raise RuntimeError("Codex App Server returned no turn id")
+            if active is not None and turn_id != active:
+                raise RuntimeError("Codex App Server steered a different turn")
+            if active is None and any(
+                item.get("type") == "userMessage" for item in turn.get("items", [])
+            ):
+                self.pending_updates.pop(turn_id, None)
+                answer.put(({"turn": turn_id, "bound": False}, None))
+                return
+            self._bind(turn_id, delivery)
+            answer.put(({"turn": turn_id, "bound": True}, None))
+        except RuntimeError:
+            for turn_id in set(self.pending_updates) - pending_before:
+                self.pending_updates.pop(turn_id)
+            answer.put((None, None))
+        except (OSError, TimeoutError, WebSocketException) as error:
+            for turn_id in set(self.pending_updates) - pending_before:
+                self.pending_updates.pop(turn_id)
+            answer.put((None, error))
+        finally:
+            self.starting_delivery = False
+
+    def _bind(self, turn_id: str, delivery: dict) -> None:
+        standing = self.bindings.get(turn_id)
+        if standing is None:
+            standing = {**delivery, "deliveries": [delivery["id"]], "text": ""}
+            self.bindings[turn_id] = standing
+        else:
+            standing["deliveries"].append(delivery["id"])
+            standing["reply_to"] = delivery["reply_to"]
+        _set_stream_reply(
+            self.thread_id,
+            turn_id,
+            standing,
+            None,
+            standing.get("text", ""),
+            "active",
         )
+        for update in self.pending_updates.pop(turn_id, []):
+            self._project_bound_update(update)
+
+    def _restore_bindings(self, thread: dict) -> None:
+        turns = {turn["id"]: turn for turn in thread.get("turns", [])}
+        for turn_id, binding in list(self.bindings.items()):
+            turn = turns.get(turn_id)
+            if turn is None:
+                _set_stream_reply(
+                    self.thread_id,
+                    turn_id,
+                    binding,
+                    None,
+                    binding.get("text", ""),
+                    "disconnected",
+                )
+                continue
+            for item in turn.get("items", []):
+                if item.get("type") == "agentMessage":
+                    self.events._record_message(item)
+            if turn.get("status") == "inProgress":
+                text = self.events._visible_text()
+                binding["text"] = text
+                _set_stream_reply(
+                    self.thread_id, turn_id, binding, None, text, "active"
+                )
+            else:
+                self._finish_binding(
+                    turn_id,
+                    turn.get("status", "failed"),
+                    self.events._final_text(turn),
+                )
+
+    def _read(self, message: dict) -> None:
+        update = self.events.read(message)
+        if update is None:
+            return
+        turn_id = update["turn"]
+        if message.get("method") == "turn/started":
+            _open_stream_turn(self.thread_id, turn_id)
+        if detail := update.get("activity"):
+            now = time.monotonic()
+            if (
+                message.get("method") in STREAM_THROTTLED_METHODS
+                and now - self.last_activity_update < STREAM_UPDATE_INTERVAL
+            ):
+                pass
+            else:
+                _set_stream_activity(self.thread_id, turn_id, detail)
+                self.last_activity_update = now
+        if update.get("reply") is not None:
+            self._project_reply(update)
+        if completed := update.get("completed"):
+            if turn_id in self.bindings:
+                self._finish_binding(turn_id, completed, update.get("text", ""))
+            elif self.starting_delivery:
+                self.pending_updates.setdefault(turn_id, []).append(update)
+            _clear_stream_activity(self.thread_id, turn_id)
+            _close_stream_turn(self.thread_id, turn_id)
+
+    def _project_bound_update(self, update: dict) -> None:
+        if update.get("reply") is not None:
+            self._project_reply(update)
+        if completed := update.get("completed"):
+            self._finish_binding(update["turn"], completed, update.get("text", ""))
+
+    def _project_reply(self, update: dict) -> None:
+        turn_id = update["turn"]
+        binding = self.bindings.get(turn_id)
+        if binding is None:
+            if self.starting_delivery:
+                self.pending_updates.setdefault(turn_id, []).append(update)
+            return
+        reply = update["reply"]
+        binding["text"] = reply["text"]
+        now = time.monotonic()
+        if (
+            not reply["complete"]
+            and now - self.last_reply_update < STREAM_UPDATE_INTERVAL
+        ):
+            return
+        _set_stream_reply(
+            self.thread_id,
+            turn_id,
+            binding,
+            reply["item"],
+            reply["text"],
+            "active",
+        )
+        self.last_reply_update = now
+
+    def _finish_binding(self, turn_id: str, state: str, text: str) -> None:
+        binding = self.bindings.pop(turn_id, None)
+        if binding is None:
+            return
+        final = text or binding.get("text", "")
+        if state == "completed":
+            _commit_stream_reply(self.thread_id, turn_id, binding, final)
+        else:
+            _set_stream_reply(
+                self.thread_id,
+                turn_id,
+                binding,
+                None,
+                final,
+                state,
+            )
 
     def _run(self) -> None:
         failures = 0
@@ -392,6 +718,21 @@ class AppServerObserver:
             ) as error:
                 self.available.clear()
                 _clear_stream_activity(self.thread_id)
+                for turn_id, binding in self.bindings.items():
+                    _set_stream_reply(
+                        self.thread_id,
+                        turn_id,
+                        binding,
+                        None,
+                        binding.get("text", ""),
+                        "disconnected",
+                    )
+                while True:
+                    try:
+                        _, answer = self.requests.get_nowait()
+                    except queue.Empty:
+                        break
+                    answer.put((None, error))
                 if not self.started:
                     self.ready.put(error)
                     return
@@ -466,10 +807,24 @@ def _offer_delivery(path: Path, queue: dict) -> str:
             urls[page] = server["url"] if server else None
         batch["url"] = urls[page]
 
+    targets = {(batch["page"], batch.get("conversation")) for batch in queue["batches"]}
+    target = None
+    if len(targets) == 1 and all(batch.get("reply_to") for batch in queue["batches"]):
+        page, conversation = targets.pop()
+        reply_to = queue["batches"][-1]["reply_to"]
+        if conversation is not None and reply_to is not None:
+            target = {
+                "page": page,
+                "conversation": conversation,
+                "reply_to": reply_to,
+            }
+
     payload_path = path.parent / "payloads" / path.name
     payload = {
         "format": DELIVERY_FORMAT,
+        "id": path.stem,
         "created_at": queue["created_at"],
+        "reply": target,
         "batches": [
             {key: value for key, value in batch.items() if key != "receipted"}
             for batch in queue["batches"]
@@ -489,6 +844,7 @@ def _offer_delivery(path: Path, queue: dict) -> str:
         for batch in queue["batches"]
     ]
     queue["payload"] = str(payload_path)
+    queue["reply"] = target
     queue["state"] = "offering"
     _write_queue(path, queue)
     return _prompt(payload_path)
@@ -558,6 +914,7 @@ def _append_batch(
     server = running_server(page_dir)
     url = server["url"] if server else None
     data = batch_data(page_dir, transaction, fresh)
+    target = _stream_target(page_dir, transaction.events, fresh)
     entry = {
         "page": data["page"],
         "session": session_id,
@@ -565,11 +922,57 @@ def _append_batch(
         "threads": data["threads"],
         "handling": data["handling"],
         "events": data["events"],
+        "conversation": target and target["conversation"],
+        "reply_to": target and target["reply_to"],
         "receipted": False,
     }
     queue["batches"].append(entry)
     _write_queue(path, queue)
     return path, len(queue["batches"]) - 1, entry
+
+
+def _stream_target(
+    page_dir: Path, events: list[dict], batch: list[dict]
+) -> dict | None:
+    """Return the one conversation a complete batch asks Codex to answer."""
+    roots = thread_roots(events)
+    structure = thread_structure(events)
+    memberships = thread_memberships(
+        events,
+        roots,
+        thread_widgets(structure, roots),
+        active_enclosing(page_dir),
+    )
+    addressed = [memberships.get(event["id"], []) for event in batch]
+    if not addressed or any(len(named) != 1 for named in addressed):
+        return None
+    conversations = {named[0] for named in addressed}
+    if len(conversations) != 1:
+        return None
+    conversation = conversations.pop()
+    thread = build_threads(events, active_enclosing(page_dir)).get(conversation)
+    if (
+        thread is None
+        or (thread["root"].get("response") or {}).get("kind") == "version"
+    ):
+        return None
+    reply_to = next(
+        (
+            event["id"]
+            for event in reversed(batch)
+            if event.get("author") == "user"
+            and event["kind"] in {"comment", "reply"}
+            and event.get("text")
+        ),
+        None,
+    )
+    if reply_to is None:
+        return None
+    return {
+        "page": str(page_dir),
+        "conversation": conversation,
+        "reply_to": reply_to,
+    }
 
 
 def capture_batch(session_id: str, reading) -> bool:
@@ -586,7 +989,7 @@ def capture_batch(session_id: str, reading) -> bool:
     return captured is not None
 
 
-def _finish_batch(batch: dict) -> None:
+def _finish_batch(batch: dict, transport: dict | None = None) -> None:
     """Take receipt for one persisted batch, preserving a successor's claim."""
     page_dir = Path(batch["page"])
     expected = {event["seq"]: event["id"] for event in batch["events"]}
@@ -605,9 +1008,9 @@ def _finish_batch(batch: dict) -> None:
             record_pickup(
                 page,
                 [delivered[seq] for seq in expected],
-                phase="queued",
+                phase=(transport or {}).get("phase", "queued"),
                 session=batch["session"],
-                turn=None,
+                turn=(transport or {}).get("turn"),
             )
             acknowledge(page, max(expected))
     except FileNotFoundError:
@@ -645,6 +1048,7 @@ def _recover_delivery(
     codex_path: str,
     session_id: str,
     app_server: str | None = None,
+    app_client: AppServerClient | None = None,
 ) -> bool:
     """Advance one durable queue or page-receipt transition."""
     lock = delivery_lock_path(session_id)
@@ -664,24 +1068,35 @@ def _recover_delivery(
         queued = None
         if unoffered is not None:
             path, queue = unoffered
-            queued = path, _offer_delivery(path, queue)
+            queued = path, queue, _offer_delivery(path, queue)
     if queued is not None:
-        path, prompt = queued
-        if app_server is None:
-            queue_delivery(codex_path, session_id, prompt)
+        path, offered, prompt = queued
+        direct = None
+        if app_client is not None and offered.get("reply") is not None:
+            direct = app_client.start_delivery(
+                {"id": path.stem, **offered["reply"]},
+                read_json(Path(offered["payload"])),
+            )
+        if direct is None:
+            if app_server is None:
+                queue_delivery(codex_path, session_id, prompt)
+            else:
+                queue_delivery(codex_path, session_id, prompt, app_server)
+            transport = {"phase": "queued", "turn": None}
         else:
-            queue_delivery(codex_path, session_id, prompt, app_server)
+            transport = {"phase": "opened", "turn": direct["turn"]}
         with flocked(lock):
             queue = read_json(path)
             if queue is not None and queue["state"] == "offering":
                 queue["state"] = "accepted"
+                queue["transport"] = transport
                 _write_queue(path, queue)
         return True
 
     with flocked(lock):
         pending = min(
             (
-                (path, index, dict(batch))
+                (path, index, dict(batch), queue.get("transport"))
                 for path, queue in _queues(session_id)
                 if queue["state"] == "accepted"
                 for index, batch in enumerate(queue["batches"])
@@ -695,8 +1110,8 @@ def _recover_delivery(
         )
     if pending is None:
         return False
-    path, batch_index, batch = pending
-    _finish_batch(batch)
+    path, batch_index, batch, transport = pending
+    _finish_batch(batch, transport)
     with flocked(lock):
         _record_receipt(path, batch_index)
     return True
@@ -739,6 +1154,103 @@ def _clear_stream_activity(session_id: str, turn_id: str | None = None) -> None:
             page.clear_stream_activity(session_id, turn_id)
 
 
+def _set_stream_reply(
+    session_id: str,
+    turn_id: str,
+    binding: dict,
+    item_id: str | None,
+    text: str,
+    state: str,
+) -> None:
+    try:
+        with PageTransaction(Path(binding["page"])) as page:
+            claim = page.active_claim
+            if claim is None or claim["id"] != session_id:
+                return
+            page.set_stream_reply(
+                session_id,
+                turn_id,
+                binding["conversation"],
+                binding["reply_to"],
+                item_id,
+                text,
+                state,
+            )
+    except FileNotFoundError:
+        pass
+
+
+def _clear_stream_reply(session_id: str, turn_id: str | None = None) -> None:
+    with _locked_codex_pages(session_id) as pages:
+        for page in pages:
+            page.clear_stream_reply(session_id, turn_id)
+
+
+def _commit_stream_reply(
+    session_id: str,
+    turn_id: str,
+    binding: dict,
+    text: str,
+) -> None:
+    """Atomically complete one draft as a reply, prior settlement, or partial."""
+    try:
+        with PageTransaction(Path(binding["page"])) as page:
+            claim = page.active_claim
+            if claim is None or claim["id"] != session_id:
+                return
+            attempt = stream_reply_attempt(turn_id)
+            existing = next(
+                (event for event in page.events if event.get("attempt") == attempt),
+                None,
+            )
+            thread = build_threads(page.events, active_enclosing(page.page_dir)).get(
+                binding["conversation"]
+            )
+            turns = spoken_turns(thread) if thread else []
+            pending = bool(
+                turns
+                and turns[-1]["author"] == "user"
+                and turns[-1]["id"] == binding["reply_to"]
+            )
+            if existing is None and pending and text:
+                page.append_event(
+                    {
+                        "kind": "reply",
+                        "author": "claude",
+                        **message_identity(),
+                        "parent": binding["reply_to"],
+                        "text": text,
+                        "attempt": attempt,
+                    }
+                )
+            elif existing is None and pending:
+                page.set_stream_reply(
+                    session_id,
+                    turn_id,
+                    binding["conversation"],
+                    binding["reply_to"],
+                    None,
+                    "",
+                    "partial",
+                )
+                return
+            page.clear_stream_reply(session_id, turn_id)
+    except FileNotFoundError:
+        pass
+
+
+def _open_stream_turn(session_id: str, turn_id: str) -> None:
+    with _locked_codex_pages(session_id) as pages:
+        for page in pages:
+            page.open_turn(session_id, turn_id)
+
+
+def _close_stream_turn(session_id: str, turn_id: str) -> None:
+    with _locked_codex_pages(session_id) as pages:
+        for page in pages:
+            page.close_turn(session_id, turn_id)
+
+
 def run_adapter(
     codex_path: str,
     ready_fd: int | None = None,
@@ -758,12 +1270,12 @@ def run_adapter(
             "another `leaf wait` is already active; stop it before starting delivery"
         )
     leases_released = False
-    observer = None
+    app_client = None
     try:
         check_queue_command(codex_path)
         if app_server is not None:
-            observer = AppServerObserver(app_server, identity["id"])
-            observer.start()
+            app_client = AppServerClient(app_server, identity["id"])
+            app_client.start()
         if ready_fd is not None:
             os.write(ready_fd, b'{"ready":true}\n')
             os.close(ready_fd)
@@ -773,13 +1285,14 @@ def run_adapter(
             try:
                 queue_server = (
                     app_server
-                    if observer is not None and observer.available.is_set()
+                    if app_client is not None and app_client.available.is_set()
                     else None
                 )
                 recovered = _recover_delivery(
                     codex_path,
                     identity["id"],
                     queue_server,
+                    app_client if queue_server is not None else None,
                 )
             except (OSError, RuntimeError) as error:
                 failures += 1
@@ -831,8 +1344,8 @@ def run_adapter(
             os.close(ready_fd)
         raise
     finally:
-        if observer is not None:
-            observer.stop()
+        if app_client is not None:
+            app_client.stop()
         if not leases_released:
             watch.release()
             lease.close()
@@ -903,7 +1416,7 @@ def cmd_codex_start(
     except BaseException:
         restore_page_claim(page_dir, transition)
         raise
-    streamed = f" with live activity from {app_server}" if app_server else ""
+    streamed = f" with live replies from {app_server}" if app_server else ""
     return f"Codex delivery started for task {session_id}{streamed}"
 
 

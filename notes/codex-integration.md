@@ -1,7 +1,10 @@
 # Experimental Codex integration
 
-This note records Leaf's experimental, untested Codex App Server integration and
-the next changes worth making. It describes the implementation as of 2026-09-08.
+This note records Leaf's experimental Codex App Server integration and the next
+changes worth making. The protocol and browser path have automated coverage. The
+normal interactive workflow has also been smoke-tested with a real Codex App
+Server, CLI transcript, Leaf server, and browser. It describes the implementation
+as of 2026-09-08.
 
 The near-term target is Direction A: Leaf accompanies a normal user-owned Codex
 task. Directions B-D remain possible, but they require Leaf to own progressively
@@ -14,20 +17,25 @@ terminal connected to it. From that task, `leaf codex start <page>` starts a
 detached adapter that subscribes to the same task and watches every Leaf page the
 task claims.
 
-The adapter provides:
+The adapter now provides:
 
-- **Live activity.** Plans, tool calls, reasoning summaries, response deltas, and
-  approval or input waits appear as the page's current activity.
-- **Event-driven wake-up.** Reader feedback to an idle task enters Codex's durable
-  same-task queue. The user does not need to poll Leaf or type a message to wake
-  Codex.
+- **Live conversation replies.** Feedback from one Leaf conversation starts a
+  Codex turn. Its response streams into that thread and successful completion
+  becomes an ordinary durable Leaf reply.
+- **Live activity.** Plans, tool calls, reasoning summaries, and approval or input
+  waits appear as the page's short current activity.
+- **Event-driven wake-up.** Reader feedback to an idle task starts a Codex turn
+  directly when it has one conversation target. Other input enters Codex's durable
+  same-task queue. The user does not need to poll Leaf or type a message to wake it.
 - **Durable delivery.** Leaf saves exact page events in a task-wide delivery epoch.
   Queue, prompt, and Stop-hook transitions preserve the input until it reaches a
   turn and receives a page-level receipt.
 
-Codex still reads a small `leaf-delivery` file pointer and calls Leaf commands to
-reply, revise, report status, and settle work. The adapter observes App Server; it
-does not start or steer turns, answer approvals, or preserve a streamed response.
+The direct turn receives the delivery as a structured `leaf_feedback` tool output,
+so Codex does not first read a file pointer and the adapter owns its normal reply.
+Codex still calls Leaf commands to revise the page, report status, and perform other
+typed operations. Multi-conversation and disconnected deliveries keep the existing
+file-pointer queue fallback. Leaf does not answer approvals or user-input requests.
 
 The implementation is in `skills/leaf/scripts/leaf/codex.py`. The operating
 contract is `skills/leaf/references/host-codex.md`; activity and delivery state are
@@ -50,7 +58,7 @@ leaf codex start <page>
 The launcher owns the App Server and terminal together, so no server command has
 to stay open in another tab. The terminal remains necessary because it is the
 interactive App Server client: it displays the transcript and handles approvals.
-Leaf is currently an observer and delivery adapter.
+Leaf is the delivery, response-stream, and durable-reply adapter for turns it starts.
 
 ## Direction A: a companion to the user's Codex task
 
@@ -105,17 +113,12 @@ the source from prose.
 A normal Codex question is a `userMessage` created by the interactive client. Leaf
 submits reader feedback as a named `leaf_feedback` input containing a stable delivery
 id, the page, and each event's id, kind, text, anchor, and conversation parent. A
-standalone App Server `toolOutput` is the first representation to test because it is
-distinct from ordinary user input and remains a structured `functionCallOutput` item
-in task history.
+standalone App Server `toolOutput` is distinct from ordinary user input and remains a
+structured `functionCallOutput` item in task history. A live protocol smoke test
+confirms that Codex accepts this input and responds to the reader's words.
 
 This inbound `toolOutput` is separate from a model-initiated Leaf tool call. Leaf
 creates the former as turn input; Codex creates the latter while handling that turn.
-
-If the model treats a tool output as data rather than a request from the reader, Leaf
-can instead start the turn with a normal text input containing the same structured
-address. The experiment needs to settle this behavior; the delivery record remains
-the routing authority in either representation.
 
 The model therefore sees both the words and their address. The delivery says, in
 effect, “this reader comment came from this Leaf conversation.” Typed Leaf operations
@@ -141,22 +144,18 @@ If `turn/started` reaches Leaf before the `turn/start` response, the adapter buf
 events under that turn id until the response commits the delivery binding. It then
 publishes or discards them according to the table above.
 
-While that Leaf turn is active, another message in the same conversation may enter it
-through `turn/steer` or queued `toolOutput`; the expected turn id prevents it from
-landing in a successor by accident. Any other delivery uses the fallback path. This
-rule avoids general audience routing while keeping every event durable.
+While that Leaf turn is active, another message in the same conversation enters it
+through `turn/start` with another `toolOutput`; App Server treats that request as a
+steer. Leaf requires the returned turn id to match the binding. Any other delivery
+uses the fallback path. This rule avoids general audience routing while keeping every
+event durable.
 
-## Response streaming can work
+## Response streaming implementation
 
-There is no missing OpenAI transport needed for response streaming. App Server
-emits `item/agentMessage/delta` while Codex writes and an authoritative
-`item/completed` when the message finishes. The current observer already consumes
-both. It accumulates each message and writes the last 240 characters into Leaf's
-activity detail, throttled to one update every 200 milliseconds.
-
-That 240-character tail proves the end-to-end path, but it also currently broadcasts
-response text as activity to every claimed page. Response text should leave the
-task-wide activity reading and go only to its bound conversation.
+App Server emits `item/agentMessage/delta` while Codex writes and an authoritative
+`item/completed` when the message finishes. The adapter accumulates those messages,
+keeps response text out of task-wide activity, and projects it only into the bound
+conversation. Writes are throttled to one update every 200 milliseconds.
 
 Leaf's browser path is also already event-driven:
 
@@ -172,7 +171,7 @@ the page's /api/news EventSource announces a changed reading
 the browser fetches /api/state and redraws the thread
 ```
 
-The page server checks for news every 50 milliseconds. With the observer's current
+The page server checks for news every 50 milliseconds. With the client's current
 throttle, a response can update roughly five times per second without introducing a
 second browser transport. That is sufficient for visible streaming in the existing
 conversation surface. Sending every token directly over a new socket would bypass
@@ -181,23 +180,22 @@ benefit.
 
 ### Stream state
 
-The activity line should stop carrying response text. The adapter should instead
-publish a transient live-reply reading with:
+The activity line does not carry response text. The adapter publishes a transient
+live-reply reading with:
 
 - Codex task and turn ids;
-- turn status: active, completed, failed, interrupted, or disconnected;
+- turn status: active, failed, interrupted, disconnected, or partial; successful
+  completion with a public answer replaces the transient record with a durable reply;
 - the target page and conversation;
-- the latest public progress message, if Codex emits one;
-- ordered `final_answer` items keyed by App Server item id, with their accumulated
-  text and completion status.
+- the current public response text and App Server item id.
 
 Delta notifications extend the provisional text for one item. `item/completed`
 replaces that text with the authoritative item. On successful `turn/completed`, the
 adapter appends the final text as a Leaf reply and removes the draft. On failure or
 interruption, it leaves the reader's message unsettled and marks the draft accordingly.
-A reconnect should reload the active turn before consuming new deltas; if App Server
-cannot return the missing prefix, Leaf marks the draft partial and does not commit it
-as a complete reply.
+A reconnect reloads the active turn before consuming new deltas. If App Server cannot
+return the bound turn, Leaf marks the draft disconnected and does not commit it as a
+complete reply.
 
 The draft can be replaced in place because it is not yet conversation history. Leaf's
 existing state-read stamp orders crossing browser responses, so the stream does not
@@ -206,7 +204,7 @@ event log.
 
 ### Reply body: message now, tool later
 
-The first implementation should treat the turn's normal `final_answer` agent message
+The implementation treats the turn's normal `final_answer` agent message
 as the sole reply body. App Server streams that text through
 `item/agentMessage/delta`, so Leaf can show it immediately and append the authoritative
 completed message as a reply event.
@@ -234,8 +232,7 @@ Leaf should expose the conversation, not the agent harness:
 
 - As soon as Leaf starts the turn, the target thread shows a live agent reply below
   the reader's message.
-- A concise public progress message may appear in that reply while Codex works. When
-  final-answer text begins, it streams into the same place.
+- Final-answer text streams into the same reply as Codex writes it.
 - Successful completion turns the draft into a normal Leaf reply. The reader can
   answer it, anchor later discussion to it, and find it after a reload.
 - When the answer is a page revision, the page carries the substance. The live thread
@@ -248,32 +245,31 @@ Leaf should expose the conversation, not the agent harness:
 This makes lower latency part of Leaf's normal message loop. The Codex transcript is
 still useful to the task owner, but Leaf does not reproduce it as a separate panel.
 
-### Concrete first slice
+### Implemented first slice
 
-The first implementation can remain small:
+The first implementation includes:
 
-1. Change `AppServerEvents` in `codex.py` to return separate activity and live-reply
-   snapshots. Keep only concise public progress and final-answer text for Leaf.
-2. Bind an App Server turn only when its delivery belongs to one Leaf conversation.
+1. `AppServerEvents` in `codex.py` returns separate activity and live-reply
+   snapshots. Leaf receives concise public progress and final-answer text.
+2. An App Server turn is bound only when its delivery belongs to one Leaf conversation.
    Other deliveries continue through the existing path without response streaming.
-3. Extend the existing transient `stream` record rather than adding another durable
-   store. Add the live reply only to the state projected for its target page and
-   conversation.
-4. Render that state as a provisional agent message in the existing thread UI. Reuse
+3. The existing transient `stream` record carries the live reply rather than another
+   durable store. The browser projects it only for its target page and conversation.
+4. The existing thread UI renders that state as a provisional agent message and reuses
    `/api/news`; each stream write already changes the page reading and wakes visible
    tabs.
-5. On successful turn completion, append the authoritative final text as one ordinary
+5. Successful turn completion appends the authoritative final text as one ordinary
    Leaf reply event. A failed, interrupted, disconnected, or partial stream must not
    settle the reader's message.
-6. Test progress-to-final transitions, authoritative completion, reconnect, failure,
-   and input from another conversation taking the fallback path.
-7. Drive a fake App Server through the real page server and browser so the test proves
+6. Tests cover progress-to-final transitions, authoritative completion, reconnect,
+   failure, and input from another conversation taking the fallback path.
+7. A fake App Server is driven through the real page server and browser, proving
    the complete WebSocket-to-thread path and durable final reply.
 
 This slice changes delivery and presentation for one-conversation message turns. It
 does not change page authoring, ordinary Codex turns, or approval handling.
 
-## Other improvements within Direction A
+## Current mechanics and further Direction A work
 
 ### Remove the per-page startup command
 
@@ -288,21 +284,22 @@ proved, then leave the normal workflow. If the user's ordinary Codex client even
 exposes the same App Server task, the launcher also becomes unnecessary: claiming the
 first page is enough to attach Leaf.
 
-### Use App Server's real turn lifecycle
+### App Server's real turn lifecycle
 
 The prompt and Stop hooks currently mint Leaf's opaque turn identity and mark its
-boundaries. The observer sees App Server's real `turn/started` and `turn/completed`
-events. It can write those ids and boundaries into each claimed page, which would
-make activity, delivery, and the Codex transcript refer to the same turn.
+boundaries. The client sees App Server's real `turn/started` and `turn/completed`
+events and writes those ids and boundaries into each claimed page. Activity,
+delivery, and the Codex transcript therefore refer to the same turn.
 
 The hooks would still guard unanswered work and carry input when no direct App Server
-delivery is available. They would no longer be the primary source of turn lifecycle.
+delivery is available. They are no longer the primary source of turn lifecycle while
+App Server is connected.
 
-### Deliver structured Leaf input
+### Structured Leaf input
 
-The delivery epoch should remain the durable source of what Leaf owes Codex, but the
-model should receive its contents as structured input instead of a file pointer.
-App Server's standalone `toolOutput` input is the first route to test:
+The delivery epoch remains the durable source of what Leaf owes Codex, while the
+model receives a one-conversation delivery as structured input instead of a file
+pointer:
 
 - When the task is idle, `turn/start` with an empty ordinary input and a
   `leaf_feedback` tool output starts generation.
@@ -311,22 +308,21 @@ App Server's standalone `toolOutput` input is the first route to test:
 - During any other turn, Leaf keeps the input pending and starts its own turn later.
 - The payload carries the delivery id plus exact page, event, and conversation ids.
 
-This can remove the model's preliminary read of the epoch file and much of the prompt
-and Stop-hook delivery choreography. The adapter must still record transport
-acceptance, entry into a named Codex turn, and settlement by Leaf operations as three
-separate facts.
+This removes the model's preliminary read of the epoch file from the direct path.
+The adapter still records transport acceptance, entry into a named Codex turn, and
+settlement by Leaf operations as three separate facts.
 
-`turn/steer` is the alternative for more feedback from the same conversation during
-the Leaf-started turn. It requires the exact active turn id and fails after that turn
-ends. The experiment should compare whether queued `toolOutput` reaches the model soon
-enough before choosing steering. Any other delivery takes the existing fallback path.
-A failed steer returns to that same queue.
+`turn/steer` remains an alternative for more feedback from the same conversation.
+The current path sends another `turn/start` with `toolOutput`; App Server steers it
+into the active turn. Leaf requires the returned turn id to match, and any other
+delivery takes the existing fallback path.
 
 The current documented API has no compare-and-start operation that atomically requires
 an idle task. If the interactive client starts a turn between Leaf's idle check and
 `turn/start`, App Server may queue the tool output into that turn. Leaf can detect the
-returned turn id and suppress the live Leaf reply because the turn now has mixed
-audiences. The delivery remains valid and unsettled until the existing path handles it.
+returned turn contents and suppress the live Leaf reply because the turn now has mixed
+audiences. The feedback remains present in that Codex turn and can settle through
+ordinary Leaf operations.
 
 The current Codex queue remains the recovery path while direct App Server delivery is
 experimental or the server is disconnected. Once direct delivery proves the same
@@ -373,9 +369,10 @@ exact reader event.
 
 ## Implementation order
 
-1. Replace opaque Leaf turn ids with App Server turn ids and bind one conversation to
-   each streaming Leaf-started turn.
-2. Build and browser-test the live thread reply, including its durable completion.
+1. ~~Replace opaque Leaf turn ids with App Server turn ids and bind one conversation
+   to each streaming Leaf-started turn.~~ Implemented in the first slice.
+2. ~~Build and browser-test the live thread reply, including its durable
+   completion.~~ Implemented in the first slice.
 3. Start the task adapter automatically when its first page is claimed.
 4. Add structured model-facing Leaf operations.
 5. Run a vertical experiment with `toolOutput` delivery for idle and active turns,

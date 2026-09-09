@@ -126,7 +126,7 @@ def other_leaves(page_dir: Path) -> list:
                                 from .served_state.browser import project_browser_state
                                 from .served_state.page import project_activity
 
-                                raw, activity_stream = presence_with_activity(
+                                raw, live_stream = presence_with_activity(
                                     candidate, events
                                 )
                                 active = active_descriptor(candidate, events)
@@ -137,7 +137,7 @@ def other_leaves(page_dir: Path) -> list:
                                     active,
                                     raw,
                                     observed_at,
-                                    activity_stream=activity_stream,
+                                    live_stream=live_stream,
                                 )
                                 present = {
                                     "title": parser.title.strip() or candidate.name,
@@ -149,7 +149,7 @@ def other_leaves(page_dir: Path) -> list:
                                         raw,
                                         observed_at,
                                         browser,
-                                        activity_stream,
+                                        (live_stream or {}).get("activity"),
                                     ),
                                 }
                     except Exception:  # noqa: BLE001 - cache this page's fault

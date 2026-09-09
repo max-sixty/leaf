@@ -132,7 +132,8 @@ const bodyKey = (m) => m.attempt ?? m.id;
 // import it needs may still be in the wire — so the first painting can be escaped
 // source, which is the right thing to show and the wrong thing to keep. Reading the
 // renderer's state into the key gives those words their Markdown on the next render.
-const bodyRevision = (m) => `${m.edited?.id ?? ""}:${markdownReady() ? "md" : "raw"}`;
+const bodyRevision = (m) =>
+  `${m.edited?.id ?? ""}:${m.stream_state ? m.text : ""}:${markdownReady() ? "md" : "raw"}`;
 
 // The node already standing for this message, found by its id or, while the log is still
 // answering, by that same attempt.
@@ -170,6 +171,29 @@ export function syncEdited(head, m) {
   edited.title = `Edited ${ago(m.edited.ts)}`;
 }
 
+export function syncStreamState(node, head, m) {
+  const state = m.stream_state;
+  if (state) node.dataset.streamState = state;
+  else delete node.dataset.streamState;
+  let label = head.querySelector(":scope > .lf-stream-state");
+  if (!state || state === "active") {
+    label?.remove();
+    return;
+  }
+  if (!label) {
+    label = el("span", "lf-stream-state lf-edited");
+    head.append(label);
+  }
+  label.textContent =
+    state === "failed"
+      ? "Failed"
+      : state === "interrupted"
+        ? "Interrupted"
+        : state === "disconnected"
+          ? "Disconnected"
+          : "Partial";
+}
+
 export function syncMsgNode(div, m) {
   // The log answering for a pending message renames this node rather than replacing it,
   // so the reader's words keep their place, and anything standing in them keeps it too.
@@ -183,6 +207,7 @@ export function syncMsgNode(div, m) {
   const said = ago(m.ts);
   if (when.textContent !== said) when.textContent = said;
   syncEdited(head, m);
+  syncStreamState(div, head, m);
   const body = msgBody(m);
   const standing = div.querySelector(":scope > .lf-msg-body");
   if (standing !== body) standing?.replaceWith(body);
@@ -206,6 +231,7 @@ export function msgNode(m) {
   if (m.suggestion) div.append(el("div", "lf-suggest-label", "suggested replacement"));
   div.append(msgBody(m));
   syncEdited(head, m);
+  syncStreamState(div, head, m);
   return div;
 }
 

@@ -1,16 +1,22 @@
 """Comment-panel ordering, narrowing, and thread-motion tests."""
 
 import base64
+import json
 import re
+import threading
+import time
 from copy import deepcopy
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command
+from interact_support import append_command, record_claim
 from leaf import cli as cli_model
+from leaf import codex as codex_model
 from leaf import conversation as conversation_model
 from leaf import event_log as events_model
+from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
+from leaf import service as service_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -50,8 +56,234 @@ from render_support import (
     told,
     undo,
 )
+from websockets.sync.server import serve as serve_websocket
 
 pytestmark = pytest.mark.nightly
+
+
+def test_a_leaf_started_codex_response_streams_into_the_live_thread(
+    browser, serve, monkeypatch, request
+):
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Answer me here", {"section": "plan"})
+    claim = record_claim(
+        serve.page_dir,
+        id="codex-thread",
+        host="codex",
+        agent="Codex",
+    )
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(serve.page_dir, claim)
+    )
+    assert lease
+    request.addfinalizer(lease.close)
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_status("waiting", "Reader feedback")
+    monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
+
+    finish = threading.Event()
+    completed = threading.Event()
+    hold_server = threading.Event()
+
+    def handle(socket):
+        initialize = json.loads(socket.recv())
+        socket.send(json.dumps({"id": initialize["id"], "result": {}}))
+        socket.recv()
+        resume = json.loads(socket.recv())
+        socket.send(
+            json.dumps(
+                {
+                    "id": resume["id"],
+                    "result": {
+                        "thread": {
+                            "id": "codex-thread",
+                            "status": {"type": "idle"},
+                            "turns": [],
+                        }
+                    },
+                }
+            )
+        )
+        start = json.loads(socket.recv())
+        socket.send(
+            json.dumps(
+                {
+                    "method": "turn/started",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turn": {"id": "leaf-turn"},
+                    },
+                }
+            )
+        )
+        socket.send(
+            json.dumps(
+                {
+                    "id": start["id"],
+                    "result": {
+                        "turn": {
+                            "id": "leaf-turn",
+                            "status": "inProgress",
+                            "items": [],
+                        }
+                    },
+                }
+            )
+        )
+        socket.send(
+            json.dumps(
+                {
+                    "method": "item/started",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turnId": "leaf-turn",
+                        "item": {
+                            "id": "answer",
+                            "type": "agentMessage",
+                            "phase": "final_answer",
+                            "text": "",
+                        },
+                    },
+                }
+            )
+        )
+        socket.send(
+            json.dumps(
+                {
+                    "method": "item/agentMessage/delta",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turnId": "leaf-turn",
+                        "itemId": "answer",
+                        "delta": "First words",
+                    },
+                }
+            )
+        )
+        finish.wait(timeout=5)
+        answer = {
+            "id": "answer",
+            "type": "agentMessage",
+            "phase": "final_answer",
+            "text": "First words, then the complete answer.",
+        }
+        socket.send(
+            json.dumps(
+                {
+                    "method": "item/completed",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turnId": "leaf-turn",
+                        "completedAtMs": 1,
+                        "item": answer,
+                    },
+                }
+            )
+        )
+        socket.send(
+            json.dumps(
+                {
+                    "method": "turn/completed",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turn": {
+                            "id": "leaf-turn",
+                            "status": "completed",
+                            "items": [answer],
+                        },
+                    },
+                }
+            )
+        )
+        completed.set()
+        hold_server.wait(timeout=10)
+
+    app_server = serve_websocket(handle, "127.0.0.1", 0)
+    worker = threading.Thread(target=app_server.serve_forever, daemon=True)
+    worker.start()
+    request.addfinalizer(app_server.shutdown)
+    request.addfinalizer(hold_server.set)
+    endpoint = f"ws://127.0.0.1:{app_server.socket.getsockname()[1]}"
+    observer = codex_model.AppServerClient(endpoint, "codex-thread")
+    observer.start()
+    request.addfinalizer(observer.stop)
+    observer.start_delivery(
+        {
+            "id": "delivery-1",
+            "page": str(serve.page_dir),
+            "conversation": root,
+            "reply_to": root,
+        },
+        {"format": codex_model.DELIVERY_FORMAT, "id": "delivery-1"},
+    )
+
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    live = page.locator(
+        f'.lf-thread[data-id="{root}"] .lf-msg[data-mid="codex-stream:leaf-turn"]'
+    )
+    expect(live.locator(".lf-msg-body")).to_have_text("First words")
+    expect(live).to_have_attribute("aria-busy", "true")
+
+    finish.set()
+    assert completed.wait(timeout=5)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        replies = [
+            event
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "reply" and event["author"] == "claude"
+        ]
+        if replies:
+            break
+        time.sleep(0.01)
+    assert len(replies) == 1
+    expect(live).to_have_count(0)
+    reply = page.locator(f'.lf-thread[data-id="{root}"] .lf-msg.claude').last
+    expect(reply.locator(".lf-msg-body")).to_have_text(
+        "First words, then the complete answer."
+    )
+    assert not errors
+
+
+@pytest.mark.parametrize(
+    ("state", "label"),
+    [("interrupted", "Interrupted"), ("partial", "Partial")],
+)
+def test_an_incomplete_codex_response_is_labelled_in_its_thread(
+    browser, serve, state, label
+):
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Answer me here", {"section": "plan"})
+    record_claim(
+        serve.page_dir,
+        id="codex-thread",
+        host="codex",
+        agent="Codex",
+    )
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_status("waiting", "Reader feedback")
+        transaction.set_stream_reply(
+            "codex-thread",
+            "leaf-turn",
+            root,
+            root,
+            "answer",
+            "I could not finish this response.",
+            state,
+        )
+
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    draft = page.locator(
+        f'.lf-thread[data-id="{root}"] .lf-msg[data-mid="codex-stream:leaf-turn"]'
+    )
+    expect(draft).to_have_attribute("data-stream-state", state)
+    expect(draft.locator(".lf-stream-state")).to_have_text(label)
+    expect(draft).not_to_have_attribute("aria-busy", "true")
+    assert not errors
 
 
 @pytest.mark.parametrize("resolved", [False, True])

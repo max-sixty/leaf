@@ -8,6 +8,7 @@
  * so one reader can exercise the real event log without changing another reader's page.
  * During an image rollout, a layer mismatch pins that reader briefly to the container's
  * complete shell so a static document never reloads against an older API in a loop.
+ * Accepted browser events also emit content-free canonical metadata to Analytics Engine.
  */
 
 import {
@@ -31,7 +32,7 @@ import {
   containerCookie,
   containerFromCookie,
   isPageApiRequest,
-  isPageMediaRequest,
+  isPageSessionFileRequest,
   isPrivatePageRequest,
   needsPageSlash,
   newSessionId,
@@ -48,6 +49,7 @@ export interface Env {
   ASSETS: Fetcher;
   PAGES: DurableObjectNamespace<LeafWebsiteSession>;
   AGENT_WORKFLOW: Workflow<AgentWorkflowParams>;
+  WEBSITE_EVENTS: AnalyticsEngineDataset;
   SOURCE_AGENT_RATE_LIMITER: RateLimit;
   OPENAI_API_KEY: string;
 }
@@ -76,6 +78,14 @@ const CLOUDFLARE_CONTAINER_CA =
 interface LeafEvent {
   id: string;
   attempt?: string;
+  kind: string;
+  action?: string;
+  revision?: number;
+}
+
+interface AcceptedEvent {
+  event: LeafEvent;
+  needsReply: boolean;
 }
 
 interface LeafStateAnswer {
@@ -93,28 +103,6 @@ export class LeafWebsiteSession extends Container<Env> {
   interceptHttps = true;
   allowedHosts = ["api.openai.com"];
 
-  static outboundByHost = {
-    "api.openai.com": async (
-      request: Request,
-      env: Env,
-      ctx: OutboundHandlerContext,
-    ) => {
-      const url = new URL(request.url);
-      if (request.method !== "POST" || url.pathname !== "/v1/responses") {
-        return new Response("blocked website agent request", { status: 403 });
-      }
-      const capacity = await env.SOURCE_AGENT_RATE_LIMITER.limit({
-        key: `model:${ctx.containerId}`,
-      });
-      if (!capacity.success) {
-        return new Response("website agent model limit reached", { status: 429 });
-      }
-      const headers = new Headers(request.headers);
-      headers.set("Authorization", `Bearer ${env.OPENAI_API_KEY}`);
-      return fetch(new Request(request, { headers }));
-    },
-  };
-
   constructor(ctx: DurableObject["ctx"], env: Env) {
     super(ctx, env);
     this.envVars = {
@@ -124,6 +112,35 @@ export class LeafWebsiteSession extends Container<Env> {
     };
   }
 }
+
+// Assignment invokes Container's inherited setter, which registers the handler for
+// ContainerProxy. A static class field would shadow that setter.
+LeafWebsiteSession.outboundByHost = {
+  "api.openai.com": async (
+    request: Request,
+    env: Env,
+    ctx: OutboundHandlerContext,
+  ) => {
+    const url = new URL(request.url);
+    if (request.method !== "POST" || url.pathname !== "/v1/responses") {
+      return new Response("blocked website agent request", { status: 403 });
+    }
+    if (!env.OPENAI_API_KEY) {
+      return new Response("website agent credential is not configured", {
+        status: 503,
+      });
+    }
+    const capacity = await env.SOURCE_AGENT_RATE_LIMITER.limit({
+      key: `model:${ctx.containerId}`,
+    });
+    if (!capacity.success) {
+      return new Response("website agent model limit reached", { status: 429 });
+    }
+    const headers = new Headers(request.headers);
+    headers.set("Authorization", `Bearer ${env.OPENAI_API_KEY}`);
+    return fetch(new Request(request, { headers }));
+  },
+};
 
 function randomSessionId(): string {
   return newSessionId(crypto.getRandomValues(new Uint8Array(16)));
@@ -277,10 +294,10 @@ export class LeafWebsiteAgentWorkflow extends WorkflowEntrypoint<
   }
 }
 
-async function acceptedObligation(
+async function acceptedEvent(
   postedRequest: Request,
   response: Response,
-): Promise<string | null> {
+): Promise<AcceptedEvent | null> {
   if (!response.ok) return null;
   try {
     const posted = (await postedRequest.json()) as { attempt?: unknown };
@@ -289,18 +306,36 @@ async function acceptedObligation(
     const event = answer.state?.events?.find(
       (candidate) => candidate.attempt === posted.attempt,
     );
-    if (
-      !event ||
-      !answer.state?.activity?.obligations?.some(
-        (obligation) => obligation.event === event.id,
-      )
-    ) {
-      return null;
-    }
-    return event.id;
+    if (!event) return null;
+    return {
+      event,
+      needsReply:
+        answer.state?.activity?.obligations?.some(
+          (obligation) => obligation.event === event.id,
+        ) ?? false,
+    };
   } catch {
     return null;
   }
+}
+
+function recordAcceptedEvent(
+  env: Env,
+  route: PageRoute,
+  release: string,
+  accepted: AcceptedEvent,
+): void {
+  env.WEBSITE_EVENTS.writeDataPoint({
+    indexes: [accepted.event.id],
+    blobs: [
+      route.root,
+      route.kind,
+      accepted.event.kind,
+      accepted.event.action ?? null,
+      release,
+    ],
+    doubles: [accepted.event.revision ?? 0, accepted.needsReply ? 1 : 0],
+  });
 }
 
 async function resumeFailedWorkflow(env: Env, workflowId: string): Promise<void> {
@@ -461,7 +496,12 @@ export default {
         route,
         manifest.release,
       );
-      if (response.status !== 404 || !isPageMediaRequest(route)) {
+      if (
+        response.status !== 404 ||
+        !isPageSessionFileRequest(route) ||
+        existing === null ||
+        !active
+      ) {
         if (!response.headers.get("Content-Type")?.startsWith("text/html")) {
           return response;
         }
@@ -484,10 +524,18 @@ export default {
         : null;
     const response = await getContainer(env.PAGES, sessionId).fetch(request);
     if (postedRequest) {
-      const eventId = await acceptedObligation(postedRequest, response);
-      if (eventId) {
+      const accepted = await acceptedEvent(postedRequest, response);
+      if (accepted) {
+        recordAcceptedEvent(env, route, manifest.release, accepted);
+      }
+      if (accepted?.needsReply) {
         const sourceId = request.headers.get("CF-Connecting-IP") ?? sessionId;
-        const params = { sessionId, route: route.root, eventId, sourceId };
+        const params = {
+          sessionId,
+          route: route.root,
+          eventId: accepted.event.id,
+          sourceId,
+        };
         await startAgentWorkflow(env, params);
       }
     }

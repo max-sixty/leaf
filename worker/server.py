@@ -14,6 +14,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from functools import cache
@@ -61,6 +62,12 @@ AGENT_REPLY_PATH = "/_leaf/agent/reply"
 CODEX_SOCKET = Path("/tmp/leaf-website-codex.sock")
 CODEX_LOG = Path("/tmp/leaf-website-codex.log")
 CODEX_ENDPOINT = f"unix://{CODEX_SOCKET}"
+GENERATION_FAILURE_REPLY = (
+    "I couldn’t generate a reply just now. Please send a new message to try again."
+)
+MISSING_REPLY = (
+    "I finished without posting a reply. Please send a new message to try again."
+)
 CODEX_INSTRUCTIONS = """You are Leaf guide for one public leaf.page session. The
 page directory in your working directory is the complete scope of this task. Reader
 input arrives as a leaf-delivery pointer. That pointer continues an existing page: read
@@ -228,12 +235,90 @@ class WebsiteCodexHost:
             if not followed:
                 socket.close()
 
-    @staticmethod
-    def _follow_turn(socket, thread_id: str, turn_id: str) -> None:
-        """Project notifications from the connection that started this turn."""
+    def _finish_turn(
+        self,
+        page_dir: Path,
+        thread_id: str,
+        leaf_turn: str,
+        event_ids: tuple[str, ...],
+        turn: dict,
+        final_message: str | None = None,
+    ) -> None:
+        """Close one observed turn and settle any input it left unanswered."""
+        status = turn.get("status")
+        if status != "completed":
+            error = turn.get("error") or {}
+            detail = error.get("message") if isinstance(error, dict) else None
+            print(
+                f"Codex turn {turn.get('id')} ended {status or 'without a status'}"
+                + (f": {detail}" if detail else ""),
+                file=sys.stderr,
+                flush=True,
+            )
+
+        with PageTransaction(page_dir) as page:
+            activation = activate_source(page_dir, page.events)
+            if activation.error:
+                raise ValueError(activation.error)
+            pending = tuple(
+                obligation["event"]
+                for obligation in full_state(page_dir, page.events)["activity"][
+                    "obligations"
+                ]
+                if obligation.get("event") in event_ids
+                and obligation.get("delivery_session") == thread_id
+                and obligation.get("delivery_turn") == leaf_turn
+            )
+            claim = page.claim
+            if (
+                claim
+                and claim.get("released") is None
+                and claim.get("id") == thread_id
+                and claim.get("turn") == leaf_turn
+            ):
+                page.close_turn(thread_id)
+
+        final = (final_message or "").strip()
+        if status == "completed":
+            fallback = final or MISSING_REPLY
+        else:
+            fallback = GENERATION_FAILURE_REPLY
+        for event_id in pending:
+            options = {
+                "attempt": agent_attempt(event_id),
+                "only_if_pending": True,
+                "identity": {
+                    "agent": WEBSITE_AGENT,
+                    "session": WEBSITE_AGENT_SESSION,
+                },
+            }
+            try:
+                cmd_reply(page_dir, event_id, fallback, "", **options)
+            except SystemExit as error:
+                if not final or fallback != final:
+                    raise
+                print(
+                    f"Codex turn {turn.get('id')} returned an invalid reply: {error}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                cmd_reply(page_dir, event_id, MISSING_REPLY, "", **options)
+
+    def _follow_turn(
+        self,
+        socket,
+        page_dir: Path,
+        thread_id: str,
+        turn_id: str,
+        leaf_turn: str,
+        event_ids: tuple[str, ...],
+    ) -> None:
+        """Project notifications and account for the turn's terminal outcome."""
         events = AppServerEvents(thread_id)
         events.turn_id = turn_id
         last_stream_update = 0.0
+        terminal: dict
+        final_message = None
         _set_stream_activity(thread_id, turn_id, "Starting")
         try:
             while True:
@@ -241,22 +326,42 @@ class WebsiteCodexHost:
                     message = json.loads(socket.recv(timeout=1))
                 except TimeoutError:
                     continue
+                update = events.read(message)
                 last_stream_update = project_app_server_activity(
                     events,
                     message,
+                    update,
                     last_stream_update,
                     _set_stream_activity,
                     _clear_stream_activity,
                 )
                 if (
-                    message.get("method") == "turn/completed"
-                    and message.get("params", {}).get("turn", {}).get("id") == turn_id
+                    update is not None
+                    and update.get("completed")
+                    and update["turn"] == turn_id
                 ):
-                    return
-        except (OSError, RuntimeError, ValueError, WebSocketException):
+                    terminal = message["params"]["turn"]
+                    final_message = update.get("text")
+                    break
+        except (OSError, RuntimeError, ValueError, WebSocketException) as error:
             _clear_stream_activity(thread_id, turn_id)
+            detail = str(error) or type(error).__name__
+            terminal = {
+                "id": turn_id,
+                "status": "failed",
+                "error": {"message": f"App Server turn stream failed: {detail}"},
+            }
         finally:
             socket.close()
+        with self.lock:
+            self._finish_turn(
+                page_dir,
+                thread_id,
+                leaf_turn,
+                event_ids,
+                terminal,
+                final_message,
+            )
 
     def _send(self, socket, method: str, params: dict) -> dict:
         request_id = self.next_request_id
@@ -276,7 +381,7 @@ class WebsiteCodexHost:
         page_dir: Path,
         thread_id: str,
         process: subprocess.Popen,
-    ) -> tuple[str, str]:
+    ) -> tuple[Path, str, str, str, tuple[str, ...]]:
         with PageTransaction(page_dir) as page:
             if page.status["state"] == "idle":
                 page.set_status("waiting", "")
@@ -291,11 +396,22 @@ class WebsiteCodexHost:
                 "input": [{"type": "text", "text": prompt}],
             },
         )["turn"]
-        accept_codex_delivery(thread_id)
-        return thread_id, turn["id"]
+        accepted = accept_codex_delivery(thread_id)
+        if len(accepted) != 1 or accepted[0]["page"] != page_dir:
+            raise RuntimeError(
+                "the website Codex turn accepted an unexpected page batch"
+            )
+        delivery = accepted[0]
+        return (
+            page_dir,
+            thread_id,
+            turn["id"],
+            delivery["turn"],
+            delivery["events"],
+        )
 
     def _start_thread(self, page_dir: Path, process: subprocess.Popen) -> str:
-        def attach(socket, result: dict) -> tuple[str, str]:
+        def attach(socket, result: dict) -> tuple[Path, str, str, str, tuple[str, ...]]:
             thread_id = result["thread"]["id"]
             return self._start_turn(socket, page_dir, thread_id, process)
 
@@ -323,7 +439,7 @@ class WebsiteCodexHost:
     ) -> bool:
         resumed = False
 
-        def attach(socket, result: dict) -> tuple[str, str]:
+        def attach(socket, result: dict) -> tuple[Path, str, str, str, tuple[str, ...]]:
             nonlocal resumed
             resumed = True
             status = result["thread"]["status"]["type"]

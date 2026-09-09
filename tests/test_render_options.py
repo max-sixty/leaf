@@ -477,6 +477,37 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     page.close()
 
 
+def test_ask_addresses_are_screen_only_apparatus(browser, serve):
+    """An Ask's key hints stay out of selected page words and off paper."""
+    page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    page.keyboard.press("a")
+    addresses = page.locator("#storage-options > lf-option > .lf-address")
+    expect(addresses).to_have_text(["1", "2"])
+    expect(addresses.first).to_be_visible()
+
+    selected = page.locator("#storage-options").evaluate(
+        """group => {
+          const range = document.createRange();
+          range.selectNodeContents(group);
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          return selection.toString();
+        }"""
+    )
+    assert "1" not in selected and "2" not in selected, (
+        f"the Ask's address digits came away with its authored words: {selected!r}"
+    )
+    assert addresses.evaluate_all(
+        "els => els.every(el => getComputedStyle(el).userSelect === 'none')"
+    )
+
+    page.emulate_media(media="print")
+    expect(addresses.first).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
 def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     """The offer is the group's, made once, rather than a word written on every member.
 

@@ -107,7 +107,7 @@ Options:
   --help  Show this message and exit.
 
 Commands:
-  launch  Launch an experimental, untested streaming Codex terminal.
+  launch  Launch an experimental streaming Codex terminal.
   start   Keep PAGE connected after this turn ends.
 """,
             id="codex",

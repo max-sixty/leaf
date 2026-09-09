@@ -10,6 +10,9 @@ directory = "../.tmp/site-assets"
 binding = "ASSETS"
 run_worker_first = true
 
+[secrets]
+required = ["OPENAI_API_KEY"]
+
 [[containers]]
 # Cloudflare keys a container application to its Durable Object namespace, and a
 # namespace can hold only one. Wrangler matches the deployed application by name and
@@ -38,6 +41,10 @@ class_name = "LeafWebsiteSession"
 name = "leaf-website-agent"
 binding = "AGENT_WORKFLOW"
 class_name = "LeafWebsiteAgentWorkflow"
+
+[[analytics_engine_datasets]]
+binding = "WEBSITE_EVENTS"
+dataset = "leaf_website_events"
 
 [[ratelimits]]
 name = "SOURCE_AGENT_RATE_LIMITER"

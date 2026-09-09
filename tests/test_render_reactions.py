@@ -2001,7 +2001,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
         strip.locator('.lf-react[data-token="keep"]').click()
     ok = events_model.read_events(serve.page_dir)[-1]
     assert ok["token"] == "keep" and ok["parent"] == reply
-    expect(page.locator(".lf-needs")).to_have_text("Waiting on you")  # none
+    expect(page.locator(".lf-needs")).to_have_text("On you")  # none
     expect(page.locator(".lf-thread:not([hidden])")).to_have_count(
         0
     )  # out of "waiting on you"
@@ -2012,7 +2012,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
         strip.locator('.lf-react[data-token="keep"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == ok["id"]
-    expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
+    expect(page.locator(".lf-needs")).to_have_text("On you (1)")
     expect(strip.locator('.lf-react[data-token="keep"]')).to_have_attribute(
         "aria-pressed", "false"
     )

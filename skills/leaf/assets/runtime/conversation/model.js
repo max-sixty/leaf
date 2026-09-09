@@ -14,6 +14,7 @@ import { PENDING, runtime } from "../context.js";
 import { pendingMessages } from "../outbox.js";
 
 export const isReaction = (message) => Boolean(message.token);
+export const isAddressable = (message) => message.addressable !== false;
 const spoken = (thread) => thread.msgs.filter((message) => !isReaction(message));
 export const turns = (thread) =>
   thread.msgs.filter(
@@ -101,6 +102,6 @@ export const reactionsOn = (anchor) =>
     )
     .map((thread) => thread.root);
 
-const awaitsAgent = (thread) => thread.awaits_agent;
+export const awaitsAgent = (thread) => thread.awaits_agent;
 export const awaitsReader = (thread) => thread.awaits_reader;
 export const seatRoot = (thread) => thread.seat;

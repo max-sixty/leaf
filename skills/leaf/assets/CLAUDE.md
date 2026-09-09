@@ -75,13 +75,17 @@ and tray panels, landing a new width through `chrome-layout.js`'s `landEdge`;
 `runtime/trays.js` owns the left tray edge, active tray, registration, restore, and
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
-`runtime/living-margin.js` owns the page map, compact map sheet, anchored margin threads,
-the design-mode exclusion of its top-layer preview, and the one aggregated margin element cluster
-for each page target;
-content modules contribute live controls and semantics through its registration seam but
-never place their own RHS rows;
+`runtime/margin-elements.js` owns the public margin-element grammar and contribution
+registry; content modules contribute live controls and semantics there but never place
+their own RHS rows;
+`runtime/page-map.js` owns the complete searchable Page Map sheet, its retained action
+proxies, filtering, modal lifecycle, and focus return;
+`runtime/living-margin.js` projects those contributions with page readings into the page
+margin, supplies the Page Map entries, and owns anchored margin threads, the design-mode
+exclusion of its top-layer preview, and one aggregated cluster for each page target;
 `runtime/margin-layout.js` owns margin-row measurement, rail claims, responsive docking,
-vertical packing, and collision bands for wide page content;
+vertical packing, collision bands for wide page content, and transient margin-element
+label placement;
 `runtime/reactions.js` owns reaction vocabulary, lists and their standing paint,
 sending, keyboard mode, and reaction-specific undo wording;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
@@ -196,8 +200,8 @@ and folds the reader's unread messages into them from the outbox;
 state and motion;
 `runtime/conversation/landing.js` owns conversation input discovery, focus travel,
 and panel arrival;
-`runtime/conversation/narrowing.js` owns comment-panel search and waiting-on-reader
-filter state;
+`runtime/conversation/narrowing.js` owns comment-panel search and the lifecycle,
+scope, subject, and detached-placement facet state;
 `runtime/conversation/placement.js` owns document-order grouping;
 `runtime/conversation/reaction-strips.js` owns the panel's message reaction surfaces;
 `runtime/conversation/surfaces.js` owns registry-declared widget outlets and the set of
@@ -244,13 +248,13 @@ Each mutable fact has one writer:
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
 | panel visibility | `panelOpen` | `setPanel` |
-| the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
+| the narrowing on the thread list | the reader's find words and lifecycle, scope, subject, and detached-placement facets | `renarrow`, `revealThread`, and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
 | the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` and the held `paintAcknowledgments` call preserve it through reconciliation, provisional work, and resolution folds |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival |
 | tray visibility | `trayUp` | `showTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
-| keyboard meaning | registered scope and row objects, bounded by their document or current native-layer root | the dispatcher and each visible key surface read the same filtered stack |
+| keyboard meaning | registered scope and row objects, bounded by their document or current native-layer root; inner Escape steps, an eligible causal return frame, then fallbacks | the dispatcher and each visible key surface read the same binding-specific ownership |
 | draft generation | the reader's draft record | draft-store helpers and `watchDraft` |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
@@ -507,6 +511,10 @@ arriving without a gesture must not move any chrome control. A content change
 the reader requested may reflow the content it replaces, provided the change is
 shown as trackable motion rather than an unexplained jump.
 
+The parent laying out adjacent actions owns their complete allocations. Different
+actions have disjoint hit boxes, and a compact control's larger aim may not cover a
+sibling's visible surface.
+
 During startup, generated interface first appears in its settled upgrade position, from
 authored and tab-local state. An asynchronous producer joins the applicable widget, data,
 or page-interface settlement before `data-lf-upgraded` releases that interface. Apparatus
@@ -550,6 +558,13 @@ the press does, decides when it is live, and runs it. A scope says where a group
 of rows applies and which platform keys that context claims. The dispatcher,
 shortcut bar, `?` reference, control tooltips, and announcements are projections of
 those objects.
+
+Escape has one additional semantic order that declaration position cannot change. An
+active core mode marked `escape: "inner"` and an exact focused element may consume its
+own inner step first. The latest eligible command return frame follows, then ordinary
+scene-derived and containing-scope fallbacks. Browser-owned modal and popover boundaries
+are applied outside that order, so a covered frame remains suspended and an unhandled
+native dismissal reaches the platform.
 
 Treat that register as a product grammar, not a collection of locally convenient
 shortcuts. A binding belongs only when its key is the canonical spelling for that action

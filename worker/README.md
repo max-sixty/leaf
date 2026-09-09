@@ -16,7 +16,9 @@ Runtime assets live behind release-addressed URLs with immutable cache headers, 
 the browser sends the document's release and layer identities to every API request. A
 mixed response reloads instead of letting one release interpret another release's
 state. The build-generated manifest is the routing authority shared by the Worker and
-the Python adapter.
+the Python adapter. Published media, revisions, and version documents stay on the edge;
+when one of those paths is absent from the release, the Worker asks the reader's
+active container so a newly created private revision can become the live document.
 
 The deployment admits up to 15,000 concurrent `lite` containers. After a session is
 active, a visible page holds it through Leaf's news stream; a passive page opens no
@@ -27,6 +29,36 @@ Deployments allow active instances a bounded ten-minute drain window, after whic
 replacement starts with fresh ephemeral state. Durable website sessions will require a
 durable page-directory store rather than another lifecycle promise.
 
+Accepted browser events also write canonical metadata to the
+`leaf_website_events` Analytics Engine dataset. The data point omits event content,
+widget ids, IP addresses, and session cookies:
+
+| Field | Value |
+| --- | --- |
+| `index1` | Canonical event id |
+| `blob1` | Public page route |
+| `blob2` | `product` or `example` |
+| `blob3` | Event kind |
+| `blob4` | Action verb, when present |
+| `blob5` | Site release id |
+| `double1` | Page revision, or `0` when absent |
+| `double2` | `1` when the event needs an agent reply |
+
+A retry of an accepted browser attempt writes the same event id again. Count distinct
+ids when measuring reader events:
+
+```sql
+SELECT
+  blob1 AS page,
+  blob3 AS kind,
+  blob4 AS action,
+  count(DISTINCT index1) AS events
+FROM leaf_website_events
+WHERE timestamp > now() - INTERVAL '7' DAY
+GROUP BY page, kind, action
+ORDER BY events DESC
+```
+
 When Leaf accepts a reader message that its canonical activity projection says needs
 a response, the Worker starts one Cloudflare Workflow keyed by the browser session and
 event id. Its retryable steps ask that reader's container to create or resume one Codex
@@ -36,8 +68,12 @@ native filesystem tools, so the hosted task can revise `index.html`, validate it
 thread replies, and leave the page waiting exactly as a local Leaf task does. The
 initiating App Server connection projects the turn's native activity notifications
 back through Leaf. A repeated workflow sees the event's durable pickup and does not
-start the work twice. If task startup stops after its retries, the workflow appends a
-short failure reply through the same event log.
+start the work twice. Task startup failure after its retries and a failure while
+following a started turn each append a short failure reply through the same event log.
+Once App Server reports a terminal turn, the container closes that exact Leaf turn and
+gives each accepted input the turn left unanswered its final assistant message. A failed
+or interrupted turn gets a failure reply instead, and a completed turn with no message
+at all gets a completed-without-reply receipt.
 
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the
@@ -66,7 +102,9 @@ deploy the Worker, container, and `leaf.page` custom domain. This is the same bo
 used by Tend: manual workflow dispatches from other branches cannot read the token. The
 domain already uses Cloudflare nameservers; a successful deployment makes the Worker
 the `leaf.page` origin. The deployed Worker also needs an `OPENAI_API_KEY` Wrangler
-secret. The workflow build is otherwise self-contained.
+secret. Deployment checks that the binding exists before changing production, then
+runs one private Codex turn through the public site and requires both its published
+revision and reply. The workflow build is otherwise self-contained.
 
 Create that GitHub boundary once, then enter the token when the last command prompts:
 

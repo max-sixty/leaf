@@ -174,6 +174,7 @@ import {
   scrollToElement,
 } from "./anchors.js";
 import { projectionFromView } from "./projection/fold.js";
+import { beginWalk, listWalkPosition } from "./walk-position.js";
 import {
   captureAuthoredFacets,
   domFacet,
@@ -445,10 +446,14 @@ const VERSION_WALK = {
   run: (binding) => {
     const was = document.activeElement;
     const row = walkRows(versionRows(), binding === "ArrowDown" ? 1 : -1);
+    if (!row) return;
+    beginWalk("version", "Version", () =>
+      listWalkPosition(versionRows(), document.activeElement),
+    );
     // A press at either end lands on the row it started from, and now that the walk
     // states a comparison, landing is not free — it would re-fetch the base and say
     // its count again for a press that moved nothing.
-    if (!row || row === was) return;
+    if (row === was) return;
     // The comparison the row states: its own version as the base, or none at all where
     // that version is not older than the one being read. So the reader walks down to mark
     // from further back and back up to stop, and the row that stops it is the version

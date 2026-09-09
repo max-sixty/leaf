@@ -17,6 +17,7 @@ import { pagePresented } from "./presentation.js";
 import { allAsks } from "./asks/model.js";
 import { walkRows } from "./keyboard/bindings.js";
 import { renderMargin } from "./living-margin.js";
+import { beginWalk, listWalkPosition } from "./walk-position.js";
 // The left side holds one tray at a time. `showTray` owns `trayUp` and renders the
 // complete outcome for leaves and asks. The leaves tray overlays the document because its
 // rows leave the page. The asks tray takes a strip because its rows travel within the
@@ -270,7 +271,12 @@ keys(
       does: "Walk the asks",
       line: "walk the asks",
       repeat: true,
-      run: (binding) => walkRows(askRows(), binding === "ArrowDown" ? 1 : -1),
+      run: (binding) => {
+        walkRows(askRows(), binding === "ArrowDown" ? 1 : -1);
+        beginWalk("ask-tray", "Ask", () =>
+          listWalkPosition(askRows(), document.activeElement),
+        );
+      },
     },
   ],
   () => askRows().length > 0,

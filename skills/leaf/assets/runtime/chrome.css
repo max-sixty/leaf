@@ -1813,14 +1813,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      register the dispatcher walks (see the module docstring). A sequence shows its whole
      live scope; More unfolds the remaining current register before it opens the complete reference.
      Hints are the eye's copy of facts spoken elsewhere and stay aria-hidden; More is a
-     real control. A category walk's position stands separately on the opposite edge.
+     real control. A clamped walk's position stands separately at the page's head.
      syncLayout keeps the line out of a side-by-side thread panel and, over a covering
-     panel, lifts it only when its rendered box actually meets the panel foot. The
-     readout joins the header of an open conversation surface because that surface can
-     paint above sibling chrome; on the page it keeps the opposite keyline. The
-     chrome root reserves the deepest fixed bottom surface crossing each scroll region,
-     so its last lines never end underneath one. Overflow remains a backstop for a window
-     too narrow to hold even the short line. */
+     panel, lifts it only when its rendered box actually meets the panel foot. The chrome
+     root reserves that fixed bottom surface for each scroll region it crosses, so its
+     last lines never end underneath it. Overflow remains a backstop for a window too
+     narrow to hold even the short line. */
   .lf-shortcut-bar { position: fixed; left: calc(18px + var(--lf-safe-left));
     bottom: calc(14px + var(--lf-safe-bottom)); z-index: 8940; pointer-events: none;
     display: flex; gap: 12px; align-items: baseline;
@@ -1832,27 +1830,32 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-shortcut-bar[data-lf-wrap="true"] { width: max-content; flex-wrap: wrap;
     row-gap: 6px; align-items: baseline; }
   .lf-shortcut-bar:not(:has(> :not([hidden]))) { display: none; }
-  .lf-walk-position { position: fixed; right: calc(18px + var(--lf-safe-right));
-    bottom: calc(14px + var(--lf-safe-bottom)); z-index: 8940; pointer-events: none;
+  /* TODO: The page-head corner is stable, but it is not a settled home for this
+     navigation state. Revisit the surface rather than moving it between contexts. */
+  .lf-walk-position { position: fixed;
+    top: calc(var(--lf-banner-h) + 14px);
+    left: calc(var(--lf-shell-inset-left, 0px) + 18px + var(--lf-safe-left));
+    z-index: 8940; pointer-events: none;
     padding: 5px 10px; border: 1px solid var(--rule); border-radius: var(--r);
     background: var(--card); color: var(--ink-2); font-size: var(--t-5);
     font-variant-numeric: tabular-nums; white-space: nowrap; }
   .lf-walk-position[data-lf-boundary] { border-color: var(--accent);
     background: var(--accent); color: var(--card); }
   .lf-walk-position[hidden] { display: none; }
-  :is(.lf-panel-head, .lf-margin-preview-head) > .lf-walk-position {
-    position: static; z-index: auto; margin-inline: auto 8px; }
+  /* Leaves covers rather than narrows the page, so it does not contribute the shell
+     inset that Asks does. Keep this page-head reading at the page's exposed edge. */
+  .lf-others-panel.open ~ .lf-walk-position {
+    left: calc(var(--lf-tray-w) + 18px + var(--lf-safe-left)); }
   /* A touch device has no keyboard hints to advertise, so the resting line stands down
      whole rather than shrinking. Every hint on it names a key the reader cannot press,
      and the box they cost stands over the words and the controls of a page whose window
-     is the smallest one there is. An attached keyboard can still begin a category walk;
-     its position is useful without the hidden hints, so that one reading stands alone.
+     is the smallest one there is. Above the covering-width breakpoint, an attached
+     keyboard can begin a category walk and its position stands alone.
      More is the only pointer route to the reference; on a tablet with an attached
      keyboard the question-mark key remains its route.
-     Every reader of the line's box asks whether there is one — syncLayout for the room
-     it reserves, targets for how far down the page is reachable, the address chips and
-     the floats for what they must not stand on. A zero box is the same state the empty
-     line has always had, so none of them is new. */
+     Geometry readers ask whether either box is shown: syncLayout and composers read the
+     bottom line, while targets and addresses also read the page-head position. A zero
+     box is the same state the empty line has always had. */
   @media (pointer: coarse) {
     .lf-shortcut-bar { display: none; }
   }
@@ -1975,6 +1978,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      height as a sentence ages, which moves every address under it for no gesture; the
      whole line is a press away in the title, as the wide row's runaway detail is. */
   @media screen and (width <= 840px) {
+    .lf-walk-position { display: none; }
     .lf-banner { display: grid; grid-template-columns: minmax(0, 1fr);
       grid-template-rows: 36px minmax(0, 1fr); gap: 0;
       padding: var(--lf-safe-top) 0 0; }

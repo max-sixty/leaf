@@ -285,10 +285,18 @@ def verify_agent_turn(browser, release: str) -> None:
     """Require one deployed Codex turn to revise and answer a private page."""
     context = browser.new_context()
     page = context.new_page()
+    failures: list[str] = []
+    page.on(
+        "console",
+        lambda message: (
+            failures.append(message.text) if message.type == "error" else None
+        ),
+    )
+    page.on("pageerror", lambda error: failures.append(str(error)))
     url = f"{ORIGIN}/examples/design-decision/"
     response = page.goto(url, wait_until="load", timeout=120_000)
     check(response is not None and response.ok, f"{url} did not load for its agent")
-    page.locator("body[data-lf-presented]").wait_for(timeout=30_000)
+    await_presentation(page, url, failures)
     state_url = urljoin(url, "api/state")
     state_response = context.request.get(state_url, timeout=120_000)
     check(state_response.ok, f"{state_url} returned {state_response.status}")
@@ -356,10 +364,11 @@ def verify_agent_turn(browser, release: str) -> None:
         f"{url} agent returned an unexpected reply: {reply['text']}",
     )
     page.reload(wait_until="load", timeout=120_000)
-    page.locator("body[data-lf-presented]").wait_for(timeout=30_000)
+    await_presentation(page, url, failures)
+    check(not failures, f"{url} reported browser errors: {failures}")
     check(
         page.locator("h1").inner_text() == heading,
-        f"{url} did not render the agent's published heading",
+        f"{url} did not render the agent's published heading; browser errors: {failures}",
     )
     context.close()
 

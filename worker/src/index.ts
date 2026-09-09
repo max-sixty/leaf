@@ -31,7 +31,7 @@ import {
   containerCookie,
   containerFromCookie,
   isPageApiRequest,
-  isPageMediaRequest,
+  isPageSessionFileRequest,
   isPrivatePageRequest,
   needsPageSlash,
   newSessionId,
@@ -468,7 +468,7 @@ export default {
         route,
         manifest.release,
       );
-      if (response.status !== 404 || !isPageMediaRequest(route)) {
+      if (response.status !== 404 || !isPageSessionFileRequest(route)) {
         if (!response.headers.get("Content-Type")?.startsWith("text/html")) {
           return response;
         }

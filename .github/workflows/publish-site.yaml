@@ -101,8 +101,6 @@ jobs:
       # real browser must see the requested build in the document, module graph, edge
       # projection, and a newly allocated container before this deployment is green.
       - name: Verify the exact public release in Chrome
-        env:
-          LEAF_VERIFY_AGENT: "1"
         run: |
           release=$(jq --raw-output .release .tmp/site/_leaf/site.json)
           deadline=$(( SECONDS + 900 ))
@@ -110,3 +108,4 @@ jobs:
             (( SECONDS < deadline )) || exit 1
             sleep 10
           done
+          LEAF_VERIFY_AGENT=1 uv run scripts/verify-site.py "$release"

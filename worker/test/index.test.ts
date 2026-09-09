@@ -348,6 +348,41 @@ describe("product-site delivery", () => {
     expect(getContainer).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "/examples/design-decision/revisions/r3-aabbccdd.html",
+    "/examples/design-decision/versions/v3.html",
+  ])("falls back to the active reader's container for %s", async (pathname) => {
+    const sessionId = "18".repeat(16);
+    const assetFetch = vi.fn(
+      async () => new Response("not found", { status: 404 }),
+    );
+    const containerFetch = vi.fn(
+      async () =>
+        new Response("<!doctype html><title>Private revision</title>", {
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        }),
+    );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const env = environment({
+      ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+    });
+
+    const response = await worker.fetch(
+      new Request(`https://leaf.page${pathname}`, {
+        headers: {
+          Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-active=1`,
+        },
+      }),
+      env,
+    );
+
+    expect(assetFetch).toHaveBeenCalledOnce();
+    expect(getContainer).toHaveBeenCalledWith(env.PAGES, sessionId);
+    expect(containerFetch).toHaveBeenCalledOnce();
+    expect(await response.text()).toContain("Private revision");
+    expect(response.headers.get("Leaf-Session")).toBe("active");
+  });
+
   it("serves initial page state at the edge without creating a session", async () => {
     const env = environment();
 

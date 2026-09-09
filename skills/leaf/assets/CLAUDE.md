@@ -39,8 +39,8 @@ and stores each declaration unread, and the first repaint after boot evaluates i
 there;
 `runtime/standing.js` owns the one repaint of where the reader stands, in the order
 the geometry demands;
-`runtime/walk-position.js` owns the transient ordinal the shortcut bar reads for an active
-Ask or Thread keyboard walk;
+`runtime/walk-position.js` owns the transient ordinal for an active Ask or Thread keyboard
+walk and the brief boundary state when another press stays at the same destination;
 `runtime/icons.js` owns the layer's icon table;
 `runtime/context.js` owns the mutable facts shared across the browser layers and
 their direct readers;
@@ -90,7 +90,8 @@ subscriptions;
 `bindings.js` the spelling, parsing, row fields, and checks; `scopes.js` where a group
 of rows applies; `dispatch.js` which scope answers a press and what it owes the
 platform; `return-stack.js` what a keyboard entry owes on the way back out;
-`shortcut-bar.js` the status and short help at the foot of the page and its More control;
+`shortcut-bar.js` the short help at the foot of the page, its More control, the separate
+category-walk readout on the opposite edge, and the shared list of their rendered boxes;
 `reference.js` the complete listing behind `?`; `address.js` the go-to sequence;
 `address-placement.js` shared address visibility and the numeric Ask placement pass;
 `hints.js` prefix-free transient labels and their no-drop placement pass;

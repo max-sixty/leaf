@@ -62,7 +62,7 @@
 import { bindings, labelOf, live, spell, word } from "./bindings.js";
 import { addressPlacement } from "./address-placement.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "./hints.js";
-import { shortcutBarEl } from "./shortcut-bar.js";
+import { shortcutBarEl, walkPositionEl } from "./shortcut-bar.js";
 import { keySequence, progressStates } from "./presentation.js";
 import { banner, toggleBtn } from "../banner.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
@@ -631,7 +631,7 @@ export function paintAddresses() {
   if (wasActive && activeCandidate && !drawn.has(activeCandidate)) hintActive = -1;
   const controlBoxes = paintAddressChips(controlPlaced, chips);
   spreadHints(placed, {
-    barriers: controlBoxes,
+    barriers: [...controlBoxes, walkPositionEl.getBoundingClientRect()],
     lineBox: shortcutBarEl.getBoundingClientRect(),
     viewportTop: banner.getBoundingClientRect().bottom,
   });

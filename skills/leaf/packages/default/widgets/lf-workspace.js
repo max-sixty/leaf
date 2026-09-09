@@ -182,7 +182,8 @@ customElements.define(
       const availableHeight =
         innerHeight -
         (Number.parseFloat(getComputedStyle(document.body, "::before").height) || 0) -
-        (Number.parseFloat(rootStyle.getPropertyValue("--lf-shortcut-bar-clear")) || 0);
+        (Number.parseFloat(rootStyle.getPropertyValue("--lf-bottom-chrome-clear")) ||
+          0);
       const mainStyle = getComputedStyle(this.parentElement);
       const availableWidth =
         document.body.getBoundingClientRect().width -

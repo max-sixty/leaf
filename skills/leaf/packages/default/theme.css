@@ -90,7 +90,7 @@
     box-sizing: border-box;
     width: 100cqi;
     max-width: none;
-    height: calc(100vh - var(--lf-banner-h) - var(--lf-shortcut-bar-clear, 0px));
+    height: calc(100vh - var(--lf-banner-h) - var(--lf-bottom-chrome-clear, 0px));
     margin: 0;
     padding: 0 var(--col-pad);
     left: 0;
@@ -1532,7 +1532,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                 * on every page with a spine, at every width, with nothing to scroll it
                 * clear. The map is the fourth region standing in the line's band and the
                 * only one out of flow, so neither the document's room nor a list's
-                * padding reaches it, and syncLayout's `--lf-shortcut-bar-clear` would end it
+                * padding reaches it, and syncLayout's `--lf-bottom-chrome-clear` would end it
                 * above the line in one term.
                 *
                 * That is deliberately not done. The line is either something that hovers

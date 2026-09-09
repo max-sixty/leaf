@@ -1,9 +1,11 @@
-/* The status line at the foot of the page, and the More control that leads from it to the
-   reference.
+/* The shortcut bar at the foot of the page, the separate category-walk position on its
+   opposite edge, and the More control that leads from the bar to the reference.
 
-   The line leads with transient navigation context when an Ask or Thread walk is active,
-   then gives compact hints rather than reproducing the keyboard reference. It walks
-   outward from the reader's innermost scope and drops bindings shadowed there. The
+   The readout keeps navigation state out of the command list. It appears only after an
+   Ask or Thread walk and briefly takes the accent face when a repeated press reaches the
+   same clamped destination. The bar gives compact hints rather than reproducing the
+   keyboard reference. It walks outward from the reader's innermost scope and drops
+   bindings shadowed there. The
    ordinary shortlist is the first live row, then a promotable Escape or the next row.
    At rest on the page that
    is `c` for the page itself and `s` to select a more particular target, beside the More
@@ -22,15 +24,10 @@
    Hint chips are `aria-hidden` because placeholders and live announcements carry the same
    facts for assistive technology.
 
-   TODO(2026-09-06): Revisit this provisional placement of navigation context. A
-   replacement must remain separate from agent status and durable counts, work at narrow
-   widths and for attached-keyboard walks on coarse-pointer devices, and avoid another
-   floating surface.
-
    The compact line wraps when sequence rows need the room. Ordinary hints yield from the end
    on a window too narrow for them, but active sequence rows do not; More is the one control
-   that always survives. Navigation context survives too. At a narrow width it takes the
-   first row and the surviving hints share the second.
+   that always survives. The navigation readout takes the opposite edge first, so the bar
+   yields hints before the two surfaces can overlap.
 
    `syncLayout` reserves the line's footprint only in a scroll region whose horizontal
    span meets it. Each reservation is the band from the line's top to that region's own
@@ -38,12 +35,12 @@
    the top of the complete panel foot. The line's height, inset, any lift and the device's
    safe area are therefore one measurement off the rendered box rather than four numbers
    to keep in step. Over a covering thread panel, the line starts at its ordinary bottom
-   inset and rises above the panel foot only when their rendered rectangles collide; a
-   thread list in another lane keeps its stylesheet inset and reserves nothing for the
-   line. A coarse pointer is drawn no hint line at all — there is no keyboard to advertise,
-   and every hint would name a key the reader cannot press. An attached keyboard can still
-   begin a walk, so its navigation context stands alone until that walk ends. The line and
-   its chips take no pointer events; the More
+   inset and rises above the panel foot only when their rendered rectangles collide. Each
+   scroll region reserves whichever bottom surface crosses it. A coarse pointer is drawn
+   no hint line at all — there is no keyboard to advertise, and every hint would name a key
+   the reader cannot press. An attached keyboard can still begin a walk, so its navigation
+   readout stands alone until that walk ends. The line, readout, and chips take no pointer
+   events; the More
    control does, because it is the pointer route to the reference.
 
    The accessible More control and its `?` binding share one progressive route. The first
@@ -94,7 +91,15 @@ shortcutBarMore.setAttribute("aria-label", "? more");
 export const shortcutBarMoreKey = document.createElement("kbd");
 export const shortcutBarMoreText = el("span", "", "more");
 shortcutBarMore.append(shortcutBarMoreKey, shortcutBarMoreText);
-shortcutBarEl.append(walkPositionEl);
+
+// Every fixed box at the foot of the viewport. Geometry consumers use the same list so
+// an address, target hint, or composer clears both the command bar and the navigation
+// readout without treating the open space between them as covered.
+export const bottomChromeBoxes = () =>
+  [shortcutBarEl, walkPositionEl]
+    .filter((node) => getComputedStyle(node).position === "fixed")
+    .map((node) => node.getBoundingClientRect())
+    .filter((box) => box.height > 0 && box.width > 0);
 
 // ---------- the shortcut bar ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each
@@ -217,16 +222,14 @@ export function renderLine() {
     walkPositionEl.dataset.kind = position.kind;
     walkPositionEl.textContent = position.text;
     walkPositionEl.hidden = false;
-    shortcutBarEl.dataset.lfWalk = position.kind;
+    walkPositionEl.toggleAttribute("data-lf-boundary", position.boundary);
   } else {
     walkPositionEl.hidden = true;
     walkPositionEl.removeAttribute("data-kind");
-    shortcutBarEl.removeAttribute("data-lf-walk");
+    walkPositionEl.removeAttribute("data-lf-boundary");
   }
   shortcutBarEl.dataset.lfExpanded = String(shelf);
-  shortcutBarEl.dataset.lfWrap = String(
-    shelf || Boolean(complete) || Boolean(position),
-  );
+  shortcutBarEl.dataset.lfWrap = String(shelf || Boolean(complete));
   // Keep the two contextual hints together at the front of the ordinary line.
   // The shelf and a sequence retain registry order because each is a fuller reading of one
   // scene rather than a ranked shortlist.
@@ -277,8 +280,7 @@ export function renderLine() {
   // way round that hides from a suite. The line is cleared around the same seated node
   // instead, and the chips are drawn around it.
   for (const node of [...shortcutBarEl.childNodes])
-    if (node !== shortcutBarMore && node !== walkPositionEl) node.remove();
-  shortcutBarEl.prepend(walkPositionEl);
+    if (node !== shortcutBarMore) node.remove();
   const seated = shortcutBarMore.parentElement === shortcutBarEl;
   const chip = (steps, said, states, afterMore = false, row = null) => {
     const span = el("span", "lf-key");
@@ -344,16 +346,6 @@ export function renderLine() {
   // A sequence is the complete menu of the mode it names. Its live rows wrap rather than
   // disappearing, even where the ordinary shortlist would yield a lower-ranked hint.
   if (complete) return;
-  // At a narrow width the navigation context takes the first row. Keep the ordinary
-  // line to one more row by yielding its lowest-ranked hints; the position and More are
-  // the two cells that never yield.
-  if (position && rowsUsed() > 1) {
-    const removable = drawn
-      .filter(({ span }) => !span.hidden)
-      .map(({ span }) => span)
-      .toReversed();
-    while (rowsUsed() > 2 && removable.length) removable.shift().hidden = true;
-  }
   // On a window narrower than those two
   // computed sentences, yield the lower-ranked hint and then the first; More is the one
   // control that always survives. At most two layouts are spent, independent of the size

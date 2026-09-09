@@ -2723,10 +2723,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-visual-actions",
         "lf-visual-action",
         "lf-action-target",
-        # A comparison's generated label and deletions stand inside the block they are
+        # A comparison's target paint and deletions stand inside the block they are
         # about; a text block's parent may not accept a sibling beside it.
         "lf-version-inline",
-        "lf-version-inline-label",
         "lf-version-inline-deletion",
     }, (
         "the document-level class surface changed: widen the shared vocabulary on purpose"

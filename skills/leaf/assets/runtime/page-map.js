@@ -178,7 +178,6 @@ function syncSheetControl(button, entry, control) {
     ...(record.icon ? { icon: record.icon } : { glyph: record.glyph }),
     label: record.label,
     visibleLabel: visibleMarginElementLabel(record),
-    context: record.context,
   });
   syncForwardedMarginElementState(button, control);
 }

@@ -108,7 +108,6 @@ import {
 } from "./keyboard/scopes.js";
 import { notice } from "./notifications.js";
 import {
-  COLLAPSE,
   authored,
   closestAcross,
   containsAcross,
@@ -117,6 +116,7 @@ import {
   inChrome,
   pageText,
   quoteFrom,
+  readingFrom,
   rangeOf,
   TEXT_BLOCK,
   textNodesUnder,
@@ -910,39 +910,8 @@ function applyDiff(doc, baseVersion, baseReading) {
 // `.lf-ui`; comments, copies, and later comparisons therefore continue to read the exact
 // current document rather than the temporary historical words on screen.
 const inlineId = (target) => `lf-version-inline-${target.id}`;
-const collapsible = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
-
-function authoredReading(target) {
-  const units = [];
-  for (const { node, start, end } of textNodesUnder(target, authored(target))) {
-    for (let offset = start; offset < end; offset++)
-      units.push({
-        text: node.data[offset],
-        start: { node, offset },
-        end: { node, offset: offset + 1 },
-      });
-  }
-  const normalized = [];
-  let space = [];
-  for (const unit of units) {
-    if (collapsible.test(unit.text)) {
-      space.push(unit);
-      continue;
-    }
-    if (normalized.length && space.length)
-      normalized.push({
-        text: " ",
-        start: space[0].start,
-        end: space.at(-1).end,
-      });
-    space = [];
-    normalized.push(unit);
-  }
-  const text = normalized.map((unit) => unit.text).join("");
-  if (text !== wrote(target))
-    throw new Error(`couldn't map the authored reading for #${target.id}`);
-  return { text, units: normalized };
-}
+const authoredReading = (target) =>
+  readingFrom(textNodesUnder(target, authored(target)));
 
 function pointAt(target, reading, offset) {
   if (!reading.units.length) return { node: target, offset: 0 };

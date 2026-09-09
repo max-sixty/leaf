@@ -3172,6 +3172,36 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     page.close()
 
 
+def test_an_inline_version_diff_uses_the_shared_authored_reading(browser, serve):
+    """A passage crossing element boundaries keeps one text and DOM reading."""
+    first = leaf_page(
+        "Nested version passage",
+        "<h1>Review</h1><aside id='note'>Careful<b>!</b> The old wording stood here.</aside>",
+    )
+    second = first.replace("old wording stood", "new wording stands")
+    url = serve(first)
+    page, errors = open_page(browser, live_url(url))
+    d = serve.page_dir
+    (d / ".fixture-versions" / "v2.html").write_text(second)
+    stamp_version_file(d, 2, "revise the note")
+    wait_for_revision(page, 2)
+
+    compare_with(page, 1)
+    change = page.locator('[data-lf-margin-for="note"] [data-lf-kinds~="change"]')
+    change.click()
+    expect(change).to_have_attribute("aria-expanded", "true")
+    assert page.locator("#note .lf-version-inline-deletion del").all_inner_texts() == [
+        "old",
+        "stood",
+    ]
+    inserted = page.evaluate(
+        "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
+    )
+    assert inserted == ["new", "stands"]
+    assert errors == []
+    page.close()
+
+
 def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
     browser, serve
 ):

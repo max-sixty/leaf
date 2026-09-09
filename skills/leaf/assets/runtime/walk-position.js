@@ -1,10 +1,10 @@
-/* The transient position of a clamped Leaf walk. Owners keep the list and motion;
+/* The transient position of a Leaf keyboard walk. Owners keep the list and motion;
    this module keeps only a reader for the standing destination. Reading the list on
    every paint means a resolved thread, answered Ask, disappearing leaf, or replaced
    version cannot leave a stale denominator behind. Reaching the same destination
-   twice means the clamped walk met its boundary; that state briefly gives the
-   unchanged ordinal an accent face. Cyclic focus loops and package-owned widget walks
-   keep their local feedback instead: neither has a Leaf-list boundary to report. */
+   twice means the walk could not move; that state briefly gives the unchanged ordinal
+   an accent face. Both clamped and cyclic semantic walks use this reading. Native focus
+   traversal and gestures that rearrange state are not walks through a named list. */
 import { paintHere } from "./keyboard/scopes.js";
 
 const BOUNDARY_MS = 900;
@@ -52,7 +52,7 @@ export function walkPosition() {
   };
 }
 
-// A clamped walk has arrived. The caller still owns and announces the motion; this
+// A keyboard walk has arrived. The caller still owns and announces the motion; this
 // records the owner's live reading so every such walk gets one boundary treatment.
 export function beginWalk(key, noun, read) {
   if (!key || typeof read !== "function")

@@ -24,6 +24,7 @@ import { focused, paintHere } from "../keyboard/scopes.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "../keyboard/hints.js";
 import { keySequence, progressStates } from "../keyboard/presentation.js";
 import { announce } from "../notifications.js";
+import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { commentOnTarget, updateFab } from "./surface.js";
 import { allButTheReference, hasCapturedTarget } from "../keyboard/page.js";
 
@@ -343,6 +344,16 @@ function syncStatus() {
   else selectionStatus.textContent = `${active + 1} of ${matches.length}`;
 }
 
+function matchWalkPosition(query) {
+  if (active < 0 || active >= matches.length) return null;
+  return {
+    target: `${query}\u0000${active}`,
+    position: active + 1,
+    total: matches.length,
+    qualifier: "",
+  };
+}
+
 function search() {
   const query = selectionInput.value.trim();
   matches = query ? findText(pageText(), query) : [];
@@ -363,6 +374,7 @@ function moveMatch(direction) {
   active = (active + direction + matches.length) % matches.length;
   syncStatus();
   showMatch();
+  beginWalk("page-search", "Match", () => matchWalkPosition(selectionInput.value));
   announce(
     `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
   );
@@ -406,6 +418,11 @@ function moveHint(direction) {
   if (!targets.length) return;
   hintActive = (hintActive + direction + targets.length) % targets.length;
   const target = targets[hintActive];
+  beginWalk("selection-target", "Target", () =>
+    listWalkPosition(hinted(), hinted()[hintActive], {
+      identity: (candidate) => candidate.element,
+    }),
+  );
   announce(`Hint ${target.code}: ${cut(target.label, 0, 72)}. Press Enter to select.`);
   paintHere();
 }
@@ -448,6 +465,9 @@ function repeatSearch(direction) {
   repeatedSearch.index = active;
   showMatch();
   selectMatch(matches[active]);
+  beginWalk("page-search", "Match", () =>
+    matchWalkPosition(repeatedSearch?.query ?? ""),
+  );
   announce(
     `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
   );

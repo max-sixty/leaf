@@ -356,6 +356,12 @@ def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve
     assert strict.evaluate(size) == before
 
     page.locator("#opt-bearer .lf-pick").focus()
+    page.keyboard.press("ArrowUp")
+    expect(page.locator("#opt-strict .lf-pick")).to_be_focused()
+    expect(page.locator(".lf-walk-position")).to_have_text("Option 2 of 3")
+    page.keyboard.press("ArrowDown")
+    expect(page.locator("#opt-bearer .lf-pick")).to_be_focused()
+    expect(page.locator(".lf-walk-position")).to_have_text("Option 3 of 3")
     page.keyboard.press(" ")
     expect(page.locator("#opt-bearer")).to_have_attribute("chosen", "")
     round_trip(page)

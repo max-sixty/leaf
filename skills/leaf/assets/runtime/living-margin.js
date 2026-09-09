@@ -1324,6 +1324,11 @@ function stepClusterMarginElements(binding) {
   buttons[(at + direction + buttons.length) % buttons.length].focus({
     preventScroll: true,
   });
+  beginWalk("margin-element", "Action", () => {
+    const standing = focused();
+    const standingHost = closestAcross(standing, "[data-lf-margin-for]");
+    return listWalkPosition(clusterMarginElements(standingHost), standing);
+  });
 }
 
 function setOptionsOpen(

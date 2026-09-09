@@ -52,6 +52,7 @@ import { focusSurface } from "../conversation/surfaces.js";
 import { showThread } from "../conversation/landing.js";
 import { notice } from "../notifications.js";
 import { paintDrawings, validDrawing } from "./drawing.js";
+import { beginWalk, listWalkPosition } from "../walk-position.js";
 
 // The floating field immediately accepts a comment on the target the reader named.
 // Its ellipsis unfolds every other response the target offers. The field is the
@@ -350,6 +351,9 @@ export function stepResponseOptions(binding) {
         : 0
       : (at + (backward ? -1 : 1) + choices.length) % choices.length;
   choices[next].focus({ preventScroll: true });
+  beginWalk("response-option", "Response", () =>
+    listWalkPosition(responseOptionButtons(), focused()),
+  );
 }
 
 // More has the same contract as a target's margin disclosure: replace the ellipsis

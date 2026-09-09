@@ -99,11 +99,13 @@ import { SettledOptions } from "./lf-options-settled.js";
 import {
   actionAvailable,
   actionStands,
+  beginWalk,
   conversationInput,
   focused,
   inChrome,
   commands,
   landInConversation,
+  listWalkPosition,
   offer,
   once,
   quoted,
@@ -383,7 +385,12 @@ customElements.define(
             line: "walk the options",
             lineWhen: false,
             repeat: true,
-            run: (binding) => walkRows(marks, binding === "ArrowDown" ? 1 : -1),
+            run: (binding) => {
+              walkRows(marks, binding === "ArrowDown" ? 1 : -1);
+              beginWalk("option", "Option", () =>
+                listWalkPosition(this.#marks(), focused()),
+              );
+            },
           },
           {
             id: "option.toggle",

@@ -39,10 +39,10 @@ and stores each declaration unread, and the first repaint after boot evaluates i
 there;
 `runtime/standing.js` owns the one repaint of where the reader stands, in the order
 the geometry demands;
-`runtime/walk-position.js` owns the transient ordinal for clamped Leaf-owned keyboard
-walks, shown at the page head when the layout has room, and the brief boundary state when
-another press stays at the same destination; cyclic and widget-owned walks keep their
-local feedback;
+`runtime/walk-position.js` owns the transient ordinal for semantic Leaf keyboard walks,
+shown at the page head when the layout has room, and the brief boundary state when another
+press stays at the same destination; clamped and cyclic owners use the same reading, while
+native focus traversal and gestures that rearrange state keep their local feedback;
 `runtime/icons.js` owns the layer's icon table;
 `runtime/context.js` owns the mutable facts shared across the browser layers and
 their direct readers;
@@ -99,7 +99,7 @@ subscriptions;
 of rows applies; `dispatch.js` which scope answers a press and what it owes the
 platform; `return-stack.js` what a keyboard entry owes on the way back out;
 `shortcut-bar.js` the short help at the foot of the page, its More control, the separate
-clamped-walk readout at the page's head, and the shared lists of their rendered boxes;
+keyboard-walk readout at the page's head, and the shared lists of their rendered boxes;
 `reference.js` the complete listing behind `?`; `address.js` the go-to sequence;
 `address-placement.js` shared address visibility and the numeric Ask placement pass;
 `hints.js` prefix-free transient labels and their no-drop placement pass;

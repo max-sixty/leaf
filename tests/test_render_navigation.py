@@ -613,6 +613,7 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
         ".lf-quote"
     ).click()
     expect(page.locator("#comparison-current-behavior")).to_be_in_viewport()
+    page.wait_for_function("el => el.scrollTop === 0", arg=current.element_handle())
     current_after_current = current.evaluate("el => el.scrollTop")
     proposed_after_current = proposed.evaluate("el => el.scrollTop")
     assert current_after_current < initial_scrolls[0]
@@ -622,8 +623,9 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
         ".lf-quote"
     ).click()
     expect(page.locator("#comparison-proposed-behavior")).to_be_in_viewport()
+    page.wait_for_function("el => el.scrollTop === 0", arg=proposed.element_handle())
     assert proposed.evaluate("el => el.scrollTop") < proposed_after_current
-    assert current_after_current < initial_scrolls[0]
+    assert current.evaluate("el => el.scrollTop") == current_after_current
     assert errors == []
     page.close()
 

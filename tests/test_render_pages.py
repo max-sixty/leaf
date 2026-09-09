@@ -658,6 +658,11 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     wait_for_revision(page, 2)
     expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
 
+    page.locator(".lf-threads-toggle").click()
+    reply_draft = page.locator(".lf-thread textarea")
+    reply_draft.fill("keep this unfinished reply")
+    page.locator(".lf-threads-toggle").click()
+
     broken = []
 
     def fail_after_rendering_the_panel(route):
@@ -705,6 +710,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
 
     expect(page.locator(".lf-msg.claude .lf-msg-body")).to_have_count(0)
     expect(page.locator(".lf-msg.user .lf-msg-body")).to_have_text("which host answers?")
+    expect(reply_draft).to_have_value("keep this unfinished reply")
 
     version_menu = page.locator(".lf-version-menu")
     page.locator(".lf-version").click()

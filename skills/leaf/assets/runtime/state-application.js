@@ -294,32 +294,7 @@ export async function receiveState(state) {
     await notifyDataSubscribers();
     runtime.restoringState = prior.runtime.restoringState;
   };
-  try {
-    const running = (async () => {
-      if (willActivate && document.startViewTransition) {
-        document.documentElement.classList.add("lf-versioning");
-        try {
-          const transition = document.startViewTransition(apply);
-          // Skipping the visual transition still runs the application, but rejects
-          // ready. Its finished promise remains the complete application boundary.
-          transition.ready.catch(() => {});
-          await transition.finished;
-        } finally {
-          document.documentElement.classList.remove("lf-versioning");
-          refreshHover();
-          // View-transition chrome covered the page while the application painted.
-          // Re-read viewport-local keyboard maps only after that cover is gone.
-          paintHere();
-        }
-      } else await apply();
-    })();
-    applying = running;
-    try {
-      await running;
-    } finally {
-      if (applying === running) applying = null;
-    }
-  } catch (error) {
+  const restore = async (error) => {
     // Candidate history is useful only while this one application is
     // rendering it. If any required surface refuses the state, restore the last whole
     // reading so focus, panel, and undo cannot consume a log tail the page never
@@ -347,6 +322,32 @@ export async function receiveState(state) {
       location.reload();
     }
     throw error;
+  };
+  // Recovery owns newly reconciled thread widgets until their preparation finishes,
+  // just as application does. A crossed read must not enter between those phases.
+  const running = (async () => {
+    if (willActivate && document.startViewTransition) {
+      document.documentElement.classList.add("lf-versioning");
+      try {
+        const transition = document.startViewTransition(apply);
+        // Skipping the visual transition still runs the application, but rejects
+        // ready. Its finished promise remains the complete application boundary.
+        transition.ready.catch(() => {});
+        await transition.finished;
+      } finally {
+        document.documentElement.classList.remove("lf-versioning");
+        refreshHover();
+        // View-transition chrome covered the page while the application painted.
+        // Re-read viewport-local keyboard maps only after that cover is gone.
+        paintHere();
+      }
+    } else await apply();
+  })().catch(restore);
+  applying = running;
+  try {
+    await running;
+  } finally {
+    if (applying === running) applying = null;
   }
   if (nextAgentMsgCount !== null) agentMsgCount = nextAgentMsgCount;
   if (replyNotice) notice(replyNotice);

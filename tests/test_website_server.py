@@ -1231,6 +1231,7 @@ class _DeployedPage:
         self.banner = banner
         self.init_scripts: list[str] = []
         self.presentation_waits: list[int] = []
+        self.revision_waits: list[int] = []
 
     def add_init_script(self, script: str) -> None:
         self.init_scripts.append(script)
@@ -1245,6 +1246,18 @@ class _DeployedPage:
         answered = _Read({})
         answered.ok = self.reload_ok
         return answered
+
+    def wait_for_function(self, expression: str, arg=None, timeout: int = 0) -> None:
+        """The revision the page is standing on, waited for rather than sampled.
+
+        A page follows the published revision when its state read answers, so this
+        expires for a read that never came and returns for one that did — which is the
+        difference the gate's own patience is spent on.
+        """
+        assert "lf-revision" in expression
+        self.revision_waits.append(timeout)
+        if self.revision < arg:
+            raise verify_site.PlaywrightTimeout(f"waiting for revision {arg}")
 
     def locator(self, selector: str):
         if selector == "h1":
@@ -1340,6 +1353,10 @@ def test_the_page_a_turn_has_just_written_gets_more_than_an_edge_page_to_present
     # failure this branch is named for, and leaves the first reading unchanged.
     assert page.presentation_waits == [30_000, verify_site.TURN_PRESENTATION]
     assert verify_site.TURN_PRESENTATION > 30_000
+    # The reload presents at the runtime's own fixed wait whether or not its first read
+    # has answered, so the revision the turn published is waited for under the same
+    # budget rather than read the instant the page appears.
+    assert page.revision_waits == [verify_site.TURN_PRESENTATION]
     # The stamps the message needs to say which stall it was. Without them a page that
     # upgraded and stalled on its first state read reports the same "no startup
     # milestone" as one whose modules never arrived.
@@ -1358,6 +1375,7 @@ def test_the_page_a_turn_has_just_written_gets_more_than_an_edge_page_to_present
             _DeployedSite(_DeployedContainer(release, refused)), release
         )
     assert refused.presentation_waits == [30_000]
+    assert refused.revision_waits == []
 
 
 def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
@@ -1401,6 +1419,10 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
         )
     assert "stands on revision 1" in str(reported.value)
     assert "Server offline — reconnecting" in str(reported.value)
+    # Reported after the gate's own patience ran out, not at presentation: the banner is
+    # quoted for a read that never answered rather than for one a second slower than the
+    # runtime's wait.
+    assert offline.revision_waits == [verify_site.TURN_PRESENTATION]
 
     # A page whose read answered is standing under an ordinary activity line rather
     # than an empty banner — a presented page always has one — so the two causes are
@@ -1418,3 +1440,4 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
     assert "stands on revision 1" in str(named.value)
     assert "Claude is handling 1 update" in str(named.value)
     assert "Server offline" not in str(named.value)
+    assert told.revision_waits == [verify_site.TURN_PRESENTATION]

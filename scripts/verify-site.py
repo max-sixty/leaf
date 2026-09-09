@@ -77,15 +77,16 @@ PROFILE_SCRIPT = """(() => {
 # stopped.
 TURN_PATIENCE = 300
 TURN_LIMIT = 600
-# How long the page reloaded after the turn may take to present. The release pass walks
-# pages the edge serves, which present in about a second, and `await_presentation`'s own
-# bound is calibrated for those. This reload is answered by a container that has just run
-# a hosted model turn, and it carries navigation, module load and widget upgrade ahead of
-# the runtime's own wait on its first `/api/state` read — ten seconds, whatever the
-# container does. This bound has to sit outside that whole sum, because the revision
-# check below is the one that says what the reload got back: a gate that gave up first
-# would report a page that never presented and say nothing about the read. So it keeps
-# an order of magnitude over the runtime's wait, and reports what the reload cost.
+# How long the page reloaded after the turn may take to present, and then to follow the
+# revision the turn published. The release pass walks pages the edge serves, which present
+# in about a second, and `await_presentation`'s own bound is calibrated for those. This
+# reload is answered by a container that has just run a hosted model turn, and the two
+# waits it gets are the two halves the runtime separates: the page presents at the
+# runtime's own fixed ten-second wait whatever the container does, so this bound sits
+# outside that wait plus the reload's navigation, module load and widget upgrade for the
+# revision check below to be reached at all. Following the revision is then what the first
+# read buys, and the runtime bounds that read at 120 s, so this is the patience it is
+# spent under. A gate that gave up on either half would report a stall it caused itself.
 TURN_PRESENTATION = 120_000
 # The activity readings that mean a turn is on this work. A page that reads away,
 # unheld, listening, stalled or closed is not going to answer, so its wait ends at
@@ -681,6 +682,25 @@ def verify_agent_turn(browser, release: str) -> None:
     )
     await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
     presented_at = page.evaluate("() => window.__leafStartup?.presented?.at ?? null")
+    # Presentation no longer says the reload's first read landed: the runtime presents at
+    # its own fixed wait whether or not the container has answered, and following the
+    # agent's revision is the activation that read triggers. So the gate spends its own
+    # patience on the revision rather than sampling it the instant the page appears — a
+    # container that answers a second after the runtime stopped waiting is a reader's page
+    # arriving late, not a deployment that failed to follow the turn. What runs this wait
+    # out is a read that never answered at all, which is the ending the banner below names.
+    try:
+        page.wait_for_function(
+            "want => Number(document.querySelector('meta[name=\"lf-revision\"]')"
+            "?.content) >= want",
+            arg=published["revision"],
+            timeout=TURN_PRESENTATION,
+        )
+    except PlaywrightTimeout:
+        pass
+    # After the wait rather than before it: the activation this gate is reading for
+    # happens during that wait, so a page that threw on its way there would otherwise
+    # report the revision it never reached instead of the error that stopped it.
     check(not failures, f"{url} reported browser errors: {failures}")
     # Which of the two ways this can fail: a browser still standing on the built
     # document never followed the agent's revision, while one that followed it and

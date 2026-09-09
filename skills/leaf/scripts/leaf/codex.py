@@ -513,7 +513,11 @@ class AppServerClient:
                 except queue.Empty:
                     request = None
                 if request is not None:
-                    self._start_delivery(socket, *request)
+                    try:
+                        self._start_delivery(socket, *request)
+                    except Exception as error:
+                        request[1].put((None, error))
+                        raise
                     continue
                 try:
                     raw = socket.recv(timeout=0.1)
@@ -568,10 +572,10 @@ class AppServerClient:
             for turn_id in set(self.pending_updates) - pending_before:
                 self.pending_updates.pop(turn_id)
             answer.put((None, None))
-        except (OSError, TimeoutError, WebSocketException) as error:
+        except Exception:
             for turn_id in set(self.pending_updates) - pending_before:
                 self.pending_updates.pop(turn_id)
-            answer.put((None, error))
+            raise
         finally:
             self.starting_delivery = False
 

@@ -1295,6 +1295,71 @@ def test_leaf_started_codex_turn_streams_into_its_thread_and_commits(
     assert "stream" not in files_model.read_json(page_dir / "status.json")
 
 
+def test_app_server_malformed_start_response_finishes_the_delivery(request):
+    """A broken connection must answer the delivery already removed from its queue."""
+    received = threading.Event()
+    release = threading.Event()
+
+    def handle(socket):
+        initialize = json.loads(socket.recv())
+        socket.send(json.dumps({"id": initialize["id"], "result": {}}))
+        socket.recv()  # initialized
+        resume = json.loads(socket.recv())
+        socket.send(
+            json.dumps(
+                {
+                    "id": resume["id"],
+                    "result": {
+                        "thread": {
+                            "id": "codex-thread",
+                            "status": {"type": "idle"},
+                            "turns": [],
+                        }
+                    },
+                }
+            )
+        )
+        socket.recv()  # turn/start
+        received.set()
+        socket.send("this is not json")
+        release.wait(timeout=5)
+
+    server = serve_websocket(handle, "127.0.0.1", 0)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    request.addfinalizer(server.shutdown)
+    endpoint = f"ws://127.0.0.1:{server.socket.getsockname()[1]}"
+    observer = codex_model.AppServerClient(endpoint, "codex-thread")
+    observer.start()
+    request.addfinalizer(observer.stop)
+    outcome = queue.Queue(maxsize=1)
+
+    def start_delivery():
+        try:
+            observer.start_delivery(
+                {
+                    "id": "delivery-1",
+                    "page": "/tmp/leaf-page",
+                    "conversation": "comment-1",
+                    "reply_to": "comment-1",
+                },
+                {"format": codex_model.DELIVERY_FORMAT, "id": "delivery-1"},
+            )
+        except RuntimeError as error:
+            outcome.put(error)
+
+    caller = threading.Thread(target=start_delivery, daemon=True)
+    caller.start()
+
+    assert received.wait(timeout=2)
+    error = outcome.get(timeout=2)
+    assert isinstance(error, RuntimeError)
+    assert "Expecting value" in str(error)
+    caller.join(timeout=2)
+    assert not caller.is_alive()
+    release.set()
+
+
 def test_codex_turn_failure_keeps_a_nondurable_thread_draft(page_dir, monkeypatch):
     comment = events_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "text": "Try this"}

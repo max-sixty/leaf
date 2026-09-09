@@ -729,7 +729,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     """
     expected = {source.stem for source in catalog_sources()}
     authored = {source.stem for source in authored_examples()}
-    assert expected < authored  # Command Hub remains available outside the showcase.
+    assert authored == expected | {"command-hub"}
     previews = site_build.example_previews()
     assert {path.name for path in previews.glob("example-*.jpg")} >= {
         f"example-{stem}.jpg" for stem in expected
@@ -1517,6 +1517,8 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
             (box["x"] + 4, box["y"] + 8),
             (box["x"] + box["width"] - 40, box["y"] + box["height"] - 8),
         )
+        selected = page.evaluate("getSelection().toString()")
+        assert selected.strip()
         # Selection offers the compact field without entering it, so the browser's
         # own selection is still there for a native copy.
         expect(page.locator(".lf-fab-input")).to_be_visible()
@@ -1532,7 +1534,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
             ".lf-panel .lf-thread", has_text="Can the migration fix ship first?"
         )
         expect(thread).to_contain_text("Can the migration fix ship first?")
-        expect(thread.locator("blockquote")).not_to_be_empty()
+        expect(thread.locator("blockquote")).to_contain_text(selected)
         expect(page.locator(".lf-threads-toggle")).to_have_text(
             f"Threads ({opened_with + 1})"
         )
@@ -1543,7 +1545,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
             ".lf-panel .lf-thread", has_text="Can the migration fix ship first?"
         )
         expect(thread).to_contain_text("Can the migration fix ship first?")
-        expect(thread.locator("blockquote")).not_to_be_empty()
+        expect(thread.locator("blockquote")).to_contain_text(selected)
         expect(thread.locator(".lf-msg.claude")).to_have_count(0)
         assert not errors, errors[:3]
     finally:

@@ -9,7 +9,7 @@ from pathlib import Path
 import leaf.validation.command as checking_command
 import pytest
 from click.testing import CliRunner
-from example_data import data_operations, example_versions
+from example_data import data_operations, example_versions, regression_sources
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
@@ -47,7 +47,7 @@ PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
 )
 FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
-CORPUS_SOURCES = (*PUBLIC_EXAMPLES, FEATURE_GALLERY)
+CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), FEATURE_GALLERY)
 
 
 def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
@@ -401,7 +401,7 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     root = Path(__file__).parent.parent / "examples"
     packages = json.loads((root / "layer.json").read_text(encoding="utf-8"))
-    examples = [*PUBLIC_EXAMPLES, FEATURE_GALLERY, root / "corpus.html"]
+    examples = [*CORPUS_SOURCES, root / "corpus.html"]
     assert FEATURE_GALLERY.is_file()
     selection_args = [arg for package in packages for arg in ("--package", package)]
 

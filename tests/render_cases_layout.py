@@ -160,7 +160,7 @@ def arrival_findings(browser, url):
             # for itself, and which is the stronger fact — or a console the handlers
             # above are already attached to. Network quiet costs 3.5x what the load
             # event does over the five navigations here, measured on
-            # design-decision.html, and buys this nothing.
+            # the feature gallery, and buys this nothing.
             page.goto(url, wait_until="load")
             render_checks_model.wait_for_probe(page, "upgraded")
             render_checks_model.wait_for_probe(page, "presented")

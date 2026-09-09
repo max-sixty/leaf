@@ -20,7 +20,7 @@ MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
 ORIGIN = os.environ.get("LEAF_SITE_ORIGIN", "https://leaf.page").rstrip("/")
 PAGES = (
     ("/", "product", True),
-    ("/examples/design-decision/", "example", True),
+    ("/examples/triage-board/", "example", True),
     ("/examples/feature-gallery/versions/v1.html", "example", False),
 )
 PROFILE_SCRIPT = """(() => {
@@ -304,7 +304,7 @@ def startup_line(path: str, startup: dict) -> str:
 def verify_cross_tab_activation(browser) -> None:
     """One interacting tab must wake another tab sharing its browser session."""
     context = browser.new_context()
-    url = f"{ORIGIN}/examples/design-decision/"
+    url = f"{ORIGIN}/examples/triage-board/"
     leader = context.new_page()
     follower = context.new_page()
     for page in (leader, follower):
@@ -393,7 +393,7 @@ def agent_session(browser, release: str) -> AgentSession:
     and it takes a fresh session while a rollout drains. Nothing here writes: the
     turn is posted once, afterwards.
     """
-    url = f"{ORIGIN}/examples/design-decision/"
+    url = f"{ORIGIN}/examples/triage-board/"
     state_url = urljoin(url, "api/state")
     # The release verification ahead of this pass already waited out most of the
     # rollout, so this is the tail of a drain rather than the drain, and this wait

@@ -4739,8 +4739,8 @@ RING_WALKS = (
         (),
         (
             "corpus",
-            "design-decision",
-            "postmortem",
+            "feature-gallery",
+            "heat-loss",
             "pr-walkthrough",
             "release-notes",
             "triage-board",
@@ -4794,7 +4794,7 @@ RING_WALKS = (
 )
 # The corpus is the open-ended page and design-mode anchor. The authored pages now
 # give each interaction family a focused page, so the page walk names those owners:
-# Design contributes settled and joined options, Postmortem a visual target, PR source
+# The gallery contributes option shapes, Heat a visual target, PR source
 # and code, Release drafts and a shot, Triage a card grip, Ship the log-hosted widgets
 # and element mark, and the developer gallery its message media. Chrome with no
 # page-owned contents is walked on the corpus.

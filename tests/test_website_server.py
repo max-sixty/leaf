@@ -916,9 +916,9 @@ def test_a_page_that_never_presents_names_itself_and_how_far_it_got():
     widget upgrade or the first state read was the one that never answered.
     """
     stalled = verify_site.unpresented(
-        "https://leaf.page/examples/design-decision/", ["upgraded"], []
+        "https://leaf.page/examples/triage-board/", ["upgraded"], []
     )
-    assert "examples/design-decision" in stalled
+    assert "examples/triage-board" in stalled
     assert "upgraded" in stalled
 
     early = verify_site.unpresented("https://leaf.page/", [], ["widget module 404"])
@@ -1134,8 +1134,8 @@ def test_the_deploy_gate_sends_the_new_message_the_container_asks_for():
     context = _FailedFirstTurn(heading)
     asked = verify_site.ask_until_answered(
         context,
-        "https://leaf.page/examples/design-decision/",
-        "https://leaf.page/examples/design-decision/api/state",
+        "https://leaf.page/examples/triage-board/",
+        "https://leaf.page/examples/triage-board/api/state",
         "layer",
         "release",
         heading,
@@ -1177,8 +1177,8 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed():
     context = _StateReads([working])
     turn = verify_site.await_turn(
         context,
-        "https://leaf.page/examples/design-decision/",
-        "https://leaf.page/examples/design-decision/api/state",
+        "https://leaf.page/examples/triage-board/",
+        "https://leaf.page/examples/triage-board/api/state",
         "layer",
         "release",
         comment,

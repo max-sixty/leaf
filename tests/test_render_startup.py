@@ -264,7 +264,7 @@ def test_a_website_session_reference_survives_a_failed_first_read(
 def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     preview = {
         "kind": "example",
-        "example": "postmortem",
+        "example": "triage-board",
         "checkout": "fb77",
         "commit": "26499ea1abcd",
         "dirty": True,
@@ -292,7 +292,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")
         expect(page.locator(".lf-notice")).to_be_visible()
         diagnostics = page.evaluate("() => navigator.clipboard.readText()")
-        assert "example: postmortem" in diagnostics
+        assert "example: triage-board" in diagnostics
         assert "checkout: fb77" in diagnostics
         assert "interaction: reader" in diagnostics
         assert "commit: 26499ea1abcd" in diagnostics

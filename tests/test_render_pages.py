@@ -76,10 +76,10 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
-def test_postmortem_summary_is_addressable_and_baseline_aligned(browser, serve):
-    example = next(path for path in EXAMPLES if path.stem == "postmortem")
+def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve):
+    example = next(path for path in EXAMPLES if path.stem == "ship-review")
     page, errors = open_page(browser, serve(example))
-    summary = page.locator("#pm-summary")
+    summary = page.locator("#off-facts")
     expect(summary).to_be_visible()
     assert (
         summary.evaluate("element => getComputedStyle(element).alignItems")
@@ -107,7 +107,7 @@ def test_postmortem_summary_is_addressable_and_baseline_aligned(browser, serve):
     )
     assert code, "the summary had no semantic-selection hint"
     page.keyboard.type(code)
-    expect(page.locator(".lf-live")).to_contain_text("Selected list: Detected")
+    expect(page.locator(".lf-live")).to_contain_text("Selected list: Observed")
     assert errors == []
     page.close()
 

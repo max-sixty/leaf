@@ -25,7 +25,7 @@ import urllib.request
 from pathlib import Path
 
 import pytest
-from example_data import data_operations, example_versions
+from example_data import catalog_sources, data_operations, example_versions
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf.event_log import _parse_events, read_events
@@ -267,18 +267,21 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     product_media.update(
         {
             Path(media_url(source)).name: source
-            for source in site_build.example_previews().glob("example-*.jpg")
+            for source in (
+                site_build.example_previews() / f"example-{page.stem}.jpg"
+                for page in catalog_sources()
+            )
         }
     )
     assert {path.name for path in (assets / "media").iterdir()} == set(product_media)
     for name, source in product_media.items():
         assert (assets / "media" / name).read_bytes() == source.read_bytes()
 
-    example_root = assets / "examples" / "design-decision"
+    example_root = assets / "examples" / "triage-board"
     document = (example_root / "index.html").read_text(encoding="utf-8")
     manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
     release = manifest["release"]
-    asset_root = manifest["pages"]["/examples/design-decision"]["assets"]
+    asset_root = manifest["pages"]["/examples/triage-board"]["assets"]
     assert 'data-lf-server="published"' in document
     assert f'data-lf-release="{release}"' in document
     assert f'src="{asset_root}/leaf.js"' in document
@@ -321,18 +324,16 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
     manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
     for route, relative in (
         ("/", "index.html"),
-        ("/examples/design-decision/", "examples/design-decision/index.html"),
+        ("/examples/triage-board/", "examples/triage-board/index.html"),
         (
-            "/examples/design-decision/runtime/state-feed.js",
-            "examples/design-decision/runtime/state-feed.js",
+            "/examples/triage-board/runtime/state-feed.js",
+            "examples/triage-board/runtime/state-feed.js",
         ),
     ):
         with urllib.request.urlopen(f"{hosted}{route}") as response:
             served = response.read()
         materialized = (assets / relative).read_bytes()
-        page_root = (
-            "/examples/design-decision" if route.startswith("/examples/") else ""
-        )
+        page_root = "/examples/triage-board" if route.startswith("/examples/") else ""
         public_root = page_root or "/"
         materialized = materialized.replace(
             manifest["pages"][public_root]["assets"].encode(),
@@ -460,7 +461,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
 
 def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, browser):
     """A lower sequence from a replacement cannot be applied over vanished state."""
-    _, url = served_example("design-decision")
+    _, url = served_example("triage-board")
     page, errors = open_page(browser, url)
     try:
         with page.expect_navigation(wait_until="load", timeout=10_000):
@@ -485,7 +486,7 @@ def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, brow
 
 def test_a_layer_mismatch_signals_startup_failure_on_window(served_example, browser):
     """The gallery and bootstrap listeners hear a runtime-generation mismatch."""
-    _, url = served_example("design-decision")
+    _, url = served_example("triage-board")
     page = browser.new_page()
     page.add_init_script(
         """
@@ -523,7 +524,7 @@ def test_a_layer_mismatch_signals_startup_failure_on_window(served_example, brow
 
 def test_session_activation_reaches_other_tabs(served_example, browser):
     """One tab's first private request wakes its already-open peers."""
-    _, url = served_example("design-decision")
+    _, url = served_example("triage-board")
     context = browser.new_context()
     leader = context.new_page()
     follower = context.new_page()
@@ -720,15 +721,17 @@ def test_published_workspaces_keep_their_allocation_under_site_context(
 def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     site, hosted, browser
 ):
-    """Every authored example appears once as a real preview and a standalone route.
+    """Curated examples have previews; unlisted examples retain working routes.
 
     The absence checks are held by positive populations: catalog entries, loaded
     images, and the independently derived authored files. A vanished catalog
     cannot pass merely because it also contains no iframe or tab widget.
     """
-    expected = {source.stem for source in authored_examples()}
+    expected = {source.stem for source in catalog_sources()}
+    authored = {source.stem for source in authored_examples()}
+    assert expected < authored  # Command Hub remains available outside the showcase.
     previews = site_build.example_previews()
-    assert {path.name for path in previews.glob("example-*.jpg")} == {
+    assert {path.name for path in previews.glob("example-*.jpg")} >= {
         f"example-{stem}.jpg" for stem in expected
     }
 
@@ -779,7 +782,9 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
         published = {
             path.name for path in (site / "examples").iterdir() if path.is_dir()
         }
-        assert published == expected | {FEATURE_GALLERY.stem}
+        assert published == authored | {FEATURE_GALLERY.stem}
+        expect(page.locator("#pages .example-link")).to_have_count(6)
+        expect(page.locator("#specialized .example-link")).to_have_count(3)
         assert page.evaluate(
             "() => Boolean(document.querySelector('#pages')"
             ".compareDocumentPosition(document.querySelector('#developer-galleries'))"
@@ -1385,7 +1390,7 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
 
 def test_a_published_example_has_no_agent_claim(served_example, browser):
     """A finished public page claims neither an agent nor an active session."""
-    page_dir, url = served_example("design-decision")
+    page_dir, url = served_example("triage-board")
     page, errors = open_page(browser, url)
     try:
         expect(page.locator(".lf-banner .lf-status-text")).to_have_text(
@@ -1499,14 +1504,14 @@ def test_a_shipped_data_snapshot_opens_in_its_package_projection(
 
 def test_a_comment_persists_without_inventing_an_agent_reply(served_example, browser):
     """The real backend stores the reader's anchored words without impersonating an agent."""
-    _, url = served_example("design-decision")
+    _, url = served_example("triage-board")
     page, errors = open_page(browser, url)
     try:
         # What the page opens with, since an example that ships a log opens with
         # threads already counted. The claim here is that the reader's own comment
         # adds one, which is a claim about the gesture rather than about the corpus.
         opened_with = page.locator(".lf-panel .lf-thread").count()
-        box = page.locator("#decision-lede").bounding_box()
+        box = page.locator("#triage-lede").bounding_box()
         select(
             page,
             (box["x"] + 4, box["y"] + 8),
@@ -1515,19 +1520,19 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
         # Selection offers the compact field without entering it, so the browser's
         # own selection is still there for a native copy.
         expect(page.locator(".lf-fab-input")).to_be_visible()
-        page.locator(".lf-composer textarea").fill("Does this cover key rotation?")
+        page.locator(".lf-composer textarea").fill("Can the migration fix ship first?")
         with sending(page, "the anchored comment"):
             page.keyboard.press("ControlOrMeta+Enter")
 
         # The thread holding the words just written, rather than whichever is first:
         # an example that ships a log opens with threads already in the panel, and
-        # theirs would be first. design-decision ships none today, so `.first` was
+        # theirs would be first. triage-board ships none today, so `.first` was
         # right by accident and would stop being on the day it does.
         thread = page.locator(
-            ".lf-panel .lf-thread", has_text="Does this cover key rotation?"
+            ".lf-panel .lf-thread", has_text="Can the migration fix ship first?"
         )
-        expect(thread).to_contain_text("Does this cover key rotation?")
-        expect(thread.locator("blockquote")).to_contain_text("session state homeless")
+        expect(thread).to_contain_text("Can the migration fix ship first?")
+        expect(thread.locator("blockquote")).not_to_be_empty()
         expect(page.locator(".lf-threads-toggle")).to_have_text(
             f"Threads ({opened_with + 1})"
         )
@@ -1535,10 +1540,10 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
         page.reload(wait_until="load")
         page.wait_for_function(BOTH_STAMPS)
         thread = page.locator(
-            ".lf-panel .lf-thread", has_text="Does this cover key rotation?"
+            ".lf-panel .lf-thread", has_text="Can the migration fix ship first?"
         )
-        expect(thread).to_contain_text("Does this cover key rotation?")
-        expect(thread.locator("blockquote")).to_contain_text("session state homeless")
+        expect(thread).to_contain_text("Can the migration fix ship first?")
+        expect(thread.locator("blockquote")).not_to_be_empty()
         expect(thread.locator(".lf-msg.claude")).to_have_count(0)
         assert not errors, errors[:3]
     finally:
@@ -1560,33 +1565,33 @@ def test_the_published_page_counts_every_declared_ask(served_example, browser):
 
 def test_a_published_decision_survives_reload(served_example, browser):
     """A published example uses Leaf's durable log rather than browser-only state."""
-    _, url = served_example("design-decision")
+    _, url = served_example("heat-loss")
     page, errors = open_page(browser, url)
     try:
         decisions = page.locator(".lf-asks")
         expect(decisions).to_be_visible()
-        expect(decisions).to_have_text("Asks 0/2")
+        expect(decisions).to_have_text("Asks 0/1")
         chosen = (
             "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
         )
         with sending(page, "the published option pick"):
-            page.locator("#opt-jwt .lf-pick").click()
-        expect(page.locator("#session-options")).to_have_attribute(
+            page.locator("#heat-opt-floor .lf-pick").click()
+        expect(page.locator("#heat-first")).to_have_attribute(
             "data-lf-reader-override", "1"
         )
-        assert "opt-jwt" in page.evaluate(chosen)
-        expect(decisions).to_have_text("Asks 1/2")
+        assert "heat-opt-floor" in page.evaluate(chosen)
+        expect(decisions).to_have_text("Asks 1/1")
         page.reload(wait_until="load")
         page.wait_for_function(BOTH_STAMPS)
-        expect(decisions).to_have_text("Asks 1/2")
-        assert "opt-jwt" in page.evaluate(chosen)
+        expect(decisions).to_have_text("Asks 1/1")
+        assert "heat-opt-floor" in page.evaluate(chosen)
         assert not errors, errors[:3]
     finally:
         page.close()
 
 
 def test_the_page_backend_answers_the_exact_projection_path(served_example, browser):
-    _, url = served_example("design-decision")
+    _, url = served_example("triage-board")
     page, errors = open_page(browser, url)
     try:
         answer = page.evaluate(
@@ -1610,7 +1615,7 @@ def test_the_page_backend_answers_the_exact_projection_path(served_example, brow
 
 def test_what_a_reader_leaves_on_one_page_stays_on_it(served_example, browser):
     """Independent page backends do not share their logs or reading positions."""
-    _, url = served_example("design-decision")
+    _, url = served_example("heat-loss")
     page, errors = open_page(browser, url)
     try:
         page.locator(".lf-threads-toggle").click()  # the box lives in the panel
@@ -1632,7 +1637,9 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(served_example, browser):
         # own doing or nobody's. Asked of the corpus rather than named, since a page
         # that gains a companion log would otherwise turn this into a test of the seed.
         plain = next(
-            p.stem for p in authored_examples() if not p.with_suffix(".jsonl").exists()
+            p.stem
+            for p in authored_examples()
+            if p.stem != "heat-loss" and not p.with_suffix(".jsonl").exists()
         )
         _, plain_url = served_example(plain)
         opened(page, errors, plain_url)

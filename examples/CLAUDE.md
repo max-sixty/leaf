@@ -1,7 +1,18 @@
 # The examples
 
 Each top-level authored HTML file is both a complete user page and an integration
-fixture. The website publishes those pages with the same vendored layer. Synthetic
+fixture. The website publishes those pages with the same vendored layer.
+`docs/examples.html` curates six core examples and a specialized section; its active
+cards are the source of truth for catalog membership and generated previews. An
+unlisted page can remain published, as Command Hub does while its TODO is open.
+
+Keep core examples focused and include small pages: a board, a short proposal, or a
+draft can demonstrate Leaf without becoming a product tour. Choose examples for
+reader tasks; the developer gallery owns exhaustive vocabulary coverage.
+
+Full-page regression journeys whose story no longer belongs in the showcase live
+under `tests/fixtures/pages/`, with their companion logs and `versions/` beside them.
+They join the generated corpus and page checks but are not website routes. Synthetic
 feature scenarios have one home: `developer/feature-gallery.html`. Extend that
 omnibus page instead of adding another developer page. Every core Leaf feature must
 be directly exercisable there. A change that adds or materially changes a core
@@ -12,7 +23,7 @@ developer what result to inspect. For injected chrome whose state comes from
 outside one document, name that condition and exercise it in the gallery's browser
 test. The gallery uses the same companion version, log, and data conventions as an
 example. The website publishes it as a developer reference linked outside the visual
-examples catalog. `corpus.html` and `corpus.data.json` are generated from both sets;
+examples catalog. `corpus.html` and `corpus.data.json` are generated from these sources;
 edit the source page and regenerate the corpus instead of patching either output
 (`test_corpus_is_generated_from_the_examples` holds the two to their sources).
 

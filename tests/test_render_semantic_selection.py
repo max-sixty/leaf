@@ -595,7 +595,8 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     expect(page.locator(".lf-walk-position")).to_have_text("Match 2 of 2")
     page.keyboard.press("Shift+n")
     assert page.evaluate(selected_in) == "first"
-    expect(page.locator(".lf-walk-position")).to_have_text("Match 1 of 2")
+    position = page.locator(".lf-walk-position")
+    expect(position).to_have_text("Match 1 of 2")
 
     composer = page.locator(".lf-fab-input")
     composer.focus()
@@ -608,6 +609,14 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
         )
         == "first"
     )
+    page.evaluate(
+        """async () => {
+          getSelection().removeAllRanges();
+          const {paintHere} = await import('/runtime/keyboard/scopes.js');
+          paintHere();
+        }"""
+    )
+    expect(position).to_be_hidden()
     assert errors == []
     page.close()
 

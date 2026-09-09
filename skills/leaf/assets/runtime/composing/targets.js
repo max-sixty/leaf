@@ -366,8 +366,24 @@ function matchIdentity(query, segments) {
   return `${query}\u0000${parts.join(",")}`;
 }
 
+function selectionIs(segments) {
+  const selection = getSelection();
+  if (selection.rangeCount !== 1 || selection.isCollapsed) return false;
+  const selected = selection.getRangeAt(0);
+  const match = rangeOf(segments);
+  return (
+    selected.startContainer === match.startContainer &&
+    selected.startOffset === match.startOffset &&
+    selected.endContainer === match.endContainer &&
+    selected.endOffset === match.endOffset
+  );
+}
+
 function matchWalkPosition(query) {
   if (!query || active < 0 || active >= matches.length) return null;
+  // An open search owns its highlighted match. A repeated n/N search owns a native
+  // selection instead; leaving that selection retires both its readout and refresh.
+  if (!searching && !selectionIs(matches[active])) return null;
   return {
     target: matchIdentity(query, matches[active]),
     position: active + 1,

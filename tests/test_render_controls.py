@@ -4163,10 +4163,12 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
 def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve):
     """The reading ignores element contours and still recognizes the real focus ring.
 
-    A marked passage uses the comment ink and no focus-ring declaration, so it must not
-    enter the population of keyboard rings. The real ring goes last as the control;
-    without it a reading that claimed nothing at
-    all would pass the case above and prove only that it was silent."""
+    A hovered passage deliberately shares the ring's accent and width but has no
+    focus-ring declaration, so its element-feedback role must keep it out of the
+    population of keyboard rings. The named focus state on that same element and an
+    unregistered real ring follow as positive controls; without them a reading that
+    ignored all element contours would pass the first case and prove only that it was
+    silent."""
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
     url = serve(example, comments=2, seed_log=False)
     page, errors = open_page(browser, url)
@@ -4175,23 +4177,32 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
     plant = """(how) => {
       const box = document.querySelector('main p');
       box.classList.add('probe-target');
-      box.classList.remove('lf-mark-el', 'lf-mark-hover');
+      box.classList.remove('lf-mark-el', 'lf-mark-hover', 'lf-focus-visible');
       box.style.outline = '';
+      box.style.removeProperty('--lf-here-ring');
       if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
+      if (how === 'focused mark') box.classList.add('lf-mark-el', 'lf-focus-visible');
       if (how === 'the ring itself') box.style.outline = 'var(--here-ring)';
+      if (how === 'unregistered focused mark') {
+        box.classList.add('lf-mark-el');
+        box.style.outline = 'var(--here-ring)';
+        box.style.setProperty('--lf-here-ring', 'none');
+        box.tabIndex = -1;
+        box.focus();
+      }
       const cs = getComputedStyle(box);
       return [cs.outlineStyle, cs.outlineWidth, cs.outlineColor];
     }"""
 
     def claimed():
-        """Whether the reading calls this one box a ring.
+        """The reading's ring claims for this one box.
 
         Asked of the box rather than of how many rings the page has: the runtime
         repaints the panel on its own schedule, so two whole-page counts taken a moment
         apart differ for reasons that have nothing to do with what was planted here.
         """
         return [
-            seen["who"]
+            seen
             for seen in rings_drawn(page)
             if seen["here"] and "probe-target" in seen["who"]
         ]
@@ -4204,16 +4215,37 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
         "here and would pass this test however it behaved"
     )
 
-    style, _width, colour = page.evaluate(plant, "mark")
+    mark_paint = page.evaluate(plant, "mark")
+    style, _width, colour = mark_paint
     assert style == "solid", "the element comment lost its complete contour"
     assert not claimed(), (
         f"the reading counted the mark ({colour}) as a here ring: {claimed()}"
     )
 
-    _style, _width, colour = page.evaluate(plant, "the ring itself")
-    assert claimed(), (
-        f"a box wearing the layer's own ring ({colour}) was not counted, so the three "
-        "cases above prove only that this reading is silent"
+    _style, _width, colour = page.evaluate(plant, "focused mark")
+    focused_claims = claimed()
+    assert [seen["ring"] for seen in focused_claims] == ["passage-focus"], (
+        f"the marked element's named focus ring ({colour}) was not credited: "
+        f"{focused_claims}"
+    )
+
+    ring_paint = page.evaluate(plant, "the ring itself")
+    assert mark_paint == ring_paint, (
+        f"the mark paints {mark_paint} and the ring paints {ring_paint}, so the mark "
+        "case above was kept out by paint rather than by the element-feedback role "
+        "this reading now divides on"
+    )
+    ring_claims = claimed()
+    assert len(ring_claims) == 1 and not ring_claims[0]["ring"], (
+        f"a box wearing the layer's own ring ({ring_paint}) was not counted, so the cases "
+        "above prove only that this reading is silent"
+    )
+
+    focused_mark_paint = page.evaluate(plant, "unregistered focused mark")
+    focused_mark_claims = claimed()
+    assert len(focused_mark_claims) == 1 and not focused_mark_claims[0]["ring"], (
+        f"a focused element mark wearing an unregistered ring ({focused_mark_paint}) "
+        f"was not counted: {focused_mark_claims}"
     )
 
     assert errors == []

@@ -729,7 +729,7 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
 @pytest.mark.parametrize("width", [390, 1280])
 @pytest.mark.parametrize("opener", ["click", "keyboard"])
 def test_comment_response_choices_expand_in_place(browser, serve, opener, width):
-    """The ellipsis and Tab extend the comment without moving its left edge."""
+    """The ellipsis and Tab extend one placed rectangle without moving its left edge."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     resized(page, width, 900)
     select_paragraph(page, "#how-cap")
@@ -781,6 +781,13 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
     assert all(abs(x - before["x"]) <= 1 for x in route), route
     assert abs(after["x"] - before["x"]) <= 1, (before, after)
     assert after["x"] + after["width"] <= width - 8, after
+    target = page.locator("#how-cap").bounding_box()
+    assert (
+        after["x"] + after["width"] <= target["x"]
+        or after["x"] >= target["x"] + target["width"]
+        or after["y"] + after["height"] <= target["y"]
+        or after["y"] >= target["y"] + target["height"]
+    ), (target, after)
     field_box = field.bounding_box()
     choice_boxes = [choice.bounding_box() for choice in choices.all()]
     assert all(abs(choice_box["height"] - 32) <= 1 for choice_box in choice_boxes)

@@ -1459,13 +1459,13 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     box-shadow: var(--here-shadow) color-mix(in srgb, var(--accent) 25%, transparent),
       0 2px 8px var(--shade); }
   /* The field takes the size its words want. A short note is one line; a
-     longer one widens to a readable measure before it wraps, then grows down as far as
-     the room the placement states (--lf-float-h), and only past that does
-     it scroll. placeFab re-places the bar on every input, so a grown bar stands where the
-     one-line bar stood, and a bar hung above its target grows away from the corner it
-     hangs from. The room's width caps the bar, above, and the field is the flex item
-     that shrinks, so on a narrow screen the words wrap sooner and the ellipsis keeps
-     its room. */
+     longer one widens to a readable measure before it wraps, then grows along the edge
+     placement attached and scrolls past the room placement gave the field
+     (--lf-float-h). placeFab chooses that rectangle from external geometry and the
+     one-line minimum, so content cannot re-seat the bar. A bar beside or below its
+     target holds its top edge; one above holds its bottom edge. The room's width caps
+     the whole bar, and the field is the flex item that shrinks, so on a narrow screen
+     the words wrap sooner and the ellipsis keeps its room. */
   textarea.lf-fab-input { --lf-response-min-width: 216px; width: auto;
     min-width: min(var(--lf-response-min-width), var(--lf-response-room, 100vw));
     max-width: min(80ch, var(--lf-response-room, 100vw));

@@ -18,12 +18,14 @@
    the selection or use its native context menu, then enter the field with Comment. The
    field grows in place and never transfers text into a second composer card. A
    one-line note uses the shared action corner. A longer one widens up to a readable
-   80ch and then wraps, and grows into the available clear band before it scrolls; its
+   80ch and then wraps, and grows along its chosen attachment before it scrolls; its
    corner stays fixed rather than growing with the box, so it never reaches over the
-   first or last line. Placement states a float's room as `--lf-float-w` and
-   `--lf-float-h`; the bar is capped by it and the field's `--lf-response-room`
-   excludes its neighboring controls. The field's scroll extent supplies its desired
-   height without temporarily resizing it and losing the reader's scroll position.
+   first or last line. External geometry chooses one available rectangle from the
+   field's minimum footprint. Content may fill that rectangle but never chooses a new
+   one. Placement states the bar's width as `--lf-float-w`, the field's width as
+   `--lf-response-room`, and the field's height as `--lf-float-h`, each excluding the
+   neighboring controls. The field's scroll extent supplies its desired height without
+   temporarily resizing it and losing the reader's scroll position.
    When the target fills the viewport, the viewport still caps the field. When a
    covering panel leaves no usable band for the response bar, placement withdraws it
    without discarding its draft. If the disappearing bar held focus, the visible
@@ -42,9 +44,9 @@
 
    `placeClear` fits the response bar into a free band bounded by the viewport, its
    target, and controls carrying `data-lf-offer`. A quoted passage keeps its resolved
-   place clear. Placement prioritizes proximity to the target, then visible writing
-   space; geometry supplies CSS room constraints, while CSS owns the field's content
-   sizing. */
+   place clear. Placement prioritizes proximity to the target, then available writing
+   space, and returns one rectangle plus the edge the bar hangs from. Geometry supplies
+   CSS room constraints, while CSS owns the field's content sizing. */
 import {
   anchoringIsReady,
   markAt,
@@ -132,11 +134,6 @@ const fabFits = (bounds = null) => {
 export const BANNER_CLEAR = 48;
 const topEdge = (bounds = null) =>
   bounds?.top ?? Math.max(BANNER_CLEAR, banner.getBoundingClientRect().bottom + 6);
-const leftEdge = (node, left, bounds = null) =>
-  Math.max(
-    (bounds?.left ?? 0) + 8,
-    Math.min(left, rightEdge(bounds) - node.offsetWidth),
-  );
 const bottomEdge = (left, width, bounds = null) => {
   if (bounds) return bounds.bottom - 8;
   const tops = bottomChromeBoxes()
@@ -144,18 +141,12 @@ const bottomEdge = (left, width, bounds = null) => {
     .map((box) => box.top - 8);
   return tops.length ? Math.min(...tops) : innerHeight - 8;
 };
-// So the one writer of their position is where the coordinates change space: clamp in
-// the viewport and above any shortcut bar it would cross, then store in the document.
-// The chosen band also caps the float's height. Width is stated before band selection,
-// because wrapping determines how much height the contents need.
-function place(node, left, top, height, bounds = null) {
-  node.style.setProperty("--lf-float-h", `${height}px`);
-  const x = leftEdge(node, left, bounds);
-  const bottom = bottomEdge(x, node.offsetWidth, bounds);
-  const at = documentPoint(
-    x,
-    Math.max(topEdge(bounds), Math.min(top, bottom - node.offsetHeight)),
-  );
+// The solver has already bounded both axes. This one writer only changes coordinate
+// spaces; a second viewport clamp here would be a second placement policy, and could
+// move a content-sized bar away from the attachment the solver chose.
+function place(node, left, top, inputRoom) {
+  node.style.setProperty("--lf-float-h", `${inputRoom}px`);
+  const at = documentPoint(left, top);
   node.style.left = at.left + "px";
   node.style.top = at.top + "px";
 }
@@ -178,46 +169,64 @@ const pageControls = () =>
 // The response bar carries the anchor its field will submit on, so targeting and typing
 // cannot come to different conclusions about what the reader picked. Visibility is
 // derived from that anchor and never read back off the stylesheet.
-// The viewport, the target and the page's controls define one set of free bands.
-// Walking down past controls and then clamping to the viewport could put a growing
-// editor back on its target. Choose a band first; CSS can then size the field to it.
-function placeClear(node, left, top, target, wantedHeight, bounds = null) {
-  const x = leftEdge(node, left, bounds);
-  const bottom = bottomEdge(x, node.offsetWidth, bounds);
+// The viewport, the target and the page's controls define one set of free bands. The
+// lane is the whole horizontal rectangle the bar may grow through, not its current
+// content width, so widening the draft cannot change which controls participate. A
+// candidate uses only the bar's minimum footprint. Its capacity, not the draft's
+// current height, breaks ties. Content can therefore grow down from a top attachment
+// or up from an attachment above the target without choosing a different seat.
+function placeClear(lane, top, target, minimumHeight, wantedHeight, bounds = null) {
+  const bottom = bottomEdge(lane.left, lane.right - lane.left, bounds);
+  const ceiling = topEdge(bounds);
+  if (bottom - ceiling < minimumHeight) return null;
   const sharing = [...pageControls().map((c) => c.getBoundingClientRect()), target]
-    .filter((r) => r.width && r.left < x + node.offsetWidth + 6 && x < r.right + 6)
+    .filter((r) => r.width && r.left < lane.right + 6 && lane.left < r.right + 6)
     .sort((a, b) => a.top - b.top);
   const bands = [];
-  let start = topEdge(bounds);
+  let start = ceiling;
   for (const r of sharing) {
     const end = Math.min(bottom, r.top - 6);
     if (end > start) bands.push({ top: start, bottom: end });
     start = Math.max(start, r.bottom + 6);
   }
   if (start < bottom) bands.push({ top: start, bottom });
-  const minimum = composerOpen
-    ? parseFloat(getComputedStyle(fabInput).minHeight)
-    : node.offsetHeight;
   const candidates = bands
-    .filter((band) => band.bottom - band.top >= minimum)
+    .filter((band) => band.bottom - band.top >= minimumHeight)
     .map((band) => {
-      const height = Math.min(wantedHeight, band.bottom - band.top);
-      const y = Math.max(band.top, Math.min(top, band.bottom - height));
-      const distance = Math.max(target.top - y - height, y - target.bottom, 0);
-      return { left: x, top: y, height, room: band.bottom - y, distance };
+      const above = band.bottom <= target.top;
+      const attachment = above
+        ? band.bottom
+        : Math.max(band.top, Math.min(top, band.bottom - minimumHeight));
+      const minimumTop = above ? attachment - minimumHeight : attachment;
+      const minimumBottom = minimumTop + minimumHeight;
+      const distance = Math.max(
+        target.top - minimumBottom,
+        minimumTop - target.bottom,
+        0,
+      );
+      const room = above ? band.bottom - band.top : band.bottom - attachment;
+      return { above, attachment, room, distance };
     });
   // Stay associated with the target, then keep as much writing visible as that band
-  // allows. A distant gap is not a better seat just because it is taller. A target
-  // filling the entire viewport leaves no free band, so the ordinary viewport clamp
-  // remains the last resort.
-  return (
-    candidates.sort(
-      (a, b) =>
-        a.distance - b.distance ||
-        b.height - a.height ||
-        Math.abs(a.top - top) - Math.abs(b.top - top),
-    )[0] ?? { left: x, top, room: bottom - topEdge(bounds) }
-  );
+  // allows. A distant gap is not a better seat just because it is taller. If the
+  // target fills the viewport, overlap it from one stable top attachment: no clear
+  // band exists, but typing still must not re-seat the editor.
+  const chosen = candidates.sort(
+    (a, b) =>
+      a.distance - b.distance ||
+      b.room - a.room ||
+      Math.abs((a.above ? a.attachment - minimumHeight : a.attachment) - top) -
+        Math.abs((b.above ? b.attachment - minimumHeight : b.attachment) - top),
+  )[0];
+  if (chosen) {
+    const height = Math.min(wantedHeight, chosen.room);
+    return {
+      top: chosen.above ? chosen.attachment - height : chosen.attachment,
+      room: chosen.room,
+    };
+  }
+  const fallbackTop = Math.max(ceiling, Math.min(top, bottom - minimumHeight));
+  return { top: fallbackTop, room: bottom - fallbackTop };
 }
 let fabAnchor = null;
 let fabOrigin = null;
@@ -315,18 +324,19 @@ function placeFab(target = anchorBox(fabAnchor)) {
   const regionBounds = readingRegion && shownRegionBounds(readingRegion);
   let fixedLeft = fabFixedLeft;
   const edge = rightEdge(regionBounds);
+  const floor = (regionBounds?.left ?? 0) + 8;
   // The lock spans the expansion's own layout frames, not a changed viewport or
   // workspace. Once the available band changes, re-place the whole group against its
   // durable anchor instead of letting the old x-coordinate dismiss the draft.
   if (
     fixedLeft != null &&
     fabFixedRightEdge != null &&
-    Math.abs(edge - fabFixedRightEdge) > 0.5
+    (Math.abs(edge - fabFixedRightEdge) > 0.5 || fixedLeft < floor || fixedLeft >= edge)
   ) {
     releaseFabPosition();
     fixedLeft = null;
   }
-  const room = edge - (fixedLeft ?? (regionBounds?.left ?? 0) + 8);
+  const room = edge - (fixedLeft ?? floor);
   // A covering workspace may leave no page band, or less than the controls can
   // shrink into. Report failed placement instead of assigning negative CSS sizes
   // and leaving a focused textarea behind that workspace.
@@ -344,43 +354,68 @@ function placeFab(target = anchorBox(fabAnchor)) {
     union(parts.map((part) => shownBox(part))) ||
     target;
   fabBar.style.setProperty("--lf-float-w", `${room}px`);
+  let controls = 0;
+  let minimumWidth = fabBar.offsetWidth;
   if (composerOpen) {
-    // CSS owns content sizing. Geometry contributes only the real room the field
-    // can use, including the bar's other controls, before deciding where it stands.
-    const controls = fabBar.offsetWidth - fabInput.offsetWidth;
-    const besideRoom = edge - keepClear.right - 6 - controls;
+    controls = fabBar.offsetWidth - fabInput.offsetWidth;
     const minimum = parseFloat(
       getComputedStyle(fabInput).getPropertyValue("--lf-response-min-width"),
     );
+    minimumWidth = minimum + controls;
+  }
+  // Choose a horizontal attachment from the minimum footprint, then expose the whole
+  // lane the field may grow through to vertical placement. A bar beside its target is
+  // left-attached and grows right. One over the reading column is right-attached to
+  // the target and grows left. Only an exceptionally narrow target falls back to the
+  // viewport's right edge. Text width never participates in this decision.
+  const side = keepClear.right + 6;
+  const targetRight = Math.min(edge, keepClear.right);
+  const horizontal =
+    fixedLeft != null
+      ? { left: fixedLeft, right: edge, fromRight: false }
+      : edge - side >= minimumWidth
+        ? { left: side, right: edge, fromRight: false }
+        : targetRight - floor >= minimumWidth
+          ? { left: floor, right: targetRight, fromRight: true }
+          : { left: floor, right: edge, fromRight: false };
+  const horizontalRoom = horizontal.right - horizontal.left;
+  if (horizontalRoom <= 0) return false;
+  fabBar.style.setProperty("--lf-float-w", `${horizontalRoom}px`);
+  if (composerOpen)
     fabBar.style.setProperty(
       "--lf-response-room",
-      `${Math.max(0, besideRoom >= minimum ? besideRoom : room - controls)}px`,
+      `${Math.max(0, horizontalRoom - controls)}px`,
     );
-  }
-  if (!fabFits(regionBounds)) return false;
-  const left =
-    fixedLeft ??
-    (keepClear.right + 6 + fabBar.offsetWidth <= edge
-      ? keepClear.right + 6
-      : keepClear.right - fabBar.offsetWidth);
+  if (fabBar.scrollWidth > Math.ceil(horizontalRoom)) return false;
+  const left = horizontal.fromRight
+    ? horizontal.right - fabBar.offsetWidth
+    : horizontal.left;
   // Read the field's scroll extent at its real width, without temporarily enlarging
   // it in either axis. A temporary enlargement reduces the scroll extent and clamps
   // scrollTop, so the captured scroll listener would make the last lines unreachable.
+  const extraHeight = composerOpen
+    ? Math.max(0, fabBar.offsetHeight - fabInput.offsetHeight)
+    : 0;
+  const minimumHeight = composerOpen
+    ? extraHeight + parseFloat(getComputedStyle(fabInput).minHeight)
+    : fabBar.offsetHeight;
   const wantedHeight = composerOpen
-    ? Math.max(
-        fabBar.offsetHeight,
+    ? extraHeight +
+      Math.max(
+        fabInput.offsetHeight,
         fabInput.scrollHeight + fabInput.offsetHeight - fabInput.clientHeight,
       )
     : fabBar.offsetHeight;
   const at = placeClear(
-    fabBar,
-    left,
+    horizontal,
     target.top - 6,
     keepClear,
+    minimumHeight,
     wantedHeight,
     regionBounds,
   );
-  place(fabBar, at.left, at.top, at.room, regionBounds);
+  if (!at) return false;
+  place(fabBar, left, at.top, Math.max(0, at.room - extraHeight));
   return true;
 }
 export function showFab(

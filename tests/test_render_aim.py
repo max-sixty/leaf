@@ -506,10 +506,12 @@ def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, 
 def test_a_growing_comment_fits_between_the_paragraph_and_page_controls(
     browser, serve, width
 ):
-    """A crowded column is one placement problem, not repeated downward nudges.
+    """Typing fills one attached rectangle; it does not choose another seat.
 
     On the narrow corpus the old walk moved the field below controls, then the bottom
-    clamp moved it back onto its paragraph. The field must fit the actual clear band.
+    clamp moved it back onto its paragraph. A later version ranked bands by the draft's
+    live height, so a long comment jumped above the words it began beside. The complete
+    bar must fit one clear band chosen from its minimum footprint.
     """
     page, errors = open_page(
         browser,
@@ -520,6 +522,10 @@ def test_a_growing_comment_fits_between_the_paragraph_and_page_controls(
     paragraph = page.locator("#rn-lede")
     paragraph.click(modifiers=["Alt"])
     field = open_compact_comment(page)
+    bar = page.locator(".lf-fab-bar")
+    compact = bar.bounding_box()
+    compact_scroll = page.evaluate("scrollY")
+    target = paragraph.bounding_box()
     compact_height = field.bounding_box()["height"]
     field.fill(
         "This longer review paragraph needs room to wrap, and every line must remain "
@@ -527,20 +533,32 @@ def test_a_growing_comment_fits_between_the_paragraph_and_page_controls(
     )
     page.wait_for_function(
         """() => {
-          const field = document.querySelector('.lf-fab-input').getBoundingClientRect();
+          const field = document.querySelector('.lf-fab-input');
+          const bar = field.closest('.lf-fab-bar').getBoundingClientRect();
           const clear = node => {
             const r = node.getBoundingClientRect();
-            return !r.width || !r.height || field.right <= r.left || field.left >= r.right
-              || field.bottom <= r.top || field.top >= r.bottom;
+            return !r.width || !r.height || bar.right <= r.left || bar.left >= r.right
+              || bar.bottom <= r.top || bar.top >= r.bottom;
           };
           const target = document.getElementById('rn-lede');
           const r = target.getBoundingClientRect();
-          const distance = Math.max(r.top - field.bottom, field.top - r.bottom, 0);
+          const distance = Math.max(r.top - bar.bottom, bar.top - r.bottom, 0);
           return clear(target) && distance <= 8 &&
             [...document.querySelectorAll('[data-lf-offer]')]
               .filter(node => !node.closest('.lf-chrome')).every(clear);
         }"""
     )
+    grown = bar.bounding_box()
+    if compact["x"] >= target["x"] + target["width"]:
+        assert abs(grown["x"] - compact["x"]) <= 1, (compact, grown)
+        assert abs(grown["y"] - compact["y"]) <= 1, (compact, grown)
+    else:
+        assert (
+            abs(grown["x"] + grown["width"] - compact["x"] - compact["width"]) <= 1
+        ), (compact, grown)
+        assert (
+            abs(grown["y"] + grown["height"] - compact["y"] - compact["height"]) <= 1
+        ), (compact, grown)
     # The corpus's nearby controls bound the clear band; growth need not double the
     # resting height. The field uses that room, then scrolls the rest of the draft.
     assert field.bounding_box()["height"] > compact_height
@@ -560,6 +578,17 @@ def test_a_growing_comment_fits_between_the_paragraph_and_page_controls(
         "node => [node.scrollTop, node.scrollHeight - node.clientHeight]"
     )
     assert after[0] == min(scrolled, after[1])  # only the final room may clamp it
+    field.fill("Short again")
+    page.evaluate(RENDERED)
+    returned = bar.bounding_box()
+    returned_scroll = page.evaluate("scrollY")
+    assert abs(returned["x"] - compact["x"]) <= 1, (compact, returned)
+    assert abs(returned["y"] + returned_scroll - compact["y"] - compact_scroll) <= 1, (
+        compact,
+        returned,
+    )
+    assert abs(returned["width"] - compact["width"]) <= 1, (compact, returned)
+    assert abs(returned["height"] - compact["height"]) <= 1, (compact, returned)
     assert errors == []
     page.close()
 
@@ -567,23 +596,36 @@ def test_a_growing_comment_fits_between_the_paragraph_and_page_controls(
 def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
     browser, serve
 ):
-    """Without an adjacent free band, the viewport still bounds the writing surface."""
+    """A viewport-filling target gets one stable, bounded fallback rectangle."""
     page, errors = open_page(
         browser,
         serve(
             leaf_page(
                 "A tall target",
-                '<p id="tall" style="min-height: 150vh; margin: 0">'
-                "A tall paragraph occupies all the available reading space.</p>",
+                '<p id="tall" style="min-height: 150vh; margin: 0; '
+                'display: flex; align-items: center"><span id="quote">'
+                "These selected words sit midway through a paragraph that occupies "
+                "all the available reading space.</span></p>",
             )
         ),
     )
     resized(page, 700, 360)
-    page.evaluate("() => scrollBy({top: 80, behavior: 'instant'})")
+    quote = page.locator("#quote")
+    quote.evaluate("node => node.scrollIntoView({block: 'center'})")
     page.evaluate(RENDERED)
     target = page.locator("#tall")
-    target.click(modifiers=["Alt"], position={"x": 20, "y": 90})
-    field = open_compact_comment(page)
+    quote_box = quote.bounding_box()
+    select(
+        page,
+        (quote_box["x"] + 4, quote_box["y"] + 6),
+        (quote_box["x"] + quote_box["width"] - 8, quote_box["y"] + 6),
+        steps=16,
+    )
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    compact = page.locator(".lf-fab-bar").bounding_box()
+    compact_scroll = page.evaluate("scrollY")
     field.fill(
         "\n".join(f"Line {n}: the whole draft remains reachable." for n in range(50))
     )
@@ -594,8 +636,13 @@ def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
     assert bounds["y"] <= ceiling and bounds["y"] + bounds["height"] >= 352, (
         "the target must fill the available viewport so no adjacent band can fit"
     )
-    box = field.bounding_box()
+    box = page.locator(".lf-fab-bar").bounding_box()
+    grown_scroll = page.evaluate("scrollY")
     assert box["y"] >= ceiling and box["y"] + box["height"] <= 352, box
+    assert abs(box["y"] + grown_scroll - compact["y"] - compact_scroll) <= 1, (
+        compact,
+        box,
+    )
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
     assert errors == []
     page.close()

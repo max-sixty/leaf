@@ -748,49 +748,92 @@ def test_reading_regions_share_posture_allocation_and_transition_boundaries(
     page.close()
 
 
-def test_arrangement_admits_compound_regions_atomically(browser, serve):
+def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
+    browser, serve
+):
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     result = page.evaluate(
         """async () => {
           const leaf = await import('/runtime/widget-api.js');
           const main = document.querySelector('main');
           const owner = document.createElement('section');
-          owner.innerHTML = '<div><i></i><b></b></div>';
+          owner.className = 'authored-owner';
+          owner.innerHTML = '<header class="authored-header">Heading</header><p>Body</p>';
           main.append(owner);
-          const [body, first, second] = [
-            owner.firstElementChild,
-            owner.querySelector('i'),
-            owner.querySelector('b'),
-          ];
+          const header = owner.firstElementChild;
+          const authoredNodes = [...owner.childNodes];
+          const authoredMarkup = owner.innerHTML;
+          const occupiedHost = document.createElement('div');
+          main.append(occupiedHost);
           const occupied = leaf.registerReadingRegion({
-            id: 'occupied-region', host: second, body: second,
+            id: 'occupied-region', host: occupiedHost, body: occupiedHost,
           });
           let message;
           try {
-            leaf.registerArrangement({
+            leaf.arrangeReadingElement({
               owner,
-              content: body,
+              kind: 'pane',
+              header,
               regions: [
-                {id: 'reclaimable-region', host: first, body: first},
-                {id: 'occupied-region', host: second, body: second},
+                {id: 'reclaimable-region'},
+                {id: 'occupied-region'},
               ],
             });
           } catch (error) {
             message = error.message;
           }
+          const unchanged = owner.innerHTML === authoredMarkup
+            && [...owner.childNodes].every((node, index) => node === authoredNodes[index])
+            && owner.className === 'authored-owner'
+            && header.className === 'authored-header';
           const reclaim = leaf.registerReadingRegion({
-            id: 'reclaimable-region', host: first, body: first,
+            id: 'reclaimable-region', host: owner, body: owner,
           });
-          const reclaimed = leaf.readingRegion('reclaimable-region').host === first;
+          const reclaimed = leaf.readingRegion('reclaimable-region').host === owner;
           reclaim();
           occupied();
+
+          const {content, arrangement} = leaf.arrangeReadingElement({
+            owner,
+            kind: 'pane',
+            header,
+          });
+          await arrangement.setPosture('bounded');
+          let ownerMessage;
+          try {
+            leaf.registerArrangement({owner, content});
+          } catch (error) {
+            ownerMessage = error.message;
+          }
+          const otherOwner = document.createElement('section');
+          main.append(otherOwner);
+          let contentMessage;
+          try {
+            leaf.registerArrangement({owner: otherOwner, content});
+          } catch (error) {
+            contentMessage = error.message;
+          }
+          const pending = arrangement.setPosture('flow');
+          arrangement.cleanup();
+          const replacement = leaf.registerArrangedElement({owner, content});
+          await replacement.setPosture('bounded');
+          await pending;
+          const postureAfterReplacement = leaf.readingPosture(owner);
+          replacement.cleanup();
           owner.remove();
-          return {message, reclaimed};
+          otherOwner.remove();
+          occupiedHost.remove();
+          return {message, ownerMessage, contentMessage, postureAfterReplacement,
+                  reclaimed, unchanged};
         }"""
     )
     assert result == {
         "message": "leaf: reading region occupied-region is already live",
+        "ownerMessage": "leaf: arrangement owner is already live",
+        "contentMessage": "leaf: arrangement content is already live",
+        "postureAfterReplacement": "bounded",
         "reclaimed": True,
+        "unchanged": True,
     }
     assert errors == []
     page.close()

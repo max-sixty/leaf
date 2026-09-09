@@ -224,7 +224,9 @@ scroller, while `registerArrangement({owner, content, regions})` returns
 `setPosture("bounded"|"flow")` and `cleanup()`. Nested arrangements inherit the nearest
 containing posture and read their assigned content box with `readingAllocation(node)`;
 CSS owns how that allocation is divided. Arrangement registration admits its complete
-region collection atomically, so a rejected collision leaves every proposed id free.
+ownership and region collection atomically, so a rejected owner, content, or region
+collision leaves the DOM and every proposed id unchanged. One owner and content box
+belong to one live arrangement until its cleanup.
 `readingRegionFor(node)`, `readingRegion(id)`,
 `readingRegions()`, `effectiveScroller(node)`, `readingPosture(node)`, and
 `shownRegionBounds(node)` expose the shared readings. Compound widgets create a

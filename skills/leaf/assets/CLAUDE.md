@@ -600,7 +600,7 @@ uses inline thread roots while Threads is closed and panel cards while it is ope
 thread with no page or widget-local inline address opens the complete index as a fallback.
 An active textual search in the thread panel instead owns `n`/`N`: those keys enter the
 found list from its container and then walk its matches, while `t`/`T` stands down so the
-motion has one spelling in that scope. For page search, Enter accepts the first match and
+motion has one spelling in that scope. For page search, Enter accepts the current match and
 `n`/`N` walks the next or previous one. Letters remain query text while a search input has
 focus; Tab and Shift-Tab walk page-search matches before acceptance.
 While the reader stands anywhere in an Ask, its widget's

@@ -2484,7 +2484,7 @@ def test_one_target_has_one_primary_margin_element_and_inline_secondary_margin_e
     column = page.locator("main").evaluate(
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
     )
-    page.keyboard.press("r")
+    page.keyboard.press("e")
     reactions = suggestion_item.locator(".lf-margin-reactions")
     expect(preview).to_be_hidden()
     expect(suggestion_item.locator(".lf-margin-element:visible")).to_have_count(6)
@@ -2512,7 +2512,7 @@ def test_one_target_has_one_primary_margin_element_and_inline_secondary_margin_e
     ), "opening reaction choices moved the readable column"
     assert reactions.evaluate(
         "surface => surface.closest('.lf-margin-options') !== null"
-    ), "r did not expand the target's canonical margin element options"
+    ), "e did not expand the target's canonical margin element options"
 
     # Labels remain transient even with abundant room; options never widen the rail.
     resized(page, 2400, 900)
@@ -2529,7 +2529,7 @@ def test_one_target_has_one_primary_margin_element_and_inline_secondary_margin_e
     ).to_be_visible()
     page.mouse.move(0, 0)
     accept.focus()
-    page.keyboard.press("r")
+    page.keyboard.press("e")
     expect(suggestion_item.locator(".lf-margin-element:visible")).to_have_count(6)
 
     page.keyboard.press("Escape")
@@ -2555,7 +2555,7 @@ def test_one_target_has_one_primary_margin_element_and_inline_secondary_margin_e
     # The shared behavior belongs to the target item, not specifically to a
     # suggestion: focusing the draft's resting Edit action extends that same item.
     draft_controls.locator(".lf-draft-pencil").focus()
-    page.keyboard.press("r")
+    page.keyboard.press("e")
     expect(draft_item.locator(".lf-margin-element:visible")).to_have_count(6)
     expect(draft_item.locator(":scope > .lf-margin-more")).to_be_hidden()
 
@@ -2574,7 +2574,7 @@ def test_one_target_has_one_primary_margin_element_and_inline_secondary_margin_e
         "item => item.previousElementSibling === document.querySelector('#draft-ops')"
     ), "the draft's Edit action no longer follows the draft"
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
-    page.keyboard.press("r")
+    page.keyboard.press("e")
     expect(suggestion_item.locator(".lf-margin-element:visible")).to_have_count(6)
     expect(suggestion_item).to_have_class(re.compile(r"lf-docked"))
     with sending(page, "the keep reaction"):

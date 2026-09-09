@@ -4,7 +4,7 @@ import { registry } from "./registry.js";
 import { inChrome } from "./passages.js";
 import { runtime } from "./context.js";
 import { quoted } from "./widget-elements.js";
-import { post } from "./outbox.js";
+import { pendingRequests, post } from "./outbox.js";
 
 const requestMatches = (owner, action) => {
   const request = registry[owner.localName]?.["x-request"];
@@ -22,6 +22,18 @@ const documentFor = (owner) =>
 
 const projectedLifecycle = (owner) => {
   const document = documentFor(owner);
+  const pending = pendingRequests().find(
+    (event) =>
+      event.widget === owner.id &&
+      (document.kind === "thread" || event.revision === document.revision),
+  );
+  if (pending)
+    return {
+      seat: { document, widget: owner.id },
+      attempts: [{ request: pending, receipt: null }],
+      latest: { request: pending, receipt: null },
+      phase: "pending",
+    };
   const lifecycles =
     document.kind === "thread"
       ? runtime.browser?.conversation?.requests

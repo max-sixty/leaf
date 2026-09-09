@@ -49,11 +49,10 @@
  * a later poll applies a complete state. Do not resend an accepted event because its
  * rendering failed.
  *
- * A reversible action may paint before it enters the optimistic overlay. Recorded actions
- * always do; a recordless caller opts in when it has painted the same semantic outcome.
- * A press with no local projection waits for the log with `aria-busy` on its control. A
- * recorded toggle that the next gesture computes from must paint before the next gesture,
- * so the next absolute detail includes the state the reader just chose.
+ * Every action paints before it enters the optimistic overlay. A recorded toggle that
+ * the next gesture computes from must paint before the next gesture, so the next absolute
+ * detail includes the state the reader just chose. Delivery status may stand beside that
+ * semantic result; it never substitutes for it.
  *
  * `deliver` races the POST against `entry.read`. A poll can account for an attempt whose
  * POST response was lost, and the accepted POST state can account for it without another
@@ -130,12 +129,7 @@ const actionMatches = (el, action) => {
 export const actionAvailable = (el, action) =>
   runtime.statePhase !== "waiting" && !quoted(el) && actionMatches(el, action);
 
-export async function sendAction(
-  el,
-  action,
-  detail,
-  { attempt, optimistic = false } = {},
-) {
+export async function sendAction(el, action, detail, { attempt } = {}) {
   // The exhibit rule enforced at the layer's own door, not left to each module
   // remembering quoted(): an exhibited widget is a mention, and a gesture on a
   // mention must not become a decision Claude reads. Failing closed costs a
@@ -150,17 +144,14 @@ export async function sendAction(
   // Modules ask the same predicate before optimistic paint. Repeat it at the common
   // door so authored HTML cannot post while the first state projection is pending.
   if (!actionAvailable(el, action)) return null;
-  return post(
-    {
-      kind: "action",
-      revision: runtime.currentRevision,
-      widget: el.id,
-      action,
-      detail,
-      ...(attempt && { attempt }),
-    },
-    { optimistic },
-  );
+  return post({
+    kind: "action",
+    revision: runtime.currentRevision,
+    widget: el.id,
+    action,
+    detail,
+    ...(attempt && { attempt }),
+  });
 }
 
 // Whether the latest event list this tab has seen still leaves an accepted action as
@@ -198,15 +189,16 @@ const messageKind = (event) =>
 // The record the panel renders from while the log is still answering. `pending` is what
 // it renders differently by, and the attempt is the join: the server's own event carries
 // it back, so the message that arrives adopts this one's node instead of replacing it.
-function stageOutboxMessage(entry) {
-  if (!messageKind(entry.event)) return;
-  entry.message = {
+function stageOutboxConversation(entry) {
+  if (entry.event.kind !== "comment" && entry.event.kind !== "reply") return;
+  entry.conversation = {
     ...entry.event,
     id: `${PENDING}${entry.event.attempt}`,
     author: "user",
     ts: saidNow(),
     pending: true,
   };
+  if (messageKind(entry.event)) entry.message = entry.conversation;
 }
 
 // An entry stands here until an installed receipt names its attempt. That boundary
@@ -224,6 +216,44 @@ export const pendingMessages = () =>
         ),
     )
     .map((entry) => entry.message);
+
+const pendingEvents = (...kinds) =>
+  outbox
+    .filter(
+      (entry) =>
+        !entry.rejected &&
+        kinds.includes(entry.event.kind) &&
+        !(runtime.browser?.receipts ?? []).some(
+          (candidate) => candidate.attempt === entry.event.attempt,
+        ),
+    )
+    .map((entry) => entry.event);
+
+export const pendingReactions = () =>
+  outbox
+    .filter(
+      (entry) =>
+        entry.conversation?.token &&
+        !(runtime.browser?.receipts ?? []).some(
+          (candidate) => candidate.attempt === entry.event.attempt,
+        ),
+    )
+    .map((entry) => entry.conversation);
+
+export const pendingSettlements = () =>
+  outbox
+    .filter(
+      (entry) =>
+        !entry.rejected &&
+        (entry.event.kind === "resolve" || entry.event.kind === "unresolve") &&
+        !(runtime.browser?.receipts ?? []).some(
+          (candidate) => candidate.attempt === entry.event.attempt,
+        ),
+    )
+    .map((entry) => ({ ...entry.event, localParent: entry.namedParent }));
+
+export const pendingApprovals = () => pendingEvents("done");
+export const pendingRequests = () => pendingEvents("request");
 
 // Returns the event the server minted — the id is the sender's only handle on the
 // thread or message it just created, which is what showThread is handed — or null
@@ -411,10 +441,18 @@ async function drainOutbox() {
         // withdrawn state until the heartbeat's next tick.
         document.dispatchEvent(new Event("lf-actions"));
       }
+      if (!answer && (entry.event.kind === "done" || entry.event.kind === "request"))
+        document.dispatchEvent(new Event("lf-actions"));
       // A refused message leaves this list at once, and the reader's words leave the
       // panel with it. An accepted one needs no render here: the state the answer
       // carried has already painted the message the log now holds.
-      if (entry.message && !answer) void renderPanel();
+      if (
+        !answer &&
+        (entry.conversation ||
+          entry.event.kind === "resolve" ||
+          entry.event.kind === "unresolve")
+      )
+        void renderPanel();
       // The list is an input to the shortcut bar and no focus/mouse event accompanies
       // either edge. Repaint before resolving the caller, whose own settlement may
       // move a second row on the same frame.
@@ -432,7 +470,7 @@ async function drainOutbox() {
     drainingOutbox = false;
   }
 }
-export function post(event, { optimistic = false } = {}) {
+export function post(event) {
   const attempted = { ...event, attempt: event.attempt || newAttempt() };
   // One attempt names one gesture. A caller that reuses it while the first gesture
   // is still here has made a local protocol conflict; letting both entries wait for
@@ -461,11 +499,12 @@ export function post(event, { optimistic = false } = {}) {
     };
     outbox.push(entry);
     pendingTraffic(unresolved());
-    stageOutboxAction(entry, { optimistic });
-    stageOutboxMessage(entry);
-    // Staging commits the widget's optimistic coordinate. Its consumers need
-    // that reading now, even while the POST is still waiting for a response.
-    if (entry.projection) document.dispatchEvent(new Event("lf-actions"));
+    stageOutboxAction(entry);
+    stageOutboxConversation(entry);
+    // Locally projected actions, approval, and requests have semantic consumers beyond
+    // their pressed control. Invalidate those readings while the POST is still waiting.
+    if (entry.projection || attempted.kind === "done" || attempted.kind === "request")
+      document.dispatchEvent(new Event("lf-actions"));
     // The panel is the message's consumer, and it reads the conversation rather than
     // this list, so it has to be asked. This render is the send's visible result — and
     // for a reader who has no view of it, the live region is. Said here rather than by
@@ -474,8 +513,13 @@ export function post(event, { optimistic = false } = {}) {
     // is not one, and says its own richer sentence where it is sent.
     if (entry.message) {
       announce("Message sent");
-      void renderPanel();
     }
+    if (
+      entry.conversation ||
+      attempted.kind === "resolve" ||
+      attempted.kind === "unresolve"
+    )
+      void renderPanel();
   });
   paintKeys();
   void drainOutbox();

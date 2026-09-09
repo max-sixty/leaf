@@ -600,7 +600,6 @@ function landInThreadReply(thread) {
 const resolutionControl = (thread) =>
   thread?.querySelector(
     ":scope > .lf-thread-head > .lf-resolve, " +
-      ":scope > .lf-resolve, " +
       ":scope > .lf-thread-actions > .lf-reopen, " +
       ":scope > .lf-conversation-resolved .lf-reopen",
   ) ?? null;
@@ -975,6 +974,27 @@ const THREAD = {
         else landInThreadReply(thread);
       },
     },
+    {
+      id: "thread.resolution.toggle",
+      keys: ["r"],
+      does: () =>
+        resolutionControl(focusedThread())?.matches(".lf-reopen")
+          ? "Reopen it"
+          : "Resolve it",
+      line: () =>
+        resolutionControl(focusedThread())?.matches(".lf-reopen")
+          ? "reopen"
+          : "resolve",
+      // An active panel search keeps n/N on the two-chip shortlist. The resolve route
+      // remains live and stays in the complete reference; this only yields its hint to
+      // the mode the reader is already using.
+      lineWhen: () => !threadSearchActive(),
+      when: () =>
+        resolutionControl(focusedThread())?.matches(
+          ':not(:disabled, [aria-disabled="true"])',
+        ),
+      run: () => resolutionControl(focusedThread()).click(),
+    },
   ],
 };
 
@@ -1278,11 +1298,11 @@ export function pageScopes() {
         run: (...args) => startSelecting(...args),
       },
       {
-        // `r` opens the list on the target the reader has already named: the current
+        // `e` opens the emoji list on the target the reader has already named: the current
         // selection, item, or agent reply. Digits are optional accelerators in the
         // registry's declared order.
         id: "reaction.open",
-        keys: ["r"],
+        keys: ["e"],
         does: () =>
           `Open reactions — ${reactionTokens()
             .slice(0, 9)
@@ -1297,7 +1317,7 @@ export function pageScopes() {
           (anchoringIsReady() || !pageSelection()),
         run: () => {
           // Selection capture normally follows the pointer gesture in its queued turn.
-          // A fast `r` may arrive before that turn even though the native Selection is
+          // A fast `e` may arrive before that turn even though the native Selection is
           // already complete. Capture it now so the command cannot advertise reaction
           // digits while opening no corresponding choices.
           if (pageSelection() && !fabAnchorAt()) updateFab();

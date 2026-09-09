@@ -465,39 +465,37 @@ customElements.define(
       // gesture the durable id Undo must name.
       this.#staging = true;
       this.#settle(outcome);
-      const sent = sendAction(this, outcome, detail, { optimistic: true }).then(
-        (accepted) => {
-          this.#deciding = null;
-          this.removeAttribute("aria-busy");
-          if (!accepted) {
-            // A definitive refusal is a state the reader can act from. Keep it at the
-            // target as Failed, Retry, Cancel; there is no detail disclosure because the
-            // transport returned no useful detail beyond the notice it already showed.
-            this.#failed = { outcome, label };
+      const sent = sendAction(this, outcome, detail).then((accepted) => {
+        this.#deciding = null;
+        this.removeAttribute("aria-busy");
+        if (!accepted) {
+          // A definitive refusal is a state the reader can act from. Keep it at the
+          // target as Failed, Retry, Cancel; there is no detail disclosure because the
+          // transport returned no useful detail beyond the notice it already showed.
+          this.#failed = { outcome, label };
+          this.#renderControls(label);
+          this.#margin?.update();
+          return false;
+        }
+        // Usually the accepted state has already replayed this decision. Paint is
+        // still owed if another part of that state failed to render, but not if the
+        // same event list also carried a later undo: authored state then stands.
+        if (actionStands(accepted)) {
+          if (this.dataset.lfState === outcome) {
             this.#renderControls(label);
             this.#margin?.update();
-            return false;
-          }
-          // Usually the accepted state has already replayed this decision. Paint is
-          // still owed if another part of that state failed to render, but not if the
-          // same event list also carried a later undo: authored state then stands.
-          if (actionStands(accepted)) {
-            if (this.dataset.lfState === outcome) {
-              this.#renderControls(label);
-              this.#margin?.update();
-            } else this.#settle(outcome);
-            announce(
-              `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change: ${label}`,
-            );
-          } else {
-            this.#renderControls(label);
-            this.#margin?.update();
-          }
-          // TODO(2026-09-06): Decide whether accepted work with no active agent pickup
-          // needs a distinct post-send presentation.
-          return true;
-        },
-      );
+          } else this.#settle(outcome);
+          announce(
+            `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change: ${label}`,
+          );
+        } else {
+          this.#renderControls(label);
+          this.#margin?.update();
+        }
+        // TODO(2026-09-06): Decide whether accepted work with no active agent pickup
+        // needs a distinct post-send presentation.
+        return true;
+      });
       this.#inFlight(sent, label);
       this.#staging = false;
       return sent;

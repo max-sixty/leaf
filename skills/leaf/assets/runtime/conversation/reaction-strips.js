@@ -14,7 +14,7 @@ import { reactDone, removeNode } from "./reconcile.js";
 /* Reaction surfaces rendered in every complete Thread view.
 
    `paintReactStrips` puts one reaction surface on each agent message and marks the
-   latest one `lf-open`, which makes it the thread's `r` target. A message reveals its
+   latest one `lf-open`, which makes it the thread's `e` target. A message reveals its
    overlaid add-reaction affordance on hover or keyboard focus. A closed surface shows
    only standing emoji; opening it floats the complete list below the trigger. A token
    press closes the list and returns focus to the trigger; any standing mark remains
@@ -59,11 +59,13 @@ export function paintReactStrips(node, t) {
 
 async function pressStrip(m, name, chip) {
   if (chip.lfReaction) await withdraw(chip.lfReaction);
-  else
-    await sendReaction(
+  else {
+    const sent = sendReaction(
       { kind: "reply", parent: m.id, revision: runtime.currentRevision, token: name },
       chip,
       `${m.agent || "the agent"}'s reply`,
     );
-  reactDone();
+    reactDone();
+    await sent;
+  }
 }

@@ -394,7 +394,7 @@ function showShortcutReference(open, restoreFocus = true) {
       // they can see which state they are in and a row that would refuse the press must
       // not be on screen. A scope they are merely near is listed whole: a row's `when`
       // asks whether the press moves *here*, and here is not where they are, so a grip's
-      // "arrows move" belongs in the reference though no card is held and `x` belongs in
+      // "arrows move" belongs in the reference though no card is held and `r` belongs in
       // it though no thread is focused. Filtering both by the same predicate is what took
       // the thread's own keys out of the reference altogether.
       //

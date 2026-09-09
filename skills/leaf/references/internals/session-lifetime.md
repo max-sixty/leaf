@@ -133,10 +133,10 @@ claim turn, while streamed activity names App Server's task and turn; each proje
 therefore reads the identity its own fold compares. A retry
 therefore reads the durable pickup instead of starting the event again. A later event
 creates the next delivery and resumes the same task. The resumed task's App Server
-status is the turn boundary: an idle task closes the preceding Leaf claim turn before
-the delivery opens its next one, while an active task preserves the current Leaf claim
-turn because App Server treats the additional `turn/start` input as steering for that
-turn. This is a
+status is the turn boundary: any task that is not active closes the preceding Leaf claim
+turn before the delivery opens its next one, while an active task preserves the current
+Leaf claim turn because App Server treats the additional `turn/start` input as steering
+for that turn. This is a
 different host transport over the same page claim, event log, delivery payload, and
 activity projection, not another conversation store.
 

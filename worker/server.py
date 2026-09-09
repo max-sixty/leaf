@@ -327,10 +327,8 @@ class WebsiteCodexHost:
             nonlocal resumed
             resumed = True
             status = result["thread"]["status"]["type"]
-            if status == "idle":
+            if status != "active":
                 close_session_turn(thread_id)
-            elif status != "active":
-                raise RuntimeError(f"cannot deliver to a Codex task in {status} state")
             return self._start_turn(socket, page_dir, thread_id, process)
 
         try:

@@ -84,7 +84,15 @@ def test_the_website_label_follows_the_script_contract_not_its_formatting():
     )
 
 
-@pytest.mark.parametrize(("status", "closes_turn"), [("active", False), ("idle", True)])
+@pytest.mark.parametrize(
+    ("status", "closes_turn"),
+    [
+        ("active", False),
+        ("idle", True),
+        ("systemError", True),
+        ("notLoaded", True),
+    ],
+)
 def test_the_website_host_delivers_into_the_existing_codex_thread(
     page_dir, tmp_path, monkeypatch, status, closes_turn
 ):

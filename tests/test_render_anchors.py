@@ -3925,10 +3925,72 @@ def test_comparison_selection_moves_before_its_documents_finish_loading(browser,
     expect(v2_compare).to_have_attribute("aria-busy", "true")
     expect(page.locator(".lf-ins-block")).to_have_count(0)
 
+    # The selection, not only the settled marks, is the menu's standing. Reopening
+    # while its documents are held returns to the row the reader just selected.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-version-menu")).to_be_hidden()
+    open_versions(page)
+    expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+
     held[0].continue_()
     expect(v2_compare).not_to_have_attribute("aria-busy", re.compile(r".+"))
     expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
     expect(page.locator(".lf-ins-block")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_pending_comparison_moves_with_a_live_revision(browser, serve):
+    """A live activation cancels the old request and restores its selected base."""
+    v2 = INLINE_PAGE.replace("A neighbouring block", "A neighbouring passage")
+    v3 = v2.replace("The setup is in the runbook", "The setup is in the handbook")
+    url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, v2, "reworded the neighbour")
+    page, errors = open_page(browser, live_url(url))
+    expect(page.locator(".lf-version")).to_have_text("v2")
+
+    held = []
+    requests = []
+    view_request = re.compile(r"/api/view\?")
+
+    def hold_first_view(route):
+        requests.append(route.request.url)
+        if not held:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route(view_request, hold_first_view)
+    released = False
+    try:
+        open_versions(page)
+        expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+        page.keyboard.press("ArrowDown")
+        expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+        page.wait_for_timeout(0)
+        assert held, "the comparison view was not held"
+        expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_attribute(
+            "aria-busy", "true"
+        )
+        page.keyboard.press("Escape")
+
+        _publish(serve.page_dir, 3, v3, "reworded the compound")
+        wait_for_revision(page, 3)
+        assert len(requests) >= 2, "the selected base was not restored after activation"
+        expect(page.locator(".lf-version")).to_have_text("v3")
+        expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
+        expect(page.locator(".lf-ins-block")).to_have_count(2)
+
+        # The canceled request can finish last without repainting the prior document.
+        held[0].continue_()
+        released = True
+        page.wait_for_timeout(0)
+        expect(page.locator(".lf-version")).to_have_text("v3")
+        expect(page.locator(".lf-ins-block")).to_have_count(2)
+    finally:
+        if held and not released:
+            held[0].continue_()
+        page.unroute(view_request)
     assert errors == []
     page.close()
 

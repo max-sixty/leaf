@@ -305,13 +305,12 @@ const atVersionBoundary = (end) => {
   return document.activeElement === stops.at(end);
 };
 function focusVersionRow() {
+  const base = selectedBase();
   (
     versionRows().find(
       (r) =>
-        (comparisonBase() !== null &&
-          r.dataset.lfVersion === String(comparisonBase())) ||
-        (comparisonBase() === null &&
-          r.dataset.lfRevision === String(runtime.currentRevision)),
+        (base !== null && r.dataset.lfVersion === String(base)) ||
+        (base === null && r.dataset.lfRevision === String(runtime.currentRevision)),
     ) ?? versionRows()[0]
   )?.focus();
 }
@@ -1251,6 +1250,9 @@ const pressComparison = (base) =>
     : showComparison(base);
 
 export const comparisonBase = () => (diffOn ? diffBase : null);
+// Selection leads the documents it needs. Menu focus follows that immediate reading,
+// while the public projection above stays paired with the marks that have settled.
+const selectedBase = () => diffPendingBase ?? comparisonBase();
 export const comparisonChanges = () => (diffOn ? [...diffMarked] : []);
 
 // ---------- another version's document ----------
@@ -1339,7 +1341,9 @@ async function activateRevision(doc, revision) {
   const fresh = document.importNode(source, true);
   revisionDocuments.delete(revision.revision);
   const settlingFrom = settling.length;
-  const comparedFrom = comparisonBase();
+  // A pending selection is standing too: cancel its old-document request before the
+  // authored main moves, then restore that base against the arriving revision.
+  const comparedFrom = selectedBase();
   if (comparedFrom !== null) setDiff(false);
 
   resetAuthoredPage();

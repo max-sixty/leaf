@@ -523,16 +523,14 @@ export const fabOptionsAvailable = () =>
   Boolean(fabAnchor && hasOtherResponses(fabAnchor) && responseOptionsAvailable());
 export const showFabOptions = ({ reaction = false } = {}) =>
   setResponseOptions(true, { focus: reaction ? "reaction" : "first" });
-// The response field follows the selection. What counts as one is measured on the quote it would
-// store, not on the selection's own toString(): those are different strings, and gating on
-// the one the reader sees while storing the one the document holds lets a two-character
-// quote through behind a rendered three-character selection — a quote short enough to match
-// almost anywhere.
-const MIN_QUOTE = 3;
+// The response field follows any selection that stores page words. Even a one-character
+// quote carries its section and exact surrounding context, so the resolver can identify
+// its occurrence without guessing from quote length.
+const hasQuote = (anchor) => Boolean(anchor?.quote?.trim());
 export const hasPageSelectionTarget = () => {
   const selection = pageSelection();
   const anchor = selection ? selectionAnchor(selection) : null;
-  return Boolean(anchor?.quote?.length >= MIN_QUOTE);
+  return hasQuote(anchor);
 };
 
 export function updateFab() {
@@ -542,7 +540,7 @@ export function updateFab() {
   }
   const sel = pageSelection();
   const anchor = sel ? selectionAnchor(sel) : null;
-  if (anchor?.quote.length >= MIN_QUOTE) {
+  if (hasQuote(anchor)) {
     // A fast keyboard action can capture this completed native selection before the
     // pointer gesture's queued update arrives. That later update is the same target,
     // not a request to reopen its Comment composer: reopening calls closeReactions
@@ -658,8 +656,7 @@ const rememberPointerSelection = () => {
   const selection = pageSelection();
   if (!selection || leftThePage(selection)) return;
   const anchor = selectionAnchor(selection);
-  if (anchor?.quote?.length >= MIN_QUOTE)
-    selectionRangeDuringPress = pageRange(selection).cloneRange();
+  if (hasQuote(anchor)) selectionRangeDuringPress = pageRange(selection).cloneRange();
 };
 document.addEventListener(
   "pointerdown",
@@ -766,7 +763,7 @@ document.addEventListener("mouseup", (ev) => {
   // arrives through the keyboard's route, which never comes past this line.
   const escaped = selectionDragged && leftThePage();
   const completed =
-    selectionDragged && (escaped || !(selected?.quote?.length >= MIN_QUOTE))
+    selectionDragged && (escaped || !hasQuote(selected))
       ? selectionRangeDuringPress
       : null;
   deferSelectionUpdate(() => {

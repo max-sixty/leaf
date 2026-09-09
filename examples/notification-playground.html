@@ -16,7 +16,7 @@
       #notification-card {
         --lf-frame: 1;
         max-width: 32rem;
-        padding: var(--sp-4);
+        padding: var(--sp-3);
         border: 1px solid var(--border-2);
         border-left: 5px solid var(--playground-accent);
         border-radius: var(--playground-radius);
@@ -44,18 +44,9 @@
   <body>
     <main>
       <lf-workspace id="notification-workspace">
-        <header>
-          <p class="eyebrow">notification configuration · simulated preview</p>
-          <h1>Set the deployment notification</h1>
-          <p class="lede" id="notification-lede">
-            Tune the message the release room will see after a successful deployment.
-            The preview is an example; applying it records one complete configuration.
-          </p>
-        </header>
-
         <lf-ask id="notification-ask">
-          <h2>How should the deployment notification read?</h2>
-          <lf-playground id="notification-playground" submit-label="Apply notification">
+          <h1>What deployment notification should the agent create?</h1>
+          <lf-playground id="notification-playground" submit-label="Send configuration">
             <lf-playground-control
               name="radius"
               label="Corner radius"
@@ -93,7 +84,7 @@
             ></lf-playground-control>
             <lf-playground-control
               name="title"
-              label="Heading"
+              label="Notification title"
               kind="text"
               value="Checkout deployed"
               placeholder="Notification heading"
@@ -122,28 +113,29 @@
             <lf-playground-preview id="notification-preview">
               <article id="notification-card" aria-labelledby="notification-title">
                 <header>
-                  <p class="eyebrow">Deployment · example receipt</p>
+                  <p class="eyebrow">Deployment update</p>
                   <h2 id="notification-title"></h2>
                 </header>
                 <p>
-                  Version 2.8.0 reached production. Error rate and checkout latency
-                  held.
+                  Version 2.8.0 changed the checkout service. Review the deployment run
+                  and current service health.
                 </p>
                 <p id="notification-owner"><strong>Owner:</strong> Payments platform</p>
-                <footer>Finished at 14:32 · 18 checks passed</footer>
+                <footer>Recorded at 14:32 · 18 checks completed</footer>
               </article>
+              <section id="notification-artifact" hidden>
+                <lf-source
+                  id="notification-artifact-source"
+                  source="notification-artifact"
+                  language="html"
+                ></lf-source>
+              </section>
             </lf-playground-preview>
 
             <lf-playground-output id="notification-instruction">
-              Write a notification titled “<lf-playground-value
-                for="title"
-              ></lf-playground-value
-              >” with a <lf-playground-value for="tone"></lf-playground-value> tone,
-              <lf-playground-value for="radius"></lf-playground-value> corners, compact
-              spacing set to <lf-playground-value for="compact"></lf-playground-value>,
-              service owner visibility set to
-              <lf-playground-value for="show-owner"></lf-playground-value>, and
-              <lf-playground-value for="accent"></lf-playground-value> accents.
+              Create <code>deployment-notification.html</code>, capture it as
+              <code>notification-artifact</code>, then revise this page with the
+              generated source below <q>Original configuration</q>.
             </lf-playground-output>
           </lf-playground>
         </lf-ask>

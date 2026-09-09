@@ -4,7 +4,13 @@
    items. This owner retains the dialog's groups and action proxies, filters them,
    forwards contributed controls, and returns focus through the route that opened it.
    Retained nodes keep a state refresh from cancelling a held pointer or moving focus.
-   Compact clusters use this same complete sheet for overflow. */
+   Compact clusters use this same complete sheet for overflow.
+
+   A native dialog delivers `close` after it has hidden the sheet. A close overtaken by a
+   reopen therefore leaves the new opening's target and focus route intact. The Page Map's
+   own Close button returns focus to its invoker. Keyboard departure and forwarded actions
+   place focus synchronously, set `closeOwnsFocus`, and prevent the later close event from
+   overwriting that route. */
 
 import { blockAt, says } from "./passages.js";
 import { iconElement } from "./icons.js";

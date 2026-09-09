@@ -5,11 +5,31 @@
    retains registrations while live documents and widgets reconnect. The living margin
    consumes that registry to choose and place controls; contributors never place RHS rows.
 
-   A margin element has independent behavior, tone, role, and lifecycle axes. A
-   disclosure owns `aria-expanded` by default, and every element owns its tab seat by
-   default. Callers opt out only when another named surface is the sole writer. Proxies
-   read the retained record and forward transient native state while activation remains
-   with the contributor's original control. */
+   Behavior, tone, role, and lifecycle state are independent axes. An action performs an
+   immediate effect, a disclosure reveals context, and a status reports a move already
+   made without offering a press. Tone changes the icon color without changing the ring
+   or surface. Busy alone adds state paint because an in-flight press otherwise looks
+   idle; engaged and failed controls stand beside words that already state their condition.
+   A disclosure's visible label ends in an ellipsis because it opens context; action and
+   status labels do not.
+
+   Ordering follows lifecycle state, then role, contribution key, and control key. Failed,
+   busy, and engaged contributions precede idle ones; completion and escape controls
+   precede primary, secondary, reading, and overflow controls. Registration and DOM order
+   never decide which unrelated action becomes primary.
+
+   A disclosure owns `aria-expanded` by default, and every element owns its tab seat by
+   default. `writesRelation: false` or `writesSeat: false` declares another sole writer.
+   Two relation writers add and remove the same attribute each heartbeat; the disclosure
+   watch reads that as news and repaints an untouched page's keys. Two seat writers make
+   the element's `tabindex` alternate after each roving-seat pass. The retained record
+   carries relation ownership into proxies, which forward transient native state while
+   activation remains with the contributor's original control.
+
+   A failed mutation leaves Failed, Retry, and Cancel at its target. Retry follows only a
+   definitive refusal; an ambiguous transport result remains busy while the outbox retries
+   the same attempt. Reversible actions act immediately and may offer Undo. Confirmation
+   is reserved for irreversible effects. */
 
 import { layoutMarginRows } from "./margin-layout.js";
 import { iconElement } from "./icons.js";

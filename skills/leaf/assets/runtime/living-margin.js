@@ -7,11 +7,15 @@
    registry; `margin-layout.js` owns row measurement, rail claims, responsive docking,
    packing, and collision bands.
 
-   A resting cluster shows its primary and one peer, or its primary and More when it
-   has at least two peers. An engaged contribution exposes its controls directly.
-   Explicit owner focus derives the rail from that contribution alone, while Page map
-   retains the complete inventory. Expanded clusters contain at most six elements; the
-   final element opens Page map at the first omitted action.
+   A resting cluster has two seats: its primary and one peer, or its primary and More
+   when at least two peers remain. An expanded cluster has six seats, with the final seat
+   opening Page Map at the first omitted action. That limit also applies when the cluster
+   docks. Page Map retains the complete inventory.
+
+   An engaged contribution exposes its completion and escape controls first and never
+   hides them behind More. Engagement is semantic state, not DOM focus, so an editor stays
+   expanded when focus moves within its work. Explicit owner focus temporarily derives
+   the cluster from that contribution alone; closing it restores the ordinary cluster.
 
    Controls are ordered by lifecycle state, semantic role, contribution key, and
    control key. Generated readings follow contributed controls. One target's Threads

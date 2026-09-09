@@ -5197,12 +5197,10 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         for row in page.locator("lf-options[settled] > .lf-settled").all():
             if row.is_visible():
                 row.click()
-        # And the resolved threads, for the same reason and with the same shape: a
-        # closed thread's Reopen is behind this disclosure, so a walk that leaves it
-        # shut reaches every control in the panel except the one on the far side of an
-        # answered conversation.
-        resolved = page.locator(".lf-details > summary")
-        if resolved.count() and resolved.is_visible():
+        # And the resolved threads, for the same reason: selecting their state exposes
+        # each closed thread's Reopen to the panel's ordinary control walk.
+        resolved = page.locator('[data-filter-value="resolved"]')
+        if resolved.is_enabled():
             resolved.click()
         page_at_rest(page)
 
@@ -5629,8 +5627,8 @@ def _each_aim_surface(page, page_dir):
     # A resolved thread, which is the only state that has a Reopen to aim at.
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
     round_trip(page)
-    expect(page.locator(".lf-details summary")).to_have_count(1)
-    page.locator(".lf-details summary").click()
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    page.locator('[data-filter-value="resolved"]').click()
     expect(page.locator(".lf-reopen")).to_have_count(1)
     yield
 
@@ -5666,7 +5664,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
     about rather than a lesser version of it.
 
     The surfaces have to be opened for any of it to mean anything: seven of the eight
-    controls at issue exist only inside a panel, a menu, a resolved disclosure or the
+    controls at issue exist only inside a panel, a menu, a resolved thread or the
     reference, and a sweep of the page at rest would report a clean layer while every one
     of them was still six pixels tall. AIM_SURFACES is that assertion.
     """

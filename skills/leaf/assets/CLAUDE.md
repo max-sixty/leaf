@@ -193,8 +193,8 @@ and folds the reader's unread messages into them from the outbox;
 state and motion;
 `runtime/conversation/landing.js` owns conversation input discovery, focus travel,
 and panel arrival;
-`runtime/conversation/narrowing.js` owns comment-panel search and waiting-on-reader
-filter state;
+`runtime/conversation/narrowing.js` owns comment-panel search and the lifecycle,
+scope, subject, and detached-placement facet state;
 `runtime/conversation/placement.js` owns document-order grouping;
 `runtime/conversation/reaction-strips.js` owns the panel's message reaction surfaces;
 `runtime/conversation/surfaces.js` owns registry-declared widget outlets and the set of
@@ -241,7 +241,7 @@ Each mutable fact has one writer:
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
 | panel visibility | `panelOpen` | `setPanel` |
-| the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
+| the narrowing on the thread list | the reader's find words and lifecycle, scope, subject, and detached-placement facets | `renarrow`, `revealThread`, and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
 | the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` and the held `paintAcknowledgments` call preserve it through reconciliation, provisional work, and resolution folds |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival |

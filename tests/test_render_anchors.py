@@ -4253,7 +4253,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     browser, serve, scheme
 ):
     """The diff owns only the row. Core's shared Thread view keeps replies,
-    reactions, settlement, and the compact resolved disclosure working inside it."""
+    reactions, settlement, and resolved-thread rendering working inside it."""
     authored = leaf_page(
         "inline diff thread",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
@@ -4516,10 +4516,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator(".lf-conversation-msg").first).to_be_hidden()
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
-    panel_resolved = page.locator(".lf-details")
-    if panel_resolved.get_attribute("open") is None:
-        panel_resolved.locator(":scope > summary").click()
-    page.locator(".lf-details .lf-thread .lf-quote").click()
+    page.locator('[data-filter-value="resolved"]').click()
+    page.locator(".lf-thread:not([hidden]) .lf-quote").click()
     expect(summary).to_be_focused()
     summary.click()
     expect(thread.locator(".lf-conversation-msg").first).to_be_visible()

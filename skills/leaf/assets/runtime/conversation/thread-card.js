@@ -31,8 +31,8 @@ const threadAnchorLabel = (t, outline = pageOutline()) => {
   return anchorLabel(t.anchor, t.root.about, group.target);
 };
 
-// A thread's node is found where it already stands — the open list or the resolved
-// disclosure — and kept: the log is append-only, so a kept node only ever gains
+// A thread's node is found where it already stands in the filtered list and kept: the
+// log is append-only, so a kept node only ever gains
 // messages and refreshes its clocks. A settlement transition reshapes a node: resolving
 // removes the reply box and reopening restores it, so either one rebuilds the node;
 // msgBodies carries the rendered bodies across. `grow` animates what this call creates,
@@ -51,6 +51,7 @@ export function threadNode(t, grow) {
   const existing = standingCard(t);
   const existingResolved = existing && !existing.querySelector(":scope > .lf-compose");
   if (existing && existingResolved === Boolean(t.resolved)) {
+    existing.dataset.resolved = String(Boolean(t.resolved));
     if (existing.dataset.id !== t.root.id) {
       existing.dataset.id = t.root.id;
     }
@@ -80,6 +81,7 @@ export function threadNode(t, grow) {
   const liveId = () => div.dataset.id;
   div.tabIndex = -1; // t/T focus target; the thread scope's Enter drops into its reply box
   div.dataset.id = t.root.id;
+  div.dataset.resolved = String(Boolean(t.resolved));
   if (t.root.attempt) div.dataset.attempt = t.root.attempt;
   if (grow) div.classList.add("grow");
   const label = threadAnchorLabel(t);
@@ -151,8 +153,8 @@ export function threadNode(t, grow) {
     const status = el("span");
     if (t.resolved.author === "claude") {
       // Said only where the reader was not the one who closed it. Their own resolve
-      // needs no telling: they pressed it, and the disclosure they find it under is
-      // already headed "Resolved". A thread closed from the other side settles with
+      // needs no telling: they pressed it, and the selected state already says
+      // "Resolved". A thread closed from the other side settles with
       // nothing in this tab to watch it happen, so the page is the only thing that can
       // say who did.
       const by = t.resolved.agent || "Agent";

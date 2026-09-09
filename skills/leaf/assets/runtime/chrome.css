@@ -1185,6 +1185,23 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     padding: 3px 8px; border: 1px solid var(--border-2); border-radius: var(--r);
     background: var(--paper); color: var(--ink); }
   .lf-find-box:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: find-box; outline-offset: 1px; }
+  /* Lifecycle is the standing view; the optional refinements sit on the row below it.
+     Groups wrap as units when the conditional placement filter appears, so the panel
+     never introduces a horizontal scroller. A facet with no pressed button means all
+     of that facet. */
+  .lf-thread-filters { display: flex; flex: none; flex-direction: column;
+    align-items: flex-start; gap: 6px; padding: 7px 14px;
+    border-bottom: 1px solid var(--rule); }
+  .lf-thread-filter-facets { display: flex; flex-wrap: wrap; align-items: center;
+    gap: 6px 10px; max-width: 100%; }
+  .lf-thread-filter-group { display: flex; flex: none; flex-wrap: wrap;
+    align-items: center; gap: 5px; max-width: 100%; }
+  .lf-thread-filter-facets > .lf-thread-filter-group + .lf-thread-filter-group {
+    border-left: 1px solid var(--rule); padding-left: 10px; }
+  .lf-thread-filter-group:not(:has(> .lf-thread-filter:not([hidden]))) { display: none; }
+  .lf-thread-filter-group:has(> [data-filter-kind="gone"]) {
+    flex-basis: 100%; border-left: 0; padding-left: 0; }
+  .lf-thread-filter { padding: 2px 8px; font-size: var(--t-6); }
   /* contain: reaching the end of the thread list must not start scrolling the page
      behind it — one wheel gesture moves one region.
      The frame is declared because the inset is read at both ends of a scroll region:
@@ -1214,9 +1231,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      said once over the run of threads that share it. Sticky, so the answer to "where
      am I" is on screen for the whole run rather than only at its start: a list four
      thousand pixels long is scrolled past its landmarks within one gesture. Opaque
-     (--card), because the threads pass underneath it. The resolved disclosure's
-     summary sticks in the same slot and later in the list, so it takes the pin from
-     the last heading when the reader reaches it.
+     (--card), because the threads pass underneath it.
 
      The room above a heading is its own padding and never a margin, and the pin is
      drawn back over the list's own inset. Both for one reason: a stuck box is held by
@@ -1225,11 +1240,9 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      list scrolls in full view. The inset is read from where it is spent, so the two
      numbers cannot drift apart.
 
-     Being pinned is its own class, worn by the two boxes that do it and by whatever
-     the list pins next. It was written twice — once here and once on the disclosure's
-     summary — which is two chances to move the slot in one of them, and it is also
-     the question renderThreads has to ask to know how much of the top is covered.
-     One class answers all three: the mechanics, the second wearer, and the sweep. */
+     Being pinned is its own class rather than an incidental property of a run
+     heading. It is the question renderThreads asks to know how much of the top is
+     covered, so one class states both the mechanics and the measurement boundary. */
   .lf-pinned { position: sticky; top: calc(-1 * var(--lf-list-inset)); z-index: 2;
     margin: 0; padding: 14px 0 7px; background: var(--card); }
   .lf-group { display: block; width: 100%; box-sizing: border-box; border: none;
@@ -1370,16 +1383,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* Reopen stands in the same row as Resolve and answers the same question from the
      other side, so it wears the same band when the keyboard reaches it. It was left on
      the platform's own ring, which is a real mark and the wrong one here: the pair
-     looked like two kinds of control, and a walk down the resolved disclosure changed
-     shape halfway. */
+     looked like two kinds of control, and a walk into resolved threads changed shape
+     halfway. */
   .lf-thread-action:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
     --lf-here-ring: thread-action; outline-offset: 2px; }
   .lf-resolved-by { color: var(--muted); }
   .lf-general { padding: 10px 14px; border-top: 1px solid var(--rule); }
-  .lf-details { margin-top: 16px; color: var(--muted); background: none; border: none; padding: 0; }
-  /* The last landmark in the list wears .lf-pinned like the headings above it: it
-     stands later than every one of them, so opening it hands the pinned slot from
-     the section the reader was in to the disclosure they are now inside. */
   .lf-system { color: var(--ok); margin: 8px 0; }
   /* The two floats that point at the page live in the document's coordinate space
      (absolute against the initial containing block), because what they point at does:

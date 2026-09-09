@@ -1413,7 +1413,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
         assert opened and resolved, "the shipped seed must cover both thread states"
         expect(page.locator(".lf-threads-toggle")).to_have_text(f"Threads ({opened})")
         page.locator(".lf-threads-toggle").click()
-        expect(page.locator(".lf-panel .lf-details > summary")).to_have_text(
+        expect(page.locator('.lf-panel [data-filter-value="resolved"]')).to_have_text(
             f"Resolved ({resolved})"
         )
         # Named rather than taken first: the assertion follows the shipped objection,

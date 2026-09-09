@@ -56,7 +56,7 @@ pytestmark = pytest.mark.nightly
 @pytest.mark.parametrize("resolved", [False, True])
 def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved):
     """A direct reply link opens and cues the exact message, even in a long thread or
-    inside the resolved disclosure. The surrounding card can span more than a viewport,
+    in the Resolved state. The surrounding card can span more than a viewport,
     so using it as the arrival flash obscures the destination the link named."""
     url = serve(SEATED_QUESTION_PAGE)
     root = panel_comment(
@@ -923,10 +923,9 @@ def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serv
 
 
 def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
-    """A thread can move, not just appear: resolving the first one sends it to the
-    resolved disclosure while every surviving node stays put. The disclosure itself is
-    kept too, so the user's open toggle survives the next resolution instead of snapping
-    shut on every arrival, which is what the rebuild did."""
+    """A thread can move, not just appear: resolving the first one hides it from the
+    Open state while every surviving node stays put. The Resolved facet updates without
+    changing the reader's selected state."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -948,8 +947,10 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     # The resolved node took the pressed button with it; focus lands on the thread
     # that now holds its place rather than falling to body.
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
-    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
-    expect(page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')).to_have_count(1)
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    expect(
+        page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"][hidden]')
+    ).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{c1}"] textarea')).to_have_count(0)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
     # The survivor stays the same node.
@@ -961,8 +962,6 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
         c2,
     ), "renumbering rebuilt the surviving thread"
 
-    page.locator(".lf-details summary").click()
-    expect(page.locator(".lf-details[open]")).to_have_count(1)
     # A thread leaving mid-list puts every survivor one place forward. Standing still
     # there is the reconcile's own duty, not the browser's: a survivor reinserted at
     # its new place is the same element and passes any identity probe, but reinsertion
@@ -975,8 +974,7 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": c2}
     )
     told(page)
-    expect(page.locator(".lf-details summary")).to_have_text("Resolved (2)")
-    expect(page.locator(".lf-details[open]")).to_have_count(1)
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (2)")
     expect(ta3).to_be_focused()
     assert page.evaluate(
         "() => document.activeElement.value === 'held mid-sentence'"
@@ -1300,7 +1298,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     page.keyboard.press("Shift+t")
     panel_settled(page)
     expect(page.locator(".lf-threads")).to_be_focused()
-    expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
+    expect(page.locator(".lf-needs")).to_have_text("On you (1)")
     expect(page.locator(".lf-needs")).to_have_attribute("title", re.compile(r"\(w\)$"))
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on you")
     # `c` from that list enters the general box, and there `w` is a character like any other —
@@ -1348,7 +1346,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     reply.type("Forty is plenty.")
     page.locator(f'.lf-thread[data-id="{theirs}"] .lf-thread-send').click()
     round_trip(page)
-    expect(page.locator(".lf-needs")).to_have_text("Waiting on you")
+    expect(page.locator(".lf-needs")).to_have_text("On you")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(0)
     expect(page.locator(".lf-empty")).to_have_text("Nothing is waiting on you.")
     # The reader was standing in the thread that just left. Focus lands on the list
@@ -1364,6 +1362,107 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{mine}"]')).to_have_count(1)
     expect(page.locator(".lf-panel-head span")).to_have_text("Threads")
 
+    assert errors == []
+    page.close()
+
+
+def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, serve):
+    """The controls form one query over structured thread facts. State is exclusive
+    while scope, subject and the conditional detached-placement facet compose with it;
+    each button's count predicts the result under the other standing facets."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    pagewide = panel_comment(d, "A page-wide content note.")
+    waiting = panel_comment(
+        d, "Which local wording is right?", {"section": "lede"}, "claude"
+    )
+    layer = events_model.append_event(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "about": "layer",
+            "text": "The layer control is crowded.",
+            "anchor": {"section": "lf-shortcut-bar"},
+        },
+    )["id"]
+    gone = panel_comment(d, "The removed section still matters.", {"section": "gone"})
+    resolved = panel_comment(d, "This local note is done.", {"section": "how-cap"})
+    events_model.append_event(
+        d, {"kind": "resolve", "author": "user", "parent": resolved}
+    )
+
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    visible = page.locator(".lf-threads > .lf-thread:not([hidden])")
+
+    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(page.locator('[data-filter-value="open"]')).to_have_text("Open (4)")
+    expect(page.locator('[data-filter-value="reader"]')).to_have_text("On you (1)")
+    expect(page.locator('[data-filter-value="agent"]')).to_have_text("On agent (3)")
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    expect(page.locator('[data-filter-value="page"]')).to_have_text("Page (1)")
+    expect(page.locator('[data-filter-value="local"]')).to_have_text("Anchored (3)")
+    expect(page.locator('[data-filter-value="content"]')).to_have_text("Content (3)")
+    expect(page.locator('[data-filter-value="layer"]')).to_have_text("Layer (1)")
+    expect(page.locator('[data-filter-value="gone"]')).to_have_text(
+        "No longer here (1)"
+    )
+    expect(visible).to_have_count(4)
+
+    on_you = page.locator('[data-filter-value="reader"]')
+    natural_width = on_you.evaluate("el => el.getBoundingClientRect().width")
+    resized(page, 320, 720)
+    assert on_you.evaluate("el => el.getBoundingClientRect().width") == pytest.approx(
+        natural_width
+    )
+    rail_size = page.locator(".lf-thread-filters").evaluate(
+        "el => ({client: el.clientWidth, scroll: el.scrollWidth})"
+    )
+    assert rail_size["scroll"] == rail_size["client"], rail_size
+    expect(page.locator(".lf-thread-filter").first).to_have_css(
+        "border-radius", button_radius(page)
+    )
+
+    page.locator('[data-filter-value="agent"]').click()
+    expect(visible).to_have_count(3)
+    expect(page.locator(f'.lf-thread[data-id="{waiting}"]')).to_be_hidden()
+    page.locator('[data-filter-value="local"]').click()
+    expect(visible).to_have_count(2)
+    expect(page.locator(f'.lf-thread[data-id="{pagewide}"]')).to_be_hidden()
+    page.locator('[data-filter-value="content"]').click()
+    expect(visible).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{gone}"]')).to_be_visible()
+    expect(page.locator(f'.lf-thread[data-id="{layer}"]')).to_be_hidden()
+    page.locator('[data-filter-value="gone"]').click()
+    expect(visible).to_have_count(1)
+
+    # Escape returns to the default state and clears every optional facet together.
+    page.locator(".lf-threads").focus()
+    page.keyboard.press("Escape")
+    expect(visible).to_have_count(4)
+    expect(page.locator(".lf-panel-head span")).to_have_text("Threads")
+    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    for value in ("page", "local", "content", "layer", "gone"):
+        expect(page.locator(f'[data-filter-value="{value}"]')).to_have_attribute(
+            "aria-pressed", "false"
+        )
+
+    # Resolved is a state in the same ordered list, not a second list at its foot.
+    page.locator('[data-filter-value="resolved"]').click()
+    expect(visible).to_have_count(1)
+    expect(
+        page.locator(f'.lf-threads > .lf-thread[data-id="{resolved}"]')
+    ).to_be_visible()
+    expect(page.locator(f'.lf-thread[data-id="{resolved}"] .lf-reopen')).to_be_visible()
+    expect(page.locator(".lf-details")).to_have_count(0)
+    expect(page.locator('[data-filter-value="gone"]')).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -1421,7 +1520,7 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
+    expect(page.locator(".lf-needs")).to_have_text("On you (1)")
     expect(page.locator(".lf-thread")).to_have_count(2)
 
     page.locator(".lf-needs").click()
@@ -1454,7 +1553,7 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
         "</lf-options></lf-ask>",
     )
     told(page)
-    expect(page.locator(".lf-needs")).to_have_text("Waiting on you (2)")
+    expect(page.locator(".lf-needs")).to_have_text("On you (2)")
     expect(page.locator(f'.lf-thread[data-id="{answered}"]')).to_have_count(1)
     assert page.evaluate("() => window.__backendContext") == {
         "message": True,
@@ -1464,7 +1563,7 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
 
     page.locator("#backend-sqlite").click()
     round_trip(page)
-    expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
+    expect(page.locator(".lf-needs")).to_have_text("On you (1)")
     expect(
         page.locator(f'.lf-thread[data-id="{answered}"]:not([hidden])')
     ).to_have_count(0)
@@ -1473,7 +1572,7 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     reply.fill("SQLite should own it.")
     page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-send').click()
     round_trip(page)
-    expect(page.locator(".lf-needs")).to_have_text("Waiting on you")
+    expect(page.locator(".lf-needs")).to_have_text("On you")
     expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
     assert errors == []
     page.close()
@@ -1482,7 +1581,7 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
 def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
     """Either side can close a thread and the reader watches only one of them happen.
     Their own press folds the thread under their hand and leaves the outcome on the
-    control they pressed, so the disclosure it lands in needs to say nothing more. An
+    control they pressed, so its Resolved state needs to say nothing more. An
     agent's resolve arrives on a poll with no gesture behind it, and that thread says
     who closed it — in the row the control stood in, at the end it stood at."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
@@ -1499,26 +1598,27 @@ def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
         {"kind": "resolve", "author": "claude", "agent": "Indexer", "parent": c1},
     )
     told(page)
-    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
-    expect(
-        page.locator(f'.lf-details .lf-thread[data-id="{c1}"] .lf-resolved-by')
-    ).to_have_text("✓ Resolved by Indexer")
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    page.locator('[data-filter-value="resolved"]').click()
+    expect(page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolved-by')).to_have_text(
+        "✓ Resolved by Indexer"
+    )
 
+    page.locator('[data-filter-value="open"]').click()
     page.locator(f'.lf-thread[data-id="{c2}"] .lf-resolve').click()
     round_trip(page)
-    # The disclosure holding the node is what says the fold is over, so the line's
-    # absence is read from a thread that has arrived rather than one still on its way.
-    expect(page.locator(f'.lf-details .lf-thread[data-id="{c2}"]')).to_have_count(1)
-    expect(
-        page.locator(f'.lf-details .lf-thread[data-id="{c2}"] .lf-resolved-by')
-    ).to_have_count(0)
+    page.locator('[data-filter-value="resolved"]').click()
+    # The settled card is what says the fold is over, so the line's absence is read
+    # from a thread that has arrived rather than one still on its way.
+    expect(page.locator(f'.lf-thread[data-id="{c2}"]:not([hidden])')).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{c2}"] .lf-resolved-by')).to_have_count(0)
     assert errors == []
     page.close()
 
 
 def test_a_resolved_thread_can_be_reopened(browser, serve):
     """Reopening is a logged transition: the thread returns to the open list with
-    its reply and resolve controls, and the disclosure leaves when it is empty."""
+    its reply and resolve controls, and the state facet returns to Open."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=18))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -1530,20 +1630,20 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
 
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
     round_trip(page)
-    # The round trip starts the fold; the disclosure holding the thread finishes it.
-    expect(page.locator(f'.lf-details .lf-thread[data-id="{comment}"]')).to_have_count(
-        1
-    )
-    page.locator(".lf-details summary").click()
+    # The round trip starts the fold; the retained resolved card finishes it.
+    expect(page.locator(f'.lf-thread[data-id="{comment}"][hidden]')).to_have_count(1)
+    page.locator('[data-filter-value="resolved"]').click()
     with sending(page, "the reopen"):
-        page.locator(f'.lf-details .lf-thread[data-id="{comment}"] .lf-reopen').click()
+        page.locator(f'.lf-thread[data-id="{comment}"] .lf-reopen').click()
 
     reopened = page.locator(f'.lf-threads > .lf-thread[data-id="{comment}"]')
     expect(reopened).to_be_in_viewport()
     expect(reopened.locator("textarea")).to_be_focused()
     expect(reopened.locator("textarea")).to_have_count(1)
     expect(reopened.locator(".lf-resolve")).to_have_count(1)
-    expect(page.locator(".lf-details")).to_have_count(0)
+    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (18)")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
     assert errors == []
@@ -1569,7 +1669,7 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
     root = roots["bg-resolved-text" if kind == "unresolve" else "bg-thread-text"]
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     if kind == "unresolve":
-        page.locator(".lf-details summary").click()
+        page.locator('[data-filter-value="resolved"]').click()
     elif kind == "reply":
         thread.locator("textarea").fill("A reply whose delivery is held.")
 
@@ -1586,6 +1686,12 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
 
     later = page.locator(f'.lf-thread[data-id="{roots["bg-crowded"]}"] textarea')
     changes = page.locator("#bg-history summary")
+    if kind == "unresolve" and destination in {"other-thread", "other-focus"}:
+        page.locator('[data-filter-value="open"]').click()
+        expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+            "aria-pressed", "true"
+        )
+        expect(later).to_be_visible()
     if destination == "page":
         page.get_by_role("button", name="Close threads", exact=True).click()
         changes.click()
@@ -1636,7 +1742,7 @@ def test_a_late_reply_to_a_resolved_thread_stays_above_its_reopen_footer(
     )
     page, errors = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-details summary").click()
+    page.locator('[data-filter-value="resolved"]').click()
     events_model.append_event(
         serve.page_dir,
         {
@@ -1649,7 +1755,7 @@ def test_a_late_reply_to_a_resolved_thread_stays_above_its_reopen_footer(
     )
     told(page)
 
-    thread = page.locator(f'.lf-details .lf-thread[data-id="{root["id"]}"]')
+    thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]:not([hidden])')
     expect(thread.locator(":scope > .lf-msg")).to_have_count(2)
     assert thread.locator(":scope > *").last.evaluate(
         "node => node.classList.contains('lf-thread-actions')"
@@ -1667,7 +1773,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     somewhere else with no path between the two — the same pair of failures the
     suggestion's decided slot was already fixed for, in the panel this time. So the
     thread stays where it stood, states on the pressed control what was done to it,
-    and folds; the disclosure gets it when the fold is over.
+    and folds; the retained Resolved state gets it when the fold is over.
 
     What the log says is true from that first frame regardless — Threads counts down
     and Resolved counts up while the pixels catch up — and a thread on its way out is
@@ -1728,7 +1834,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "was looking at"
     )
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
-    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     expect(page.locator(f'[data-id="{c1}"] textarea')).to_have_attribute(
         "placeholder", "Reply"
     )
@@ -1753,10 +1859,10 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "left was already under the clip half way through"
     )
 
-    # And the far end: the thread lands in the disclosure, once, and the room it held
+    # And the far end: the thread becomes a retained hidden result, once, and the room it held
     # has gone back to the threads under it.
     page.evaluate("() => window.__lfHeld.forEach((m) => m.finish())")
-    expect(page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{c1}"][hidden]')).to_have_count(1)
     expect(page.locator(f'[data-id="{c1}"]')).to_have_count(1)
     risen = page.locator(f'.lf-thread[data-id="{c2}"]').bounding_box()
     assert stood["y"] - risen["y"] == pytest.approx(room, abs=1), (
@@ -1866,7 +1972,7 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
     assert restored == pytest.approx(setup["target"]["top"], abs=1)
 
     page.evaluate("i => window.__lfHeld[i].finish()", before)
-    expect(page.locator(f'.lf-details .lf-thread[data-id="{source}"]')).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{source}"][hidden]')).to_have_count(1)
     page.evaluate(RENDERED)
     finished = target_card.evaluate("el => el.getBoundingClientRect().top")
     assert finished == pytest.approx(setup["target"]["top"], abs=1), (
@@ -1947,7 +2053,7 @@ def test_a_folding_reference_hands_its_hold_to_the_next_card(browser, serve):
     )
 
     page.evaluate("i => window.__lfHeld[i].finish()", before)
-    expect(page.locator(f'.lf-details .lf-thread[data-id="{source}"]')).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{source}"][hidden]')).to_have_count(1)
     page.evaluate(RENDERED)
     finished = target_card.evaluate("el => el.getBoundingClientRect().top")
     assert finished == pytest.approx(target_top, abs=1)
@@ -2041,124 +2147,13 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
     ), "the fold had not slid a card from above it under the pointer"
 
     page.evaluate("i => window.__lfHeld[i].finish()", before)
-    expect(page.locator(f'.lf-details .lf-thread[data-id="{source}"]')).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{source}"][hidden]')).to_have_count(1)
     page.evaluate(RENDERED)
     finished = target_card.evaluate("el => el.getBoundingClientRect().top")
     assert finished == pytest.approx(target_top, abs=1), (
         f"the fold's last frame moved the held card from {target_top:.1f}px "
         f"to {finished:.1f}px"
     )
-    assert errors == []
-    page.close()
-
-
-def test_a_fold_hands_off_without_reapplying_movement_already_held(browser, serve):
-    """A fallback inherits the latest corrected coordinate, not its capture-time one.
-
-    The pointer starts on a resolved card while an open card above it folds. After the
-    fold has moved once, closing the resolved disclosure makes that reference zero-size
-    without another render. A live open card must take over without paying the fold's
-    already-compensated movement a second time. If closing the disclosure makes the
-    document shorter than the standing scroll offset, the browser may still clamp the
-    list to its new end."""
-    page_url = serve(LONG_PAGE, comments=6)
-    page_dir = serve.page_dir
-    roots = [
-        event["id"]
-        for event in events_model.read_events(page_dir)
-        if event["kind"] == "comment"
-    ]
-    source, successor, resolved = roots[0], roots[3], roots[5]
-    events_model.append_event(
-        page_dir,
-        {"kind": "resolve", "author": "user", "parent": resolved},
-    )
-    page, errors = open_page(browser, page_url, init_script=HOLD_MOTION)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    details = page.locator(".lf-details")
-    details.locator("summary").click()
-    resolved_card = details.locator(f'.lf-thread[data-id="{resolved}"]')
-    resolved_card.evaluate(
-        "el => el.scrollIntoView({behavior: 'instant', block: 'center'})"
-    )
-    setup = page.evaluate(
-        "([source, successor]) => {"
-        " const view = document.querySelector('.lf-threads').getBoundingClientRect();"
-        ' const a = document.querySelector(`.lf-thread[data-id="${source}"]`)'
-        "   .getBoundingClientRect();"
-        ' const b = document.querySelector(`.lf-thread[data-id="${successor}"]`)'
-        "   .getBoundingClientRect();"
-        " return {sourceAbove: a.bottom <= view.top,"
-        "   successorVisible: b.bottom > view.top && b.top < view.bottom};"
-        "}",
-        [source, successor],
-    )
-    assert setup == {
-        "sourceAbove": True,
-        "successorVisible": True,
-    }, f"the fold is not above every visible fallback: {setup}"
-    resolved_box = resolved_card.bounding_box()
-    page.mouse.move(
-        resolved_box["x"] + resolved_box["width"] / 2,
-        resolved_box["y"] + resolved_box["height"] / 2,
-    )
-    assert page.evaluate(
-        "([x, y, id]) => document.elementFromPoint(x, y)"
-        "?.closest('.lf-thread')?.dataset.id === id",
-        [
-            resolved_box["x"] + resolved_box["width"] / 2,
-            resolved_box["y"] + resolved_box["height"] / 2,
-            resolved,
-        ],
-    )
-
-    before = page.evaluate("() => window.__lfHeld.length")
-    events_model.append_event(
-        page_dir,
-        {"kind": "resolve", "author": "user", "parent": source},
-    )
-    told(page)
-    assert page.evaluate("() => window.__lfHeld.length") == before + 1
-    content_top = (
-        "id => { const list = document.querySelector('.lf-threads');"
-        ' const card = document.querySelector(`.lf-thread[data-id="${id}"]`);'
-        " return card.getBoundingClientRect().top + list.scrollTop; }"
-    )
-    started_content_top = page.evaluate(content_top, successor)
-    page.evaluate(
-        "i => { window.__lfHeld[i].currentTime = "
-        "window.__lfHeld[i].effect.getComputedTiming().duration / 2; }",
-        before,
-    )
-    page.evaluate(RENDERED)
-    reading = """id => {
-      const list = document.querySelector('.lf-threads');
-      const card = document.querySelector(`.lf-thread[data-id="${id}"]`);
-      const box = card.getBoundingClientRect();
-      return {top: box.top, contentTop: box.top + list.scrollTop,
-        scrollTop: list.scrollTop, maxScrollTop: list.scrollHeight - list.clientHeight,
-        anchor: getComputedStyle(list).overflowAnchor};
-    }"""
-    inherited = page.evaluate(reading, successor)
-    assert inherited["contentTop"] < started_content_top - 20, (
-        f"the first fold frame did not move the fallback: "
-        f"{started_content_top} -> {inherited}"
-    )
-
-    details.locator("summary").evaluate("el => el.click()")
-    expect(resolved_card).to_be_hidden()
-    assert not resolved_card.evaluate("el => el.checkVisibility()")
-    page.evaluate(RENDERED)
-    handed_off = page.evaluate(reading, successor)
-    expected_scroll = min(inherited["scrollTop"], handed_off["maxScrollTop"])
-    assert handed_off["scrollTop"] == pytest.approx(expected_scroll, abs=1), (
-        f"the fallback moved beyond the browser's new scroll limit: "
-        f"{inherited} -> {handed_off}"
-    )
-
-    page.evaluate("i => window.__lfHeld[i].finish()", before)
-    page.evaluate(RENDERED)
     assert errors == []
     page.close()
 
@@ -2226,7 +2221,9 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
 
     inline.get_by_role("button", name="Open interactive reply in Threads").click()
     expect(page.locator(f'.lf-going[data-id="{root}"]')).to_have_count(0)
-    message = page.locator(f'.lf-details[open] .lf-msg[data-mid="{reply["id"]}"]')
+    message = page.locator(
+        f'.lf-thread:not([hidden]) .lf-msg[data-mid="{reply["id"]}"]'
+    )
     expect(message).to_be_focused()
     expect(message.locator("#first-job")).to_be_in_viewport()
     # Its old animation completion must leave the canonical revealed card standing.
@@ -2264,11 +2261,9 @@ def test_the_fold_never_paints_a_frame_that_undoes_the_last(browser, serve):
     # alongside the ones that move.
     page.evaluate(FRAME_BY_FRAME, f'.lf-threads > [data-id="{c1}"]')
     page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
-    # The node leaving the list is the fold's end and the browser's own statement, so
-    # the wait is that rather than the sampler's flag: what runs in the page is the
-    # record, which nothing out here can take, and not the wait, which is already
-    # answered from outside.
-    page.wait_for_selector(f'.lf-threads > [data-id="{c1}"]', state="detached")
+    # The outgoing node becoming a retained hidden card is the fold's end and the
+    # browser's own statement, so the wait is that rather than the sampler's flag.
+    page.wait_for_selector(f'.lf-threads > [data-id="{c1}"]', state="hidden")
     seen = page.evaluate("() => window.__seen")
 
     grew = [
@@ -2295,7 +2290,7 @@ def test_a_reader_who_asked_for_less_motion_gets_the_resolved_thread_at_once(
     the outcome instead — the bargain the suggestion's own fold already makes, asked
     again here because the thread's is the path with somewhere to be left stranded:
     the node stays in the list until its fold ends, so a fold that never starts is a
-    node that has to reach the disclosure by the same render that declined to play
+    node that has to reach its retained resolved state by the same render that declined to play
     one."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900},
@@ -2317,7 +2312,7 @@ def test_a_reader_who_asked_for_less_motion_gets_the_resolved_thread_at_once(
             if e["kind"] == "comment"
         ]
         page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
-        expect(page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')).to_have_count(1)
+        expect(page.locator(f'.lf-thread[data-id="{c1}"][hidden]')).to_have_count(1)
         assert page.evaluate("() => window.__lfHeld.length") == 0, (
             "a reader who asked for less motion was given a fold to sit through"
         )
@@ -3233,7 +3228,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
     expect(page.locator(".lf-thread")).to_have_count(1)
     expect(page.locator(".lf-thread")).to_contain_text("the answer that survived it")
     expect(page.locator(".lf-thread")).to_contain_text("the later plain reply")
-    expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
+    expect(page.locator(".lf-needs")).to_have_text("On you (1)")
     assert errors == []
     page.close()
 
@@ -4152,7 +4147,9 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-panel-head span")).to_have_text("Showing 1 of 2")
-    expect(page.locator(".lf-threads > .lf-thread[hidden]")).to_have_count(1)
+    expect(
+        page.locator('.lf-threads > .lf-thread[hidden][data-resolved="false"]')
+    ).to_have_count(1)
     expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
     page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-row")).to_have_count(2)

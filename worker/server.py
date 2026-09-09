@@ -242,6 +242,7 @@ class WebsiteCodexHost:
         leaf_turn: str,
         event_ids: tuple[str, ...],
         turn: dict,
+        final_message: str | None = None,
     ) -> None:
         """Close one observed turn and settle any input it left unanswered."""
         status = turn.get("status")
@@ -277,20 +278,31 @@ class WebsiteCodexHost:
             ):
                 page.close_turn(thread_id)
 
-        fallback = MISSING_REPLY if status == "completed" else GENERATION_FAILURE_REPLY
+        final = (final_message or "").strip()
+        if status == "completed":
+            fallback = final or MISSING_REPLY
+        else:
+            fallback = GENERATION_FAILURE_REPLY
         for event_id in pending:
-            cmd_reply(
-                page_dir,
-                event_id,
-                fallback,
-                "",
-                attempt=agent_attempt(event_id),
-                only_if_pending=True,
-                identity={
+            options = {
+                "attempt": agent_attempt(event_id),
+                "only_if_pending": True,
+                "identity": {
                     "agent": WEBSITE_AGENT,
                     "session": WEBSITE_AGENT_SESSION,
                 },
-            )
+            }
+            try:
+                cmd_reply(page_dir, event_id, fallback, "", **options)
+            except SystemExit as error:
+                if not final or fallback != final:
+                    raise
+                print(
+                    f"Codex turn {turn.get('id')} returned an invalid reply: {error}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                cmd_reply(page_dir, event_id, MISSING_REPLY, "", **options)
 
     def _follow_turn(
         self,
@@ -312,24 +324,29 @@ class WebsiteCodexHost:
                     message = json.loads(socket.recv(timeout=1))
                 except TimeoutError:
                     continue
+                update = events.read(message)
                 last_stream_update = project_app_server_activity(
                     events,
                     message,
+                    update,
                     last_stream_update,
                     _set_stream_activity,
                     _clear_stream_activity,
                 )
                 if (
-                    message.get("method") == "turn/completed"
-                    and message.get("params", {}).get("turn", {}).get("id") == turn_id
+                    update is not None
+                    and update.get("completed")
+                    and update["turn"] == turn_id
                 ):
+                    turn = message["params"]["turn"]
                     with self.lock:
                         self._finish_turn(
                             page_dir,
                             thread_id,
                             leaf_turn,
                             event_ids,
-                            message["params"]["turn"],
+                            turn,
+                            update.get("text"),
                         )
                     return
         except (OSError, RuntimeError, ValueError, WebSocketException):

@@ -5,14 +5,28 @@ import { BANNER_CLEAR, commentOnTarget } from "./composing/surface.js";
 import { scrollToElement, scrollToThread } from "./anchors.js";
 import { inPanel, panelCovers, panelIsOpen } from "./chrome-layout.js";
 import { openThreads } from "./conversation/reconcile.js";
+import { narrowed } from "./conversation/narrowing.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { threadsBox } from "./conversation/panel.js";
 import { pageScroller } from "./scrolling.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
-import { containsAcross } from "./passages.js";
+import { closestAcross, containsAcross } from "./passages.js";
 import { activeInlineThread, openPageThread } from "./living-margin.js";
 import { announce } from "./notifications.js";
-import { beginWalk, walkPositionLabel } from "./walk-position.js";
+import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
+
+const threadPosition = () => {
+  const threads = openThreads({ visibleOnly: panelIsOpen() });
+  const current = panelIsOpen()
+    ? closestAcross(document.activeElement, ".lf-thread[data-id]")
+    : threads.find(
+        (thread) => thread.dataset.id === activeInlineThread()?.dataset.thread,
+      );
+  return listWalkPosition(threads, current, {
+    identity: (thread) => thread.dataset.id,
+    qualifier: panelIsOpen() && narrowed() ? "shown" : "",
+  });
+};
 
 // Where a comment about this item is written: the composer, on the item, which is what a
 // click through the ⌥ aim already opens. It reached for the widget's own conversation seat
@@ -84,8 +98,8 @@ export function stepThread(dir) {
   if (!panelIsOpen()) {
     openPageThread(next.dataset.id, { focus: "thread" });
     announce(
-      beginWalk("thread", next.dataset.id) ??
-        walkPositionLabel("thread", threads.indexOf(next) + 1, threads.length),
+      beginWalk("thread", "Thread", threadPosition) ??
+        walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
     );
     return;
   }
@@ -98,8 +112,8 @@ export function stepThread(dir) {
   if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
   scrollToThread(next.dataset.id);
   announce(
-    beginWalk("thread", next.dataset.id) ??
-      walkPositionLabel("thread", threads.indexOf(next) + 1, threads.length),
+    beginWalk("thread", "Thread", threadPosition) ??
+      walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
   );
 }
 

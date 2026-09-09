@@ -28,17 +28,18 @@ additionally needed for the complete website boundary and `scripts/linux-suite.s
 A container without IPv6 cannot run the two tests that bind the stated-host
 wildcard `::`; run those from a workstation.
 
-The everyday suite needs no network after setup and runs one shipped page through
-the browser gate:
+The everyday suite needs no network after setup. It runs one shipped page through the
+browser gate and the shared chrome contracts whose regressions must block a pull request:
 
 ```sh
 uv run pytest tests
 ```
 
-The `test_render_*.py` modules and `test_site.py` are marked nightly. Broad
-discovery skips them. An explicit file, node id, `-k`, `-m`, or `--lf` selection
-runs what it names. During development, select the owning file or one named case
-and use `-n 0` so the trace and process tree stay local:
+The `test_render_*.py` modules and `test_site.py` are marked nightly;
+`test_chrome_contracts.py` holds the small browser surface in the everyday gate. Broad
+discovery skips nightly tests. An explicit file, node id, `-k`, `-m`, or `--lf`
+selection runs what it names. During development, select the owning file or one named
+case and use `-n 0` so the trace and process tree stay local:
 
 ```sh
 uv run pytest tests/test_render_widgets.py -q -n0 -k board

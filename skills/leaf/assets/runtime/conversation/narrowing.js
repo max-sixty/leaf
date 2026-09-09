@@ -1,138 +1,232 @@
-/* Search and waiting-on-reader narrowing for the thread panel.
+/* Search and faceted narrowing for the thread panel.
 
-   Two narrowings compose: the words the reader is looking for (`finding`, over each
-   thread's messages, its anchor label, and the part of the page it is on) and whether
-   the latest agent message asks the reader to answer (`onlyNeedsYou`, through
-   `awaitsReader`). Both are the panel's own view. The page's marks, the inline
-   conversation seats and the banner's count go on saying what the log says, and the
-   panel's head says `Showing N of M` for as long as a narrowing stands, because a list
-   that goes quiet about what it is hiding is a trap.
+   State is one exclusive question: Open, On you, On agent, or Resolved. Scope and
+   subject are optional refinements, so a reader cannot construct the impossible old
+   combination "waiting on you and resolved". The conditional placement chip appears
+   only when this page has a detached anchored thread to find.
 
-   Neither is stored. A remembered narrowing greets a returning reader with part of a
-   conversation and nothing on screen saying why. `ARRANGEMENTS` is for what the page
-   restores; a look at a list is not one.
-
-   Neither takes a card out of the document. An open thread the narrowing hides keeps
-   its node, `hidden`: a widget an agent sent in a reply is instantiated once, in that
-   card, and the banner's Asks count, the tray's rows and the `a`/`A` walk all find it
-   by id. Panel work reads only the cards that show; while the panel is closed, the
-   page-local `t`/`T` walk includes them all. */
+   These are the panel's own view. The page's marks, inline conversation seats and
+   banner counts keep reading the whole log. No narrowing is stored: returning to a
+   page should not silently hide conversation. Cards remain in the document while
+   filtered so reply widgets keep their identity and the rest of the runtime can still
+   read them by id. */
 import { anchorLabel } from "./messages.js";
-import { awaitsReader } from "./model.js";
+import { awaitsAgent, awaitsReader } from "./model.js";
 import { el } from "../widget-elements.js";
-import { findInput, needsBtn, panelTitle, threadsBox } from "./panel.js";
+import {
+  filterControls,
+  findInput,
+  goneBtn,
+  panelTitle,
+  scopeButtons,
+  stateButtons,
+  subjectButtons,
+  threadsBox,
+} from "./panel.js";
 import { runtime } from "../context.js";
 import { renderThreads } from "./thread-list.js";
 import { paintAcknowledgments, threadList } from "./reconcile.js";
 
-// Whose turn a thread is (`awaitsReader`) belongs to the model rather than to this file,
-// because the banner's Ask count asks the same question from the other side: a request
-// whose own conversation is with the agent is not the reader's to deal with. The panel
-// saying so while the banner went on counting the Ask was one fact told two ways.
 let finding = "";
-let onlyNeedsYou = false;
+let state = "open";
+let scope = null;
+let subject = null;
+let onlyGone = false;
 export const threadSearchActive = () => Boolean(finding);
-export const narrowed = () => Boolean(finding) || onlyNeedsYou;
 
-// What a search reads: everything the panel shows of a thread, plus the part of the page
-// it is on — so "merge rule" finds the threads under that heading as well as the ones
-// that say the words. The label is the panel's own rendering of the anchor, which is what
-// the reader can see and therefore what they would search for.
-const threadWords = (t, group) =>
+export const needsYou = () => state === "reader";
+export const narrowed = () =>
+  Boolean(finding) || state !== "open" || Boolean(scope || subject || onlyGone);
+
+const threadWords = (thread, group) =>
   [
-    anchorLabel(t.anchor, t.root.about),
+    anchorLabel(thread.anchor, thread.root.about),
     group.label,
-    ...t.msgs.map((m) => m.text ?? m.token),
+    ...thread.msgs.map((message) => message.text ?? message.token),
   ]
     .join("\n")
     .toLowerCase();
 
-export const inFilter = (t, group) =>
-  (!onlyNeedsYou || awaitsReader(t)) &&
-  (!finding || threadWords(t, group).includes(finding));
+const matchesSearch = (thread, group) =>
+  !finding || threadWords(thread, group).includes(finding);
+const matchesState = (thread, value = state) =>
+  value === "resolved"
+    ? Boolean(thread.resolved)
+    : !thread.resolved &&
+      (value === "reader"
+        ? awaitsReader(thread)
+        : value === "agent"
+          ? awaitsAgent(thread)
+          : true);
+const matchesScope = (thread, value = scope) =>
+  !value || (value === "page" ? !thread.anchor : Boolean(thread.anchor));
+const matchesSubject = (thread, value = subject) =>
+  !value || (value === "layer") === (thread.root.about === "layer");
+const matchesGone = (_thread, group, value = onlyGone) =>
+  !value || group.key === "gone";
 
-// The page has comments and the reader's narrowing is standing between them and it. It
-// names the narrowing rather than saying nothing was found, because the reader may have
-// arrived here from a key or from a second tab and what is on screen has to say why.
+export const inFilter = (thread, group) =>
+  matchesSearch(thread, group) &&
+  matchesState(thread) &&
+  matchesScope(thread) &&
+  matchesSubject(thread) &&
+  matchesGone(thread, group);
+
 const noMatch = el("div", "lf-empty");
 export function noMatchNote() {
   const said = finding
-    ? onlyNeedsYou
-      ? `Nothing waiting on you says “${finding}”.`
-      : `No thread matches “${finding}”.`
-    : "Nothing is waiting on you.";
+    ? `No shown thread matches “${finding}”.`
+    : scope || subject || onlyGone
+      ? "No threads match these filters."
+      : state === "reader"
+        ? "Nothing is waiting on you."
+        : state === "agent"
+          ? "Nothing is waiting on the agent."
+          : state === "resolved"
+            ? "No resolved threads."
+            : "No open threads.";
   if (noMatch.textContent !== said) noMatch.textContent = said;
   return noMatch;
 }
 
-// The two surfaces that say what the narrowing is doing, written together because they
-// are one fact told twice: how much of the conversation is in front of the reader, and
-// how much of it is still theirs to answer. One writer, so the phase before the log has
-// been read and the phase after it cannot come to spell the same state differently.
-//
-// The banner counts what the page has; the head says how much of that is on screen. They
-// differ only while a narrowing stands, which is exactly when the reader needs telling
-// that the list is not the whole of it — and there is nothing to tell where the page has
-// no open threads to narrow.
-export function paintNarrowing(open, shown) {
-  const showing = shown.filter((t) => !t.resolved).length;
+const entries = (threads, groups) =>
+  threads.map((thread) => ({ thread, group: groups.get(thread) }));
+const count = (rows, predicate) => rows.filter(predicate).length;
+const setButton = (button, selected, amount) => {
+  button.setAttribute("aria-pressed", String(selected));
+  button.classList.toggle("on", selected);
+  const label = button.dataset.filterLabel;
+  button.textContent = amount ? `${label} (${amount})` : label;
+};
+
+// Counts are faceted: each chip answers how many results switching that facet to its
+// value would show while every other standing filter remains. A static all-page count
+// on "Page" would promise threads the selected Open/Resolved state then hid.
+export function paintNarrowing(threads, shown, groups = new Map()) {
+  const rows = entries(threads, groups);
+  const baseline =
+    state === "resolved"
+      ? threads.length
+      : threads.filter((thread) => !thread.resolved).length;
   panelTitle.textContent =
-    narrowed() && open.length ? `Showing ${showing} of ${open.length}` : "Threads";
-  const waiting = open.filter(awaitsReader).length;
-  needsBtn.textContent = waiting ? `Waiting on you (${waiting})` : "Waiting on you";
-  // Pressable while it stands pressed, so the reader can always let it go; dead only when
-  // there is nothing for it to show and it is not the thing hiding the list. A dead
-  // control reads as a status until it says why — a blind drive took "Waiting on you",
-  // greyed, for a verdict on the thread it had just written.
-  needsBtn.disabled = !onlyNeedsYou && !waiting;
-  // Through the key-title seat the core controls paint from (paintCoreControls), which
-  // appends the binding while the row is live; written to `title` directly it was read
-  // once as the base and the control went on saying " (w)".
-  needsBtn.dataset.lfKeyTitle = onlyNeedsYou
-    ? "Show every thread again"
-    : waiting
-      ? "Show only the threads waiting on you"
-      : "Nothing is waiting on you";
-  needsBtn.title = needsBtn.dataset.lfKeyTitle;
+    narrowed() && baseline ? `Showing ${shown.length} of ${baseline}` : "Threads";
+
+  for (const [value, button] of Object.entries(stateButtons)) {
+    const amount = count(
+      rows,
+      ({ thread, group }) =>
+        matchesSearch(thread, group) &&
+        matchesState(thread, value) &&
+        matchesScope(thread) &&
+        matchesSubject(thread) &&
+        matchesGone(thread, group),
+    );
+    setButton(button, state === value, amount);
+    button.disabled = state !== value && !amount;
+  }
+  for (const [value, button] of Object.entries(scopeButtons)) {
+    const amount = count(
+      rows,
+      ({ thread, group }) =>
+        matchesSearch(thread, group) &&
+        matchesState(thread) &&
+        matchesScope(thread, value) &&
+        matchesSubject(thread) &&
+        matchesGone(thread, group),
+    );
+    setButton(button, scope === value, amount);
+    button.disabled = scope !== value && !amount;
+  }
+  for (const [value, button] of Object.entries(subjectButtons)) {
+    const amount = count(
+      rows,
+      ({ thread, group }) =>
+        matchesSearch(thread, group) &&
+        matchesState(thread) &&
+        matchesScope(thread) &&
+        matchesSubject(thread, value) &&
+        matchesGone(thread, group),
+    );
+    setButton(button, subject === value, amount);
+    button.disabled = subject !== value && !amount;
+  }
+  const gone = count(
+    rows,
+    ({ thread, group }) =>
+      matchesSearch(thread, group) &&
+      matchesState(thread) &&
+      matchesScope(thread) &&
+      matchesSubject(thread) &&
+      matchesGone(thread, group, true),
+  );
+  goneBtn.hidden = !gone && !onlyGone;
+  setButton(goneBtn, onlyGone, gone);
+  goneBtn.disabled = !onlyGone && !gone;
+
+  // Through the key-title seat paintCoreControls appends `w` while the panel owns it.
+  stateButtons.reader.dataset.lfKeyTitle = needsYou()
+    ? "Show open threads"
+    : stateButtons.reader.disabled
+      ? "Nothing is waiting on you"
+      : "Show threads waiting on you";
+  stateButtons.reader.title = stateButtons.reader.dataset.lfKeyTitle;
 }
 
-// Re-render the list alone, for the one change that is the panel's own rather than the
-// log's: the reader narrowing it. Nothing about the page moved, so the anchor pass is not
-// asked again — the list is rebuilt from the record it already wrote.
 function renarrow() {
   if (runtime.statePhase !== "ready") return;
   renderThreads(threadList());
   paintAcknowledgments();
-  // A new set of results starts at its own beginning. Keeping the old offset lands the
-  // reader in the middle of a shorter list, or past the end of it, over a change they
-  // made a keystroke at a time.
   threadsBox.scrollTop = 0;
 }
-// Mounted from chrome.js.
+
+const choose = (kind, value) => {
+  if (kind === "state") state = state === value && value !== "open" ? "open" : value;
+  else if (kind === "scope") scope = scope === value ? null : value;
+  else if (kind === "subject") subject = subject === value ? null : value;
+  else if (kind === "gone") onlyGone = !onlyGone;
+  renarrow();
+};
+
 export function wireNarrowing() {
   findInput.addEventListener("input", () => {
     finding = findInput.value.trim().toLowerCase();
     renarrow();
   });
-  needsBtn.onclick = () => {
-    onlyNeedsYou = !onlyNeedsYou;
-    needsBtn.setAttribute("aria-pressed", String(onlyNeedsYou));
-    needsBtn.classList.toggle("on", onlyNeedsYou);
-    renarrow();
-  };
+  for (const button of filterControls.querySelectorAll(".lf-thread-filter"))
+    button.onclick = () => {
+      if (!button.disabled)
+        choose(button.dataset.filterKind, button.dataset.filterValue);
+    };
 }
 
-// Everything the reader narrowed, let go at once — what Escape in the find box does, and
-// what a thread arriving from outside the narrowing needs before it can be revealed.
-export function widen() {
-  if (!narrowed()) return false;
+function clearNarrowing(nextState = "open") {
+  const changed =
+    Boolean(finding) || state !== nextState || Boolean(scope || subject || onlyGone);
   finding = "";
-  onlyNeedsYou = false;
+  state = nextState;
+  scope = null;
+  subject = null;
+  onlyGone = false;
   findInput.value = "";
-  needsBtn.setAttribute("aria-pressed", "false");
-  needsBtn.classList.remove("on");
+  return changed;
+}
+
+export function widen() {
+  if (!clearNarrowing()) return false;
   renarrow();
   return true;
 }
 
-export const needsYou = () => onlyNeedsYou;
+// A direct destination overrides the current view, including the default Open state.
+// It clears unrelated refinements and selects the lifecycle value that can contain the
+// requested thread, rather than making Resolved a special disclosure outside filtering.
+export function revealThread(id) {
+  const thread = threadList().find(
+    (candidate) =>
+      candidate.root.id === id || candidate.msgs.some((message) => message.id === id),
+  );
+  if (!thread) return false;
+  if (!clearNarrowing(thread.resolved ? "resolved" : "open")) return false;
+  renarrow();
+  return true;
+}

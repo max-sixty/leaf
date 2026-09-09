@@ -1,7 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 
+const containerHandlers = vi.hoisted(
+  () => new Map<string, Record<string, (...args: never[]) => Promise<Response>>>(),
+);
+
 vi.mock("@cloudflare/containers", () => ({
-  Container: class {},
+  Container: class {
+    static get outboundByHost() {
+      return containerHandlers.get(this.name);
+    }
+
+    static set outboundByHost(
+      handlers: Record<string, (...args: never[]) => Promise<Response>>,
+    ) {
+      containerHandlers.set(this.name, handlers);
+    }
+  },
   ContainerProxy: class {},
   getContainer: vi.fn(),
 }));
@@ -92,6 +106,7 @@ function environment(overrides: Partial<Env> = {}): Env {
     ASSETS: { fetch } as unknown as Fetcher,
     PAGES: {} as DurableObjectNamespace<LeafWebsiteSession>,
     AGENT_WORKFLOW: { create: vi.fn() } as unknown as Workflow,
+    WEBSITE_EVENTS: { writeDataPoint: vi.fn() },
     SOURCE_AGENT_RATE_LIMITER: allow,
     OPENAI_API_KEY: "test-key",
     ...rest,
@@ -300,7 +315,9 @@ describe("product-site delivery", () => {
 
       const response = await worker.fetch(
         new Request(`https://leaf.page${pathname}`, {
-          headers: { Cookie: `__Host-leaf-page=${sessionId}` },
+          headers: {
+            Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-active=1`,
+          },
         }),
         env,
       );
@@ -334,6 +351,64 @@ describe("product-site delivery", () => {
     expect(getContainer).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "/examples/design-decision/revisions/r3-aabbccdd.html",
+    "/examples/design-decision/versions/v3.html",
+  ])("falls back to the active reader's container for %s", async (pathname) => {
+    const sessionId = "18".repeat(16);
+    const assetFetch = vi.fn(
+      async () => new Response("not found", { status: 404 }),
+    );
+    const containerFetch = vi.fn(
+      async () =>
+        new Response("<!doctype html><title>Private revision</title>", {
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        }),
+    );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const env = environment({
+      ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+    });
+
+    const response = await worker.fetch(
+      new Request(`https://leaf.page${pathname}`, {
+        headers: {
+          Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-active=1`,
+        },
+      }),
+      env,
+    );
+
+    expect(assetFetch).toHaveBeenCalledOnce();
+    expect(getContainer).toHaveBeenCalledWith(env.PAGES, sessionId);
+    expect(containerFetch).toHaveBeenCalledOnce();
+    expect(await response.text()).toContain("Private revision");
+    expect(response.headers.get("Leaf-Session")).toBe("active");
+  });
+
+  it.each([
+    "/examples/design-decision/media/private.png",
+    "/examples/design-decision/revisions/r3-aabbccdd.html",
+    "/examples/design-decision/versions/v3.html",
+  ])("does not allocate a container for an anonymous %s", async (pathname) => {
+    const assetFetch = vi.fn(
+      async () => new Response("not found", { status: 404 }),
+    );
+    const env = environment({
+      ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+    });
+
+    const response = await worker.fetch(
+      new Request(`https://leaf.page${pathname}`),
+      env,
+    );
+
+    expect(response.status).toBe(404);
+    expect(assetFetch).toHaveBeenCalledOnce();
+    expect(getContainer).not.toHaveBeenCalled();
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+  });
+
   it("serves initial page state at the edge without creating a session", async () => {
     const env = environment();
 
@@ -355,12 +430,20 @@ describe("product-site delivery", () => {
     const sessionId = "1a".repeat(16);
     const response = await worker.fetch(
       new Request("https://leaf.page/examples/design-decision/api/state", {
-        headers: { Cookie: `__Host-leaf-page=${sessionId}` },
+        headers: {
+          Cookie: `__Host-leaf-page=${sessionId}`,
+          // A release the edge is not serving, so the answer below tells a stamp
+          // of the deployed release apart from an echo of the request.
+          "Leaf-Release": "b".repeat(64),
+        },
       }),
       environment(),
     );
 
     expect(response.headers.get("Leaf-Session")).toBe("passive");
+    // The edge names the deployed release whatever a container is running, so a
+    // reader asking after a release learns nothing about one from this answer.
+    expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
     expect(getContainer).not.toHaveBeenCalled();
   });
 
@@ -564,6 +647,75 @@ describe("product-site delivery", () => {
   });
 });
 
+describe("website event analytics", () => {
+  it("records only canonical metadata for accepted events", async () => {
+    const sessionId = "31".repeat(16);
+    const eventId = "32".repeat(16);
+    const attempt = "analytics-attempt";
+    const writeDataPoint = vi.fn();
+    const containerFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          state: {
+            events: [
+              {
+                id: eventId,
+                attempt,
+                kind: "action",
+                action: "choose",
+                revision: 2,
+                detail: { private: "not analytics" },
+              },
+            ],
+            activity: { obligations: [] },
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ ok: false, error: "refused", final: true }, { status: 400 }),
+      );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const env = environment({ WEBSITE_EVENTS: { writeDataPoint } });
+    const request = (body: object) =>
+      worker.fetch(
+        new Request("https://leaf.page/examples/design-decision/api/event", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: `__Host-leaf-page=${sessionId}`,
+          },
+          body: JSON.stringify(body),
+        }),
+        env,
+      );
+
+    await request({
+      kind: "action",
+      attempt,
+      widget: "private-widget-id",
+      action: "choose",
+      revision: 2,
+      detail: { private: "reader input" },
+    });
+    await request({ kind: "action", attempt: "refused-attempt" });
+
+    expect(writeDataPoint).toHaveBeenCalledOnce();
+    expect(writeDataPoint).toHaveBeenCalledWith({
+      indexes: [eventId],
+      blobs: [
+        "/examples/design-decision",
+        "example",
+        "action",
+        "choose",
+        RELEASE,
+      ],
+      doubles: [2, 0],
+    });
+  });
+});
+
 describe("website page agent", () => {
   it("keeps the OpenAI secret in the trusted outbound handler", async () => {
     const env = environment();
@@ -581,12 +733,15 @@ describe("website page agent", () => {
 
     const upstream = vi.fn(async () => new Response("ok"));
     vi.stubGlobal("fetch", upstream);
-    const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
+    const handler = containerHandlers.get("LeafWebsiteSession")?.[
+      "api.openai.com"
+    ];
+    expect(handler).toBeDefined();
     const context = {
       containerId: "reader-container",
       className: "LeafWebsiteSession",
     };
-    const response = await handler(
+    const response = await handler!(
       new Request("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: { Authorization: "Bearer leaf-outbound-proxy" },
@@ -614,6 +769,30 @@ describe("website page agent", () => {
     );
 
     expect(response.status).toBe(403);
+  });
+
+  it("fails explicitly when the deployed OpenAI secret is absent", async () => {
+    const env = environment();
+    Object.defineProperty(env, "OPENAI_API_KEY", { value: undefined });
+    const upstream = vi.fn(async () => new Response("ok"));
+    vi.stubGlobal("fetch", upstream);
+    const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
+
+    const response = await handler(
+      new Request("https://api.openai.com/v1/responses", {
+        method: "POST",
+        body: "{}",
+      }),
+      env,
+      { containerId: "reader-container", className: "LeafWebsiteSession" },
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe(
+      "website agent credential is not configured",
+    );
+    expect(upstream).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 
   it("caps model calls from one reader container", async () => {
@@ -663,7 +842,7 @@ describe("website page agent", () => {
         Response.json({
           ok: true,
           state: {
-            events: [{ id: eventId, attempt }],
+            events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
             activity: { obligations: [{ event: eventId }] },
           },
         }),
@@ -690,6 +869,11 @@ describe("website page agent", () => {
       );
 
       expect(response.status).toBe(200);
+      expect(env.WEBSITE_EVENTS.writeDataPoint).toHaveBeenCalledWith({
+        indexes: [eventId],
+        blobs: [route, _kind, "comment", null, RELEASE],
+        doubles: [1, 1],
+      });
       expect(create).toHaveBeenCalledWith({
         id: `reply-${sessionId}-${eventId}`,
         params: {
@@ -710,7 +894,9 @@ describe("website page agent", () => {
         Response.json({
           ok: true,
           state: {
-            events: [{ id: "07".repeat(16), attempt }],
+            events: [
+              { id: "07".repeat(16), attempt, kind: "comment", revision: 1 },
+            ],
             activity: { obligations: [] },
           },
         }),
@@ -744,7 +930,7 @@ describe("website page agent", () => {
         Response.json({
           ok: true,
           state: {
-            events: [{ id: eventId, attempt }],
+            events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
             activity: { obligations: [{ event: eventId }] },
           },
         }),
@@ -786,7 +972,7 @@ describe("website page agent", () => {
         Response.json({
           ok: true,
           state: {
-            events: [{ id: eventId, attempt }],
+            events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
             activity: { obligations: [{ event: eventId }] },
           },
         }),
@@ -826,7 +1012,7 @@ describe("website page agent", () => {
         Response.json({
           ok: true,
           state: {
-            events: [{ id: eventId, attempt }],
+            events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
             activity: { obligations: [{ event: eventId }] },
           },
         }),

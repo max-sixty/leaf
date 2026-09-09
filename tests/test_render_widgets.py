@@ -6,10 +6,13 @@ from pathlib import Path
 
 import pytest
 from interact_support import append_command
+from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
+from leaf import service as service_model
+from leaf import session as session_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
@@ -38,6 +41,7 @@ from render_support import (
     DIFF_LANDING,
     DIFF_PRESS,
     DIFF_ROW_PLACEMENT,
+    FEATURE_GALLERY,
     HOLD_MOTION,
     LONG_LINE_DIFF_PAGE,
     LONG_PAGE,
@@ -1373,21 +1377,21 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
           const box = item.getBoundingClientRect();
           return {content: style.content, width: style.width, height: style.height,
                   color: style.backgroundColor, x: box.x + parseFloat(style.left),
-                  y: box.y + parseFloat(style.top), rowY: box.y};
+                  y: box.y + parseFloat(style.top), rowY: box.y,
+                  labelY: item.querySelector(':scope > a').getBoundingClientRect().y};
         })"""
     )
     assert markers[0]["content"] == '""' and markers[0]["width"] == "3px"
     assert markers[0]["color"] != "rgba(0, 0, 0, 0)"
     assert len({round(marker["x"]) for marker in markers}) == 1
     assert all(
-        marker["y"] == pytest.approx(marker["rowY"] + 7, abs=1) for marker in markers
+        marker["y"] == pytest.approx(marker["labelY"] + 7, abs=1) for marker in markers
     )
     assert markers[-1]["y"] > nav_box["y"] + nav_box["height"] * 0.68
     assert markers[4]["y"] - markers[3]["y"] > markers[3]["y"] - markers[2]["y"]
 
-    # The rows, labels, markers, and viewport lens share one document scale. Where two
-    # exact-position labels would overlap, the map reveals one destination at a time
-    # rather than moving any part of the route into a second geometry.
+    # The flex rows preserve the raw document scale from which the visible map is fitted.
+    # Nearby destinations bend together just enough for every label to remain distinct.
     map_layout = nav.locator(".lf-toc-rows").evaluate(
         """rows => {
           const track = rows.getBoundingClientRect();
@@ -1414,10 +1418,13 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "node => node.parentElement.getBoundingClientRect().height "
         "< node.getBoundingClientRect().height"
     )
-    expect(toc).to_have_attribute("data-lf-dense", "")
+    assert any(
+        item["labelTop"] != pytest.approx(item["rowTop"], abs=1) for item in map_layout
+    ), "the crowded destinations stayed on their overlapping raw positions"
     assert all(
-        item["labelTop"] == pytest.approx(item["rowTop"], abs=1) for item in map_layout
-    )
+        right["labelTop"] >= left["labelBottom"] - 1
+        for left, right in pairwise(map_layout)
+    ), f"the fitted contents labels overlap: {map_layout}"
 
     # The start row and top-level sections share one typographic edge. Depth changes
     # indentation, never the spine or the marker position.
@@ -1436,7 +1443,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "return {family: s.fontFamily, caps: s.fontVariantCaps}; }"
     )
     assert title_type == {**section_type, "caps": "normal"}
-    expect(prepare).to_have_css("-webkit-line-clamp", "1")
+    expect(prepare).to_have_css("-webkit-line-clamp", "2")
 
     lens = nav.locator(".lf-toc-window")
     lens_before = lens.bounding_box()
@@ -1469,12 +1476,11 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "return r.y + parseFloat(s.top) + parseFloat(s.height) / 2; })"
     )
 
-    # The go-to menu can address the dense route without moving its geometry or focus
-    # into the rail. Its address layer carries the candidates, so overlapping labels
-    # remain quiet.
+    # The go-to menu can address the complete route without moving its geometry or focus
+    # into the rail.
     page.keyboard.press("g")
     for link in nav.locator("a").all():
-        expect(link).to_have_css("opacity", "0")
+        expect(link).to_have_css("opacity", "1")
         expect(link).to_have_css("pointer-events", "auto")
     link_hints = page.locator(
         '.lf-goto-targets > .lf-sequence-address[data-lf-address-kind="Link"]'
@@ -1536,11 +1542,10 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
           };
         })"""
     )
-    assert sum(item["visible"] for item in marker_alignment) == 1
+    assert sum(item["visible"] for item in marker_alignment) == len(marker_alignment)
     assert all(
         item["markerCenter"] == pytest.approx(item["labelCenter"], abs=2)
         for item in marker_alignment
-        if item["visible"]
     ), f"a contents marker parted from its revealed label: {marker_alignment}"
     assert all(
         item["markerCenter"] == pytest.approx(resting, abs=1)
@@ -1636,10 +1641,10 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
             if (!records.some(record => record.attributeName === 'style')) return;
             const rowBox = rows.getBoundingClientRect();
             const start =
-              parseFloat(rows.style.getPropertyValue('--lf-toc-window-start')) / 100;
+              parseFloat(rows.style.getPropertyValue('--lf-toc-window-start'));
             window.lfTocLensFrame = {
               actual: lens.getBoundingClientRect().top,
-              expected: rowBox.top + rowBox.height * start,
+              expected: rowBox.top + start,
             };
             observer.disconnect();
           }).observe(rows, {attributes: true, attributeFilter: ['style']});
@@ -1843,12 +1848,13 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     page.close()
 
 
-def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser, serve):
-    """Density leaves enough room to distinguish labels before showing them together.
+def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
+    browser, serve
+):
+    """Crowded destinations remain a complete route when the reader enters it.
 
-    The labels fit inside the map without overflowing, but leave less than half a line
-    between neighbors. The dense voice reveals one destination while retaining every
-    marker and the document scale."""
+    The raw document positions leave less than half a line between neighbors. The
+    fitted scale keeps every heading, marker, and label distinct without overflowing."""
     sections = "\n".join(
         f"<section><h2 id='part-{index}'>Migration part {index}</h2>"
         f"<p>Move cohort {index} only after its reading is stable.</p></section>"
@@ -1860,15 +1866,15 @@ def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser,
 <h1>A migration with many independently verifiable steps</h1>
 <aside class="sidebar"><lf-toc id="dense-contents"></lf-toc></aside>
 {sections}
+<div style="height: 1200px"></div>
 """,
     )
     page, errors = open_page(browser, serve(source))
     resized(page, 1400, 900)
-    toc = page.locator("#dense-contents")
     nav = page.get_by_role("navigation", name="On this page")
-    expect(toc).to_have_attribute("data-lf-dense", "")
-    expect(nav.locator("li a").first).to_have_css("-webkit-line-clamp", "1")
+    toc = page.locator("#dense-contents")
 
+    expect(toc).to_have_attribute("data-lf-compact", "")
     nav_box = nav.bounding_box()
     assert nav_box is not None
     assert nav.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
@@ -1877,14 +1883,18 @@ def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser,
         "const r = item.getBoundingClientRect(); return r.y + parseFloat(s.top); })"
     )
     assert markers[-1] <= nav_box["y"] + nav_box["height"]
+    shifts = nav.locator(".lf-toc-start, li").evaluate_all(
+        "items => items.map(item => "
+        "parseFloat(item.style.getPropertyValue('--lf-toc-row-shift')) || 0)"
+    )
+    assert any(abs(shift) > 1 for shift in shifts), shifts
 
     page.mouse.move(nav_box["x"] + 30, nav_box["y"] + 100)
     page.wait_for_function(
         """nav => {
-          const hovered = nav.querySelector('li:hover a');
-          return hovered
-            && getComputedStyle(hovered).opacity === '1'
-            && hovered.getAnimations().every(m => m.playState === 'finished');
+          const links = [...nav.querySelectorAll('.lf-toc-start a, li a')];
+          return links.every(link => getComputedStyle(link).opacity === '1'
+            && link.getAnimations().every(m => m.playState === 'finished'));
         }""",
         arg=nav.element_handle(),
     )
@@ -1892,13 +1902,98 @@ def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser,
         "links => links.filter(link => getComputedStyle(link).opacity === '1')"
         ".map(link => link.textContent || link.getAttribute('aria-label'))"
     )
-    assert len(shown) == 1, f"the dense map painted overlapping labels: {shown}"
-    hovered = nav.locator("li:hover a")
-    expect(hovered).to_have_count(1)
-    expect(hovered).to_have_css("pointer-events", "auto")
-    href = hovered.get_attribute("href")
-    hovered.click()
+    assert len(shown) == nav.locator("a").count(), shown
+    label_boxes = nav.locator(".lf-toc-start a, li a").evaluate_all(
+        "links => links.map(link => { const box = link.getBoundingClientRect(); "
+        "return {top: box.top, bottom: box.bottom}; })"
+    )
+    assert all(
+        right["top"] >= left["bottom"] - 1 for left, right in pairwise(label_boxes)
+    ), label_boxes
+    first = nav.locator("li a").first
+    expect(first).to_have_css("-webkit-line-clamp", "1")
+    expect(first).to_have_css("pointer-events", "auto")
+    href = first.get_attribute("href")
+    first.click()
     expect(page).to_have_url(re.compile(rf"{re.escape(href)}$"))
+    assert errors == []
+    page.close()
+
+
+def test_co_located_headings_share_the_current_title_and_lens_position(browser, serve):
+    """The last title at one document position owns both readings of that position."""
+    source = leaf_page(
+        "co-located contents destinations",
+        """
+<h1>A migration with a shared handoff point</h1>
+<aside class="sidebar"><lf-toc id="shared-contents"></lf-toc></aside>
+<div style="height: 500px"></div>
+<section style="position: relative; height: 120px">
+  <h2 id="handoff" style="position: absolute; top: 0; margin: 0">Handoff</h2>
+  <h3 id="checks" style="position: absolute; top: 0; margin: 0">Checks at handoff</h3>
+</section>
+<div style="height: 1200px"></div>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1400, 900)
+    nav = page.get_by_role("navigation", name="On this page")
+    handoff = nav.get_by_role("link", name="Handoff", exact=True)
+    checks = nav.get_by_role("link", name="Checks at handoff", exact=True)
+
+    assert handoff.bounding_box()["y"] < checks.bounding_box()["y"]
+    page.locator("#checks").evaluate(
+        "node => node.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    expect(checks).to_have_attribute("aria-current", "location")
+    alignment = checks.evaluate(
+        "node => ({label: node.getBoundingClientRect().top, "
+        "lens: node.closest('nav').querySelector('.lf-toc-window')"
+        ".getBoundingClientRect().top})"
+    )
+    assert alignment["lens"] == pytest.approx(alignment["label"], abs=2), alignment
+    assert errors == []
+    page.close()
+
+
+def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
+    """A route that cannot physically fit keeps every heading in one honest form."""
+    sections = "\n".join(
+        f"<section><h2 id='part-{index}'>Migration part {index}</h2></section>"
+        for index in range(1, 81)
+    )
+    source = leaf_page(
+        "long contents route",
+        f"""
+<h1>A migration with more steps than the margin can show at once</h1>
+<aside class="sidebar"><lf-toc id="long-contents"></lf-toc></aside>
+{sections}
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1400, 1800)
+    toc = page.locator("#long-contents")
+    nav = page.get_by_role("navigation", name="On this page")
+    links = nav.locator("a")
+    expect(links).to_have_count(81)
+    expect(toc).not_to_have_attribute("data-lf-outline", "")
+    links.last.focus()
+    expect(links.last).to_be_focused()
+
+    resized(page, 1400, 900)
+    expect(toc).to_have_attribute("data-lf-outline", "")
+    expect(nav.locator(".lf-toc-heading")).to_be_visible()
+    assert nav.evaluate("node => node.scrollHeight > node.clientHeight")
+    for link in (links.first, links.last):
+        expect(link).to_have_css("opacity", "1")
+        expect(link).to_have_css("pointer-events", "auto")
+    expect(links.last).to_be_focused()
+    expect(links.last).to_be_in_viewport()
+
+    resized(page, 1400, 700)
+    expect(toc).to_have_attribute("data-lf-outline", "")
+    expect(links.last).to_be_focused()
+    expect(links.last).to_be_in_viewport()
     assert errors == []
     page.close()
 
@@ -2569,7 +2664,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     )
     actions = playground.locator(":scope > .lf-playground-actions")
 
-    resized(page, 1100, 700)
+    resized(page, 1100, 520)
     expect(workspace).to_have_attribute("data-lf-posture", "bounded")
     expect(actions).to_be_visible()
     bounded = page.evaluate(
@@ -2592,10 +2687,6 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
             askDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
             furnitureEdgesTrimmed: [
               getComputedStyle(document.querySelector(
-                '#notification-workspace > header > :first-child')).marginTop,
-              getComputedStyle(document.querySelector(
-                '#notification-workspace > header > :last-child')).marginBottom,
-              getComputedStyle(document.querySelector(
                 '#notification-ask > :first-child')).marginTop,
             ].every(margin => margin === '0px'),
             authoredWords: leaf.wrote(playground).includes('Version 2.8.0'),
@@ -2617,6 +2708,10 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
         "authoredWords": True,
         "spokenWords": True,
     }
+    assert bounded["controlsSize"][0] >= 250, (
+        "the page title and Ask should leave at least three control rows visible "
+        f"in the short workspace, got {bounded['controlsSize']}"
+    )
     # A short allocation scrolls the preview and instruction as successive blocks;
     # shrinking the preview's grid track would paint it underneath the instruction.
     content_boxes = preview.evaluate(
@@ -2668,7 +2763,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     assert preview_box["y"] + preview_box["height"] <= instruction_box["y"]
     page.locator(".lf-threads-toggle").click()
 
-    resized(page, 1100, 420)
+    resized(page, 1100, 300)
     expect(workspace).to_have_attribute("data-lf-posture", "flow")
     resized(page, 500, 900)
     expect(workspace).to_have_attribute("data-lf-posture", "flow")
@@ -2698,6 +2793,238 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
         "stacked": True,
         "askDisplay": "block",
     }
+    assert errors == []
+    page.close()
+
+
+def test_notification_configuration_becomes_a_commentable_local_artifact(
+    browser, serve
+):
+    """The example's instruction is a complete task through Leaf's existing loop.
+
+    A playground action enters the ordinary event log, pickup and a work claim use the
+    same delivery projection as a host agent, and the agent writes a real local file.
+    The page exposes that file through data, then a reader comment changes the file and
+    remains anchored on the revised result.
+    """
+    source_path = (
+        Path(__file__).parents[1] / "examples" / "notification-playground.html"
+    )
+    source = source_path.read_text(encoding="utf-8")
+    page, errors = open_page(browser, live_url(serve(source_path)))
+    playground = page.locator("#notification-playground")
+
+    playground.get_by_role("button", name="Needs attention").click()
+    page.locator('lf-playground-control[name="title"] input').fill(
+        "Checkout needs attention"
+    )
+    expect(playground).to_have_attribute("data-playground-tone", "urgent")
+    expect(playground).to_have_attribute("data-playground-compact", "true")
+    expect(page.locator("#notification-card")).to_have_accessible_name(
+        "Checkout needs attention"
+    )
+    with sending(page, "the notification configuration"):
+        playground.get_by_role("button", name="Send configuration").click()
+    # A choose is replaceable until the host stamps its result. Keep that legitimate
+    # update route, but label it as sending configuration rather than creating twice.
+    expect(playground.get_by_role("button", name="Send configuration")).to_be_enabled()
+    action = next(
+        event
+        for event in reversed(sent_events(serve.page_dir))
+        if event.get("widget") == "notification-playground"
+    )
+    assert action["detail"]["values"] == {
+        "accent": "#b6533c",
+        "compact": True,
+        "radius": 10,
+        "show-owner": True,
+        "title": "Checkout needs attention",
+        "tone": "urgent",
+    }
+    assert action["detail"]["instruction"] == (
+        "Create deployment-notification.html, capture it as notification-artifact, "
+        "then revise this page with the generated source below Original configuration."
+    )
+
+    logged_action = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["id"] == action["id"]
+    )
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        session_model.record_pickup(
+            transaction,
+            [logged_action],
+            session="notification-agent",
+            turn="create-artifact",
+        )
+    session_model.cmd_ack(serve.page_dir, logged_action["seq"])
+    session_model.cmd_status(
+        serve.page_dir,
+        "working",
+        "creating deployment-notification.html",
+        on="notification-playground",
+    )
+    told(page)
+    expect(
+        page.locator('[data-lf-margin-for="notification-playground"] .lf-margin-marker')
+    ).to_have_attribute("aria-label", re.compile("creating deployment-notification"))
+
+    artifact = serve.page_dir / "deployment-notification.html"
+    first_artifact = """<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Checkout needs attention</title>
+<style>
+body { font-family: system-ui, sans-serif; }
+.notification { border-left: 5px solid #b6533c; border-radius: 10px; padding: 8px 12px; }
+</style>
+<article class="notification">
+  <h1>Checkout needs attention</h1>
+  <p>Version 2.8.0 changed the checkout service. Review the deployment run and current service health.</p>
+  <p><strong>Owner:</strong> Payments platform</p>
+</article>
+</html>
+"""
+    artifact.write_text(first_artifact, encoding="utf-8")
+    artifact_binding = """              <section id="notification-artifact" hidden>
+                <lf-source
+                  id="notification-artifact-source"
+                  source="notification-artifact"
+                  language="html"
+                ></lf-source>
+              </section>
+"""
+    result_source = (
+        source.replace(artifact_binding, "")
+        .replace(
+            '      <lf-workspace id="notification-workspace">',
+            """      <h1>Review the deployment notification</h1>
+      <details id="notification-configuration">
+        <summary>Original configuration</summary>
+        <lf-workspace id="notification-workspace">""",
+        )
+        .replace(
+            "      </lf-workspace>",
+            """        </lf-workspace>
+      </details>
+      <section id="notification-artifact">
+        <lf-source
+          id="notification-artifact-source"
+          source="notification-artifact"
+          language="html"
+        ></lf-source>
+      </section>""",
+            1,
+        )
+    )
+    data_model.cmd_data_capture(
+        serve.page_dir,
+        "notification-artifact",
+        artifact,
+        label="deployment-notification.html",
+    )
+    first_result = stamp_page(
+        serve.page_dir,
+        result_source,
+        "Created deployment-notification.html",
+        completes=("notification-playground",),
+    )
+    wait_for_revision(page, first_result["revision"])
+
+    source_widget = page.locator("#notification-artifact-source")
+    expect(source_widget).to_be_visible()
+    assert source_widget.evaluate(
+        "source => source.closest('lf-playground-preview') === null"
+    )
+    expect(source_widget.locator("code")).to_contain_text(
+        "<title>Checkout needs attention</title>"
+    )
+    expect(
+        page.locator('[data-lf-margin-for="notification-playground"]')
+    ).to_have_count(0)
+
+    configuration = page.locator("#notification-configuration")
+    expect(configuration).to_have_attribute("open", "")
+    configuration.locator(":scope > summary").click()
+    expect(configuration).not_to_have_attribute("open", "")
+    configuration.locator(":scope > summary").click()
+    receipt_copy = page.locator("#notification-card > p").first
+    expect(receipt_copy).to_be_visible()
+    receipt_copy.select_text()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
+    page.locator(".lf-composer textarea").fill(
+        "Add a link to the deployment run without changing this receipt copy."
+    )
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    comment = next(
+        event
+        for event in reversed(sent_events(serve.page_dir))
+        if event["kind"] == "comment"
+    )
+    assert comment["anchor"]["section"] == "notification-card"
+    assert comment["anchor"]["quote"] == (
+        "Version 2.8.0 changed the checkout service. Review the deployment run and "
+        "current service health."
+    )
+    logged_comment = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["id"] == comment["id"]
+    )
+
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        session_model.record_pickup(
+            transaction,
+            [logged_comment],
+            session="notification-agent",
+            turn="refine-artifact",
+        )
+    session_model.cmd_ack(serve.page_dir, logged_comment["seq"])
+    second_artifact = first_artifact.replace(
+        "</article>",
+        '  <footer><a href="/deployments/2.8.0">Open deployment run</a></footer>\n'
+        "</article>",
+    )
+    artifact.write_text(second_artifact, encoding="utf-8")
+    data_model.cmd_data_capture(
+        serve.page_dir,
+        "notification-artifact",
+        artifact,
+        label="deployment-notification.html",
+    )
+    refined_source = result_source.replace(
+        "<h1>Review the deployment notification</h1>",
+        "<h1>Deployment notification revised</h1>",
+    )
+    conversation_model.cmd_reply(
+        serve.page_dir,
+        comment["id"],
+        "Added the deployment-run link to the artifact.",
+        "",
+    )
+    refined = stamp_page(
+        serve.page_dir,
+        refined_source,
+        "Added the deployment-run link",
+    )
+    wait_for_revision(page, refined["revision"])
+
+    expect(page.locator("#notification-artifact-source code")).to_contain_text(
+        '<a href="/deployments/2.8.0">Open deployment run</a>'
+    )
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    marked = page.evaluate(
+        "() => [...CSS.highlights.get('lf-mark')].map(range => range.toString()).join('')"
+    )
+    assert " ".join(marked.split()) == (
+        "Version 2.8.0 changed the checkout service. Review the deployment run and "
+        "current service health."
+    )
+    assert artifact.read_text(encoding="utf-8") == second_artifact
     assert errors == []
     page.close()
 
@@ -2909,6 +3236,9 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
     playground = copy.locator("#notification-playground")
     expect(playground.locator(".lf-playground-actions")).to_be_hidden()
     expect(playground.locator("#notification-instruction")).to_contain_text(
+        "deployment-notification.html"
+    )
+    expect(playground.locator("#notification-card")).to_have_accessible_name(
         "Escalation sent"
     )
     expect(playground.locator("#notification-card")).to_be_visible()
@@ -3892,6 +4222,32 @@ def test_a_block_change_emphasizes_the_words_that_moved(browser, serve):
         "lf-sug-del": 0,
         "lf-sug-ins": 0,
     }, "deciding must clear the emphasis with the slot it retires"
+    assert errors == []
+    page.close()
+
+
+def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
+    browser, serve
+):
+    """A changed span may cross a nested widget without painting its generated UI."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page.locator('[data-lf-margin-for="bg-route-ask"] [role="button"]').click()
+    addresses = page.locator("#bg-route > lf-option > .lf-address")
+    expect(addresses).to_have_text(["1", "2"])
+
+    assert page.locator("#bg-nested-change > lf-new > p").evaluate(
+        """node => [...(CSS.highlights.get('lf-sug-ins') ?? [])]
+          .some(range => range.intersectsNode(node.firstChild))"""
+    ), "the proposal has to carry word-level insertion emphasis"
+    assert addresses.evaluate_all(
+        """nodes => {
+          const ranges = [...(CSS.highlights.get('lf-sug-ins') ?? [])];
+          return nodes.map(node =>
+            ranges.some(range => range.intersectsNode(node.firstChild)));
+        }"""
+    ) == [False, False], (
+        "the authored change's emphasis crossed into the Ask's generated key hints"
+    )
     assert errors == []
     page.close()
 

@@ -71,8 +71,9 @@ def panel_comment(d, text, anchor=None, author="user"):
 LIST_STATE = """() => {
   const list = document.querySelector(".lf-threads");
   return {
-    standing: [...list.children].map((n) => n.dataset.id).filter(Boolean),
-    walkable: [...list.querySelectorAll(":scope > .lf-thread")].map(
+    standing: [...list.children].filter((n) => !n.hidden)
+      .map((n) => n.dataset.id).filter(Boolean),
+    walkable: [...list.querySelectorAll(":scope > .lf-thread:not([hidden])")].map(
       (n) => n.dataset.id,
     ),
   };

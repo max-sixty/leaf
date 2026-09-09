@@ -1634,9 +1634,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     # existing controls keep their compact form; Page map states the provenance,
     # and the target keeps the local quiet word.
     expect(page.locator("#draft-ops[data-lf-restated]")).to_have_count(1)
-    page.evaluate(
-        "async () => (await import('/runtime/living-margin.js')).enterPageMap()"
-    )
+    page.evaluate("async () => (await import('/runtime/page-map.js')).enterPageMap()")
     rewritten = page.get_by_role(
         "button", name=re.compile(r"^Open rewritten: Rewritten")
     )
@@ -1844,7 +1842,7 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     page, errors = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
     page.get_by_role("button", name=re.compile("^Threads")).click()
-    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     events = [
         json.loads(line) for line in (d / "events.jsonl").read_text().splitlines()
     ]
@@ -1885,7 +1883,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     page, errors = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
     page.get_by_role("button", name=re.compile("^Threads")).click()
-    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
 
     # What the other tab's press leaves in the log, made against the same version:
     # its own accept and reject controls are still standing, because it has not
@@ -1903,7 +1901,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     )
     told(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "reject")
-    expect(page.locator(".lf-details")).to_have_count(0)
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved")
     reopened = page.locator('.lf-threads > .lf-thread[data-id="c1"]')
     expect(reopened.locator(".lf-resolve")).to_have_count(1)
 
@@ -1914,7 +1912,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     undo(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
     expect(reopened).to_have_count(0)
-    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     # What the log holds is the three gestures and not one word about the thread:
     # it was reopened and closed again by that log being read.
     assert [
@@ -2974,7 +2972,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # reason its reply box is gone.
     events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
-    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     expect(claim_receipt).to_have_count(0)
     expect(receipts).to_have_count(1)
 

@@ -22,37 +22,15 @@ produced the following backlog. IDs match the research discussion, not GitHub is
 The [research briefs](notes/workspace-followups.md) retain evidence, completion
 criteria, dependencies, and Sol/Astra assignments. Items are ordered within each group.
 
-Start with **#2 and #4**, alongside **#6 and #8**. Capture the **#19** authoring
-baseline before changing guidance, then complete real workflows in **#9 and #17**.
-Keep the current primitives; let the experiments establish demand for more.
-
-### Shared contracts
-
-- **#2 — [Make arrangement admission one
-  transaction](notes/workspace-followups.md#item-2).** Admit a single live arrangement
-  before changing its DOM, so failed registration cannot leave a half-arranged widget.
-
-- **#4 — [Size custom workspace roots by their declared
-  role](notes/workspace-followups.md#item-4).** Remove the remaining default-tag
-  dependency from root workspace sizing.
+Continue with the reader-continuity checks and the remaining composition experiments.
+Keep the current primitives; let those uses establish demand for more. Defer the
+authoring evaluation until Leaf's shape is stable enough for the comparison to last.
 
 ### Examples
-
-- **#6 — [Compact the notification example](notes/workspace-followups.md#item-6).**
-  Consolidate the title, explanation and question so the actual controls and preview
-  have useful height.
 
 - **#7 — [Keep playground presets within reach](notes/workspace-followups.md#item-7).**
   Try placing the compact preset controls in the controls pane’s header, outside its
   scrolling body.
-
-- **#8 — [Give the review queue one navigator](notes/workspace-followups.md#item-8).**
-  Remove the repeated worklist and tab-strip selection surfaces while preserving
-  independent queue and detail reading.
-
-- **#9 — [Make the queue’s blockers answerable](notes/workspace-followups.md#item-9).**
-  Turn the stated cache and billing blockers into real decisions and show the revision
-  that incorporates the answers.
 
 ### Reader continuity
 
@@ -85,11 +63,6 @@ Keep the current primitives; let the experiments establish demand for more.
 - **#16 — [Prove a current-versus-proposed
   comparison](notes/workspace-followups.md#item-16).** Show two real alternatives
   simultaneously and let the reader discuss each before committing one choice.
-
-- **#17 — [Complete a real configure-to-agent-to-revision
-  loop](notes/workspace-followups.md#item-17).** Make a committed playground
-  configuration produce an inspectable local artifact, then refine it through an
-  anchored comment.
 
 - **#18 — [Try an exception-driven monitoring
   workspace](notes/workspace-followups.md#item-18).** Use the existing live-progress

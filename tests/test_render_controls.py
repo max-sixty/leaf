@@ -19,6 +19,7 @@ from playwright.sync_api import expect
 from render_support import (
     ACCENT_SWATCH,
     ADDRESSED_PAGE,
+    BANNER_ORDER,
     BANNER_WATCH,
     BOARD_PAGE,
     BOTH_STAMPS,
@@ -56,7 +57,6 @@ from render_support import (
     _until,
     actions,
     banner_address,
-    compare_with,
     displaced,
     held_stale,
     holding,
@@ -1359,61 +1359,6 @@ def test_a_yielded_version_returns_when_it_becomes_a_choice(browser, serve):
     page.close()
 
 
-STATE_PAINT = """el => {
-  const style = getComputedStyle(el);
-  return {background: style.backgroundColor, shadow: style.boxShadow};
-}"""
-
-
-def test_a_folded_address_keeps_the_paint_that_says_it_is_doing_something(
-    browser, serve
-):
-    """A comparison standing behind the overflow menu is the same comparison, and has
-    to go on looking like one.
-
-    Both places clear the border and the fill `.lf-btn.on` states, each for its own
-    reason: the row so that an address cannot resize it and displace the addresses
-    before it, the menu so that an address reads as a row rather than as a chip. Left
-    at that, the class is ink alone in either — two characters at 2.16:1 against the
-    control's own resting ink. The row was answered first and the menu was not, which
-    put the banner's two active states on opposite sides of one fold: an open
-    workspace's own selector outranks the menu's resting rule and keeps its face
-    across it, and a standing comparison did not. So this reads the one control in
-    both places rather than a number in either, because what the fold promises is that
-    nothing about an address changes except where it stands.
-    """
-    html = SUGGESTION_PAGE.replace(
-        "<title>suggestions</title>",
-        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
-    )
-    url = serve(html)
-    _publish(serve.page_dir, 2, html, "reworded the suggestion")
-    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
-    chooser = page.locator(".lf-version")
-    expect(chooser).to_be_enabled()
-
-    resized(page, 1440, 900)
-    compare_with(page, 1)
-    expect(chooser).to_have_class(re.compile(r"\bon\b"))
-    expect(page.locator(".lf-banner-actions > .lf-version")).to_have_count(1)
-    on_the_row = chooser.evaluate(STATE_PAINT)
-    assert (
-        on_the_row["shadow"] != "none"
-        and "rgba(0, 0, 0, 0)" not in on_the_row["background"]
-    ), f"the comparison stood on the row with nothing but ink: {on_the_row}"
-
-    resized(page, 320, 844)
-    expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
-    banner_address(page, ".lf-version")
-    folded = chooser.evaluate(STATE_PAINT)
-
-    assert folded == on_the_row, (
-        f"the comparison changed face when it folded: row {on_the_row}, menu {folded}"
-    )
-    assert errors == []
-    page.close()
-
-
 def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
     """An open versions menu keeps the two edges its anchor names, and no others.
 
@@ -1452,88 +1397,6 @@ def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
     assert boxes["menu"]["top"] >= boxes["button"]["bottom"], (
         f"the versions menu covered the chooser it hangs from: {boxes}"
     )
-    assert errors == []
-    page.close()
-
-
-# The banner's addresses in the row's one order. The fold takes a run off the front of the
-# row into the menu, so the menu's contents followed by the row's read straight through as
-# that one order — which is the whole of what "one order" can be checked against, since a
-# folded address is still on the row and still where the order says it is. The door itself
-# is not an address, and a control the page has taken away is not one either.
-BANNER_ORDER = """() => {
-  const shelf = document.querySelector('.lf-banner-actions');
-  const menu = document.querySelector('.lf-banner-menu');
-  const more = document.querySelector('.lf-banner-more');
-  return [...menu.children, ...shelf.children]
-    .filter(control => control !== more &&
-            getComputedStyle(control).display !== 'none' &&
-            getComputedStyle(control).visibility !== 'hidden')
-    .map(control => (control.getAttribute('aria-label') || control.textContent).trim());
-}"""
-
-
-def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
-    """The row says the same thing at 1440 that it says on a phone.
-
-    It used to turn round at the covering breakpoint: Threads went from the far right of
-    the banner to the far left, and approval — the page's one committing press — swapped
-    ends with it, so a reader narrowing the window found every address somewhere else.
-    What a narrow window may change is how many addresses stand on the row at once; the
-    rest fold into the row's own menu, in this same order.
-
-    Two things legitimately differ with width and neither is an order: the page map is a
-    narrow window's stand-in for the margin's own markers, and a reserved news slot is not
-    an address until it has news. So each width is held to being this one order with the
-    addresses that width does not have taken out of it, rather than to a fixed list — a
-    reversal fails that just as loudly, and a control appearing at the wrong seat fails it
-    where a fixed list would only have said the list was different.
-    """
-    html = SUGGESTION_PAGE.replace(
-        "<title>suggestions</title>",
-        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
-    )
-    url = serve(html)
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
-    page, errors = open_page(browser, url)
-    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
-    expect(page.locator(".lf-signoff")).to_be_visible()
-    expect(page.locator(".lf-answer-all")).to_be_visible()
-
-    orders = {}
-    for width in (1440, 860, 800, 390):
-        resized(page, width, 900)
-        orders[width] = page.evaluate(BANNER_ORDER)
-
-    # One order, put as the thing it is: no two addresses ever swap. Held pair by pair
-    # rather than against a list taken at one width, because the widths do not all show
-    # the same addresses and a fixed list would then be failing about the page map rather
-    # than about the order. A reversal breaks this on its first pair.
-    first = {}
-    for width, order in orders.items():
-        for index, before in enumerate(order):
-            for after in order[index + 1 :]:
-                assert (after, before) not in first, (
-                    f"{after!r} comes before {before!r} at {first[(after, before)]}px "
-                    f"and after it at {width}px, so the banner reads in two orders: "
-                    f"{orders}"
-                )
-                first.setdefault((before, after), width)
-    assert len(first) >= 15, (
-        f"too few addresses stood at these widths to have an order at all: {orders}"
-    )
-
-    # And the order it settled on: every address the page offers, with the reading loop
-    # finishing the row beside the panel it opens.
-    widest = max(orders.values(), key=len)
-    for wanted in ("All leaves", "Asks", "Accept all", "v1", "Approve version"):
-        assert any(wanted in name for name in widest), (
-            f"{wanted} was not on the row at all, so this order proves little: {widest}"
-        )
-    for width, order in orders.items():
-        assert order[-1].startswith("Threads"), (
-            f"the conversation no longer finishes the row at {width}px: {order}"
-        )
     assert errors == []
     page.close()
 
@@ -1955,12 +1818,19 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         ) == comments_edge.get_attribute("aria-valuemax")
         threads = page.locator(".lf-threads")
         threads.evaluate("box => { box.scrollTop = 0; }")
+        filters = page.locator(".lf-thread-filters").bounding_box()
+        assert filters["height"] <= 120, (
+            f"the filters took more than three compact rows at the 320px floor: {filters}"
+        )
         width_before = page.evaluate(
             "() => getComputedStyle(document.documentElement)"
             ".getPropertyValue('--lf-panel-w')"
         )
-        panel_box = page.locator(".lf-panel").bounding_box()
-        swipe(panel_box["x"] + panel_box["width"] / 2, 280)
+        threads_box = threads.bounding_box()
+        swipe(
+            threads_box["x"] + threads_box["width"] / 2,
+            threads_box["y"] + min(80, threads_box["height"] / 2),
+        )
         page.wait_for_function(
             "() => document.querySelector('.lf-threads').scrollTop > 0"
         )
@@ -5232,13 +5102,6 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         for row in page.locator("lf-options[settled] > .lf-settled").all():
             if row.is_visible():
                 row.click()
-        # And the resolved threads, for the same reason and with the same shape: a
-        # closed thread's Reopen is behind this disclosure, so a walk that leaves it
-        # shut reaches every control in the panel except the one on the far side of an
-        # answered conversation.
-        resolved = page.locator(".lf-details > summary")
-        if resolved.count() and resolved.is_visible():
-            resolved.click()
         page_at_rest(page)
 
         for scope, keys, corpus in RING_WALKS:
@@ -5281,6 +5144,17 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             elif not page.locator(".lf-panel.open").count():
                 page.locator(".lf-threads-toggle").click()
                 panel_settled(page)
+            if scope == "the page":
+                # Escape restores the panel's default lifecycle view. Select Resolved
+                # after that reset so the page walk includes each closed thread's
+                # Reopen control; narrower scopes keep open threads available for their
+                # own conditional controls, such as a reply's reaction palette.
+                resolved = page.locator('[data-filter-value="resolved"]')
+                if (
+                    resolved.is_enabled()
+                    and resolved.get_attribute("aria-pressed") != "true"
+                ):
+                    resolved.click()
                 page.evaluate(RING_WALK_START)
             if posture:
                 resized(page, posture, RING_WALK_VIEWPORT[1])
@@ -5664,8 +5538,8 @@ def _each_aim_surface(page, page_dir):
     # A resolved thread, which is the only state that has a Reopen to aim at.
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
     round_trip(page)
-    expect(page.locator(".lf-details summary")).to_have_count(1)
-    page.locator(".lf-details summary").click()
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    page.locator('[data-filter-value="resolved"]').click()
     expect(page.locator(".lf-reopen")).to_have_count(1)
     yield
 
@@ -5701,7 +5575,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
     about rather than a lesser version of it.
 
     The surfaces have to be opened for any of it to mean anything: seven of the eight
-    controls at issue exist only inside a panel, a menu, a resolved disclosure or the
+    controls at issue exist only inside a panel, a menu, a resolved thread or the
     reference, and a sweep of the page at rest would report a clean layer while every one
     of them was still six pixels tall. AIM_SURFACES is that assertion.
     """

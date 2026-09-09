@@ -1464,10 +1464,10 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) { outline
 /* lf-toc: the page's route. In ordinary flow it is a compact, open outline. Its roomy
  * margin form is a reading map: the widget gives each row the length of the section it
  * leads, flex lays those shares down the full available height, and the darker lens on
- * the spine shows the band currently in view. Markers and labels share those positions.
- * Where exact-position labels would collide, the dense posture reveals one destination
- * at a time rather than moving it away from its marker. Pointer entry, keyboard entry,
- * or the go-to sequence fades the labels in without changing any row's box. The transparent first layer
+ * the spine shows the band currently in view. Crowded rows bend that scale just enough
+ * to keep every label distinct; markers, labels, and lens share the fitted positions.
+ * Pointer entry, keyboard entry, or the go-to sequence fades the labels in without
+ * changing any row's box. The transparent first layer
  * receives the revealing gesture, then the links become pointer targets when that fade
  * is complete; an unseen label cannot navigate on the gesture that discovers it.
  *
@@ -1579,7 +1579,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       lf-toc ol { display: contents; }
       lf-toc .lf-toc-start::before, lf-toc li::before {
         content: ""; position: absolute; z-index: 2;
-        top: 7px;
+        top: calc(7px + var(--lf-toc-row-shift, 0px));
         left: -1px; width: 3px; height: 3px; border-radius: 50%;
         background: var(--muted);
       }
@@ -1596,6 +1596,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
         overflow: hidden; max-height: 2.6em;
         padding: 0 2px 2px calc(14px + var(--lf-toc-indent));
         line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+        transform: translateY(var(--lf-toc-row-shift, 0px));
         opacity: var(--lf-toc-label-opacity); pointer-events: none;
         transition: color .12s ease-out, opacity .24s ease-out;
       }
@@ -1611,34 +1612,39 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
         animation: lf-toc-enable-links 0s .24s forwards;
       }
-      /* When all labels cannot fit beside the track, the destination under the pointer or
-       * keyboard focus reveals on its own. Turning the rail into a second scrollable outline
-       * would put the markers and viewport lens in a different coordinate system. */
-      lf-toc[data-lf-dense] :is(.lf-toc-start, li) {
-        min-height: 0; pointer-events: auto;
-      }
-      lf-toc[data-lf-dense] :is(.lf-toc-start, li) a {
-        top: 0;
+      /* A crowded but physically fitting map uses one line per destination before the
+       * shared scale is fitted. It still reveals the complete route. */
+      lf-toc[data-lf-compact] :is(.lf-toc-start, li) a {
         max-height: 1.25em; font-size: var(--t-6); line-height: 1.25;
         -webkit-line-clamp: 1;
       }
-      lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within) a {
-        opacity: 0; animation: none; pointer-events: none;
+      /* When the labels themselves exceed the map's height, this is an ordinary open,
+       * scrollable outline instead. It does not pretend that a rail and a displaced list
+       * share coordinates. */
+      lf-toc[data-lf-outline] .lf-toc-nav {
+        --lf-toc-label-opacity: 1;
+        overflow-y: auto; pointer-events: auto;
+      }
+      lf-toc[data-lf-outline] .lf-toc-nav::before,
+      lf-toc[data-lf-outline] .lf-toc-rows::before,
+      lf-toc[data-lf-outline] .lf-toc-window,
+      lf-toc[data-lf-outline] :is(.lf-toc-start, li)::before { display: none; }
+      lf-toc[data-lf-outline] .lf-toc-heading { display: block; }
+      lf-toc[data-lf-outline] .lf-toc-rows { display: block; height: auto; }
+      lf-toc[data-lf-outline] ol { display: block; }
+      lf-toc[data-lf-outline] :is(.lf-toc-start, li) {
+        display: block; margin: 0 0 0 var(--lf-toc-indent);
+      }
+      lf-toc[data-lf-outline]
+        :is(.lf-toc-start, li)[data-lf-toc-hidden] { display: none; }
+      lf-toc[data-lf-outline] :is(.lf-toc-start, li) a {
+        position: relative; display: block; max-height: none;
+        padding: 3px 0; transform: none; -webkit-line-clamp: initial;
+        opacity: 1; pointer-events: auto;
       }
       /* A pointer waits for the labels it revealed to finish appearing. The go-to sequence
-       * already made an explicit keyboard gesture, so every route participates immediately.
-       * A dense route fills its exact row while the separate address hint says its words. */
+       * already made an explicit keyboard gesture, so every route participates immediately. */
       body[data-lf-goto] lf-toc .lf-toc-nav a { pointer-events: auto; }
-      body[data-lf-goto] lf-toc[data-lf-dense] .lf-toc-nav a {
-        opacity: 0; animation: none; pointer-events: auto;
-        height: 100%; max-height: none;
-      }
-      lf-toc[data-lf-dense] .lf-toc-nav:hover
-        :is(.lf-toc-start, li):hover a,
-      lf-toc[data-lf-dense] .lf-toc-nav:focus-within a:focus {
-        opacity: 1;
-        animation: lf-toc-enable-links 0s .24s forwards;
-      }
     }
   }
 }
@@ -1646,20 +1652,9 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
   lf-toc a { transition: none; }
   @container lf-page style(--lf-sidebar-posture: margin) {
     @container style(--lf-sidebar-slot: margin) {
-      lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within) a {
-        opacity: 0; pointer-events: none;
-      }
       lf-toc .lf-toc-nav:is(:hover, :focus-within) a,
       body[data-lf-goto] lf-toc .lf-toc-nav a {
         animation: none; pointer-events: auto;
-      }
-      body[data-lf-goto] lf-toc[data-lf-dense] .lf-toc-nav a {
-        opacity: 0; pointer-events: auto; height: 100%; max-height: none;
-      }
-      lf-toc[data-lf-dense] .lf-toc-nav:hover
-        :is(.lf-toc-start, li):hover a,
-      lf-toc[data-lf-dense] .lf-toc-nav:focus-within a:focus {
-        opacity: 1; pointer-events: auto;
       }
     }
   }

@@ -108,3 +108,4 @@ jobs:
             (( SECONDS < deadline )) || exit 1
             sleep 10
           done
+          LEAF_VERIFY_AGENT=1 uv run scripts/verify-site.py "$release"

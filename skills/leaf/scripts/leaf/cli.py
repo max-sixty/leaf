@@ -92,14 +92,12 @@ def codex() -> None:
     """Launch Codex or run Leaf's detached delivery carrier."""
 
 
-@codex.command(
-    "launch", short_help="Launch an experimental, untested streaming Codex terminal."
-)
+@codex.command("launch", short_help="Launch an experimental streaming Codex terminal.")
 @click.option("--codex-path", hidden=True)
 def codex_launch(codex_path: str | None) -> None:
-    """Run Codex with a private local App Server for Leaf activity.
+    """Run Codex with a private local App Server for Leaf replies and activity.
 
-    This integration is experimental and untested.
+    This integration is experimental.
     """
     try:
         sys.exit(cmd_codex_launch(codex_path))
@@ -113,7 +111,7 @@ def codex_launch(codex_path: str | None) -> None:
 @click.option(
     "--app-server",
     metavar="ENDPOINT",
-    help="stream experimental, untested activity from this local App Server; `codex launch` supplies it",
+    help="stream experimental replies and activity from this local App Server; `codex launch` supplies it",
 )
 def codex_start(
     dir: str,

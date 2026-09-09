@@ -809,6 +809,22 @@ def banner_address(page, selector):
     return control
 
 
+# The banner's addresses in the row's one order. The fold takes a run off the front of
+# the row into the menu, so the menu's contents followed by the row read straight
+# through as that one order. The door itself is not an address, and a control the page
+# has taken away is not one either.
+BANNER_ORDER = """() => {
+  const shelf = document.querySelector('.lf-banner-actions');
+  const menu = document.querySelector('.lf-banner-menu');
+  const more = document.querySelector('.lf-banner-more');
+  return [...menu.children, ...shelf.children]
+    .filter(control => control !== more &&
+            getComputedStyle(control).display !== 'none' &&
+            getComputedStyle(control).visibility !== 'hidden')
+    .map(control => (control.getAttribute('aria-label') || control.textContent).trim());
+}"""
+
+
 def page_at_rest(page):
     """Render the known edge, finish finite motion, then render its ending."""
     page.evaluate(RENDERED)

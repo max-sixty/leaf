@@ -1,0 +1,274 @@
+"""Everyday browser contracts for shared chrome."""
+
+import re
+
+import pytest
+from playwright.sync_api import expect
+from render_support import (
+    BANNER_ORDER,
+    LONG_PAGE,
+    SUGGESTION_PAGE,
+    _publish,
+    banner_address,
+    button_radius,
+    compare_with,
+    open_page,
+    panel_comment,
+    panel_settled,
+    resized,
+    token_colour,
+)
+
+
+@pytest.mark.parametrize("width", [320, 800])
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
+    browser, serve, width, scheme
+):
+    """Submit belongs to the field while Resolve stands beside the quoted address.
+
+    Growing the field carries Submit with it and leaves Resolve fixed. The textarea
+    reserves the icon's whole horizontal band, so words and a scrollbar do not run
+    underneath it. Resolve aligns with the quoted address instead of either message's
+    metadata. The same geometry holds in the panel's narrowest useful window and with
+    room beside the page, in both palettes."""
+    context = browser.new_context(
+        viewport={"width": width, "height": 720}, color_scheme=scheme
+    )
+    try:
+        url = serve(LONG_PAGE)
+        panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
+        page, errors = open_page(browser, url, context=context)
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
+        compose = thread.locator(".lf-compose")
+        textarea = compose.locator("textarea")
+        send = thread.get_by_role("button", name="Send", exact=True)
+        resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
+        close = page.get_by_role("button", name="Close threads", exact=True)
+        expect(send).to_be_visible()
+        expect(resolve).to_be_visible()
+        expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
+        expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
+        expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+        expect(send).to_have_text("")
+        expect(resolve).to_have_text("")
+        expect(close).to_have_text("")
+
+        def geometry():
+            return thread.evaluate(
+                """thread => {
+                  const rect = sel => {
+                    const r = thread.querySelector(sel).getBoundingClientRect();
+                    return {x: r.x, y: r.y, width: r.width, height: r.height,
+                            right: r.right, bottom: r.bottom};
+                  };
+                  const own = thread.getBoundingClientRect();
+                  const padding = parseFloat(getComputedStyle(
+                    thread.querySelector('textarea')).paddingInlineEnd);
+                  const radius = (selector, pseudo = null) => getComputedStyle(
+                    selector.startsWith('.lf-panel')
+                      ? document.querySelector(selector)
+                      : thread.querySelector(selector), pseudo).borderRadius;
+                  return {thread: {x: own.x, y: own.y, width: own.width,
+                                   height: own.height, right: own.right, bottom: own.bottom},
+                          compose: rect('.lf-compose'), field: rect('.lf-compose-field'),
+                          textarea: rect('.lf-compose textarea'),
+                          quote: rect('.lf-quote'),
+                          send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
+                          closeBorder: getComputedStyle(document.querySelector(
+                            '.lf-panel-head [aria-label="Close threads"]')).borderTopWidth,
+                          resolveBorder: getComputedStyle(thread.querySelector(
+                            '.lf-resolve'), '::before').borderTopWidth,
+                          sendBorder: getComputedStyle(thread.querySelector(
+                            '.lf-thread-send'), '::before').borderTopWidth,
+                          radii: {
+                            send: radius('.lf-thread-send'),
+                            sendFill: radius('.lf-thread-send', '::before'),
+                            resolve: radius('.lf-resolve'),
+                            resolveFill: radius('.lf-resolve', '::before'),
+                            close: radius('.lf-panel-head [aria-label="Close threads"]'),
+                          },
+                          padding,
+                          overflow: thread.scrollWidth - thread.clientWidth};
+                }"""
+            )
+
+        short = geometry()
+        assert short["field"]["x"] == pytest.approx(short["compose"]["x"], abs=1)
+        assert short["thread"]["right"] - short["compose"]["right"] == pytest.approx(
+            short["compose"]["x"] - short["thread"]["x"], abs=1
+        )
+        assert short["textarea"]["right"] == pytest.approx(
+            short["field"]["right"], abs=1
+        )
+        assert short["send"]["right"] < short["textarea"]["right"]
+        assert short["send"]["bottom"] < short["textarea"]["bottom"]
+        assert short["padding"] >= short["send"]["width"] + 10
+        assert short["resolve"]["y"] == pytest.approx(short["quote"]["y"], abs=1)
+        assert short["resolve"]["right"] == pytest.approx(
+            short["thread"]["right"] - 9, abs=1
+        )
+        assert short["resolve"]["x"] - short["quote"]["right"] >= 8
+        assert short["resolve"]["bottom"] <= short["quote"]["bottom"] + 1
+        assert float(short["closeBorder"][:-2]) == 0
+        assert float(short["resolveBorder"][:-2]) == 0
+        assert float(short["sendBorder"][:-2]) == 0
+        assert set(short["radii"].values()) == {button_radius(page)}
+        assert short["overflow"] == 0
+
+        textarea.focus()
+        focused = geometry()
+        assert focused["send"] == short["send"]
+        assert focused["resolve"] == short["resolve"]
+
+        textarea.fill("First line.\nSecond line.\nThird line.\nFourth line.")
+        grown = geometry()
+        assert grown["send"]["x"] == pytest.approx(short["send"]["x"], abs=1)
+        assert grown["send"]["bottom"] == pytest.approx(
+            grown["textarea"]["bottom"] - 6, abs=1
+        )
+        assert grown["send"]["y"] > short["send"]["y"]
+        assert grown["resolve"] == short["resolve"]
+        assert grown["overflow"] == 0
+        assert errors == []
+    finally:
+        context.close()
+
+
+STATE_PAINT = """el => {
+  const style = getComputedStyle(el);
+  return {background: style.backgroundColor, shadow: style.boxShadow};
+}"""
+
+
+def test_a_folded_address_keeps_the_paint_that_says_it_is_doing_something(
+    browser, serve
+):
+    """A comparison standing behind the overflow menu is the same comparison, and has
+    to go on looking like one.
+
+    Both places clear the border and the fill `.lf-btn.on` states, each for its own
+    reason: the row so that an address cannot resize it and displace the addresses
+    before it, the menu so that an address reads as a row rather than as a chip. Left
+    at that, the class is ink alone in either — two characters at 2.16:1 against the
+    control's own resting ink. The row was answered first and the menu was not, which
+    put the banner's two active states on opposite sides of one fold: an open
+    workspace's own selector outranks the menu's resting rule and keeps its face
+    across it, and a standing comparison did not. So this reads the one control in
+    both places rather than a number in either, because what the fold promises is that
+    nothing about an address changes except where it stands.
+    """
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    url = serve(html)
+    _publish(serve.page_dir, 2, html, "reworded the suggestion")
+    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    chooser = page.locator(".lf-version")
+    expect(chooser).to_be_enabled()
+
+    resized(page, 1440, 900)
+    compare_with(page, 1)
+    expect(chooser).to_have_class(re.compile(r"\bon\b"))
+    expect(page.locator(".lf-banner-actions > .lf-version")).to_have_count(1)
+    on_the_row = chooser.evaluate(STATE_PAINT)
+    assert (
+        on_the_row["shadow"] != "none"
+        and "rgba(0, 0, 0, 0)" not in on_the_row["background"]
+    ), f"the comparison stood on the row with nothing but ink: {on_the_row}"
+
+    resized(page, 320, 844)
+    expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
+    banner_address(page, ".lf-version")
+    folded = chooser.evaluate(STATE_PAINT)
+
+    assert folded == on_the_row, (
+        f"the comparison changed face when it folded: row {on_the_row}, menu {folded}"
+    )
+    door = page.locator(".lf-banner-more")
+    door.evaluate("el => el.toggleAttribute('data-lf-news', true)")
+    expect(door).to_have_css("border-top-color", token_colour(page, "--accent"))
+    assert errors == []
+    page.close()
+
+
+def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
+    """The row says the same thing at 1440 that it says on a phone.
+
+    It used to turn round at the covering breakpoint: Threads went from the far right of
+    the banner to the far left, and approval — the page's one committing press — swapped
+    ends with it, so a reader narrowing the window found every address somewhere else.
+    What a narrow window may change is how many addresses stand on the row at once; the
+    rest fold into the row's own menu, in this same order.
+
+    Two things legitimately differ with width and neither is an order: the page map is a
+    narrow window's stand-in for the margin's own markers, and a reserved news slot is not
+    an address until it has news. So each width is held to being this one order with the
+    addresses that width does not have taken out of it, rather than to a fixed list — a
+    reversal fails that just as loudly, and a control appearing at the wrong seat fails it
+    where a fixed list would only have said the list was different.
+    """
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    url = serve(html)
+    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    page, errors = open_page(browser, url)
+    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
+    expect(page.locator(".lf-signoff")).to_be_visible()
+    signoff_paint = page.locator(".lf-signoff").evaluate(
+        "el => ({ink: getComputedStyle(el).color, "
+        "        fill: getComputedStyle(el).backgroundColor})"
+    )
+    assert signoff_paint == {
+        "ink": token_colour(page, "--paper"),
+        "fill": token_colour(page, "--accent"),
+    }, f"the banner's primary action lost its readable face: {signoff_paint}"
+    expect(page.locator(".lf-answer-all")).to_be_visible()
+
+    orders = {}
+    for width in (1440, 860, 800, 390):
+        resized(page, width, 900)
+        orders[width] = page.evaluate(BANNER_ORDER)
+
+    # One order, put as the thing it is: no two addresses ever swap. Held pair by pair
+    # rather than against a list taken at one width, because the widths do not all show
+    # the same addresses and a fixed list would then be failing about the page map rather
+    # than about the order. A reversal breaks this on its first pair.
+    first = {}
+    for width, order in orders.items():
+        for index, before in enumerate(order):
+            for after in order[index + 1 :]:
+                assert (after, before) not in first, (
+                    f"{after!r} comes before {before!r} at {first[(after, before)]}px "
+                    f"and after it at {width}px, so the banner reads in two orders: "
+                    f"{orders}"
+                )
+                first.setdefault((before, after), width)
+    assert len(first) >= 15, (
+        f"too few addresses stood at these widths to have an order at all: {orders}"
+    )
+
+    # And the order it settled on: every address the page offers, with the reading loop
+    # finishing the row beside the panel it opens.
+    widest = max(orders.values(), key=len)
+    for wanted in ("All leaves", "Asks", "Accept all", "v1", "Approve version"):
+        assert any(wanted in name for name in widest), (
+            f"{wanted} was not on the row at all, so this order proves little: {widest}"
+        )
+    for width, order in orders.items():
+        assert order[-1].startswith("Threads"), (
+            f"the conversation no longer finishes the row at {width}px: {order}"
+        )
+    resized(page, 500, 900)
+    workspace = banner_address(page, ".lf-others")
+    workspace.click()
+    page.mouse.move(0, page.viewport_size["height"] - 1)
+    expect(workspace).to_have_attribute("aria-expanded", "true")
+    expect(workspace).to_have_css("background-color", token_colour(page, "--chip"))
+    assert errors == []
+    page.close()

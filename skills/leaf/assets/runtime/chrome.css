@@ -371,7 +371,7 @@
   border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
   color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
   line-height: 1.478; text-align: center; white-space: nowrap;
-  display: none; z-index: 1; }
+  display: none; z-index: 1; user-select: none; -webkit-user-select: none; }
 /* The general leaf text box, in one rule. The compact response field is excluded
    because it shares its complete control geometry with the response buttons below.
    field-sizing does the growing, so no script
@@ -812,9 +812,10 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      words to that number. A row of clipped addresses overflows nothing, so the fold,
      which reads overflow, would never fire; an address that cannot shrink is what
      hands the fold something to measure. */
-  .lf-banner-actions > .lf-btn { flex: none; border-color: transparent;
+  .lf-banner-actions > .lf-btn { flex: none; }
+  .lf-banner-actions > .lf-btn:where(:not(.primary)) { border-color: transparent;
     border-radius: 0; background: transparent; }
-  .lf-banner-actions > .lf-btn:hover { background: var(--chip); }
+  .lf-banner-actions > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
   /* .lf-btn.on states a comparison or a narrowing with an accent border and a fill,
      and the resting rule above clears both at the same specificity — so on this row
      the class would paint ink alone. Restate the treatment the open workspace wears,
@@ -894,9 +895,10 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      does not state display: whether an address is drawn at all belongs to the address,
      and a rule here stating it for the whole menu would put a control the page has
      taken away — the map above 900, a chip with no news — into the list as a blank. */
-  .lf-banner-menu > .lf-btn { width: 100%; border-color: transparent;
-    background: none; text-align: left; }
-  .lf-banner-menu > .lf-btn:hover { background: var(--chip); }
+  .lf-banner-menu > .lf-btn { width: 100%; text-align: left; }
+  .lf-banner-menu > .lf-btn:where(:not(.primary)) { border-color: transparent;
+    background: none; }
+  .lf-banner-menu > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
   /* The fold moves the row's own node, so an address folded while it is doing
      something has to go on saying so. The menu's resting rule clears the same two
      declarations the row's does, and for the same reason, so `.on` needs the same
@@ -1185,6 +1187,34 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     padding: 3px 8px; border: 1px solid var(--border-2); border-radius: var(--r);
     background: var(--paper); color: var(--ink); }
   .lf-find-box:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: find-box; outline-offset: 1px; }
+  /* Lifecycle is the standing view; the optional refinements sit on the row below it.
+     Groups wrap as units when the conditional placement filter appears, so the panel
+     never introduces a horizontal scroller. A facet with no pressed button means all
+     of that facet. */
+  .lf-thread-filters { display: flex; flex: none; flex-direction: column;
+    align-items: flex-start; gap: 6px; padding: 7px 14px;
+    border-bottom: 1px solid var(--rule); }
+  .lf-thread-filter-facets { display: flex; flex-wrap: wrap; align-items: center;
+    gap: 6px 10px; max-width: 100%; }
+  .lf-thread-filter-group { display: flex; flex: none; flex-wrap: wrap;
+    align-items: center; gap: 5px; max-width: 100%; }
+  .lf-thread-filter-facets > .lf-thread-filter-group + .lf-thread-filter-group {
+    border-left: 1px solid var(--rule); padding-left: 10px; }
+  .lf-thread-filter-group:not(:has(> .lf-thread-filter:not([hidden]))) { display: none; }
+  .lf-thread-filter-group:has(> [data-filter-kind="gone"]) {
+    flex-basis: 100%; border-left: 0; padding-left: 0; }
+  .lf-thread-filter { padding: 2px 8px; font-size: var(--t-6); }
+  /* At the supported 320px floor, keep lifecycle and each facet pair on one line.
+     Three short rows leave the list as the sheet's main surface without shrinking the
+     controls' block size or bringing back a horizontal rail. */
+  @media (max-width: 360px) {
+    .lf-thread-filters { gap: 4px; padding-inline: 8px; }
+    .lf-thread-filter-facets { gap: 4px 6px; }
+    .lf-thread-filter-group { gap: 3px; }
+    .lf-thread-filter-facets > .lf-thread-filter-group + .lf-thread-filter-group {
+      padding-left: 6px; }
+    .lf-thread-filter { padding-inline: 6px; }
+  }
   /* contain: reaching the end of the thread list must not start scrolling the page
      behind it — one wheel gesture moves one region.
      The frame is declared because the inset is read at both ends of a scroll region:
@@ -1225,9 +1255,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      said once over the run of threads that share it. Sticky, so the answer to "where
      am I" is on screen for the whole run rather than only at its start: a list four
      thousand pixels long is scrolled past its landmarks within one gesture. Opaque
-     (--card), because the threads pass underneath it. The resolved disclosure's
-     summary sticks in the same slot and later in the list, so it takes the pin from
-     the last heading when the reader reaches it.
+     (--card), because the threads pass underneath it.
 
      The room above a heading is its own padding and never a margin, and the pin is
      drawn back over the list's own inset. Both for one reason: a stuck box is held by
@@ -1236,11 +1264,9 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      list scrolls in full view. The inset is read from where it is spent, so the two
      numbers cannot drift apart.
 
-     Being pinned is its own class, worn by the two boxes that do it and by whatever
-     the list pins next. It was written twice — once here and once on the disclosure's
-     summary — which is two chances to move the slot in one of them, and it is also
-     the question renderThreads has to ask to know how much of the top is covered.
-     One class answers all three: the mechanics, the second wearer, and the sweep. */
+     Being pinned is its own class rather than an incidental property of a run
+     heading. It is the question renderThreads asks to know how much of the top is
+     covered, so one class states both the mechanics and the measurement boundary. */
   .lf-pinned { position: sticky; top: calc(-1 * var(--lf-list-inset)); z-index: 2;
     margin: 0; padding: 14px 0 7px; background: var(--card); }
   .lf-group { display: block; width: 100%; box-sizing: border-box; border: none;
@@ -1271,7 +1297,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      the bounded panel representation of that passage; painting the card made a long
      conversation one off-screen wash. The fallback keeps a custom theme without the
      middle ramp token legible at its strongest mark wash. */
-  .lf-thread.lf-mark-hover > .lf-quote {
+  .lf-thread.lf-mark-hover > .lf-thread-head > .lf-quote {
     background: var(--mark-hover, var(--mark-strong));
   }
   .lf-quote-label { min-width: 0; }
@@ -1304,13 +1330,17 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-quote { margin: 0 0 8px; padding: 2px 8px 2px 12px;
     border-inline-start: 3px solid var(--mark-ink); color: var(--muted);
     font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
-  /* Resolve acts on the thread, so it stands in the thread's corner beside the quoted
-     address. The quote reserves the action's band; a source-less thread gives the same
-     room to its first message head. */
+  /* The address and Resolve are different actions. Their parent gives each one a
+     column, so the quote's paint and hit box end before the larger icon aim begins.
+     They share a top edge, and a wrapped quote grows below the compact action. */
+  .lf-thread-head { display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 8px; align-items: stretch; margin-bottom: 8px; }
+  .lf-thread-head > .lf-quote { margin: 0; }
+  .lf-thread-head > .lf-resolve { position: relative; inset: auto; }
+  /* A source-less thread keeps Resolve in its corner and gives its first message head
+     the action's complete band. */
   :is(.lf-thread, .lf-going) > .lf-resolve { position: absolute;
     inset-block-start: var(--lf-thread-pad); inset-inline-end: var(--lf-thread-pad); }
-  :is(.lf-thread, .lf-going):has(> .lf-resolve) > .lf-quote {
-    padding-inline-end: calc(max(28px, var(--aim-floor)) + 8px); }
   :is(.lf-thread, .lf-going):not(:has(> .lf-quote)):has(> .lf-resolve)
     > .lf-msg:first-of-type > .lf-msg-head {
     align-items: last baseline;
@@ -1319,7 +1349,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }
   .lf-quote:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: passage-focus;
     outline-offset: 2px; }
-  .lf-thread > .lf-quote:not(.detached)::after { content: "  ↗ page";
+  .lf-thread-head > .lf-quote:not(.detached)::after { content: "  ↗ page";
     color: var(--accent); font-size: var(--t-6); font-style: normal; white-space: nowrap; }
   /* A quote is the passage, and a passage is as long as the reader's selection — a
      paragraph of it in a 320px column buries the words written about it. So the panel
@@ -1382,16 +1412,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* Reopen stands in the same row as Resolve and answers the same question from the
      other side, so it wears the same band when the keyboard reaches it. It was left on
      the platform's own ring, which is a real mark and the wrong one here: the pair
-     looked like two kinds of control, and a walk down the resolved disclosure changed
-     shape halfway. */
+     looked like two kinds of control, and a walk into resolved threads changed shape
+     halfway. */
   .lf-thread-action:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
     --lf-here-ring: thread-action; outline-offset: 2px; }
   .lf-resolved-by { color: var(--muted); }
   .lf-general { padding: 10px 14px; border-top: 1px solid var(--rule); }
-  .lf-details { margin-top: 16px; color: var(--muted); background: none; border: none; padding: 0; }
-  /* The last landmark in the list wears .lf-pinned like the headings above it: it
-     stands later than every one of them, so opening it hands the pinned slot from
-     the section the reader was in to the disclosure they are now inside. */
   .lf-system { color: var(--ok); margin: 8px 0; }
   /* The two floats that point at the page live in the document's coordinate space
      (absolute against the initial containing block), because what they point at does:
@@ -1414,7 +1440,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      so it cannot rely on a hairline to separate it from whatever it happens to cover. */
   :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 32px; }
   .lf-fab-bar { position: absolute; display: none; width: max-content;
-    align-items: center; gap: 4px; white-space: nowrap;
+    align-items: flex-end; gap: 4px; white-space: nowrap;
     max-width: var(--lf-float-w, calc(100vw - 16px)); }
   .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
   /* The field and its choices are one anchored response control. This primitive owns
@@ -1794,14 +1820,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      register the dispatcher walks (see the module docstring). A sequence shows its whole
      live scope; More unfolds the remaining current register before it opens the complete reference.
      Hints are the eye's copy of facts spoken elsewhere and stay aria-hidden; More is a
-     real control. A category walk's position stands separately on the opposite edge.
+     real control. A clamped walk's position stands separately at the page's head.
      syncLayout keeps the line out of a side-by-side thread panel and, over a covering
-     panel, lifts it only when its rendered box actually meets the panel foot. The
-     readout joins the header of an open conversation surface because that surface can
-     paint above sibling chrome; on the page it keeps the opposite keyline. The
-     chrome root reserves the deepest fixed bottom surface crossing each scroll region,
-     so its last lines never end underneath one. Overflow remains a backstop for a window
-     too narrow to hold even the short line. */
+     panel, lifts it only when its rendered box actually meets the panel foot. The chrome
+     root reserves that fixed bottom surface for each scroll region it crosses, so its
+     last lines never end underneath it. Overflow remains a backstop for a window too
+     narrow to hold even the short line. */
   .lf-shortcut-bar { position: fixed; left: calc(18px + var(--lf-safe-left));
     bottom: calc(14px + var(--lf-safe-bottom)); z-index: 8940; pointer-events: none;
     display: flex; gap: 12px; align-items: baseline;
@@ -1813,27 +1837,32 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-shortcut-bar[data-lf-wrap="true"] { width: max-content; flex-wrap: wrap;
     row-gap: 6px; align-items: baseline; }
   .lf-shortcut-bar:not(:has(> :not([hidden]))) { display: none; }
-  .lf-walk-position { position: fixed; right: calc(18px + var(--lf-safe-right));
-    bottom: calc(14px + var(--lf-safe-bottom)); z-index: 8940; pointer-events: none;
+  /* TODO: The page-head corner is stable, but it is not a settled home for this
+     navigation state. Revisit the surface rather than moving it between contexts. */
+  .lf-walk-position { position: fixed;
+    top: calc(var(--lf-banner-h) + 14px);
+    left: calc(var(--lf-shell-inset-left, 0px) + 18px + var(--lf-safe-left));
+    z-index: 8940; pointer-events: none;
     padding: 5px 10px; border: 1px solid var(--rule); border-radius: var(--r);
     background: var(--card); color: var(--ink-2); font-size: var(--t-5);
     font-variant-numeric: tabular-nums; white-space: nowrap; }
   .lf-walk-position[data-lf-boundary] { border-color: var(--accent);
     background: var(--accent); color: var(--card); }
   .lf-walk-position[hidden] { display: none; }
-  :is(.lf-panel-head, .lf-margin-preview-head) > .lf-walk-position {
-    position: static; z-index: auto; margin-inline: auto 8px; }
+  /* Leaves covers rather than narrows the page, so it does not contribute the shell
+     inset that Asks does. Keep this page-head reading at the page's exposed edge. */
+  .lf-others-panel.open ~ .lf-walk-position {
+    left: calc(var(--lf-tray-w) + 18px + var(--lf-safe-left)); }
   /* A touch device has no keyboard hints to advertise, so the resting line stands down
      whole rather than shrinking. Every hint on it names a key the reader cannot press,
      and the box they cost stands over the words and the controls of a page whose window
-     is the smallest one there is. An attached keyboard can still begin a category walk;
-     its position is useful without the hidden hints, so that one reading stands alone.
+     is the smallest one there is. Above the covering-width breakpoint, an attached
+     keyboard can begin a category walk and its position stands alone.
      More is the only pointer route to the reference; on a tablet with an attached
      keyboard the question-mark key remains its route.
-     Every reader of the line's box asks whether there is one — syncLayout for the room
-     it reserves, targets for how far down the page is reachable, the address chips and
-     the floats for what they must not stand on. A zero box is the same state the empty
-     line has always had, so none of them is new. */
+     Geometry readers ask whether either box is shown: syncLayout and composers read the
+     bottom line, while targets and addresses also read the page-head position. A zero
+     box is the same state the empty line has always had. */
   @media (pointer: coarse) {
     .lf-shortcut-bar { display: none; }
   }
@@ -1956,6 +1985,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      height as a sentence ages, which moves every address under it for no gesture; the
      whole line is a press away in the title, as the wide row's runaway detail is. */
   @media screen and (width <= 840px) {
+    .lf-walk-position { display: none; }
     .lf-banner { display: grid; grid-template-columns: minmax(0, 1fr);
       grid-template-rows: 36px minmax(0, 1fr); gap: 0;
       padding: var(--lf-safe-top) 0 0; }

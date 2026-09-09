@@ -374,6 +374,15 @@ def verify_agent_turn(browser, release: str) -> None:
 
 
 def main() -> None:
+    """Verify one deployed release, or run the deployed agent turn against it.
+
+    Container rollout is asynchronous and per allocation: a fresh reader session can
+    still reach the previous image seconds after another reached the new one. The
+    deploy step waits that out by re-running the release pass until it holds, so a
+    single coherent sample is what ends the wait. The agent pass therefore runs the
+    turn alone — re-sampling the release readings after the wait had already settled
+    them turned a rollout that was still draining into a red default branch.
+    """
     if len(sys.argv) > 2:
         raise SystemExit("usage: uv run scripts/verify-site.py [release]")
     built = json.loads(MANIFEST.read_text(encoding="utf-8"))["release"]
@@ -382,13 +391,15 @@ def main() -> None:
     with sync_playwright() as playwright:
         browser, browser_name = launch_browser(playwright)
         try:
+            if os.environ.get("LEAF_VERIFY_AGENT") == "1":
+                verify_agent_turn(browser, release)
+                print(f"✓ leaf.page ran one deployed agent turn on release {release}")
+                return
             profiles = [
                 (path, verify_page(browser, path, kind, release, activate))
                 for path, kind, activate in PAGES
             ]
             verify_cross_tab_activation(browser)
-            if os.environ.get("LEAF_VERIFY_AGENT") == "1":
-                verify_agent_turn(browser, release)
         finally:
             browser.close()
     print("Leaf startup profile (observed, not a pass/fail budget):")

@@ -1226,6 +1226,31 @@ def test_startup_line_distinguishes_an_unobserved_state_request():
     assert "state answered 0 ms" not in line
 
 
+def test_startup_line_distinguishes_an_unobserved_first_paint():
+    startup = {
+        "first_byte": 20,
+        "document": 30,
+        "paint": {},
+        "upgraded": {"at": 50},
+        "presented": {
+            "at": 60,
+            "js_loaded": 45,
+            "state_loaded": 55,
+            "requests": 3,
+            "bytes": 3072,
+            "code_requests": 2,
+            "code_bytes": 2048,
+            "js_requests": 1,
+            "js_bytes": 1024,
+        },
+    }
+
+    line = verify_site.startup_line("page", startup)
+
+    assert "first paint not observed" in line
+    assert "first paint 0 ms" not in line
+
+
 @pytest.mark.parametrize(
     "failure_reply",
     [verify_site.GENERATION_FAILURE_REPLY, verify_site.MISSING_REPLY],

@@ -313,10 +313,10 @@ def observed_time(value: float | None) -> str:
 def startup_line(path: str, startup: dict) -> str:
     """Render observed startup costs without turning machine speed into a gate."""
     presented = startup["presented"]
-    paint = startup.get("paint", {}).get("first-contentful-paint", 0)
+    paint = startup.get("paint", {}).get("first-contentful-paint")
     return (
         f"  {path} — HTML first byte {startup['first_byte']:.0f} ms, "
-        f"complete {startup['document']:.0f} ms; first paint {paint:.0f} ms; "
+        f"complete {startup['document']:.0f} ms; first paint {observed_time(paint)}; "
         f"JS fetched {observed_time(presented['js_loaded'])}; "
         f"upgraded {startup['upgraded']['at']:.0f} ms; "
         f"state answered {observed_time(presented['state_loaded'])}; "
@@ -664,8 +664,8 @@ def ask_until_answered(
     it caught a turn that never completed and told the reader to send a new message —
     so this sends it, because a release that cannot run a hosted turn settles the same
     way twice while a model-side failure does not. Every other ending is reported on
-    the first ask: a turn that completes without a reply, or replies with something
-    else, is the deployed agent breaking its own contract.
+    the first ask: a turn that completes without an agent-authored reply is the
+    deployed agent breaking its own contract.
     """
     published = None
     asks = 0

@@ -54,12 +54,15 @@ def full_state(
     view_revision: int | None = None,
     active_override: dict | None = None,
     source_overrides: dict[int, str] | None = None,
+    stored_status: dict | None = None,
 ) -> dict:
     if active_override is not None:
         active = active_override
     else:
         active = active_descriptor(page_dir, events)
-    present, live_stream = presence_with_activity(page_dir, events)
+    present, live_stream = presence_with_activity(
+        page_dir, events, stored_status=stored_status
+    )
     now = now_iso()
     browser = project_browser_state(
         page_dir,

@@ -3,11 +3,13 @@
 import json
 
 from .event_log import read_events
+from .files import read_json
 from .leases import adapter_is_live
 from .schema import (
     ACK_BATCH_INSTRUCTION,
     ANSWER_ASK_INSTRUCTION,
     PREVIEW_FILE,
+    STATUS_FILE,
 )
 from .served_state.page import full_state
 from .service import (
@@ -18,6 +20,20 @@ from .service import (
     unacknowledged,
 )
 from .session import record_pickup
+
+
+def _stream_answers(reply: dict | None, obligation: dict, state: dict) -> bool:
+    """Whether App Server has finished the answer this Stop is closing."""
+    return bool(
+        reply
+        and reply.get("state") == "active"
+        and reply.get("settles")
+        and reply.get("text")
+        and reply.get("session") == state["claim_session"]
+        and reply.get("turn") == state["claim_turn"]
+        and reply.get("reply_to") == obligation["event"]
+        and reply.get("conversation") == obligation["target"]["id"]
+    )
 
 
 def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
@@ -31,7 +47,9 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
         page_reasons = []
         try:
             events = read_events(page_dir)
-            state = full_state(page_dir, events)
+            status = read_json(page_dir / STATUS_FILE)
+            state = full_state(page_dir, events, stored_status=status)
+            stream = (status or {}).get("stream") or {}
         except FileNotFoundError:
             continue
         codex = state["host"] == "codex"
@@ -47,8 +65,12 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
         # Queue acceptance belongs to the originating turn, so it is not debt
         # there. The later UserPromptSubmit still opens it below; from that
         # point its ordinary unanswered debt is enforced again.
+        reply = stream.get("reply") if adapter else None
         stale = [
-            obligation for obligation in acknowledged if obligation["phase"] != "queued"
+            obligation
+            for obligation in acknowledged
+            if obligation["phase"] != "queued"
+            and not _stream_answers(reply, obligation, state)
         ]
         if stale:
             ids = ", ".join(

@@ -1,13 +1,20 @@
 ---
 name: leaf
-description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes reader input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” work whose progress or review belongs in a shared page, or a `leaf-delivery` message.
+description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes reader input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” work whose progress or review belongs in a shared page, a `leaf_feedback` tool output, or a `leaf-delivery` message.
 allowed-tools:
   - Bash(leaf:*)
   - Bash(jq:*)
 ---
 
-If the input is a `leaf-delivery` element, this is a continuation of an existing
-page, not a request to present a new one. Read its payload, then read
+If the input is a named `leaf_feedback` tool output, continue the existing page
+from its inline payload. Answer the reader normally in this turn; the Codex
+adapter streams the final answer into the addressed thread and appends it there.
+Do not repeat that answer with `leaf reply`. Use the payload's handling rules and
+run other Leaf commands only when the event requires a page change or another
+explicit operation.
+
+If the input is a `leaf-delivery` element, continue the existing page. Read its
+payload, then read
 `references/host-codex.md`, `references/event-batches.md`, and, for reader
 messages, `references/conversation-threads.md`. Process every delivered event
 through the page and its Leaf CLI. Do not call `leaf_present`, initialize a page,

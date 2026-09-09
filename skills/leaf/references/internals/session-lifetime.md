@@ -11,6 +11,7 @@ and requests another reading at its next deadline; it does not run a second fold
 | --- | --- | --- | --- |
 | work declaration: state, detail, event floor, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
 | live Codex activity: session, turn, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
+| live Codex reply: session, turn, conversation, reply target, item, text, and whether the final-answer item completed | optional `stream.reply` in `status.json` | the detached App Server adapter | the matching turn becomes a durable reply, fails, disconnects, or loses its page claim |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` or `leaf ack` process, held open for its life | process exit |
 | acknowledgement cursor | `cursor.json` | `leaf ack`, after the complete batch reached its durable consumer | never; it is monotonic |
@@ -65,6 +66,10 @@ that turn's ending and the next one's opening, surfaces unacknowledged user
 events at the next prompt, and releases the session's page claims when it exits.
 Its unanswered-work guard reads `activity.obligations`, the same settled
 interaction projection the browser reads; it does not reconstruct threads itself.
+For an App Server-backed Leaf turn, a completed final-answer item for the exact
+opened message is enough to let Stop close the turn. The adapter appends that
+answer to the event log when `turn/completed` arrives; requiring the event first
+would prevent the turn from completing.
 When the prompt hook opens a turn, it records a new `opened` transition for its
 acknowledged, unanswered moves. A direct-delivery move that needs a reminder is
 also named in the hook context. A queued Codex move needs no reminder there:

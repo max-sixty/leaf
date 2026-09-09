@@ -173,7 +173,12 @@ def other_leaves(page_dir: Path) -> list:
     return sorted(others, key=lambda entry: entry["title"].lower())
 
 
-def presence_with_activity(page_dir: Path, events: list) -> tuple[dict, dict | None]:
+def presence_with_activity(
+    page_dir: Path,
+    events: list,
+    *,
+    stored_status: dict | None = None,
+) -> tuple[dict, dict | None]:
     """Gather public presence and server-only live activity as separate values.
 
     The public reading says what a seat showing this page may know: the agent's
@@ -186,7 +191,8 @@ def presence_with_activity(page_dir: Path, events: list) -> tuple[dict, dict | N
     claim-against-proof judgment reads the same fields whichever page it judges,
     and the tray's account of a neighbour is the account this page gives of
     itself."""
-    stored_status = read_json(page_dir / STATUS_FILE)
+    if stored_status is None:
+        stored_status = read_json(page_dir / STATUS_FILE)
     status = {
         key: value
         for key, value in stored_status.items()

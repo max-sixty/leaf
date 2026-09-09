@@ -26,7 +26,7 @@ import { sameLayer } from "./layer-client.js";
 import { acceptData, notifyDataSubscribers } from "./data.js";
 import { prepareActivation, renderVersions } from "./version.js";
 import { renderPanel } from "./conversation/reconcile.js";
-import { retainReplyFocus } from "./conversation/landing.js";
+import { retainConversationFocus } from "./conversation/landing.js";
 import { importWidgets } from "./widget-loader.js";
 import { observeServerNow } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
@@ -199,7 +199,7 @@ export async function receiveState(state) {
   // as well as old state; rejecting its state must not rewind timestamp aging.
   if (state !== runtime.state) observeServerNow(state.now);
   const prior = {
-    restoreReplyFocus: retainReplyFocus(),
+    restoreConversationFocus: retainConversationFocus(),
     runtime: Object.fromEntries(
       APPLICATION_RUNTIME_FIELDS.map((field) => [field, runtime[field]]),
     ),
@@ -317,7 +317,7 @@ export async function receiveState(state) {
     // A failed activation replaces the document below instead.
     if (!willActivate) {
       await renderPanel();
-      prior.restoreReplyFocus();
+      prior.restoreConversationFocus();
     }
     // A version the page could not show, and the reader is left looking at the one it
     // was leaving. Say what the reload is for before making it: a tab that reloads

@@ -207,10 +207,10 @@ export function renderConversations(threads) {
     // words here, so the root does not get to take their only box. A hold-capable seat
     // stays reachable after every root so an ordinary conversation cannot remove the
     // stronger send route.
-    if (!owned.length) continue;
     const first = host.lfFirstMessage;
     const hold = registry[owner.localName]?.["x-conversation"]?.hold;
-    const pending = hold || loadDraft("say:" + owner.id) !== null ? first : null;
+    const pending =
+      !owned.length || hold || loadDraft("say:" + owner.id) !== null ? first : null;
     const receipts = [...host.querySelectorAll(":scope > .lf-receipt")];
     setChildren(
       host,

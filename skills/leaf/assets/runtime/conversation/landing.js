@@ -162,38 +162,59 @@ const leaveLanding = () => landingIntent++;
 for (const type of ["pointerdown", "keydown", "input", "wheel"])
   addEventListener(type, leaveLanding, { capture: true, passive: true });
 addEventListener("blur", leaveLanding);
-export const retainPanelLanding = (source) => {
+const retainLanding = (source, available, fallback = null) => {
   const intent = landingIntent;
   return () => {
     const at = focused();
     return (
-      panelIsOpen() &&
+      available() &&
       intent === landingIntent &&
-      (at === document.body || at === threadsBox || source.contains(at))
+      (at === document.body || at === fallback || source.contains(at))
     );
   };
 };
 
-// A candidate resolution can fold away the reader's reply box before a later
-// renderer refuses that state. Restore the same conversation and caret after its
-// prior card is reconciled, unless a newer reader gesture has taken over.
-export function retainReplyFocus() {
+export const retainPanelLanding = (source) =>
+  retainLanding(source, panelIsOpen, threadsBox);
+
+// A candidate can remove the reader's direct conversation box before a later renderer
+// refuses that state. Restore the same logical conversation and caret after its prior
+// view is reconciled, unless a newer reader gesture has taken over.
+export function retainConversationFocus() {
   const input = focused();
-  const card = input?.closest(".lf-thread");
-  if (card?.parentElement !== threadsBox || card.querySelector(SAY_BOX) !== input)
-    return () => {};
-  const id = card.dataset.id;
+  const held = input && closestAcross(input, SAYS_IN);
+  if (!held || held.querySelector(SAY_BOX) !== input) return () => {};
   const selection = [
     input.selectionStart,
     input.selectionEnd,
     input.selectionDirection,
   ];
-  const mayLand = retainPanelLanding(card);
+  let restoredInput;
+  let mayLand;
+  if (held.matches(".lf-thread") && held.parentElement === threadsBox) {
+    const id = held.dataset.id;
+    restoredInput = () =>
+      threadsBox
+        .querySelector(`.lf-thread[data-id="${CSS.escape(id)}"]`)
+        ?.querySelector(SAY_BOX);
+    mayLand = retainPanelLanding(held);
+  } else if (held.matches(".lf-conversation-thread")) {
+    const host = held.parentElement;
+    const id = held.dataset.thread;
+    restoredInput = () =>
+      host
+        .querySelector(
+          `:scope > .lf-conversation-thread[data-thread="${CSS.escape(id)}"]`,
+        )
+        ?.querySelector(SAY_BOX);
+    mayLand = retainLanding(held, () => host.isConnected);
+  } else if (held.matches(".lf-conversation")) {
+    restoredInput = () => held.querySelector(SAY_BOX);
+    mayLand = retainLanding(held, () => held.isConnected);
+  } else return () => {};
   return () => {
     if (!mayLand()) return;
-    const restored = threadsBox
-      .querySelector(`.lf-thread[data-id="${CSS.escape(id)}"]`)
-      ?.querySelector(SAY_BOX);
+    const restored = restoredInput();
     if (!restored) return;
     restored.focus({ preventScroll: true });
     restored.setSelectionRange(...selection);

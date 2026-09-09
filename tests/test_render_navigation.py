@@ -406,6 +406,11 @@ def test_review_queue_decisions_reach_the_next_revision_from_the_keyboard(
     expect(page.locator("#review-billing-difference h4")).to_have_text(
         "Open difference"
     )
+    footer = page.locator("#review-detail > footer")
+    expect(footer).to_contain_text("This revision asks two release-blocking questions")
+    expect(footer).to_contain_text(
+        "submitted answers are incorporated in the next revision"
+    )
 
     page.keyboard.press("a")
     expect(page.locator("#review-cache-decision")).to_be_focused()
@@ -418,6 +423,7 @@ def test_review_queue_decisions_reach_the_next_revision_from_the_keyboard(
     with sending(page, "the billing reconciliation decision"):
         page.keyboard.press("1")
     expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
+    expect(footer).to_contain_text("This revision asks two release-blocking questions")
 
     page.goto(live_url(newest))
     page.wait_for_function(RENDERED)
@@ -430,7 +436,9 @@ def test_review_queue_decisions_reach_the_next_revision_from_the_keyboard(
     expect(page.locator("#review-billing-difference h4")).to_have_text(
         "Legacy difference stays on its reporting path"
     )
-    expect(page.locator("#review-detail > footer")).to_contain_text("Review closed")
+    expect(page.locator("#review-detail > footer")).to_contain_text(
+        "This revision incorporates both answers"
+    )
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/0")
 
     actions = [

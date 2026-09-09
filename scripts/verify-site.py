@@ -282,7 +282,17 @@ def verify_cross_tab_activation(browser) -> None:
 
 
 def verify_agent_turn(browser, release: str) -> None:
-    """Require one deployed Codex turn to revise and answer a private page."""
+    """Require one deployed Codex turn to revise and answer a private page.
+
+    A turn is a process, not a step: it may publish a checkpoint revision, say
+    something about the work, and only then publish what was asked for. So the wait
+    names the outcome — a published document carrying the requested heading, and a
+    reply that answers for it — rather than the first revision and the first reply to
+    appear, either of which the turn can pass through on its way there. The readings
+    that follow are containments for the same reason: the agent may quote the heading
+    it was handed, and the runtime may add its own words to any text a reader can
+    point at.
+    """
     context = browser.new_context()
     page = context.new_page()
     failures: list[str] = []
@@ -332,7 +342,9 @@ def verify_agent_turn(browser, release: str) -> None:
     check(comment is not None, f"{url} did not return its deployment-check comment")
 
     deadline = time.monotonic() + 300
-    reply = None
+    replies: list[dict] = []
+    answer = None
+    published = None
     current = state
     while time.monotonic() < deadline:
         current_response = context.request.get(
@@ -342,33 +354,63 @@ def verify_agent_turn(browser, release: str) -> None:
         )
         check(current_response.ok, f"{state_url} returned {current_response.status}")
         current = current_response.json()
-        reply = next(
+        replies = [
+            event
+            for event in current.get("events", [])
+            if event.get("kind") == "reply" and event.get("parent") == comment["id"]
+        ]
+        answer = next(
             (
                 event
-                for event in current.get("events", [])
-                if event.get("kind") == "reply" and event.get("parent") == comment["id"]
+                for event in replies
+                if "deployment verified" in event["text"].casefold()
             ),
             None,
         )
-        if current["active"]["revision"] > initial_revision and reply is not None:
+        active = current["active"]
+        if published is None and active["revision"] > initial_revision:
+            # The published document itself, fetched the way the next reader's browser
+            # fetches it: an edge-missing revision only this session's container holds.
+            document = context.request.get(urljoin(url, active["url"]), timeout=120_000)
+            if document.ok and heading in document.text():
+                published = active
+        if published is not None and answer is not None:
             break
         time.sleep(2)
+    said = "; it replied: " + " / ".join(event["text"] for event in replies)
     check(
-        current["active"]["revision"] > initial_revision,
-        f"{url} agent did not publish a revision"
-        + (f"; it replied: {reply['text']}" if reply else ""),
+        published is not None,
+        f"{url} agent did not publish ‘{heading}’; it reached revision "
+        f"{current['active']['revision']} from {initial_revision}"
+        + (said if replies else " and did not reply"),
     )
-    check(reply is not None, f"{url} agent published but did not reply")
-    check(
-        "deployment verified" in reply["text"].casefold(),
-        f"{url} agent returned an unexpected reply: {reply['text']}",
-    )
+    check(replies != [], f"{url} agent published but did not reply")
+    check(answer is not None, f"{url} agent returned an unexpected reply{said}")
     page.reload(wait_until="load", timeout=120_000)
     await_presentation(page, url, failures)
     check(not failures, f"{url} reported browser errors: {failures}")
+    # Which of the two ways this can fail: a browser still standing on the built
+    # document never followed the agent's revision, while one that followed it and
+    # shows another heading is the agent's edit rather than the reader's page.
+    shown = page.evaluate(
+        "() => document.querySelector('meta[name=\"lf-revision\"]')?.content ?? null"
+    )
     check(
-        page.locator("h1").inner_text() == heading,
-        f"{url} did not render the agent's published heading; browser errors: {failures}",
+        (shown or "").isdigit() and int(shown) >= published["revision"],
+        f"{url} stands on revision {shown} rather than following the published "
+        f"{published['revision']}",
+    )
+    rendered = page.locator("h1").inner_text()
+    check(
+        heading in rendered,
+        f"{url} rendered ‘{rendered}’ rather than the agent's published ‘{heading}’",
+    )
+    # What the turn actually did, on the green run as well as the red one: a gate whose
+    # only account of a hosted agent is its own exit status leaves the next reader of a
+    # failure with nothing to compare against.
+    print(
+        f"✓ hosted agent published revision {published['revision']} "
+        f"and replied: {answer['text']}"
     )
     context.close()
 

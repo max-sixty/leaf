@@ -528,10 +528,15 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     )
     expect(before_caption).to_have_attribute("aria-pressed", "true")
     expect(after_caption).to_have_attribute("aria-pressed", "false")
+    before_caption.focus()
+    assert "show before" not in shortcut_bar_text(page)
+    after_caption.focus()
+    assert "show after" in shortcut_bar_text(page)
     after_caption.click()
     assert shown_frames(page) == ["after"]
     expect(before_caption).to_have_attribute("aria-pressed", "false")
     expect(after_caption).to_have_attribute("aria-pressed", "true")
+    assert "show after" not in shortcut_bar_text(page)
     after_caption.click()
     assert shown_frames(page) == ["after"], (
         "the active caption toggled away from itself"

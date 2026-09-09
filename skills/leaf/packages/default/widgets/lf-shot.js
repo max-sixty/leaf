@@ -87,6 +87,9 @@ customElements.define(
             keys: PRESS,
             does: `Show the ${state} frame`,
             line: `show ${state}`,
+            // The frame already shown has nothing for this press to do, so the line
+            // does not name it there.
+            when: () => box.checked !== (state === "after"),
             run: () => caption.click(),
           },
         ]);

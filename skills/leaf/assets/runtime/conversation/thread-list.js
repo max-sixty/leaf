@@ -21,11 +21,9 @@
    property the list spends its own inset from. A margin there, or a `top` of zero,
    leaves a strip the list scrolls through in full view.
 
-   Being pinned is `.lf-pinned`, worn by the run headings and by the resolved
-   disclosure's summary, which takes the slot from the last heading when the reader
-   reaches it. One class carries the mechanics, so the slot cannot move in one of them;
-   it is also what `renderThreads` sweeps to answer how much of the list's top stands
-   covered. That answer is the one number in the list's `scroll-padding` that CSS
+   Being pinned is `.lf-pinned`, worn by the run headings. It is also what
+   `renderThreads` sweeps to answer how much of the list's top stands covered. That
+   answer is the one number in the list's `scroll-padding` that CSS
    cannot work out, because a long heading wraps — the tallest is written to
    `--lf-head-room`, and a `ResizeObserver` on the list writes it again when the reader
    draws the panel narrower and a heading wraps — a drag posts no event, so a reconcile
@@ -141,11 +139,6 @@ function systemNode(e, text) {
   return div;
 }
 
-// The resolved disclosure, one <details> for the page's life: the user's
-// open/closed toggle is the browser's state, and it survives arrivals only if the
-// element does — the rebuild this replaced snapped it shut on every one.
-let resolvedBox = null;
-
 // The one number in the list's scroll-padding that CSS cannot work out: a run heading
 // sticks over the top of this box, and a long one wraps, so how much of the top is
 // covered is a measurement rather than a constant. The tallest, not the stuck one — the
@@ -191,9 +184,8 @@ const contentTop = (card) => card.getBoundingClientRect().top + threadsBox.scrol
 const maxScrollTop = () =>
   Math.max(0, threadsBox.scrollHeight - threadsBox.clientHeight);
 // The box a card can hold the list's place by, or null where it can hold nothing: a
-// fold renames its node out of .lf-thread on the way out, a narrowing hides one, and
-// a closed disclosure leaves one connected with no box to measure. One
-// statement of it, so what takes a hold and what corrects one cannot disagree over
+// fold renames its node out of .lf-thread on the way out, and a narrowing hides one.
+// One statement of it, so what takes a hold and what corrects one cannot disagree over
 // which cards are still standing.
 const heldBox = (card) => {
   if (
@@ -386,8 +378,6 @@ function reconcileThreads(all) {
   // and go on saying what the log says. What the panel shows is the panel's business.
   const ordered = inPageOrder(threads);
   const shown = ordered.filter((t) => inFilter(t, group.get(t)));
-  const resolved = shown.filter((t) => t.resolved);
-
   const wanted = [];
   if (!threads.length) wanted.push(emptyNote);
   else if (!shown.length) wanted.push(noMatchNote());
@@ -408,7 +398,7 @@ function reconcileThreads(all) {
   // id in the document. Pressing "Waiting on you" after answering a thread's question
   // took that thread's node out and, with it, the question from the page's count: 2/2
   // became 1/1 while the log said nothing had changed. Hidden is a fact about this list;
-  // gone is a claim about the log. Resolved threads are the disclosure's, below.
+  // gone is a claim about the log. Resolved threads are ordinary filtered cards too.
   // Where the reader stood as this reconcile began, read before the loop: hiding a
   // card dispatches lf-thread-hidden, and a listener answering it — a reaction list
   // disarming — can move the focus out of the list itself. Read after the loop, that
@@ -417,13 +407,28 @@ function reconcileThreads(all) {
   let standing = null;
   const visible = new Set(shown);
   for (const t of ordered) {
-    if (t.resolved && !visible.has(t)) continue;
-    // A resolved thread is either still giving its room back in place, or gone from this
-    // list entirely and rebuilt under the disclosure below.
-    const node = t.resolved ? foldOut(t) : threadNode(t, grow);
+    // Under the default Open state, a newly resolved card gives its room back where it
+    // stood before becoming a retained hidden card. Under the Resolved state it is an
+    // ordinary visible result and changes directly to its resolved shape.
+    const prior = t.resolved
+      ? threadsBox.querySelector(
+          `:scope > .lf-thread[data-id="${CSS.escape(t.root.id)}"]`,
+        )
+      : null;
+    const node =
+      t.resolved && isFolding(t.root.id)
+        ? foldOut(t)
+        : t.resolved &&
+            !visible.has(t) &&
+            prior &&
+            !prior.hidden &&
+            prior.dataset.resolved === "false"
+          ? foldOut(t)
+          : threadNode(t, grow);
     if (!node) continue;
-    const hiding = !visible.has(t) && !node.hidden;
-    node.hidden = !visible.has(t);
+    const onItsWayOut = node.matches(".lf-going");
+    const hiding = !visible.has(t) && !onItsWayOut && !node.hidden;
+    node.hidden = !visible.has(t) && !onItsWayOut;
     if (node.hidden) {
       // Hidden is removal to everything that was standing in the card — a reaction
       // list open on one of its messages most of all, since its digits are live keys.
@@ -443,26 +448,6 @@ function reconcileThreads(all) {
   }
   for (const e of runtime.browser?.conversation?.done ?? [])
     wanted.push(systemNode(e, `✓ Approved ${ago(e.ts)}`));
-  if (resolved.length) {
-    if (!resolvedBox) {
-      resolvedBox = el("details", "lf-details");
-      resolvedBox.append(el("summary", "lf-pinned"));
-    }
-    const summary = resolvedBox.firstChild;
-    // Counted off what the panel is showing, listed off the page: a thread still folding
-    // out of the open list is resolved and says so in the count from the first frame, and
-    // is rebuilt in here when its fold is done rather than standing in two places at
-    // once. Under a narrowing the count is of the resolved threads that match it, for the
-    // same reason the head says "Showing 3 of 24" — a disclosure promising five where the
-    // list holds one is the trap the head exists to close.
-    const said = `Resolved (${resolved.length})`;
-    if (summary.textContent !== said) summary.textContent = said;
-    setChildren(resolvedBox, [
-      summary,
-      ...resolved.filter((t) => !isFolding(t.root.id)).map((t) => threadNode(t, false)),
-    ]);
-    wanted.push(resolvedBox);
-  }
   // A narrowing can take the thread the reader is standing in out of the list —
   // answering the last one waiting on the reader is exactly that — and a removed node drops
   // focus to body, which hands the next Space to the page behind the panel. Land them on
@@ -487,7 +472,7 @@ function reconcileThreads(all) {
   });
 
   toggleBtn.textContent = `Threads (${open.length})`;
-  paintNarrowing(open, shown);
+  paintNarrowing(threads, shown, group);
   // The anchor pass wrote its record before this list existed, and this reconcile may have
   // built the nodes that wear it. Both passes therefore repaint it: the one that changes
   // the record, and the one that changes what the record is painted on.

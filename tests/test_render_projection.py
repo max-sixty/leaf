@@ -4674,10 +4674,10 @@ def test_a_done_press_says_it_is_waiting_and_answers_once(browser, serve):
 
 def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     """A question in a thread is the thread's, so closing the thread takes the decision
-    with it. The group is still there to read in the disclosure, and still holds no
+    with it. The group is still there to read in the Resolved state, and still holds no
     answer — what went is the page's claim on the reader, who would otherwise carry a
     standing decision for the life of the page and have `d` step them into a closed
-    disclosure to reach it."""
+    hidden thread to reach it."""
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_ASKS[0])
     page, errors = open_page(browser, url)
@@ -4688,7 +4688,10 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     )
     told(page)
     expect(page.locator(".lf-asks")).to_be_hidden()
-    expect(page.locator(".lf-details #tq-one")).to_have_count(1)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, True)
+    page.locator('[data-filter-value="resolved"]').click()
+    expect(page.locator(".lf-thread:not([hidden]) #tq-one")).to_have_count(1)
     expect(page.locator("#tq-redis")).not_to_have_attribute("chosen", "")
     assert errors == []
     page.close()
@@ -5088,12 +5091,12 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/6")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
+    expect(page.locator(".lf-needs")).to_have_text("On you (1)")
     operations = page.locator("#thread-commands")
     with sending(page, "the restart request"):
         operations.get_by_role("button", name="Restart").click()
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/6")
-    expect(page.locator(".lf-needs")).to_have_text("Waiting on you")
+    expect(page.locator(".lf-needs")).to_have_text("On you")
     request = next(
         event
         for event in events_model.read_events(serve.page_dir)
@@ -5113,12 +5116,12 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     assert result.exit_code == 0, result.output
     told(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/6")
-    expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
+    expect(page.locator(".lf-needs")).to_have_text("On you (1)")
     expect(operations).to_contain_text("restart failed")
 
     with sending(page, "the retried restart request"):
         operations.get_by_role("button", name="Restart").click()
-    expect(page.locator(".lf-needs")).to_have_text("Waiting on you")
+    expect(page.locator(".lf-needs")).to_have_text("On you")
     request = [
         event
         for event in events_model.read_events(serve.page_dir)

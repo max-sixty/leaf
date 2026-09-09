@@ -1397,6 +1397,26 @@ def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
     assert boxes["menu"]["top"] >= boxes["button"]["bottom"], (
         f"the versions menu covered the chooser it hangs from: {boxes}"
     )
+
+    resized(page, 320, 844)
+    phone = menu.evaluate(
+        """menu => {
+          const button = document.querySelector('.lf-version').getBoundingClientRect();
+          const box = menu.getBoundingClientRect();
+          return {button: {bottom: button.bottom, left: button.left},
+                  menu: {top: box.top, right: box.right, left: box.left},
+                  viewport: innerWidth};
+        }"""
+    )
+    assert phone["menu"]["top"] == pytest.approx(
+        phone["button"]["bottom"] + 6, abs=2
+    ), f"the phone menu left its door vertically: {phone}"
+    assert phone["menu"]["left"] == pytest.approx(phone["button"]["left"], abs=2), (
+        f"the phone menu appeared to belong to a control on its right: {phone}"
+    )
+    assert phone["menu"]["right"] <= phone["viewport"] - 8, (
+        f"the phone menu left the viewport: {phone}"
+    )
     assert errors == []
     page.close()
 
@@ -1818,12 +1838,19 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         ) == comments_edge.get_attribute("aria-valuemax")
         threads = page.locator(".lf-threads")
         threads.evaluate("box => { box.scrollTop = 0; }")
+        filters = page.locator(".lf-thread-filters").bounding_box()
+        assert filters["height"] <= 120, (
+            f"the filters took more than three compact rows at the 320px floor: {filters}"
+        )
         width_before = page.evaluate(
             "() => getComputedStyle(document.documentElement)"
             ".getPropertyValue('--lf-panel-w')"
         )
-        panel_box = page.locator(".lf-panel").bounding_box()
-        swipe(panel_box["x"] + panel_box["width"] / 2, 280)
+        threads_box = threads.bounding_box()
+        swipe(
+            threads_box["x"] + threads_box["width"] / 2,
+            threads_box["y"] + min(80, threads_box["height"] / 2),
+        )
         page.wait_for_function(
             "() => document.querySelector('.lf-threads').scrollTop > 0"
         )
@@ -4672,6 +4699,7 @@ RING_WALKS = (
             "ship-review",
         ),
     ),
+    ("the thread list", ("g", "Shift+t"), ("corpus",)),
     ("passage search", ("/",), ("corpus",)),
     # Item hints, and the anchored bar the reader answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -4702,10 +4730,10 @@ RING_WALKS = (
     ("the Asks tray", (), ("ship-review",)),
     ("the leaves tray", ("g", "Shift+l"), ("corpus",)),
     # The menu's own walk after the key that opens it: an open lands on the version being
-    # read, which is the last row, and the comparison press beside a row is a Tab forward
-    # from the row above it. The walk is clamped, so a second press at the top moves
+    # read, which is the first row, and the comparison press beside a row is a Tab forward
+    # from the row below it. The walk is clamped, so a second press at the bottom moves
     # nothing and the pair covers a menu of any length this corpus can hold.
-    ("the versions menu", ("g", "Shift+v", "ArrowUp", "ArrowUp"), ("corpus",)),
+    ("the versions menu", ("g", "Shift+v", "ArrowDown", "ArrowDown"), ("corpus",)),
     ("the reference", ("?", "?"), ("corpus",)),
     ("design mode", ("l",), ("corpus",)),
     # A Thread card and the compact Page-map sheet are the two layers a Tab walk of the
@@ -4749,6 +4777,7 @@ def offered(page, selector):
 # surface of their own; `g T` lands on the Threads list, which the walk's own first stop
 # reads, while page `c` enters its comment box and is exercised separately.
 RING_SCOPE_SURFACE = {
+    "the thread list": (".lf-panel.open", None),
     "a thread card": (".lf-margin-preview:popover-open", None),
     "the page map sheet": (".lf-page-map-sheet[open]", None),
     "passage search": (".lf-target-search:not([hidden])", None),
@@ -4886,6 +4915,17 @@ SEEN_STOP = f"""() => {{
        el = el.parentElement ?? el.getRootNode().host ?? null)
     if (shown(el) && (getComputedStyle(el).outlineStyle === 'auto' || named(el)))
       return null;
+  // The scrolling thread list's children can paint over its inset outline. Its frame
+  // therefore carries a later-painted pseudo-element with the same outline. This
+  // relationship is deliberately exact: unrelated paint elsewhere is not evidence
+  // that the focused stop is visible.
+  if (e.parentElement?.matches('.lf-threads-frame')) {{
+    const overlay = getComputedStyle(e.parentElement, '::after');
+    if (overlay.outlineStyle === 'solid'
+        && overlay.outlineWidth === overlay.getPropertyValue('--here-ring-w').trim()
+        && overlay.outlineColor === accent
+        && overlay.getPropertyValue('--lf-here-ring').trim() !== 'none') return null;
+  }}
   if (({HERE_SHADOW})(getComputedStyle(e), accent, mixed) > 0) return null;
   const cls = typeof e.className === 'string' && e.className.trim()
     ? '.' + e.className.trim().split(/\\s+/).join('.') : '';
@@ -4930,6 +4970,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
 
     page.evaluate("""() => {
         const style = document.createElement('style');
+        style.id = 'lf-ring-negative-control';
         style.textContent =
           '.lf-threads-toggle:focus-visible { outline: none !important;'
           + ' box-shadow: none !important; }';
@@ -4940,6 +4981,27 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     assert lost and "lf-threads-toggle" in lost, (
         "the ring was taken off a focused control and the reading still called it seen "
         f"({lost}), so the walk cannot report a stop the reader cannot find"
+    )
+
+    # The thread list's ring is a later-painted pseudo-element because its scrolling
+    # contents can cover an outline on the list itself. Prove that paint is part of the
+    # reading, then take it away without moving focus and require the list to be reported.
+    page.evaluate("() => document.getElementById('lf-ring-negative-control').remove()")
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page)
+    expect(page.locator(".lf-threads")).to_be_focused()
+    assert page.evaluate(SEEN_STOP) is None
+    page.evaluate("""() => {
+        const style = document.createElement('style');
+        style.textContent = '.lf-threads-frame::after { outline: none !important; }';
+        document.head.append(style);
+    }""")
+    lost = page.evaluate(SEEN_STOP)
+    assert lost and "lf-threads" in lost, (
+        "the list's ring was removed and the reading still called its keyboard "
+        f"landing seen ({lost})"
     )
 
     page.close()
@@ -5060,13 +5122,6 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         for row in page.locator("lf-options[settled] > .lf-settled").all():
             if row.is_visible():
                 row.click()
-        # And the resolved threads, for the same reason and with the same shape: a
-        # closed thread's Reopen is behind this disclosure, so a walk that leaves it
-        # shut reaches every control in the panel except the one on the far side of an
-        # answered conversation.
-        resolved = page.locator(".lf-details > summary")
-        if resolved.count() and resolved.is_visible():
-            resolved.click()
         page_at_rest(page)
 
         for scope, keys, corpus in RING_WALKS:
@@ -5109,6 +5164,17 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             elif not page.locator(".lf-panel.open").count():
                 page.locator(".lf-threads-toggle").click()
                 panel_settled(page)
+            if scope == "the page":
+                # Escape restores the panel's default lifecycle view. Select Resolved
+                # after that reset so the page walk includes each closed thread's
+                # Reopen control; narrower scopes keep open threads available for their
+                # own conditional controls, such as a reply's reaction palette.
+                resolved = page.locator('[data-filter-value="resolved"]')
+                if (
+                    resolved.is_enabled()
+                    and resolved.get_attribute("aria-pressed") != "true"
+                ):
+                    resolved.click()
                 page.evaluate(RING_WALK_START)
             if posture:
                 resized(page, posture, RING_WALK_VIEWPORT[1])
@@ -5492,8 +5558,8 @@ def _each_aim_surface(page, page_dir):
     # A resolved thread, which is the only state that has a Reopen to aim at.
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
     round_trip(page)
-    expect(page.locator(".lf-details summary")).to_have_count(1)
-    page.locator(".lf-details summary").click()
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    page.locator('[data-filter-value="resolved"]').click()
     expect(page.locator(".lf-reopen")).to_have_count(1)
     yield
 
@@ -5517,7 +5583,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
 
     Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
     reaction chips stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
-    version's Δ, a command in the reference, and a quote at around twelve by seven.
+    version's Compare, a command in the reference, and a quote at around twelve by seven.
     Three controls reached the coarse-pointer block and the rest reached neither floor,
     so the same presses were small under a finger too.
 
@@ -5529,7 +5595,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
     about rather than a lesser version of it.
 
     The surfaces have to be opened for any of it to mean anything: seven of the eight
-    controls at issue exist only inside a panel, a menu, a resolved disclosure or the
+    controls at issue exist only inside a panel, a menu, a resolved thread or the
     reference, and a sweep of the page at rest would report a clean layer while every one
     of them was still six pixels tall. AIM_SURFACES is that assertion.
     """
@@ -5553,7 +5619,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
         },
     )
     # A second version, published the way a page gets one and read from, so the versions
-    # menu has an earlier version to compare against and its Δ exists to be aimed at.
+    # menu has an earlier version to compare against and Compare exists to be aimed at.
     _publish(serve.page_dir, 2, example.read_text(), "Same page, said twice.")
     page, errors = open_page(
         browser, served.replace("/v1.html", "/v2.html"), context=context

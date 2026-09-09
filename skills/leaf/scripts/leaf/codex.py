@@ -208,6 +208,8 @@ class AppServerEvents:
             item = params["item"]
             if item["type"] == "agentMessage":
                 self._record_message(item)
+                if item.get("phase") == "commentary":
+                    return None
                 if item.get("text"):
                     return {
                         "turn": turn_id,
@@ -224,6 +226,8 @@ class AppServerEvents:
             self.details.pop(item["id"], None)
             if item["type"] == "agentMessage":
                 self._record_message(item)
+                if item.get("phase") == "commentary":
+                    return None
                 return {
                     "turn": turn_id,
                     "reply": self._reply_update(item["id"], complete=True),
@@ -237,6 +241,8 @@ class AppServerEvents:
             if item_id not in self.message_order:
                 self.message_order.append(item_id)
                 self.message_phases[item_id] = None
+            if self.message_phases.get(item_id) == "commentary":
+                return None
             return {
                 "turn": turn_id,
                 "reply": self._reply_update(item_id, complete=False),
@@ -282,13 +288,12 @@ class AppServerEvents:
         ]
         if final:
             return "\n\n".join(final)
-        public = [
+        unknown = [
             self.text[item_id]
             for item_id in self.message_order
-            if self.message_phases.get(item_id) in {None, "commentary"}
-            and self.text.get(item_id)
+            if self.message_phases.get(item_id) is None and self.text.get(item_id)
         ]
-        return public[-1] if public else ""
+        return unknown[-1] if unknown else ""
 
     def _reply_update(self, item_id: str, *, complete: bool) -> dict:
         return {
@@ -682,6 +687,11 @@ class AppServerClient:
             reply["item"],
             reply["text"],
             "active",
+            settles=(
+                reply["complete"]
+                and reply["phase"] in {"final_answer", None}
+                and bool(reply["text"])
+            ),
         )
         self.last_reply_update = now
 
@@ -1156,6 +1166,8 @@ def _set_stream_reply(
     item_id: str | None,
     text: str,
     state: str,
+    *,
+    settles: bool = False,
 ) -> None:
     try:
         with PageTransaction(Path(binding["page"])) as page:
@@ -1170,6 +1182,7 @@ def _set_stream_reply(
                 item_id,
                 text,
                 state,
+                settles=settles,
             )
     except FileNotFoundError:
         pass

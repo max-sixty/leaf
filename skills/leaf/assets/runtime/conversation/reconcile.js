@@ -21,18 +21,19 @@ import { paintDrawings } from "../composing/drawing.js";
 import { paintHere } from "../keyboard/scopes.js";
 
 import { threadsBox } from "./panel.js";
+import { panelIsOpen } from "../chrome-layout.js";
 
 import { toggleBtn } from "../banner.js";
 import { renderMargin } from "../living-margin.js";
 import { paintAcknowledgmentsNow } from "./acknowledgments.js";
 import { renderSurfaces } from "./surfaces.js";
-import { paintNarrowing, widen } from "./narrowing.js";
+import { paintNarrowing, revealThread } from "./narrowing.js";
 
 /* Conversation state and panel reconciliation.
 
    The thread list reconciles nodes rather than rebuilding them. `setChildren` preserves
    existing message, reply, and textarea nodes when the same event still stands.
-   Applying a state must not discard a reader's caret, focus, reply text, or disclosure
+   Applying a state must not discard a reader's caret, focus, reply text, or filter
    state. Reconciliation preserves node identity; the list's own hold, rather than the
    browser's scroll anchoring, preserves viewport position. Tests pin the thread's box
    rather than a particular scroll offset. */
@@ -62,11 +63,12 @@ let listedThreads = [];
 // of scoped presses in one stroke. Panel work reads only cards its narrowing shows; the page
 // walk explicitly includes hidden cards, because a closed panel cannot explain why its
 // retained search excluded a thread that remains visible on the page.
-export const openThreads = ({ visibleOnly = true } = {}) => [
-  ...threadsBox.querySelectorAll(
-    visibleOnly ? ":scope > .lf-thread:not([hidden])" : ":scope > .lf-thread",
-  ),
-];
+export const openThreads = ({ visibleOnly = true } = {}) =>
+  [...threadsBox.querySelectorAll(":scope > .lf-thread")].filter(
+    (thread) =>
+      (!visibleOnly || !thread.hidden) &&
+      (panelIsOpen() || thread.dataset.resolved !== "true"),
+  );
 export const paintAcknowledgments = clocked(document.body, (...args) =>
   holdScrollPosition(() => paintAcknowledgmentsNow(...args)),
 );
@@ -80,10 +82,11 @@ export const paintAcknowledgments = clocked(document.body, (...args) =>
 // imports this module back.
 export function mountConversation() {
   threadsBox.addEventListener("lf-reveal", (event) => {
-    if (event.detail?.target?.closest?.(".lf-thread[hidden]")) widen();
+    const hidden = event.detail?.target?.closest?.(".lf-thread[hidden]");
+    if (hidden) revealThread(hidden.dataset.id);
   });
 }
-// The reconcile's one mover, shared by the list and the resolved disclosure: make
+// The reconcile's one mover: make
 // `parent`'s children `nodes`, in that order, touching nothing already in its place.
 // Not touching it matters beyond economy: reinserting a node restarts its CSS
 // animations, drops any focus and caret inside it, and swaps it out from under a

@@ -102,6 +102,6 @@ export const reactionsOn = (anchor) =>
     )
     .map((thread) => thread.root);
 
-const awaitsAgent = (thread) => thread.awaits_agent;
+export const awaitsAgent = (thread) => thread.awaits_agent;
 export const awaitsReader = (thread) => thread.awaits_reader;
 export const seatRoot = (thread) => thread.seat;

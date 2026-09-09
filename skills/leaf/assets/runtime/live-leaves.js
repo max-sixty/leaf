@@ -7,6 +7,7 @@ import { keys, paintKeys } from "./keyboard/scopes.js";
 import { walkRows } from "./keyboard/bindings.js";
 import { toneFor } from "./banner.js";
 import { el } from "./widget-elements.js";
+import { beginWalk, listWalkPosition } from "./walk-position.js";
 
 let others = [];
 
@@ -42,7 +43,12 @@ export function declareLeavesKeys() {
         does: "Walk the leaves",
         line: "walk the leaves",
         repeat: true,
-        run: (binding) => walkRows(othersLinks(), binding === "ArrowDown" ? 1 : -1),
+        run: (binding) => {
+          walkRows(othersLinks(), binding === "ArrowDown" ? 1 : -1);
+          beginWalk("leaf", "Leaf", () =>
+            listWalkPosition(othersLinks(), document.activeElement),
+          );
+        },
       },
     ],
     () => othersLinks().length > 0,

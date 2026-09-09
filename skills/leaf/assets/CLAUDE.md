@@ -39,8 +39,10 @@ and stores each declaration unread, and the first repaint after boot evaluates i
 there;
 `runtime/standing.js` owns the one repaint of where the reader stands, in the order
 the geometry demands;
-`runtime/walk-position.js` owns the transient ordinal for an active Ask or Thread keyboard
-walk and the brief boundary state when another press stays at the same destination;
+`runtime/walk-position.js` owns the transient ordinal for clamped Leaf-owned keyboard
+walks, shown at the page head when the layout has room, and the brief boundary state when
+another press stays at the same destination; cyclic and widget-owned walks keep their
+local feedback;
 `runtime/icons.js` owns the layer's icon table;
 `runtime/context.js` owns the mutable facts shared across the browser layers and
 their direct readers;
@@ -97,7 +99,7 @@ subscriptions;
 of rows applies; `dispatch.js` which scope answers a press and what it owes the
 platform; `return-stack.js` what a keyboard entry owes on the way back out;
 `shortcut-bar.js` the short help at the foot of the page, its More control, the separate
-category-walk readout on the opposite edge, and the shared list of their rendered boxes;
+clamped-walk readout at the page's head, and the shared lists of their rendered boxes;
 `reference.js` the complete listing behind `?`; `address.js` the go-to sequence;
 `address-placement.js` shared address visibility and the numeric Ask placement pass;
 `hints.js` prefix-free transient labels and their no-drop placement pass;
@@ -200,8 +202,8 @@ and folds the reader's unread messages into them from the outbox;
 state and motion;
 `runtime/conversation/landing.js` owns conversation input discovery, focus travel,
 and panel arrival;
-`runtime/conversation/narrowing.js` owns comment-panel search and waiting-on-reader
-filter state;
+`runtime/conversation/narrowing.js` owns comment-panel search and the lifecycle,
+scope, subject, and detached-placement facet state;
 `runtime/conversation/placement.js` owns document-order grouping;
 `runtime/conversation/reaction-strips.js` owns the panel's message reaction surfaces;
 `runtime/conversation/surfaces.js` owns registry-declared widget outlets and the set of
@@ -248,7 +250,7 @@ Each mutable fact has one writer:
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
 | panel visibility | `panelOpen` | `setPanel` |
-| the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
+| the narrowing on the thread list | the reader's find words and lifecycle, scope, subject, and detached-placement facets | `renarrow`, `revealThread`, and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
 | the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` and the held `paintAcknowledgments` call preserve it through reconciliation, provisional work, and resolution folds |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival |

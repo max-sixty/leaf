@@ -1602,11 +1602,11 @@ def compare_with(page, version=None):
 
     The chooser opens and the row for that version carries the press, beside the note
     that says in words what it changed. With no version named it is the one before the
-    version being read — the last Δ in the menu, a row offering one only where it is
+    version being read — the first Compare in the menu, a row offering one only where it is
     older than this."""
     page.locator(".lf-version").click()
     press = (
-        page.locator(".lf-version-diff").last
+        page.locator(".lf-version-diff").first
         if version is None
         else page.locator(f'.lf-version-diff[data-lf-version="{version}"]')
     )

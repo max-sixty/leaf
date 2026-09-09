@@ -69,6 +69,7 @@ import {
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { el, focusDestination, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { clampedRow, PRESS } from "./keyboard/bindings.js";
+import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { landInConversation, showThread } from "./conversation/landing.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
@@ -282,12 +283,10 @@ function changePosture() {
   renderMargin();
 }
 const preview = el("aside", "lf-ui lf-margin-preview");
-export { preview as marginPreview };
 preview.id = "lf-margin-preview";
 preview.setAttribute("popover", "auto");
 preview.setAttribute("role", "dialog");
 const previewHead = el("div", "lf-margin-preview-head");
-export { previewHead as marginPreviewHead };
 const previewTitle = el("strong", "lf-margin-preview-title");
 const previewClose = el(
   "button",
@@ -774,12 +773,19 @@ function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) 
     : document.querySelector("main")?.getBoundingClientRect();
   const bannerBottom =
     document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
+  const walkPosition = document
+    .querySelector(".lf-walk-position:not([hidden])")
+    ?.getBoundingClientRect();
   const gap = 8;
   const firstLeft = regionBounds?.left ?? 0;
   const lastRight = regionBounds?.right ?? document.documentElement.clientWidth;
   const firstTop = Math.max(regionBounds?.top ?? 0, bannerBottom) + gap;
   const lastBottom = (regionBounds?.bottom ?? innerHeight) - gap;
   const totalHeight = Math.max(0, lastBottom - firstTop);
+  const firstTopFor = (left, right) =>
+    walkPosition && left < walkPosition.right && walkPosition.left < right
+      ? Math.max(firstTop, walkPosition.bottom + gap)
+      : firstTop;
   const referenceVisible = target.bottom > firstTop && target.top < lastBottom;
   if (referenceVisible) {
     previewReferenceSeen = true;
@@ -801,11 +807,11 @@ function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) 
     };
   }
   const metrics = previewPlacementMetrics;
-  const naturalHeight = (width) => {
-    const key = width.toFixed(2);
+  const naturalHeight = (width, availableHeight = totalHeight) => {
+    const key = `${width.toFixed(2)}:${availableHeight.toFixed(2)}`;
     if (!metrics.heights.has(key)) {
       preview.style.setProperty("--lf-thread-width", `${width}px`);
-      preview.style.setProperty("--lf-thread-max-height", `${totalHeight}px`);
+      preview.style.setProperty("--lf-thread-max-height", `${availableHeight}px`);
       metrics.heights.set(key, preview.scrollHeight + metrics.borderHeight);
     }
     return metrics.heights.get(key);
@@ -828,13 +834,15 @@ function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) 
     : [];
   for (const side of sideCandidates) {
     if (side.width < metrics.minimumWidth) continue;
-    const height = naturalHeight(side.width);
+    const sideTop = firstTopFor(side.left, side.left + side.width);
+    const sideHeight = Math.max(0, lastBottom - sideTop);
+    const height = naturalHeight(side.width, sideHeight);
     const placement = threadSidePlacement(
       side.left,
       side.width,
       height,
       target,
-      firstTop,
+      sideTop,
       lastBottom,
     );
     if (!placement) continue;
@@ -851,17 +859,18 @@ function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) 
   // preferring the room below the selected cluster, then above, then the larger side as
   // a scrolling viewport. The cluster itself is never part of the area the card spends.
   const width = metrics.preferredWidth;
-  const overlayHeight = naturalHeight(width);
-  const belowTop = Math.max(firstTop, Math.min(target.bottom + gap, lastBottom));
-  const aboveBottom = Math.max(firstTop, Math.min(target.top - gap, lastBottom));
+  const lastLeft = lastRight - width - gap;
+  const left = clamp(target.right - width, firstLeft + gap, lastLeft);
+  const overlayTop = firstTopFor(left, left + width);
+  const overlayHeight = naturalHeight(width, Math.max(0, lastBottom - overlayTop));
+  const belowTop = Math.max(overlayTop, Math.min(target.bottom + gap, lastBottom));
+  const aboveBottom = Math.max(overlayTop, Math.min(target.top - gap, lastBottom));
   const belowRoom = Math.max(0, lastBottom - belowTop);
-  const aboveRoom = Math.max(0, aboveBottom - firstTop);
+  const aboveRoom = Math.max(0, aboveBottom - overlayTop);
   const below =
     overlayHeight <= belowRoom || (overlayHeight > aboveRoom && belowRoom >= aboveRoom);
   const room = below ? belowRoom : aboveRoom;
   const cardHeight = Math.min(overlayHeight, room);
-  const lastLeft = lastRight - width - gap;
-  const left = clamp(target.right - width, firstLeft + gap, lastLeft);
   const top = below ? belowTop : aboveBottom - cardHeight;
   preview.dataset.lfThreadPlacement = below ? "below" : "above";
   preview.style.setProperty("--lf-thread-width", `${width}px`);
@@ -870,7 +879,10 @@ function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) 
   preview.style.setProperty("--lf-thread-top", `${top}px`);
   if (remeasure) keepThreadPreviewFocusVisible();
 }
-function scheduleThreadPreviewPosition(remeasure = false, dismissDetached = false) {
+export function scheduleThreadPreviewPosition(
+  remeasure = false,
+  dismissDetached = false,
+) {
   if (remeasure) {
     previewPositionRemeasure = true;
     previewPositionDismissDetached = false;
@@ -1504,6 +1516,9 @@ function walkMarkers(direction, edge = null) {
         : clampedRow(visible, document.activeElement, direction);
   holdTabStop(next);
   next.focus({ preventScroll: true });
+  beginWalk("page-map", "Marker", () =>
+    listWalkPosition(visibleRows(), document.activeElement),
+  );
 }
 
 let marginKeysAvailable = false;

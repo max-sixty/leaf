@@ -1681,11 +1681,11 @@ RINGS_DRAWN = f"""async () => {{
   //
   // Element feedback now deliberately shares the ring's weight and accent while the
   // pointer is over it or its thread is current. Its role is the distinction the paint
-  // no longer carries: an unnamed contour on an element mark is feedback, while the
-  // named focus state on that same element is a ring. Keep that one semantic exclusion
-  // here; treating every accent contour as a ring reports the page painting a ring no
-  // rule named, and naming the feedback contour would put it in a population the
-  // keyboard can never light.
+  // no longer carries: an unnamed contour on a non-focused element mark is feedback,
+  // while the focused element or a named focus state on that same mark wears a ring.
+  // Keep that one semantic exclusion here; treating every accent contour as a ring
+  // reports the page painting a ring no rule named, and naming the feedback contour
+  // would put it in a population the keyboard can never light.
   // The control the reader is standing on is measured whatever paints its outline, since
   // a visible ring cut in half is a fault whoever drew it.
   //
@@ -1700,20 +1700,24 @@ RINGS_DRAWN = f"""async () => {{
     const n = cs.getPropertyValue('--lf-here-ring').trim();
     return n === 'none' ? '' : n;
   }};
+  const focused = ({DEEP_FOCUS})();
   const isHereRing = (el, cs) =>
     (cs.outlineStyle === 'solid'
      && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
      && cs.outlineColor === accent
-     && (!el.matches(':is(.lf-mark-el, .lf-react-el)') || Boolean(ringName(cs))))
+     && (el === focused
+         || !el.matches(':is(.lf-mark-el, .lf-react-el)')
+         || Boolean(ringName(cs))))
     || hereShadow(cs) > 0;
   // Every box painting the ring, read off the composed page. Whether a ring is there is
-  // what the paint says, so this asks the paint: a ring a rule drew without the layer's
-  // own token is found here exactly as readily, and no reading of the rules can find
-  // one. The name answers the other question — which rule drew it — and is read
-  // only to credit, which is why nothing here depends on the declaration being made.
+  // what the paint says, so this asks the paint. An unnamed ring is found exactly as
+  // readily unless it is the visually identical feedback contour on a non-focused
+  // element mark; no paint reading can separate those two. The name answers the other
+  // question — which rule drew it — and is read only to credit.
   //
-  // The focused element joins them whatever paints its outline, so a ring the platform
-  // draws and the layer never named is measured too.
+  // The focused element joins them whatever paints its outline. It is also exempt from
+  // the feedback-contour exclusion, so an unnamed ring on a focused element mark is
+  // still recognized and measured.
   //
   // Roots are collected as the sweep goes. Pushing onto the array being walked carries
   // it into a shadow tree another shadow tree opened, which a pass over the document's
@@ -1729,7 +1733,6 @@ RINGS_DRAWN = f"""async () => {{
       if (after.content !== 'none' && isHereRing(el, after))
         claimed.push({{ el, cs: after, name: ringName(after) }});
     }}
-  const focused = ({DEEP_FOCUS})();
   if (focused && focused !== document.body && focused !== document.documentElement
       && !claimed.some((claim) => claim.el === focused)) {{
     const cs = getComputedStyle(focused);

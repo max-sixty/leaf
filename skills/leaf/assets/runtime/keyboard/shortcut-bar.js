@@ -65,13 +65,11 @@ import {
   rowSteps,
 } from "./presentation.js";
 import { el } from "../widget-elements.js";
-import { lineOwner, shadow, stack } from "./dispatch.js";
-import { LESS_SHORTCUTS, REFERENCE } from "./page.js";
-import { referenceOpen, showReference } from "./reference.js";
+import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
+
+import { referenceOpen, openReference } from "./reference.js";
 import { announce } from "../notifications.js";
 import { repaint } from "../repaint.js";
-import { setSequence } from "./address.js";
-import { setReact } from "../reactions.js";
 import { walkPosition } from "../walk-position.js";
 
 // The shortcut bar — the register's short rendering. Its fact chips are aria-hidden (the spoken
@@ -191,12 +189,18 @@ const completeLine = (scopes, candidates) => {
     rows,
   };
 };
-function more() {
-  if (!shortcutAvailable() || expanded) return showReference(true);
+const openAllShortcuts = (captureReturnPlace) =>
+  openReference(
+    (id, origin) => executeCommand(id, origin, beforeShortcutCommand),
+    captureReturnPlace,
+  );
+function more(captureReturnPlace) {
+  if (!shortcutAvailable() || expanded) return openAllShortcuts(captureReturnPlace);
   const scopes = stack();
   const { candidates, short } = arrange(lineRows(scopes));
   const shown = completeLine(scopes, candidates)?.rows ?? short;
-  if (!candidates.some((row) => !shown.has(row))) return showReference(true);
+  if (!candidates.some((row) => !shown.has(row)))
+    return openAllShortcuts(captureReturnPlace);
   expanded = true;
   repaint();
   announce(
@@ -363,16 +367,49 @@ export function renderLine() {
     span.hidden = true;
   }
 }
-repaint();
-// The room is the window's, so the window changing is a scope change like any other. It
-// was the one edge no writer reported: a reader who narrowed their window kept the wide
-// selection until they next moved focus, and the CSS clip did the cutting instead.
-addEventListener("resize", repaint);
 
 export const shortcutBarExpanded = () => expanded && shortcutAvailable();
 
-shortcutBarMore.onclick = () => {
-  setSequence(false);
-  setReact(false);
-  more();
+// Boot supplies the two transient modes More closes. The shelf renderer and its
+// reference rows never import those command owners to draw their current declarations.
+export function mountShortcutBar({ setSequence, setReact, captureReturnPlace }) {
+  shortcutBarMore.onclick = () => {
+    setSequence(false);
+    setReact(false);
+    more(captureReturnPlace);
+  };
+  // A narrower window changes which rows fit even without another reader input.
+  addEventListener("resize", repaint);
+  repaint();
+}
+
+export const REFERENCE = {
+  id: "reference.open",
+  runFromReference: false,
+  keys: ["?"],
+  does: () =>
+    shortcutBarExpanded() ? "All keyboard shortcuts" : "More keyboard shortcuts",
+  line: () => (shortcutBarExpanded() ? "all shortcuts" : "more"),
+  control: () => shortcutBarMore,
+  run: () => shortcutBarMore.click(),
+};
+
+export const LESS_SHORTCUTS = {
+  id: "shortcuts.less",
+  keys: ["Escape"],
+  does: "Show fewer keyboard shortcuts",
+  line: "less",
+  referenceWhen: () => false,
+  runFromReference: false,
+  run: () => less(),
+};
+
+export const beforeShortcutCommand = (row) => {
+  if (
+    shortcutBarExpanded() &&
+    !referenceOpen() &&
+    row !== REFERENCE &&
+    row !== LESS_SHORTCUTS
+  )
+    less({ silent: true });
 };

@@ -1,3 +1,7 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 // The browser's names the layer uses, for `no-undef`: a moved function that lost an
 // import must fail the hook rather than bind to `window.*` on the first page that
 // reaches it. Only names in use are listed — `open`, `top`, `parent`, `origin`, `escape`
@@ -188,6 +192,262 @@ const ownerBoundary = {
   ],
 };
 
+const runtimeRoot = fileURLToPath(
+  new URL("./skills/leaf/assets/runtime/", import.meta.url),
+);
+const runtimeName = (file) =>
+  path.relative(runtimeRoot, file).split(path.sep).join("/");
+
+const exactClosures = new Map(
+  Object.entries({
+    "projection/model.js": [],
+    "projection/state.js": [],
+    "conversation/model.js": ["anchor-coordinate.js", "conversation/identity.js"],
+    "conversation/state.js": [
+      "anchor-coordinate.js",
+      "conversation/identity.js",
+      "conversation/model.js",
+    ],
+    "pending/model.js": ["conversation/identity.js"],
+    "pending/state.js": ["conversation/identity.js", "pending/model.js"],
+    "keyboard/dispatch.js": [
+      "context.js",
+      "focus.js",
+      "keyboard/bindings.js",
+      "keyboard/register.js",
+      "keyboard/return-stack.js",
+      "keyboard/scopes.js",
+      "keyboard/text-entry.js",
+      "native-layers.js",
+      "registry.js",
+      "repaint.js",
+      "shadow.js",
+    ],
+  }).map(([root, allowed]) => [root, new Set(allowed)]),
+);
+
+const applicationOwners = new Set([
+  "application.js",
+  "delivery.js",
+  "keyboard/address.js",
+  "keyboard/controller.js",
+  "keyboard/page.js",
+  "panel-workspace.js",
+  "pending/state.js",
+  "projection/commands.js",
+  "requests.js",
+  "state-application.js",
+  "state-feed.js",
+  "workspace.js",
+]);
+
+const forbiddenClosures = new Map([
+  ...[
+    "conversation/acknowledgments.js",
+    "conversation/box.js",
+    "conversation/folding.js",
+    "conversation/inline.js",
+    "conversation/landing.js",
+    "conversation/messages.js",
+    "conversation/narrowing.js",
+    "conversation/panel.js",
+    "conversation/placement.js",
+    "conversation/presentation.js",
+    "conversation/reaction-strips.js",
+    "conversation/replies.js",
+    "conversation/surfaces.js",
+    "conversation/thread-card.js",
+    "conversation/thread-list.js",
+  ].map((root) => [root, applicationOwners]),
+  ...[
+    "anchor-resolution.js",
+    "anchor-controls.js",
+    "anchor-paint.js",
+    "anchor-travel.js",
+    "chrome-layout.js",
+    "composing/drawing-paint.js",
+    "margin-layout.js",
+    "page-geometry.js",
+    "target-paint.js",
+  ].map((root) => [
+    root,
+    new Set([...applicationOwners, "conversation/presentation.js"]),
+  ]),
+  ...["projection/data.js", "projection/presentation.js"].map((root) => [
+    root,
+    applicationOwners,
+  ]),
+]);
+
+let runtimeGraph;
+function graphFrom(parser) {
+  if (runtimeGraph) return runtimeGraph;
+  const graph = new Map();
+  const visitTree = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visitTree(file);
+        continue;
+      }
+      if (!file.endsWith(".js")) continue;
+      const ast = parser.parse(fs.readFileSync(file, "utf8"), {
+        ecmaVersion: "latest",
+        sourceType: "module",
+      });
+      const imports = [];
+      const seen = new Set();
+      const walk = (node) => {
+        if (!node || typeof node !== "object" || seen.has(node)) return;
+        seen.add(node);
+        if (
+          (node.type === "ImportDeclaration" ||
+            node.type === "ExportNamedDeclaration" ||
+            node.type === "ExportAllDeclaration") &&
+          typeof node.source?.value === "string"
+        )
+          imports.push(node.source.value);
+        else if (
+          node.type === "ImportExpression" &&
+          typeof node.source?.value === "string"
+        )
+          imports.push(node.source.value);
+        for (const value of Object.values(node)) {
+          if (Array.isArray(value)) value.forEach(walk);
+          else walk(value);
+        }
+      };
+      walk(ast);
+      graph.set(
+        runtimeName(file),
+        imports
+          .filter((source) => source.startsWith(".") || source.startsWith("/runtime/"))
+          .map((source) =>
+            source.startsWith("/runtime/")
+              ? source.slice("/runtime/".length)
+              : runtimeName(path.resolve(path.dirname(file), source)),
+          )
+          .filter((target) => !target.startsWith("../")),
+      );
+    }
+  };
+  visitTree(runtimeRoot);
+  runtimeGraph = graph;
+  return graph;
+}
+
+function pathsFrom(graph, root) {
+  const paths = new Map([[root, [root]]]);
+  const queue = [root];
+  for (const current of queue)
+    for (const dependency of graph.get(current) ?? []) {
+      if (!graph.has(dependency) || paths.has(dependency)) continue;
+      paths.set(dependency, [...paths.get(current), dependency]);
+      queue.push(dependency);
+    }
+  return paths;
+}
+
+function cyclicComponents(graph) {
+  let nextIndex = 0;
+  const indices = new Map();
+  const lowLinks = new Map();
+  const stack = [];
+  const stacked = new Set();
+  const components = [];
+  const visit = (module) => {
+    indices.set(module, nextIndex);
+    lowLinks.set(module, nextIndex);
+    nextIndex += 1;
+    stack.push(module);
+    stacked.add(module);
+    for (const dependency of graph.get(module) ?? []) {
+      if (!graph.has(dependency)) continue;
+      if (!indices.has(dependency)) {
+        visit(dependency);
+        lowLinks.set(module, Math.min(lowLinks.get(module), lowLinks.get(dependency)));
+      } else if (stacked.has(dependency))
+        lowLinks.set(module, Math.min(lowLinks.get(module), indices.get(dependency)));
+    }
+    if (lowLinks.get(module) !== indices.get(module)) return;
+    const component = [];
+    let member;
+    do {
+      member = stack.pop();
+      stacked.delete(member);
+      component.push(member);
+    } while (member !== module);
+    if (component.length > 1 || (graph.get(module) ?? []).includes(module))
+      components.push(component.sort());
+  };
+  for (const module of graph.keys()) if (!indices.has(module)) visit(module);
+  return components;
+}
+
+const architecturePlugin = {
+  rules: {
+    "runtime-graph": {
+      meta: { type: "problem", schema: [] },
+      create(context) {
+        return {
+          Program(node) {
+            const file = runtimeName(context.filename ?? context.getFilename());
+            const graph = graphFrom(context.languageOptions.parser);
+            const direct = graph.get(file) ?? [];
+            if (file !== "widget-api.js" && direct.includes("application.js"))
+              context.report({
+                node,
+                message:
+                  "Only widget-api.js may import the runtime application composition root.",
+              });
+            if (file !== "keyboard/page.js" && direct.includes("keyboard/page.js"))
+              context.report({
+                node,
+                message: "Only leaf.js may import keyboard/page.js.",
+              });
+
+            for (const component of cyclicComponents(graph))
+              if (component.includes(file))
+                context.report({
+                  node,
+                  message: `Runtime import cycle: ${component.join(" -> ")}.`,
+                });
+
+            for (const [root, allowed] of exactClosures) {
+              const reached = pathsFrom(graph, root);
+              const violation = [...reached]
+                .filter(
+                  ([dependency, route]) =>
+                    dependency !== root &&
+                    !allowed.has(dependency) &&
+                    route.includes(file),
+                )
+                .sort((a, b) => a[1].length - b[1].length)[0];
+              if (violation)
+                context.report({
+                  node,
+                  message: `${root} has a forbidden transitive dependency through ${violation[1].join(" -> ")}.`,
+                });
+            }
+            for (const [root, forbidden] of forbiddenClosures) {
+              const reached = pathsFrom(graph, root);
+              const violation = [...forbidden]
+                .map((dependency) => reached.get(dependency))
+                .filter((route) => route?.includes(file))
+                .sort((a, b) => a.length - b.length)[0];
+              if (violation)
+                context.report({
+                  node,
+                  message: `${root} has a forbidden transitive dependency through ${violation.join(" -> ")}.`,
+                });
+            }
+          },
+        };
+      },
+    },
+  },
+};
+
 export default [
   {
     ignores: [
@@ -285,7 +545,11 @@ export default [
   },
   {
     files: ["skills/leaf/assets/runtime/**/*.js"],
-    rules: ownerBoundary,
+    plugins: { architecture: architecturePlugin },
+    rules: {
+      ...ownerBoundary,
+      "architecture/runtime-graph": "error",
+    },
   },
   {
     // These primitives may use the browser, but importing an application owner
@@ -313,6 +577,10 @@ export default [
     // Conversation folding accepts values; it must not obtain them from browser
     // stores or painters. The current derived reading has the same dependency floor.
     files: [
+      "skills/leaf/assets/runtime/projection/model.js",
+      "skills/leaf/assets/runtime/projection/state.js",
+      "skills/leaf/assets/runtime/pending/model.js",
+      "skills/leaf/assets/runtime/pending/state.js",
       "skills/leaf/assets/runtime/conversation/model.js",
       "skills/leaf/assets/runtime/conversation/state.js",
     ],
@@ -323,7 +591,7 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./anchor-coordinate\\.js$|\\./identity\\.js$|\\./model\\.js$)",
+                "^(?!\\.\\./anchor-coordinate\\.js$|(?:\\.\\./conversation/|\\./)identity\\.js$|\\./model\\.js$)",
               message: "Conversation readings depend only on pure record operations.",
             },
           ],
@@ -337,7 +605,10 @@ export default [
             "Conversation readings declare their record dependencies statically.",
         },
       ],
-      "no-restricted-globals": ["error", ...Object.keys(browserGlobals)],
+      "no-restricted-globals": [
+        "error",
+        ...Object.keys(browserGlobals).filter((name) => name !== "structuredClone"),
+      ],
     },
   },
   {

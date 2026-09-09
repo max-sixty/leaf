@@ -59,7 +59,7 @@ import { closestAcross, elementById } from "../passages.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
 import { authoredParents } from "../projection/authored.js";
-import { stateProjection } from "../projection/fold.js";
+import { currentProjection } from "../projection/state.js";
 
 /* Server-projected ask state, resolved onto the browser's live DOM. */
 const authoredParentOf = (node) => authoredParents.get(node);
@@ -118,7 +118,7 @@ const awaitingValues = (answered) => ({
 });
 
 function context(answered = false) {
-  const projection = stateProjection();
+  const projection = currentProjection();
   return {
     awaiting: awaitingValues(answered),
     positionedParents: positionedParents(projection),

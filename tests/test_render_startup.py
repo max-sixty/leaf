@@ -40,6 +40,7 @@ from render_support import (
     SHADOWED_DIFF,
     SHORT_SUGGESTION,
     SUGGEST_BLOCK,
+    SUGGESTION_PAGE,
     TAB_AND_DOT,
     TAB_TONE,
     TOKEN,
@@ -1717,7 +1718,8 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     # existing controls keep their compact form; Page map states the provenance,
     # and the target keeps the local quiet word.
     expect(page.locator("#draft-ops[data-lf-restated]")).to_have_count(1)
-    page.evaluate("async () => (await import('/runtime/page-map.js')).enterPageMap()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
     rewritten = page.get_by_role(
         "button", name=re.compile(r"^Open rewritten: Rewritten")
     )
@@ -4749,3 +4751,34 @@ def test_data_notification_waits_for_a_version_activation(browser, serve):
     expect(page.locator("#lede")).to_have_text("Live status follows now.")
     assert errors == []
     page.close()
+
+
+def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser, serve):
+    """Importing capabilities does not start a half-constructed browser application."""
+    url = serve(SUGGESTION_PAGE)
+    boot = (serve.page_dir / "leaf.js").read_text()
+    context = browser.new_context()
+    context.route(
+        "**/leaf.js",
+        lambda route: route.fulfill(
+            content_type="text/javascript",
+            body="await import('/runtime/widget-api.js');\n"
+            "window.apiImportedBeforeBoot = true;\n"
+            "await import('/leaf-boot.js');",
+        ),
+    )
+
+    def boot_after_one_frame(route):
+        # Import side effects have a real frame in which to escape before boot owns
+        # presentation; this is controlled ordering rather than a network-speed race.
+        context.pages[0].evaluate("() => new Promise(requestAnimationFrame)")
+        route.fulfill(content_type="text/javascript", body=boot)
+
+    context.route("**/leaf-boot.js", boot_after_one_frame)
+    page, errors = open_page(browser, url, context=context)
+    assert page.evaluate("window.apiImportedBeforeBoot") is True
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(page)
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    assert errors == []
+    context.close()

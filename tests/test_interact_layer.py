@@ -1010,8 +1010,9 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE).group(1)
 
+    workspace = (assets / "runtime" / "panel-workspace.js").read_text()
     for pattern, source in (
-        (r'^export const PANEL_KEY = "([^"]+)";', layout),
+        (r'^export const PANEL_KEY = "([^"]+)";', workspace),
         (r'^export const TRAY_KEY = "([^"]+)";', trays),
         (r'key: "(lf-panel-width)"', layout),
         (r'key: "(lf-tray-width)"', trays),

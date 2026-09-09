@@ -32,7 +32,7 @@
    and `shadowStage` hands it each root. */
 import { PRESS } from "./bindings.js";
 import { paintKeys } from "./scopes.js";
-import { disclosed } from "./page.js";
+
 import { inChrome } from "../passages.js";
 
 // Where a disclosure keeps which way it stands, in both spellings. Declared up here
@@ -67,3 +67,17 @@ export const DISCLOSE = (el) => {
   if (open === null) return [...PRESS, "ArrowLeft", "ArrowRight"];
   return inChrome(el) ? PRESS : [...PRESS, open ? "ArrowLeft" : "ArrowRight"];
 };
+
+export const DISCLOSURE_SELECTOR =
+  'details > summary, :is(button, [role="button"])[aria-expanded]';
+
+// Which way the disclosure at this element is standing: open, shut, or null where it is
+// not a disclosure at all — which is a question asked from wherever the reader happens to
+// be, the reference listing a scope the page has rather than the one they are in.
+export function disclosed(el) {
+  return !el?.matches?.(DISCLOSURE_SELECTOR)
+    ? null
+    : el.matches("details > summary")
+      ? el.parentElement.open
+      : el.getAttribute("aria-expanded") === "true";
+}

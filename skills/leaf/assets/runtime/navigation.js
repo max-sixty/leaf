@@ -1,19 +1,17 @@
 /* This module owns reader travel. */
 import { clampedRow } from "./keyboard/bindings.js";
-import { scrollToThread } from "./anchors.js";
-import { inPanel, panelCovers, panelIsOpen } from "./chrome-layout.js";
+import { inPanel, panelCovers, panelIsOpen } from "./conversation/panel-elements.js";
 import { openThreads } from "./conversation/thread-list.js";
 import { narrowed } from "./conversation/narrowing.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
-import { threadsBox } from "./conversation/panel.js";
+import { threadsBox } from "./conversation/panel-elements.js";
 import { pageScroller } from "./scrolling.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
 import { closestAcross } from "./passages.js";
-import { activeInlineThread, openPageThread } from "./living-margin.js";
 import { announce } from "./notifications.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
-const threadPosition = () => {
+const threadPosition = (activeInlineThread) => {
   const threads = openThreads({ visibleOnly: panelIsOpen() });
   const current = panelIsOpen()
     ? closestAcross(document.activeElement, ".lf-thread[data-id]")
@@ -30,7 +28,10 @@ const threadPosition = () => {
 // inline address: a declared widget outlet first, then the thread margin element's card. A thread
 // with no page address is indexed only by Threads, so that destination opens the panel.
 // Once the panel is open, the walk stays in its list. Both paths are clamped, not wrapped.
-export function stepThread(dir) {
+export function stepThread(
+  dir,
+  { openPageThread, scrollToThread, activeInlineThread },
+) {
   const threads = openThreads({ visibleOnly: panelIsOpen() });
   const inline = activeInlineThread();
   const current = panelIsOpen()
@@ -41,7 +42,7 @@ export function stepThread(dir) {
   if (!panelIsOpen()) {
     openPageThread(next.dataset.id, { focus: "thread" });
     announce(
-      beginWalk("thread", "Thread", threadPosition) ??
+      beginWalk("thread", "Thread", () => threadPosition(activeInlineThread)) ??
         walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
     );
     return;
@@ -55,7 +56,7 @@ export function stepThread(dir) {
   if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
   scrollToThread(next.dataset.id);
   announce(
-    beginWalk("thread", "Thread", threadPosition) ??
+    beginWalk("thread", "Thread", () => threadPosition(activeInlineThread)) ??
       walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
   );
 }

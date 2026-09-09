@@ -7,15 +7,16 @@ export {
   fitRootReadingElement,
   registerArrangedElement,
 } from "./reading-layout.js";
-export { itemWord, navigateToDatum } from "./anchors.js";
+export { itemWord } from "./anchor-resolution.js";
+export { navigateToDatum } from "./application.js";
 export { shownBand, shownBox, shownParts } from "./geometry.js";
 export { inUi, uiInside } from "./shadow.js";
 export { answeredContext, askSource, openAsks, watchAsks } from "./asks/model.js";
 export { registerVisualParts } from "./visual-parts.js";
-export { conversationBox } from "./conversation/box.js";
-export { registerThreadSurface } from "./conversation/surfaces.js";
-export { conversationInput, landInConversation } from "./conversation/landing.js";
-export { wireInput } from "./composing/input.js";
+export { conversationBox, registerThreadSurface } from "./application.js";
+export { conversationInput } from "./conversation/landing.js";
+export { landInConversation } from "./application.js";
+export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 export { focused, keys as commands, paintKeys, saying } from "./keyboard/scopes.js";
@@ -44,8 +45,14 @@ export {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { announce, notice } from "./notifications.js";
-export { actionAvailable, actionStands, sendAction } from "./outbox.js";
-export { requestAvailable, sendRequest, watchRequestLifecycle } from "./requests.js";
+export {
+  actionAvailable,
+  actionStands,
+  requestAvailable,
+  sendAction,
+  sendRequest,
+} from "./application.js";
+export { watchRequestLifecycle } from "./requests.js";
 export { alignText, alignedNodes } from "./text-alignment.js";
 export {
   inChrome,
@@ -58,8 +65,7 @@ export {
   wrote,
 } from "./passages.js";
 export { ago, clocked, clockValue, quietSince } from "./presence.js";
-export { shallowSigs, undoableAction, withdraw } from "./projection.js";
-export { standingState } from "./projection/fold.js";
+export { shallowSigs, standingState, undoableAction, withdraw } from "./application.js";
 export { shadowStage } from "./shadow-stage.js";
 export { agentName, revisionLabel } from "./context.js";
 export { loadDataFragment, watchData } from "./data.js";
@@ -78,7 +84,7 @@ export {
   scrollBehavior,
 } from "./motion.js";
 export { PRESENTATION, quietWord } from "./presentation.js";
-export { projectData } from "./projection/data.js";
+export { projectData } from "./application.js";
 export { tabStore } from "./storage.js";
 export {
   highlightBlocks,
@@ -88,15 +94,8 @@ export {
   tokenLines,
 } from "./syntax.js";
 export { dataBody, failSoft, once, settle } from "./widget-upgrade.js";
-export {
-  actionSequence,
-  publishedAt,
-  saidAt,
-  updateSequence,
-  watchActions,
-  watchHistory,
-  watchUpdates,
-} from "./updates.js";
+export { actionSequence, watchActions, watchUpdates } from "./application.js";
+export { publishedAt, saidAt, updateSequence, watchHistory } from "./updates.js";
 export {
   HIDDEN,
   LAYOUT,

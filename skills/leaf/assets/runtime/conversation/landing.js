@@ -28,15 +28,12 @@ import { shownBand, shownBox } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";
 import { closestAcross } from "../passages.js";
-import { scrollToThread } from "../anchors.js";
-import { panelIsOpen, setPanel } from "../chrome-layout.js";
-import { threadsBox } from "./panel.js";
+import { panelIsOpen, threadsBox } from "./panel-elements.js";
 import { reachedForWords } from "../widget-elements.js";
-import { revealThread } from "./narrowing.js";
 import { finishFold } from "./folding.js";
+import { SAYS_IN, SAY_BOX } from "./selectors.js";
 
-const SAYS_IN = ".lf-thread, .lf-conversation-thread, .lf-conversation";
-export const SAY_BOX = ":scope > .lf-compose textarea, :scope > .lf-say textarea";
+export { SAY_BOX } from "./selectors.js";
 const conversationReturns = new WeakMap();
 
 // Keep a whole conversation in view when it fits. A long thread reveals its reply
@@ -123,17 +120,7 @@ export const standingConversation = () => {
 };
 export const backFromConversation = (box) => conversationReturns.get(box) ?? null;
 
-export function landInConversation(box, route = null) {
-  return landIn({ box, route });
-}
-
-const focusConversation = ({ held, box }) => {
-  box.focus({ preventScroll: true });
-  revealConversation(held, box);
-  if (held.dataset.id) scrollToThread(held.dataset.id);
-};
-
-export const landIn = ({ held = null, box, route = null }) => {
+function prepareLanding({ held = null, box, route = null }) {
   if (
     route &&
     (!(route.target instanceof Element) ||
@@ -151,9 +138,8 @@ export const landIn = ({ held = null, box, route = null }) => {
       once: true,
     });
   }
-  focusConversation({ held, box });
-  return true;
-};
+  return { held, box };
+}
 
 // A completion may navigate only until the reader's next gesture or focus moves
 // elsewhere. Replacing its control can drop focus to body without a new intent.
@@ -307,13 +293,12 @@ const listNode = (id) => {
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
 // focus at its own words so Tab reaches its controls. Sending a reply stays with its
 // editor through revealConversation instead.
-export function showThread(id, { focus = "reply" } = {}) {
-  setPanel(true);
+function showThreadNow(id, focus, revealThread) {
   let node = listNode(id);
   const going = node?.closest(".lf-going");
   if (going) {
-    revealThread(id);
     finishFold(going.dataset.id);
+    revealThread(id);
     node = listNode(id);
   } else if (!node) {
     revealThread(id);
@@ -345,4 +330,22 @@ export function showThread(id, { focus = "reply" } = {}) {
   target.classList.remove("grow");
   target.classList.add("flash");
   setTimeout(() => target.classList.remove("flash"), 1300);
+}
+
+export function createConversationLanding({ setPanel, scrollToThread, revealThread }) {
+  const landIn = (destination) => {
+    const prepared = prepareLanding(destination);
+    if (!prepared) return false;
+    const { held, box } = prepared;
+    box.focus({ preventScroll: true });
+    revealConversation(held, box);
+    if (held.dataset.id) scrollToThread(held.dataset.id);
+    return true;
+  };
+  const landInConversation = (box, route = null) => landIn({ box, route });
+  const showThread = (id, { focus = "reply" } = {}) => {
+    setPanel(true);
+    showThreadNow(id, focus, revealThread);
+  };
+  return { landIn, landInConversation, showThread };
 }

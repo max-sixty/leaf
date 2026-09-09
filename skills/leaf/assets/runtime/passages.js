@@ -62,7 +62,7 @@
    until it finds the actual control.
 
    Hit testing asks two different questions. `elementFromPointAcross` and `markAt`
-   (anchors.js) may descend into a shadow root when the exact marked text matters.
+   (anchor-resolution.js) may descend into a shadow root when the exact marked text matters.
    `aimedTarget` (composing/aim.js) may keep document retargeting when the host is the
    semantic item. Choose the reading by the question, not by convenience.
 
@@ -878,4 +878,8 @@ export function contextAround(text, segments, length = 28) {
     before: cut(before, Math.max(0, beforeLength - length), beforeLength),
     after: cut(after, 0, length),
   };
+}
+
+export function pageParts(sel) {
+  return pageQueryAll(sel).filter((el) => !inChrome(el));
 }

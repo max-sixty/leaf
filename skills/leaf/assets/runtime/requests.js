@@ -4,7 +4,6 @@ import { registry } from "./registry.js";
 import { inChrome } from "./passages.js";
 import { runtime } from "./context.js";
 import { quoted } from "./widget-elements.js";
-import { post } from "./outbox.js";
 
 const requestMatches = (owner, action) => {
   const request = registry[owner.localName]?.["x-request"];
@@ -42,22 +41,25 @@ export const requestAvailable = (owner, action) =>
   requestMatches(owner, action) &&
   projectedLifecycle(owner).phase === "ready";
 
-export async function sendRequest(owner, action, detail, { attempt } = {}) {
-  if (quoted(owner)) {
-    console.error(
-      `leaf: <${owner.localName}> is exhibited (x-exhibit); request ${action} refused`,
-    );
-    return null;
+export function createRequestCommands({ post }) {
+  async function sendRequest(owner, action, detail, { attempt } = {}) {
+    if (quoted(owner)) {
+      console.error(
+        `leaf: <${owner.localName}> is exhibited (x-exhibit); request ${action} refused`,
+      );
+      return null;
+    }
+    if (!requestAvailable(owner, action)) return null;
+    return post({
+      kind: "request",
+      revision: runtime.currentRevision,
+      widget: owner.id,
+      action,
+      detail,
+      ...(attempt && { attempt }),
+    });
   }
-  if (!requestAvailable(owner, action)) return null;
-  return post({
-    kind: "request",
-    revision: runtime.currentRevision,
-    widget: owner.id,
-    action,
-    detail,
-    ...(attempt && { attempt }),
-  });
+  return { requestAvailable, sendRequest };
 }
 
 export const watchRequestLifecycle = (owner, callback) => {

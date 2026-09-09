@@ -2603,7 +2603,7 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     then names the revised passage explicitly, and the complete thread moves there."""
     url = serve(DRIFT_V1)
     page, errors = open_page(browser, live_url(url))
-    landed = page.evaluate("""async () => {
+    landed = page.evaluate("""() => {
         const p = document.querySelectorAll('#drift p')[0];
         const phrase = 'The version stamp never lands';
         const at = p.firstChild.data.indexOf(phrase);
@@ -2611,18 +2611,14 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
         want.setStart(p.firstChild, at); want.setEnd(p.firstChild, at + phrase.length);
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-        await new Promise(r => setTimeout(r, 40));
-        const fab = document.querySelector('.lf-fab-input');
-        if (fab.style.display !== 'block') return 'no button';
-        await new Promise(r => setTimeout(r, 40));
-        fab.focus();
-        document.querySelector('.lf-composer textarea').value = 'is this idempotent?';
-        document.querySelector('.lf-composer textarea')
-            .dispatchEvent(new Event('input', {bubbles: true}));
-        document.querySelector('.lf-composer button.primary').click();
         return true;
     }""")
     assert landed is True, f"couldn't post the comment ({landed})"
+    fab = page.locator(".lf-fab-input")
+    expect(fab).to_be_visible()
+    fab.focus()
+    page.locator(".lf-composer textarea").fill("is this idempotent?")
+    page.locator(".lf-composer button.primary").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir

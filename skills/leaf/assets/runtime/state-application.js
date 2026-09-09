@@ -295,11 +295,6 @@ export function createStateApplication({
       // Accounting is irreversible: it resolves delivery races and may release pending
       // messages. It runs only after every awaited application step has succeeded.
       accountPending(nextBrowser.receipts ?? []);
-      // Sequence consumers render after replay, so their history and the widget's
-      // standing body describe the same poll. This also fires when the event list did
-      // not grow: renderState may have deferred while a user was typing, then become
-      // applicable on the next poll after they close the editor.
-      document.dispatchEvent(new Event("lf-actions"));
       runtime.restoringState = prior.runtime.restoringState;
     };
     const restore = async (error) => {
@@ -365,6 +360,10 @@ export function createStateApplication({
       stateApplying = false;
       paintKeys();
     }
+    // Semantic subscribers may read undo eligibility as well as widget state. Notify
+    // them only after the candidate/rollback guard is cleared: this is the complete
+    // adopted view, including a deferred widget projection retried on an unchanged log.
+    document.dispatchEvent(new Event("lf-actions"));
     if (nextAgentMsgCount !== null) agentMsgCount = nextAgentMsgCount;
     if (replyNotice) notice(replyNotice);
   }

@@ -2464,6 +2464,9 @@ def test_undo_waits_for_the_candidate_view_to_commit_or_roll_back(browser, serve
     ):
         preparations[0].fulfill(status=204)
     expect(page.locator("body")).to_have_attribute("data-lf-reading", before)
+    expect(
+        page.locator("[data-lf-for='sug-refill'] [data-lf-margin-element-key='undo']")
+    ).to_be_visible()
     expect(page.locator("#sug-thistle")).not_to_have_attribute(
         "data-lf-state", "accept"
     )

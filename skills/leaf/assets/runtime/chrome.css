@@ -1300,6 +1300,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     padding-inline-end: calc(max(28px, var(--aim-floor)) + 8px); }
   :is(.lf-thread, .lf-going):not(:has(> .lf-quote)):has(> .lf-resolve)
     > .lf-msg:first-of-type > .lf-msg-head {
+    align-items: last baseline;
     min-height: max(28px, var(--aim-floor));
     padding-inline-end: calc(max(28px, var(--aim-floor)) + 8px); }
   .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }
@@ -1705,15 +1706,16 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     padding-inline: 12px; overflow: hidden; pointer-events: none;
     white-space: pre-wrap; }
   .lf-thread-transition-text { display: block; }
-  /* The conversation has its fixed position measured from its margin element: the card also
-     changes the document's container posture, and asking both layout systems to
-     resolve that boundary can leave the browser oscillating between the two. */
+  /* The conversation has its fixed position measured from its margin controls. JS
+     chooses a free side margin when one exists and otherwise overlays the document;
+     neither placement changes the page's container posture. */
   .lf-margin-preview[data-lf-thread] { position-anchor: auto; position-area: none;
     position-try-fallbacks: none;
     inset: var(--lf-thread-top, calc(var(--lf-banner-h) + 8px)) auto auto
       var(--lf-thread-left, 8px);
-    width: min(var(--thread-card), calc(100vw - var(--lf-thread-left, 8px) - 8px));
-    max-height: calc(100vh - var(--lf-banner-h) - 16px); margin: 0; }
+    width: min(var(--lf-thread-width, var(--thread-card)), calc(100vw - 16px));
+    max-height: var(--lf-thread-max-height,
+      calc(100vh - var(--lf-banner-h) - 16px)); margin: 0; }
   .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
     gap: 8px; }
   .lf-page-map-head > strong { flex: 1; }

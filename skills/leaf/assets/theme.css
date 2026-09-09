@@ -50,9 +50,7 @@
  * layer's stylesheet is that plus a leak.
  *
  * Live pages reserve conversation room at the wide layout's existing floors, so the
- * first comment and the last resolution leave the document column in place.
- * `--thread-card-floor` bounds an inline card when the remaining margin is too narrow;
- * the card then covers the page rather than becoming an unreadable sliver. */
+ * first comment and the last resolution leave the document column in place. */
 
 /* Ordinary action controls use `.lf-btn`, whose shared theme rules also enter declared
    shadow trees. Packages may set placement and density, but keep its shape, border,
@@ -166,18 +164,11 @@
      that the arrangement read as a centred page with something in the margin rather
      than as a page with a margin. */
   --note: 384px;
-  /* A page thread uses a wider reading card than an authored sidenote. The margin
-     includes the marker and the gutter between it and the 460px conversation. */
+  /* A page thread uses a wider reading card than an authored sidenote. The minimum is
+     the narrowest card Leaf will put in a free margin; below it the conversation keeps
+     its full measure and overlays the document above or below its controls instead. */
   --thread-card: 460px;
-  /* The narrowest that card is still a conversation. The card's width is whatever room
-     is left to the right of the marker it is measured from, and a page whose margin is
-     narrower than this has no margin to draw a thread in: the card comes off the marker
-     and stands over the page rather than shrinking to a column a word wide. 320px is
-     what the margin's other card already stands at, so the floor is the narrowest
-     reading surface this layer ships rather than a second opinion about one. The rule
-     that spends it is beside .lf-margin-preview, and placeThreadPreview reads it to
-     decide where the card can still be placed beside its source. */
-  --thread-card-floor: 320px;
+  --thread-card-min: 320px;
   --thread-margin: 520px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the reader
@@ -1359,6 +1350,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           inset-block-start: var(--sp-1); inset-inline-end: var(--sp-1); }
 .lf-conversation-thread:has(> .lf-resolve)
           > .lf-conversation-msg:first-of-type > .lf-conversation-head {
+          align-items: last baseline;
           min-height: max(28px, var(--aim-floor));
           padding-inline-end: calc(max(28px, var(--aim-floor)) + var(--sp-2)); }
 .lf-conversation-msg.claude .lf-conversation-head b { color: var(--accent); }

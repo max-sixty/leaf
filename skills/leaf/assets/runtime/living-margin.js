@@ -138,10 +138,13 @@
    reading gets its own peer margin element under `…`; pressing one reveals that reading directly
    rather than collecting readings in a card. All threads at one target share one Thread
    margin element and one conversation card. That card opens only on a press, never merely on
-   focus or hover. It stands beside the source where the document leaves room and covers
-   the page where it does not; only an already-open Threads panel redirects the press to
-   the complete index. The thread card is the only generated contextual pane, not a
-   generic container for alternatives.
+   focus or hover. It uses the right margin at a readable width, then the left, without
+   changing sides as unrelated margin elements scroll past. It avoids its own cluster;
+   other margin elements may pass behind it. When neither margin fits, it overlays the
+   document above or below that cluster. Once the reader scrolls the cluster out of the
+   visible region, the card closes rather than standing without its page address. Only
+   an already-open Threads panel redirects the press to the complete index. The thread
+   card is the only generated contextual pane, not a generic container for alternatives.
 
    Tone is `neutral`, `positive`, or `negative`, expressed through icon color only; rings,
    fills, and the busy mark keep their shared neutral treatment. `busy` is the one state
@@ -251,8 +254,9 @@
    without replacing the control under focus or a held pointer.
 
    A thread card names the target without offering a second route to the panel the banner
-   already opens. It is the conversation itself, measured eight pixels beside the pressed
-   thread margin element when the page leaves that room; at narrower postures it covers the page.
+   already opens. It is the conversation itself, filling a readable side margin and
+   shifting eight pixels above or below its own cluster when that cluster occupies the
+   same strip. Without a readable side margin, the card uses that clearance over the page.
    While that margin element keeps focus, `c` enters the card's one reply box; several roots leave
    the destination ambiguous and preserve the page's ordinary comment route. Replacing an
    open panel waits for the column's workspace motion before choosing the card posture.
@@ -1040,6 +1044,7 @@ let transferThreadFocus = false;
 let previewShowing = false;
 let pinnedKey = null;
 let forcedInlineKey = null;
+let forcedInlineOptionsKey = null;
 let expandedOptionsKey = null;
 // An explicit mode can focus one contribution inside the target's existing cluster.
 // The rail then shows that owner's complete control set without spending margin elements on
@@ -1324,6 +1329,11 @@ function syncReadingRelation(control, choice) {
 }
 let postureFrame = 0;
 let previewPositionFrame = 0;
+let previewPositionRemeasure = false;
+let previewPositionDismissDetached = false;
+let previewPlacementMetrics = null;
+let previewReferenceSeen = false;
+let previewReferenceScrollY = 0;
 function schedulePostureRender() {
   if (postureFrame) return;
   postureFrame = requestAnimationFrame(() => {
@@ -1331,41 +1341,184 @@ function schedulePostureRender() {
     renderMargin();
   });
 }
-function placeThreadPreview() {
+const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(value, maximum));
+const overlaps = (one, other, gap = 0) =>
+  one.left < other.right + gap &&
+  other.left < one.right + gap &&
+  one.top < other.bottom + gap &&
+  other.top < one.bottom + gap;
+
+function keepThreadPreviewFocusVisible() {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !preview.contains(active)) return;
+  const card = preview.getBoundingClientRect();
+  const activeBox = active.getBoundingClientRect();
+  const inset = 12;
+  if (activeBox.bottom > card.bottom - inset)
+    preview.scrollTop += activeBox.bottom - card.bottom + inset;
+  else if (activeBox.top < card.top + inset)
+    preview.scrollTop -= card.top + inset - activeBox.top;
+}
+
+function threadSidePlacement(left, width, height, target, firstTop, lastBottom) {
+  const gap = 8;
+  const totalHeight = lastBottom - firstTop;
+  const cardHeight = Math.min(height, totalHeight);
+  const lastTop = lastBottom - cardHeight;
+  const desired = clamp(
+    (target.top + target.bottom - cardHeight) / 2,
+    firstTop,
+    lastTop,
+  );
+  const candidate = {
+    left,
+    right: left + width,
+    top: desired,
+    bottom: desired + cardHeight,
+  };
+  if (!overlaps(candidate, target, gap))
+    return { top: desired, maxHeight: totalHeight };
+
+  const belowTop = Math.max(firstTop, Math.min(target.bottom + gap, lastBottom));
+  const aboveBottom = Math.max(firstTop, Math.min(target.top - gap, lastBottom));
+  const belowRoom = Math.max(0, lastBottom - belowTop);
+  const aboveRoom = Math.max(0, aboveBottom - firstTop);
+  const below = height <= belowRoom || (height > aboveRoom && belowRoom >= aboveRoom);
+  const room = below ? belowRoom : aboveRoom;
+  if (!room) return null;
+  const placedHeight = Math.min(height, room);
+  return {
+    top: below ? belowTop : aboveBottom - placedHeight,
+    maxHeight: room,
+  };
+}
+
+function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) {
   if (
     !preview.matches(":popover-open") ||
     !preview.hasAttribute("data-lf-thread") ||
     !previewMarginElement?.isConnected
   )
     return;
-  const marker = previewMarginElement.getBoundingClientRect();
-  // The stylesheet gives the card the room left to the right of this edge, so a marker
-  // standing near the window's own edge would leave a conversation too narrow to read
-  // or answer in. --thread-card-floor is where that room stops being a margin: past it
-  // the card comes off its marker and covers the page instead, which is the posture a
-  // bounded thread card is already allowed. An accepted comment opens its thread at
-  // every width, so this is the only place the width can be refused.
-  const floor = parseFloat(
-    getComputedStyle(preview).getPropertyValue("--thread-card-floor"),
-  );
-  const besideLeft = Math.max(8, Math.min(marker.right + 8, innerWidth - 8 - floor));
-  preview.style.setProperty("--lf-thread-left", `${besideLeft}px`);
-  const card = preview.getBoundingClientRect();
+  const controls =
+    previewMarginElement.closest("[data-lf-margin-for]") ?? previewMarginElement;
+  const target = controls.getBoundingClientRect();
+  const main = document.querySelector("main")?.getBoundingClientRect();
   const bannerBottom =
     document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
   const firstTop = bannerBottom + 8;
-  const lastTop = innerHeight - card.height - 8;
-  const besideTop = (marker.top + marker.bottom - card.height) / 2;
-  preview.style.setProperty(
-    "--lf-thread-top",
-    `${Math.max(firstTop, Math.min(besideTop, lastTop))}px`,
-  );
+  const lastBottom = innerHeight - 8;
+  const gap = 8;
+  const totalHeight = Math.max(0, lastBottom - firstTop);
+  const referenceVisible = target.bottom > firstTop && target.top < lastBottom;
+  if (referenceVisible) {
+    previewReferenceSeen = true;
+    previewReferenceScrollY = scrollY;
+  } else if (
+    previewReferenceSeen &&
+    dismissDetached &&
+    ((target.bottom <= firstTop && scrollY > previewReferenceScrollY) ||
+      (target.top >= lastBottom && scrollY < previewReferenceScrollY))
+  ) {
+    closePreview();
+    return;
+  }
+  if (remeasure || !previewPlacementMetrics) {
+    const style = getComputedStyle(preview);
+    previewPlacementMetrics = {
+      preferredWidth: Math.min(
+        parseFloat(style.getPropertyValue("--thread-card")),
+        innerWidth - 2 * gap,
+      ),
+      minimumWidth: parseFloat(style.getPropertyValue("--thread-card-min")),
+      borderHeight:
+        parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth),
+      heights: new Map(),
+    };
+  }
+  const metrics = previewPlacementMetrics;
+  const naturalHeight = (width) => {
+    const key = width.toFixed(2);
+    if (!metrics.heights.has(key)) {
+      preview.style.setProperty("--lf-thread-width", `${width}px`);
+      preview.style.setProperty("--lf-thread-max-height", `${totalHeight}px`);
+      metrics.heights.set(key, preview.scrollHeight + metrics.borderHeight);
+    }
+    return metrics.heights.get(key);
+  };
+  const sideCandidates = main
+    ? [
+        {
+          name: "right",
+          width: Math.min(metrics.preferredWidth, innerWidth - main.right - 2 * gap),
+          get left() {
+            return innerWidth - gap - this.width;
+          },
+        },
+        {
+          name: "left",
+          left: gap,
+          width: Math.min(metrics.preferredWidth, main.left - 2 * gap),
+        },
+      ]
+    : [];
+  for (const side of sideCandidates) {
+    if (side.width < metrics.minimumWidth) continue;
+    const height = naturalHeight(side.width);
+    const placement = threadSidePlacement(
+      side.left,
+      side.width,
+      height,
+      target,
+      firstTop,
+      lastBottom,
+    );
+    if (!placement) continue;
+    preview.dataset.lfThreadPlacement = side.name;
+    preview.style.setProperty("--lf-thread-width", `${side.width}px`);
+    preview.style.setProperty("--lf-thread-max-height", `${placement.maxHeight}px`);
+    preview.style.setProperty("--lf-thread-left", `${side.left}px`);
+    preview.style.setProperty("--lf-thread-top", `${placement.top}px`);
+    if (remeasure) keepThreadPreviewFocusVisible();
+    return;
+  }
+
+  // Both margins are unavailable. Preserve the full reading measure over the document,
+  // preferring the room below the selected cluster, then above, then the larger side as
+  // a scrolling viewport. The cluster itself is never part of the area the card spends.
+  const width = metrics.preferredWidth;
+  const overlayHeight = naturalHeight(width);
+  const belowTop = Math.max(firstTop, Math.min(target.bottom + gap, lastBottom));
+  const aboveBottom = Math.max(firstTop, Math.min(target.top - gap, lastBottom));
+  const belowRoom = Math.max(0, lastBottom - belowTop);
+  const aboveRoom = Math.max(0, aboveBottom - firstTop);
+  const below =
+    overlayHeight <= belowRoom || (overlayHeight > aboveRoom && belowRoom >= aboveRoom);
+  const room = below ? belowRoom : aboveRoom;
+  const cardHeight = Math.min(overlayHeight, room);
+  const lastLeft = innerWidth - width - gap;
+  const left = clamp(target.right - width, gap, lastLeft);
+  const top = below ? belowTop : aboveBottom - cardHeight;
+  preview.dataset.lfThreadPlacement = below ? "below" : "above";
+  preview.style.setProperty("--lf-thread-width", `${width}px`);
+  preview.style.setProperty("--lf-thread-max-height", `${room}px`);
+  preview.style.setProperty("--lf-thread-left", `${left}px`);
+  preview.style.setProperty("--lf-thread-top", `${top}px`);
+  if (remeasure) keepThreadPreviewFocusVisible();
 }
-function scheduleThreadPreviewPosition() {
+function scheduleThreadPreviewPosition(remeasure = false, dismissDetached = false) {
+  if (remeasure) {
+    previewPositionRemeasure = true;
+    previewPositionDismissDetached = false;
+  } else previewPositionDismissDetached ||= dismissDetached;
   if (previewPositionFrame) return;
   previewPositionFrame = requestAnimationFrame(() => {
     previewPositionFrame = 0;
-    placeThreadPreview();
+    const measure = previewPositionRemeasure;
+    const dismiss = previewPositionDismissDetached;
+    previewPositionRemeasure = false;
+    previewPositionDismissDetached = false;
+    placeThreadPreview({ remeasure: measure, dismissDetached: dismiss });
   });
 }
 // A viewport posture change can replace the focused full conversation with its
@@ -1795,14 +1948,19 @@ function stepClusterMarginElements(binding) {
 function setOptionsOpen(
   entry,
   open,
-  { returnFocus = false, focusOption = null, owner = null } = {},
+  {
+    returnFocus = false,
+    focusOption = null,
+    owner = null,
+    preservePreview = false,
+  } = {},
 ) {
   const previousKey = expandedOptionsKey;
   const previousGroup = previousKey ? optionGroups.get(previousKey) : null;
   const nextKey = open ? (entry?.key ?? null) : null;
   const nextOwner = open ? owner : null;
   if (previousKey === nextKey && expandedOptionsOwner === nextOwner) return;
-  if (previewEntry) closePreview();
+  if (previewEntry && !preservePreview) closePreview();
   expandedOptionsKey = nextKey;
   expandedOptionsOwner = nextOwner;
   settlingOptionsFocus = true;
@@ -2279,7 +2437,17 @@ function syncOptionGroup(group, entry, primary, optionsOpen, focusedOffer = null
   // primary plus five peers, or one primary plus four peers plus the Page map route.
   const visibleCapacity = needsSpill ? peerCapacity - 1 : peerCapacity;
   const hidden = Math.max(0, unique.length - visibleCapacity);
-  const visible = new Set(unique.slice(0, visibleCapacity));
+  const direct = unique.slice(0, visibleCapacity);
+  const forcedThread =
+    forcedInlineKey === entry.key
+      ? unique.find((node) => node.lfChoice?.kind === "comment")
+      : null;
+  // An open thread card keeps its owning Thread control on the page edge. When the
+  // ordinary order would put it beyond the six-control budget, spill the last unrelated
+  // peer in its place; the Page map still retains every action in canonical order.
+  if (forcedThread && direct.length && !direct.includes(forcedThread))
+    direct[direct.length - 1] = forcedThread;
+  const visible = new Set(direct);
   const after = focusedOffer
     ? focusedOffer.side === "after"
       ? [focusedOffer]
@@ -2315,7 +2483,7 @@ function syncOptionGroup(group, entry, primary, optionsOpen, focusedOffer = null
       state: "idle",
     });
     keeps(spill, "data-lf-spill-count", hidden);
-    spill.lfFirstSpilledOption = unique[visibleCapacity];
+    spill.lfFirstSpilledOption = unique.find((node) => !visible.has(node));
     keeps(spill, "aria-label", `Show ${hidden} more in Page map`);
     spill.onclick = () => openSheet(entry, { invoker: spill, focusSpill: true });
     wanted.push(spill);
@@ -2578,10 +2746,8 @@ function transferThreadCard(
   { returnFocus = document.activeElement === previewMarginElement } = {},
 ) {
   if (previewMarginElement === button) return;
-  const previous = previewMarginElement;
-  previous?.style.removeProperty("anchor-name");
   previewMarginElement = button;
-  button.style.setProperty("anchor-name", "--lf-margin-preview");
+  previewReferenceSeen = false;
   if (returnFocus) button.focus({ preventScroll: true });
 }
 
@@ -2949,10 +3115,9 @@ function showPreview(entry, button, retry = true) {
   if (!preview.matches(":popover-open") && !previewShowing) {
     previewShowing = true;
     try {
-      // The pressed thread margin element owns the card's position through the anchor name
-      // above. The card remains an ordinary popover rather than an implicit invoker
-      // target so its close control and conversation keep their established order in
-      // the shared chrome layer.
+      // The card remains an ordinary popover rather than an implicit invoker target so
+      // its close control and conversation keep their established order in the shared
+      // chrome layer.
       preview.showPopover();
     } catch (error) {
       // Chromium also refuses a second popover operation in the same rendering turn,
@@ -2996,9 +3161,10 @@ export function closePreview(returnFocus = false) {
   const button = previewMarginElement;
   pinnedKey = null;
   forcedInlineKey = null;
+  forcedInlineOptionsKey = null;
   previewEntry = null;
   previewMarginElement = null;
-  button?.style.removeProperty("anchor-name");
+  previewReferenceSeen = false;
   if (preview.matches(":popover-open")) preview.hidePopover();
   refreshHighlight();
   for (const row of rows.values())
@@ -3078,14 +3244,36 @@ export function openInlineThread(id, transition = null) {
   if (!entry || designOn || panelIsOpen()) return null;
   const choice = threadReading(entry);
   if (!choice) return null;
+  const previousForcedOptionsKey = forcedInlineOptionsKey;
+  const transfersPreview = preview.matches(":popover-open");
+  forcedInlineKey = entry.key;
+  forcedInlineOptionsKey = null;
+  // Reuse an open card as the thread walk changes targets. Hiding and showing the same
+  // popover in one keyboard turn leaves its delayed close event free to clear the new
+  // owner's return route.
+  if (transfersPreview) {
+    previewEntry = entry;
+    pinnedKey = entry.key;
+  }
+  if (previousForcedOptionsKey && expandedOptionsKey === previousForcedOptionsKey)
+    setOptionsOpen(null, false, { preservePreview: transfersPreview });
   let button = threadMarginElement(entry);
   if (!button?.checkVisibility()) {
-    setOptionsOpen(entry, true);
+    forcedInlineOptionsKey = expandedOptionsKey === entry.key ? null : entry.key;
+    if (forcedInlineOptionsKey)
+      setOptionsOpen(entry, true, { preservePreview: transfersPreview });
+    else renderMargin();
     button = threadMarginElement(entry);
   }
-  if (!button) return null;
+  if (!button?.isConnected) {
+    const optionsKey = forcedInlineOptionsKey;
+    forcedInlineKey = null;
+    forcedInlineOptionsKey = null;
+    if (previewEntry) closePreview();
+    if (optionsKey && expandedOptionsKey === optionsKey) setOptionsOpen(null, false);
+    return null;
+  }
   pinnedKey = entry.key;
-  forcedInlineKey = entry.key;
   showPreview(entry, button);
   const item = [...previewList.children].find(
     (candidate) => candidate.dataset.lfMarginElement === itemId,
@@ -3105,6 +3293,9 @@ export function openPageThread(id, { focus = "reply" } = {}) {
   if (!panelIsOpen()) {
     const local = focusSurface(id, { focus });
     if (local) {
+      const optionsKey = forcedInlineOptionsKey;
+      closePreview();
+      if (optionsKey && expandedOptionsKey === optionsKey) setOptionsOpen(null, false);
       scrollToThread(id);
       return local;
     }
@@ -3368,6 +3559,7 @@ sheet.addEventListener("close", () => {
   else focusMapControl();
 });
 previewClose.onclick = () => closePreview(true);
+preview.addEventListener("focusin", keepThreadPreviewFocusVisible);
 preview.addEventListener("toggle", (event) => {
   if (event.newState !== "closed") return;
   clearThreadTransition();
@@ -3375,9 +3567,10 @@ preview.addEventListener("toggle", (event) => {
   const button = previewMarginElement;
   pinnedKey = null;
   forcedInlineKey = null;
+  forcedInlineOptionsKey = null;
   previewEntry = null;
   previewMarginElement = null;
-  button?.style.removeProperty("anchor-name");
+  previewReferenceSeen = false;
   refreshHighlight();
   for (const row of rows.values())
     syncReadingRelation(row, primaryReading(row.lfEntry));
@@ -3398,11 +3591,11 @@ document.addEventListener("lf-answered", renderMargin);
 document.addEventListener("lf-comparison", renderMargin);
 // The margin packs its rows a frame after anything moves them — a row registering,
 // the column resizing under a diagram that finished or a disclosure that opened — and
-// the card beside a marker was placed once, when it opened. margin-layout.js says when
-// it has moved the rows, and the card follows in that same frame, so a reader never
-// sees it standing beside where its marker used to be.
+// the card was placed from its cluster when it opened. margin-layout.js says when it has
+// moved the rows, and the card follows in that same frame, so a reader never sees it
+// standing above or below where its controls used to be.
 document.addEventListener("lf-margin-layout", () => {
-  placeThreadPreview();
+  placeThreadPreview({ remeasure: true });
   scheduleMarginElementLabels();
 });
 for (const event of ["pointerover", "focusin"])
@@ -3427,12 +3620,12 @@ document.addEventListener(
   "scroll",
   () => {
     scheduleRoving();
-    scheduleThreadPreviewPosition();
+    scheduleThreadPreviewPosition(false, true);
   },
   { capture: true, passive: true },
 );
 window.addEventListener("resize", () => {
-  placeThreadPreview();
+  scheduleThreadPreviewPosition(true);
   schedulePostureRender();
 });
 

@@ -3168,6 +3168,145 @@ def test_a_spilled_thread_opens_the_full_conversation_without_a_hidden_anchor(
     page.close()
 
 
+def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
+    browser, serve
+):
+    """A walked thread uses the free strip without covering its whole control cluster."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1838, 900)
+    page.evaluate("location.hash = 'bg-margin-controls'")
+    page.locator("body").focus()
+
+    page.keyboard.press("t")
+    expect(
+        page.locator(
+            ".lf-margin-preview .lf-conversation-thread"
+            '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
+        )
+    ).to_be_focused()
+    page.keyboard.press("t")
+
+    crowded = page.locator('[data-lf-margin-for="bg-crowded"]')
+    expect(page.locator("#bg-crowded")).to_be_in_viewport()
+    thread = crowded.locator('.lf-margin-reading-option[data-lf-kinds="comment"]')
+    expect(thread).to_be_visible()
+    expect(thread).to_have_attribute("aria-expanded", "true")
+    expect(crowded.locator(".lf-margin-element:visible")).to_have_count(6)
+    geometry = crowded.evaluate(
+        """cluster => {
+          const main = document.querySelector('main').getBoundingClientRect();
+          const controls = cluster.getBoundingClientRect();
+          const cardNode = document.querySelector('.lf-margin-preview');
+          const card = cardNode.getBoundingClientRect();
+          const overlaps = (one, other) => one.left < other.right
+            && other.left < one.right && one.top < other.bottom
+            && other.top < one.bottom;
+          const coveredControls = [...document.querySelectorAll('[data-lf-margin-for]')]
+            .filter(node => node.checkVisibility())
+            .map(node => node.getBoundingClientRect())
+            .filter(other => other.width && other.height && overlaps(card, other)).length;
+          return {placement: cardNode.dataset.lfThreadPlacement,
+                  mainRight: main.right,
+                  controlsTop: controls.top, controlsBottom: controls.bottom,
+                  cardLeft: card.left, cardTop: card.top, cardBottom: card.bottom,
+                  cardWidth: card.width, coveredControls};
+        }"""
+    )
+    assert geometry["placement"] == "right", geometry
+    assert (
+        geometry["cardBottom"] <= geometry["controlsTop"] - 7
+        or geometry["cardTop"] >= geometry["controlsBottom"] + 7
+    ), geometry
+    assert geometry["cardLeft"] >= geometry["mainRight"], geometry
+    assert geometry["cardWidth"] >= 459, geometry
+    assert geometry["coveredControls"] == 0, geometry
+    reply = page.locator(".lf-margin-preview textarea")
+    reply.click()
+    reply.fill("The covered terrace is easier to find.")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(reply).to_have_value("The covered terrace is easier to find.")
+
+    assert errors == []
+    page.close()
+
+
+def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
+    """A readable free margin outranks an overlay and follows the selected cluster."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1838, 900)
+    page.evaluate("location.hash = 'bg-margin-controls'")
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    expect(
+        page.locator(
+            ".lf-margin-preview .lf-conversation-thread"
+            '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
+        )
+    ).to_be_focused()
+    expect(page.locator("#bg-thread-text")).to_be_in_viewport()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+
+    geometry = page.evaluate(
+        """() => {
+          const cardNode = document.querySelector('.lf-margin-preview');
+          const controlsNode = document.querySelector(
+            '[data-lf-margin-for="bg-thread-text"]');
+          const rect = node => node.getBoundingClientRect();
+          const card = rect(cardNode);
+          const controls = rect(controlsNode);
+          const target = rect(document.querySelector('#bg-thread-text'));
+          const main = rect(document.querySelector('main'));
+          const overlaps = (one, other) => one.left < other.right
+            && other.left < one.right && one.top < other.bottom
+            && other.top < one.bottom;
+          const coveredControls = [...document.querySelectorAll('[data-lf-margin-for]')]
+            .filter(node => node !== controlsNode && node.checkVisibility())
+            .map(rect)
+            .filter(other => other.width && other.height && overlaps(card, other)).length;
+          return {placement: cardNode.dataset.lfThreadPlacement,
+                  mainRight: main.right, controlsRight: controls.right,
+                  controlsTop: controls.top, cardLeft: card.left,
+                  cardTop: card.top, cardWidth: card.width, coveredControls,
+                  targetTop: target.top, targetBottom: target.bottom,
+                  bannerBottom: rect(document.querySelector('.lf-banner')).bottom};
+        }"""
+    )
+    assert geometry["placement"] == "right", geometry
+    assert geometry["cardLeft"] == pytest.approx(
+        geometry["controlsRight"] + 8, abs=0.5
+    ), geometry
+    assert geometry["cardLeft"] >= geometry["mainRight"], geometry
+    assert geometry["cardWidth"] >= 459, geometry
+    assert geometry["coveredControls"] == 0, geometry
+    assert geometry["targetTop"] >= geometry["bannerBottom"], geometry
+    assert geometry["targetBottom"] <= 900, geometry
+
+    moved = page.evaluate(
+        """async () => {
+          const positions = () => ({
+                card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
+                controls: document.querySelector(
+                  '[data-lf-margin-for="bg-thread-text"]').getBoundingClientRect().top,
+            scrollY,
+          });
+          const before = positions();
+          scrollBy(0, 40);
+          await new Promise(resolve => requestAnimationFrame(
+            () => requestAnimationFrame(resolve)));
+          return {before, after: positions()};
+        }"""
+    )
+    assert moved["after"]["scrollY"] - moved["before"]["scrollY"] >= 39
+    assert moved["after"]["card"] - moved["after"]["controls"] == pytest.approx(
+        moved["before"]["card"] - moved["before"]["controls"], abs=0.5
+    )
+
+    assert errors == []
+    page.close()
+
+
 def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     browser, serve
 ):
@@ -3577,8 +3716,14 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(marker.locator(".lf-margin-element-label")).to_be_hidden()
     expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_visible()
     main_box = page.locator("main").bounding_box()
+    controls_box = marker.locator("xpath=..").bounding_box()
     preview_box = preview.bounding_box()
     assert preview_box["x"] >= main_box["x"] + main_box["width"]
+    assert (
+        preview_box["x"] >= controls_box["x"] + controls_box["width"] + 7
+        or preview_box["y"] + preview_box["height"] <= controls_box["y"] - 7
+        or preview_box["y"] >= controls_box["y"] + controls_box["height"] + 7
+    )
     assert preview_box["x"] >= 0
     assert preview_box["x"] + preview_box["width"] <= page.evaluate("innerWidth")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
@@ -3699,10 +3844,8 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     page.close()
 
 
-def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
-    browser, serve
-):
-    """The anchored thread is a complete conversation beside its source."""
+def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser, serve):
+    """The anchored thread is a complete conversation clear of its source controls."""
     page, errors = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
@@ -3745,17 +3888,18 @@ def test_a_thread_can_be_answered_in_the_right_margin_without_opening_threads(
     geometry = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
-          const marker = document.querySelector('[data-lf-kinds="comment"]')
-            .getBoundingClientRect();
+          const controls = document.querySelector('[data-lf-kinds="comment"]')
+            .closest('[data-lf-margin-for]').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-          return {mainRight: main.right, markerRight: marker.right,
-                  cardLeft: card.left, cardWidth: card.width};
+          return {mainLeft: main.left, mainRight: main.right,
+                  controlsRight: controls.right, controlsTop: controls.top,
+                  controlsBottom: controls.bottom, cardLeft: card.left,
+                  cardRight: card.right, cardTop: card.top,
+                  cardBottom: card.bottom, cardWidth: card.width};
         }"""
     )
-    assert geometry["cardLeft"] == pytest.approx(
-        geometry["markerRight"] + 8, abs=0.5
-    ), geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
+    assert geometry["cardLeft"] >= geometry["controlsRight"] + 7, geometry
     assert geometry["cardWidth"] >= 459, geometry
     expect(reply).to_be_focused()
     reply.fill("Yes. One visit can cover both jobs.")
@@ -3885,26 +4029,22 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
     page.close()
 
 
-# What the card came out as, beside the two facts that decide how wide it was allowed to
-# be: the posture the cascade granted, and the floor the theme declares. The floor is read
-# from the root, where the theme states it, so the test cannot disagree with the layout
-# about which number it is. Where the card stands is asked of the column rather than of
-# the marker: the card is placed once, in the turn it opens, and a claim landing after
-# that moves the marker without moving the card — a race of its own, and not this
-# number's.
+# Read the card with the selected target's whole control cluster. The overlay may cover
+# the document, but it keeps that cluster clear and stays aligned with its outside edge.
 THREAD_CARD_GEOMETRY = """() => {
   const main = document.querySelector('main').getBoundingClientRect();
   const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+  const controls = document.querySelector('[data-lf-margin-for] [aria-expanded="true"]')
+    .closest('[data-lf-margin-for]').getBoundingClientRect();
   const reply = document.querySelector('.lf-margin-thread textarea')
     .getBoundingClientRect();
   return {
-    mainRight: main.right,
-    cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
+    mainLeft: main.left, mainRight: main.right,
+    controlsRight: controls.right, controlsTop: controls.top,
+    controlsBottom: controls.bottom,
+    cardLeft: card.left, cardRight: card.right, cardTop: card.top,
+    cardBottom: card.bottom, cardWidth: card.width,
     replyWidth: reply.width, innerWidth: window.innerWidth,
-    beside: getComputedStyle(document.querySelector('main'))
-      .getPropertyValue('--lf-thread-beside').trim(),
-    floor: parseFloat(getComputedStyle(document.documentElement)
-      .getPropertyValue('--thread-card-floor')),
   };
 }"""
 
@@ -3921,29 +4061,8 @@ def send_anchored_comment(page, text):
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
 
 
-def test_a_narrow_margin_gives_the_inline_thread_the_page_not_a_sliver(browser, serve):
-    """An accepted comment opens a conversation the reader can answer, at any width.
-
-    The card is placed off its marker and takes whatever room the window leaves to the
-    right of that edge. On a page whose left strip is already spoken for, that room runs
-    out while the marker is still on screen, and nothing was asking how much was left:
-    the shipped pr-walkthrough gave a 72px thread and a 22px reply box at 1200, the quote
-    wrapping one word to a line and the placeholder one character. The theme's
-    --thread-card-floor is where the margin stops being a margin — under it the card comes
-    off its marker and covers the page, which is the posture an accepted comment's thread
-    is already allowed (theme.css, on `--thread-card-floor`).
-    It does not hand the reader to the Threads panel instead, so a card is what both
-    halves of this test read.
-
-    The second half is the other edge of the same number: where the cascade did grant the
-    conversation margin, the floor must change nothing, or a fix for the narrow page would
-    have taken the margin posture away from the wide one.
-
-    Both halves open on a page that already carries a comment, so the conversation margin
-    is claimed and the column has stopped moving before the gesture. Sent into a page
-    claiming that strip for the first time, the card is placed against a marker the claim
-    then slides, and what the read catches is that race rather than this floor.
-    """
+def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, serve):
+    """An accepted comment opens at full measure beside or over either page shape."""
     sidebar_page = ASK_PAGE.replace(
         "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
     )
@@ -3952,13 +4071,17 @@ def test_a_narrow_margin_gives_the_inline_thread_the_page_not_a_sliver(browser, 
     send_anchored_comment(page, "Check the January failure mode.")
 
     narrow = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert narrow["beside"] == "0", narrow
-    assert narrow["cardWidth"] >= narrow["floor"] - 0.5, narrow
+    assert narrow["cardWidth"] >= 459, narrow
     assert narrow["replyWidth"] >= 160, narrow
     assert narrow["cardLeft"] >= 0, narrow
     assert narrow["cardRight"] <= narrow["innerWidth"] + 0.5, narrow
-    # No margin was reserved at this width, so the room came out of the page.
     assert narrow["cardLeft"] < narrow["mainRight"], narrow
+    assert narrow["cardRight"] > narrow["mainLeft"], narrow
+    assert narrow["cardRight"] == pytest.approx(narrow["controlsRight"], abs=0.5)
+    assert (
+        narrow["cardBottom"] <= narrow["controlsTop"] - 7
+        or narrow["cardTop"] >= narrow["controlsBottom"] + 7
+    ), narrow
 
     assert errors == []
     page.close()
@@ -3968,10 +4091,9 @@ def test_a_narrow_margin_gives_the_inline_thread_the_page_not_a_sliver(browser, 
     send_anchored_comment(page, "Check the January failure mode.")
 
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert wide["beside"] == "1", wide
-    # Beside the column at the card's own width: the floor took nothing away here.
-    assert wide["cardLeft"] >= wide["mainRight"], wide
     assert wide["cardWidth"] >= 459, wide
+    assert wide["cardLeft"] >= wide["mainRight"], wide
+    assert wide["cardLeft"] >= wide["controlsRight"] + 7, wide
 
     assert errors == []
     page.close()
@@ -4007,14 +4129,8 @@ def test_a_shared_passage_keeps_all_of_its_threads_in_one_quiet_card(browser, se
     page.close()
 
 
-def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
-    browser, serve
-):
-    """The shipped exchange fits beside its source and the contents sidebar.
-
-    Ship review now stands a contents map, and a sidebar claims the opposite strip: the
-    thread margin waits for 1472px of shell there rather than 1208px (theme.css). Below
-    that floor the same inline card overlays the page rather than opening Threads."""
+def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, serve):
+    """The shipped exchange stays beside the page without obscuring its own controls."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
     page, errors = open_page(browser, serve(example))
     page.emulate_media(reduced_motion="reduce")
@@ -4043,16 +4159,16 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          const marker = markerNode.getBoundingClientRect();
+          const controls = markerNode.closest('[data-lf-margin-for]').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           const title = document.querySelector('.lf-margin-preview-title')
             .getBoundingClientRect();
           const reply = document.querySelector('.lf-margin-thread .lf-say')
             .getBoundingClientRect();
           const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
-          return {bannerBottom: banner.bottom, mainRight: main.right,
-                  markerRight: marker.right,
-                  markerMiddle: (marker.top + marker.bottom) / 2,
+          return {bannerBottom: banner.bottom, mainLeft: main.left,
+                  mainRight: main.right, controlsRight: controls.right,
+                  controlsTop: controls.top, controlsBottom: controls.bottom,
                   cardLeft: card.left, cardRight: card.right, cardTop: card.top,
                   cardBottom: card.bottom, cardWidth: card.width,
                   shellWidth: document.body.getBoundingClientRect().width,
@@ -4063,19 +4179,15 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
                   panelOpen: document.querySelector('.lf-panel').classList.contains('open')};
         }"""
     )
-    assert geometry["cardLeft"] >= geometry["markerRight"] - 0.5, geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
-    assert geometry["cardRight"] <= geometry["shellWidth"], geometry
-    # Narrower than the 460px --thread-card the pages without a sidebar get, and it is
-    # the strip's arithmetic rather than this window: a sidebar page keeps the document
-    # exactly --thread-margin (520px) from the right edge at every width, and the marker,
-    # the gutter beside it and the card's own 8px inset all come out of that 520.
-    assert geometry["cardWidth"] >= 439, geometry
+    assert geometry["cardRight"] <= geometry["shellWidth"] - 7, geometry
+    assert geometry["cardWidth"] >= 459, geometry
     assert geometry["cardTop"] >= geometry["bannerBottom"] + 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
-    assert geometry["cardTop"] <= geometry["markerMiddle"] <= geometry["cardBottom"], (
-        geometry
-    )
+    assert (
+        geometry["cardBottom"] <= geometry["controlsTop"] - 7
+        or geometry["cardTop"] >= geometry["controlsBottom"] + 7
+    ), geometry
     assert geometry["replyTop"] >= geometry["cardTop"], geometry
     assert geometry["replyBottom"] <= geometry["cardBottom"], geometry
     assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
@@ -4125,26 +4237,28 @@ def test_the_shipped_long_thread_opens_beside_its_source_in_the_right_margin(
     expect(preview).to_be_visible()
     expect(preview.locator("textarea")).to_be_focused()
 
-    # 1208 plus the sidebar's 264: the floor a page standing a contents map waits for.
     resized_shell(page, 1472, 900)
     beside = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
           const marker = document.querySelector('[data-lf-kinds="comment"]')
-            .getBoundingClientRect();
+          const controls = marker.closest('[data-lf-margin-for]').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-          return {mainRight: main.right, markerRight: marker.right, cardLeft: card.left,
-                  cardRight: card.right, cardWidth: card.width,
+          return {mainLeft: main.left, mainRight: main.right,
+                  controlsRight: controls.right, controlsTop: controls.top,
+                  controlsBottom: controls.bottom, cardLeft: card.left,
+                  cardRight: card.right, cardTop: card.top,
+                  cardBottom: card.bottom, cardWidth: card.width,
                   shellWidth: document.body.getBoundingClientRect().width};
         }"""
     )
-    assert beside["mainRight"] <= beside["cardLeft"] + 0.5, beside
-    assert beside["cardLeft"] == pytest.approx(beside["markerRight"] + 8, abs=0.5)
+    assert beside["cardLeft"] >= beside["mainRight"], beside
     assert beside["cardRight"] <= beside["shellWidth"] - 8 + 0.5, beside
-    # At the sidebar floor the document is down to its own 640px floor and the strip is
-    # exactly --thread-margin, so the card takes what the marker, the gutter, main's
-    # 24px padding and its own 8px inset leave of that 520.
-    assert beside["cardWidth"] >= 423, beside
+    assert beside["cardWidth"] >= 439, beside
+    assert (
+        beside["cardBottom"] <= beside["controlsTop"] - 7
+        or beside["cardTop"] >= beside["controlsBottom"] + 7
+    ), beside
 
     resized(page, 1471, 900)
     expect(preview).to_be_visible()
@@ -4312,10 +4426,8 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
     page.close()
 
 
-def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
-    browser, serve
-):
-    """A tray or authored sidebar spends room before the contextual thread does."""
+def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
+    """A tray or authored sidebar does not turn the contextual card into a panel."""
     page, errors = open_page(
         browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     )
@@ -4363,14 +4475,26 @@ def test_the_full_thread_posture_follows_the_page_container_and_left_claims(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-          return {mainWidth: main.width - 48, mainRight: main.right,
-                  cardLeft: card.left, cardRight: card.right,
+          const controls = document.querySelector('[aria-expanded="true"]')
+            .closest('[data-lf-margin-for]').getBoundingClientRect();
+          return {mainWidth: main.width - 48, mainLeft: main.left,
+                  mainRight: main.right, controlsRight: controls.right,
+                  controlsTop: controls.top,
+                  controlsBottom: controls.bottom, cardLeft: card.left,
+                  cardRight: card.right, cardTop: card.top,
+                  cardBottom: card.bottom, cardWidth: card.width,
                   shellWidth: document.body.getBoundingClientRect().width};
         }"""
     )
     assert composition["mainWidth"] >= 639.5, composition
-    assert composition["mainRight"] <= composition["cardLeft"] + 0.5, composition
+    assert composition["cardLeft"] >= composition["mainRight"], composition
     assert composition["cardRight"] <= composition["shellWidth"] + 0.5, composition
+    assert composition["cardWidth"] >= 459, composition
+    assert (
+        composition["cardLeft"] >= composition["controlsRight"] + 7
+        or composition["cardBottom"] <= composition["controlsTop"] - 7
+        or composition["cardTop"] >= composition["controlsBottom"] + 7
+    ), composition
 
     assert errors == []
     page.close()
@@ -4609,13 +4733,12 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
 
 
 def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
-    """The card beside a marker follows the marker when the page moves under it.
+    """The card beside or above a cluster follows it when the page moves under it.
 
     A margin row is placed at its target on the next layout pass, and that pass runs
     whenever the column's size changes — a diagram finishing, an image arriving, a
-    disclosure opening above the marker. The card was placed once, when it opened, so
-    the page moved and the card stood beside where its marker had been. The reflow here
-    is a section growing, which is what every one of those cases is to the margin.
+    disclosure opening above the marker. The reflow here is a section growing, which is
+    what every one of those cases is to the margin.
     """
     page, errors = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, 1440, 900)
@@ -4623,21 +4746,23 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
     marker.click()
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
-    # Where the card is and where its marker would have it: placeThreadPreview's own sum,
-    # centred on the marker and held inside the window under the banner.
-    beside = """() => {
+    placement = """() => {
       const marker = document.querySelector('.lf-margin-marker[data-lf-kinds="comment"]');
+      const controls = marker.closest('[data-lf-margin-for]');
       const card = document.querySelector('.lf-margin-preview');
-      const m = marker.getBoundingClientRect();
+      const m = controls.getBoundingClientRect();
       const c = card.getBoundingClientRect();
       const bannerBottom = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
-      const centred = (m.top + m.bottom - c.height) / 2;
-      return {marker: m.top,
-              want: Math.max(bannerBottom + 8, Math.min(centred, innerHeight - c.height - 8)),
-              placed: parseFloat(card.style.getPropertyValue('--lf-thread-top'))};
+      const desired = Math.max(bannerBottom + 8,
+        Math.min((m.top + m.bottom - c.height) / 2, innerHeight - c.height - 8));
+      const clear = c.left >= m.right + 7 || c.right <= m.left - 7
+        || c.bottom <= m.top - 7 || c.top >= m.bottom + 7;
+      return {marker: m.top, clear, desired, controlsRight: m.right,
+              cardLeft: c.left, cardTop: c.top};
     }"""
-    before = page.evaluate(beside)
-    assert abs(before["placed"] - before["want"]) < 1, before
+    before = page.evaluate(placement)
+    assert before["clear"], before
+    assert before["cardTop"] == pytest.approx(before["desired"], abs=0.5), before
 
     page.evaluate(
         "() => { document.getElementById('sec-mounts').style.paddingBottom = '48px'; }"
@@ -4647,9 +4772,10 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
                  .getBoundingClientRect().top > was + 40""",
         arg=before["marker"],
     )
-    after = page.evaluate(beside)
+    after = page.evaluate(placement)
     assert after["marker"] > before["marker"] + 40, (before, after)
-    assert abs(after["placed"] - after["want"]) < 1, (before, after)
+    assert after["clear"], after
+    assert after["cardTop"] == pytest.approx(after["desired"], abs=0.5), after
 
     assert errors == []
     page.close()

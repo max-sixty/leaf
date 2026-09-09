@@ -3,13 +3,13 @@
 import importlib.util
 import json
 import os
-import re
 import shutil
 import threading
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from leaf.event_log import append_event, read_events
@@ -1352,8 +1352,16 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             1,
         ),
     )
-
-    verify_site.verify_agent_turn(_DeployedSite(container), release)
+    # The first sample sets `agent_session`'s rollout deadline; the next two surround
+    # the revision wait this case measures.
+    following_clock = iter([0.0, 40.0, 42.5])
+    with monkeypatch.context() as timing:
+        timing.setattr(
+            verify_site,
+            "time",
+            SimpleNamespace(monotonic=following_clock.__next__),
+        )
+        verify_site.verify_agent_turn(_DeployedSite(container), release)
 
     # The ordinary first load uses the edge-page presentation bound. The post-turn
     # reload gets its own bound for both presentation and the later revision follow.
@@ -1364,14 +1372,10 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     # upgraded and stalled on its first state read reports the same "no startup
     # milestone" as one whose modules never arrived.
     assert page.init_scripts == [verify_site.PROFILE_SCRIPT]
-    # What the reload cost, on the green run: the only reading anyone has of a
-    # container serving a page a hosted turn has just written to. Presentation is a
-    # fixed wait now, so the reading that can still move is the one the line takes
-    # itself — how long past presentation the first read took to bring the revision
-    # back, which here is the double answering at once.
-    printed = capsys.readouterr().out
-    assert "presented in 28444 ms" in printed
-    assert re.search(r"followed revision 2 \d+ ms later", printed)
+    # A green run reports startup and the post-presentation revision follow separately.
+    reported = capsys.readouterr().out
+    assert "presented in 28444 ms" in reported
+    assert "followed revision 2 2500 ms later" in reported
     assert container.closed
 
     # A reload the container never answered is its own reading, taken before the wait.

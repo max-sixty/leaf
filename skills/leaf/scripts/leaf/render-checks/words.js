@@ -37,19 +37,17 @@ const compositionalWords = (owner, widgets) => {
   return reading;
 };
 
-export const shownVerbatim = ({ widgets, touched }) =>
+export const shownVerbatim = (widgets) =>
   Object.entries(widgets)
     .filter(([, entry]) => entry["x-verbatim"])
     .flatMap(([tag]) =>
-      [...document.querySelectorAll(tag)]
-        .filter((el) => !el.id || !touched.includes(el.id))
-        .map((el) => ({
-          tag,
-          id: el.id,
-          provenance: verbatimOwnerIdentity.get(el) ?? null,
-          says: says(el),
-          compositional: compositionalWords(el, widgets),
-        })),
+      [...document.querySelectorAll(tag)].map((el) => ({
+        tag,
+        id: el.id,
+        provenance: verbatimOwnerIdentity.get(el) ?? null,
+        says: says(el),
+        compositional: compositionalWords(el, widgets),
+      })),
     );
 
 // What the page says, and whether each run of it is showing. Read once in each medium

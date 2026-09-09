@@ -686,6 +686,7 @@ addEventListener("resize", () => {
 let goRows = null;
 export const GO = {
   title: "Go to",
+  escape: "inner",
   reach: "with g armed",
   sequence: sequenceKeys,
   sequencePrefix,

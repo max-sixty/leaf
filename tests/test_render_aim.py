@@ -320,8 +320,9 @@ def test_a_growing_comment_keeps_its_words_and_its_paragraph_clear(
     """A short selected phrase does not reserve the rest of its paragraph for chrome.
 
     The field starts compact, then native field sizing uses the room available beside
-    the whole paragraph or above/below it. Its corners keep the first and last line
-    readable after the one-line capsule grows into an editor.
+    the whole paragraph or above/below it. Its trailing actions stay with the last line,
+    and its corners keep the first and last line readable after the one-line capsule
+    grows into an editor.
     """
     page, errors = open_page(
         browser,
@@ -358,6 +359,20 @@ def test_a_growing_comment_keeps_its_words_and_its_paragraph_clear(
     expect(field).to_be_visible()
     field.click()
     compact = field.bounding_box()
+    field.fill("test\n")
+    actions = page.evaluate(
+        """() => {
+          const center = selector => {
+            const box = document.querySelector(selector).getBoundingClientRect();
+            return box.top + box.height / 2;
+          };
+          return {send: center('.lf-fab-bar .lf-compose-submit'),
+                  more: center('.lf-fab-bar > .lf-response-more')};
+        }"""
+    )
+    assert actions["more"] == pytest.approx(actions["send"], abs=1), (
+        f"the multiline comment split its trailing controls: {actions}"
+    )
     content = "\n".join(
         f"Line {n}: every word of this longer comment needs to remain readable."
         for n in range(20)

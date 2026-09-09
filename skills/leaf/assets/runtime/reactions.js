@@ -474,6 +474,7 @@ const reactTargetWord = () =>
 
 export const REACT = {
   title: "With reactions open",
+  escape: "inner",
   // Opening the modal reference dismisses this transient mode. Its section still reads
   // the liveness captured at that boundary rather than listing every conditional choice.
   liveInReference: true,

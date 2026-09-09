@@ -2748,7 +2748,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
              s.id = 'trap';
              s.textContent =
                '.lf-thread { padding-top: 8px !important }'
-               + '.lf-thread > .lf-quote { margin-block-start: 9px !important }';
+               + '.lf-thread > .lf-thread-head { margin-block-start: 9px !important }';
              document.head.append(s);
            }"""
     )

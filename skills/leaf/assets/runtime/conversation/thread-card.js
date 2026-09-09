@@ -3,7 +3,7 @@ import { isMarked, placedAt, scrollToThread } from "../anchors.js";
 import { threadsBox } from "./panel.js";
 import { turns } from "./model.js";
 import { anchorLabel, msgNode, msgNodeIn, syncMsgNode } from "./messages.js";
-import { paintReactStrips } from "./reaction-strips.js";
+import { paintReactStrips, removeConversationNode } from "./reaction-strips.js";
 import { el, reachedForWords } from "../widget-elements.js";
 import { panelCovers, setPanel } from "../chrome-layout.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
@@ -75,7 +75,7 @@ export function threadNode(t, grow) {
       syncMsgNode(msg, m);
     }
     for (const message of existing.querySelectorAll(":scope > .lf-msg"))
-      if (!current.has(message.dataset.mid)) message.remove();
+      if (!current.has(message.dataset.mid)) removeConversationNode(message);
     paintReactStrips(existing, t);
     return existing;
   }

@@ -92,6 +92,8 @@ let opener = null;
 let searchReturnsToHints = false;
 let scrolling = false;
 let repeatedSearch = null;
+const matchNodeIds = new WeakMap();
+let nextMatchNodeId = 1;
 
 const clips = () => new Map();
 const covered = () => banner.getBoundingClientRect().bottom;
@@ -344,12 +346,35 @@ function syncStatus() {
   else selectionStatus.textContent = `${active + 1} of ${matches.length}`;
 }
 
-function matchWalkPosition(query) {
-  if (active < 0 || active >= matches.length) return null;
+function sameMatch(left, right) {
+  return (
+    left.length === right.length &&
+    left.every(
+      (segment, index) =>
+        segment.node === right[index].node &&
+        segment.start === right[index].start &&
+        segment.end === right[index].end,
+    )
+  );
+}
+
+function matchIdentity(query, segments) {
+  const parts = segments.map(({ node, start, end }) => {
+    if (!matchNodeIds.has(node)) matchNodeIds.set(node, nextMatchNodeId++);
+    return `${matchNodeIds.get(node)}:${start}:${end}`;
+  });
+  return `${query}\u0000${parts.join(",")}`;
+}
+
+function matchWalkPosition(query, current) {
+  if (!query || !current) return null;
+  const live = findText(pageText(), query);
+  const index = live.findIndex((candidate) => sameMatch(candidate, current));
+  if (index < 0) return null;
   return {
-    target: `${query}\u0000${active}`,
-    position: active + 1,
-    total: matches.length,
+    target: matchIdentity(query, current),
+    position: index + 1,
+    total: live.length,
     qualifier: "",
   };
 }
@@ -374,7 +399,9 @@ function moveMatch(direction) {
   active = (active + direction + matches.length) % matches.length;
   syncStatus();
   showMatch();
-  beginWalk("page-search", "Match", () => matchWalkPosition(selectionInput.value));
+  const query = selectionInput.value.trim();
+  const current = matches[active];
+  beginWalk("page-search", "Match", () => matchWalkPosition(query, current));
   announce(
     `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
   );
@@ -465,9 +492,9 @@ function repeatSearch(direction) {
   repeatedSearch.index = active;
   showMatch();
   selectMatch(matches[active]);
-  beginWalk("page-search", "Match", () =>
-    matchWalkPosition(repeatedSearch?.query ?? ""),
-  );
+  const query = repeatedSearch.query;
+  const current = matches[active];
+  beginWalk("page-search", "Match", () => matchWalkPosition(query, current));
   announce(
     `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
   );

@@ -10,22 +10,22 @@ Resolve the repository root three directories above this `SKILL.md`, then resolv
 continue only when it prints the same repository root. Use the absolute launcher
 throughout; a bare `leaf` command may resolve to the installed plugin instead.
 
-Use the visible-change handoff in `<root>/CLAUDE.md` to choose a workflow. When a
-visual or content artifact would help the developer judge the work, put a draft
-in front of them during exploration or at handoff rather than relying on a
-description alone. Preview a shipped example when the request names one or that
-handoff requires interactive proof. Otherwise author or revise a page.
+Use the visible-change handoff in `<root>/CLAUDE.md` to choose a workflow.
+Reproduce the baseline from a clean checkout of `git merge-base HEAD main`, then
+compare it with the candidate through the workflow below. Match the fixture, URL
+fragment, viewport, theme, and interaction state.
 
 Before presenting a served page or visible runtime change as finished, inspect
-the exact served URL. When the subject is Leaf's own interface, the demonstrated
-surface must come from its owning runtime and theme through a shipped example or
-fixture; page-local HTML and CSS may frame it, but must not imitate it. Call an
-unimplemented imitation a sketch, not a preview. Confirm the expected content,
-review the changed surface at a representative viewport, and check the browser
-console. Navigate to the semantic block that owns the changed surface and hand off
-the exact URL including its fragment. A titled section uses the section's stable id,
-so its eyebrow and heading arrive together. Add an id to the tight semantic container
-when it has none. Keep the process alive.
+the exact candidate URL. When the subject is Leaf's own interface, the
+demonstrated surface must come from its owning runtime and theme through a shipped
+example or fixture; page-local HTML and CSS may frame it, but must not imitate it.
+Call an unimplemented imitation a sketch, not a preview. Confirm the expected
+content, review the changed surface at a representative viewport, and check the
+browser console. When handing off a live preview, navigate to the semantic block
+that owns the changed surface and use the exact URL including its fragment. A
+titled section uses the section's stable id, so its eyebrow and heading arrive
+together. Add an id to the tight semantic container when it has none. Keep that
+preview process alive.
 
 ## Preview a shipped example
 
@@ -73,23 +73,49 @@ the user has authorized that publication. The generator checks the required Char
 and San Francisco fonts and fails rather than publishing images rendered with
 fallback fonts.
 
-## Compare runtime versions
+## Compare checkout versions
 
-Choose one authored source and serve it through two named preview slots:
+Create the baseline when the comparison is ready. Use a detached worktree so its
+contents come from the merge-base commit rather than another worktree's state:
 
 ```bash
-scripts/preview.py --source <source.html> --runtime <baseline-root> \
-  --slot baseline --background
-scripts/preview.py --source <source.html> --runtime <candidate-root> \
-  --slot candidate --background
+candidate_root=$(git rev-parse --show-toplevel)
+baseline_commit=$(git merge-base HEAD main)
+baseline_parent=$(mktemp -d "${TMPDIR:-/tmp}/leaf-baseline.XXXXXX")
+baseline_parent=$(cd "$baseline_parent" && pwd -P)
+baseline_root="$baseline_parent/checkout"
+git worktree add --detach "$baseline_root" "$baseline_commit"
 ```
 
-Each command verifies the checkout launcher, prepares or resumes its independent
-page, watches that runtime and source, and prints its exact URL. Exercise the
-same journey and viewport at both URLs, check both browser consoles, then
-navigate both to the same authored destination id. Hand off the labeled URL pair
-and the action that reveals the difference; in Codex, open those exact fragment
-URLs as browser targets.
+Use `$baseline_root` as the baseline and `$candidate_root` as the candidate.
+Choose the sources that isolate the change: one shared authored source for a
+runtime change, or each checkout's copy when the authored content changed. Give
+the pair a comparison-specific `<slot>` name; `--reset` removes any state left
+by an earlier run.
+
+```bash
+"$candidate_root/scripts/preview.py" --source <baseline-source.html> \
+  --runtime "$baseline_root" \
+  --slot <slot>-baseline --reset --background
+"$candidate_root/scripts/preview.py" --source <candidate-source.html> \
+  --runtime "$candidate_root" \
+  --slot <slot>-candidate --reset --background
+```
+
+Each command verifies the checkout launcher, prepares its independent page,
+watches that runtime and source, and prints its exact URL. Exercise the same
+journey and viewport at both URLs, check both browser consoles, then navigate both
+to the same authored destination id. For a static change, embed the labeled
+captures in the session or author an `lf-shot` when Leaf comments or iteration
+would help. For an interaction change, keep both previews live and hand off the
+labeled URL pair with the action that reveals the difference. In Codex, open
+those exact fragment URLs as browser targets. After stopping both previews,
+remove the temporary checkout:
+
+```bash
+git worktree remove "$baseline_root"
+rmdir "$baseline_parent"
+```
 
 ## Author or revise a page
 

@@ -378,17 +378,36 @@ def preview_files(page: Path) -> tuple[Path, Path, Path]:
     )
 
 
+def source_manifest(source: Path) -> Path | None:
+    """Find the layer manifest explicitly associated with an authored source."""
+    adjacent = source.parent / "layer.json"
+    if adjacent.is_file():
+        return adjacent
+    examples = source.parent.parent
+    checkout = examples.parent
+    inherited = examples / "layer.json"
+    if (
+        source.parent.name == "developer"
+        and examples.name == "examples"
+        and (checkout / "bin" / "leaf").is_file()
+        and inherited.is_file()
+    ):
+        return inherited
+    return None
+
+
 def source_packages(source: Path) -> list[str]:
-    manifest = source.parent / "layer.json"
-    if not manifest.is_file():
-        manifest = DEFAULT_PACKAGES
+    manifest = source_manifest(source) or DEFAULT_PACKAGES
     return json.loads(manifest.read_text(encoding="utf-8"))
 
 
 def media_source(source: Path) -> Path:
     media = source.parent / "media"
-    if not media.is_dir() and source.parent == ROOT / "examples" / "developer":
-        return ROOT / "examples" / "media"
+    manifest = source_manifest(source)
+    if not media.is_dir() and manifest is not None:
+        layer_media = manifest.parent / "media"
+        if layer_media.is_dir():
+            return layer_media
     return media
 
 
@@ -496,7 +515,8 @@ def watch_paths(
     from leaf.layer import input_paths
 
     paths = input_paths(roots)
-    paths.extend((source, source.parent / "layer.json", DEFAULT_PACKAGES))
+    manifest = source_manifest(source)
+    paths.extend((source, source.parent / "layer.json", manifest or DEFAULT_PACKAGES))
     paths.extend(Path(path) for path in seed)
     paths.extend((source.parent / "versions").glob(f"{source.stem}.v*.html"))
     paths.extend((runtime / "skills" / "leaf" / "scripts").rglob("*.py"))

@@ -122,6 +122,43 @@ def test_a_leaf_failure_exits_the_preview_without_a_wrapper_traceback(
     assert "Traceback" not in result.stdout + result.stderr
 
 
+def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
+    """A comparison fixture carries the package and asset context of its checkout."""
+    import preview
+
+    examples = tmp_path / "baseline" / "examples"
+    source = examples / "developer" / "comparison.html"
+    source.parent.mkdir(parents=True)
+    launcher = examples.parent / "bin" / "leaf"
+    launcher.parent.mkdir()
+    launcher.touch()
+    source.write_text("<!doctype html>", encoding="utf-8")
+    (examples / "layer.json").write_text('["diagram"]\n', encoding="utf-8")
+    media = examples / "media"
+    media.mkdir()
+
+    assert preview.source_packages(source) == ["diagram"]
+    assert preview.media_source(source) == media
+    assert examples / "layer.json" in preview.watch_paths(source, ROOT, [], {})
+
+
+def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path):
+    import preview
+
+    source = tmp_path / "project" / "docs" / "page.html"
+    source.parent.mkdir(parents=True)
+    source.touch()
+    (source.parents[1] / "layer.json").write_text(
+        '{"unrelated": true}\n', encoding="utf-8"
+    )
+    (source.parents[1] / "media").mkdir()
+
+    assert preview.source_packages(source) == json.loads(
+        (ROOT / "examples" / "layer.json").read_text()
+    )
+    assert preview.media_source(source) == source.parent / "media"
+
+
 def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
     browser, tmp_path
 ):

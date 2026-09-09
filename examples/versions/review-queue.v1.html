@@ -33,7 +33,7 @@
                 </li>
                 <li>
                   <a href="#review-cache"><strong>Cache migration</strong></a>
-                  <p>Ready · automatic rollback · high risk</p>
+                  <p>Needs rollback review · stored data · high risk</p>
                 </li>
                 <li>
                   <a href="#review-email"><strong>Receipt email</strong></a>
@@ -53,7 +53,7 @@
                 </li>
                 <li>
                   <a href="#review-billing"><strong>Billing reconciliation</strong></a>
-                  <p>Ready · legacy reporting path · high risk</p>
+                  <p>Needs sample comparison · monthly close · high risk</p>
                 </li>
                 <li>
                   <a href="#review-webhook"><strong>Webhook delivery</strong></a>
@@ -123,13 +123,11 @@
                 <h3>Cache migration</h3>
                 <p>
                   The deploy copies active entries to the new key format before readers
-                  switch. It mirrors writes for 24 hours and returns readers to the old
-                  keys automatically if the post-switch counts diverge.
+                  switch. A failed copy leaves the old keys authoritative.
                 </p>
                 <pre><code>copy active keys
 verify counts
 switch readers
-mirror writes 24h
 expire old keys</code></pre>
                 <lf-ask id="review-cache-decision">
                   <h4>What should happen if post-switch verification fails?</h4>
@@ -137,8 +135,8 @@ expire old keys</code></pre>
                     Both choices keep the old keys available while the migration is
                     checked.
                   </p>
-                  <lf-options id="review-cache-rollback" choose settled>
-                    <lf-option id="review-cache-auto" chosen>
+                  <lf-options id="review-cache-rollback" choose>
+                    <lf-option id="review-cache-auto">
                       <strong>Switch readers back automatically</strong> Mirror writes
                       for 24 hours, then return to the old keys if counts diverge.
                     </lf-option>
@@ -206,11 +204,11 @@ expire old keys</code></pre>
                   <li>A late adjustment received during the comparison.</li>
                 </ul>
                 <div id="review-billing-difference">
-                  <h4>Legacy difference stays on its reporting path</h4>
+                  <h4>Open difference</h4>
                   <p>
-                    One legacy invoice rounds tax before currency conversion. It remains
-                    in the old reporting path, so the current run closes without
-                    changing the historical ledger entry.
+                    One legacy invoice rounds tax before currency conversion. The sample
+                    must establish whether it belongs in the old reporting path or needs
+                    a corrected ledger entry.
                   </p>
                 </div>
                 <lf-ask id="review-billing-decision">
@@ -219,8 +217,8 @@ expire old keys</code></pre>
                     The one-cent difference is confined to invoices created before the
                     reporting migration.
                   </p>
-                  <lf-options id="review-billing-path" choose settled>
-                    <lf-option id="review-billing-legacy" chosen>
+                  <lf-options id="review-billing-path" choose>
+                    <lf-option id="review-billing-legacy">
                       <strong>Keep it on the old reporting path</strong> Close the
                       current run without changing the historical ledger entry.
                     </lf-option>
@@ -245,8 +243,8 @@ expire old keys</code></pre>
             </div>
             <footer>
               <p>
-                <strong>Review closed.</strong> All eight items are ready for the 2.8
-                release; the two blocking decisions are recorded with their details.
+                <strong>2 decisions open.</strong> Cache rollback and the legacy billing
+                sample are the remaining release blockers.
               </p>
             </footer>
           </lf-pane>

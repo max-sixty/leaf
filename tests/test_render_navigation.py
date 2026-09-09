@@ -324,11 +324,52 @@ def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):
     page.close()
 
 
-def test_thread_travel_reveals_an_inactive_tab_in_its_pane_only(browser, serve):
+def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(
+    browser, serve
+):
+    example = next(e for e in EXAMPLES if e.stem == "review-queue")
+    page, errors = open_page(browser, serve(example))
+    resized(page, 1100, 520)
+    queue = page.locator("#review-queue .lf-pane-body")
+    detail = page.locator("#review-detail .lf-pane-body")
+    links = queue.locator('nav[aria-label="Review items"] a')
+    assert links.count() == 8
+    assert page.get_by_role("tab").count() == 0
+    assert (
+        links.evaluate_all("els => new Set(els.map(el => el.hash)).size")
+        == page.locator("#review-items > section").count()
+    )
+
+    billing = links.filter(has_text="Billing reconciliation")
+    billing.scroll_into_view_if_needed()
+    billing.focus()
+    queue_before = queue.evaluate("el => el.scrollTop")
+    detail_before = detail.evaluate("el => el.scrollTop")
+    events_before = events_model.read_events(serve.page_dir)
+
+    page.keyboard.press("Enter")
+    page.wait_for_url(re.compile(r"#review-billing$"))
+    expect(page.locator("#review-billing")).to_be_in_viewport()
+    assert detail.evaluate("el => el.scrollTop") > detail_before
+    assert queue.evaluate("el => el.scrollTop") == queue_before
+    assert events_model.read_events(serve.page_dir) == events_before
+    assert errors == []
+    page.close()
+
+
+def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
     example = next(e for e in EXAMPLES if e.stem == "review-queue")
     page, errors = open_page(
         browser,
-        serve(example, anchored=[("review-cache", "old keys authoritative")]),
+        serve(
+            example,
+            anchored=[
+                (
+                    "review-cache",
+                    "The deploy copies active entries to the new key format before readers",
+                )
+            ],
+        ),
     )
     resized(page, 1400, 900)
     queue = page.locator("#review-queue .lf-pane-body")
@@ -340,14 +381,67 @@ def test_thread_travel_reveals_an_inactive_tab_in_its_pane_only(browser, serve):
     detail.evaluate("el => el.scrollTop = el.scrollHeight")
     detail_before = detail.evaluate("el => el.scrollTop")
     assert detail_before > 0
-    expect(page.locator("#review-cache")).to_be_hidden()
+    expect(page.locator("#review-cache")).not_to_be_in_viewport()
 
     page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread .lf-quote").click()
-    expect(page.locator("#review-cache")).to_be_visible()
     expect(page.locator("#review-cache")).to_be_in_viewport()
     assert detail.evaluate("el => el.scrollTop") < detail_before
     assert queue.evaluate("el => el.scrollTop") == queue_before
+    assert errors == []
+    page.close()
+
+
+def test_review_queue_decisions_reach_the_next_revision_from_the_keyboard(
+    browser, serve
+):
+    example = next(e for e in EXAMPLES if e.stem == "review-queue")
+    newest = serve(example, seed_log=False)
+    first = newest.replace("/versions/v2.html", "/versions/v1.html")
+    page, errors = open_page(browser, first)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/2")
+    expect(page.locator("#review-cache")).to_contain_text(
+        "A failed copy leaves the old keys authoritative"
+    )
+    expect(page.locator("#review-billing-difference h4")).to_have_text(
+        "Open difference"
+    )
+
+    page.keyboard.press("a")
+    expect(page.locator("#review-cache-decision")).to_be_focused()
+    with sending(page, "the cache rollback decision"):
+        page.keyboard.press("1")
+    expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
+
+    page.keyboard.press("a")
+    expect(page.locator("#review-billing-decision")).to_be_focused()
+    with sending(page, "the billing reconciliation decision"):
+        page.keyboard.press("1")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
+
+    page.goto(live_url(newest))
+    page.wait_for_function(RENDERED)
+    expect(page.locator(".lf-version")).to_have_text("v2")
+    expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
+    expect(page.locator("#review-billing-legacy")).to_have_attribute("chosen", "")
+    expect(page.locator("#review-cache")).to_contain_text(
+        "returns readers to the old keys automatically"
+    )
+    expect(page.locator("#review-billing-difference h4")).to_have_text(
+        "Legacy difference stays on its reporting path"
+    )
+    expect(page.locator("#review-detail > footer")).to_contain_text("Review closed")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/0")
+
+    actions = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ]
+    assert [event["detail"]["options"] for event in actions] == [
+        ["review-cache-auto"],
+        ["review-billing-legacy"],
+    ]
     assert errors == []
     page.close()
 

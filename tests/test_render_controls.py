@@ -1452,6 +1452,26 @@ def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
     assert boxes["menu"]["top"] >= boxes["button"]["bottom"], (
         f"the versions menu covered the chooser it hangs from: {boxes}"
     )
+
+    resized(page, 320, 844)
+    phone = menu.evaluate(
+        """menu => {
+          const button = document.querySelector('.lf-version').getBoundingClientRect();
+          const box = menu.getBoundingClientRect();
+          return {button: {bottom: button.bottom, left: button.left},
+                  menu: {top: box.top, right: box.right, left: box.left},
+                  viewport: innerWidth};
+        }"""
+    )
+    assert phone["menu"]["top"] == pytest.approx(
+        phone["button"]["bottom"] + 6, abs=2
+    ), f"the phone menu left its door vertically: {phone}"
+    assert phone["menu"]["left"] == pytest.approx(phone["button"]["left"], abs=2), (
+        f"the phone menu appeared to belong to a control on its right: {phone}"
+    )
+    assert phone["menu"]["right"] <= phone["viewport"] - 8, (
+        f"the phone menu left the viewport: {phone}"
+    )
     assert errors == []
     page.close()
 
@@ -4839,10 +4859,10 @@ RING_WALKS = (
     ("the Asks tray", (), ("ship-review",)),
     ("the leaves tray", ("g", "Shift+l"), ("corpus",)),
     # The menu's own walk after the key that opens it: an open lands on the version being
-    # read, which is the last row, and the comparison press beside a row is a Tab forward
-    # from the row above it. The walk is clamped, so a second press at the top moves
+    # read, which is the first row, and the comparison press beside a row is a Tab forward
+    # from the row below it. The walk is clamped, so a second press at the bottom moves
     # nothing and the pair covers a menu of any length this corpus can hold.
-    ("the versions menu", ("g", "Shift+v", "ArrowUp", "ArrowUp"), ("corpus",)),
+    ("the versions menu", ("g", "Shift+v", "ArrowDown", "ArrowDown"), ("corpus",)),
     ("the reference", ("?", "?"), ("corpus",)),
     ("design mode", ("l",), ("corpus",)),
     # A Thread card and the compact Page-map sheet are the two layers a Tab walk of the
@@ -5654,7 +5674,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
 
     Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
     reaction chips stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
-    version's Δ, a command in the reference, and a quote at around twelve by seven.
+    version's Compare, a command in the reference, and a quote at around twelve by seven.
     Three controls reached the coarse-pointer block and the rest reached neither floor,
     so the same presses were small under a finger too.
 
@@ -5690,7 +5710,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
         },
     )
     # A second version, published the way a page gets one and read from, so the versions
-    # menu has an earlier version to compare against and its Δ exists to be aimed at.
+    # menu has an earlier version to compare against and Compare exists to be aimed at.
     _publish(serve.page_dir, 2, example.read_text(), "Same page, said twice.")
     page, errors = open_page(
         browser, served.replace("/v1.html", "/v2.html"), context=context

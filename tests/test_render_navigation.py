@@ -517,7 +517,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     for surface in (
         "status line",
         "Threads",
-        "version picker",
+        "Versions menu",
         "Map",
         "All keyboard shortcuts",
         "All leaves",

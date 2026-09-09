@@ -189,6 +189,7 @@ export const RETURN = {
       // A frame may keep its Escape route while yielding the compact line to the action
       // that advances work inside the entered surface.
       lineWhen: () => word(current()?.lineWhen) !== false,
+      promoteEscape: () => word(current()?.promoteEscape) !== false,
       runFromReference: false,
       run: back,
     },

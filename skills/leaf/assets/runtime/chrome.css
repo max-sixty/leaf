@@ -684,7 +684,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* The floor under every aim the layer offers, stated once for all of them rather
      than left to whatever each control's type and padding happened to add up to.
      Measured before it existed: a thread's Reopen and the panel's reaction chips stood
-     at 20 and 22 pixels, a version's Δ and a command in the reference at about seven —
+     at 20 and 22 pixels, a version's Compare and a command in the reference at about seven —
      all of them presses a reader has to land on with a mouse, and none of them a
      control anybody chose the size of.
 
@@ -927,10 +927,9 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      writers actually write.
 
      The chooser was the one control here that had to state a width, because its label
-     carried the version's note and a note has no widest to reserve. It says the version
-     and, while a comparison is standing, a Δ — two words, both enumerable — so it is
-     floored at its own like the rest, and no number on this row is a fact about a font
-     any more. */
+     carried the version's note and a note has no widest to reserve. It now says one of
+     the bounded version tokens banner.js measures, so it is floored at its own like the
+     rest and no number on this row is a fact about a font any more. */
   @layer lf-reset {
     .lf-thread-action { font: inherit; }
   }
@@ -942,7 +941,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      scrolling inside itself, since a page's versions are unbounded.
 
      Two columns, because a version and what it changed are one row's two halves: the
-     note says it in words and the Δ marks it on the page. That press was a second
+     note says it in words and Compare marks it on the page. That press was a second
      control out on the bar, naming a second version number beside the chooser's, and
      the two together said no more than either — a reader could tell that v2 and v3
      were both being mentioned and not what either mention was for. The pair are grid
@@ -954,6 +953,11 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      far edges stay pinned to the viewport's corner and its margins centre the box in
      the band between them and the anchor, nowhere near the button. */
   .lf-version { anchor-name: --lf-version-btn; }
+  /* A pinned or deferred page keeps the full destination in the Latest address, but
+     that address may be behind the fold. Mark its stable Versions door with the same
+     border-and-ink vocabulary as a folded-news door, without adding words or width. */
+  :is(.lf-banner-actions, .lf-banner-menu) > .lf-version[data-lf-news] {
+    border-color: var(--accent); color: var(--accent); }
   .lf-version.lf-passive { opacity: 1; color: var(--muted); cursor: default; }
   .lf-version-menu { position: fixed; position-anchor: --lf-version-btn;
     top: calc(anchor(bottom) + 6px); right: anchor(right);
@@ -1966,7 +1970,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
        weight, so it has to carry the floor itself or a touch shelf loses four pixels.
        It states both axes for the same reason, and the band is the shared control's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 6px; }
-    .lf-version-menu { right: calc(8px + var(--lf-safe-right)); }
+    /* The address run starts at the left on this two-row banner. Keep its menu under
+       the same door; pinning the menu to the viewport's right made it appear to belong
+       to Threads after the Versions door wrapped to the left. Its viewport max-width
+       above still keeps the far edge inside the phone. */
+    .lf-version-menu { right: auto;
+      left: max(calc(8px + var(--lf-safe-left)), anchor(left)); }
   }
   /* Coarse pointers get physical room without making the mouse layout pay for it.
      Margin actions and reaction tokens remain visually compact; their boxes, panel
@@ -1982,7 +1991,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   @media (pointer: coarse) {
     /* What is left here is what a finger changes besides the floor. The floor itself
        moved out: this block used to name three controls at 44px and the resting layer
-       named none at all, so Reopen, the page preview, a version's Δ, a command in the
+       named none at all, so Reopen, the page preview, a version's Compare, a command in the
        reference, a quote and the panel's chips were small under both pointers. They
        are all in AIMS now, and AIMS reads --aim-floor, which is where the query lives. */
     .lf-margin-element { width: 44px; height: 44px; }

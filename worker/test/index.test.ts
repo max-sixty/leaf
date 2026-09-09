@@ -1,7 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 
+const containerHandlers = vi.hoisted(
+  () => new Map<string, Record<string, (...args: never[]) => Promise<Response>>>(),
+);
+
 vi.mock("@cloudflare/containers", () => ({
-  Container: class {},
+  Container: class {
+    static get outboundByHost() {
+      return containerHandlers.get(this.name);
+    }
+
+    static set outboundByHost(
+      handlers: Record<string, (...args: never[]) => Promise<Response>>,
+    ) {
+      containerHandlers.set(this.name, handlers);
+    }
+  },
   ContainerProxy: class {},
   getContainer: vi.fn(),
 }));
@@ -300,7 +314,9 @@ describe("product-site delivery", () => {
 
       const response = await worker.fetch(
         new Request(`https://leaf.page${pathname}`, {
-          headers: { Cookie: `__Host-leaf-page=${sessionId}` },
+          headers: {
+            Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-active=1`,
+          },
         }),
         env,
       );
@@ -332,6 +348,64 @@ describe("product-site delivery", () => {
     );
     expect(assetFetch).toHaveBeenCalledOnce();
     expect(getContainer).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "/examples/design-decision/revisions/r3-aabbccdd.html",
+    "/examples/design-decision/versions/v3.html",
+  ])("falls back to the active reader's container for %s", async (pathname) => {
+    const sessionId = "18".repeat(16);
+    const assetFetch = vi.fn(
+      async () => new Response("not found", { status: 404 }),
+    );
+    const containerFetch = vi.fn(
+      async () =>
+        new Response("<!doctype html><title>Private revision</title>", {
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        }),
+    );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const env = environment({
+      ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+    });
+
+    const response = await worker.fetch(
+      new Request(`https://leaf.page${pathname}`, {
+        headers: {
+          Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-active=1`,
+        },
+      }),
+      env,
+    );
+
+    expect(assetFetch).toHaveBeenCalledOnce();
+    expect(getContainer).toHaveBeenCalledWith(env.PAGES, sessionId);
+    expect(containerFetch).toHaveBeenCalledOnce();
+    expect(await response.text()).toContain("Private revision");
+    expect(response.headers.get("Leaf-Session")).toBe("active");
+  });
+
+  it.each([
+    "/examples/design-decision/media/private.png",
+    "/examples/design-decision/revisions/r3-aabbccdd.html",
+    "/examples/design-decision/versions/v3.html",
+  ])("does not allocate a container for an anonymous %s", async (pathname) => {
+    const assetFetch = vi.fn(
+      async () => new Response("not found", { status: 404 }),
+    );
+    const env = environment({
+      ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+    });
+
+    const response = await worker.fetch(
+      new Request(`https://leaf.page${pathname}`),
+      env,
+    );
+
+    expect(response.status).toBe(404);
+    expect(assetFetch).toHaveBeenCalledOnce();
+    expect(getContainer).not.toHaveBeenCalled();
+    expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
   it("serves initial page state at the edge without creating a session", async () => {
@@ -581,12 +655,15 @@ describe("website page agent", () => {
 
     const upstream = vi.fn(async () => new Response("ok"));
     vi.stubGlobal("fetch", upstream);
-    const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
+    const handler = containerHandlers.get("LeafWebsiteSession")?.[
+      "api.openai.com"
+    ];
+    expect(handler).toBeDefined();
     const context = {
       containerId: "reader-container",
       className: "LeafWebsiteSession",
     };
-    const response = await handler(
+    const response = await handler!(
       new Request("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: { Authorization: "Bearer leaf-outbound-proxy" },
@@ -614,6 +691,30 @@ describe("website page agent", () => {
     );
 
     expect(response.status).toBe(403);
+  });
+
+  it("fails explicitly when the deployed OpenAI secret is absent", async () => {
+    const env = environment();
+    Object.defineProperty(env, "OPENAI_API_KEY", { value: undefined });
+    const upstream = vi.fn(async () => new Response("ok"));
+    vi.stubGlobal("fetch", upstream);
+    const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
+
+    const response = await handler(
+      new Request("https://api.openai.com/v1/responses", {
+        method: "POST",
+        body: "{}",
+      }),
+      env,
+      { containerId: "reader-container", className: "LeafWebsiteSession" },
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe(
+      "website agent credential is not configured",
+    );
+    expect(upstream).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 
   it("caps model calls from one reader container", async () => {

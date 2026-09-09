@@ -31,7 +31,7 @@ import {
   containerCookie,
   containerFromCookie,
   isPageApiRequest,
-  isPageMediaRequest,
+  isPageSessionFileRequest,
   isPrivatePageRequest,
   needsPageSlash,
   newSessionId,
@@ -93,28 +93,6 @@ export class LeafWebsiteSession extends Container<Env> {
   interceptHttps = true;
   allowedHosts = ["api.openai.com"];
 
-  static outboundByHost = {
-    "api.openai.com": async (
-      request: Request,
-      env: Env,
-      ctx: OutboundHandlerContext,
-    ) => {
-      const url = new URL(request.url);
-      if (request.method !== "POST" || url.pathname !== "/v1/responses") {
-        return new Response("blocked website agent request", { status: 403 });
-      }
-      const capacity = await env.SOURCE_AGENT_RATE_LIMITER.limit({
-        key: `model:${ctx.containerId}`,
-      });
-      if (!capacity.success) {
-        return new Response("website agent model limit reached", { status: 429 });
-      }
-      const headers = new Headers(request.headers);
-      headers.set("Authorization", `Bearer ${env.OPENAI_API_KEY}`);
-      return fetch(new Request(request, { headers }));
-    },
-  };
-
   constructor(ctx: DurableObject["ctx"], env: Env) {
     super(ctx, env);
     this.envVars = {
@@ -124,6 +102,35 @@ export class LeafWebsiteSession extends Container<Env> {
     };
   }
 }
+
+// Assignment invokes Container's inherited setter, which registers the handler for
+// ContainerProxy. A static class field would shadow that setter.
+LeafWebsiteSession.outboundByHost = {
+  "api.openai.com": async (
+    request: Request,
+    env: Env,
+    ctx: OutboundHandlerContext,
+  ) => {
+    const url = new URL(request.url);
+    if (request.method !== "POST" || url.pathname !== "/v1/responses") {
+      return new Response("blocked website agent request", { status: 403 });
+    }
+    if (!env.OPENAI_API_KEY) {
+      return new Response("website agent credential is not configured", {
+        status: 503,
+      });
+    }
+    const capacity = await env.SOURCE_AGENT_RATE_LIMITER.limit({
+      key: `model:${ctx.containerId}`,
+    });
+    if (!capacity.success) {
+      return new Response("website agent model limit reached", { status: 429 });
+    }
+    const headers = new Headers(request.headers);
+    headers.set("Authorization", `Bearer ${env.OPENAI_API_KEY}`);
+    return fetch(new Request(request, { headers }));
+  },
+};
 
 function randomSessionId(): string {
   return newSessionId(crypto.getRandomValues(new Uint8Array(16)));
@@ -461,7 +468,12 @@ export default {
         route,
         manifest.release,
       );
-      if (response.status !== 404 || !isPageMediaRequest(route)) {
+      if (
+        response.status !== 404 ||
+        !isPageSessionFileRequest(route) ||
+        existing === null ||
+        !active
+      ) {
         if (!response.headers.get("Content-Type")?.startsWith("text/html")) {
           return response;
         }

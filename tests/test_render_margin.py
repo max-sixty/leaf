@@ -14,7 +14,6 @@ from leaf.served_state import page as served_page
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
-    BOTH_STAMPS,
     CHIPS,
     EXAMPLES,
     FEATURE_GALLERY,
@@ -33,6 +32,7 @@ from render_support import (
     leaf_page,
     live_url,
     margins_laid_out,
+    navigate,
     open_page,
     panel_comment,
     panel_settled,
@@ -1088,8 +1088,13 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     draft_item.get_by_role("button", name="Save", exact=True).click()
     round_trip(page)
     expect(page.locator("#bg-draft .lf-draft-body")).to_have_text(body)
-    page.reload(wait_until="load")
-    page.wait_for_function(BOTH_STAMPS)
+    # Through the harness's navigation rather than a bare reload, for its ResizeObserver
+    # adjudication: this gallery is twenty thousand pixels tall at 390 and its arrival
+    # cascade raises a deferred-delivery notice now and then, which the render gate and
+    # `navigate` both read as the platform reporting a deferral rather than the page
+    # failing — only a notice the confirming attempt repeats is a fault. A bare reload
+    # leaves the first one standing in `errors` for this test's closing assertion.
+    navigate(page, errors, page.url)
     expect(page.locator("#bg-draft .lf-draft-body")).to_have_text(body)
 
     crowded = page.locator('[data-lf-margin-for="bg-crowded"]')

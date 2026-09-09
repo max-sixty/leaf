@@ -1376,7 +1376,7 @@ export function fragmentId(fragment) {
 // The only press this layer takes from the browser: a reference this version can't
 // follow. Everything else — the travel, the reveal, the back button — is the
 // platform's, and an exported copy keeps it by having a real href to jump through.
-// Wired once the chrome is mounted (chrome.js): the panel is another owner's part.
+// Wired once the chrome is mounted (leaf.js): the panel is another owner's part.
 export function mountAnchors() {
   panel.addEventListener("click", (ev) => {
     const a = ev.target.closest(MSG_REF);

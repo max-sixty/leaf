@@ -173,6 +173,32 @@ export const retainPanelLanding = (source) => {
     );
   };
 };
+
+// A candidate resolution can fold away the reader's reply box before a later
+// renderer refuses that state. Restore the same conversation and caret after its
+// prior card is reconciled, unless a newer reader gesture has taken over.
+export function retainReplyFocus() {
+  const input = focused();
+  const card = input?.closest(".lf-thread");
+  if (card?.parentElement !== threadsBox || card.querySelector(SAY_BOX) !== input)
+    return () => {};
+  const id = card.dataset.id;
+  const selection = [
+    input.selectionStart,
+    input.selectionEnd,
+    input.selectionDirection,
+  ];
+  const mayLand = retainPanelLanding(card);
+  return () => {
+    if (!mayLand()) return;
+    const restored = threadsBox
+      .querySelector(`.lf-thread[data-id="${CSS.escape(id)}"]`)
+      ?.querySelector(SAY_BOX);
+    if (!restored) return;
+    restored.focus({ preventScroll: true });
+    restored.setSelectionRange(...selection);
+  };
+}
 // Landing belongs to the list, not to whatever moved the focus. The list already says
 // which of its own edges cannot be stood on — `scroll-padding`, room for a stuck
 // heading and for the focused card's edge — and every route that could reach a thread

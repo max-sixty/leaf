@@ -58,7 +58,7 @@ export const paintAcknowledgments = clocked(document.body, (...args) =>
 // — it is dispatched on each ancestor, this list among them; the list answers as the
 // panel's own showThread does, by letting the narrowing go. Synchronous, so the focus
 // the traveller lands next finds a card with a box.
-// Wired once the chrome is mounted (chrome.js): the list is the panel's, an owner that
+// Wired once the chrome is mounted (leaf.js): the list is the panel's, an owner that
 // imports this module back.
 export function mountConversation() {
   threadsBox.addEventListener("lf-reveal", (event) => {

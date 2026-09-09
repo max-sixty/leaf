@@ -2705,7 +2705,7 @@ export const activeInlineThread = () => {
   return conversations.length === 1 ? conversations[0] : null;
 };
 
-// The margin's parts into the chrome, once it is mounted (chrome.js): the map button beside
+// The margin's parts into the chrome, once it is mounted (leaf.js): the map button beside
 // the version chooser, then its own parts in the root.
 export function mountMargin() {
   // The first render, once every owner it reads (the version chooser's comparison, the

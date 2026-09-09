@@ -322,7 +322,8 @@ export default [
         {
           patterns: [
             {
-              regex: "^(?!\\.\\./anchor-coordinate\\.js$|\\./identity\\.js$|\\./model\\.js$)",
+              regex:
+                "^(?!\\.\\./anchor-coordinate\\.js$|\\./identity\\.js$|\\./model\\.js$)",
               message: "Conversation readings depend only on pure record operations.",
             },
           ],
@@ -332,13 +333,11 @@ export default [
         "error",
         {
           selector: "ImportExpression",
-          message: "Conversation readings declare their record dependencies statically.",
+          message:
+            "Conversation readings declare their record dependencies statically.",
         },
       ],
-      "no-restricted-globals": [
-        "error",
-        ...Object.keys(browserGlobals),
-      ],
+      "no-restricted-globals": ["error", ...Object.keys(browserGlobals)],
     },
   },
   {

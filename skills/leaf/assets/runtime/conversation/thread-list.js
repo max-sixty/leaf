@@ -180,7 +180,7 @@ function paintHeadRoom() {
     `${Math.max(0, ...heads.map((h) => h.offsetHeight))}px`,
   );
 }
-// Observed once the chrome is mounted (chrome.js): the list is the panel's.
+// Observed once the chrome is mounted (leaf.js): the list is the panel's.
 export function mountThreadList() {
   new ResizeObserver(paintHeadRoom).observe(threadsBox);
 }

@@ -643,7 +643,7 @@ function fabHoldsCapturedPassage() {
     reactionContextContains(document.activeElement)
   );
 }
-// Wired once the chrome is mounted (chrome.js): the box is selection.js's, an owner that
+// Wired once the chrome is mounted (leaf.js): the box is selection.js's, an owner that
 // imports this module back.
 export function wireFabInput() {
   fabInput.addEventListener("focus", () => {

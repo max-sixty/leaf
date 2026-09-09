@@ -26,7 +26,7 @@ export const paintLeavesOffer = () => showNews(othersBtn, leavesOffered());
 // arrives here by key — `g L` lands focus on the first neighbour — so the scope names
 // what activating does rather than leaving it to the platform's own contract.
 export const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
-// Declared once the tray is in the document (chrome.js): the tray is trays.js's, an
+// Declared once the tray is in the document (leaf.js): the tray is trays.js's, an
 // owner that imports this module back.
 export function declareLeavesKeys() {
   keys(

@@ -709,7 +709,9 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     errors.remove(fault.value.text)
 
     expect(page.locator(".lf-msg.claude .lf-msg-body")).to_have_count(0)
-    expect(page.locator(".lf-msg.user .lf-msg-body")).to_have_text("which host answers?")
+    expect(page.locator(".lf-msg.user .lf-msg-body")).to_have_text(
+        "which host answers?"
+    )
     expect(reply_draft).to_have_value("keep this unfinished reply")
 
     version_menu = page.locator(".lf-version-menu")
@@ -728,6 +730,66 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(notice_el).to_have_text("Codex replied — open Threads")
     expect(notice_el).to_have_class(re.compile(r"\bshow\b"))
     expect(page.locator(".lf-msg.claude .lf-msg-body")).to_have_text("this one does")
+    assert errors == []
+    page.close()
+
+
+def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
+    """A refused resolution restores the reader's reply destination and selection."""
+    url = serve(TWIN_V1)
+    page_dir = serve.page_dir
+    root = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "which host answers?",
+        },
+    )
+    page, errors = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    draft = page.locator(".lf-thread textarea")
+    draft.fill("keep this unfinished reply")
+    expect(draft).to_be_focused()
+    draft.evaluate("node => node.setSelectionRange(5, 12, 'backward')")
+
+    broken = []
+
+    def fail_after_resolving_the_focused_thread(route):
+        if broken:
+            refuse(route)
+            return
+        response = route.fetch()
+        state = response.json()
+        view = state["browser"]["views"][str(state["active"]["revision"])]
+        view["document"]["projection"]["entries"].append(None)
+        broken.append(True)
+        route.fulfill(status=response.status, json=state)
+
+    page.route("**/api/state*", fail_after_resolving_the_focused_thread)
+    with page.expect_console_message(
+        lambda message: "read failed" in message.text
+    ) as fault:
+        events_model.append_event(
+            page_dir,
+            {"kind": "resolve", "author": "claude", "parent": root["id"]},
+        )
+
+    assert fault.value.text in errors
+    errors.remove(fault.value.text)
+    expect(page.locator(".lf-thread textarea")).to_have_value(
+        "keep this unfinished reply"
+    )
+    expect(page.locator(".lf-thread textarea")).to_be_focused()
+    assert draft.evaluate(
+        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+    ) == [5, 12, "backward"]
+
+    page.unroute("**/api/state*")
+    nudge(page_dir)
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    expect(page.locator(".lf-thread textarea")).to_have_count(0)
     assert errors == []
     page.close()
 

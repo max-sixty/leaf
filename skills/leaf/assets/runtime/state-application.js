@@ -26,6 +26,7 @@ import { sameLayer } from "./layer-client.js";
 import { acceptData, notifyDataSubscribers } from "./data.js";
 import { prepareActivation, renderVersions } from "./version.js";
 import { renderPanel } from "./conversation/reconcile.js";
+import { retainReplyFocus } from "./conversation/landing.js";
 import { importWidgets } from "./widget-loader.js";
 import { observeServerNow } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
@@ -198,6 +199,7 @@ export async function receiveState(state) {
   // as well as old state; rejecting its state must not rewind timestamp aging.
   if (state !== runtime.state) observeServerNow(state.now);
   const prior = {
+    restoreReplyFocus: retainReplyFocus(),
     runtime: Object.fromEntries(
       APPLICATION_RUNTIME_FIELDS.map((field) => [field, runtime[field]]),
     ),
@@ -313,7 +315,10 @@ export async function receiveState(state) {
     // projection refused the read. Rebuild the derived conversation from the restored
     // history, retaining its standing nodes and unresolved local messages as usual.
     // A failed activation replaces the document below instead.
-    if (!willActivate) await renderPanel();
+    if (!willActivate) {
+      await renderPanel();
+      prior.restoreReplyFocus();
+    }
     // A version the page could not show, and the reader is left looking at the one it
     // was leaving. Say what the reload is for before making it: a tab that reloads
     // itself in silence reads as the page having lost their place for no reason.

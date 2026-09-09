@@ -414,7 +414,7 @@ const layoutSizes = new ResizeObserver((entries) => {
   if (layoutChanged) scheduleLayout(shellMoved, chromeMoved);
   else if (shellMoved) pageShifted();
 });
-// Wired once the chrome is in the document (chrome.js): the toggle and the parts observed
+// Wired once the chrome is in the document (leaf.js): the toggle and the parts observed
 // here are other owners', built as their modules evaluate, which this module cannot count
 // on having happened yet.
 export function mountLayout() {

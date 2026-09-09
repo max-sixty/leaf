@@ -43,6 +43,7 @@ import {
   spokenBinding,
   word,
 } from "./bindings.js";
+import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { completeRowSteps, keySequence, neutralStates } from "./presentation.js";
 import { captureReturnPlace, restoreReturnPlace } from "./return-stack.js";
 import { el } from "../widget-elements.js";
@@ -674,6 +675,12 @@ export function moveCommand(dir) {
   search.setAttribute("aria-activedescendant", next.closest("tr").id);
   if (focusedCommand) next.focus({ preventScroll: true });
   next.closest("tr").scrollIntoView({ block: "nearest" });
+  beginWalk("shortcut-command", "Command", () => {
+    const current = focused()?.matches?.(".lf-shortcut-reference-command")
+      ? focused()
+      : commandStops().find((stop) => stop.dataset.lfSelected === "true");
+    return listWalkPosition(commandStops(), current);
+  });
   const key = next.closest("tr").querySelector("kbd").textContent;
   shortcutReferenceDialog.querySelector(".lf-shortcut-reference-meta").textContent =
     `${next.textContent} · ${key} · ⏎ run`;

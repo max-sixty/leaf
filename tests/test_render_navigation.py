@@ -4395,6 +4395,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
     expect(commands.first).to_have_attribute("data-lf-selected", "true")
+    expect(page.locator(".lf-walk-position")).to_have_text(
+        f"Command 1 of {commands.count()}"
+    )
     expect(help_el.locator(".lf-shortcut-reference-meta")).to_have_text(
         re.compile(r" · ⏎ run$")
     )
@@ -4404,6 +4407,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     )
     page.keyboard.press("ArrowUp")
     expect(commands.first).to_have_attribute("data-lf-selected", "true")
+    expect(page.locator(".lf-walk-position")).to_have_attribute("data-lf-boundary", "")
 
     page.keyboard.press("Escape")
     page.keyboard.press("?")
@@ -4829,6 +4833,9 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     expect(tabs.nth(1)).to_be_focused()
     expect(page.locator("#tab-bath")).not_to_have_attribute("hidden", re.compile(".*"))
     expect(page.locator("#tab-feeders")).to_have_attribute("hidden", re.compile(".*"))
+    page.keyboard.press("ArrowLeft")
+    expect(tabs.first).to_be_focused()
+    expect(page.locator(".lf-walk-position")).to_have_text("Tab 1 of 2")
     assert errors == []
     page.close()
 
@@ -4967,6 +4974,7 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
 
     page.keyboard.press("Tab")
     first_code = address_code(page, "Link", "first")
+    expect(page.locator(".lf-walk-position")).to_have_text("Target 1 of 2")
     expect(page.locator(".lf-live")).to_have_text(
         f"Hint {first_code}: Link, First destination. Press Enter to go there."
     )
@@ -4976,6 +4984,7 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
 
     page.keyboard.press("Tab")
     second_code = address_code(page, "Link", "second")
+    expect(page.locator(".lf-walk-position")).to_have_text("Target 2 of 2")
     expect(page.locator(".lf-live")).to_have_text(
         f"Hint {second_code}: Link, Second destination. Press Enter to go there."
     )

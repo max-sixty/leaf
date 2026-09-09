@@ -60,6 +60,7 @@ import { claimsEsc, focused, paintHere, saying } from "./keyboard/scopes.js";
 import { standingConversation } from "./conversation/landing.js";
 import { allButTheReference, standingItem } from "./keyboard/page.js";
 import { PRESS } from "./keyboard/bindings.js";
+import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./conversation/messages.js";
 import { iconElement } from "./icons.js";
 
@@ -465,6 +466,9 @@ function stepResponse(binding) {
         : 0
       : (at + (backward ? -1 : 1) + choices.length) % choices.length;
   choices[next].focus({ preventScroll: true });
+  beginWalk("reaction", "Reaction", () =>
+    listWalkPosition(responseChoices(reactSurface), focused()),
+  );
 }
 
 const reactTargetWord = () =>

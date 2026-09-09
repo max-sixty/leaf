@@ -2090,8 +2090,10 @@ def test_left_and_right_walk_the_revealed_margin_element_cluster(browser, serve)
     expect(accept).to_be_focused()
     page.keyboard.press("ArrowRight")
     expect(reject).to_be_focused()
+    expect(page.locator(".lf-walk-position")).to_have_text("Action 2 of 2")
     page.keyboard.press("ArrowLeft")
     expect(accept).to_be_focused()
+    expect(page.locator(".lf-walk-position")).to_have_text("Action 1 of 2")
 
     assert errors == []
     page.close()

@@ -111,6 +111,7 @@ import { showThread } from "../conversation/landing.js";
 
 import { claimsEsc, focused, paintHere, saying } from "./scopes.js";
 import { glideTo, placeThreadEdge, seenScroller, stopGlide } from "../navigation.js";
+import { beginWalk, listWalkPosition } from "../walk-position.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.
@@ -561,6 +562,11 @@ function moveHint(direction) {
   if (!targets.length) return;
   hintActive = (hintActive + direction + targets.length) % targets.length;
   const target = targets[hintActive];
+  beginWalk("address-target", "Target", () =>
+    listWalkPosition(hinted(), hinted()[hintActive], {
+      identity: (candidate) => candidate.member,
+    }),
+  );
   const stop = /[.!?]$/.test(target.says) ? "" : ".";
   announce(
     `Hint ${target.code}: ${target.kind}, ${target.says}${stop} Press Enter to go there.`,

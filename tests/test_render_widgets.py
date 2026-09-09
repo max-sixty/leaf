@@ -7447,9 +7447,11 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     page.keyboard.press("]")
     first = page.evaluate(DIFF_LANDING)
     assert first["line"] == "1", f"the first hunk of the first file: {first}"
+    expect(page.locator(".lf-walk-position")).to_have_text("Hunk 1 of 3")
 
     page.keyboard.press("]")
     landed = page.evaluate(DIFF_LANDING)
+    expect(page.locator(".lf-walk-position")).to_have_text("Hunk 2 of 3")
     assert landed["line"] == "40", (
         f"the next hunk starts at new line 40, which its @@ header says: {landed}"
     )
@@ -7460,6 +7462,10 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     assert landed["headTop"] == landed["bannerBottom"], (
         f"the header is not pinned where the landing was measured against: {landed}"
     )
+    page.keyboard.press("}")
+    expect(page.locator(".lf-walk-position")).to_have_text("File 2 of 2")
+    page.keyboard.press("Alt+ArrowDown")
+    expect(page.locator(".lf-walk-position")).to_have_text("File 1 of 2 unreviewed")
     assert errors == []
     page.close()
 

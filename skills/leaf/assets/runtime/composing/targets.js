@@ -24,6 +24,7 @@ import { focused, paintHere } from "../keyboard/scopes.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "../keyboard/hints.js";
 import { keySequence, progressStates } from "../keyboard/presentation.js";
 import { announce } from "../notifications.js";
+import { beginWalk, listWalkPosition, walkPosition } from "../walk-position.js";
 import { commentOnTarget, updateFab } from "./surface.js";
 import { allButTheReference, hasCapturedTarget } from "../keyboard/page.js";
 
@@ -91,6 +92,8 @@ let opener = null;
 let searchReturnsToHints = false;
 let scrolling = false;
 let repeatedSearch = null;
+const matchNodeIds = new WeakMap();
+let nextMatchNodeId = 1;
 
 const clips = () => new Map();
 const covered = () => banner.getBoundingClientRect().bottom;
@@ -343,6 +346,85 @@ function syncStatus() {
   else selectionStatus.textContent = `${active + 1} of ${matches.length}`;
 }
 
+function sameMatch(left, right) {
+  return (
+    left.length === right.length &&
+    left.every(
+      (segment, index) =>
+        segment.node === right[index].node &&
+        segment.start === right[index].start &&
+        segment.end === right[index].end,
+    )
+  );
+}
+
+function matchIdentity(query, segments) {
+  const parts = segments.map(({ node, start, end }) => {
+    if (!matchNodeIds.has(node)) matchNodeIds.set(node, nextMatchNodeId++);
+    return `${matchNodeIds.get(node)}:${start}:${end}`;
+  });
+  return `${query}\u0000${parts.join(",")}`;
+}
+
+function matchIsRangeable(segments) {
+  return (
+    segments.length > 0 &&
+    segments.every(
+      ({ node, start, end }) =>
+        node.isConnected && start >= 0 && start <= end && end <= node.length,
+    )
+  );
+}
+
+function selectionIs(segments) {
+  const selection = getSelection();
+  if (
+    selection.rangeCount !== 1 ||
+    selection.isCollapsed ||
+    !matchIsRangeable(segments)
+  )
+    return false;
+  const selected = selection.getRangeAt(0);
+  const match = rangeOf(segments);
+  return (
+    selected.startContainer === match.startContainer &&
+    selected.startOffset === match.startOffset &&
+    selected.endContainer === match.endContainer &&
+    selected.endOffset === match.endOffset
+  );
+}
+
+function matchWalkPosition(query) {
+  if (!query || active < 0 || active >= matches.length) return null;
+  if (!matchIsRangeable(matches[active])) return null;
+  // An open search owns its highlighted match. A repeated n/N search owns a native
+  // selection instead; leaving that selection retires both its readout and refresh.
+  if (!searching && !selectionIs(matches[active])) return null;
+  return {
+    target: matchIdentity(query, matches[active]),
+    position: active + 1,
+    total: matches.length,
+    qualifier: "",
+  };
+}
+
+// Page text is the one walk source too expensive to rebuild on every chrome paint.
+// `lf-actions` is the runtime's broad source invalidation, so refresh only while this
+// owner is standing; the read handed to the shared walk remains a cheap cached lookup.
+function refreshMatchWalk() {
+  if (walkPosition()?.kind !== "page-search") return;
+  const query = searching ? selectionInput.value.trim() : repeatedSearch?.query;
+  const current = matches[active];
+  if (!query || !current) return;
+  const found = findText(pageText(), query);
+  const same = found.findIndex((candidate) => sameMatch(candidate, current));
+  active = same >= 0 ? same : found.length ? Math.min(active, found.length - 1) : -1;
+  matches = found;
+  if (repeatedSearch && !searching && active >= 0) repeatedSearch.index = active;
+  if (searching) syncStatus();
+  paintHere();
+}
+
 function search() {
   const query = selectionInput.value.trim();
   matches = query ? findText(pageText(), query) : [];
@@ -363,6 +445,8 @@ function moveMatch(direction) {
   active = (active + direction + matches.length) % matches.length;
   syncStatus();
   showMatch();
+  const query = selectionInput.value.trim();
+  beginWalk("page-search", "Match", () => matchWalkPosition(query));
   announce(
     `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
   );
@@ -406,6 +490,11 @@ function moveHint(direction) {
   if (!targets.length) return;
   hintActive = (hintActive + direction + targets.length) % targets.length;
   const target = targets[hintActive];
+  beginWalk("selection-target", "Target", () =>
+    listWalkPosition(hinted(), hinted()[hintActive], {
+      identity: (candidate) => candidate.element,
+    }),
+  );
   announce(`Hint ${target.code}: ${cut(target.label, 0, 72)}. Press Enter to select.`);
   paintHere();
 }
@@ -448,6 +537,8 @@ function repeatSearch(direction) {
   repeatedSearch.index = active;
   showMatch();
   selectMatch(matches[active]);
+  const query = repeatedSearch.query;
+  beginWalk("page-search", "Match", () => matchWalkPosition(query));
   announce(
     `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
   );
@@ -517,7 +608,7 @@ export function paintTargets() {
       hints.push({ chip, target: rect });
       drawnTargets.add(target);
     }
-  } else if (matches[active]) {
+  } else if (matches[active] && matchIsRangeable(matches[active])) {
     const owner = matchOwner(matches[active]);
     const clip = owner ? shownRect(owner, clips()) : null;
     if (clip)
@@ -568,6 +659,7 @@ addEventListener("resize", () => {
   scrolling = false;
   paintHere();
 });
+document.addEventListener("lf-actions", refreshMatchWalk);
 
 export const PAGE_SEARCH = {
   id: "page.search.open",

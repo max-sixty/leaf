@@ -263,7 +263,7 @@ const finishPress = (event, shouldLand) => {
 };
 addEventListener("pointerup", (event) => finishPress(event, true), true);
 addEventListener("pointercancel", (event) => finishPress(event, false), true);
-// Mounted from chrome.js.
+// Mounted from leaf.js.
 export function wireThreadLanding() {
   threadsBox.addEventListener("pointerdown", (event) => {
     if (event.isPrimary) pressedPointer = event.pointerId;

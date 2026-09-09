@@ -120,8 +120,6 @@ jobs:
 
       - uses: astral-sh/setup-uv@v7
         if: steps.tend_enabled.outputs.enabled == 'true'
-      - run: uv sync --frozen
-        if: steps.tend_enabled.outputs.enabled == 'true'
 
       - uses: max-sixty/tend/claude@0.2.5
         if: steps.tend_enabled.outputs.enabled == 'true'
@@ -134,6 +132,7 @@ jobs:
           checkout_mode: review
           base_branch: ${{ github.event.pull_request.base.ref }}
           sandbox_setup: |2
+            uv sync --frozen
             uv run playwright install chromium --only-shell
             uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.stop()"
           prompt: |2

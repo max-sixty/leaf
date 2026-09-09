@@ -1,6 +1,6 @@
 /* This module owns anchor resolution, anchor paint, anchor-specific travel, and
- * cross-widget projected-datum travel. `sameAnchor` is the one shared reading of
- * whether two anchors name the same place. */
+ * cross-widget projected-datum travel. */
+import { sameAnchor } from "./anchor-coordinate.js";
 import { inUi, under } from "./shadow.js";
 import {
   clippedRect,
@@ -82,7 +82,8 @@ import {
   paintTrace,
 } from "./target-paint.js";
 import { anchorLabel } from "./conversation/messages.js";
-import { bareReaction, buildThreads } from "./conversation/model.js";
+import { bareReaction } from "./conversation/model.js";
+import { allThreads } from "./conversation/state.js";
 import { paintThreadQuotes } from "./conversation/thread-card.js";
 
 // Anchors are durable coordinates, so their pass and every route that can mint one begin
@@ -205,20 +206,6 @@ export function setAnchoringReady(ready) {
    unselectable button to each block that contains comments and states the comment
    count. It names the block rather than copying the selected words. Keep that line
    outside selection, quote capture, widget word readings, and clipboard output. */
-// Anchors are shallow records of primitive coordinates. Compare the complete records:
-// reading only the left operand's keys made a whole-visual anchor equal the part anchor
-// that extended it, but not the other way around.
-export const sameAnchor = (a, b) => {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  const left = Object.keys(a).sort();
-  const right = Object.keys(b).sort();
-  return (
-    left.length === right.length &&
-    left.every((key, index) => key === right[index] && a[key] === b[key])
-  );
-};
-
 // ---------- anchors ----------
 // An anchor names a passage: a section id, a quote, or both. Resolving one is the only
 // place the page is searched, so the three things that read a passage back — a thread's
@@ -1020,7 +1007,7 @@ function noteMarks(noted) {
     if (!noted.has(note.parentElement)) note.remove();
 }
 
-export function paintAnchors(threads = buildThreads()) {
+export function paintAnchors(threads) {
   if (!anchoringIsReady()) return;
   prepareVisualActions();
   for (const where of allMarks())
@@ -1572,7 +1559,7 @@ addEventListener("blur", leaveThreadTravel);
 export async function scrollToThread(id, { land = null } = {}) {
   const intent = ++threadTravelIntent;
   const startingFocus = focused();
-  const thread = buildThreads().find((candidate) => candidate.root.id === id);
+  const thread = allThreads().find((candidate) => candidate.root.id === id);
   const anchor = thread?.anchor;
   if (anchor?.datum && placed.get(id)?.status !== "outdated") {
     const source = sectionOf(anchor);

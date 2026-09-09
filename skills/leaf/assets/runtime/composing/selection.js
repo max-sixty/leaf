@@ -47,6 +47,7 @@ import { landTyping, mayLandTyping } from "./capture.js";
 import { panelIsOpen } from "../chrome-layout.js";
 import { focused, paintHere, paintKeys } from "../keyboard/scopes.js";
 import { paintAnchors } from "../anchors.js";
+import { allThreads } from "../conversation/state.js";
 import { elementById, inChrome } from "../passages.js";
 import { focusSurface } from "../conversation/surfaces.js";
 import { showThread } from "../conversation/landing.js";
@@ -451,7 +452,7 @@ function showComposer(open) {
   // An explicit Comment gesture focuses the textarea and drops the native selection, so
   // this mark then becomes the durable pointer to the quoted passage. Automatic passage
   // selection leaves both readings standing until the reader enters the field.
-  paintAnchors();
+  paintAnchors(allThreads());
   paintDrawings();
   paintHere();
 }
@@ -548,7 +549,7 @@ function watchComposer() {
     pendingDrawing = validDrawing(drawing) ? drawing : null;
     suggestCheck.checked = Boolean(suggest);
     syncSuggestMode();
-    paintAnchors();
+    paintAnchors(allThreads());
     paintDrawings();
   });
 }

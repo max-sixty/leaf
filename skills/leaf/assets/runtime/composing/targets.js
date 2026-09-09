@@ -1,5 +1,6 @@
 /* This module owns keyboard item hints and whole-page text search. */
-import { aimTargets, anchoringIsReady, sameAnchor, scrollToRange } from "../anchors.js";
+import { aimTargets, anchoringIsReady, scrollToRange } from "../anchors.js";
+import { sameAnchor } from "../anchor-coordinate.js";
 import { bindings } from "../keyboard/bindings.js";
 import { el } from "../widget-elements.js";
 import { banner } from "../banner.js";

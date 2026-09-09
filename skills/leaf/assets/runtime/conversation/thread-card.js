@@ -11,7 +11,8 @@ import { PRESS } from "../keyboard/bindings.js";
 import { wireReply } from "./replies.js";
 import { settlementControl } from "./folding.js";
 import { retainPanelLanding, showThread } from "./landing.js";
-import { openThreads, threadList } from "./reconcile.js";
+import { threadList } from "./state.js";
+import { openThreads } from "./thread-list.js";
 import { focusSurface } from "./surfaces.js";
 import { groupFor, pageOutline } from "./placement.js";
 

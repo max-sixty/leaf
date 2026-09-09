@@ -9,8 +9,8 @@ import { seatRoot, turns } from "./model.js";
 import { settlementControl } from "./folding.js";
 import { wireReply } from "./replies.js";
 import { focused } from "../keyboard/scopes.js";
-import { setChildren } from "./reconcile.js";
-import { paintReactStrips } from "./reaction-strips.js";
+import { setChildren } from "../dom-children.js";
+import { paintReactStrips, removeConversationNode } from "./reaction-strips.js";
 import { elementById } from "../passages.js";
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
@@ -103,7 +103,7 @@ function conversationThreadNode(host, t, collapsible = false) {
       : null);
   const wantedTag = collapsible ? "DETAILS" : "DIV";
   if (thread && thread.tagName !== wantedTag) {
-    thread.remove();
+    removeConversationNode(thread);
     thread = null;
   }
   if (!thread) {
@@ -165,13 +165,17 @@ function conversationThreadNode(host, t, collapsible = false) {
   const receipts = [...thread.querySelectorAll(":scope > .lf-receipt")];
   // Message-owned receipts live in their message headers. A direct child has no source
   // message, so it is the full-width fallback immediately before the thread's tail.
-  setChildren(thread, [
-    ...(summary ? [summary] : []),
-    ...(resolve ? [resolve] : []),
-    ...messages,
-    ...receipts,
-    ...(tail ? [tail] : []),
-  ]);
+  setChildren(
+    thread,
+    [
+      ...(summary ? [summary] : []),
+      ...(resolve ? [resolve] : []),
+      ...messages,
+      ...receipts,
+      ...(tail ? [tail] : []),
+    ],
+    removeConversationNode,
+  );
   // Settlement replaces the focused controls in either tail shape. Transfer only
   // that removed focus; a later gesture elsewhere remains where the reader put it.
   if (heldFocus && !thread.contains(standing))
@@ -182,10 +186,14 @@ function conversationThreadNode(host, t, collapsible = false) {
 
 export function renderThreadSurface(host, threads) {
   const receipts = [...host.querySelectorAll(":scope > .lf-receipt")];
-  setChildren(host, [
-    ...threads.map((thread) => conversationThreadNode(host, thread, true)),
-    ...receipts,
-  ]);
+  setChildren(
+    host,
+    [
+      ...threads.map((thread) => conversationThreadNode(host, thread, true)),
+      ...receipts,
+    ],
+    removeConversationNode,
+  );
 }
 
 export function renderConversations(threads) {
@@ -204,16 +212,20 @@ export function renderConversations(threads) {
     const hold = registry[owner.localName]?.["x-conversation"]?.hold;
     const pending = hold || loadDraft("say:" + owner.id) !== null ? first : null;
     const receipts = [...host.querySelectorAll(":scope > .lf-receipt")];
-    setChildren(host, [
-      ...receipts,
-      ...owned.map((thread) => conversationThreadNode(host, thread)),
-      ...(pending ? [pending] : []),
-    ]);
+    setChildren(
+      host,
+      [
+        ...receipts,
+        ...owned.map((thread) => conversationThreadNode(host, thread)),
+        ...(pending ? [pending] : []),
+      ],
+      removeConversationNode,
+    );
   }
 }
 
 export function renderMarginThread(host, thread) {
   const node = conversationThreadNode(host, thread);
-  setChildren(host, [node]);
+  setChildren(host, [node], removeConversationNode);
   return node;
 }

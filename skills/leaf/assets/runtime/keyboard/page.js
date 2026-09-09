@@ -6,7 +6,8 @@
    register, and the dispatcher walks both. */
 
 import { containsAcross, elementById, inChrome, pageQueryAll } from "../passages.js";
-import { openThreads, threadList } from "../conversation/reconcile.js";
+import { threadList } from "../conversation/state.js";
+import { openThreads } from "../conversation/thread-list.js";
 import { documentFocused, focused, keys } from "./scopes.js";
 import { actionRow, ASK_CONTROL, askPlace, standingIn, stepAsk } from "../asks/view.js";
 import { anchoringIsReady, itemAt, itemWord } from "../anchors.js";

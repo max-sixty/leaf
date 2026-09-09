@@ -19,7 +19,7 @@ import {
 } from "../anchors.js";
 import { banner } from "../banner.js";
 import { openPageDrawing, pageComposerDrawing } from "../conversation/panel.js";
-import { setChildren } from "../conversation/reconcile.js";
+import { setChildren } from "../dom-children.js";
 import { setDesign } from "../design.js";
 import { documentPoint, shownBox } from "../geometry.js";
 import { paintHere } from "../keyboard/scopes.js";

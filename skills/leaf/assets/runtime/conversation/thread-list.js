@@ -84,7 +84,8 @@ import { focused, paintHere } from "../keyboard/scopes.js";
 import { conversational } from "./model.js";
 import { runtime } from "../context.js";
 import { ago } from "../presence.js";
-import { setChildren } from "./reconcile.js";
+import { setChildren } from "../dom-children.js";
+import { removeConversationNode } from "./reaction-strips.js";
 import { settling } from "../widget-upgrade.js";
 import { captureAuthoredFacets } from "../projection/authored.js";
 import { reachScrollers } from "../reach.js";
@@ -93,6 +94,15 @@ import { foldOut, hasFolding, isFolding } from "./folding.js";
 import { inPageOrder, pageOutline, threadGroups } from "./placement.js";
 import { inFilter, noMatchNote, paintNarrowing } from "./narrowing.js";
 import { paintThreadQuotes, threadNode } from "./thread-card.js";
+
+// The open threads, in the order t/T walk either surface. The panel's children are the
+// canonical list: folding a settled thread renames it out of this list in that frame.
+export const openThreads = ({ visibleOnly = true } = {}) =>
+  [...threadsBox.querySelectorAll(":scope > .lf-thread")].filter(
+    (thread) =>
+      (!visibleOnly || !thread.hidden) &&
+      (panelIsOpen() || thread.dataset.resolved !== "true"),
+  );
 
 const emptyNote = el(
   "div",
@@ -452,7 +462,7 @@ function reconcileThreads(all) {
   // answering the last one waiting on the reader is exactly that — and a removed node drops
   // focus to body, which hands the next Space to the page behind the panel. Land them on
   // the list, where Escape lands them and t/T can walk on from.
-  setChildren(threadsBox, wanted);
+  setChildren(threadsBox, wanted, removeConversationNode);
   // A card kept but hidden still contains the focus for a moment: the browser only
   // drops it to body at its next rendering step, after this has run. Read the hidden
   // card as the removal it is for the reader.

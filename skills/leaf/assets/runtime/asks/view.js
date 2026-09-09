@@ -151,6 +151,7 @@ import { panelIsOpen, setPanel } from "../chrome-layout.js";
 import { scrollBehavior } from "../motion.js";
 import { announce } from "../notifications.js";
 import { availableCommands } from "../keyboard/dispatch.js";
+import { allThreads } from "../conversation/state.js";
 
 // Contextual actions for the Ask the reader is standing in. These share the address face
 // but not the g sequence's lifecycle: the ask view paints them whenever its semantic
@@ -282,7 +283,7 @@ export function syncAsks() {
 // removed says so at once rather than at the next poll.
 document.addEventListener("lf-answered", () => {
   syncAsks();
-  paintAnchors();
+  paintAnchors(allThreads());
 });
 // Semantic package watchers consume this broad invalidation synchronously and may
 // update the package-owned answer read above. Reconcile the shared Ask surfaces after

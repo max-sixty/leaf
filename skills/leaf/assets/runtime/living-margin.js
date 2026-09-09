@@ -98,7 +98,7 @@ import {
   traceTarget,
 } from "./anchors.js";
 import { updateSequence, workClaimState } from "./updates.js";
-import { threadList } from "./conversation/reconcile.js";
+import { threadList } from "./conversation/state.js";
 import { threadKey } from "./conversation/model.js";
 import { openAsks } from "./asks/model.js";
 import { goToAsk, standsWith } from "./asks/view.js";

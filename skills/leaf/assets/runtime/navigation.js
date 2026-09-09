@@ -4,7 +4,7 @@ import { shownRect } from "./geometry.js";
 import { BANNER_CLEAR, commentOnTarget } from "./composing/surface.js";
 import { scrollToElement, scrollToThread } from "./anchors.js";
 import { inPanel, panelCovers, panelIsOpen } from "./chrome-layout.js";
-import { openThreads } from "./conversation/reconcile.js";
+import { openThreads } from "./conversation/thread-list.js";
 import { narrowed } from "./conversation/narrowing.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { threadsBox } from "./conversation/panel.js";

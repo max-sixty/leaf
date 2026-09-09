@@ -51,10 +51,10 @@ import {
   NOTE,
   paintAnchors,
   resolveAnchor,
-  sameAnchor,
   visualActionAnchor,
   visualAt,
 } from "../anchors.js";
+import { sameAnchor } from "../anchor-coordinate.js";
 import { documentPoint, shownBox, shownParts, shownRect } from "../geometry.js";
 import {
   targetElement,
@@ -100,7 +100,8 @@ import { closeVersionMenu, versionMenuIsOpen } from "../version.js";
 import { pointerAt } from "../pointer.js";
 import { anchorLabel } from "../conversation/messages.js";
 import { openPageThread } from "../living-margin.js";
-import { reactionsOn } from "../conversation/model.js";
+import { reactionsAt } from "../conversation/model.js";
+import { allThreads } from "../conversation/state.js";
 import { isDrawing } from "./drawing.js";
 import { readingRegionFor, shownRegionBounds } from "../reading-regions.js";
 
@@ -420,7 +421,7 @@ export function showFab(
     fabInput.setAttribute("aria-label", label ? `Comment on ${label}` : "Comment");
     // The tokens already standing on this very anchor read pressed, and a press on one
     // takes it back (reactHere): the bar is the strip's shape on the page.
-    paintReactionStanding(fabBar, reactionsOn(fabAnchor));
+    paintReactionStanding(fabBar, reactionsAt(allThreads(), fabAnchor));
     // A docked margin control can name an item whose rendered box is currently off
     // screen. `r` still needs the durable anchor so it can extend that existing item;
     // in that route the floating bar is never painted and placement is deliberately
@@ -437,7 +438,7 @@ export function showFab(
       fab.style.display = "none";
     }
   }
-  if (!sameAnchor(previous, fabAnchor)) paintAnchors();
+  if (!sameAnchor(previous, fabAnchor)) paintAnchors(allThreads());
   paintHere(); // the c row names this anchor, so the line is one more rendering of it
   if (!fabAnchor && returnFocus !== "none") {
     if (returnToPanel) threadsBox.focus({ preventScroll: true });

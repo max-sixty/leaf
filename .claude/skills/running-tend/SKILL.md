@@ -64,12 +64,13 @@ together.
 
 ## Reading a red suite
 
-Nearly every test drives a real browser, so a red run has more ways to be
-uninteresting here than in a repo of unit tests. Classify before writing a fix —
-but not by whether the failures move between runs. `main` reddens on a different
-test most days, and each of those failures reproduced on its own commit, most of
-them deterministically, so movement across runs says nothing about which class
-you have. Sort on what the failure is.
+Nearly every test drives a real browser, so the traceback can name a symptom
+several boundaries after its cause. Find the first violated contract, reproduce at
+the lowest boundary that preserves the failure, then determine whether the product,
+test, or execution environment owns it. Failure movement, determinism, and clustering
+can guide that search; none decides who owns the fix.
+
+Two test-owned failures recur here:
 
 - **A read or press that ran before the page said it was ready.** The dominant
   class here, and the one a re-run hides. The test measures a point, presses it,
@@ -88,9 +89,6 @@ you have. Sort on what the failure is.
   behaviour the test names, so the next wording reddens main again.
   `tests/CLAUDE.md` owns the fix under **A test cannot assert over noise it makes
   itself**. The PR is against the test.
-- **A real regression.** Deterministic, repeats at the same assertion across
-  runs, and usually clusters on one widget or one behaviour. This is worth a fix
-  PR.
 
 ## Weekly: interface sweep
 

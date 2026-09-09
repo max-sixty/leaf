@@ -1403,7 +1403,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      so it cannot rely on a hairline to separate it from whatever it happens to cover. */
   :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 32px; }
   .lf-fab-bar { position: absolute; display: none; width: max-content;
-    align-items: center; gap: 4px; white-space: nowrap;
+    align-items: flex-end; gap: 4px; white-space: nowrap;
     max-width: var(--lf-float-w, calc(100vw - 16px)); }
   .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
   /* The field and its choices are one anchored response control. This primitive owns

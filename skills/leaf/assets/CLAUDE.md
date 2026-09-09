@@ -112,7 +112,8 @@ element the banner seats;
 `runtime/reading-regions.js` owns reading-region identities, effective scrollers,
 allocation and bounded/flow posture transitions;
 `runtime/reading-layout.js` owns shared arrangement construction and furniture slots
-used by structural and compound widgets;
+used by structural and compound widgets, plus the page-room observation lifecycle that
+root workspaces apply to their own minimum-size policy;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
 `runtime/presence.js` owns the calibrated server clock, relative-time wording,
 and the deadline at which canonical activity asks for another server read;

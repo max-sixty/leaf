@@ -2,7 +2,7 @@
    workspaces keep the same semantic structure in ordinary document flow. */
 import {
   arrangeReadingElement,
-  LAYOUT,
+  fitRootReadingElement,
   once,
   registerArrangedElement,
   settle,
@@ -124,9 +124,8 @@ customElements.define(
   "lf-workspace",
   class extends HTMLElement {
     #arrangement = null;
-    #resize = null;
     #content = null;
-    #scheduledPosture = null;
+    #fitting = null;
 
     connectedCallback() {
       if (once(this)) {
@@ -145,57 +144,27 @@ customElements.define(
           content: this.#content,
         });
       }
-      if (!this.hasAttribute("data-lf-root-workspace")) {
-        void this.#arrangement.setPosture("flow");
-        return;
-      }
-      this.#resize = new ResizeObserver(this.#schedulePosture);
-      this.#resize.observe(document.body);
-      window.addEventListener("resize", this.#schedulePosture);
-      this.addEventListener(LAYOUT, this.#schedulePosture);
-      settle(this.#schedulePosture());
+      this.#fitting = fitRootReadingElement({
+        owner: this,
+        arrangement: this.#arrangement,
+        minimumSize: () => {
+          const size = minimumSize(this);
+          return (
+            size && {
+              height: size.height,
+              width: Math.max(MIN_WORKSPACE_WIDTH, size.width),
+            }
+          );
+        },
+      });
+      settle(this.#fitting.update());
     }
 
     disconnectedCallback() {
-      this.#resize?.disconnect();
-      this.#resize = null;
-      window.removeEventListener("resize", this.#schedulePosture);
-      this.removeEventListener(LAYOUT, this.#schedulePosture);
+      this.#fitting?.cleanup();
+      this.#fitting = null;
       this.#arrangement?.cleanup();
       this.#arrangement = null;
     }
-
-    #choosePosture = async () => {
-      if (!this.#arrangement || !this.#content?.isConnected) return;
-      const bodyMinimum = minimumSize(this);
-      const rootStyle = getComputedStyle(document.documentElement);
-      const availableHeight =
-        innerHeight -
-        (Number.parseFloat(getComputedStyle(document.body, "::before").height) || 0) -
-        (Number.parseFloat(rootStyle.getPropertyValue("--lf-bottom-chrome-clear")) ||
-          0);
-      const mainStyle = getComputedStyle(this.parentElement);
-      const availableWidth =
-        document.body.getBoundingClientRect().width -
-        (Number.parseFloat(mainStyle.paddingLeft) || 0) -
-        (Number.parseFloat(mainStyle.paddingRight) || 0);
-      const bounded =
-        bodyMinimum !== null &&
-        availableWidth >= Math.max(MIN_WORKSPACE_WIDTH, bodyMinimum.width) &&
-        availableHeight >= bodyMinimum.height;
-      await this.#arrangement.setPosture(bounded ? "bounded" : "flow");
-    };
-
-    #schedulePosture = () => {
-      if (!this.#scheduledPosture)
-        this.#scheduledPosture = new Promise((resolve, reject) => {
-          requestAnimationFrame(() => {
-            this.#choosePosture()
-              .then(resolve, reject)
-              .finally(() => (this.#scheduledPosture = null));
-          });
-        });
-      return this.#scheduledPosture;
-    };
   },
 );

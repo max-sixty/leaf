@@ -77,16 +77,30 @@ pytestmark = pytest.mark.nightly
 # mousedown mechanism repeats the reading. These required paths are non-vacuity floors:
 # a representative that loses the feature which earned its place fails rather than
 # quietly shrinking the causal corpus.
+TAB_AIM_PAGE = leaf_page(
+    "tab aim",
+    """
+<h1>Review the route</h1>
+<lf-tabs id="aim-tabs">
+  <lf-tab id="aim-current" label="Current"><p>The current route is covered.</p></lf-tab>
+  <lf-tab id="aim-context" label="Context"><p>Rain moved the route.</p></lf-tab>
+</lf-tabs>
+""",
+)
+
 AIM_PRESS_CASES = (
     (
-        next(p for p in EXAMPLES if p.stem == "live-progress"),
+        "tabs",
+        TAB_AIM_PAGE,
         frozenset({"tab click"}),
     ),
     (
+        "release-notes",
         next(p for p in EXAMPLES if p.stem == "release-notes"),
         frozenset({"draft mousedown", "suggestion no-item control"}),
     ),
     (
+        "ship-review",
         next(p for p in EXAMPLES if p.stem == "ship-review"),
         frozenset({"option click", "standing mark"}),
     ),
@@ -927,12 +941,12 @@ def test_an_aimed_first_press_records_its_pointer_before_claiming_it(browser, se
 
 
 @pytest.mark.parametrize(
-    ("example", "required_paths"),
+    ("case_name", "example", "required_paths"),
     AIM_PRESS_CASES,
-    ids=[case[0].stem for case in AIM_PRESS_CASES],
+    ids=[case[0] for case in AIM_PRESS_CASES],
 )
 def test_an_aimed_press_does_only_what_the_outline_promised(
-    browser, serve, example, required_paths
+    browser, serve, case_name, example, required_paths
 ):
     """⌥-click takes the item under the pointer, and that is the whole of what it does.
 
@@ -1005,7 +1019,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         # a widget's own control still states its resting cursor, and does so whether or
         # not the key is down.
         assert page.evaluate(AIM_CURSOR) == ("pointer" if promised else "default"), (
-            f"holding ⌥ over {label} in {example.name} promised {promised} and pointed "
+            f"holding ⌥ over {label} in {case_name} promised {promised} and pointed "
             f"a {page.evaluate(AIM_CURSOR)} cursor at it"
         )
         page.mouse.click(*point)
@@ -1036,7 +1050,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
                 mark = promised
                 reached_paths.add("standing mark")
             assert mark == promised, (
-                f"⌥-clicking {label} in {example.name} promised {promised} and "
+                f"⌥-clicking {label} in {case_name} promised {promised} and "
                 f"commented on {mark}"
             )
             # And the promise is kept where the reader can see it kept. An outline needs
@@ -1051,7 +1065,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
                    .map(e => e.tagName.toLowerCase())"""
             )
             assert not unshown, (
-                f"⌥-clicking {label} in {example.name} outlined {unshown}, which draws "
+                f"⌥-clicking {label} in {case_name} outlined {unshown}, which draws "
                 "no box, so the promise is invisible and the composer stands off a rect "
                 "at the top of the document"
             )
@@ -1061,21 +1075,21 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
             expect(composer).to_be_hidden()
             aimed += 1
         assert page.evaluate(PAGE_MARKUP) == before, (
-            f"⌥-clicking {label} in {example.name} changed the page, so a press the aim "
+            f"⌥-clicking {label} in {case_name} changed the page, so a press the aim "
             "had taken reached a widget as well"
         )
         assert not page.evaluate(FOCUS_IN_PAGE), (
-            f"⌥-clicking {label} in {example.name} left the focus on the page, so the "
+            f"⌥-clicking {label} in {case_name} left the focus on the page, so the "
             "press reached the control under it"
         )
         pressed += 1
-    assert pressed, f"{example.name} pressed nothing, so it asserts nothing"
+    assert pressed, f"{case_name} pressed nothing, so it asserts nothing"
     # And that the outline is still painted at all: a preview that stopped appearing would
     # leave every press above asserting only that nothing happened, which is the shape of
     # vacuous pass this sweep is most exposed to.
-    assert aimed, f"{example.name} outlined nothing, so no press was held to a promise"
+    assert aimed, f"{case_name} outlined nothing, so no press was held to a promise"
     assert reached_paths >= required_paths, (
-        f"{example.name} no longer exercises the paths that earned its place in the "
+        f"{case_name} no longer exercises the paths that earned its place in the "
         f"aim corpus: missing {sorted(required_paths - reached_paths)}, reached "
         f"{sorted(reached_paths)}"
     )
@@ -1089,7 +1103,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ] == standing, (
-        f"⌥-clicking through {example.name} left a decision in the log that the aim "
+        f"⌥-clicking through {case_name} left a decision in the log that the aim "
         "never promised"
     )
     assert errors == []

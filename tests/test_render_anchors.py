@@ -437,60 +437,44 @@ def test_quotes_cross_preserving_containers_and_remain_attached(
     page.close()
 
 
-def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
-    """A focused stream may hide the earlier context, never its collaboration state.
+def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
+    """Independent monitoring regions still contribute one Threads and Asks reading.
 
-    The shipped example opens on the narrow work in hand. A comment and a decision in
-    inactive panels still stand in the page's one Threads list and one Asks tray,
-    and either global surface opens the panel it points into. Switching panels is
-    reading the page, so it leaves the event log untouched."""
+    The shipped example gives moving evidence its own scroll and keeps the actionable
+    exception beside it. A comment and the decision still stand in the page's global
+    surfaces, whose arrivals point back into the owning region without creating events."""
     example = next(p for p in EXAMPLES if p.stem == "live-progress")
     quote = (
-        "Traffic has returned successfully; only the final count comparison and finance "
-        "fixture remain open."
+        "Checkout traffic is healthy, but order co_18427 appears in the ledger and not "
+        "in the finance file."
     )
     url = serve(example, anchored=[("lp-finance-note", quote)])
     page, errors = open_page(browser, live_url(url))
 
-    rollback = page.get_by_role("tab", name="Rollback drill")
-    finance = page.get_by_role("tab", name="Finance fixture")
-    expect(rollback).to_have_attribute("aria-selected", "true")
-
     before = events_model.read_events(serve.page_dir)
     sent = _traffic(page).sends
-    finance.click()
-    rollback.click()
-    assert _traffic(page).sends == sent, "switching workstreams sent an event"
-    assert events_model.read_events(serve.page_dir) == before
 
     page.locator(".lf-threads-toggle").click()
-    # This test's own comment, plus whatever the example ships a log for. Counted
-    # rather than fixed at one, because the number is a fact about the corpus and
-    # not about tabs: the day this example seeds a thread, a `1` here reds a test
-    # that has nothing to say about seeds.
+    panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(
         len([e for e in before if e["kind"] == "comment"])
     )
     comment = page.locator(
-        ".lf-thread .lf-quote", has_text="Traffic has returned successfully"
+        ".lf-thread .lf-quote", has_text="Checkout traffic is healthy"
     )
     expect(comment).to_contain_text(quote)
     comment.click()
-    expect(finance).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#lp-finance-note")).to_be_in_viewport()
 
     page.get_by_role("button", name="Close threads").click()
+    panel_settled(page, open=False)
     decisions = page.locator(".lf-asks")
     expect(decisions).to_have_text("Asks 0/1")
     decisions.click()
-    # The row names the broader Ask's opening context now, and the arrival stands the
-    # reader on it — inside a tab the press had to select first. The options it holds own
-    # the choice and follow it in the tab order; where exactly they fall is the arrival's
-    # own test to say (test_an_ask_arrival_starts_with_the_context_that_frames_it).
-    hidden_decision = page.locator('.lf-asks-row[data-lf-at="lp-finance-decision"]')
-    expect(hidden_decision).to_have_count(1)
-    expect(hidden_decision).to_contain_text("Which cases should the fixture cover?")
-    hidden_decision.click()
-    expect(finance).to_have_attribute("aria-selected", "true")
+    decision = page.locator('.lf-asks-row[data-lf-at="lp-finance-decision"]')
+    expect(decision).to_have_count(1)
+    expect(decision).to_contain_text("Which safeguards should stay active")
+    decision.click()
     expect(page.locator("#lp-finance-decision")).to_be_focused()
     expect(page.locator("#lp-finance-decision #lp-finance-cases")).to_have_count(1)
 

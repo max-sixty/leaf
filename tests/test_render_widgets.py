@@ -313,6 +313,7 @@ CUSTOM_WORKSPACE_WIDGETS = {
     "lf-studio.js": """
 import {
   arrangeReadingElement,
+  fitRootReadingElement,
   once,
   registerArrangedElement,
   settle,
@@ -328,12 +329,17 @@ customElements.define('lf-studio', class extends HTMLElement {
       this.content = this.querySelector(':scope > .lf-workspace-content');
       this.arrangement = registerArrangedElement({owner: this, content: this.content});
     }
-    settle(this.arrangement.setPosture(
-      this.hasAttribute('data-lf-root-workspace') ? 'bounded' : 'flow'
-    ));
+    this.fitting = fitRootReadingElement({
+      owner: this,
+      arrangement: this.arrangement,
+      minimumSize: () => ({width: 200, height: 200}),
+    });
+    settle(this.fitting.update());
   }
 
   disconnectedCallback() {
+    this.fitting?.cleanup();
+    this.fitting = null;
     this.arrangement?.cleanup();
     this.arrangement = null;
   }
@@ -441,6 +447,238 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
     assert page.evaluate(
         "document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight"
     )
+    assert errors == []
+    page.close()
+
+
+def test_the_monitoring_root_fits_its_asymmetric_regions_and_returns_from_flow(
+    browser, serve
+):
+    """The concrete package root owns its shape while the shared lifecycle fits it.
+
+    Its evidence column is the widest region at a desk. A short or narrow reading and
+    Threads turn the page back into authored flow; removing that furniture restores the
+    bounded reading. Reconnection leaves exactly one registration for each region."""
+    example = Path(__file__).parent.parent / "examples" / "live-progress.html"
+    context = browser.new_context(viewport={"width": 1100, "height": 780})
+    page, errors = open_page(browser, live_url(serve(example)), context=context)
+    monitor = page.locator("#lp-monitor")
+
+    expect(monitor).to_have_attribute("data-lf-posture", "bounded")
+    desk = page.evaluate(
+        """() => Object.fromEntries(['lp-overview', 'lp-evidence', 'lp-exception']
+          .map(id => [id, document.querySelector(`#${id}`).getBoundingClientRect()]))"""
+    )
+    assert desk["lp-evidence"]["width"] > desk["lp-exception"]["width"]
+    assert desk["lp-exception"]["width"] > desk["lp-overview"]["width"]
+    assert page.evaluate(
+        "document.documentElement.scrollHeight === document.documentElement.clientHeight"
+    )
+
+    resized(page, 1100, 500)
+    expect(monitor).to_have_attribute("data-lf-posture", "flow")
+    resized(page, 820, 780)
+    expect(monitor).to_have_attribute("data-lf-posture", "flow")
+    flow = page.locator("lf-monitor-region").evaluate_all(
+        "regions => regions.map(region => region.getBoundingClientRect().top)"
+    )
+    assert flow == sorted(flow) and len(set(flow)) == 3, flow
+
+    resized(page, 1100, 780)
+    expect(monitor).to_have_attribute("data-lf-posture", "bounded")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(monitor).to_have_attribute("data-lf-posture", "flow")
+    page.get_by_role("button", name="Close threads").click()
+    panel_settled(page, open=False)
+    expect(monitor).to_have_attribute("data-lf-posture", "bounded")
+
+    monitor.evaluate(
+        """owner => {
+          const wrapper = document.createElement('div');
+          owner.parentElement.append(wrapper);
+          wrapper.append(owner);
+        }"""
+    )
+    expect(monitor).to_have_attribute("data-lf-posture", "flow")
+    monitor.evaluate("owner => document.querySelector('main').replaceChildren(owner)")
+    expect(monitor).to_have_attribute("data-lf-posture", "bounded")
+    assert page.evaluate(
+        """async () => {
+          const {readingRegions} = await import('/runtime/widget-api.js');
+          const wanted = ['lp-overview', 'lp-evidence', 'lp-exception'];
+          const ids = readingRegions().map(region => region.id);
+          return wanted.every(id => ids.filter(candidate => candidate === id).length === 1);
+        }"""
+    )
+
+    for medium in ("print", "screen"):
+        page.emulate_media(media=medium)
+        if medium == "screen":
+            page.locator("html").evaluate("node => node.classList.add('lf-copy')")
+        tops = page.locator("lf-monitor-region").evaluate_all(
+            "regions => regions.map(region => region.getBoundingClientRect().top)"
+        )
+        assert tops == sorted(tops) and len(set(tops)) == 3, (medium, tops)
+        assert page.locator(".lf-pane-body").evaluate_all(
+            "bodies => bodies.every(body => getComputedStyle(body).overflowY === 'visible')"
+        )
+    assert errors == []
+    page.close()
+    context.close()
+
+
+def test_monitoring_evidence_moves_without_stealing_position_or_the_decision(
+    browser, serve
+):
+    """Replaceable evidence does not become the authority for durable reader state."""
+    example = Path(__file__).parent.parent / "examples" / "live-progress.html"
+    page, errors = open_page(browser, live_url(serve(example)))
+    evidence = page.locator("#lp-evidence > .lf-pane-content > .lf-pane-body")
+    option = page.locator("#lp-quarantine-order")
+    log = page.locator("#lp-live-log")
+
+    evidence.evaluate("body => body.scrollTop = 120")
+    page.wait_for_function(
+        "() => document.querySelector('#lp-evidence > .lf-pane-content > .lf-pane-body').scrollTop === 120"
+    )
+    original = log.text_content()
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "rehearsal-log",
+        f"{original.rstrip()}\n14:24:19 observer INFO sample 49: checkout remains healthy\n",
+    )
+    told(page)
+    expect(log).to_contain_text("sample 49: checkout remains healthy")
+    assert evidence.evaluate("body => body.scrollTop") == 120
+
+    with sending(page, "the finance containment decision"):
+        option.locator(".lf-pick").click()
+    expect(option).to_have_attribute("chosen", "")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "rehearsal-log",
+        f"{original.rstrip()}\n14:25:03 ledger WARN co_18427 remains quarantined\n",
+    )
+    told(page)
+    expect(option).to_have_attribute("chosen", "")
+    expect(log).to_contain_text("co_18427 remains quarantined")
+
+    current = (serve.page_dir / "index.html").read_text(encoding="utf-8")
+    incorporated = current
+    revisions = (
+        (
+            "while one finance-export exception needs a containment decision.",
+            "while one finance-export exception is contained and Ledger rebuilds its fixture.",
+        ),
+        (
+            "traffic; finance export remains isolated from the customer path.",
+            "traffic; ordinary finance exports continue while co_18427 stays quarantined.",
+        ),
+        (
+            '<lf-metric id="lp-k-running" value="0">running now</lf-metric>',
+            '<lf-metric id="lp-k-running" value="1">running now</lf-metric>',
+        ),
+        (
+            '<lf-metric id="lp-k-blocked" value="1">needs decision</lf-metric>',
+            '<lf-metric id="lp-k-blocked" value="0">blocked checks</lf-metric>',
+        ),
+        (
+            (
+                '<lf-agent id="lp-agent-ledger" state="blocked">\n'
+                "                <strong>ledger</strong> Waiting on the finance containment choice.\n"
+                "              </lf-agent>"
+            ),
+            (
+                '<lf-agent id="lp-agent-ledger" state="working" overruled>\n'
+                "                <strong>ledger</strong> Rebuilding the partial-refund fixture;\n"
+                "                <code>co_18427</code> is quarantined.\n"
+                "              </lf-agent>"
+            ),
+        ),
+        (
+            (
+                '<lf-agent id="lp-agent-scribe" state="idle">\n'
+                "                <strong>scribe</strong> Ready to record the containment decision.\n"
+                "              </lf-agent>"
+            ),
+            (
+                '<lf-agent id="lp-agent-scribe" state="done">\n'
+                "                <strong>scribe</strong> Recorded the quarantine decision for the handoff.\n"
+                "              </lf-agent>"
+            ),
+        ),
+        (
+            (
+                '<lf-milestone id="lp-finance-gate" status="blocked" when="now">\n'
+                "                <strong>Resume the finance export</strong> Waiting on safeguards for the\n"
+                "                missing partial refund.\n"
+                "              </lf-milestone>"
+            ),
+            (
+                '<lf-milestone id="lp-finance-gate" status="active" when="rebuilding">\n'
+                "                <strong>Repair the partial-refund export</strong> The order is\n"
+                "                quarantined while Ledger rebuilds the fixture.\n"
+                "              </lf-milestone>"
+            ),
+        ),
+        (
+            (
+                "and not in the finance file. The export stays isolated until this choice\n"
+                "              is recorded."
+            ),
+            (
+                "and not in the finance file. The reader quarantined this order; ordinary\n"
+                "              exports continue while the partial-refund path stays isolated."
+            ),
+        ),
+        (
+            '<lf-options id="lp-finance-cases" choose multiple>',
+            '<lf-options id="lp-finance-cases" choose multiple settled>',
+        ),
+        (
+            '<lf-option id="lp-quarantine-order">',
+            '<lf-option id="lp-quarantine-order" chosen>',
+        ),
+    )
+    for before, after in revisions:
+        assert before in incorporated
+        incorporated = incorporated.replace(before, after, 1)
+    stamp = stamp_page(
+        serve.page_dir,
+        incorporated,
+        "Quarantine co_18427 and rebuild the partial-refund fixture",
+    )
+    wait_for_revision(page, stamp["version"])
+    expect(page.locator("#lp-lede")).to_contain_text("exception is contained")
+    expect(page.locator("#lp-active")).to_contain_text(
+        "ordinary finance exports continue"
+    )
+    expect(page.locator("#lp-k-running")).to_have_attribute("value", "1")
+    expect(page.locator("#lp-k-blocked")).to_have_attribute("value", "0")
+    expect(page.locator("#lp-k-blocked")).to_contain_text("blocked checks")
+    expect(page.locator("#lp-agent-ledger")).to_have_attribute("state", "working")
+    expect(page.locator("#lp-agent-ledger")).to_have_attribute("overruled", "")
+    expect(page.locator("#lp-agent-ledger")).to_contain_text(
+        "Rebuilding the partial-refund fixture"
+    )
+    expect(page.locator("#lp-agent-scribe")).to_have_attribute("state", "done")
+    expect(page.locator("#lp-agent-scribe")).to_contain_text(
+        "Recorded the quarantine decision"
+    )
+    expect(page.locator("#lp-finance-gate")).to_have_attribute("status", "active")
+    expect(page.locator("#lp-finance-gate")).to_contain_text(
+        "quarantined while Ledger rebuilds"
+    )
+    expect(page.locator("#lp-finance-note")).to_contain_text(
+        "reader quarantined this order"
+    )
+    settled = page.locator("#lp-finance-cases")
+    expect(settled).to_have_attribute("settled", "")
+    expect(settled.locator(".lf-settled")).to_contain_text("Quarantine this order")
+    expect(page.locator("#lp-quarantine-order")).to_have_attribute("chosen", "")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/0")
+    expect(page.locator("#lp-live-log")).to_contain_text("co_18427 remains quarantined")
     assert errors == []
     page.close()
 

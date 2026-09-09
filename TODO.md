@@ -44,13 +44,6 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
   route](notes/workspace-followups.md#item-14).** Exercise the workspace as one keyboard
   task, including reading, pane furniture, local comments and Threads.
 
-### Complete workflows
-
-- **#18 — [Try an exception-driven monitoring
-  workspace](notes/workspace-followups.md#item-18).** Use the existing live-progress
-  example to test a stable overview beside changing evidence and an exception that needs
-  a decision.
-
 ### Authoring and product boundary
 
 - **#19 — [Measure what Leaf saves an authoring
@@ -61,10 +54,6 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 - **#20 — [Teach the few compositions that earn their
   place](notes/workspace-followups.md#item-20).** Put tested document, configuration and
   queue/detail recipes into the existing package guidance.
-
-- **#21 — [Test whether custom roots need shared fitting
-  policy](notes/workspace-followups.md#item-21).** Use one genuinely different package
-  root to decide whether responsive fit ownership belongs in the shared API.
 
 - **#22 — [Verify workspaces at the experimental MCP
   boundary](notes/workspace-followups.md#item-22).** Check the same workspace in a full

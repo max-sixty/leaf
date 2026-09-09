@@ -5,9 +5,9 @@ import { bindings } from "../keyboard/bindings.js";
 import { el } from "../widget-elements.js";
 import { banner } from "../banner.js";
 import {
-  bottomStatusEl,
   bottomChromeBoxes,
   shortcutBarEl,
+  standingStatusBoxes,
 } from "../keyboard/shortcut-bar.js";
 import {
   blockAt,
@@ -627,7 +627,7 @@ export function paintTargets() {
   selectionLayer.replaceChildren(...drawn);
   if (!searching)
     spreadHints(hints, {
-      barriers: [bottomStatusEl.getBoundingClientRect()],
+      barriers: standingStatusBoxes(),
       lineBox: shortcutBarEl.getBoundingClientRect(),
       viewportTop: covered(),
     });

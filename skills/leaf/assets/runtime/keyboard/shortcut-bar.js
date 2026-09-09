@@ -109,7 +109,7 @@ const boxesOf = (nodes) =>
 // the page and its addresses.
 const standingStatus = () => !walkPositionEl.hidden || !contextStatusEl.hidden;
 let standingStatusBox = null;
-const standingStatusBoxes = () => {
+export const standingStatusBoxes = () => {
   if (!standingStatus()) {
     standingStatusBox = null;
     return [];

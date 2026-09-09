@@ -425,7 +425,7 @@ The extension keys describe general behavior:
 | `x-measured` | authored scalar words are pinned at an instant to one live data input; checks compare that instant with the source's latest update |
 | `x-says` | named attributes are visible words at declared edges |
 | `x-paints` | named attributes communicate facts through paint and need a quiet spoken reading |
-| `x-verbatim` | own authored words and the order and identity of nested upgraded boundaries must agree with the rendering |
+| `x-verbatim` | own authored or canonically projected words and the order and identity of nested upgraded boundaries must agree with the rendering |
 | `x-shadow` | a declared open shadow tree is part of the page's composed reading |
 | `x-state` | reader action verbs, current eligibility, facets, units, schemas, and records |
 | `x-report` | report verbs with the same semantic state shape |
@@ -774,6 +774,7 @@ been removed. `render-checks/init.js` installs the pre-navigation window-error c
 | `unreachableWords` | visible page words remain in reachable flow |
 | `coveredWords` | browser words are not silently clipped, hidden, or claimed by chrome |
 | `unreadSyntax` | syntax highlighting does not erase or alter source words |
+| `shownVerbatim` | every preserving owner agrees with its revision- or conversation-scoped projected passage |
 | `silentWords` | `x-says` and `x-paints` promises reach the composed rendered page |
 | `undeclaredAttrs` | modules do not write undeclared author-namespace state |
 | `retiredSlots` | declared settlement marks and retired-slot visibility agree with the projection |

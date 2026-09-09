@@ -5,9 +5,12 @@ from dataclasses import dataclass
 
 from leaf.passages import page_passages
 from leaf.projection import (
+    frozen_thread_reading,
+    generated_children,
     page_reading,
     retirement_holders,
     retirement_outcomes,
+    rewritten_bodies,
 )
 from leaf.registry.state import retirement_slots
 from leaf.render_checks import evaluate_probe, wait_for_probe
@@ -25,30 +28,62 @@ class _SchemeContext:
     markup: str
     here: int
     earlier: str | None
-    touched: list
     replayed: bool
     unsettled: list
 
 
-def _verbatim_findings(context: _SchemeContext) -> list[str]:
-    shown = evaluate_probe(
-        context.page,
-        "shownVerbatim",
-        {"widgets": context.widgets, "touched": context.touched},
+def _projected_verbatim(markup, registry, projection, authored_ids, source):
+    """Read preserving owners after applying exactly the projection's text changes."""
+    return page_passages(
+        markup,
+        registry,
+        decided=retirement_outcomes(projection.actions, registry),
+        rewrites=rewritten_bodies(projection.actions),
+        additions=generated_children(projection.desired, authored_ids),
+        source=source,
+    ).verbatim
+
+
+def _expected_verbatim(markup, events, registry, here):
+    """Expected preserving-owner readings in the page and frozen conversation.
+
+    Page actions are bounded by the immutable revision being rendered. Frozen message
+    markup has no later authored revision and therefore uses the conversation's whole
+    action window. Both use the same passage projection as comment capture.
+    """
+    page = page_reading(markup, events, registry, here)
+    expected = _projected_verbatim(
+        markup,
+        registry,
+        page.projection,
+        page.parser.ids,
+        ("page", None),
     )
-    if not shown:
-        return []
-    expected = {}
-    for event in context.state["events"]:
+    thread = frozen_thread_reading(events, registry)
+    for event in events:
         if fragment := event.get("markup"):
             expected.update(
-                page_passages(
+                _projected_verbatim(
                     fragment,
-                    context.registry,
-                    source=("event", event["id"]),
-                ).verbatim
+                    registry,
+                    thread.projection,
+                    thread.structure.ids,
+                    ("event", event["id"]),
+                )
             )
-    expected.update(page_passages(context.markup, context.registry).verbatim)
+    return expected
+
+
+def _verbatim_findings(context: _SchemeContext) -> list[str]:
+    shown = evaluate_probe(context.page, "shownVerbatim", context.widgets)
+    if not shown:
+        return []
+    expected = _expected_verbatim(
+        context.markup,
+        context.state["events"],
+        context.registry,
+        context.here,
+    )
     findings = []
     for reading in shown:
         provenance = reading["provenance"]
@@ -85,7 +120,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     markup = context.markup
     here = context.here
     earlier = context.earlier
-    touched = context.touched
     replayed = context.replayed
     errors = context.errors
     resize_notices = context.resize_notices
@@ -115,8 +149,10 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     )
     # x-verbatim promises the words this scheme renders. Source provenance was
     # captured before upgrade, so anonymous page and frozen-message owners have the
-    # same coordinate as the file reading without acquiring authored ids.
-    dishonest_verbatim = _verbatim_findings(context)
+    # same coordinate as the file reading without acquiring authored ids. Its file
+    # side is the settled projection, so a page that never applied that projection is
+    # already reported by the readiness wait and supplies no comparison.
+    dishonest_verbatim = _verbatim_findings(context) if replayed else []
     # Replay is scheme-blind, so one scheme's reading covers both.
     conflicts = []
     silent = []
@@ -222,23 +258,25 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     # preceding read-only probes.
     relative = []
     if scheme == "light" and replayed:
-        if touched and earlier is not None:
+        if earlier is not None:
             projection = page_reading(
                 markup, state["events"], registry, here
             ).projection
-            conflicts = evaluate_probe(
-                page,
-                "replayOverrides",
-                {
-                    "curHtml": markup,
-                    "prevHtml": earlier,
-                    "carriedActions": [
-                        event["id"]
-                        for event, _spec in projection.actions.values()
-                        if event["revision"] < here
-                    ],
-                },
-            )
+            carried = [
+                event["id"]
+                for event, _spec in projection.actions.values()
+                if event["revision"] < here
+            ]
+            if carried:
+                conflicts = evaluate_probe(
+                    page,
+                    "replayOverrides",
+                    {
+                        "curHtml": markup,
+                        "prevHtml": earlier,
+                        "carriedActions": carried,
+                    },
+                )
         relative = evaluate_probe(page, "relativeReplays")
     # The print reset and replay above can resize what an observer watches. Chrome
     # delivers that notice in the next rendering turn, so closing on the write

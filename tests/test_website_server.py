@@ -9,6 +9,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from leaf.event_log import append_event, read_events
@@ -1217,14 +1218,23 @@ class _DeployedPage:
     """The page the agent pass opens, reloads after its turn, and reads back."""
 
     def __init__(
-        self, heading: str, revision: int, presented_at: float, reload_ok: bool = True
+        self,
+        heading: str,
+        revision: int,
+        presented_at: float,
+        reload_ok: bool = True,
+        banner: str | None = None,
+        follows_revision: bool = False,
     ):
         self.heading = heading
         self.revision = revision
         self.presented_at = presented_at
         self.reload_ok = reload_ok
+        self.banner = banner
+        self.follows_revision = follows_revision
         self.init_scripts: list[str] = []
         self.presentation_waits: list[int] = []
+        self.revision_waits: list[tuple[int, int]] = []
 
     def add_init_script(self, script: str) -> None:
         self.init_scripts.append(script)
@@ -1240,6 +1250,16 @@ class _DeployedPage:
         answered.ok = self.reload_ok
         return answered
 
+    def wait_for_function(self, expression: str, *, arg: int, timeout: int) -> None:
+        assert "lf-revision" in expression
+        self.revision_waits.append((arg, timeout))
+        if self.revision >= arg:
+            return
+        if self.follows_revision:
+            self.revision = arg
+            return
+        raise verify_site.PlaywrightTimeout("revision did not arrive")
+
     def locator(self, selector: str):
         if selector == "h1":
             return _Heading(self.heading)
@@ -1251,6 +1271,8 @@ class _DeployedPage:
             return self.presented_at
         if "lf-revision" in script:
             return str(self.revision)
+        if "lf-status-text" in script:
+            return self.banner
         return []
 
 
@@ -1289,7 +1311,7 @@ class _DeployedSite:
         return self.context
 
 
-def test_the_page_a_turn_has_just_written_gets_more_than_an_edge_page_to_present(
+def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentation(
     monkeypatch, capsys
 ):
     """One bound cannot serve both pages this gate reads, so the reload states its own.
@@ -1302,12 +1324,18 @@ def test_the_page_a_turn_has_just_written_gets_more_than_an_edge_page_to_present
     milliseconds — measured against the live deployment, 123 ms before a turn and
     2252-3918 ms after one, on the same session and page.
 
-    So the reading that decides this is which bound each of the two waits was given at
-    its own call site, not whether `await_presentation` forwards what it is handed.
+    The gate gives the reload that bound both to present and, after presentation, to
+    follow the revision its first read brings back. The second wait is required now that
+    presentation no longer implies the read has answered.
     """
     release = "4ef93dd9" + "0" * 56
     heading = f"Deployment {release[:8]} verified"
-    page = _DeployedPage(heading, revision=2, presented_at=28444.0)
+    page = _DeployedPage(
+        heading,
+        revision=1,
+        presented_at=28444.0,
+        follows_revision=True,
+    )
     container = _DeployedContainer(release, page)
     published = {"revision": 2, "url": "revisions/2.html"}
     monkeypatch.setattr(
@@ -1324,21 +1352,30 @@ def test_the_page_a_turn_has_just_written_gets_more_than_an_edge_page_to_present
             1,
         ),
     )
+    # The first sample sets `agent_session`'s rollout deadline; the next two surround
+    # the revision wait this case measures.
+    following_clock = iter([0.0, 40.0, 42.5])
+    with monkeypatch.context() as timing:
+        timing.setattr(
+            verify_site,
+            "time",
+            SimpleNamespace(monotonic=following_clock.__next__),
+        )
+        verify_site.verify_agent_turn(_DeployedSite(container), release)
 
-    verify_site.verify_agent_turn(_DeployedSite(container), release)
-
-    # The session's first load is an ordinary read of that container, and the reload
-    # after the turn is not: dropping `TURN_PRESENTATION` from that call restores the
-    # failure this branch is named for, and leaves the first reading unchanged.
+    # The ordinary first load uses the edge-page presentation bound. The post-turn
+    # reload gets its own bound for both presentation and the later revision follow.
     assert page.presentation_waits == [30_000, verify_site.TURN_PRESENTATION]
+    assert page.revision_waits == [(2, verify_site.TURN_PRESENTATION)]
     assert verify_site.TURN_PRESENTATION > 30_000
     # The stamps the message needs to say which stall it was. Without them a page that
     # upgraded and stalled on its first state read reports the same "no startup
     # milestone" as one whose modules never arrived.
     assert page.init_scripts == [verify_site.PROFILE_SCRIPT]
-    # What the reload cost, on the green run: the only reading anyone has of a
-    # container serving a page a hosted turn has just written to.
-    assert "presented in 28444 ms" in capsys.readouterr().out
+    # A green run reports startup and the post-presentation revision follow separately.
+    reported = capsys.readouterr().out
+    assert "presented in 28444 ms" in reported
+    assert "followed revision 2 2500 ms after presentation" in reported
     assert container.closed
 
     # A reload the container never answered is its own reading, taken before the wait.
@@ -1350,3 +1387,69 @@ def test_the_page_a_turn_has_just_written_gets_more_than_an_edge_page_to_present
             _DeployedSite(_DeployedContainer(release, refused)), release
         )
     assert refused.presentation_waits == [30_000]
+    assert refused.revision_waits == []
+
+
+def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
+    monkeypatch,
+):
+    """A stale revision has two causes, and the message has to separate them.
+
+    `publish-site` failed on release `5b6be522…` with `stands on revision 1 rather than
+    following the published 2` and nothing else, which reads the same whether the
+    container answered the reload's first state read with revision 1 or never answered
+    it at all. The gate cannot watch that read, but the page says which it was: an
+    answer it never got leaves the offline banner standing over the authored document.
+    """
+    release = "5b6be522" + "0" * 56
+    heading = f"Deployment {release[:8]} verified"
+    published = {"revision": 2, "url": "revisions/2.html"}
+    monkeypatch.setattr(
+        verify_site,
+        "ask_until_answered",
+        lambda *args, **kwargs: verify_site.AgentAsks(
+            verify_site.TurnReading(
+                {"active": {"revision": 2}, "activity": {"kind": "away"}},
+                published,
+                [{"kind": "reply", "text": "deployment verified"}],
+                {"kind": "reply", "text": "deployment verified"},
+            ),
+            1,
+            1,
+        ),
+    )
+
+    offline = _DeployedPage(
+        heading,
+        revision=1,
+        presented_at=11_000.0,
+        banner="Server offline — reconnecting",
+    )
+    with pytest.raises(RuntimeError) as reported:
+        verify_site.verify_agent_turn(
+            _DeployedSite(_DeployedContainer(release, offline)), release
+        )
+    assert "stands on revision 1" in str(reported.value)
+    assert "Server offline — reconnecting" in str(reported.value)
+    # Reported after the gate's own patience ran out, not at presentation: the banner is
+    # quoted for a read that never answered rather than for one a second slower than the
+    # runtime's wait.
+    assert offline.revision_waits == [(2, verify_site.TURN_PRESENTATION)]
+
+    # A page whose read answered is standing under an ordinary activity line rather
+    # than an empty banner — a presented page always has one — so the two causes are
+    # separated by what the message quotes rather than by whether it quotes anything.
+    told = _DeployedPage(
+        heading,
+        revision=1,
+        presented_at=1_400.0,
+        banner="Claude is handling 1 update",
+    )
+    with pytest.raises(RuntimeError) as named:
+        verify_site.verify_agent_turn(
+            _DeployedSite(_DeployedContainer(release, told)), release
+        )
+    assert "stands on revision 1" in str(named.value)
+    assert "Claude is handling 1 update" in str(named.value)
+    assert "Server offline" not in str(named.value)
+    assert told.revision_waits == [(2, verify_site.TURN_PRESENTATION)]

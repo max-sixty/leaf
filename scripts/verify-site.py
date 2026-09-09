@@ -687,6 +687,7 @@ def verify_agent_turn(browser, release: str) -> None:
     # container that answers a second after the runtime stopped waiting is a reader's page
     # arriving late, not a deployment that failed to follow the turn. What runs this wait
     # out is a read that never answered at all, which is the ending the banner below names.
+    followed_at = time.monotonic()
     try:
         page.wait_for_function(
             "want => Number(document.querySelector('meta[name=\"lf-revision\"]')"
@@ -696,6 +697,7 @@ def verify_agent_turn(browser, release: str) -> None:
         )
     except PlaywrightTimeout:
         pass
+    followed_in = (time.monotonic() - followed_at) * 1000
     # After the wait rather than before it: the activation this gate is reading for
     # happens during that wait, so a page that threw on its way there would otherwise
     # report the revision it never reached instead of the error that stopped it.
@@ -728,17 +730,21 @@ def verify_agent_turn(browser, release: str) -> None:
     )
     # What the turn actually did, on the green run as well as the red one: a gate whose
     # only account of a hosted agent is its own exit status leaves the next reader of a
-    # failure with nothing to compare against. The reload's cost rides along because this
-    # is the only reading anyone has of a container serving a page a hosted turn has just
-    # written to, and a number printed every deployment is what makes a drift in it
-    # visible before it becomes the next timeout.
+    # failure with nothing to compare against. This is the only reading anyone has of a
+    # container serving a page a hosted turn has just written to, and the wait above is
+    # the part of it that can still move: presentation now lands at the runtime's own
+    # fixed wait whether the container answered in three seconds or thirty, while the
+    # time past it before the first read brought the revision back is the read this step
+    # fails on. Printing that every deployment is what makes a drift in it visible
+    # before it becomes the next timeout.
+    followed = f"followed revision {published['revision']} {followed_in:.0f} ms later"
     print(
         f"✓ hosted agent published revision {published['revision']} "
         f"and replied: {answer['text']}"
         + (
-            f"; the reloaded page presented in {presented_at:.0f} ms"
+            f"; the reloaded page presented in {presented_at:.0f} ms and {followed}"
             if presented_at is not None
-            else ""
+            else f"; the reloaded page {followed}"
         )
     )
     context.close()

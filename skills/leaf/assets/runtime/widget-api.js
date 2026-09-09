@@ -3,6 +3,7 @@
 export { ARRANGEMENTS } from "./arrangements.js";
 export {
   arrangeReadingElement,
+  defineReadingPaneElement,
   fitRootReadingElement,
   registerArrangedElement,
 } from "./reading-layout.js";

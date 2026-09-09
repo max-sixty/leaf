@@ -225,6 +225,11 @@ available page below the banner. Other workspaces keep document flow. For bounde
 allocation, the workspace body is itself an arranged structural or compound owner. A
 plain wrapper keeps its descendants in document flow.
 
+`defineReadingPaneElement(tagName)` supplies the complete lifecycle for an ordinary
+named pane, including furniture, region registration, accessibility, and reconnect. Use
+it when a package-specific pane differs only through its registry contract and CSS;
+write a behavior module when the element owns another interaction.
+
 `fitRootReadingElement({owner, arrangement, minimumSize})` owns the root's observation
 of available page width and height, window resize, and descendant layout changes. The
 caller supplies the complete minimum as `{width, height}` and keeps the composition's

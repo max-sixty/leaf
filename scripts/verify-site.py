@@ -80,9 +80,12 @@ TURN_LIMIT = 600
 # How long the page reloaded after the turn may take to present. The release pass walks
 # pages the edge serves, which present in about a second, and `await_presentation`'s own
 # bound is calibrated for those. This reload is answered by a container that has just run
-# a hosted model turn, whose first `/api/state` read is measured in seconds rather than
-# milliseconds and varies with what the turn did — so it gets the same patience as every
-# other read this pass makes of that container, and reports what it cost.
+# a hosted model turn, and it carries navigation, module load and widget upgrade ahead of
+# the runtime's own wait on its first `/api/state` read — ten seconds, whatever the
+# container does. This bound has to sit outside that whole sum, because the revision
+# check below is the one that says what the reload got back: a gate that gave up first
+# would report a page that never presented and say nothing about the read. So it keeps
+# an order of magnitude over the runtime's wait, and reports what the reload cost.
 TURN_PRESENTATION = 120_000
 # The activity readings that mean a turn is on this work. A page that reads away,
 # unheld, listening, stalled or closed is not going to answer, so its wait ends at

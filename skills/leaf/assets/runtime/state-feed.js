@@ -174,9 +174,47 @@ export function startFeed(present, initialRead = beginRead()) {
     });
   };
   document.addEventListener("lf-projection", retryProjection);
+  // Presentation waits on the first read, but not on the container: the wait ends at
+  // `PRESENTATION_WAIT_MS` whether or not an answer has come, and nothing is aborted
+  // when it does. The request keeps its own, far longer bound and stays in flight, so a
+  // container that is merely slow is never abandoned mid-answer, while one that accepts
+  // the connection and says nothing cannot decide when the reader gets a page at all.
+  // Past the wait the buffered read is an ordinary one: its answer applies and repaints
+  // through the same path any later read's does, and a malformed one is reported the
+  // same way rather than withholding a page the reader is already using.
   const readAndPresent = async () => {
+    let outcome = "waiting";
+    let waited = null;
+    const wait = new Promise((resolve) => {
+      waited = setTimeout(resolve, PRESENTATION_WAIT_MS);
+    });
+    // The buffered read holds the page's one read slot until it settles — see `reading`
+    // below — so the clock this feed installs asks again after it rather than beside it.
+    const settled = (async () => {
+      try {
+        await readAndApply(initialRead);
+        outcome = "applied";
+      } catch (error) {
+        outcome = "failed";
+        readAnswered = false;
+        reportPageError(`read failed: ${error?.message ?? error}`);
+        renderStatus(error);
+      }
+    })().finally(() => {
+      clearTimeout(waited);
+      reading = false;
+      if (!readQueued) return;
+      readQueued = false;
+      ask();
+    });
+    await Promise.race([settled, wait]);
+    // An answer that arrived and could not be applied is a startup fault: the authored
+    // document stays readable under the named error and the presented stamp is withheld.
+    if (outcome === "failed") return;
     try {
-      await readAndApply(initialRead);
+      // The wait ran out first, so the page has no state to show and says so, exactly as
+      // it does for an answer that brought none.
+      if (outcome === "waiting") await readNothing();
       await present();
     } catch (error) {
       readAnswered = false;
@@ -196,7 +234,10 @@ export function startFeed(present, initialRead = beginRead()) {
   // answer with nothing in it — an unreachable server, a refused key, a layer that has
   // moved on and is reloading — still presents, since the authored page under an
   // unreachable server is a page, and saying so is the banner's job.
-  let reading = false;
+  // The buffered first read is already out, so the slot starts held: a tick or a stream
+  // word arriving while it is still unanswered queues a trailing read behind it instead
+  // of opening a second one alongside.
+  let reading = true;
   let readQueued = false;
   const askOnce = async () => {
     try {
@@ -332,9 +373,11 @@ export function startFeed(present, initialRead = beginRead()) {
     else stopListening();
   });
   document.addEventListener("lf-session-active", listen);
-  // Presentation waits on the first read, and the ear opens after it: the page then
-  // holds a reading for the stream's first word to be compared with, so an unchanged
-  // page is not asked for twice.
+  // The ear opens once the page has presented, not once the container has answered: a
+  // page whose first read is still out has nothing for the stream's first word to be
+  // compared with, so that word asks — which is what the slot the read still holds is
+  // for. A page that did get its answer holds a reading, and an unchanged page is not
+  // asked for twice.
   readAndPresent().finally(() => {
     feedStarted = true;
     // One shared clock serves temporal paint, deferred work, and failed reads.
@@ -369,14 +412,21 @@ export const RETRY_MS = 2000;
 // on forever.
 const SILENCE_MS = 30_000;
 
-// The bound frees the page's one read slot; it does not judge the container. So it sits
-// outside the readings a healthy one takes rather than inside them. A container that has
-// just run a hosted agent turn answers its next state read in seconds rather than
-// milliseconds, and the deploy gate gives every read of that same container 120 seconds
-// for that reason — a runtime bound an order of magnitude tighter aborts answers the
-// gate is still waiting for. What a tighter bound costs is not a delay: presentation
-// waits on the first completed read, and an expiry is a completed offline answer, so the
-// reader who has just asked their agent for a change is shown the offline banner over
-// the page as it stood before it. On expiry readState produces the same offline answer
-// as any lost request, and the shared retry clock asks again.
+// How long the page waits on its first read before presenting without one. Presentation
+// is the reader's page arriving, so this is the only bound a reader feels, and it is set
+// where waiting longer stops being worth an unflashed banner: outside the readings a
+// working container takes — a container that has just run a hosted agent turn was
+// measured answering in 2.3-3.9 s — and inside the patience anyone has for a page. What
+// running out costs is a banner that corrects itself, because the read it stopped
+// waiting on is still coming.
+const PRESENTATION_WAIT_MS = 10_000;
+
+// How long a state read itself may take before the page gives up on it. This bound frees
+// the page's one read slot rather than deciding when the page arrives — `startFeed`'s
+// wait above does that — so it is set outside what any live container takes rather than
+// inside it: the deploy gate gives every read of a container running a hosted turn 120
+// seconds, and a runtime that abandoned one sooner would be aborting answers the gate is
+// still waiting for. A proxy that accepts the connection and never answers is still
+// bounded here. On expiry readState produces the same offline answer as any lost
+// request, and the shared retry clock asks again.
 const STATE_READ_TIMEOUT_MS = 120_000;

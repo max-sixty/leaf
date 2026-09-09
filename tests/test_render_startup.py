@@ -2509,15 +2509,14 @@ def test_the_state_read_bound_sits_outside_the_readings_a_container_takes(
     then read the reloaded page standing on the revision from before the turn. A
     container that has just run a turn answers its next state read in seconds rather
     than milliseconds — measured against a live deployment at 123 ms before a turn and
-    2252-3918 ms after one — and the whole reload was measured presenting in 28.4 s.
-    A bound inside that spread does not delay such a read, it ends it: an expiry is a
-    completed offline answer, presentation waits on the first completed read, and the
-    reader who has just asked their agent for a change is shown the offline banner over
-    the page as it stood before it.
+    2252-3918 ms after one. A bound inside that spread does not delay such a read, it
+    ends it: an expiry is a completed offline answer, so the page takes the container
+    for gone while the answer it asked for is still on its way.
 
-    So the reading is the bound the runtime installs on its own reads, taken where it
-    takes effect. The deploy gate gives every read of that container 120 seconds, and
-    a runtime that abandons one sooner aborts answers the gate is still waiting for.
+    Nothing waits on this bound — the page presents at its own wait, tested below — so
+    it can be set where a live container's answers are all inside it. The deploy gate
+    gives every read of that container 120 seconds, and a runtime that abandons one
+    sooner aborts answers the gate is still waiting for.
     """
     record_read_bounds = """
       window.__leafReadBounds = [];
@@ -2538,6 +2537,63 @@ def test_the_state_read_bound_sits_outside_the_readings_a_container_takes(
         bounds = page.evaluate("() => window.__leafReadBounds")
         assert bounds, "the page installed no bound on its state read"
         assert min(bounds) >= 120_000, bounds
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, serve):
+    """The reader's page arrives on the runtime's wait, not on the container's answer.
+
+    Presentation is where durable controls, the heartbeat and the news stream open, so a
+    container that accepts the connection and says nothing would otherwise decide whether
+    the reader gets a usable page at all — and the read's own bound is set outside what a
+    live container takes, which is far past anyone's patience for a page. The wait ends
+    without ending the read: the request stays in flight, no second one opens beside it,
+    and the answer that lands after the page has presented offline is applied where it
+    stands.
+    """
+    # The wait is read off the page rather than written here, and shortened so the test
+    # spends its own time on the behaviour instead of on the bound. It is the first long
+    # timer the page installs; every other one this runtime sets is either shorter than
+    # this floor or installed after presentation.
+    shorten_the_first_long_wait = """
+      window.__leafPresentationWait = null;
+      const native = window.setTimeout.bind(window);
+      window.setTimeout = (fn, ms, ...rest) => {
+        if (window.__leafPresentationWait === null && ms >= 5000) {
+          window.__leafPresentationWait = ms;
+          return native(fn, 200, ...rest);
+        }
+        return native(fn, ms, ...rest);
+      };
+    """
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.add_init_script(shorten_the_first_long_wait)
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
+        expect(page.locator("body[data-lf-presented]")).to_have_count(1)
+        expect(page.locator(".lf-status-text")).to_contain_text(
+            "Server offline — reconnecting"
+        )
+        assert page.evaluate("() => window.__leafPresentationWait") >= 10_000
+
+        # The read the page presented without is still the one it is waiting on. Ticks of
+        # the shared clock pass with the slot held, and none of them opens a second read.
+        page.wait_for_timeout(4000)
+        assert len(held) == 1, held
+        assert not page.locator("body[data-lf-presented]").evaluate(
+            "body => body.dataset.lfReading ?? ''"
+        )
+
+        held[0].fulfill(json=held[0].fetch().json())
+        told(page)
+        expect(page.locator(".lf-status-text")).not_to_contain_text(
+            "Server offline — reconnecting"
+        )
         assert errors == []
     finally:
         page.close()

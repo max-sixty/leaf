@@ -107,6 +107,9 @@ jobs:
       # Worker activation and container rollout are separate Cloudflare operations. A
       # real browser must see the requested build in the document, module graph, edge
       # projection, and a newly allocated container before this deployment is green.
+      # The loop owns that wait — rollout drains one container allocation at a time,
+      # so a coherent sample is what ends it — and the agent pass that follows runs
+      # the deployed turn alone rather than re-sampling readings the wait settled.
       - name: Verify the exact public release in Chrome
         run: |
           release=$(jq --raw-output .release .tmp/site/_leaf/site.json)

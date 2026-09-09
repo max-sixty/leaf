@@ -364,6 +364,46 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch):
     assert socket.closed
 
 
+def test_a_lost_starting_connection_settles_its_unanswered_delivery(page_dir):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    website_server.prepare_codex_delivery(
+        page_dir,
+        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+        {"pid": os.getpid()},
+    )
+    [delivery] = website_server.accept_codex_delivery("hosted-thread")
+
+    class Socket:
+        closed = False
+
+        def recv(self, timeout):
+            raise OSError("connection lost")
+
+        def close(self):
+            self.closed = True
+
+    socket = Socket()
+    website_server.WebsiteCodexHost("codex")._follow_turn(
+        socket,
+        page_dir,
+        "hosted-thread",
+        "app-server-turn",
+        delivery["turn"],
+        delivery["events"],
+    )
+
+    events = read_events(page_dir)
+    assert events[-1]["kind"] == "reply"
+    assert events[-1]["parent"] == comment["id"]
+    assert events[-1]["text"] == website_server.GENERATION_FAILURE_REPLY
+    assert website_server.page_claim(page_dir)["turn_closed"] is not None
+    assert website_server.full_state(page_dir, events)["activity"]["obligations"] == []
+    assert socket.closed
+
+
 @pytest.mark.parametrize(
     ("turn", "reply"),
     [

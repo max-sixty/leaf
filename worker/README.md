@@ -38,10 +38,11 @@ native filesystem tools, so the hosted task can revise `index.html`, validate it
 thread replies, and leave the page waiting exactly as a local Leaf task does. The
 initiating App Server connection projects the turn's native activity notifications
 back through Leaf. A repeated workflow sees the event's durable pickup and does not
-start the work twice. If task startup stops after its retries, the workflow appends a
-short failure reply through the same event log. Once App Server reports a terminal
-turn, the container closes that exact Leaf turn and gives each accepted input the turn
-left unanswered either a failure reply or a completed-without-reply receipt.
+start the work twice. Task startup failure after its retries and a failure while
+following a started turn each append a short failure reply through the same event log.
+Once App Server reports a terminal turn, the container closes that exact Leaf turn and
+gives each accepted input the turn left unanswered either a failure reply or a
+completed-without-reply receipt.
 
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the

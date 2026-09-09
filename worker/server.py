@@ -305,6 +305,7 @@ class WebsiteCodexHost:
         events = AppServerEvents(thread_id)
         events.turn_id = turn_id
         last_stream_update = 0.0
+        terminal: dict
         _set_stream_activity(thread_id, turn_id, "Starting")
         try:
             while True:
@@ -323,19 +324,20 @@ class WebsiteCodexHost:
                     message.get("method") == "turn/completed"
                     and message.get("params", {}).get("turn", {}).get("id") == turn_id
                 ):
-                    with self.lock:
-                        self._finish_turn(
-                            page_dir,
-                            thread_id,
-                            leaf_turn,
-                            event_ids,
-                            message["params"]["turn"],
-                        )
-                    return
-        except (OSError, RuntimeError, ValueError, WebSocketException):
+                    terminal = message["params"]["turn"]
+                    break
+        except (OSError, RuntimeError, ValueError, WebSocketException) as error:
             _clear_stream_activity(thread_id, turn_id)
+            detail = str(error) or type(error).__name__
+            terminal = {
+                "id": turn_id,
+                "status": "failed",
+                "error": {"message": f"App Server turn stream failed: {detail}"},
+            }
         finally:
             socket.close()
+        with self.lock:
+            self._finish_turn(page_dir, thread_id, leaf_turn, event_ids, terminal)
 
     def _send(self, socket, method: str, params: dict) -> dict:
         request_id = self.next_request_id

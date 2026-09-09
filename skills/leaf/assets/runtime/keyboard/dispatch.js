@@ -37,12 +37,13 @@
    the dispatcher's live result into the destination composition box's placeholder. Each
    box's `aria-label` remains its shortcut-free accessible name.
 
-   Escape is an ordinary binding in the register for Leaf-owned modes. A focused control's
-   specific inner step stands first, the latest active command return frame next, then the
-   generic text and containing scopes. The innermost live row owns exactly one unwind
-   step. A query clear, box return, panel dismissal, decision release, and return to the
-   page cannot cascade from one keypress. A scope does not need a private `keydown`
-   listener or hand-written `preventDefault` to protect that contract.
+   Escape is an ordinary binding in each row and a semantic ordering in the dispatcher.
+   An active mode and the focused control's specific inner step stand first, the latest
+   eligible command return frame next, then scene-derived and containing-scope fallbacks.
+   Declaration order cannot move a fallback ahead of that frame. The innermost live row
+   owns exactly one unwind step. A query clear, box return, panel dismissal, decision
+   release, and return to the page cannot cascade from one keypress. A scope does not need
+   a private `keydown` listener or hand-written `preventDefault` to protect that contract.
 
    Auto popovers and modal dialogs are the platform's modes. Each scope and return frame
    belongs to its document or native-layer root. A modal keeps only scopes rooted in that
@@ -139,6 +140,7 @@ const nativeBoundary = (claims) => ({
     return [REFERENCE];
   },
   claims,
+  escapeBoundary: true,
 });
 const MODAL_BOUNDARY = nativeBoundary(EVERYTHING);
 const POPOVER_BOUNDARY = nativeBoundary((binding) => binding === "Escape");
@@ -146,12 +148,29 @@ const scopeRoot = (scope) => {
   const declared = scope.root ?? scope.el ?? document;
   return typeof declared === "function" ? declared() : declared;
 };
+const innerEscape = (scope, active) => {
+  if (scope.escape !== undefined && scope.escape !== "inner")
+    throw new TypeError(
+      `leaf: ${scope.title ?? "a scope"} has invalid Escape ownership ${String(scope.escape)}`,
+    );
+  return scope.escape === "inner" || scope.el === active;
+};
 // Every scope the reader is standing in, innermost first. The whole list: what a nearer
 // scope takes out of reach is the walk's own business, and both walkers say it the same
 // way — a binding some nearer row has already named, or one a nearer scope claims. Cutting
 // the list here instead was the same statement made where only one of the two shadowings
 // could be seen.
-export function stack() {
+const escapeOrder = (scopes, active) => {
+  const boundaryAt = scopes.findIndex((scope) => scope.escapeBoundary);
+  const end = boundaryAt < 0 ? scopes.length : boundaryAt;
+  const layer = scopes.slice(0, end).filter((scope) => scope !== RETURN);
+  const inner = layer.filter((scope) => innerEscape(scope, active));
+  const fallback = layer.filter((scope) => !inner.includes(scope));
+  const causal = scopes.slice(0, end).includes(RETURN) ? [RETURN] : [];
+  return [...inner, ...causal, ...fallback, ...scopes.slice(end)];
+};
+
+export function stack(binding = null) {
   const active = focused();
   const elementStack = scopesFor(active);
   const typing = takesLetters(active);
@@ -174,37 +193,38 @@ export function stack() {
     return scope;
   });
   const layer = currentNativeLayer(active);
-  if (!layer) return expanded.filter(standing);
+  const ordered = (scopes) => {
+    const activeScopes = scopes.filter(standing);
+    return binding === "Escape" ? escapeOrder(activeScopes, active) : activeScopes;
+  };
+  if (!layer) return ordered(expanded);
   const modal = currentModalLayer(active);
   const inLayer = (scope) => nativeLayerFor(scopeRoot(scope)) === layer;
   if (layer !== modal) {
-    // Everything before RETURN is already an active mode or the exact focused control,
-    // and keeps its established Escape priority. Later scopes rooted in this popover
-    // (plus focused ancestors) belong before the browser's light-dismiss boundary too.
-    // The boundary then catches only an Escape that would otherwise reach a covered
-    // return frame or page fallback; non-Escape presses continue through it.
-    const returnAt = expanded.indexOf(RETURN);
-    const split = returnAt < 0 ? expanded.length : returnAt;
+    // The popover, its focused controls, and explicitly inner modes stand above the
+    // browser's light-dismiss boundary. Everything else remains reachable for keys the
+    // boundary does not claim, but its Escape cannot fall through into the covered page.
     const aboveModal = modal
       ? (scope) => nativeLayersFor(scopeRoot(scope)).includes(modal)
       : () => true;
-    const activeModes = expanded.slice(0, split).filter(aboveModal);
-    const tail = expanded.slice(split).filter(aboveModal);
+    const available = expanded.filter(aboveModal);
     const foreground = (scope) =>
-      inLayer(scope) || elementStack.includes(scope) || scopeRoot(scope) === active;
+      inLayer(scope) ||
+      elementStack.includes(scope) ||
+      scopeRoot(scope) === active ||
+      innerEscape(scope, active);
     const popoverStack = [
-      ...activeModes,
-      ...tail.filter(foreground),
+      ...available.filter(foreground),
       POPOVER_BOUNDARY,
-      ...tail.filter((scope) => !foreground(scope)),
+      ...available.filter((scope) => !foreground(scope)),
     ];
     if (modal) popoverStack.push(MODAL_BOUNDARY);
-    return popoverStack.filter(standing);
+    return ordered(popoverStack);
   }
   const owned = expanded.filter((scope) =>
     nativeLayersFor(scopeRoot(scope)).includes(modal),
   );
-  return [...owned, MODAL_BOUNDARY].filter(standing);
+  return ordered([...owned, MODAL_BOUNDARY]);
 }
 // The claims of every scope nearer the reader than this one, accumulated as either walk
 // steps outward. A scope's own claim is pushed after its rows, because what it takes from
@@ -218,6 +238,46 @@ export const shadow = () => {
     },
   };
 };
+
+// The visible owner of one binding after its own ordering and claims. The shortcut line
+// asks this once for Escape; its other bindings retain the cheaper single declaration-order
+// walk. Keeping this resolution here makes the shown unwind step the one dispatch will run.
+export function lineOwner(binding) {
+  const nearer = shadow();
+  for (const scope of stack(binding)) {
+    const owners = scope.rows.filter(
+      (row) =>
+        row.line &&
+        bindings(row).includes(binding) &&
+        !nearer.takes(binding) &&
+        live(row),
+    );
+    if (owners.length > 1)
+      throw new Error(
+        `leaf: ${scope.title ?? "a scope"} has two live meanings for ${binding}: ` +
+          owners.map((owner) => word(owner.does)).join("; "),
+      );
+    if (owners.length)
+      return {
+        scope,
+        row: owners[0],
+        visible: !scope.sequence && word(owners[0].lineWhen) === false ? false : true,
+      };
+    nearer.past(scope);
+  }
+  return null;
+}
+
+// Reference invocation names a command directly, so another row on the same key does not
+// hide it; a nearer claim still does. Escape claims use Escape's semantic scope order.
+function unclaimed(scope, binding) {
+  const nearer = shadow();
+  for (const candidate of stack(binding)) {
+    if (candidate === scope) return !nearer.takes(binding);
+    nearer.past(candidate);
+  }
+  return false;
+}
 
 // ---------- the dispatcher ----------
 // One listener. Scoping is still the DOM's — an element scope holds while focus is inside
@@ -244,7 +304,7 @@ document.addEventListener("keydown", (ev) => {
 function run(ev) {
   const recovered = recoveredLabelFocus(ev);
   const nearer = shadow();
-  for (const scope of stack()) {
+  for (const scope of stack(answers("Escape", ev) ? "Escape" : null)) {
     let matched = null;
     for (const row of scope.rows) {
       // The key first, then the claim, then the liveness: a `when` may be the whole event
@@ -296,7 +356,9 @@ function commandMatching(matches) {
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!row.run || !live(row)) continue;
-      const reachable = bindings(row).filter((binding) => !nearer.takes(binding));
+      const reachable = bindings(row).filter((binding) =>
+        binding === "Escape" ? unclaimed(scope, binding) : !nearer.takes(binding),
+      );
       const binding = commandEntries(row, reachable).find((command) =>
         matches(command, row),
       )?.binding;
@@ -324,7 +386,9 @@ export function availableCommands() {
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!row.run || !live(row)) continue;
-      const reachable = bindings(row).filter((binding) => !nearer.takes(binding));
+      const reachable = bindings(row).filter((binding) =>
+        binding === "Escape" ? unclaimed(scope, binding) : !nearer.takes(binding),
+      );
       for (const command of commandEntries(row, reachable))
         if (command.binding != null) available.add(command.id);
     }

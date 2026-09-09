@@ -136,9 +136,11 @@ export function merge(sections, { title, when, at, liveInReference, rows }) {
  *
  * `where` is the element focus must be inside, `title` names the scope in the shortcut reference dialog
  * (null for one the reference has no room to name), `rows` are its bindings, and the
- * optional configuration carries `when` (whether the page has this scope at all) and
- * `answer` (the concise current answer when this scope belongs to an Ask). A function in
- * the fourth position is shorthand for `{when: function}`.
+ * optional configuration carries `when` (whether the page has this scope at all),
+ * `answer` (the concise current answer when this scope belongs to an Ask), and
+ * `escape: "inner"` when an ancestor scope owns a cancellation step inside an eligible
+ * command return frame. A function in the fourth position is shorthand for
+ * `{when: function}`.
  *
  * A scope's `when` and a row's `when` are different questions, and keeping them apart is
  * what lets one declaration feed both surfaces. The scope's is the capability — does this
@@ -177,15 +179,20 @@ export function keys(where, title, rows, options) {
     typeof options === "function" ? { when: options } : (options ?? {});
   if (typeof configuration !== "object")
     throw new TypeError("A command scope's options must be an object");
-  const { when, answer } = configuration;
+  const { when, answer, escape } = configuration;
   if (answer !== undefined && typeof answer !== "function")
     throw new TypeError("A command scope's answer must be a function");
+  if (escape !== undefined && escape !== "inner")
+    throw new TypeError(
+      `A command scope's Escape ownership must be \"inner\", got ${String(escape)}`,
+    );
   const scope = {
     title,
     el: where,
     rows: checked(rows, title ?? "a scope"),
     when,
     answer,
+    escape,
     validated: false,
   };
   // A declaration this one replaces before its first paint is owed nothing: read at

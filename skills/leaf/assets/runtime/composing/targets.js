@@ -6,6 +6,7 @@ import { banner } from "../banner.js";
 import {
   bottomChromeBoxes,
   shortcutBarEl,
+  walkPositionBoxes,
   walkPositionEl,
 } from "../keyboard/shortcut-bar.js";
 import {
@@ -108,8 +109,9 @@ const rect = (left, top, right, bottom, sourceTop = top) =>
       }
     : null;
 // The largest visible rectangle left after viewport chrome is subtracted. The banner
-// spans the window and clips one edge. Each bottom surface is a band in one horizontal
-// lane, so a target crossing it keeps the larger of the space above, before, or after it.
+// spans the window and clips one edge. The bottom line reserves its whole lane to the
+// viewport foot; the page-head reading is one local box. Each blocker divides a target
+// crossing it into the open space above, below, before, or after it.
 //
 // A coarse pointer is shown no line, and an empty one takes itself down. A zero box must
 // therefore answer with the viewport foot rather than a top of 0, or `s` names no items
@@ -124,34 +126,44 @@ function visibleRect(box, sourceTop = box?.top) {
     sourceTop,
   );
   if (!shown) return null;
-  const candidates = bottomChromeBoxes().reduce(
+  const blockers = [
+    ...bottomChromeBoxes().map((box) => ({
+      left: box.left,
+      top: box.top,
+      right: box.right,
+      bottom: innerHeight,
+    })),
+    ...walkPositionBoxes(),
+  ];
+  const candidates = blockers.reduce(
     (open, box) => {
-      const band = {
-        left: box.left,
-        top: box.top,
-        right: box.right,
-        bottom: innerHeight,
-      };
       return open.flatMap((candidate) =>
-        overlaps(candidate, band)
+        overlaps(candidate, box)
           ? [
               rect(
                 candidate.left,
                 candidate.top,
                 candidate.right,
-                Math.min(candidate.bottom, band.top),
+                Math.min(candidate.bottom, box.top),
                 sourceTop,
               ),
               rect(
                 candidate.left,
                 candidate.top,
-                Math.min(candidate.right, band.left),
+                Math.min(candidate.right, box.left),
                 candidate.bottom,
                 sourceTop,
               ),
               rect(
-                Math.max(candidate.left, band.right),
+                Math.max(candidate.left, box.right),
                 candidate.top,
+                candidate.right,
+                candidate.bottom,
+                sourceTop,
+              ),
+              rect(
+                candidate.left,
+                Math.max(candidate.top, box.bottom),
                 candidate.right,
                 candidate.bottom,
                 sourceTop,

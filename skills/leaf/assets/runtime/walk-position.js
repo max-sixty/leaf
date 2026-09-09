@@ -1,68 +1,74 @@
-/* The transient position of a category walk. `a`/`A` and `t`/`T` already own where
-   they move; this owner says where that destination stands in the list the same next
-   press will use. It stores only the walk and its stable destination, then derives the
-   ordinal on every standing paint so an answered Ask, a resolved thread, or a narrowed
-   panel cannot leave a stale denominator behind. Reaching the same destination twice
-   means the clamped walk met its boundary; that state briefly gives the unchanged
-   ordinal an accent face. The existing live region announces each key arrival once. */
-import { openAsks } from "./asks/model.js";
-import { standingIn } from "./asks/view.js";
-import { panelIsOpen } from "./chrome-layout.js";
-import { openThreads } from "./conversation/reconcile.js";
-import { narrowed } from "./conversation/narrowing.js";
-import { activeInlineThread } from "./living-margin.js";
-import { focused, paintHere } from "./keyboard/scopes.js";
-import { closestAcross } from "./passages.js";
+/* The transient position of a clamped Leaf walk. Owners keep the list and motion;
+   this module keeps only a reader for the standing destination. Reading the list on
+   every paint means a resolved thread, answered Ask, disappearing leaf, or replaced
+   version cannot leave a stale denominator behind. Reaching the same destination
+   twice means the clamped walk met its boundary; that state briefly gives the
+   unchanged ordinal an accent face. Cyclic focus loops and package-owned widget walks
+   keep their local feedback instead: neither has a Leaf-list boundary to report. */
+import { paintHere } from "./keyboard/scopes.js";
 
 const BOUNDARY_MS = 900;
 
-let walking = null; // {kind, targetId, boundary}; never a snapshot of the list it walks
+let walking = null; // {key, noun, read, target, boundary}; never a list snapshot
 let boundaryTimer = 0;
 
-export function walkPositionLabel(kind, position, total, qualifier = "") {
-  const noun = kind === "ask" ? "Ask" : kind === "thread" ? "Thread" : null;
-  if (!noun) throw new Error(`leaf: unknown walk position kind ${kind}`);
+export function walkPositionLabel(noun, position, total, qualifier = "") {
+  if (!noun) throw new Error("leaf: a walk position needs a noun");
   return `${noun} ${position} of ${total}${qualifier ? ` ${qualifier}` : ""}`;
 }
 
-function threadStanding() {
-  if (!panelIsOpen()) return activeInlineThread()?.dataset.thread ?? null;
-  return closestAcross(focused(), ".lf-thread[data-id]")?.dataset.id ?? null;
+// The common reading for a DOM or model list. `identity` is the owner's stable key;
+// the current item may be a fresh projection of the same destination on a later paint.
+export function listWalkPosition(
+  items,
+  current,
+  { identity = (item) => item, qualifier = "" } = {},
+) {
+  if (!current) return null;
+  const target = identity(current);
+  const index = items.findIndex((item) => identity(item) === target);
+  if (index < 0) return null;
+  return { target, position: index + 1, total: items.length, qualifier };
 }
 
 export function walkPosition() {
   if (!walking) return null;
-  const { kind, targetId } = walking;
-  const items =
-    kind === "ask" ? openAsks() : openThreads({ visibleOnly: panelIsOpen() });
-  const current = kind === "ask" ? (standingIn()?.id ?? null) : threadStanding();
-  const index = items.findIndex((item) =>
-    kind === "ask" ? item.id === targetId : item.dataset.id === targetId,
-  );
-  if (current !== targetId || index < 0) {
+  const position = walking.read();
+  if (!position || position.target !== walking.target) {
     clearTimeout(boundaryTimer);
     boundaryTimer = 0;
     walking = null;
     return null;
   }
-  const qualifier =
-    kind === "ask" ? "open" : panelIsOpen() && narrowed() ? "shown" : "";
   return {
     boundary: walking.boundary,
-    kind,
-    text: walkPositionLabel(kind, index + 1, items.length, qualifier),
+    kind: walking.key,
+    text: walkPositionLabel(
+      walking.noun,
+      position.position,
+      position.total,
+      position.qualifier,
+    ),
   };
 }
 
-// A key walk has arrived. The caller still owns and announces the motion; this records
-// only enough identity for the next standing paint to derive the status-line reading.
-export function beginWalk(kind, targetId) {
-  if (!targetId) throw new Error("leaf: a walk position needs a destination id");
-  // Validate the kind now rather than letting the first later paint reinterpret it.
-  walkPositionLabel(kind, 1, 1);
-  const boundary = walking?.kind === kind && walking.targetId === targetId;
+// A clamped walk has arrived. The caller still owns and announces the motion; this
+// records the owner's live reading so every such walk gets one boundary treatment.
+export function beginWalk(key, noun, read) {
+  if (!key || typeof read !== "function")
+    throw new Error("leaf: a walk position needs an owner and a reading");
+  const position = read();
+  if (!position) throw new Error("leaf: a walk position needs a destination");
+  walkPositionLabel(noun, position.position, position.total, position.qualifier);
+  const boundary = walking?.key === key && walking.target === position.target;
   clearTimeout(boundaryTimer);
-  const arrived = { boundary, kind, targetId };
+  const arrived = {
+    boundary,
+    key,
+    noun,
+    read,
+    target: position.target,
+  };
   walking = arrived;
   boundaryTimer = boundary
     ? setTimeout(() => {
@@ -72,7 +78,7 @@ export function beginWalk(kind, targetId) {
         paintHere();
       }, BOUNDARY_MS)
     : 0;
-  const position = walkPosition();
+  const standing = walkPosition();
   paintHere();
-  return position?.text ?? null;
+  return standing?.text ?? null;
 }

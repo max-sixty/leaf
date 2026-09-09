@@ -380,6 +380,46 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch):
     assert socket.closed
 
 
+def test_a_lost_starting_connection_settles_its_unanswered_delivery(page_dir):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    website_server.prepare_codex_delivery(
+        page_dir,
+        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+        {"pid": os.getpid()},
+    )
+    [delivery] = website_server.accept_codex_delivery("hosted-thread")
+
+    class Socket:
+        closed = False
+
+        def recv(self, timeout):
+            raise OSError("connection lost")
+
+        def close(self):
+            self.closed = True
+
+    socket = Socket()
+    website_server.WebsiteCodexHost("codex")._follow_turn(
+        socket,
+        page_dir,
+        "hosted-thread",
+        "app-server-turn",
+        delivery["turn"],
+        delivery["events"],
+    )
+
+    events = read_events(page_dir)
+    assert events[-1]["kind"] == "reply"
+    assert events[-1]["parent"] == comment["id"]
+    assert events[-1]["text"] == website_server.GENERATION_FAILURE_REPLY
+    assert website_server.page_claim(page_dir)["turn_closed"] is not None
+    assert website_server.full_state(page_dir, events)["activity"]["obligations"] == []
+    assert socket.closed
+
+
 @pytest.mark.parametrize(
     ("turn", "final_message", "reply"),
     [
@@ -655,6 +695,49 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         thread.join(timeout=2)
 
 
+def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
+    page_dir, tmp_path
+):
+    """What a reader posting into a draining rollout gets back.
+
+    A container carries the layer of the image it runs, so a session allocated on a
+    previous image answers a newer generation with its own rather than with state.
+    The website deploy gate reads that answer, so it has to be the shape it names.
+    """
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    (site / "sitenote.js").write_text("export {};")
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+
+    httpd = server_at("127.0.0.1", 0, website_server.handler_for(site, FakeCodexHost()))
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    root = f"http://127.0.0.1:{httpd.server_address[1]}"
+    try:
+        state = json.loads(get(f"{root}/examples/decision/api/state")[0])
+        before = read_events(published)
+        answer, headers = post(
+            f"{root}/examples/decision/api/event",
+            {
+                "kind": "comment",
+                "revision": state["active"]["revision"],
+                "text": "Posted under a layer this container does not speak.",
+                "attempt": "stale-layer-01",
+            },
+            {"Leaf-Layer": "a-layer-from-another-release"},
+        )
+        generation = state["layer"]["generation"]
+        assert answer == {"layer": generation}
+        assert headers["Leaf-Layer"] == generation
+        assert read_events(published) == before
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+
+
 @pytest.mark.parametrize(
     ("page_root", "name"), [("", "index"), ("/examples", "examples")]
 )
@@ -840,3 +923,64 @@ def test_a_page_that_never_presents_names_itself_and_how_far_it_got():
     early = verify_site.unpresented("https://leaf.page/", [], ["widget module 404"])
     assert "no startup milestone" in early
     assert "widget module 404" in early
+
+
+def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
+    """A hosted turn's pace is the model's, so the wait reads the page's own account.
+
+    `publish-site` failed three deployments in one morning with `agent published but
+    did not reply` — a turn that had edited the page and was still working when the
+    gate's fixed five minutes ran out. The gate now extends its wait only while the
+    page still names an outstanding obligation and a turn on it, so a slow turn is
+    given the time and a settled one ends the wait whatever the clock says.
+    """
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    website_server.prepare_codex_delivery(
+        page_dir,
+        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+        {"pid": os.getpid()},
+    )
+    [delivery] = website_server.accept_codex_delivery("hosted-thread")
+
+    handling = website_server.full_state(page_dir, read_events(page_dir))
+    assert handling["activity"]["kind"] == "handling"
+    assert verify_site.still_answering(handling, comment["id"])
+    # Another page's comment is not this gate's turn, whatever this page is doing.
+    assert not verify_site.still_answering(handling, "another-event")
+
+    website_server.WebsiteCodexHost("codex")._finish_turn(
+        page_dir,
+        "hosted-thread",
+        delivery["turn"],
+        delivery["events"],
+        {"id": "app-server-turn", "status": "completed", "error": None},
+        "deployment verified",
+    )
+
+    settled = website_server.full_state(page_dir, read_events(page_dir))
+    assert settled["activity"]["obligations"] == []
+    assert not verify_site.still_answering(settled, comment["id"])
+
+
+def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
+    """The other half of the same reading: nothing is coming, so do not wait it out.
+
+    A container that dropped its session leaves the obligation standing with no turn
+    behind it. Extending the wait there would spend the step's whole budget to raise
+    the failure it could already raise.
+    """
+    obligation = {"event": "comment-id", "dropped": False}
+    for kind in ("away", "unheld", "stalled", "closed", "listening"):
+        state = {"activity": {"kind": kind, "obligations": [obligation]}}
+        assert not verify_site.still_answering(state, "comment-id")
+    dropped = {
+        "activity": {
+            "kind": "working",
+            "obligations": [{"event": "comment-id", "dropped": True}],
+        }
+    }
+    assert not verify_site.still_answering(dropped, "comment-id")
+    assert not verify_site.still_answering({}, "comment-id")

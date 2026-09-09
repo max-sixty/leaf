@@ -1397,6 +1397,26 @@ def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
     assert boxes["menu"]["top"] >= boxes["button"]["bottom"], (
         f"the versions menu covered the chooser it hangs from: {boxes}"
     )
+
+    resized(page, 320, 844)
+    phone = menu.evaluate(
+        """menu => {
+          const button = document.querySelector('.lf-version').getBoundingClientRect();
+          const box = menu.getBoundingClientRect();
+          return {button: {bottom: button.bottom, left: button.left},
+                  menu: {top: box.top, right: box.right, left: box.left},
+                  viewport: innerWidth};
+        }"""
+    )
+    assert phone["menu"]["top"] == pytest.approx(
+        phone["button"]["bottom"] + 6, abs=2
+    ), f"the phone menu left its door vertically: {phone}"
+    assert phone["menu"]["left"] == pytest.approx(phone["button"]["left"], abs=2), (
+        f"the phone menu appeared to belong to a control on its right: {phone}"
+    )
+    assert phone["menu"]["right"] <= phone["viewport"] - 8, (
+        f"the phone menu left the viewport: {phone}"
+    )
     assert errors == []
     page.close()
 
@@ -4143,10 +4163,12 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
 def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve):
     """The reading ignores element contours and still recognizes the real focus ring.
 
-    A marked passage uses the comment ink and no focus-ring declaration, so it must not
-    enter the population of keyboard rings. The real ring goes last as the control;
-    without it a reading that claimed nothing at
-    all would pass the case above and prove only that it was silent."""
+    A hovered passage deliberately shares the ring's accent and width but has no
+    focus-ring declaration, so its element-feedback role must keep it out of the
+    population of keyboard rings. The named focus state on that same element and an
+    unregistered real ring follow as positive controls; without them a reading that
+    ignored all element contours would pass the first case and prove only that it was
+    silent."""
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
     url = serve(example, comments=2, seed_log=False)
     page, errors = open_page(browser, url)
@@ -4155,23 +4177,32 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
     plant = """(how) => {
       const box = document.querySelector('main p');
       box.classList.add('probe-target');
-      box.classList.remove('lf-mark-el', 'lf-mark-hover');
+      box.classList.remove('lf-mark-el', 'lf-mark-hover', 'lf-focus-visible');
       box.style.outline = '';
+      box.style.removeProperty('--lf-here-ring');
       if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
+      if (how === 'focused mark') box.classList.add('lf-mark-el', 'lf-focus-visible');
       if (how === 'the ring itself') box.style.outline = 'var(--here-ring)';
+      if (how === 'unregistered focused mark') {
+        box.classList.add('lf-mark-el');
+        box.style.outline = 'var(--here-ring)';
+        box.style.setProperty('--lf-here-ring', 'none');
+        box.tabIndex = -1;
+        box.focus();
+      }
       const cs = getComputedStyle(box);
       return [cs.outlineStyle, cs.outlineWidth, cs.outlineColor];
     }"""
 
     def claimed():
-        """Whether the reading calls this one box a ring.
+        """The reading's ring claims for this one box.
 
         Asked of the box rather than of how many rings the page has: the runtime
         repaints the panel on its own schedule, so two whole-page counts taken a moment
         apart differ for reasons that have nothing to do with what was planted here.
         """
         return [
-            seen["who"]
+            seen
             for seen in rings_drawn(page)
             if seen["here"] and "probe-target" in seen["who"]
         ]
@@ -4184,16 +4215,37 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
         "here and would pass this test however it behaved"
     )
 
-    style, _width, colour = page.evaluate(plant, "mark")
+    mark_paint = page.evaluate(plant, "mark")
+    style, _width, colour = mark_paint
     assert style == "solid", "the element comment lost its complete contour"
     assert not claimed(), (
         f"the reading counted the mark ({colour}) as a here ring: {claimed()}"
     )
 
-    _style, _width, colour = page.evaluate(plant, "the ring itself")
-    assert claimed(), (
-        f"a box wearing the layer's own ring ({colour}) was not counted, so the three "
-        "cases above prove only that this reading is silent"
+    _style, _width, colour = page.evaluate(plant, "focused mark")
+    focused_claims = claimed()
+    assert [seen["ring"] for seen in focused_claims] == ["passage-focus"], (
+        f"the marked element's named focus ring ({colour}) was not credited: "
+        f"{focused_claims}"
+    )
+
+    ring_paint = page.evaluate(plant, "the ring itself")
+    assert mark_paint == ring_paint, (
+        f"the mark paints {mark_paint} and the ring paints {ring_paint}, so the mark "
+        "case above was kept out by paint rather than by the element-feedback role "
+        "this reading now divides on"
+    )
+    ring_claims = claimed()
+    assert len(ring_claims) == 1 and not ring_claims[0]["ring"], (
+        f"a box wearing the layer's own ring ({ring_paint}) was not counted, so the cases "
+        "above prove only that this reading is silent"
+    )
+
+    focused_mark_paint = page.evaluate(plant, "unregistered focused mark")
+    focused_mark_claims = claimed()
+    assert len(focused_mark_claims) == 1 and not focused_mark_claims[0]["ring"], (
+        f"a focused element mark wearing an unregistered ring ({focused_mark_paint}) "
+        f"was not counted: {focused_mark_claims}"
     )
 
     assert errors == []
@@ -4679,6 +4731,7 @@ RING_WALKS = (
             "ship-review",
         ),
     ),
+    ("the thread list", ("g", "Shift+t"), ("corpus",)),
     ("passage search", ("/",), ("corpus",)),
     # Item hints, and the anchored bar the reader answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -4709,10 +4762,10 @@ RING_WALKS = (
     ("the Asks tray", (), ("ship-review",)),
     ("the leaves tray", ("g", "Shift+l"), ("corpus",)),
     # The menu's own walk after the key that opens it: an open lands on the version being
-    # read, which is the last row, and the comparison press beside a row is a Tab forward
-    # from the row above it. The walk is clamped, so a second press at the top moves
+    # read, which is the first row, and the comparison press beside a row is a Tab forward
+    # from the row below it. The walk is clamped, so a second press at the bottom moves
     # nothing and the pair covers a menu of any length this corpus can hold.
-    ("the versions menu", ("g", "Shift+v", "ArrowUp", "ArrowUp"), ("corpus",)),
+    ("the versions menu", ("g", "Shift+v", "ArrowDown", "ArrowDown"), ("corpus",)),
     ("the reference", ("?", "?"), ("corpus",)),
     ("design mode", ("l",), ("corpus",)),
     # A Thread card and the compact Page-map sheet are the two layers a Tab walk of the
@@ -4756,6 +4809,7 @@ def offered(page, selector):
 # surface of their own; `g T` lands on the Threads list, which the walk's own first stop
 # reads, while page `c` enters its comment box and is exercised separately.
 RING_SCOPE_SURFACE = {
+    "the thread list": (".lf-panel.open", None),
     "a thread card": (".lf-margin-preview:popover-open", None),
     "the page map sheet": (".lf-page-map-sheet[open]", None),
     "passage search": (".lf-target-search:not([hidden])", None),
@@ -4893,6 +4947,17 @@ SEEN_STOP = f"""() => {{
        el = el.parentElement ?? el.getRootNode().host ?? null)
     if (shown(el) && (getComputedStyle(el).outlineStyle === 'auto' || named(el)))
       return null;
+  // The scrolling thread list's children can paint over its inset outline. Its frame
+  // therefore carries a later-painted pseudo-element with the same outline. This
+  // relationship is deliberately exact: unrelated paint elsewhere is not evidence
+  // that the focused stop is visible.
+  if (e.parentElement?.matches('.lf-threads-frame')) {{
+    const overlay = getComputedStyle(e.parentElement, '::after');
+    if (overlay.outlineStyle === 'solid'
+        && overlay.outlineWidth === overlay.getPropertyValue('--here-ring-w').trim()
+        && overlay.outlineColor === accent
+        && overlay.getPropertyValue('--lf-here-ring').trim() !== 'none') return null;
+  }}
   if (({HERE_SHADOW})(getComputedStyle(e), accent, mixed) > 0) return null;
   const cls = typeof e.className === 'string' && e.className.trim()
     ? '.' + e.className.trim().split(/\\s+/).join('.') : '';
@@ -4937,6 +5002,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
 
     page.evaluate("""() => {
         const style = document.createElement('style');
+        style.id = 'lf-ring-negative-control';
         style.textContent =
           '.lf-threads-toggle:focus-visible { outline: none !important;'
           + ' box-shadow: none !important; }';
@@ -4947,6 +5013,27 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     assert lost and "lf-threads-toggle" in lost, (
         "the ring was taken off a focused control and the reading still called it seen "
         f"({lost}), so the walk cannot report a stop the reader cannot find"
+    )
+
+    # The thread list's ring is a later-painted pseudo-element because its scrolling
+    # contents can cover an outline on the list itself. Prove that paint is part of the
+    # reading, then take it away without moving focus and require the list to be reported.
+    page.evaluate("() => document.getElementById('lf-ring-negative-control').remove()")
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page)
+    expect(page.locator(".lf-threads")).to_be_focused()
+    assert page.evaluate(SEEN_STOP) is None
+    page.evaluate("""() => {
+        const style = document.createElement('style');
+        style.textContent = '.lf-threads-frame::after { outline: none !important; }';
+        document.head.append(style);
+    }""")
+    lost = page.evaluate(SEEN_STOP)
+    assert lost and "lf-threads" in lost, (
+        "the list's ring was removed and the reading still called its keyboard "
+        f"landing seen ({lost})"
     )
 
     page.close()
@@ -5528,7 +5615,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
 
     Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
     reaction chips stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
-    version's Δ, a command in the reference, and a quote at around twelve by seven.
+    version's Compare, a command in the reference, and a quote at around twelve by seven.
     Three controls reached the coarse-pointer block and the rest reached neither floor,
     so the same presses were small under a finger too.
 
@@ -5564,7 +5651,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
         },
     )
     # A second version, published the way a page gets one and read from, so the versions
-    # menu has an earlier version to compare against and its Δ exists to be aimed at.
+    # menu has an earlier version to compare against and Compare exists to be aimed at.
     _publish(serve.page_dir, 2, example.read_text(), "Same page, said twice.")
     page, errors = open_page(
         browser, served.replace("/v1.html", "/v2.html"), context=context

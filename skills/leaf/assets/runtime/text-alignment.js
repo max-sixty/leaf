@@ -2,8 +2,8 @@
  * alignment.
  *
  * Two surfaces explain how a text came to say what it says: a draft's own history, and
- * the version comparison's earlier reading of a block. A reader who meets one has to
- * recognise the other, so the runs and the elements they become are stated together
+ * a block's inline version comparison. A reader who meets one has to recognise the
+ * other, so the runs and the elements they become are stated together
  * here rather than once per surface. Only the paint stays with each surface's sheet,
  * because that is the part that has to differ — a widget's rendering is reached by its
  * package's theme and a shadow slice, the comparison's by the comment layer's own
@@ -124,6 +124,40 @@ export function alignText(before, after, units = textUnits) {
   push("delete", left.slice(i, leftEnd).join(""));
   push("insert", right.slice(j, rightEnd).join(""));
   push("same", left.slice(leftEnd).join(""));
+  return runs;
+}
+
+// A version comparison starts at sentences so a rewritten paragraph stays readable,
+// then refines a replaced sentence only where most of the old sentence survives. That
+// makes a local clause or word edit genuinely inline without letting incidental words
+// such as "the" shred two different sentences into alternating fragments.
+export function alignInlineText(before, after) {
+  const coarse = alignText(before, after, sentenceUnits);
+  const runs = [];
+  const push = (run) => {
+    const last = runs.at(-1);
+    if (last?.kind === run.kind) last.text += run.text;
+    else runs.push({ ...run });
+  };
+  for (let at = 0; at < coarse.length; at++) {
+    const run = coarse[at];
+    const replacement = run.kind === "delete" && coarse[at + 1]?.kind === "insert";
+    if (!replacement) {
+      push(run);
+      continue;
+    }
+    const next = coarse[++at];
+    const fine = alignText(run.text, next.text);
+    const retained = fine
+      .filter((part) => part.kind === "same")
+      .reduce((length, part) => length + part.text.length, 0);
+    if (retained >= Math.min(run.text.length, next.text.length) * 0.6)
+      fine.forEach(push);
+    else {
+      push(run);
+      push(next);
+    }
+  }
   return runs;
 }
 

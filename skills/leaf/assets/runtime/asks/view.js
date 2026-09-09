@@ -128,7 +128,7 @@ import { focusForNavigation, presentedControl } from "../living-margin.js";
 import { registry, tagsDeclaring } from "../registry.js";
 import { allAsks, askEntry, askSource, openAsks, unansweredAsks } from "./model.js";
 import { showNews } from "../banner-shelf.js";
-import { beginWalk, walkPositionLabel } from "../walk-position.js";
+import { beginWalk, listWalkPosition, walkPositionLabel } from "../walk-position.js";
 import { readingBlock, versionBtn } from "../version.js";
 import {
   commandScopesWithin,
@@ -1065,14 +1065,19 @@ export function goToAsk(next, asks) {
     }
   }
   const state = unansweredAsks().includes(next) ? "waiting on you" : "answered";
-  announce(walkPositionLabel("ask", asks.indexOf(next) + 1, asks.length, state));
+  announce(walkPositionLabel("Ask", asks.indexOf(next) + 1, asks.length, state));
 }
 export function stepAsk(dir) {
   const asks = openAsks();
   if (!asks.length) return; // never: the key and the control are live only with asks
   const next = askStep(asks, dir);
   goToAsk(next, asks);
-  beginWalk("ask", next.id);
+  beginWalk("ask", "Ask", () =>
+    listWalkPosition(openAsks(), standingIn(), {
+      identity: (ask) => ask.id,
+      qualifier: "open",
+    }),
+  );
 }
 
 export const landedAt = () => landed;

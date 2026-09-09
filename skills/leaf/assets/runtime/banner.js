@@ -352,6 +352,7 @@ function renderSessionReference() {
 }
 
 function renderStatusNow(state) {
+  renderSessionReference();
   if (state instanceof Error) {
     showStatus("broken", "offline", BROKEN_LINE);
     return;
@@ -360,7 +361,6 @@ function renderStatusNow(state) {
     showStatus("unreachable", "offline", OFFLINE_LINE);
     return;
   }
-  renderSessionReference();
   renderPreview(state);
   publication = state.publication ?? null;
   // Before the words, because the row folds against the room they will need: a page

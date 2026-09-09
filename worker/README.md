@@ -45,6 +45,10 @@ widget ids, IP addresses, and session cookies:
 | `double1` | Page revision, or `0` when absent |
 | `double2` | `1` when the event needs an agent reply |
 
+The session reference is stable for the browser identity's lifetime, so it links that
+reader's accepted events across pages and visits. It is a support handle rather than a
+credential; no server endpoint accepts it as session identity.
+
 A retry of an accepted browser attempt writes the same event id again. Count distinct
 ids when measuring reader events:
 

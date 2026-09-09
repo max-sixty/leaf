@@ -231,6 +231,36 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
         context.close()
 
 
+@pytest.mark.parametrize(
+    ("response", "status_words"),
+    [
+        ({"status": 503, "body": ""}, "Server offline — reconnecting"),
+        ({"status": 200, "body": "{"}, "Page couldn't apply current state"),
+    ],
+)
+def test_a_website_session_reference_survives_a_failed_first_read(
+    browser, serve, response, status_words
+):
+    url = live_url(serve(leaf_page("Failed website read", "<h1>Still a page</h1>")))
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route(
+        "**/api/state*",
+        lambda route: route.fulfill(
+            **response,
+            headers={"Leaf-Session-Reference": "239383829012"},
+        ),
+    )
+    try:
+        page.goto(url, wait_until="load")
+        expect(page.locator(".lf-banner .lf-status-text")).to_contain_text(status_words)
+        page.get_by_role("button", name="More page addresses", exact=True).click()
+        expect(page.locator(".lf-session-reference")).to_have_text(
+            "Session 239383829012"
+        )
+    finally:
+        page.close()
+
+
 def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     preview = {
         "kind": "example",

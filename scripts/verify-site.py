@@ -18,6 +18,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
 ORIGIN = os.environ.get("LEAF_SITE_ORIGIN", "https://leaf.page").rstrip("/")
+DIRECT_AGENT = os.environ.get("LEAF_VERIFY_DIRECT_AGENT") == "1"
 PAGES = (
     ("/", "product", True),
     ("/examples/design-decision/", "example", True),
@@ -387,6 +388,12 @@ def reader_session(
     await_presentation(page, url, failures)
     passive = context.request.get(state_url, timeout=120_000)
     check(passive.ok, f"{state_url} returned {passive.status}")
+    if DIRECT_AGENT:
+        reached = passive.headers.get("leaf-release")
+        if reached != release:
+            context.close()
+            return reached or "no release"
+        return AgentSession(context, page, failures, url, state_url, passive.json())
     activation = activation_url(url, passive.json())
     activated = context.request.get(activation, timeout=120_000)
     check(activated.ok, f"{activation} returned {activated.status}")
@@ -545,6 +552,30 @@ def deployment_answer(replies: list[dict]) -> dict | None:
     )
 
 
+def start_direct_agent(context, url: str, comment: dict) -> None:
+    """Run the local adapter's side of the production Workflow handoff."""
+    endpoint = urljoin(url, "_leaf/agent/")
+    event = {"event": comment["id"]}
+    ready = context.request.post(urljoin(endpoint, "turn"), data=event, timeout=120_000)
+    check(ready.ok, f"{endpoint}turn returned {ready.status}")
+    reading = ready.json()
+    check(
+        reading.get("status") in {"ready", "connected"},
+        f"{endpoint}turn returned {reading}",
+    )
+    if reading["status"] == "connected":
+        return
+    started = context.request.post(
+        urljoin(endpoint, "start"), data=event, timeout=120_000
+    )
+    check(started.ok, f"{endpoint}start returned {started.status}")
+    reading = started.json()
+    check(
+        reading.get("status") == "started",
+        f"{endpoint}start returned {reading}",
+    )
+
+
 def ask_for_the_heading(
     context,
     url: str,
@@ -588,6 +619,8 @@ def ask_for_the_heading(
         None,
     )
     check(comment is not None, f"{url} did not return its deployment-check comment")
+    if DIRECT_AGENT:
+        start_direct_agent(context, url, comment)
     return comment
 
 
@@ -875,7 +908,8 @@ def main() -> None:
         try:
             if os.environ.get("LEAF_VERIFY_AGENT") == "1":
                 verify_agent_turn(browser, release)
-                print(f"✓ leaf.page ran one deployed agent turn on release {release}")
+                target = "the local adapter" if DIRECT_AGENT else "leaf.page"
+                print(f"✓ {target} ran one agent turn on release {release}")
                 return
             profiles = [
                 (path, verify_page(browser, path, kind, release, activate))

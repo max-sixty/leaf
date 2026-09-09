@@ -246,6 +246,10 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
 
     assert host._ensure_server() is not None
     assert launched["options"]["env"]["LEAF"] == website_server.LEAF_COMMAND
+    assert (
+        launched["options"]["env"]["LEAF_SKILL_DIR"]
+        == website_server.LEAF_SKILL_DIRECTORY
+    )
     assert launched["command"] == [
         "codex",
         "app-server",
@@ -253,6 +257,66 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
         host.endpoint,
     ]
     assert "$LEAF" in website_server.CODEX_INSTRUCTIONS
+    assert "$LEAF_SKILL_DIR/SKILL.md" in website_server.CODEX_INSTRUCTIONS
+
+
+def test_closing_the_website_host_stops_its_app_server(tmp_path):
+    """The host adapter owns the process it starts, including during local runs."""
+    host = website_server.WebsiteCodexHost(
+        "codex", tmp_path / "app-server.sock", tmp_path / "app-server.log"
+    )
+
+    class Process:
+        stopped = False
+
+        def poll(self):
+            return 0 if self.stopped else None
+
+        def terminate(self):
+            self.stopped = True
+
+        def wait(self, timeout=None):
+            return 0
+
+    process = Process()
+    host.process = process
+    host.socket_path.touch()
+
+    host.close()
+
+    assert process.stopped
+    assert host.process is None
+    assert not host.socket_path.exists()
+
+
+def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
+    class Requests:
+        def __init__(self):
+            self.request = self
+            self.posts = []
+
+        def post(self, url, data, **options):
+            self.posts.append((url, data))
+            status = "ready" if url.endswith("/turn") else "started"
+            return _Read({"status": status})
+
+    context = Requests()
+    verify_site.start_direct_agent(
+        context,
+        "http://127.0.0.1:8080/examples/design-decision/",
+        {"id": "comment-id"},
+    )
+
+    assert context.posts == [
+        (
+            "http://127.0.0.1:8080/examples/design-decision/_leaf/agent/turn",
+            {"event": "comment-id"},
+        ),
+        (
+            "http://127.0.0.1:8080/examples/design-decision/_leaf/agent/start",
+            {"event": "comment-id"},
+        ),
+    ]
 
 
 def test_the_website_task_preserves_a_delivery_the_app_server_rejects(

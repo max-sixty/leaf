@@ -29,7 +29,7 @@ const main = document.querySelector("main");
 // element under `main` is precisely what tells the runtime the workspace is not the
 // page's root, so the note dropped there costs the example the allocation it is being
 // shown for: the page arrives in ordinary document flow with no bounded regions at all.
-const framed = main.querySelector(":scope > lf-workspace:only-child");
+const framed = main.querySelector(":scope > :only-child");
 let header = framed?.querySelector(":scope > header") ?? null;
 if (framed && !header) {
   // Marked as the layer's own, like the note it carries: this header is the site

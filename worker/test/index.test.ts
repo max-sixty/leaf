@@ -314,7 +314,9 @@ describe("product-site delivery", () => {
 
       const response = await worker.fetch(
         new Request(`https://leaf.page${pathname}`, {
-          headers: { Cookie: `__Host-leaf-page=${sessionId}` },
+          headers: {
+            Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-active=1`,
+          },
         }),
         env,
       );
@@ -381,6 +383,29 @@ describe("product-site delivery", () => {
     expect(containerFetch).toHaveBeenCalledOnce();
     expect(await response.text()).toContain("Private revision");
     expect(response.headers.get("Leaf-Session")).toBe("active");
+  });
+
+  it.each([
+    "/examples/design-decision/media/private.png",
+    "/examples/design-decision/revisions/r3-aabbccdd.html",
+    "/examples/design-decision/versions/v3.html",
+  ])("does not allocate a container for an anonymous %s", async (pathname) => {
+    const assetFetch = vi.fn(
+      async () => new Response("not found", { status: 404 }),
+    );
+    const env = environment({
+      ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+    });
+
+    const response = await worker.fetch(
+      new Request(`https://leaf.page${pathname}`),
+      env,
+    );
+
+    expect(response.status).toBe(404);
+    expect(assetFetch).toHaveBeenCalledOnce();
+    expect(getContainer).not.toHaveBeenCalled();
+    expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
   it("serves initial page state at the edge without creating a session", async () => {

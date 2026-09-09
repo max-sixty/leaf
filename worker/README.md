@@ -18,7 +18,7 @@ mixed response reloads instead of letting one release interpret another release'
 state. The build-generated manifest is the routing authority shared by the Worker and
 the Python adapter. Published media, revisions, and version documents stay on the edge;
 when one of those paths is absent from the release, the Worker asks the reader's
-container so a newly created private revision can become the live document.
+active container so a newly created private revision can become the live document.
 
 The deployment admits up to 15,000 concurrent `lite` containers. After a session is
 active, a visible page holds it through Leaf's news stream; a passive page opens no

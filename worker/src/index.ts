@@ -468,7 +468,12 @@ export default {
         route,
         manifest.release,
       );
-      if (response.status !== 404 || !isPageSessionFileRequest(route)) {
+      if (
+        response.status !== 404 ||
+        !isPageSessionFileRequest(route) ||
+        existing === null ||
+        !active
+      ) {
         if (!response.headers.get("Content-Type")?.startsWith("text/html")) {
           return response;
         }

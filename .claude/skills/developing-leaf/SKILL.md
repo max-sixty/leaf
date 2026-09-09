@@ -82,6 +82,31 @@ selected slot and rebuild it from the current fixture.
    their next chat message. Use the Codex review pane when feedback belongs to a
    source line.
 
+## Test the hosted website agent
+
+Run `<root>/scripts/verify-site-agent-local.sh` for the development loop. It builds
+the current site, starts the canonical website adapter, uses the host's logged-in Codex
+App Server, asks for one heading edit, and verifies the publication, reply, and changed
+page in Chrome. Its profile reports request acknowledgement, agent activity,
+publication, reply, HTML, first contentful paint, JavaScript, state, upgrade, and
+presentation timings. It stops every process and removes the disposable reader page
+when it finishes.
+
+This fast loop bypasses the Cloudflare Worker, Workflow, container allocation and
+resource limits, and outbound credential proxy. When a change touches one of those
+boundaries and `OPENAI_API_KEY` is exported, build the Worker and run the same check
+through Wrangler's local Workflow and Docker container:
+
+```bash
+npm ci --prefix <root>/worker
+npm run build --prefix <root>/worker
+LEAF_VERIFY_AGENT=1 <root>/scripts/verify-site-local.sh
+```
+
+Local infrastructure is emulated, so neither loop proves edge rollout or production
+latency. The `publish-site` workflow runs `scripts/verify-site.py` against the exact
+deployed release and is the authoritative production reading.
+
 ## Compare checkout versions
 
 Create the baseline when the comparison is ready. Use a detached worktree so its

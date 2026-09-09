@@ -2143,7 +2143,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
 ):
     """Pointer arrival opens one layer directly in its reply box. A thread reached by
     t opens on its card, so c or Enter adds a second layer and Escape returns through
-    each one. The page mark follows both focus modes."""
+    each one. The Page-map fallback remains live at the same time: this proves declaration
+    order cannot move it ahead of the causal frame. The page mark follows both focus modes."""
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
     )
@@ -2194,6 +2195,13 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     page.keyboard.press("t")
     expect(thread).to_be_focused()
     assert "reply" in shortcut_bar_text(page)
+    # The walk itself made no return frame. Its Page-map fallback is still live, but a
+    # sequence armed afterwards is an inner mode and Escape cancels that mode first.
+    page.keyboard.press("g")
+    assert "cancel" in shortcut_bar_text(page)
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to thread")

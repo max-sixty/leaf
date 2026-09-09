@@ -593,6 +593,7 @@ export const REPEAT_PAGE_SEARCH = {
 
 export const SELECT = {
   title: "Selecting an item",
+  escape: "inner",
   at: () => open,
   // The page owns search, even when item hints are standing over it. Exempt the
   // binding read from that row so one declaration drives both entry routes and every

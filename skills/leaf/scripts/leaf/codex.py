@@ -367,12 +367,12 @@ class AppServerEvents:
 def project_app_server_activity(
     events: AppServerEvents,
     message: dict,
+    update: dict | None,
     last_stream_update: float,
     set_activity,
     clear_activity,
 ) -> float:
     """Project one notification with the shared streamed-update throttle."""
-    update = events.read(message)
     if update is None:
         return last_stream_update
     turn_id = update["turn"]

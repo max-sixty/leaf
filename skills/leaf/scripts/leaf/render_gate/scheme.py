@@ -173,12 +173,9 @@ def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
             [],
             False,
         )
-    # The widgets the log has moved, in the log's order. Both replayed kinds,
-    # once: the caught-up stamp counts reports beside actions, so the wait below
-    # counts what this holds, and the verbatim reading excuses exactly these.
-    touched = [
-        e["widget"] for e in state["events"] if e["kind"] in ("action", "report")
-    ]
+    # The caught-up stamp counts reports beside actions, so the readiness wait counts
+    # that same set. Nothing else treats an event's owner as a special case.
+    applied = sum(e["kind"] in ("action", "report") for e in state["events"])
     # Every reading below is of a page at rest, and the upgrade stamp above is
     # one part of that. The first read runs beside upgrade, but its answer may still
     # be pending when the stamp lands; a gate reading there sees the authored board,
@@ -202,8 +199,7 @@ def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
                 f"{state['data']['revision']}"
             )
         ]
-    if replayed and touched:
-        applied = len(touched)
+    if replayed and applied:
         try:
             wait_for_probe(page, "logApplied", applied)
         except PlaywrightTimeout:
@@ -239,7 +235,6 @@ def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
         markup=markup,
         here=here,
         earlier=earlier,
-        touched=touched,
         replayed=replayed,
         unsettled=unsettled,
     )

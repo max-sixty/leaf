@@ -255,7 +255,7 @@ export function syncLayout() {
   // watched by nobody, so what it takes is room the document has and no measurement's
   // business.
   const boundedWorkspace = document.querySelector(
-    "body > main > [data-lf-root-workspace][data-lf-posture='bounded']",
+    "body > main > .lf-workspace-arranged[data-lf-root-workspace][data-lf-posture='bounded']",
   );
   chromeRoot.style.paddingBottom = boundedWorkspace ? "0px" : clear;
   // Flow room lets the document reach past the line; scroll padding tells native focus

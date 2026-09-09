@@ -82,7 +82,12 @@ later in the user's browser. Anchor on an opaque widget's element instead
 (`--section`), which is the same anchor an explicit diagram target makes.
 The render gate pairs each preserving owner with the file by its source and
 document-order occurrence, captured before upgrade. Page markup and each frozen thread
-event are separate sources, so this pairing does not require authored ids.
+event are separate sources, so this pairing does not require authored ids. It compares
+the rendered owner with the same projected passage a reader can point at: standing
+reader body rewrites replace authored words, retired slots contribute none, and
+declared generated children join their owner. Reports do not license a body rewrite.
+Page expectations stop at the rendered revision; frozen thread markup has no later
+authored version and uses the conversation's whole action window.
 The event door repeats that semantic check under the append transaction, but only
 for a transport that reaches it with nothing resolved — the MCP app, which renders
 the authored source with no runtime behind it. A runtime's own anchor is already

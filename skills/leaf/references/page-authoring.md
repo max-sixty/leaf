@@ -166,14 +166,17 @@ it. A name that only says what it holds is right where there is no finding to
 state, over a list, a table, or a board that speaks for itself.
 
 Show a visible subject with an image instead of describing its appearance. Show
-an interface with a screenshot, and a visual change with a before-and-after
-capture. A relationship, sequence, or system state transition is a diagram; a
-comparison is a table; a measurement is a metric and a run of them is a chart;
-movable things form a board. Use images only when they carry information. The
-prose beside a shape says only what the shape cannot. What is left for prose is
-the claim, the reason it holds, and the question the page is asking. A few
-sentences hold all three. A section that runs longer is carrying either a
-structure with a shape of its own or backing that belongs under `<details>`.
+an interface with a screenshot, and a visual change with an `lf-shot`
+before-and-after capture. A relationship, sequence, or system state transition is
+a diagram. Use a table when the reader compares the same dimensions across items;
+use `lf-compare` for a few alternatives read as wholes, and `lf-options` when the
+reader must choose among them. A headline measurement is a metric, and a pattern
+across measurements is a chart. Movable things form a board. Use images only when
+they carry information. The prose beside a shape says only what the shape cannot.
+What is left for prose is the claim, the reason it holds, and the question the page
+is asking. A few sentences hold all three. A section that runs longer is carrying
+either a structure with a shape of its own or backing that belongs under
+`<details>`.
 
 Write for what the reader has seen, which is this conversation and the page so
 far. Introduce the names a decision depends on, put evidence on the page for a

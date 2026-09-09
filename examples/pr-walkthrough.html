@@ -7,7 +7,6 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <title>PR walkthrough: Worktrunk unified diff</title>
-    <meta name="lf-review" content="sign-off" />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
@@ -141,146 +140,154 @@
   </head>
   <body>
     <main>
-      <p class="eyebrow">agent review packet · real pull request</p>
+      <p class="eyebrow">historical review exercise · real pull request</p>
       <h1>Unified diff in the switch picker</h1>
       <p class="lede" id="pr-lede">
         <a href="https://github.com/max-sixty/worktrunk/pull/3865"
           >Worktrunk PR #3865</a
         >
-        makes unified diff the switch picker’s default, centralizes Git diff
-        preparation, and demand-loads off-screen worktrees. The exact 46-file patch and
-        review history are included below.
+        shipped a unified-diff preview for the switch picker. Review the merged revision
+        as if it were still awaiting a final decision; the exact 46-file patch remains
+        available below.
       </p>
 
-      <aside class="sidebar" id="pr-sidebar">
-        <lf-toc id="pr-contents"></lf-toc>
-      </aside>
+      <details id="pr-request-context">
+        <summary>Pull request description and checks</summary>
+        <lf-pull-request
+          id="pr-reviewed-request"
+          source="pr-review-facts"
+        ></lf-pull-request>
+      </details>
 
-      <lf-pull-request
-        id="pr-reviewed-request"
-        source="pr-review-facts"
-      ></lf-pull-request>
+      <details id="pr-page-map">
+        <summary>Page map</summary>
+        <aside class="sidebar" id="pr-sidebar">
+          <lf-toc id="pr-contents"></lf-toc>
+        </aside>
+      </details>
 
       <section id="pr-orientation">
-        <h2>Agent brief</h2>
+        <h2>Review finding</h2>
         <div class="pr-agent-brief" id="pr-agent-summary">
           <p>
-            <strong>This large change has a small architectural spine.</strong>
-            <code>PreparedDiff</code> owns one complete Git diff invocation, while
-            <code>TempIndex</code> admits untracked files without changing the user’s
-            real index. The picker then decides which rows to warm immediately and which
-            worktree previews to load only when selected.
+            <strong>The final revision is safe to approve with two follow-ups.</strong>
+            <code>PreparedDiff</code> owns each complete Git diff invocation;
+            <code>TempIndex</code> includes untracked files without changing the real
+            index; and the picker loads off-screen worktrees only when selected.
           </p>
           <p>
-            Review identified sparse-checkout divergence, a predictable shared temporary
-            directory, a symlink race while copying the index, and stale prewarming
-            claims; all four were corrected before merge. Two follow-ups remain:
-            selected-row demand latency has no benchmark, and
+            Review found sparse-checkout divergence, a shared temporary directory, a
+            symlink race while copying the index, and stale prewarming claims. The
+            merged revision corrects all four. Two follow-ups remain: selected-row
+            demand latency has no benchmark, and
             <code>wt step commit --dry-run</code> can still stage its own
             temporary-index artifact when <code>TMPDIR</code> sits inside the worktree.
           </p>
         </div>
       </section>
 
-      <section id="pr-shape">
-        <div id="pr-scale">
-          <h2>Change surface</h2>
-          <p id="pr-scale-intro">
-            Risk is concentrated in the Git repository layer and picker runtime. Tests,
-            documentation, and benchmarks account for most of the remaining files.
-          </p>
-          <dl class="pr-scale-facts" aria-label="Observed Worktrunk PR 3865 scale">
+      <details id="pr-change-surface">
+        <summary>Change surface · 46 files, 191 hunks</summary>
+        <section id="pr-shape">
+          <div id="pr-scale">
+            <h2>Change surface</h2>
+            <p id="pr-scale-intro">
+              Risk is concentrated in the Git repository layer and picker runtime.
+              Tests, documentation, and benchmarks account for most of the remaining
+              files.
+            </p>
+            <dl class="pr-scale-facts" aria-label="Observed Worktrunk PR 3865 scale">
+              <div>
+                <dt>Files</dt>
+                <dd>46</dd>
+              </div>
+              <div>
+                <dt>Hunks</dt>
+                <dd>191</dd>
+              </div>
+              <div>
+                <dt>Patch lines</dt>
+                <dd>4,126</dd>
+              </div>
+              <div>
+                <dt>Patch bytes</dt>
+                <dd>214 KB</dd>
+              </div>
+              <div>
+                <dt>Commits</dt>
+                <dd>6</dd>
+              </div>
+              <div>
+                <dt>Changed lines</dt>
+                <dd>2,268</dd>
+              </div>
+            </dl>
             <div>
-              <dt>Files</dt>
-              <dd>46</dd>
+              <table id="pr-scale-groups">
+                <caption>
+                  Changed paths grouped by implementation area.
+                </caption>
+                <thead>
+                  <tr>
+                    <th>Review unit</th>
+                    <th>Files</th>
+                    <th>Change</th>
+                    <th>Review focus</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr id="pr-focus-safety">
+                    <th scope="row">1 · Git repository layer</th>
+                    <td>4</td>
+                    <td><code>+312 −30</code></td>
+                    <td>
+                      Untracked files enter while the
+                      <lf-gloss
+                        tip="The integration test reads the real index before and after preview computation and requires the bytes to match exactly."
+                        >real index remains byte-identical</lf-gloss
+                      >.
+                    </td>
+                  </tr>
+                  <tr id="pr-focus-latency">
+                    <th scope="row">2 · Picker runtime</th>
+                    <td>17</td>
+                    <td><code>+823 −466</code></td>
+                    <td>
+                      Off-screen worktrees load on demand without breaking tab or row
+                      identity.
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">3 · Integration tests</th>
+                    <td>8</td>
+                    <td><code>+308 −92</code></td>
+                    <td>Tests observe index bytes and filesystem residue.</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">4 · Other runtime</th>
+                    <td>6</td>
+                    <td><code>+42 −61</code></td>
+                    <td>Prior diff callers move to the shared abstraction.</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">5 · Docs and shipped skills</th>
+                    <td>9</td>
+                    <td><code>+69 −42</code></td>
+                    <td>The Git 2.34 floor is discoverable in every published copy.</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">6 · Benchmarks</th>
+                    <td>2</td>
+                    <td><code>+13 −10</code></td>
+                    <td>Prewarm cost moves to selected-row demand.</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <div>
-              <dt>Hunks</dt>
-              <dd>191</dd>
-            </div>
-            <div>
-              <dt>Patch lines</dt>
-              <dd>4,126</dd>
-            </div>
-            <div>
-              <dt>Patch bytes</dt>
-              <dd>214 KB</dd>
-            </div>
-            <div>
-              <dt>Commits</dt>
-              <dd>6</dd>
-            </div>
-            <div>
-              <dt>Changed lines</dt>
-              <dd>2,268</dd>
-            </div>
-          </dl>
-          <div>
-            <table id="pr-scale-groups">
-              <caption>
-                Changed paths grouped by implementation area.
-              </caption>
-              <thead>
-                <tr>
-                  <th>Review unit</th>
-                  <th>Files</th>
-                  <th>Change</th>
-                  <th>Review focus</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr id="pr-focus-safety">
-                  <th scope="row">1 · Git repository layer</th>
-                  <td>4</td>
-                  <td><code>+312 −30</code></td>
-                  <td>
-                    Untracked files enter while the
-                    <lf-gloss
-                      tip="The integration test reads the real index before and after preview computation and requires the bytes to match exactly."
-                      >real index remains byte-identical</lf-gloss
-                    >.
-                  </td>
-                </tr>
-                <tr id="pr-focus-latency">
-                  <th scope="row">2 · Picker runtime</th>
-                  <td>17</td>
-                  <td><code>+823 −466</code></td>
-                  <td>
-                    Off-screen worktrees load on demand without breaking tab or row
-                    identity.
-                  </td>
-                </tr>
-                <tr>
-                  <th scope="row">3 · Integration tests</th>
-                  <td>8</td>
-                  <td><code>+308 −92</code></td>
-                  <td>Tests observe index bytes and filesystem residue.</td>
-                </tr>
-                <tr>
-                  <th scope="row">4 · Other runtime</th>
-                  <td>6</td>
-                  <td><code>+42 −61</code></td>
-                  <td>Prior diff callers move to the shared abstraction.</td>
-                </tr>
-                <tr>
-                  <th scope="row">5 · Docs and shipped skills</th>
-                  <td>9</td>
-                  <td><code>+69 −42</code></td>
-                  <td>The Git 2.34 floor is discoverable in every published copy.</td>
-                </tr>
-                <tr>
-                  <th scope="row">6 · Benchmarks</th>
-                  <td>2</td>
-                  <td><code>+13 −10</code></td>
-                  <td>Prewarm cost moves to selected-row demand.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <details id="pr-path-tree">
-            <summary>Path hierarchy · 46 files</summary>
-            <lf-tree id="pr-files">
-              <pre>
+            <details id="pr-path-tree">
+              <summary>Path hierarchy · 46 files</summary>
+              <lf-tree id="pr-files">
+                <pre>
 max-sixty/worktrunk #3865
   src/
     commands/picker/  17 files  +823 −466
@@ -291,10 +298,11 @@ max-sixty/worktrunk #3865
                        9 files  +69  −42
   benches/             2 files  +13  −10
 </pre>
-            </lf-tree>
-          </details>
-        </div>
-      </section>
+              </lf-tree>
+            </details>
+          </div>
+        </section>
+      </details>
 
       <section id="pr-system">
         <h2>What changes at runtime</h2>
@@ -360,23 +368,37 @@ flowchart LR
           </lf-tab>
         </lf-tabs>
         <section id="pr-hunk">
-          <h3>The default the picker now opens on</h3>
+          <h3>The orchestration hunk the picker uses</h3>
           <p id="pr-hunk-intro">
-            The one hunk the rest of the change is arranged around: the picker asks for
-            a prepared diff instead of assembling its own <code>git diff</code>
-            arguments.
+            This exact hunk from <code>src/summary.rs</code> replaces direct Git
+            argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
           <lf-diff id="pr-key-hunk">
             <pre>
-diff --git a/src/git/diff.rs b/src/git/diff.rs
---- a/src/git/diff.rs
-+++ b/src/git/diff.rs
-@@ -112,4 +112,3 @@ impl Repository {
-     pub fn picker_preview(&amp;self, worktree: &amp;Worktree) -&gt; Result&lt;Diff&gt; {
--        let args = ["diff", "--patch", "--no-color", "--find-renames", "--diff-algorithm=histogram", "HEAD"];
--        Diff::parse(&amp;self.git(&amp;args, worktree.path())?)
-+        PreparedDiff::for_worktree(self, worktree)?.unified()
-     }
+diff --git a/src/summary.rs b/src/summary.rs
+--- a/src/summary.rs
++++ b/src/summary.rs
+@@ -258,16 +256,14 @@ pub(crate) fn compute_combined_diff(
+&#32;
+     // Working tree diff: uncommitted changes
+     if let Some(wt_path) = worktree_path {
+-        let path = wt_path.display().to_string();
+-        if let Ok(wt_stat) = repo.run_command(&amp;["-C", &amp;path, "diff", "HEAD", "--stat"])
++        let prepared = repo.worktree_at(wt_path).prepare_diff(["HEAD"]);
++        if let Ok(wt_stat) = prepared.capture(["--stat"])
+             &amp;&amp; !wt_stat.trim().is_empty()
+         {
+             stat.push_str(&amp;wt_stat);
+         }
+-        let mut wt_diff_args = vec!["-C", &amp;path];
+-        wt_diff_args.extend(DIFF_PREFIX_OVERRIDES);
+-        wt_diff_args.extend(["diff", "HEAD"]);
+-        if let Ok(wt_diff) = repo.run_command(&amp;wt_diff_args)
++        if let Ok(wt_diff) =
++            prepared.capture_with_git_options(DIFF_PREFIX_OVERRIDES, std::iter::empty::&lt;&amp;str&gt;())
+             &amp;&amp; !wt_diff.trim().is_empty()
+         {
+             diff.push_str(&amp;wt_diff);
 </pre>
           </lf-diff>
         </section>
@@ -407,38 +429,42 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
         </section>
       </section>
 
-      <section id="pr-history">
-        <h2>Prior PR activity</h2>
-        <lf-timeline id="pr-review-timeline">
-          <lf-event id="pr-event-open" at="03:32 UTC" kind="info">
-            <strong>PR opened</strong> The first revision introduced the unified picker
-            tab, shared diff preparation, and broad integration coverage.
-          </lf-event>
-          <lf-event id="pr-event-first-review" at="03:43 UTC" kind="warning">
-            <strong>First review withheld approval</strong> It found divergent sparse
-            handling, a predictable shared temp directory, startup-cost uncertainty, and
-            documentation drift.
-          </lf-event>
-          <lf-event id="pr-event-temp-fix" at="04:13 UTC" kind="action">
-            <strong>Temp indexes became random, exclusive files</strong> Sparse
-            registration and worktree-local temp-directory exclusion gained focused
-            tests.
-          </lf-event>
-          <lf-event id="pr-event-race-fix" at="04:32 UTC" kind="action">
-            <strong>The index copy kept ownership of its pathname</strong> Writing
-            through the still-open file closed the symlink race, and off-screen
-            worktrees moved out of eager prewarm.
-          </lf-event>
-          <lf-event id="pr-event-final-review" at="04:57 UTC" kind="info">
-            <strong>Final review approved with follow-ups</strong> The shared
-            <code>TempIndex</code> path and orchestration prose converged; selected-row
-            latency and dry-run temp artifacts remained visible notes.
-          </lf-event>
-          <lf-event id="pr-event-merged" at="05:18 UTC" kind="info">
-            <strong>Merged</strong> Six commits landed after all reported checks passed.
-          </lf-event>
-        </lf-timeline>
-      </section>
+      <details id="pr-history-disclosure">
+        <summary>Review history · four fixes before merge</summary>
+        <section id="pr-history">
+          <h2>Review history</h2>
+          <lf-timeline id="pr-review-timeline">
+            <lf-event id="pr-event-open" at="03:32 UTC" kind="info">
+              <strong>PR opened</strong> The first revision introduced the unified
+              picker tab, shared diff preparation, and broad integration coverage.
+            </lf-event>
+            <lf-event id="pr-event-first-review" at="03:43 UTC" kind="warning">
+              <strong>First review withheld approval</strong> It found divergent sparse
+              handling, a predictable shared temp directory, startup-cost uncertainty,
+              and documentation drift.
+            </lf-event>
+            <lf-event id="pr-event-temp-fix" at="04:13 UTC" kind="action">
+              <strong>Temp indexes became random, exclusive files</strong> Sparse
+              registration and worktree-local temp-directory exclusion gained focused
+              tests.
+            </lf-event>
+            <lf-event id="pr-event-race-fix" at="04:32 UTC" kind="action">
+              <strong>The index copy kept ownership of its pathname</strong> Writing
+              through the still-open file closed the symlink race, and off-screen
+              worktrees moved out of eager prewarm.
+            </lf-event>
+            <lf-event id="pr-event-final-review" at="04:57 UTC" kind="info">
+              <strong>Final review approved with follow-ups</strong> The shared
+              <code>TempIndex</code> path and orchestration prose converged;
+              selected-row latency and dry-run temp artifacts remained visible notes.
+            </lf-event>
+            <lf-event id="pr-event-merged" at="05:18 UTC" kind="info">
+              <strong>Merged</strong> Six commits landed after all reported checks
+              passed.
+            </lf-event>
+          </lf-timeline>
+        </section>
+      </details>
 
       <section id="pr-patch">
         <h2>Exact patch · 46 files</h2>
@@ -458,129 +484,135 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
         </lf-diff>
       </section>
 
-      <section id="pr-evidence">
-        <h2>Evidence and remaining gaps</h2>
-        <table id="pr-evidence-table">
-          <caption>
-            What the final revision demonstrates and what remains unmeasured.
-          </caption>
-          <thead>
-            <tr>
-              <th>Claim</th>
-              <th>Evidence</th>
-              <th>Status</th>
-              <th>Review reading</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Unified and subsidiary tabs show the intended changes</th>
-              <td>
-                <code
-                  >unified_diff_is_net_change_and_subsidiary_diffs_include_untracked</code
-                >
-              </td>
-              <td class="pr-evidence-status">
-                <span class="pr-status-passed">passed</span>
-              </td>
-              <td>The same test requires the real index to remain byte-identical.</td>
-            </tr>
-            <tr>
-              <th scope="row">Sparse checkouts retain out-of-cone untracked files</th>
-              <td>
-                <code
-                  >test_picker_dry_run_includes_untracked_outside_sparse_checkout</code
-                >
-              </td>
-              <td class="pr-evidence-status">
-                <span class="pr-status-passed">passed</span>
-              </td>
-              <td>Exercises the regression the first review found.</td>
-            </tr>
-            <tr>
-              <th scope="row">
-                Worktree-local temp directories leave no index artifacts
-              </th>
-              <td>
-                <code
-                  >test_picker_dry_run_tempdir_inside_worktree_has_no_index_artifacts</code
-                >
-              </td>
-              <td class="pr-evidence-status">
-                <span class="pr-status-passed">passed</span>
-              </td>
-              <td>Also makes glob escaping load-bearing through a bracketed path.</td>
-            </tr>
-            <tr>
-              <th scope="row">Off-screen worktrees are demand-loaded</th>
-              <td>
-                <code
-                  >initial_precompute_skips_offscreen_worktrees_but_warms_branches</code
-                >
-              </td>
-              <td class="pr-evidence-status">
-                <span class="pr-status-passed">passed</span>
-              </td>
-              <td>Proves scheduling shape, not selected-row latency.</td>
-            </tr>
-            <tr>
-              <th scope="row">Selected-row demand remains fast</th>
-              <td>No latency benchmark</td>
-              <td class="pr-evidence-status"><span class="pr-status-gap">gap</span></td>
-              <td>
-                The correctness test allows up to 60 seconds and cannot answer this.
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">
-                Commit dry-run excludes its own temp index under local TMPDIR
-              </th>
-              <td>No focused regression in this PR</td>
-              <td class="pr-evidence-status"><span class="pr-status-gap">gap</span></td>
-              <td>
-                A reviewer reproduced the extra index and lock entries with plain Git.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <details id="pr-prepared-diff-evidence">
-          <summary>Exact PreparedDiff source at the merged revision</summary>
-          <p id="pr-prepared-diff-note">
-            This 169-line repository slice contains the source-owning abstraction and
-            all three preparation entry points.
-          </p>
-          <lf-source
-            id="pr-prepared-diff-source"
-            source="pr-prepared-diff-source"
-            snapshot="3"
-            language="rust"
-          ></lf-source>
-        </details>
-      </section>
+      <details id="pr-evidence-disclosure">
+        <summary>Evidence matrix · four proven claims, two gaps</summary>
+        <section id="pr-evidence">
+          <h2>Evidence and remaining gaps</h2>
+          <table id="pr-evidence-table">
+            <caption>
+              What the final revision demonstrates and what remains unmeasured.
+            </caption>
+            <thead>
+              <tr>
+                <th>Claim</th>
+                <th>Evidence</th>
+                <th>Status</th>
+                <th>Review reading</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">
+                  Unified and subsidiary tabs show the intended changes
+                </th>
+                <td>
+                  <code
+                    >unified_diff_is_net_change_and_subsidiary_diffs_include_untracked</code
+                  >
+                </td>
+                <td class="pr-evidence-status">
+                  <span class="pr-status-passed">passed</span>
+                </td>
+                <td>The same test requires the real index to remain byte-identical.</td>
+              </tr>
+              <tr>
+                <th scope="row">Sparse checkouts retain out-of-cone untracked files</th>
+                <td>
+                  <code
+                    >test_picker_dry_run_includes_untracked_outside_sparse_checkout</code
+                  >
+                </td>
+                <td class="pr-evidence-status">
+                  <span class="pr-status-passed">passed</span>
+                </td>
+                <td>Exercises the regression the first review found.</td>
+              </tr>
+              <tr>
+                <th scope="row">
+                  Worktree-local temp directories leave no index artifacts
+                </th>
+                <td>
+                  <code
+                    >test_picker_dry_run_tempdir_inside_worktree_has_no_index_artifacts</code
+                  >
+                </td>
+                <td class="pr-evidence-status">
+                  <span class="pr-status-passed">passed</span>
+                </td>
+                <td>Also makes glob escaping load-bearing through a bracketed path.</td>
+              </tr>
+              <tr>
+                <th scope="row">Off-screen worktrees are demand-loaded</th>
+                <td>
+                  <code
+                    >initial_precompute_skips_offscreen_worktrees_but_warms_branches</code
+                  >
+                </td>
+                <td class="pr-evidence-status">
+                  <span class="pr-status-passed">passed</span>
+                </td>
+                <td>Proves scheduling shape, not selected-row latency.</td>
+              </tr>
+              <tr>
+                <th scope="row">Selected-row demand remains fast</th>
+                <td>No latency benchmark</td>
+                <td class="pr-evidence-status">
+                  <span class="pr-status-gap">gap</span>
+                </td>
+                <td>
+                  The correctness test allows up to 60 seconds and cannot answer this.
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">
+                  Commit dry-run excludes its own temp index under local TMPDIR
+                </th>
+                <td>No focused regression in this PR</td>
+                <td class="pr-evidence-status">
+                  <span class="pr-status-gap">gap</span>
+                </td>
+                <td>
+                  A reviewer reproduced the extra index and lock entries with plain Git.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <details id="pr-prepared-diff-evidence">
+            <summary>Exact PreparedDiff source at the merged revision</summary>
+            <p id="pr-prepared-diff-note">
+              This 169-line repository slice contains the source-owning abstraction and
+              all three preparation entry points.
+            </p>
+            <lf-source
+              id="pr-prepared-diff-source"
+              source="pr-prepared-diff-source"
+              snapshot="3"
+              language="rust"
+            ></lf-source>
+          </details>
+        </section>
+      </details>
 
       <section id="pr-outcome">
         <lf-ask id="pr-outcome-decision">
-          <h2>What would you report on the final revision?</h2>
+          <h2>How would you have reviewed the final revision?</h2>
           <p id="pr-outcome-context">
-            Choose the review the agent should enter on the forge. Each option states
-            the disposition and the exact work, so the agent can submit it without
-            translating a generic label. Digits choose a listed answer;
-            <kbd>c</kbd> comments on it. Tab reaches <strong>Another option</strong>,
-            where <kbd>Enter</kbd> adds a line and <kbd>Mod+Enter</kbd> adds the answer.
+            The pull request is already merged. Choose the review judgment best
+            supported by the captured revision and evidence.
           </p>
           <lf-options id="pr-outcome-choice" choose>
             <lf-option id="pr-outcome-follow-up">
-              <strong>Approve with two follow-ups.</strong> Merge this revision; add a
-              selected-row latency benchmark and a dry-run artifact regression in
+              <strong>Approve with two follow-ups.</strong> This revision was ready; add
+              a selected-row latency benchmark and a dry-run artifact regression in
               subsequent work.
               <em>My take: this best matches the final evidence and review trail.</em>
             </lf-option>
             <lf-option id="pr-outcome-approve">
-              <strong>Approve without follow-ups.</strong> Merge this revision and close
-              the two remaining gaps as non-actionable.
+              <strong>Approve without follow-ups.</strong> This revision was ready;
+              close the two remaining gaps as non-actionable.
             </lf-option>
             <lf-option id="pr-outcome-request-changes">
-              <strong>Request two changes before merge.</strong> Add a selected-row
+              <strong>Would have requested two changes.</strong> Add a selected-row
               latency budget, and prevent <code>wt step commit --dry-run</code> from
               staging temporary-index artifacts when <code>TMPDIR</code> is inside the
               worktree.

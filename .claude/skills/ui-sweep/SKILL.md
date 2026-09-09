@@ -54,7 +54,9 @@ and owner identities, and retained values where those matter. Measure geometry
 for spatial claims; inspect paired screenshots for hierarchy, spacing, and paint.
 For motion, capture the path as well as endpoints: `tests/CLAUDE.md`,
 "Distinguish a frame, a sequence, and an instant", owns the recording and
-`HOLD_MOTION` mechanics. Settled boxes cannot establish a smooth transition.
+`HOLD_MOTION` mechanics. The hold patches `Element.prototype.animate`; CSS
+animations bypass it, so sample their geometry frame by frame. Settled boxes
+cannot establish a smooth transition.
 For paint-only transitions, compare the same target's hit-test rectangle before,
 during, and after the state change; added paint does not move its target.
 

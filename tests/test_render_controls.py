@@ -47,6 +47,8 @@ from render_support import (
     SCROLLED,
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
+    SHOT_SRC,
+    SHOTS,
     SUGGESTION_PAGE,
     TOKEN,
     UNBREAKABLE_PAGE,
@@ -151,6 +153,9 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 +    # the ceiling doubles per approval
 +    return "over" if approvals &gt; 12 else limit
 </pre></lf-diff>
+"""
+    f"""<lf-shot id="stable-shot" alt="the release card"
+         before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>
 """,
     head='<meta name="lf-review" content="sign-off">',
 )
@@ -231,13 +236,10 @@ CONTROL_ARCHETYPES = (
         # and each caption chooses its own frame. Pressing After is the transition with
         # something to prove — the caption the reader leaves and the one they arrive at
         # both change their active paint, and a rule that spent width on the active word
-        # would move the other caption under the reader's pointer. `example` because a
-        # comparison needs two shot files, which a synthetic page composes nothing to
-        # point at.
+        # would move the other caption under the reader's pointer.
         "name": "shot-caption",
-        "example": FEATURE_GALLERY,
         "coverage": ".lf-shotrail > .lf-shotcap",
-        "target": '#bg-shot .lf-shotcap[data-lf-state="after"]',
+        "target": '#stable-shot .lf-shotcap[data-lf-state="after"]',
     },
     {
         # The gallery's playback row. The runtime injects Play/Pause and Replay beside
@@ -2034,6 +2036,7 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
         if example
         else serve(
             CONTROL_STABILITY_PAGE,
+            media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
             events=[
                 {
                     "kind": "comment",
